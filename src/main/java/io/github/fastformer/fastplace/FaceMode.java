@@ -1,23 +1,23 @@
 package io.github.fastformer.fastplace;
 
 public enum FaceMode implements FastPlaceMode {
-    RECTANGLE("Rectangle"),
-    PARALLELOGRAM("Parallelogram"),
-    POLYGON("Polygon");
+   COORDINATE_PLANE("fastformer.mode.face.coordinate_plane"),
+   PARALLELOGRAM_BASE_PLANE("fastformer.mode.face.parallelogram_base_plane"),
+   POLYGON("fastformer.mode.face.polygon");
 
-    private final String displayName;
+   private final String translationKey;
 
-    FaceMode(String displayName) {
-        this.displayName = displayName;
-    }
+   FaceMode(String translationKey) {
+      this.translationKey = translationKey;
+   }
 
-    @Override
-    public FastPlaceStage stage() {
-        return FastPlaceStage.FACE;
-    }
+   @Override
+   public FastPlaceStage stage() {
+      return FastPlaceStage.FACE;
+   }
 
-    @Override
-    public String displayName() {
-        return displayName;
-    }
+   @Override
+   public String translationKey() {
+      return this.translationKey;
+   }
 }

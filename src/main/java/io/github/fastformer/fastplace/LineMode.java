@@ -1,24 +1,23 @@
 package io.github.fastformer.fastplace;
 
 public enum LineMode implements FastPlaceMode {
-    STRAIGHT("Straight"),
-    PLANAR("Planar"),
-    VIEW_PLANE("View plane"),
-    SPATIAL("Spatial");
+   AXIS("fastformer.mode.line.axis"),
+   FREE_SCROLL("fastformer.mode.line.free_scroll"),
+   RAYCAST("fastformer.mode.line.raycast");
 
-    private final String displayName;
+   private final String translationKey;
 
-    LineMode(String displayName) {
-        this.displayName = displayName;
-    }
+   LineMode(String translationKey) {
+      this.translationKey = translationKey;
+   }
 
-    @Override
-    public FastPlaceStage stage() {
-        return FastPlaceStage.LINE;
-    }
+   @Override
+   public FastPlaceStage stage() {
+      return FastPlaceStage.LINE;
+   }
 
-    @Override
-    public String displayName() {
-        return displayName;
-    }
+   @Override
+   public String translationKey() {
+      return this.translationKey;
+   }
 }

@@ -1,7 +1,5 @@
 package io.github.fastformer.fastplace;
 
-public interface FastPlaceMode {
-    FastPlaceStage stage();
-
-    String displayName();
+public interface FastPlaceMode extends TranslatableText {
+   FastPlaceStage stage();
 }

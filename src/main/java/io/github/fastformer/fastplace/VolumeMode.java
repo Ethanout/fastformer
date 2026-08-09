@@ -1,22 +1,22 @@
 package io.github.fastformer.fastplace;
 
 public enum VolumeMode implements FastPlaceMode {
-    EXTRUDE("Extrude"),
-    POLYHEDRON("Polyhedron");
+   PERPENDICULAR_TO_FACE("fastformer.mode.volume.perpendicular_to_face"),
+   FREE("fastformer.mode.volume.free");
 
-    private final String displayName;
+   private final String translationKey;
 
-    VolumeMode(String displayName) {
-        this.displayName = displayName;
-    }
+   VolumeMode(String translationKey) {
+      this.translationKey = translationKey;
+   }
 
-    @Override
-    public FastPlaceStage stage() {
-        return FastPlaceStage.VOLUME;
-    }
+   @Override
+   public FastPlaceStage stage() {
+      return FastPlaceStage.VOLUME;
+   }
 
-    @Override
-    public String displayName() {
-        return displayName;
-    }
+   @Override
+   public String translationKey() {
+      return this.translationKey;
+   }
 }

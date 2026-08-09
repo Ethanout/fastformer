@@ -37,7 +37,7 @@ base {
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-//minecraft.accessTransformers.file rootProject.file('src/main/resources/META-INF/accesstransformer.cfg')
+minecraft.accessTransformers.file rootProject.file('src/main/resources/META-INF/accesstransformer.cfg')
 //minecraft.accessTransformers.entry public net.minecraft.client.Minecraft textureManager # textureManager
 
 // Default run configurations.
@@ -105,6 +105,10 @@ dependencies {
     // For all intends and purposes: You can treat this dependency as if it is a normal library you would use.
     implementation "net.neoforged:neoforge:${neo_version}"
 
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
@@ -166,6 +170,114 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+// Gradle test workers cannot reliably load classes from this checkout's non-ASCII path.
+def asciiTestRoot = new File(
+        System.getProperty('java.io.tmpdir'),
+        "fastformer-gradle-test-${Integer.toUnsignedString(projectDir.absolutePath.hashCode())}"
+)
+def asciiMainClasses = new File(asciiTestRoot, 'main')
+def asciiTestClasses = new File(asciiTestRoot, 'test')
+def asciiMinecraftClasses = new File(asciiTestRoot, 'minecraft')
+
+tasks.register('prepareAsciiTestRuntime', Sync) {
+    dependsOn tasks.named('testClasses')
+    into asciiTestRoot
+    from(sourceSets.main.output) {
+        into 'main'
+    }
+    from(sourceSets.test.output) {
+        into 'test'
+    }
+    from({
+        fileTree(layout.buildDirectory.dir('neoForm')) {
+            include '**/steps/recompile/outputs.jar'
+        }.singleFile
+    }) {
+        into 'minecraft'
+        rename { 'minecraft-neoforge.jar' }
+    }
+}
+
+tasks.named('test', Test).configure {
+    dependsOn tasks.named('prepareAsciiTestRuntime')
+    useJUnitPlatform()
+    testClassesDirs = files(asciiTestClasses)
+    classpath = files(asciiTestClasses, asciiMainClasses, new File(asciiMinecraftClasses, 'minecraft-neoforge.jar')) + (
+            sourceSets.test.runtimeClasspath - sourceSets.test.output - sourceSets.main.output
+    )
+    workingDir new File(asciiTestRoot, 'work')
+    doFirst {
+        getWorkingDir().mkdirs()
+    }
+}
+
+tasks.register('verifyModJar') {
+    dependsOn tasks.named('jar')
+    inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+    doLast {
+        def requiredEntries = [
+                'io/github/fastformer/fastplace/FastPlaceMessages.class',
+                'io/github/fastformer/fastplace/FastPlaceManager.class',
+                'io/github/fastformer/fastplace/FastPlaceGeometry.class',
+                'io/github/fastformer/fastplace/ConvexPolyhedronWorkflow.class',
+                'io/github/fastformer/fastplace/FastPlaceActivity.class',
+                'io/github/fastformer/fastplace/ReversibleBlockSnapshot.class',
+                'io/github/fastformer/fastplace/WorldHistoryManager.class',
+                'io/github/fastformer/fastplace/WorldChangeBatch.class',
+                 'io/github/fastformer/fastplace/PersistentRecoveryJournal.class',
+                 'io/github/fastformer/fastplace/TaskCancellationResult.class',
+                 'io/github/fastformer/fastplace/WorldWriteCoordinator.class',
+                 'io/github/fastformer/fastplace/WorldOperationCommit.class',
+                 'io/github/fastformer/fastplace/WorldOperationMemory.class',
+                 'io/github/fastformer/fastplace/WorldTaskContext.class',
+                 'io/github/fastformer/fastplace/WorldTaskFeature.class',
+                'io/github/fastformer/fastplace/geometry/GeometryAction.class',
+                'io/github/fastformer/fastplace/geometry/generation/PlanarFaceRasterizer.class',
+                'io/github/fastformer/fastplace/geometry/generation/ArbitraryConvexPolyhedronGenerator.class'
+        ]
+        def jarFile = inputs.files.singleFile
+        new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
+            requiredEntries.each { entry ->
+                if (zip.getEntry(entry) == null) {
+                    throw new GradleException("Mod jar is missing required class: ${entry}")
+                }
+            }
+        }
+    }
+}
+
+tasks.register('deployTo233') {
+    dependsOn tasks.named('verifyModJar')
+    def targetFile = file('C:/重要的资料/mc本体游戏/.minecraft/versions/1.21.1-NeoForge_21.1.233/mods/fastformer-0.1.0.jar')
+    inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+    doLast {
+        def process = new ProcessBuilder(
+                'powershell', '-NoProfile', '-Command',
+                '(Get-CimInstance Win32_Process | ' +
+                        "Where-Object { \$_.Name -in @('java.exe','javaw.exe') -and " +
+                        "\$_.CommandLine -like '*1.21.1-NeoForge_21.1.233*' }).Count"
+        ).redirectErrorStream(true).start()
+        def minecraftRunning = process.inputStream.getText('UTF-8').trim()
+        process.waitFor()
+        if (minecraftRunning != '0') {
+            throw new GradleException('Refusing to replace the mod jar while the .233 Minecraft instance is running.')
+        }
+
+        targetFile.parentFile.mkdirs()
+        java.nio.file.Files.copy(
+                inputs.files.singleFile.toPath(),
+                targetFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING
+        )
+
+        new java.util.zip.ZipFile(targetFile).withCloseable { zip ->
+            if (zip.getEntry('io/github/fastformer/fastplace/FastPlaceMessages.class') == null) {
+                throw new GradleException('Deployed mod jar is missing FastPlaceMessages.class')
+            }
+        }
+    }
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

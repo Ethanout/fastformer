@@ -29,6 +29,10 @@ bin/
 ### VS Code ###
 .vscode/
 
+### Python voxel lab ###
+__pycache__/
+*.pyc
+
 ### Mac OS ###
 .DS_Store
 
@@ -38,3 +42,10 @@ run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+
+### Local recovery backups ###
+recovery/
+
+### Local diagnostics ###
+logs/
+错误报告-*.zip

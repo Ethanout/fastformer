@@ -1,0 +1,33 @@
+{
+    "blend": {
+        "func": "add",
+        "srcrgb": "one",
+        "dstrgb": "zero"
+    },
+    "vertex": "fastformer:blit",
+    "fragment": "fastformer:reticle_invert",
+    "attributes": [ "Position" ],
+    "samplers": [
+        { "name": "DiffuseSampler" }
+    ],
+    "uniforms": [
+        { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "InSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "OutSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "ScreenSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "ReticleFromMode", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "ReticleMode", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "ReticleTransition", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "ReticleCrossArm", "type": "float", "count": 1, "values": [ 4.32 ] },
+        { "name": "ReticleCrossWidth", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "ReticleArmLength", "type": "float", "count": 1, "values": [ 4.32 ] },
+        { "name": "ReticleArmWidth", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "ReticleArmGap", "type": "float", "count": 1, "values": [ 2.7 ] },
+        { "name": "ReticleOffsetX", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "ReticleOffsetY", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "ReticlePointRingRadius", "type": "float", "count": 1, "values": [ 3.78 ] },
+        { "name": "ReticlePointRingWidth", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "ReticlePointCenterSize", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "ReticleOpacity", "type": "float", "count": 1, "values": [ 1.0 ] }
+    ]
+}

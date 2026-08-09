@@ -1,0 +1,61 @@
+package io.github.fastformer.client.operation;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.github.fastformer.fastplace.OperationSelectionMode;
+import io.github.fastformer.fastplace.OperationSelectionVolume;
+import java.util.List;
+import java.util.Map;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import org.junit.jupiter.api.Test;
+
+class ClientSelectionPartTest {
+   @Test
+   void resizingBeforeTransformMovesTheEditableBaseline() {
+      ClientSelectionPart part = part(new AABB(0, 0, 0, 2, 2, 2));
+      OperationSelectionVolume resized = volume(new AABB(0, 0, 0, 4, 2, 2));
+
+      ClientSelectionPart updated = part.withSelection(resized).withBlocks(Map.of());
+
+      assertFalse(updated.transformBaselineFrozen());
+      assertTrue(updated.matchesInitialBounds());
+      assertTrue(updated.initialBounds().equals(resized.bounds()));
+   }
+
+   @Test
+   void firstLinearTransformFreezesTheCurrentSelectionAsBaseline() {
+      ClientSelectionPart resized = part(new AABB(0, 0, 0, 2, 2, 2))
+         .withSelection(volume(new AABB(-1, 0, 0, 4, 2, 2)));
+
+      ClientSelectionPart moved = resized.withTranslation(new Vec3(3, 0, 0));
+
+      assertTrue(moved.transformBaselineFrozen());
+      assertFalse(moved.matchesInitialBounds());
+      assertTrue(moved.initialBounds().equals(resized.selection().bounds()));
+   }
+
+   @Test
+   void returningToTheFrozenBaselineMakesTheSelectionAdjustableAgain() {
+      ClientSelectionPart moved = part(new AABB(0, 0, 0, 2, 2, 2))
+         .withTranslation(new Vec3(3, 0, 0));
+
+      ClientSelectionPart returned = moved.withTranslation(Vec3.ZERO);
+
+      assertTrue(returned.transformBaselineFrozen());
+      assertTrue(returned.matchesInitialBounds());
+      assertFalse(returned.transform().hasEffect());
+   }
+
+   private static ClientSelectionPart part(AABB bounds) {
+      return new ClientSelectionPart(
+         1, ClientSelectionPart.Source.WORLD, volume(bounds), Map.of(), WorkspaceTransform.IDENTITY, false
+      );
+   }
+
+   private static OperationSelectionVolume volume(AABB bounds) {
+      return new OperationSelectionVolume(OperationSelectionMode.CUBOID, bounds, null, List.of(), 0);
+   }
+}

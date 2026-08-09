@@ -1,0 +1,12 @@
+allprojects {
+    afterEvaluate {
+        if (plugins.hasPlugin('java')) {
+            def testClasspath = project.sourceSets.test.runtimeClasspath.asPath
+            tasks.register('printTestClasspath') {
+                doLast {
+                    println(testClasspath)
+                }
+            }
+        }
+    }
+}
