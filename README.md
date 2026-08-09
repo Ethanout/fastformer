@@ -1,31 +1,31 @@
 # FastFormer
 
-NeoForge 1.21.1 创造模式远距离建筑辅助模组，目前处于 alpha 开发阶段。
+FastFormer 是一个面向 Minecraft 1.21.1 创造模式的 NeoForge 建筑模组。它希望在不打断原版操作习惯的前提下，把远距离起形、几何生成和选区变换放进同一套交互里。
 
-核心系统：
+项目还在早期测试阶段，操作方式和存档格式都有可能调整。请不要在没有备份的正式存档中使用。
 
-- 起形：按点、线、面、体逐步生成结构。
-- 几何：墙体、多面体、球体、锥柱台体等独立工作流。
-- 操作：选区、移动、复制、堆叠和扩展。
-- 特殊物品：通过注册入口提供一次性工具行为。
+## 目前包含
 
-兼容性第一，不使用 mixin。近距离输入交还原版；客户端只负责输入和预览，服务端负责权威状态与世界修改。
+- 从点、线、面逐步生成体积的快速起形工具
+- 墙体、球体、多面体和锥柱台体等几何工具
+- 长方体与棱柱选区
+- 选区移动、旋转、重复、复制和删除
+- 多选区与客户端剪贴板
+- 世界修改历史和撤回
 
-开发时依次阅读：
+模组尽量把近距离点击交还给原版，也没有使用 Mixin。预览和选区工作区主要在客户端运行，最终的世界修改仍由服务端执行。
 
-- `SKILL.md`
-- `TODO.md`
-- `docs/design_principles.md`
-- `docs/session_design.md`
-- `issues.md`
+## 构建
 
-项目仍不是可发布 demo，脏 worktree 是正常开发状态，不要清理或回退未提交文件。
-
-代码修改后运行：
+需要 JDK 21。仓库当前使用 Minecraft 1.21.1 和 NeoForge 21.1.233。
 
 ```powershell
-.\gradlew.bat --no-daemon compileJava test --console=plain
-.\gradlew.bat --no-daemon deployTo233 --console=plain
+.\gradlew.bat test --console=plain
+.\gradlew.bat build --console=plain
 ```
 
-不自动启动客户端。
+生成的 jar 位于 `build/libs/`。
+
+## 开发说明
+
+具体设计记录放在 `docs/`，尚未完成的工作记录在 `TODO.md` 和 `issues.md`。当前代码变化较快，提交问题时请附上复现步骤、截图以及使用的提交版本。
