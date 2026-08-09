@@ -368,11 +368,11 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> outline = TiltedBoxGenerator.generate(
          base, extrusion, FillMode.OUTLINE, 100_000, BlockGenerationObserver.NONE, bias
       );
-      Set<BlockPos> expectedOutline = independentlyRasterizedOutline(base, extrusion, bias);
+      Set<BlockPos> expectedOutline = exactTwelveEdgeOutline(base, extrusion, bias);
 
       assertFalse(solid.isEmpty());
       assertEquals(expectedHollow(solid), hollow);
-      assertEquals(expectedOutline, outline, "outline must use the requested bias on every final face");
+      assertEquals(expectedOutline, outline, "outline must contain exactly the twelve authored box edges");
       assertTrue(solid.containsAll(outline));
       assertTrue(hollow.containsAll(corners(base, extrusion)), "a box corner escaped the physical boundary");
       assertTrue(fiveSidedOpenGaps(solid).isEmpty(), () -> "five-sided gaps " + fiveSidedOpenGaps(solid));
@@ -779,22 +779,21 @@ class TiltedBoxGeneratorTest {
    private record FaceColumn(int u, int v) {
    }
 
-   private static Set<BlockPos> independentlyRasterizedOutline(
+   private static Set<BlockPos> exactTwelveEdgeOutline(
       List<Vec3> base,
       Vec3 extrusion,
       LineTieBias tieBias
    ) {
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
-      for (List<Vec3> face : boxFaces(base, extrusion)) {
-         ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(face);
-         BresenhamFaceSweep.Attempt attempt = BoundaryInterpolatedFaceRasterizer.attempt(
-            frame,
-            tieBias,
-            100_000,
-            BlockGenerationObserver.NONE
-         );
-         assertTrue(attempt.succeeded(), () -> "face failed: " + face + " status=" + attempt.status());
-         result.addAll(attempt.result().outline());
+      Set<BlockPos> baseOutline = PlanarFaceRasterizer.interpolatedQuadOutline(
+         base, 100_000, BlockGenerationObserver.NONE, tieBias
+      );
+      List<BlockPos> offsets = LineGenerator.offsets(extrusion, 100_000, tieBias);
+      BlockPos topOffset = BlockPos.containing(extrusion);
+      LinkedHashSet<BlockPos> result = new LinkedHashSet<>(baseOutline);
+      baseOutline.forEach(block -> result.add(block.offset(topOffset)));
+      for (Vec3 vertex : base) {
+         BlockPos corner = BlockPos.containing(vertex);
+         offsets.forEach(offset -> result.add(corner.offset(offset)));
       }
       return result;
    }
