@@ -66,7 +66,7 @@ class FaceTieBiasGenerationTest {
       Vec3 extrusion = new Vec3(1.0, -2.0, 0.0);
 
       for (LineTieBias bias : LineTieBias.values()) {
-         Set<BlockPos> expectedOutline = expectedBoxOutline(base, extrusion, bias);
+         LinkedHashSet<BlockPos> expectedOutline = new LinkedHashSet<>();
          LinkedHashSet<BlockPos> expectedShell = new LinkedHashSet<>();
          for (List<Vec3> face : boxFaces(base, extrusion)) {
             ProjectedBresenhamFace.Frame faceFrame = ProjectedBresenhamFace.Frame.create(face);
@@ -78,6 +78,7 @@ class FaceTieBiasGenerationTest {
             );
             assertTrue(attempt.succeeded(), bias + " face=" + face + " status=" + attempt.status());
             BresenhamFaceSweep.Result rasterized = attempt.result();
+            expectedOutline.addAll(rasterized.outline());
             expectedShell.addAll(clipToOwnedBoundary(faceFrame, rasterized.fill(), rasterized.outline()));
          }
 
@@ -179,19 +180,6 @@ class FaceTieBiasGenerationTest {
       result.addAll(second);
       first.forEach(block -> result.add(block.offset(firstOffset)));
       second.forEach(block -> result.add(block.offset(secondOffset)));
-      return result;
-   }
-
-   private static Set<BlockPos> expectedBoxOutline(List<Vec3> base, Vec3 extrusion, LineTieBias bias) {
-      Set<BlockPos> baseOutline = expectedFaceOutline(base, bias);
-      List<BlockPos> offsets = LineGenerator.offsets(extrusion, 10_000, bias);
-      BlockPos topOffset = BlockPos.containing(extrusion);
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>(baseOutline);
-      baseOutline.forEach(block -> result.add(block.offset(topOffset)));
-      for (Vec3 vertex : base) {
-         BlockPos corner = BlockPos.containing(vertex);
-         offsets.forEach(offset -> result.add(corner.offset(offset)));
-      }
       return result;
    }
 }

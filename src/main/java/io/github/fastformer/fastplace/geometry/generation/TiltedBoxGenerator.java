@@ -165,47 +165,43 @@ public final class TiltedBoxGenerator {
       int stagingLimit = onePast(maxBlocks);
       BlockGenerationObserver staging = stagingObserver(observer);
       Set<BlockPos> staged = new ObservedBlockSet(staging);
-      Set<BlockPos> baseOutline = PlanarFaceRasterizer.interpolatedQuadOutline(
-         base,
-         stagingLimit,
-         staging,
-         tieBias,
-         rasterizationMode
-      );
-      if (GenerationLimitExceeded.is(baseOutline)) {
-         return GenerationLimitExceeded.witness(maxBlocks, observer);
-      }
-      if (GenerationFailed.is(baseOutline)) {
-         return baseOutline;
-      }
-      List<BlockPos> extrusionOffsets = LineGenerator.offsets(extrusion, stagingLimit, tieBias);
-      if (extrusionOffsets.isEmpty()) {
-         return Set.of();
-      }
-      BlockPos topOffset = BlockPos.containing(extrusion);
-      for (BlockPos block : baseOutline) {
-         if (!addOutlineBlock(staged, block, maxBlocks)
-            || !addOutlineBlock(staged, block.offset(topOffset), maxBlocks)) {
-            return sentinel(maxBlocks);
+      List<Vec3> top = base.stream().map(vertex -> vertex.add(extrusion)).toList();
+      for (List<Vec3> face : boxFaces(base, top)) {
+         Set<BlockPos> faceOutline = PlanarFaceRasterizer.interpolatedQuadNaturalOutline(
+            face,
+            stagingLimit,
+            staging,
+            tieBias,
+            rasterizationMode
+         );
+         if (GenerationLimitExceeded.is(faceOutline)) {
+            return GenerationLimitExceeded.witness(maxBlocks, observer);
          }
-      }
-      for (Vec3 vertex : base) {
-         BlockPos corner = BlockPos.containing(vertex);
-         for (BlockPos offset : extrusionOffsets) {
-            if (!addOutlineBlock(staged, corner.offset(offset), maxBlocks)) {
+         if (GenerationFailed.is(faceOutline)) {
+            return faceOutline;
+         }
+         for (BlockPos block : faceOutline) {
+            if (!staged.contains(block) && staged.size() >= maxBlocks) {
                return sentinel(maxBlocks);
             }
+            staged.add(block);
+         }
+         if (staged.size() > maxBlocks) {
+            return sentinel(maxBlocks);
          }
       }
       return publish(staged, maxBlocks, observer);
    }
 
-   private static boolean addOutlineBlock(Set<BlockPos> output, BlockPos block, int maxBlocks) {
-      if (!output.contains(block) && output.size() >= maxBlocks) {
-         return false;
+   private static List<List<Vec3>> boxFaces(List<Vec3> base, List<Vec3> top) {
+      java.util.ArrayList<List<Vec3>> result = new java.util.ArrayList<>(6);
+      result.add(List.copyOf(base));
+      result.add(List.copyOf(top));
+      for (int index = 0; index < 4; index++) {
+         int next = (index + 1) % 4;
+         result.add(List.of(base.get(index), base.get(next), top.get(next), top.get(index)));
       }
-      output.add(block.immutable());
-      return true;
+      return List.copyOf(result);
    }
 
    private static Set<BlockPos> degenerateSolid(
