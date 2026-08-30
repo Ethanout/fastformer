@@ -76,4 +76,27 @@ class WorkspacePreviewComposerTest {
 
       assertTrue(mask.positions().isEmpty());
    }
+
+   @Test
+   void refusesWorkspacePreviewThatWouldExpandPastTheClientLimit() {
+      OperationStackRegion repeats = new OperationStackRegion(
+         new BlockPos(-128, -128, -128), new BlockPos(128, 128, 128)
+      );
+      WorkspaceTransform transform = new WorkspaceTransform(Vec3.ZERO, Vec3.ZERO, repeats);
+
+      assertTrue(!WorkspacePreviewComposer.canResolveForRendering(
+         Map.of(BlockPos.ZERO, "block"), transform
+      ));
+   }
+
+   @Test
+   void sparseUnscaledWorkspaceUsesOccupiedCountInsteadOfBoundingVolume() {
+      Map<BlockPos, String> sparse = Map.of(
+         BlockPos.ZERO, "first",
+         new BlockPos(1_000_000, 0, 0), "second"
+      );
+      WorkspaceTransform translated = WorkspaceTransform.IDENTITY.withTranslation(new Vec3(1, 0, 0));
+
+      assertTrue(WorkspacePreviewComposer.canResolveForRendering(sparse, translated));
+   }
 }

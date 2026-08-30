@@ -3,10 +3,9 @@ package io.github.fastformer.client.operation;
 import io.github.fastformer.fastplace.OperationSelectionMode;
 import io.github.fastformer.fastplace.OperationSelectionVolume;
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
-import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.client.ClientPlacementRouter;
 import io.github.fastformer.network.OperationPreviewPayload;
-import io.github.fastformer.network.OperationWorkspaceApplyPayload;
 import io.github.fastformer.network.OperationWorkspaceResultPayload;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -14,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Arrays;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -26,9 +24,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.fml.loading.FMLPaths;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Bridges the pure client workspace to Minecraft input, world capture and persistent clipboard storage. */
 public final class ClientOperationController {
@@ -36,15 +32,19 @@ public final class ClientOperationController {
       .resolve("fastformer-operation-clipboard.nbt.gz");
    private static final ClientOperationWorkspace WORKSPACE = new ClientOperationWorkspace();
    private static final SourceBlockRenderMask SOURCE_MASK = new SourceBlockRenderMask();
+   private static final ClientSelectionSession SELECTION_SESSION = new ClientSelectionSession();
    private static OperationClipboard clipboard;
    private static boolean clipboardLoaded;
-   private static boolean serverOperationSeen;
    private static boolean workspaceSubmissionPending;
-   private static OperationSelectionMode currentSelectionMode = OperationSelectionMode.CUBOID;
-   private static final java.util.ArrayList<BlockPos> draftPoints = new java.util.ArrayList<>();
-   private static int draftPrismBaseCount;
+   private static UUID pendingWorkspaceTransferId;
+   private static OperationPreviewPayload serverPreview = OperationPreviewPayload.inactive();
+   private static long lastServerPreviewRevision = -1L;
 
    private ClientOperationController() {
+   }
+
+   static {
+      WORKSPACE.setChangeListener(ClientOperationController::refreshInteractionState);
    }
 
    public static ClientOperationWorkspace workspace() {
@@ -59,23 +59,73 @@ public final class ClientOperationController {
       return !WORKSPACE.isEmpty();
    }
 
-   public static void synchronize(OperationPreviewPayload payload) {
-      if (payload == null) {
-         return;
+   public static boolean operationSelectionReady() {
+      return serverPreview.active() && selectionReady(serverPreview);
+   }
+
+   public static boolean operationSelectionConfirmed() {
+      return serverPreview.active() && serverPreview.operationSelectionConfirmed();
+   }
+
+   public static boolean operationAdjustmentStarted() {
+      return serverPreview.active() && serverPreview.operationAdjustmentStarted();
+   }
+
+   public static boolean operationPrism() {
+      return serverPreview.active() && serverPreview.operationSelectionMode() == OperationSelectionMode.PRISM;
+   }
+
+   public static boolean operationCuboid() {
+      return serverPreview.active() && serverPreview.operationSelectionMode() == OperationSelectionMode.CUBOID;
+   }
+
+   /** Single authoritative state projection used by input and preview code. */
+   public static ClientSelectionState interactionState() {
+      refreshInteractionState();
+      return SELECTION_SESSION.state();
+   }
+
+   public static void setAltMode(boolean enabled) {
+      if (enabled && !WORKSPACE.selectedIds().isEmpty()) {
+         WORKSPACE.clearSelectionForNewDraftWithoutHistory();
       }
+      SELECTION_SESSION.setAltHeld(enabled);
+      refreshInteractionState();
+   }
+
+   public static boolean selectionDraftActive() {
+      return SELECTION_SESSION.hasDraft();
+   }
+
+   private static void refreshInteractionState() {
+      SELECTION_SESSION.refresh(
+         !WORKSPACE.selectedIds().isEmpty(),
+         WORKSPACE.isEmpty(),
+         serverPreview.active() && !selectionReady(serverPreview)
+      );
+   }
+
+   public static boolean synchronize(OperationPreviewPayload payload) {
+      if (payload == null) {
+         return false;
+      }
+      if (payload.operationRevision() < lastServerPreviewRevision) {
+         return false;
+      }
+      boolean previousServerOperationActive = serverPreview.active();
+      lastServerPreviewRevision = payload.operationRevision();
+      serverPreview = payload;
       if (!payload.active()) {
-         if (serverOperationSeen) {
-            serverOperationSeen = false;
+         if (previousServerOperationActive) {
             if (!workspaceSubmissionPending) {
                clearWorkspace();
             }
          }
-         return;
+         return true;
       }
-      serverOperationSeen = true;
-      currentSelectionMode = payload.operationSelectionMode();
+      SELECTION_SESSION.setSelectionMode(payload.operationSelectionMode());
       if (!WORKSPACE.isEmpty() || !selectionReady(payload)) {
-         return;
+         return true;
       }
       OperationSelectionVolume selection = OperationSelectionVolume.create(
          payload.operationSelectionMode(),
@@ -86,7 +136,7 @@ public final class ClientOperationController {
          payload.operationHullInflation()
       );
       if (selection == null) {
-         return;
+         return true;
       }
       Map<BlockPos, ClientBlockSnapshot> blocks = capture(selection);
       WorkspaceTransform transform = new WorkspaceTransform(
@@ -100,7 +150,9 @@ public final class ClientOperationController {
          0, ClientSelectionPart.Source.WORLD, selection, blocks, transform, false
       )));
       WORKSPACE.clearHistory();
+      refreshInteractionState();
       refreshSourceMask();
+      return true;
    }
 
    public static boolean copySelected() {
@@ -172,38 +224,45 @@ public final class ClientOperationController {
    }
 
    public static boolean handleCreateClick(int mouseButton, BlockPos point) {
+      DraftSnapshot before = draftSnapshot();
+      boolean handled = handleCreateClickInternal(mouseButton, point);
+      recordDraftEvent(before);
+      return handled;
+   }
+
+   private static boolean handleCreateClickInternal(int mouseButton, BlockPos point) {
       if (workspaceSubmissionPending || point == null || WORKSPACE.size() >= ClientOperationWorkspace.MAX_PARTS) {
          return false;
       }
-      if (currentSelectionMode == OperationSelectionMode.CUBOID) {
+      if (SELECTION_SESSION.selectionMode() == OperationSelectionMode.CUBOID) {
          if (mouseButton == 0) {
-            draftPoints.clear();
-            draftPoints.add(point.immutable());
-            draftPrismBaseCount = 0;
+            SELECTION_SESSION.clearDraft();
+            SELECTION_SESSION.addDraftPoint(point);
+            refreshInteractionState();
             return true;
          }
-         if (mouseButton == 1 && draftPoints.size() == 1) {
-            draftPoints.add(point.immutable());
-            return finishDraft(0);
+         if (mouseButton == 1 && SELECTION_SESSION.draftSize() == 1) {
+            SELECTION_SESSION.addDraftPoint(point);
+            boolean result = finishDraft(0); refreshInteractionState(); return result;
          }
          if (mouseButton == 2) {
-            if (draftPoints.isEmpty()) {
-               draftPoints.add(point.immutable());
-               return true;
+            if (!SELECTION_SESSION.hasDraft()) {
+               SELECTION_SESSION.addDraftPoint(point);
+               refreshInteractionState(); return true;
             }
-            if (draftPoints.size() == 1) {
-               draftPoints.add(point.immutable());
-               return finishDraft(0);
+            if (SELECTION_SESSION.draftSize() == 1) {
+               SELECTION_SESSION.addDraftPoint(point);
+               boolean result = finishDraft(0); refreshInteractionState(); return result;
             }
          }
          return false;
       }
-      if (currentSelectionMode == OperationSelectionMode.PRISM) {
+      if (SELECTION_SESSION.selectionMode() == OperationSelectionMode.PRISM) {
          if (mouseButton == 0) {
-            if (!draftPoints.isEmpty()) {
-               draftPoints.removeLast();
-               if (draftPoints.size() < draftPrismBaseCount) {
-                  draftPrismBaseCount = 0;
+            if (SELECTION_SESSION.hasDraft()) {
+               SELECTION_SESSION.removeLastDraftPoint();
+               if (SELECTION_SESSION.draftSize() < SELECTION_SESSION.prismBaseCount()) {
+                  SELECTION_SESSION.setPrismBaseCount(0);
                }
                return true;
             }
@@ -211,24 +270,82 @@ public final class ClientOperationController {
          }
          if (mouseButton != 1) {
             if (mouseButton == 2) {
-               draftPoints.add(point.immutable());
-               return draftPrismBaseCount > 0 && draftPoints.size() > draftPrismBaseCount
-                  ? finishDraft(draftPrismBaseCount) : true;
+               SELECTION_SESSION.addDraftPoint(point);
+               boolean result = SELECTION_SESSION.prismBaseCount() > 0
+                  && SELECTION_SESSION.draftSize() > SELECTION_SESSION.prismBaseCount()
+                  ? finishDraft(SELECTION_SESSION.prismBaseCount()) : true; refreshInteractionState(); return result;
             }
             return false;
          }
-         if (draftPrismBaseCount == 0
-            && draftPoints.size() >= 3
-            && point.equals(draftPoints.getFirst())) {
-            draftPrismBaseCount = draftPoints.size();
-            return true;
+         if (SELECTION_SESSION.prismBaseCount() == 0
+            && SELECTION_SESSION.draftSize() >= 3
+            && point.equals(SELECTION_SESSION.draftFirst())) {
+            SELECTION_SESSION.setPrismBaseCount(SELECTION_SESSION.draftSize());
+            refreshInteractionState(); return true;
          }
-         draftPoints.add(point.immutable());
-         return draftPrismBaseCount > 0 && draftPoints.size() > draftPrismBaseCount
-            ? finishDraft(draftPrismBaseCount)
-            : true;
+         SELECTION_SESSION.addDraftPoint(point);
+         boolean result = SELECTION_SESSION.prismBaseCount() > 0
+            && SELECTION_SESSION.draftSize() > SELECTION_SESSION.prismBaseCount()
+            ? finishDraft(SELECTION_SESSION.prismBaseCount()) : true; refreshInteractionState(); return result;
       }
       return false;
+   }
+
+   /** Alt-prefixed creation deliberately bypasses all existing-part hit testing. */
+   public static boolean handleAltCreateClick(int mouseButton, BlockPos point) {
+      DraftSnapshot before = draftSnapshot();
+      boolean handled = handleAltCreateClickInternal(mouseButton, point);
+      recordDraftEvent(before);
+      return handled;
+   }
+
+   private static boolean handleAltCreateClickInternal(int mouseButton, BlockPos point) {
+      if (workspaceSubmissionPending || point == null) {
+         return false;
+      }
+      if (SELECTION_SESSION.selectionMode() == OperationSelectionMode.PRISM && mouseButton == 2) {
+         return false;
+      }
+      if (!WORKSPACE.selectedIds().isEmpty()) {
+         WORKSPACE.clearSelectionForNewDraftWithoutHistory();
+      }
+      boolean handled;
+      if (SELECTION_SESSION.selectionMode() == OperationSelectionMode.PRISM) {
+         if (!SELECTION_SESSION.hasDraft()) {
+            SELECTION_SESSION.addDraftPoint(point);
+            SELECTION_SESSION.setPrismBaseCount(0);
+            handled = true;
+         } else if (SELECTION_SESSION.prismBaseCount() == 0
+            && point.equals(SELECTION_SESSION.draftFirst())
+            && SELECTION_SESSION.draftSize() >= 3) {
+            SELECTION_SESSION.setPrismBaseCount(SELECTION_SESSION.draftSize());
+            handled = true;
+         } else {
+            SELECTION_SESSION.addDraftPoint(point);
+            handled = SELECTION_SESSION.prismBaseCount() > 0
+               && SELECTION_SESSION.draftSize() > SELECTION_SESSION.prismBaseCount()
+               ? finishDraft(SELECTION_SESSION.prismBaseCount()) : true;
+         }
+      } else if (mouseButton == 0) {
+         SELECTION_SESSION.clearDraft();
+         SELECTION_SESSION.addDraftPoint(point);
+         handled = true;
+      } else if (mouseButton == 1 || mouseButton == 2) {
+         if (mouseButton == 2) {
+            if (SELECTION_SESSION.draftSize() < 2) {
+               SELECTION_SESSION.addDraftPoint(point);
+               handled = true;
+            } else {
+               handled = SELECTION_SESSION.expandDraftTo(point);
+            }
+         } else {
+            SELECTION_SESSION.addDraftPoint(point);
+            handled = SELECTION_SESSION.draftSize() > 1 ? finishDraft(0) : true;
+         }
+      } else {
+         handled = false;
+      }
+      return handled;
    }
 
    public static boolean activeSelectionTransformed() {
@@ -259,12 +376,7 @@ public final class ClientOperationController {
    }
 
    public static boolean canAdjustAabbFace(ClientSelectionPart part) {
-      return part != null
-         && part.axisAlignedCuboid()
-         && part.transform().rotation().equals(Vec3.ZERO)
-         && !part.transform().hasEffect()
-         && part.matchesInitialBounds()
-         && part.source() == ClientSelectionPart.Source.WORLD;
+      return part != null && part.canAdjustGeometry();
    }
 
    /** Checks the source only when an adjustment gesture is actually starting. */
@@ -329,9 +441,11 @@ public final class ClientOperationController {
    }
 
    public static void updateAabbFaceGesture(
+      ClientOperationWorkspace.EditToken editToken,
       ClientSelectionPart baseline, int axis, boolean positiveFace, int outwardSteps
    ) {
-      if (workspaceSubmissionPending || !canAdjustAabbFace(baseline) || axis < 0 || axis > 2) {
+      if (workspaceSubmissionPending || !WORKSPACE.ownsEdit(editToken)
+         || !canAdjustAabbFace(baseline) || axis < 0 || axis > 2) {
          return;
       }
       AABB bounds = baseline.selection().bounds();
@@ -364,7 +478,9 @@ public final class ClientOperationController {
          new AABB(minX, minY, minZ, maxX, maxY, maxZ),
          null,
          List.of(),
-         0
+         0,
+         baseline.selection().point1(),
+         baseline.selection().point2()
       );
       WorkspaceTransform transform = baseline.transform().withRepeats(
          baseline.transform().repeats(), BlockPos.ZERO
@@ -377,6 +493,7 @@ public final class ClientOperationController {
    }
 
    public static void updateTransformGesture(
+      ClientOperationWorkspace.EditToken editToken,
       List<ClientSelectionPart> baseline,
       boolean common,
       AxisGizmo.Operation operation,
@@ -385,7 +502,7 @@ public final class ClientOperationController {
       int totalSteps,
       double rotationRadians
    ) {
-      if (workspaceSubmissionPending) {
+      if (workspaceSubmissionPending || !WORKSPACE.ownsEdit(editToken)) {
          return;
       }
       baseline.forEach(WORKSPACE::updatePart);
@@ -440,19 +557,25 @@ public final class ClientOperationController {
                );
             }
          };
+         if (!WorkspacePreviewComposer.canResolveForRendering(part.blocks(), updated)) {
+            baseline.forEach(WORKSPACE::updatePart);
+            refreshSourceMask();
+            return;
+         }
          WORKSPACE.updatePart(part.withTransform(updated));
       }
       refreshSourceMask();
    }
 
-   public static boolean finishTransformGesture() {
-      boolean changed = WORKSPACE.finishEdit();
+   public static boolean finishTransformGesture(ClientOperationWorkspace.EditToken editToken) {
+      boolean changed = WORKSPACE.finishEdit(editToken);
       refreshSourceMask();
       return changed;
    }
 
    public static boolean submitWorkspace(Minecraft minecraft) {
-      if (workspaceSubmissionPending || minecraft == null || minecraft.getConnection() == null || WORKSPACE.isEmpty()) {
+      if (workspaceSubmissionPending || WORKSPACE.editing()
+         || minecraft == null || minecraft.getConnection() == null || WORKSPACE.isEmpty()) {
          return false;
       }
       try {
@@ -460,41 +583,38 @@ public final class ClientOperationController {
             new OperationWorkspacePlan.Part(
                part.id(),
                part.source(),
-               part.pendingDelete() && !part.initialBlocks().isEmpty() ? part.initialBlocks() : part.blocks(),
+               part.pendingDelete() && !part.sourceSnapshot().isEmpty() ? part.sourceSnapshot() : part.blocks(),
                part.transform(),
                part.pendingDelete()
             )
          ).toList());
-         byte[] compressed = OperationWorkspacePlanCodec.encodeCompressed(plan);
-         int chunkSize = OperationWorkspaceApplyPayload.MAX_CHUNK_BYTES;
-         int chunkCount = (compressed.length + chunkSize - 1) / chunkSize;
-         UUID transferId = UUID.randomUUID();
+         ClientPlacementRouter.WorkspaceSubmission submission = ClientPlacementRouter
+            .prepareWorkspace(minecraft, plan).orElse(null);
+         if (submission == null) return false;
+         UUID transferId = submission.transferId();
          workspaceSubmissionPending = true;
-         for (int index = 0; index < chunkCount; index++) {
-            int from = index * chunkSize;
-            int to = Math.min(compressed.length, from + chunkSize);
-            PacketDistributor.sendToServer(
-               new OperationWorkspaceApplyPayload(
-                  transferId, index, chunkCount, Arrays.copyOfRange(compressed, from, to)
-               ),
-               new CustomPacketPayload[0]
-            );
-         }
+         pendingWorkspaceTransferId = transferId;
+         WORKSPACE.setLocked(true);
+         submission.send();
          return true;
       } catch (IOException | RuntimeException exception) {
          workspaceSubmissionPending = false;
+         pendingWorkspaceTransferId = null;
+         WORKSPACE.setLocked(false);
          return false;
       }
    }
 
    public static void applyWorkspaceResult(OperationWorkspaceResultPayload payload) {
-      if (payload == null || !workspaceSubmissionPending) {
+      if (payload == null || !workspaceSubmissionPending
+         || !payload.transferId().equals(pendingWorkspaceTransferId)) {
          return;
       }
       workspaceSubmissionPending = false;
+      pendingWorkspaceTransferId = null;
+      WORKSPACE.setLocked(false);
       if (payload.accepted()) {
          clearWorkspace();
-         serverOperationSeen = false;
          return;
       }
       if (!payload.failedPartIds().isEmpty()) {
@@ -505,17 +625,19 @@ public final class ClientOperationController {
       }
    }
 
-   public static void cancelTransformGesture() {
-      WORKSPACE.cancelEdit();
+   public static void cancelTransformGesture(ClientOperationWorkspace.EditToken editToken) {
+      WORKSPACE.cancelEdit(editToken);
       refreshSourceMask();
    }
 
    public static void clearWorkspace() {
       WORKSPACE.clear();
       SOURCE_MASK.clear();
-      draftPoints.clear();
-      draftPrismBaseCount = 0;
+      SELECTION_SESSION.clearDraft();
+      SELECTION_SESSION.setAltHeld(false);
+      refreshInteractionState();
       workspaceSubmissionPending = false;
+      pendingWorkspaceTransferId = null;
    }
 
    public static boolean workspaceSubmissionPending() {
@@ -636,8 +758,9 @@ public final class ClientOperationController {
 
    private static boolean finishDraft(int prismBaseCount) {
       OperationSelectionVolume selection = OperationSelectionVolume.create(
-         currentSelectionMode,
-         List.copyOf(draftPoints),
+         SELECTION_SESSION.selectionMode(),
+         SELECTION_SESSION.selectionMode() == OperationSelectionMode.CUBOID
+            ? SELECTION_SESSION.selectionDraftPoints() : SELECTION_SESSION.draftPoints(),
          prismBaseCount,
          BlockPos.ZERO,
          BlockPos.ZERO,
@@ -646,7 +769,7 @@ public final class ClientOperationController {
       if (selection == null) {
          return false;
       }
-      boolean added = WORKSPACE.addParts(List.of(new ClientSelectionPart(
+      boolean added = WORKSPACE.addPartsWithoutHistory(List.of(new ClientSelectionPart(
          0,
          ClientSelectionPart.Source.WORLD,
          selection,
@@ -655,11 +778,36 @@ public final class ClientOperationController {
          false
       )));
       if (added) {
-         draftPoints.clear();
-         draftPrismBaseCount = 0;
+         SELECTION_SESSION.clearDraft();
+         refreshInteractionState();
          refreshSourceMask();
       }
       return added;
+   }
+
+   private static DraftSnapshot draftSnapshot() {
+      return new DraftSnapshot(
+         SELECTION_SESSION.draftPoints(),
+         SELECTION_SESSION.prismBaseCount(),
+         SELECTION_SESSION.draftMinPoint(),
+         SELECTION_SESSION.draftMaxPoint(),
+         WORKSPACE.partIds(),
+         WORKSPACE.selectionState()
+      );
+   }
+
+   /** Records one inverse for the complete click, including selection clearing and draft changes. */
+   private static void recordDraftEvent(DraftSnapshot before) {
+      DraftSnapshot after = draftSnapshot();
+      if (before.equals(after)) {
+         return;
+      }
+      WORKSPACE.pushEvent(() -> {
+         WORKSPACE.restoreParts(before.partIds());
+         SELECTION_SESSION.restoreDraft(before.points(), before.prismBaseCount());
+         SELECTION_SESSION.restoreDraftBounds(before.minPoint(), before.maxPoint());
+         WORKSPACE.restoreSelectionStateWithoutHistory(before.selection());
+      });
    }
 
    private static boolean selectionReady(OperationPreviewPayload payload) {
@@ -678,9 +826,21 @@ public final class ClientOperationController {
          if (part.source() != ClientSelectionPart.Source.WORLD) {
             continue;
          }
-         masked.addAll(part.initialBlocks().keySet());
+         if (part.masksSourceBlocks()) {
+            masked.addAll(part.sourceSnapshot().keySet());
+         }
       }
       SOURCE_MASK.replace(masked);
+   }
+
+   private record DraftSnapshot(
+      List<BlockPos> points,
+      int prismBaseCount,
+      BlockPos minPoint,
+      BlockPos maxPoint,
+      java.util.Set<Integer> partIds,
+      ClientOperationWorkspace.SelectionState selection
+   ) {
    }
 
    private static Vec3 axisVector(AxisGizmo.Axis axis) {

@@ -20,9 +20,9 @@ class ClientSelectionPartTest {
 
       ClientSelectionPart updated = part.withSelection(resized).withBlocks(Map.of());
 
-      assertFalse(updated.transformBaselineFrozen());
-      assertTrue(updated.matchesInitialBounds());
-      assertTrue(updated.initialBounds().equals(resized.bounds()));
+      assertTrue(updated.editability() == ClientSelectionPart.Editability.FREE);
+      assertTrue(updated.baseline() == null);
+      assertTrue(updated.selection().bounds().equals(resized.bounds()));
    }
 
    @Test
@@ -32,9 +32,9 @@ class ClientSelectionPartTest {
 
       ClientSelectionPart moved = resized.withTranslation(new Vec3(3, 0, 0));
 
-      assertTrue(moved.transformBaselineFrozen());
-      assertFalse(moved.matchesInitialBounds());
-      assertTrue(moved.initialBounds().equals(resized.selection().bounds()));
+      assertTrue(moved.editability() == ClientSelectionPart.Editability.LOCKED);
+      assertTrue(moved.baseline() != null);
+      assertTrue(moved.baseline().selection().bounds().equals(resized.selection().bounds()));
    }
 
    @Test
@@ -44,9 +44,20 @@ class ClientSelectionPartTest {
 
       ClientSelectionPart returned = moved.withTranslation(Vec3.ZERO);
 
-      assertTrue(returned.transformBaselineFrozen());
-      assertTrue(returned.matchesInitialBounds());
+      assertTrue(returned.editability() == ClientSelectionPart.Editability.FREE);
+      assertTrue(returned.baseline() == null);
       assertFalse(returned.transform().hasEffect());
+   }
+
+   @Test
+   void lockedPartRejectsGeometryEdits() {
+      ClientSelectionPart moved = part(new AABB(0, 0, 0, 2, 2, 2))
+         .withTranslation(new Vec3(3, 0, 0));
+
+      ClientSelectionPart attempted = moved.withSelection(volume(new AABB(0, 0, 0, 8, 2, 2)));
+
+      assertTrue(attempted == moved);
+      assertTrue(attempted.editability() == ClientSelectionPart.Editability.LOCKED);
    }
 
    private static ClientSelectionPart part(AABB bounds) {
@@ -56,6 +67,6 @@ class ClientSelectionPartTest {
    }
 
    private static OperationSelectionVolume volume(AABB bounds) {
-      return new OperationSelectionVolume(OperationSelectionMode.CUBOID, bounds, null, List.of(), 0);
+      return new OperationSelectionVolume(OperationSelectionMode.CUBOID, bounds, null, List.of(), 0, null, null);
    }
 }

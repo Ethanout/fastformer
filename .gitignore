@@ -49,3 +49,4 @@ recovery/
 ### Local diagnostics ###
 logs/
 错误报告-*.zip
+.temp/

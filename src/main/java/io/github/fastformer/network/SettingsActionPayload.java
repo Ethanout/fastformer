@@ -35,6 +35,8 @@ public record SettingsActionPayload(Action action) implements CustomPacketPayloa
       CYCLE_PLACEMENT_CONFLICT,
       CYCLE_PLACEMENT_UPDATE,
       TOGGLE_SMART_WOOD_FRAME,
+      TOGGLE_EMPTY_HAND_WRENCH,
+      TOGGLE_GLOBAL_FREEZE,
       DECREASE_WORLD_HISTORY,
       INCREASE_WORLD_HISTORY,
       DECREASE_SESSION_HISTORY,

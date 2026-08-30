@@ -491,7 +491,13 @@ public final class FastPlaceManager {
                   session.placementContext() == null
                      ? Direction.Axis.Y
                      : session.placementContext().clickedFace().getAxis(),
-                  points
+                  points,
+                  SmartWoodFrame.edgeGuides(
+                     points,
+                     modes.faceMode(),
+                     polygonHeightConfirmed,
+                     polygonVolumeShape
+                  )
                )
                : null;
             FastPlaceGeometry.Modes outlineModes = modes.withFillMode(FillMode.OUTLINE);

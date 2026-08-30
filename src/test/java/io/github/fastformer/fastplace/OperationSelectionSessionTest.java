@@ -164,9 +164,9 @@ class OperationSelectionSessionTest {
       assertTrue(session.undoStep());
 
       assertEquals(OperationSelectionMode.CUBOID, session.selectionMode());
-      assertEquals(BlockPos.ZERO, session.translation());
+      assertEquals(new BlockPos(3, 0, 0), session.translation());
       assertEquals(OperationStackRegion.origin(), session.stackRegion());
-      assertFalse(session.adjustmentStarted());
+      assertTrue(session.adjustmentStarted());
    }
 
    @Test
@@ -187,9 +187,9 @@ class OperationSelectionSessionTest {
       assertTrue(session.undoStep());
 
       assertTrue(session.selectionReady());
-      assertEquals(BlockPos.ZERO, session.translation());
+      assertEquals(new BlockPos(0, 0, 2), session.translation());
       assertEquals(OperationStackRegion.origin(), session.stackRegion());
-      assertFalse(session.adjustmentStarted());
+      assertTrue(session.adjustmentStarted());
    }
 
    private static OperationSession readyCuboid() {
@@ -318,31 +318,36 @@ class OperationSelectionSessionTest {
    }
 
    @Test
-   void middlePointExpandsCuboidByMovingTheClosestAnchors() {
+   void middlePointExpandsCuboidWithoutChangingInputPoints() {
       OperationSession session = new OperationSession();
       session.setFirst(new BlockPos(2, 3, 4));
       session.setSecond(new BlockPos(5, 6, 7));
 
       assertTrue(session.expandTo(new BlockPos(-1, 9, 6)));
-      assertEquals(new BlockPos(-1, 3, 4), session.first());
-      assertEquals(new BlockPos(5, 9, 7), session.second());
+      assertEquals(new BlockPos(2, 3, 4), session.first());
+      assertEquals(new BlockPos(5, 6, 7), session.second());
+      assertEquals(new BlockPos(-1, 3, 4), session.cuboidMinPoint());
+      assertEquals(new BlockPos(5, 9, 7), session.cuboidMaxPoint());
       assertEquals(BlockPos.ZERO, session.minOffset());
       assertEquals(BlockPos.ZERO, session.maxOffset());
    }
 
    @Test
-   void faceAdjustmentMovesTheAnchorAlreadyClosestToThatFace() {
+   void faceAdjustmentChangesCurrentBoundsNotInputPoints() {
       OperationSession session = new OperationSession();
       session.setFirst(new BlockPos(8, 2, 9));
       session.setSecond(new BlockPos(3, 7, 4));
 
       assertTrue(session.extend(0, true, -2));
-      assertEquals(new BlockPos(6, 2, 9), session.first());
+      assertEquals(new BlockPos(8, 2, 9), session.first());
       assertEquals(new BlockPos(3, 7, 4), session.second());
+      assertEquals(new BlockPos(3, 2, 4), session.cuboidMinPoint());
+      assertEquals(new BlockPos(6, 7, 9), session.cuboidMaxPoint());
 
       assertTrue(session.extend(1, false, 2));
-      assertEquals(new BlockPos(6, 0, 9), session.first());
+      assertEquals(new BlockPos(8, 2, 9), session.first());
       assertEquals(new BlockPos(3, 7, 4), session.second());
+      assertEquals(new BlockPos(3, 0, 4), session.cuboidMinPoint());
    }
 
    @Test
@@ -374,7 +379,7 @@ class OperationSelectionSessionTest {
 
       session.beginEdit();
       session.scroll(new BlockPos(0, 0, 2));
-      assertFalse(session.commitEdit());
+      assertTrue(session.commitEdit());
 
       assertEquals(new BlockPos(0, 0, 2), session.translation());
       assertEquals(BlockPos.ZERO, session.stackVector());
@@ -389,7 +394,7 @@ class OperationSelectionSessionTest {
 
       session.beginEdit();
       session.scroll(new BlockPos(1, 0, 0), true);
-      assertFalse(session.commitEdit());
+      assertTrue(session.commitEdit());
 
       assertEquals(BlockPos.ZERO, session.translation());
       assertEquals(new BlockPos(1, 0, 0), session.stackVector());
@@ -434,7 +439,9 @@ class OperationSelectionSessionTest {
       assertTrue(session.extend(0, true, 3));
       assertTrue(session.commitEdit());
       List<BlockPos> adjusted = session.points();
-      assertFalse(before.equals(adjusted));
+      assertEquals(before, adjusted);
+      assertEquals(new BlockPos(0, 0, 0), session.cuboidMinPoint());
+      assertEquals(new BlockPos(9, 4, 4), session.cuboidMaxPoint());
 
       assertTrue(session.undoStep());
       assertEquals(before, session.points());

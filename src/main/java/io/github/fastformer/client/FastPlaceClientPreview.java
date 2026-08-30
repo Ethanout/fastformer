@@ -68,6 +68,7 @@ import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import io.github.fastformer.fastplace.geometry.GuidePlane;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
 import io.github.fastformer.fastplace.PointMode;
 import io.github.fastformer.fastplace.PolygonVolumeShape;
 import io.github.fastformer.fastplace.PlaceableItems;
@@ -306,7 +307,6 @@ public final class FastPlaceClientPreview {
    private static final float PENDING_BLUE = 1.0F;
    private static final float GHOST_FACE_ALPHA_MIN = 0.10F;
    private static final float GHOST_FACE_ALPHA_MAX = 0.20F;
-   private static final float BUILDING_NEAR_MINIMUM_OPACITY = 0.35F;
    private static final long FACE_NORMAL_INTERPOLATION_NANOS = 50_000_000L;
    private static final long PREVIEW_FAILURE_LOG_INTERVAL_NANOS = 5_000_000_000L;
    private static final float SELECTION_HIGHLIGHT_ALPHA = 0.42F;
@@ -323,7 +323,6 @@ public final class FastPlaceClientPreview {
    private static final double SELECTION_DASH_PERIOD = SELECTION_DASH_LENGTH * 2.0;
    private static final long GHOST_BREATH_PERIOD_NANOS = 2_400_000_000L;
    private static final double GHOST_FACE_OFFSET = 0.002;
-   private static final double BUILDING_PREVIEW_DISTANCE_FADE = 1.5;
    private static final double SELECTION_FACE_INFLATE = OperationSelectionVolume.RAYCAST_INFLATE;
    private static final double GHOST_OUTLINE_CAMERA_BIAS = 0.012;
    private static final double CONTROL_POINT_OUTLINE_INFLATE = 0.003;
@@ -340,7 +339,6 @@ public final class FastPlaceClientPreview {
    private static FastPlaceActivity activityState = FastPlaceActivity.NONE;
    private static final HudFadeTimer SCROLL_FEEDBACK = new HudFadeTimer(1_500_000_000L, 400_000_000L);
    private static final HudFadeTimer GIZMO_FEEDBACK = new HudFadeTimer(1_500_000_000L, 400_000_000L);
-   private static final PreviewOpacityController WORLD_PREVIEW_OPACITY = new PreviewOpacityController(180_000_000L, true);
    private static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    private static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    private static final List<InteractionIntentProvider> OPERATION_INTENT_PROVIDERS = List.of(
@@ -352,6 +350,7 @@ public final class FastPlaceClientPreview {
    );
    private static final IdentityHashMap<ClientSelectionPart, Map<BlockPos, io.github.fastformer.client.operation.ClientBlockSnapshot>>
       WORKSPACE_RESOLVED_CACHE = new IdentityHashMap<>();
+   private static long workspaceResolvedCacheRevision = Long.MIN_VALUE;
    private static float worldPreviewOpacity = 1.0F;
    private static LongRangeBlockRaycast.Result raycastDebug;
    private static LongRangeBlockRaycast.Result cachedRaycast;
@@ -433,8 +432,9 @@ public final class FastPlaceClientPreview {
    }
 
    public static void applyOperation(OperationPreviewPayload payload) {
-      operationState = payload;
-      ClientOperationController.synchronize(payload);
+      if (ClientOperationController.synchronize(payload)) {
+         operationState = payload;
+      }
    }
 
    public static void applyGeometry(GeometryPreviewPayload payload) {
@@ -500,21 +500,15 @@ public final class FastPlaceClientPreview {
    }
 
    public static boolean operationSelectionReady() {
-      return operationState.active()
-         && (operationState.operationSelectionMode() == OperationSelectionMode.CUBOID
-            ? operationState.hasFirst() && operationState.hasSecond()
-            : operationState.operationSelectionMode() == OperationSelectionMode.PRISM
-               ? operationState.operationPrismBasePointCount() >= 3
-                  && operationState.points().size() > operationState.operationPrismBasePointCount()
-               : operationState.points().size() >= operationState.operationSelectionMode().requiredPoints());
+      return ClientOperationController.operationSelectionReady();
    }
 
    public static boolean operationSelectionConfirmed() {
-      return operationState.active() && operationState.operationSelectionConfirmed();
+      return ClientOperationController.operationSelectionConfirmed();
    }
 
    public static boolean operationAdjustmentStarted() {
-      return operationState.active() && operationState.operationAdjustmentStarted();
+      return ClientOperationController.operationAdjustmentStarted();
    }
 
    public static int operationPointCount() {
@@ -522,11 +516,11 @@ public final class FastPlaceClientPreview {
    }
 
    public static boolean operationCuboid() {
-      return operationState.active() && operationState.operationSelectionMode() == OperationSelectionMode.CUBOID;
+      return ClientOperationController.operationCuboid();
    }
 
    public static boolean operationPrism() {
-      return operationState.active() && operationState.operationSelectionMode() == OperationSelectionMode.PRISM;
+      return ClientOperationController.operationPrism();
    }
 
    public static boolean operationPrismBaseOpen() {
@@ -801,7 +795,8 @@ public final class FastPlaceClientPreview {
    }
 
    private static Optional<OperationInteractionIntent> resolveWorkspacePartIntent(InteractionContext context) {
-      if (!ClientOperationController.active() || context.alternative()) {
+      if (!ClientOperationController.active() || context.alternative()
+         || InteractionContext.directlyNearVanillaBlock(context.minecraft())) {
          return Optional.empty();
       }
       int bestId = 0;
@@ -851,7 +846,8 @@ public final class FastPlaceClientPreview {
    }
 
    private static Optional<OperationInteractionIntent> resolveWorkspaceFaceIntent(InteractionContext context) {
-      if (!ClientOperationController.active() || context.control() || context.alternative()) {
+      if (!ClientOperationController.active() || context.control() || context.alternative()
+         || InteractionContext.directlyNearVanillaBlock(context.minecraft())) {
          return Optional.empty();
       }
       OperationInteractionIntent.Face best = null;
@@ -917,7 +913,12 @@ public final class FastPlaceClientPreview {
    private static Map<BlockPos, io.github.fastformer.client.operation.ClientBlockSnapshot> resolveWorkspacePart(
       ClientSelectionPart part
    ) {
-      return WORKSPACE_RESOLVED_CACHE.computeIfAbsent(part, WorkspacePreviewComposer::resolve);
+      long revision = ClientOperationController.workspace().revision();
+      if (workspaceResolvedCacheRevision != revision) {
+         WORKSPACE_RESOLVED_CACHE.clear();
+         workspaceResolvedCacheRevision = revision;
+      }
+      return WORKSPACE_RESOLVED_CACHE.computeIfAbsent(part, WorkspacePreviewComposer::resolveForRendering);
    }
 
    private static Map<BlockPos, io.github.fastformer.client.operation.ClientBlockSnapshot> resolveWorkspaceBasePart(
@@ -926,7 +927,10 @@ public final class FastPlaceClientPreview {
       if (part.transform().repeats().equals(io.github.fastformer.fastplace.OperationStackRegion.origin())) {
          return resolveWorkspacePart(part);
       }
-      return WorkspacePreviewComposer.resolveValues(part.blocks(), part.transform().withoutRepeats());
+      WorkspaceTransform transform = part.transform().withoutRepeats();
+      return WorkspacePreviewComposer.canResolveForRendering(part.blocks(), transform)
+         ? WorkspacePreviewComposer.resolveValues(part.blocks(), transform)
+         : Map.of();
    }
 
    private static void pruneWorkspaceResolvedCache(List<ClientSelectionPart> currentParts) {
@@ -1315,7 +1319,7 @@ public final class FastPlaceClientPreview {
       Minecraft minecraft = Minecraft.getInstance();
       GuiGraphics graphics = event.getGuiGraphics();
       BuildingPreviewPayload snapshot = buildingState;
-      if (!(snapshot.enabled() || geometryState.active() || operationState.active() || activityState.task())) {
+      if (!(snapshot.enabled() || geometryState.active() || operationState.active() || activityState.task() || QuickReplaceMode.active())) {
          restoreVanillaCrosshairIfNeeded(graphics);
          smoothReticleFrame = false;
          return;
@@ -1332,6 +1336,9 @@ public final class FastPlaceClientPreview {
       )
       .withStyle(ChatFormatting.AQUA);
       graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
+      if (QuickReplaceMode.active()) {
+         graphics.drawString(minecraft.font, Component.translatable("fastformer.quick_replace.active"), 8, 20, 0xFF80E8FF, true);
+      }
 
       MutableComponent embeddedHint = buildingRaycastHint();
       if (embeddedHint != null && minecraft.screen == null && !activityState.task()) {
@@ -2164,27 +2171,43 @@ public final class FastPlaceClientPreview {
       }
    }
 
+   private static void renderQuickReplaceGhost(RenderLevelStageEvent event, Minecraft minecraft, LocalPlayer player) {
+      QuickReplaceMode.Preview preview = QuickReplaceMode.preview(minecraft);
+      if (preview == null) return;
+      PoseStack poseStack = event.getPoseStack();
+      Vec3 camera = event.getCamera().getPosition();
+      BufferSource buffers = minecraft.renderBuffers().bufferSource();
+      poseStack.pushPose();
+      poseStack.translate(preview.position().getX() - camera.x, preview.position().getY() - camera.y, preview.position().getZ() - camera.z);
+      RenderSystem.enableBlend();
+      RenderSystem.defaultBlendFunc();
+      RenderSystem.setShaderColor(0.55F, 0.9F, 1.0F, 0.42F);
+      minecraft.getBlockRenderer().renderSingleBlock(preview.state(), poseStack, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+      RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+      RenderSystem.disableBlend();
+      poseStack.popPose();
+   }
+
    @SubscribeEvent
    public static void onRenderLevelStage(RenderLevelStageEvent event) {
       BuildingPreviewPayload snapshot = buildingState;
       if (event.getStage() == Stage.AFTER_PARTICLES) {
           Minecraft minecraft = Minecraft.getInstance();
           LocalPlayer player = minecraft.player;
+          if (QuickReplaceMode.active() && QuickReplaceMode.canReplace(minecraft) && minecraft.level != null && player != null) {
+             renderQuickReplaceGhost(event, minecraft, player);
+          }
           boolean emptyBuildingPreview = snapshot.enabled()
              && player != null
              && PlaceableItems.isPlaceable(player.getMainHandItem());
           if (!(snapshot.active() || emptyBuildingPreview || operationState.active()
-             || ClientOperationController.active() || geometryState.active())) {
+             || ClientOperationController.active() || geometryState.active() || QuickReplaceMode.active())) {
              return;
           }
-          if (emptyBuildingPreview && InteractionContext.nearVanillaBlock(minecraft)) {
-             WORLD_PREVIEW_OPACITY.reset(true);
+          worldPreviewOpacity = updateWorldPreviewOpacity(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
+          if (emptyBuildingPreview && worldPreviewOpacity <= 0.01F) {
              return;
           }
-          worldPreviewOpacity = updateWorldPreviewOpacity(minecraft, System.nanoTime());
-          if (worldPreviewOpacity <= 0.01F) {
-             return;
-         }
          if (minecraft.level != null && player != null && geometryState.active()) {
             renderGeometryWall(event, minecraft);
          } else if (minecraft.level != null && player != null
@@ -2192,7 +2215,9 @@ public final class FastPlaceClientPreview {
             OperationInteractionIntent pointerIntent = operationInteractionIntent().orElse(null);
             // The confirmed selection is retained as source data, but the workspace owns
             // its overlay and hit targets from this point on.
-            if (operationState.active() && !ClientOperationController.active()) {
+            if (operationState.active() && !ClientOperationController.active()
+               && !ClientOperationController.selectionDraftActive()
+               && ClientOperationController.interactionState() != io.github.fastformer.client.operation.ClientSelectionState.ALT_FOCUSED) {
                renderOperationSelection(event, minecraft, player, operationState);
             }
             if (ClientOperationController.active()) {
@@ -2248,6 +2273,16 @@ public final class FastPlaceClientPreview {
             Map<BlockPos, BuildingSpecialBlock> specialBlockStyles = buildingSpecialBlockStyles(
                snapshot, candidate, hoveredPoint, layers.allBlocks()
             );
+            FastPlaceGeometry.Modes buildingModes = effectiveBuildingModes(snapshot);
+            List<GuideLine> confirmedOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE
+               ? outlineGeometryEdges(snapshot.points(), buildingModes.faceMode())
+               : List.of();
+            List<GuideLine> pendingOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE
+               ? outlineGeometryEdges(previewPoints, buildingModes.faceMode())
+               : List.of();
+            if (pendingOutlineEdges.equals(confirmedOutlineEdges)) {
+               pendingOutlineEdges = List.of();
+            }
             HashSet<BlockPos> confirmedPreviewBlocks = new HashSet<>(layers.confirmedRenderBlocks());
             specialBlockStyles.forEach((pos, special) -> {
                if (special.confirmed()) {
@@ -2270,8 +2305,19 @@ public final class FastPlaceClientPreview {
                confirmedPreviewBlocks,
                pendingPreviewBlocks,
                shapeEnvironment,
-               specialBlockStyles
+               specialBlockStyles,
+               buildingModes,
+               !confirmedOutlineEdges.isEmpty() || !pendingOutlineEdges.isEmpty()
             );
+            if (!confirmedOutlineEdges.isEmpty() || !pendingOutlineEdges.isEmpty()) {
+               renderBuildingOutlineEdges(
+                  poseStack,
+                  buffers.getBuffer(RenderType.lines()),
+                  camera,
+                  confirmedOutlineEdges,
+                  pendingOutlineEdges
+               );
+            }
             renderBuildingFallbackPoints(
                poseStack, buffers, camera, buildingPoints, shapeEnvironment
             );
@@ -2390,6 +2436,8 @@ public final class FastPlaceClientPreview {
       BufferSource buffers = minecraft.renderBuffers().bufferSource();
       Vec3 camera = event.getCamera().getPosition();
       float pulse = ghostBreathPulse();
+      boolean altFocused = ClientOperationController.interactionState()
+         == io.github.fastformer.client.operation.ClientSelectionState.ALT_FOCUSED;
       OperationInteractionIntent.Gizmo hoveredGizmo = pointerIntent instanceof OperationInteractionIntent.Gizmo gizmo
          ? gizmo : null;
       OperationInteractionIntent.Face hoveredFace = pointerIntent instanceof OperationInteractionIntent.Face face
@@ -2463,43 +2511,29 @@ public final class FastPlaceClientPreview {
                hovered ? 1.0F : 0.52F
             );
          }
-         if (part.source() == ClientSelectionPart.Source.WORLD && part.initialBounds() != null
-            && !part.matchesInitialBounds()) {
-            AABB initial = part.initialBounds();
-            renderFlowingDashedBox(
-               poseStack,
-               buffers.getBuffer(GHOST_OUTLINE_LINES),
-               initial.getCenter(),
-               new Vec3(initial.getXsize() * 0.5, initial.getYsize() * 0.5, initial.getZsize() * 0.5),
-               0.0,
-               selected ? 0.24F : 0.14F
-            );
-         }
          poseStack.popPose();
          renderWorkspacePartLabel(
             poseStack, buffers, minecraft, camera, bounds.center(), part.id(), selected, hovered, controlPreview, pulse
          );
 
-         boolean adjusted = !part.matchesInitialBounds() || part.transformed();
+         boolean adjusted = part.transformed();
          if (!part.pendingDelete()) {
-            if (part.source() == ClientSelectionPart.Source.WORLD && adjusted && !part.initialBlocks().isEmpty()) {
-               renderWorkspaceBlocks(
-                  poseStack, buffers, minecraft, camera, part.initialBlocks(),
-                  0.72F, 0.82F, 0.88F, 0.18F
-               );
+            float blockAlpha = adjusted ? 0.58F + 0.30F * pulse : 0.34F + 0.16F * pulse;
+            if (altFocused) {
+               blockAlpha *= 0.45F;
             }
             renderWorkspaceBlocks(
                poseStack, buffers, minecraft, camera, resolved,
-               1.0F, 1.0F, 1.0F, adjusted ? 0.58F + 0.30F * pulse : 0.34F + 0.16F * pulse
+               1.0F, 1.0F, 1.0F, blockAlpha
             );
          }
          if (part.pendingDelete()) {
-            renderPendingDeleteBlocks(poseStack, buffers, camera, part.initialBlocks().keySet());
+            renderPendingDeleteBlocks(poseStack, buffers, camera, part.sourceSnapshot().keySet());
          }
 
          if (hoveredFace != null && hoveredFace.partId() == part.id()) {
             OperationSelectionVolume faceVolume = new OperationSelectionVolume(
-               OperationSelectionMode.CUBOID, hoveredFace.bounds(), null, List.of(), 0
+               OperationSelectionMode.CUBOID, hoveredFace.bounds(), null, List.of(), 0, null, null
             );
             poseStack.pushPose();
             poseStack.translate(-camera.x, -camera.y, -camera.z);
@@ -3669,30 +3703,8 @@ public final class FastPlaceClientPreview {
          : limit;
    }
 
-   private static float updateWorldPreviewOpacity(Minecraft minecraft, long now) {
-      boolean operation = operationState.active();
-      boolean building = buildingState.active() && !operation && !geometryState.active();
-      if (building) {
-         return buildingPreviewOpacityForDistance(minecraft);
-      }
-      return WORLD_PREVIEW_OPACITY.update(
-         new PreviewOpacityController.Input(
-            InteractionContext.nearVanillaBlock(minecraft),
-            operation && FastPlaceClientInput.modifierHeld(),
-            operation ? 0.30F : building ? BUILDING_NEAR_MINIMUM_OPACITY : 0.0F
-         ),
-         now
-      );
-   }
-
-   private static float buildingPreviewOpacityForDistance(Minecraft minecraft) {
-      if (!(minecraft.hitResult instanceof BlockHitResult hit) || minecraft.player == null) {
-         return 1.0F;
-      }
-      double reach = minecraft.player.blockInteractionRange();
-      double distance = minecraft.player.getEyePosition().distanceTo(hit.getLocation());
-      float fade = (float)Math.clamp((distance - reach) / BUILDING_PREVIEW_DISTANCE_FADE, 0.0, 1.0);
-      return BUILDING_NEAR_MINIMUM_OPACITY + fade * (1.0F - BUILDING_NEAR_MINIMUM_OPACITY);
+   private static float updateWorldPreviewOpacity(Minecraft minecraft, float partialTick) {
+      return InteractionContext.previewVisibility(minecraft, partialTick);
    }
 
    private static void renderBuildingFallbackPoints(
@@ -4363,6 +4375,7 @@ public final class FastPlaceClientPreview {
       geometryState = GeometryPreviewPayload.inactive();
       ClientOperationController.clearWorkspace();
       WORKSPACE_RESOLVED_CACHE.clear();
+      workspaceResolvedCacheRevision = Long.MIN_VALUE;
       activityState = FastPlaceActivity.NONE;
       SCROLL_FEEDBACK.clear();
       GIZMO_FEEDBACK.clear();
@@ -4371,7 +4384,6 @@ public final class FastPlaceClientPreview {
       lastGizmoFeedbackSteps = 0;
       lastGizmoFeedbackBaseValue = 0.0;
       geometryTransformBaseline = null;
-      WORLD_PREVIEW_OPACITY.reset(true);
       OPERATION_FACE_INTERPOLATOR.reset();
       worldPreviewOpacity = 1.0F;
       raycastDebug = null;
@@ -4449,7 +4461,9 @@ public final class FastPlaceClientPreview {
       Set<BlockPos> confirmedBlocks,
       Set<BlockPos> pendingBlocks,
       Set<BlockPos> shapeEnvironment,
-      Map<BlockPos, BuildingSpecialBlock> specialStyles
+      Map<BlockPos, BuildingSpecialBlock> specialStyles,
+      FastPlaceGeometry.Modes modes,
+      boolean cleanOutlineEdges
    ) {
       BlockGetter previewLevel = state == null
          ? player.level()
@@ -4469,21 +4483,71 @@ public final class FastPlaceClientPreview {
       renderShapeShellFaces(poseStack, buffers.getBuffer(GHOST_FACES), camera, pending.faces(), pendingFaceAlpha);
       buffers.endBatch(GHOST_FACES);
 
-      renderShapeShellEdges(
-         poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, confirmed.edges(), 0.16F * worldPreviewOpacity
-      );
-      renderShapeShellEdges(
-         poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, pending.edges(), 0.12F * worldPreviewOpacity
-      );
-      buffers.endBatch(PENDING_XRAY_LINES);
+      if (!cleanOutlineEdges) {
+         renderShapeShellEdges(
+            poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, confirmed.edges(), 0.16F * worldPreviewOpacity
+         );
+         renderShapeShellEdges(
+            poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, pending.edges(), 0.12F * worldPreviewOpacity
+         );
+         buffers.endBatch(PENDING_XRAY_LINES);
 
-      renderShapeShellEdges(
-         poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, confirmed.edges(), 0.92F * worldPreviewOpacity
-      );
-      renderShapeShellEdges(
-         poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, pending.edges(), 0.82F * worldPreviewOpacity
-      );
-      buffers.endBatch(GHOST_OUTLINE_LINES);
+         renderShapeShellEdges(
+            poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, confirmed.edges(), 0.92F * worldPreviewOpacity
+         );
+         renderShapeShellEdges(
+            poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, pending.edges(), 0.82F * worldPreviewOpacity
+         );
+         buffers.endBatch(GHOST_OUTLINE_LINES);
+      }
+   }
+
+   private static void renderBuildingOutlineEdges(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      Vec3 camera,
+      List<GuideLine> confirmed,
+      List<GuideLine> pending
+   ) {
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      for (GuideLine edge : confirmed) {
+         renderLine(poseStack, consumer, edge.from(), edge.to(), 1.0F, 1.0F, 1.0F, 0.92F);
+      }
+      for (GuideLine edge : pending) {
+         renderLine(poseStack, consumer, edge.from(), edge.to(), 1.0F, 1.0F, 1.0F, 0.82F);
+      }
+      poseStack.popPose();
+   }
+
+   private static List<GuideLine> outlineGeometryEdges(List<BlockPos> points, FaceMode faceMode) {
+      if (points == null || points.size() < 2 || faceMode == FaceMode.POLYGON) {
+         return List.of();
+      }
+      if (points.size() == 2) {
+         return List.of(new GuideLine(Vec3.atCenterOf(points.getFirst()), Vec3.atCenterOf(points.getLast())));
+      }
+      List<Vec3> base = PlanarFaceGeometry.vertices(points, faceMode);
+      if (base.size() != 4) {
+         return List.of();
+      }
+      if (points.size() == 3) {
+         return closedEdges(base);
+      }
+      Vec3 anchor = Vec3.atCenterOf(points.get(2));
+      Vec3 extrusion = Vec3.atCenterOf(points.get(3)).subtract(anchor);
+      if (extrusion.lengthSqr() < 1.0E-7) {
+         return closedEdges(base);
+      }
+      return new SelectionPrism(base, extrusion).edges();
+   }
+
+   private static List<GuideLine> closedEdges(List<Vec3> vertices) {
+      ArrayList<GuideLine> edges = new ArrayList<>(vertices.size());
+      for (int index = 0; index < vertices.size(); index++) {
+         edges.add(new GuideLine(vertices.get(index), vertices.get((index + 1) % vertices.size())));
+      }
+      return List.copyOf(edges);
    }
 
    private static void renderShapeShellFaces(

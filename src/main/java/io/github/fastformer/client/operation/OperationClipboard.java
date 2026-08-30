@@ -13,7 +13,7 @@ public record OperationClipboard(List<Part> parts) {
    public OperationClipboard {
       parts = parts == null ? List.of() : List.copyOf(parts);
       if (parts.isEmpty() || parts.size() > ClientOperationWorkspace.MAX_PARTS) {
-         throw new IllegalArgumentException("Clipboard must contain between one and ten parts");
+         throw new IllegalArgumentException("Clipboard must contain at least one part");
       }
    }
 

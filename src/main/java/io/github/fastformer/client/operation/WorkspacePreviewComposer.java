@@ -13,6 +13,8 @@ import net.minecraft.world.phys.Vec3;
 
 /** Resolves workspace transforms into the exact voxel maps used by rendering and submission. */
 public final class WorkspacePreviewComposer {
+   public static final int CLIENT_RENDER_BLOCK_LIMIT = 100_000;
+
    private WorkspacePreviewComposer() {
    }
 
@@ -112,6 +114,39 @@ public final class WorkspacePreviewComposer {
 
    public static Map<BlockPos, ClientBlockSnapshot> resolve(ClientSelectionPart part) {
       return resolveValues(part.blocks(), part.transform());
+   }
+
+   /** Resolves only workspaces small enough to render without stalling the client thread. */
+   public static Map<BlockPos, ClientBlockSnapshot> resolveForRendering(ClientSelectionPart part) {
+      return part == null || !canResolveForRendering(part.blocks(), part.transform())
+         ? Map.of()
+         : resolveValues(part.blocks(), part.transform());
+   }
+
+   public static boolean canResolveForRendering(Map<BlockPos, ?> source, WorkspaceTransform transform) {
+      if (source == null || source.isEmpty() || transform == null) return true;
+      OccupiedBlockBounds bounds = OccupiedBlockBounds.from(source.keySet()).orElse(null);
+      if (bounds == null) return true;
+      long width = scaledSize(bounds.width(AxisGizmo.Axis.X), transform.scale().x);
+      long height = scaledSize(bounds.width(AxisGizmo.Axis.Y), transform.scale().y);
+      long depth = scaledSize(bounds.width(AxisGizmo.Axis.Z), transform.scale().z);
+      boolean unchangedDimensions = width == bounds.width(AxisGizmo.Axis.X)
+         && height == bounds.width(AxisGizmo.Axis.Y)
+         && depth == bounds.width(AxisGizmo.Axis.Z);
+      long scaledBlocks = unchangedDimensions
+         ? source.size()
+         : saturatingMultiply(saturatingMultiply(width, height), depth);
+      return scaledBlocks <= CLIENT_RENDER_BLOCK_LIMIT / Math.max(1L, transform.repeats().cellCount());
+   }
+
+   private static long scaledSize(int size, double scale) {
+      if (!Double.isFinite(scale) || scale <= 0.0) return Long.MAX_VALUE;
+      double value = Math.max(1.0, Math.rint(size * scale));
+      return value >= Long.MAX_VALUE ? Long.MAX_VALUE : (long)value;
+   }
+
+   private static long saturatingMultiply(long left, long right) {
+      return left != 0L && right > Long.MAX_VALUE / left ? Long.MAX_VALUE : left * right;
    }
 
    private static double axisComponent(Vec3 value, AxisGizmo.Axis axis) {

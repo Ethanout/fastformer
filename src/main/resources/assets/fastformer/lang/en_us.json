@@ -129,8 +129,10 @@
   "fastformer.settings.face_rasterization.gradient_cross_experimental": "Gradient cross interpolation (experimental)",
   "fastformer.settings.raycast_placement": "Default raycast placement",
   "fastformer.settings.placement_conflict": "Placement conflict",
-  "fastformer.settings.placement_update": "Placement update mode",
+  "fastformer.settings.placement_update": "Freeze placement updates",
   "fastformer.settings.smart_wood_frame": "Smart wood frame",
+  "fastformer.settings.empty_hand_wrench": "Empty-hand wrench",
+  "fastformer.settings.global_freeze": "Freeze all world updates",
   "fastformer.settings.world_history": "World undo history",
   "fastformer.settings.session_history": "Session undo history",
   "fastformer.message.session_history_limit_status": "Session history limit: %s",
@@ -286,8 +288,8 @@
   "fastformer.operation.conflict.replace": "Replace",
   "fastformer.operation.conflict.keep_existing": "Keep existing",
 
-  "fastformer.placement.update.normal": "Normal updates",
-  "fastformer.placement.update.client_only": "Client-only updates",
+  "fastformer.placement.update.normal": "Off",
+  "fastformer.placement.update.client_only": "On (no neighbor updates)",
 
   "fastformer.geometry.mode.wall": "Wall",
   "fastformer.geometry.mode.polyhedron": "Sphere",
@@ -323,5 +325,6 @@
   "fastformer.geometry.compound.loft": "Loft",
 
   "fastformer.special.block_picker.no_item": "Block picker: this block has no item",
-  "fastformer.special.block_picker.picked": "Block picker: %s"
+  "fastformer.special.block_picker.picked": "Block picker: %s",
+  "fastformer.quick_replace.active": "Quick Replace  R: Off"
 }

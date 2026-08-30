@@ -12,12 +12,16 @@ public record OperationSelectionVolume(
    AABB bounds,
    SelectionPrism prism,
    List<OperationGeometry.HullFace> hullFaces,
-   int hullInflation
+   int hullInflation,
+   BlockPos point1,
+   BlockPos point2
 ) {
    public static final double RAYCAST_INFLATE = 0.01;
 
    public OperationSelectionVolume {
       hullFaces = hullFaces == null ? List.of() : List.copyOf(hullFaces);
+      point1 = point1 == null ? null : point1.immutable();
+      point2 = point2 == null ? null : point2.immutable();
    }
 
    public static OperationSelectionVolume create(
@@ -42,7 +46,8 @@ public record OperationSelectionVolume(
       }
       if (mode == OperationSelectionMode.PRISM) {
          SelectionPrism prism = SelectionPrism.fromPoints(points, prismBasePointCount, minOffset, maxOffset);
-         return prism == null ? null : new OperationSelectionVolume(mode, prism.bounds(), prism, List.of(), 0);
+         return prism == null ? null : new OperationSelectionVolume(mode, prism.bounds(), prism, List.of(), 0,
+            points.size() > 0 ? points.getFirst() : null, points.size() > 1 ? points.get(1) : null);
       }
       AABB bounds = OperationGeometry.bounds(points, minOffset, maxOffset, hullInflation);
       if (bounds == null) {
@@ -51,7 +56,8 @@ public record OperationSelectionVolume(
       List<OperationGeometry.HullFace> faces = mode == OperationSelectionMode.CONVEX_HULL
          ? OperationGeometry.convexHullFaces(points)
          : List.of();
-      return new OperationSelectionVolume(mode, bounds, null, faces, mode == OperationSelectionMode.CONVEX_HULL ? hullInflation : 0);
+      return new OperationSelectionVolume(mode, bounds, null, faces, mode == OperationSelectionMode.CONVEX_HULL ? hullInflation : 0,
+         points.size() > 0 ? points.getFirst() : null, points.size() > 1 ? points.get(1) : null);
    }
 
    public boolean contains(Vec3 point) {

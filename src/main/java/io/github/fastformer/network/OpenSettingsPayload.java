@@ -16,6 +16,8 @@ public record OpenSettingsPayload(
    OperationConflictMode placementConflictMode,
    PlacementUpdateMode placementUpdateMode,
    boolean smartWoodFrame,
+   boolean emptyHandWrench,
+   boolean globalFrozen,
    int worldUndoHistoryLimit,
    int sessionUndoHistoryLimit
 ) implements CustomPacketPayload {
@@ -27,7 +29,8 @@ public record OpenSettingsPayload(
    private OpenSettingsPayload(FriendlyByteBuf buffer) {
       this(
          buffer.readBoolean(), buffer.readEnum(FaceRasterizationMode.class), buffer.readEnum(RaycastPlacement.class),
-         buffer.readEnum(OperationConflictMode.class), buffer.readEnum(PlacementUpdateMode.class), buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt()
+         buffer.readEnum(OperationConflictMode.class), buffer.readEnum(PlacementUpdateMode.class),
+         buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt()
       );
    }
 
@@ -43,7 +46,8 @@ public record OpenSettingsPayload(
    }
 
    public OpenSettingsPayload(boolean middleConfirmEnabled) {
-      this(middleConfirmEnabled, FaceRasterizationMode.POINT_SWEEP, RaycastPlacement.EMBEDDED, OperationConflictMode.REPLACE, PlacementUpdateMode.NORMAL, true, 200, 100);
+      this(middleConfirmEnabled, FaceRasterizationMode.POINT_SWEEP, RaycastPlacement.EMBEDDED,
+         OperationConflictMode.REPLACE, PlacementUpdateMode.NORMAL, true, true, false, 200, 100);
    }
 
    public OpenSettingsPayload(
@@ -57,7 +61,7 @@ public record OpenSettingsPayload(
    ) {
       this(
          middleConfirmEnabled, faceRasterizationMode, raycastPlacement, placementConflictMode,
-         placementUpdateMode, true, worldUndoHistoryLimit, sessionUndoHistoryLimit
+         placementUpdateMode, true, true, false, worldUndoHistoryLimit, sessionUndoHistoryLimit
       );
    }
 
@@ -68,6 +72,8 @@ public record OpenSettingsPayload(
       buffer.writeEnum(this.placementConflictMode);
       buffer.writeEnum(this.placementUpdateMode);
       buffer.writeBoolean(this.smartWoodFrame);
+      buffer.writeBoolean(this.emptyHandWrench);
+      buffer.writeBoolean(this.globalFrozen);
       buffer.writeVarInt(this.worldUndoHistoryLimit);
       buffer.writeVarInt(this.sessionUndoHistoryLimit);
    }

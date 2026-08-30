@@ -23,6 +23,8 @@ public final class FastFormerSettingsScreen extends Screen {
    private OperationConflictMode placementConflictMode;
    private PlacementUpdateMode placementUpdateMode;
    private boolean smartWoodFrame;
+   private boolean emptyHandWrench;
+   private boolean globalFrozen;
    private int worldUndoHistoryLimit;
    private int sessionUndoHistoryLimit;
    private Button middleConfirmButton;
@@ -31,6 +33,8 @@ public final class FastFormerSettingsScreen extends Screen {
    private Button placementConflictButton;
    private Button placementUpdateButton;
    private Button smartWoodFrameButton;
+   private Button emptyHandWrenchButton;
+   private Button globalFreezeButton;
    private Button worldHistoryButton;
    private Button sessionHistoryButton;
 
@@ -41,6 +45,8 @@ public final class FastFormerSettingsScreen extends Screen {
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
       boolean smartWoodFrame,
+      boolean emptyHandWrench,
+      boolean globalFrozen,
       int worldUndoHistoryLimit,
       int sessionUndoHistoryLimit
    ) {
@@ -53,6 +59,8 @@ public final class FastFormerSettingsScreen extends Screen {
       this.placementConflictMode = placementConflictMode == null ? OperationConflictMode.REPLACE : placementConflictMode;
       this.placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.NORMAL : placementUpdateMode;
       this.smartWoodFrame = smartWoodFrame;
+      this.emptyHandWrench = emptyHandWrench;
+      this.globalFrozen = globalFrozen;
       this.worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
       this.sessionUndoHistoryLimit = Math.clamp((long)sessionUndoHistoryLimit, 1, 800);
    }
@@ -64,13 +72,16 @@ public final class FastFormerSettingsScreen extends Screen {
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
       boolean smartWoodFrame,
+      boolean emptyHandWrench,
+      boolean globalFrozen,
       int worldUndoHistoryLimit,
       int sessionUndoHistoryLimit
    ) {
       Minecraft.getInstance().setScreen(
          new FastFormerSettingsScreen(
             middleConfirmEnabled, faceRasterizationMode, raycastPlacement, placementConflictMode,
-            placementUpdateMode, smartWoodFrame, worldUndoHistoryLimit, sessionUndoHistoryLimit
+            placementUpdateMode, smartWoodFrame, emptyHandWrench, globalFrozen,
+            worldUndoHistoryLimit, sessionUndoHistoryLimit
          )
       );
    }
@@ -78,50 +89,61 @@ public final class FastFormerSettingsScreen extends Screen {
    @Override
    protected void init() {
       int centerX = this.width / 2;
+      int top = Math.max(36, this.height / 2 - 92);
+      int leftX = centerX - 206;
+      int rightX = centerX + 6;
       this.middleConfirmButton = this.addRenderableWidget(
          Button.builder(this.middleConfirmLabel(), button -> this.toggleMiddleConfirm())
-            .bounds(centerX - 100, this.height / 2 - 82, 200, 20)
+            .bounds(leftX, top, 200, 20)
             .build()
       );
       this.faceRasterizationButton = this.addRenderableWidget(
          Button.builder(this.faceRasterizationLabel(), button -> this.cycleFaceRasterization())
-            .bounds(centerX - 100, this.height / 2 - 46, 200, 20)
+            .bounds(leftX, top + 34, 200, 20)
             .build()
       );
       this.raycastPlacementButton = this.addRenderableWidget(
          Button.builder(this.raycastPlacementLabel(), button -> this.cycleRaycastPlacement())
-            .bounds(centerX - 100, this.height / 2 - 10, 200, 20)
+            .bounds(leftX, top + 68, 200, 20)
             .build()
       );
       this.placementConflictButton = this.addRenderableWidget(
          Button.builder(this.placementConflictLabel(), button -> this.cyclePlacementConflict())
-            .bounds(centerX - 100, this.height / 2 + 26, 200, 20)
+            .bounds(leftX, top + 102, 200, 20)
             .build()
       );
       this.placementUpdateButton = this.addRenderableWidget(
          Button.builder(this.placementUpdateLabel(), button -> this.cyclePlacementUpdate())
-            .bounds(centerX - 100, this.height / 2 + 62, 200, 20)
+            .bounds(leftX, top + 136, 200, 20)
             .build()
       );
       this.smartWoodFrameButton = this.addRenderableWidget(
          Button.builder(this.smartWoodFrameLabel(), button -> this.toggleSmartWoodFrame())
-            .bounds(centerX - 100, this.height / 2 + 98, 200, 20).build()
+            .bounds(rightX, top, 200, 20).build()
+      );
+      this.emptyHandWrenchButton = this.addRenderableWidget(
+         Button.builder(this.emptyHandWrenchLabel(), button -> this.toggleEmptyHandWrench())
+            .bounds(rightX, top + 34, 200, 20).build()
+      );
+      this.globalFreezeButton = this.addRenderableWidget(
+         Button.builder(this.globalFreezeLabel(), button -> this.toggleGlobalFreeze())
+            .bounds(rightX, top + 68, 200, 20).build()
       );
       this.addRenderableWidget(Button.builder(Component.literal("-"), button -> this.adjustWorldHistory(-10))
-         .bounds(centerX - 100, this.height / 2 + 134, 20, 20).build());
+         .bounds(rightX, top + 102, 20, 20).build());
       this.worldHistoryButton = this.addRenderableWidget(Button.builder(this.worldHistoryLabel(), button -> {})
-         .bounds(centerX - 76, this.height / 2 + 134, 152, 20).build());
+         .bounds(rightX + 24, top + 102, 152, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("+"), button -> this.adjustWorldHistory(10))
-         .bounds(centerX + 80, this.height / 2 + 134, 20, 20).build());
+         .bounds(rightX + 180, top + 102, 20, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("-"), button -> this.adjustSessionHistory(-10))
-         .bounds(centerX - 100, this.height / 2 + 170, 20, 20).build());
+         .bounds(rightX, top + 136, 20, 20).build());
       this.sessionHistoryButton = this.addRenderableWidget(Button.builder(this.sessionHistoryLabel(), button -> {})
-         .bounds(centerX - 76, this.height / 2 + 170, 152, 20).build());
+         .bounds(rightX + 24, top + 136, 152, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("+"), button -> this.adjustSessionHistory(10))
-         .bounds(centerX + 80, this.height / 2 + 170, 20, 20).build());
+         .bounds(rightX + 180, top + 136, 20, 20).build());
       this.addRenderableWidget(
          Button.builder(Component.translatable("gui.done"), button -> this.onClose())
-            .bounds(centerX - 100, this.height / 2 + 206, 200, 20)
+            .bounds(centerX - 100, top + 176, 200, 20)
             .build()
       );
    }
@@ -129,15 +151,20 @@ public final class FastFormerSettingsScreen extends Screen {
    @Override
    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
       this.renderBackground(graphics, mouseX, mouseY, partialTick);
-      graphics.drawCenteredString(this.font, this.title, this.width / 2, this.height / 2 - 122, 0xFFFFFFFF);
-      this.label(graphics, "fastformer.settings.middle_confirm", -94);
-      this.label(graphics, "fastformer.settings.face_rasterization", -58);
-      this.label(graphics, "fastformer.settings.raycast_placement", -22);
-      this.label(graphics, "fastformer.settings.placement_conflict", 14);
-      this.label(graphics, "fastformer.settings.placement_update", 50);
-      this.label(graphics, "fastformer.settings.smart_wood_frame", 86);
-      this.label(graphics, "fastformer.settings.world_history", 122);
-      this.label(graphics, "fastformer.settings.session_history", 158);
+      int top = Math.max(36, this.height / 2 - 92);
+      int leftX = this.width / 2 - 206;
+      int rightX = this.width / 2 + 6;
+      graphics.drawCenteredString(this.font, this.title, this.width / 2, top - 18, 0xFFFFFFFF);
+      this.labelAt(graphics, "fastformer.settings.middle_confirm", leftX, top - 11);
+      this.labelAt(graphics, "fastformer.settings.face_rasterization", leftX, top + 23);
+      this.labelAt(graphics, "fastformer.settings.raycast_placement", leftX, top + 57);
+      this.labelAt(graphics, "fastformer.settings.placement_conflict", leftX, top + 91);
+      this.labelAt(graphics, "fastformer.settings.placement_update", leftX, top + 125);
+      this.labelAt(graphics, "fastformer.settings.smart_wood_frame", rightX, top - 11);
+      this.labelAt(graphics, "fastformer.settings.empty_hand_wrench", rightX, top + 23);
+      this.labelAt(graphics, "fastformer.settings.global_freeze", rightX, top + 57);
+      this.labelAt(graphics, "fastformer.settings.world_history", rightX, top + 91);
+      this.labelAt(graphics, "fastformer.settings.session_history", rightX, top + 125);
       super.render(graphics, mouseX, mouseY, partialTick);
    }
 
@@ -212,6 +239,26 @@ public final class FastFormerSettingsScreen extends Screen {
       return Component.translatable(this.smartWoodFrame ? "options.on" : "options.off");
    }
 
+   private void toggleEmptyHandWrench() {
+      this.emptyHandWrench = !this.emptyHandWrench;
+      this.emptyHandWrenchButton.setMessage(this.emptyHandWrenchLabel());
+      this.send(SettingsActionPayload.Action.TOGGLE_EMPTY_HAND_WRENCH);
+   }
+
+   private Component emptyHandWrenchLabel() {
+      return Component.translatable(this.emptyHandWrench ? "options.on" : "options.off");
+   }
+
+   private void toggleGlobalFreeze() {
+      this.globalFrozen = !this.globalFrozen;
+      this.globalFreezeButton.setMessage(this.globalFreezeLabel());
+      this.send(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE);
+   }
+
+   private Component globalFreezeLabel() {
+      return Component.translatable(this.globalFrozen ? "options.on" : "options.off");
+   }
+
    private Component placementUpdateLabel() {
       return Component.translatable(this.placementUpdateMode.translationKey());
    }
@@ -245,6 +292,14 @@ public final class FastFormerSettingsScreen extends Screen {
 
    private void label(GuiGraphics graphics, String key, int offsetY) {
       graphics.drawString(this.font, Component.translatable(key), this.width / 2 - 100, this.height / 2 + offsetY, 0xFFE0E7ED);
+   }
+
+   private void labelAt(GuiGraphics graphics, String key, int y) {
+      graphics.drawString(this.font, Component.translatable(key), this.width / 2 - 100, y, 0xFFE0E7ED);
+   }
+
+   private void labelAt(GuiGraphics graphics, String key, int x, int y) {
+      graphics.drawString(this.font, Component.translatable(key), x, y, 0xFFE0E7ED);
    }
 
    private static <E extends Enum<E>> E next(E current, E[] values) {

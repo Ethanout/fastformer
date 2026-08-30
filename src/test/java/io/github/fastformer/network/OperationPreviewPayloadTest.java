@@ -16,6 +16,7 @@ class OperationPreviewPayloadTest {
    @Test
    void prismStageAndSelectedPointSurviveCodecRoundTrip() {
       OperationPreviewPayload payload = OperationPreviewPayload.active(
+         37L,
          true,
          true,
          List.of(
@@ -52,5 +53,6 @@ class OperationPreviewPayloadTest {
       assertEquals(true, decoded.operationAdjustmentStarted());
       assertEquals(OperationStageMode.TRANSFORM, decoded.operationStageMode());
       assertEquals(new Vec3(0.1, 0.2, 0.3), decoded.operationRotation());
+      assertEquals(37L, decoded.operationRevision());
    }
 }

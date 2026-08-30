@@ -129,8 +129,10 @@
   "fastformer.settings.face_rasterization.gradient_cross_experimental": "梯度十字插值（试验）",
   "fastformer.settings.raycast_placement": "默认射线放置",
   "fastformer.settings.placement_conflict": "放置冲突策略",
-  "fastformer.settings.placement_update": "放置更新模式",
+  "fastformer.settings.placement_update": "放置冻结",
   "fastformer.settings.smart_wood_frame": "智能木框",
+  "fastformer.settings.empty_hand_wrench": "空手右键扳手",
+  "fastformer.settings.global_freeze": "全局冻结更新",
   "fastformer.settings.world_history": "世界撤回历史",
   "fastformer.settings.session_history": "会话撤回历史",
   "fastformer.message.session_history_limit_status": "会话内历史记录上限：%s",
@@ -286,8 +288,8 @@
   "fastformer.operation.conflict.replace": "覆盖",
   "fastformer.operation.conflict.keep_existing": "保留现有方块",
 
-  "fastformer.placement.update.normal": "普通更新",
-  "fastformer.placement.update.client_only": "仅客户端更新",
+  "fastformer.placement.update.normal": "关闭",
+  "fastformer.placement.update.client_only": "开启（不通知邻居）",
 
   "fastformer.geometry.mode.wall": "墙体",
   "fastformer.geometry.mode.polyhedron": "球体",
@@ -323,5 +325,6 @@
   "fastformer.geometry.compound.loft": "放样",
 
   "fastformer.special.block_picker.no_item": "方块选取器：该方块没有对应物品",
-  "fastformer.special.block_picker.picked": "方块选取器：%s"
+  "fastformer.special.block_picker.picked": "方块选取器：%s",
+  "fastformer.quick_replace.active": "快速替换  R:关闭"
 }

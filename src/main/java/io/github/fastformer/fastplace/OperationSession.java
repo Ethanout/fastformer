@@ -18,6 +18,9 @@ public final class OperationSession implements SessionLifecycle {
    private int historyLimit;
    private BlockPos minOffset = BlockPos.ZERO;
    private BlockPos maxOffset = BlockPos.ZERO;
+   /** Current AABB; the two selection points remain user input records. */
+   private BlockPos cuboidMinPoint;
+   private BlockPos cuboidMaxPoint;
    private int hullInflation;
    private OperationSelectionMode selectionMode = OperationSelectionMode.CUBOID;
    private OperationMode mode = OperationMode.MOVE;
@@ -34,8 +37,6 @@ public final class OperationSession implements SessionLifecycle {
    private final Deque<SessionSnapshot> redoHistory = new ArrayDeque<>();
    private SessionSnapshot pendingEdit;
    private boolean adjustmentStarted;
-   private final Deque<TransformSnapshot> transformUndoHistory = new ArrayDeque<>();
-   private final Deque<TransformSnapshot> transformRedoHistory = new ArrayDeque<>();
    private TransformDrag transformDrag;
 
    public OperationSession() {
@@ -71,6 +72,33 @@ public final class OperationSession implements SessionLifecycle {
 
    public BlockPos second() {
       return this.selectionPoints().second;
+   }
+
+   public BlockPos cuboidMinPoint() {
+      return this.selectionMode == OperationSelectionMode.CUBOID && this.selectionPoints().first != null
+         && this.selectionPoints().second != null ? this.cuboidMin() : null;
+   }
+
+   public BlockPos cuboidMaxPoint() {
+      return this.selectionMode == OperationSelectionMode.CUBOID && this.selectionPoints().first != null
+         && this.selectionPoints().second != null ? this.cuboidMax() : null;
+   }
+
+   public OperationSelectionVolume currentSelectionVolume() {
+      if (!this.selectionReady()) return null;
+      if (this.selectionMode == OperationSelectionMode.CUBOID) {
+         BlockPos min = this.cuboidMin();
+         BlockPos max = this.cuboidMax();
+         return new OperationSelectionVolume(
+            OperationSelectionMode.CUBOID,
+            new net.minecraft.world.phys.AABB(min.getX(), min.getY(), min.getZ(), max.getX() + 1.0, max.getY() + 1.0, max.getZ() + 1.0),
+            null, List.of(), 0, this.first(), this.second()
+         );
+      }
+      return OperationSelectionVolume.create(
+         this.selectionMode, this.points(), this.selectionPoints().prismBasePointCount,
+         this.minOffset, this.maxOffset, this.hullInflation
+      );
    }
 
    public boolean hasFirst() {
@@ -113,12 +141,16 @@ public final class OperationSession implements SessionLifecycle {
       this.selectionMode = selectionMode;
       this.minOffset = BlockPos.ZERO;
       this.maxOffset = BlockPos.ZERO;
+      this.cuboidMinPoint = null;
+      this.cuboidMaxPoint = null;
       this.hullInflation = 0;
       this.extend = false;
       this.selectionConfirmed = false;
       this.pointDragState = null;
       if (changedMode) {
          this.clearAdjustments();
+         this.undoHistory.clear();
+         this.redoHistory.clear();
       }
    }
 
@@ -210,6 +242,8 @@ public final class OperationSession implements SessionLifecycle {
       this.maxOffset = BlockPos.ZERO;
       if (!this.selectionReady()) {
          this.clearAdjustments();
+         this.undoHistory.clear();
+         this.redoHistory.clear();
       }
       return true;
    }
@@ -315,7 +349,7 @@ public final class OperationSession implements SessionLifecycle {
       if (operation != AxisGizmo.Operation.ROTATE && normalizedDirection == 0) {
          return false;
       }
-      this.transformDrag = new TransformDrag(operation, axis, normalizedDirection, this.transformSnapshot());
+      this.transformDrag = new TransformDrag(operation, axis, normalizedDirection, this.snapshot(), this.transformSnapshot());
       return true;
    }
 
@@ -365,22 +399,14 @@ public final class OperationSession implements SessionLifecycle {
          }
          return false;
       }
-      pushTransformHistory(this.transformUndoHistory, drag.baseline());
-      this.transformRedoHistory.clear();
+      pushHistory(this.undoHistory, drag.sessionBaseline());
+      this.redoHistory.clear();
       this.adjustmentStarted = true;
       return true;
    }
 
    public boolean undoAdjustment() {
-      this.transformDrag = null;
-      TransformSnapshot previous = this.transformUndoHistory.pollLast();
-      if (previous == null) {
-         return false;
-      }
-      pushTransformHistory(this.transformRedoHistory, this.transformSnapshot());
-      this.restoreTransform(previous);
-      this.adjustmentStarted = !this.transformUndoHistory.isEmpty() || previous.adjustmentStarted();
-      return true;
+      return this.undoStep();
    }
 
    private boolean acceptsTransform(AxisGizmo.Operation operation) {
@@ -407,7 +433,8 @@ public final class OperationSession implements SessionLifecycle {
       if (newMin.equals(oldMin) && newMax.equals(oldMax)) {
          return false;
       }
-      this.fitCuboidAnchors(newMin, newMax);
+      this.cuboidMinPoint = newMin.immutable();
+      this.cuboidMaxPoint = newMax.immutable();
       this.extend = true;
       this.selectionConfirmed = false;
       return true;
@@ -488,7 +515,8 @@ public final class OperationSession implements SessionLifecycle {
          if (newMin.getX() > newMax.getX() || newMin.getY() > newMax.getY() || newMin.getZ() > newMax.getZ()) {
             return false;
          }
-         this.fitCuboidAnchors(newMin, newMax);
+         this.cuboidMinPoint = newMin.immutable();
+         this.cuboidMaxPoint = newMax.immutable();
          this.extend = true;
          this.selectionConfirmed = false;
          return true;
@@ -523,6 +551,11 @@ public final class OperationSession implements SessionLifecycle {
       }
       for (int index = 0; index < this.selectionPoints().extraPoints.size(); index++) {
          this.selectionPoints().extraPoints.set(index, this.selectionPoints().extraPoints.get(index).offset(offset).immutable());
+      }
+      if (this.selectionMode == OperationSelectionMode.CUBOID) {
+         this.minOffset = BlockPos.ZERO;
+         this.maxOffset = BlockPos.ZERO;
+         this.recomputeCuboidBounds();
       }
       this.selectionConfirmed = false;
       return true;
@@ -732,6 +765,7 @@ public final class OperationSession implements SessionLifecycle {
       }
       this.selectionPoints().first = point.immutable();
       this.clearTransientSelection();
+      this.recomputeCuboidBounds();
    }
 
    public void setSecond(BlockPos point) {
@@ -740,6 +774,7 @@ public final class OperationSession implements SessionLifecycle {
       }
       this.selectionPoints().second = point.immutable();
       this.clearTransientSelection();
+      this.recomputeCuboidBounds();
    }
 
    public boolean addExtraPoint(BlockPos point) {
@@ -814,8 +849,6 @@ public final class OperationSession implements SessionLifecycle {
       this.historyLimit = Math.clamp(historyLimit, 1, FastPlaceSettings.MAX_UNDO_HISTORY_LIMIT);
       trimHistory(this.undoHistory, this.historyLimit);
       trimHistory(this.redoHistory, this.historyLimit);
-      trimHistory(this.transformUndoHistory, this.historyLimit);
-      trimHistory(this.transformRedoHistory, this.historyLimit);
    }
 
    public void beginEdit() {
@@ -858,8 +891,6 @@ public final class OperationSession implements SessionLifecycle {
       this.redoHistory.clear();
       this.pendingEdit = null;
       this.adjustmentStarted = false;
-      this.transformUndoHistory.clear();
-      this.transformRedoHistory.clear();
       this.transformDrag = null;
    }
 
@@ -884,8 +915,6 @@ public final class OperationSession implements SessionLifecycle {
       this.rotation = Vec3.ZERO;
       this.stageMode = OperationStageMode.TRANSFORM;
       this.adjustmentStarted = false;
-      this.transformUndoHistory.clear();
-      this.transformRedoHistory.clear();
       this.transformDrag = null;
    }
 
@@ -924,51 +953,39 @@ public final class OperationSession implements SessionLifecycle {
       this.adjustmentStarted = snapshot.adjustmentStarted();
    }
 
-   private void pushTransformHistory(Deque<TransformSnapshot> history, TransformSnapshot snapshot) {
-      history.addLast(snapshot);
-      while (history.size() > this.historyLimit) {
-         history.removeFirst();
-      }
-   }
-
    private BlockPos cuboidMin() {
+      if (this.cuboidMinPoint != null) return this.cuboidMinPoint;
       return new BlockPos(
-         Math.min(this.selectionPoints().first.getX(), this.selectionPoints().second.getX()) + this.minOffset.getX(),
-         Math.min(this.selectionPoints().first.getY(), this.selectionPoints().second.getY()) + this.minOffset.getY(),
-         Math.min(this.selectionPoints().first.getZ(), this.selectionPoints().second.getZ()) + this.minOffset.getZ()
+         Math.min(this.selectionPoints().first.getX(), this.selectionPoints().second.getX()),
+         Math.min(this.selectionPoints().first.getY(), this.selectionPoints().second.getY()),
+         Math.min(this.selectionPoints().first.getZ(), this.selectionPoints().second.getZ())
       );
    }
 
    private BlockPos cuboidMax() {
+      if (this.cuboidMaxPoint != null) return this.cuboidMaxPoint;
       return new BlockPos(
-         Math.max(this.selectionPoints().first.getX(), this.selectionPoints().second.getX()) + this.maxOffset.getX(),
-         Math.max(this.selectionPoints().first.getY(), this.selectionPoints().second.getY()) + this.maxOffset.getY(),
-         Math.max(this.selectionPoints().first.getZ(), this.selectionPoints().second.getZ()) + this.maxOffset.getZ()
+         Math.max(this.selectionPoints().first.getX(), this.selectionPoints().second.getX()),
+         Math.max(this.selectionPoints().first.getY(), this.selectionPoints().second.getY()),
+         Math.max(this.selectionPoints().first.getZ(), this.selectionPoints().second.getZ())
       );
    }
 
-   private void fitCuboidAnchors(BlockPos min, BlockPos max) {
-      int[] x = closestAxisAssignment(this.selectionPoints().first.getX(), this.selectionPoints().second.getX(), min.getX(), max.getX());
-      int[] y = closestAxisAssignment(this.selectionPoints().first.getY(), this.selectionPoints().second.getY(), min.getY(), max.getY());
-      int[] z = closestAxisAssignment(this.selectionPoints().first.getZ(), this.selectionPoints().second.getZ(), min.getZ(), max.getZ());
-      this.selectionPoints().first = new BlockPos(x[0], y[0], z[0]);
-      this.selectionPoints().second = new BlockPos(x[1], y[1], z[1]);
-      this.minOffset = BlockPos.ZERO;
-      this.maxOffset = BlockPos.ZERO;
-   }
-
-   private static int[] closestAxisAssignment(int first, int second, int min, int max) {
-      long orderedCost = squaredDistance(first, min) + squaredDistance(second, max);
-      long reversedCost = squaredDistance(first, max) + squaredDistance(second, min);
-      if (orderedCost < reversedCost || orderedCost == reversedCost && first <= second) {
-         return new int[]{min, max};
+   private void recomputeCuboidBounds() {
+      if (this.selectionMode != OperationSelectionMode.CUBOID
+         || this.selectionPoints().first == null || this.selectionPoints().second == null) {
+         this.cuboidMinPoint = null;
+         this.cuboidMaxPoint = null;
+         return;
       }
-      return new int[]{max, min};
-   }
-
-   private static long squaredDistance(int from, int to) {
-      long difference = (long)to - from;
-      return difference * difference;
+      BlockPos first = this.selectionPoints().first;
+      BlockPos second = this.selectionPoints().second;
+      this.cuboidMinPoint = new BlockPos(
+         Math.min(first.getX(), second.getX()), Math.min(first.getY(), second.getY()), Math.min(first.getZ(), second.getZ())
+      );
+      this.cuboidMaxPoint = new BlockPos(
+         Math.max(first.getX(), second.getX()), Math.max(first.getY(), second.getY()), Math.max(first.getZ(), second.getZ())
+      );
    }
 
    private static BlockPos addAxis(BlockPos offset, int axis, int amount) {
@@ -987,10 +1004,18 @@ public final class OperationSession implements SessionLifecycle {
          this.hullPoints.snapshot(),
          this.minOffset,
          this.maxOffset,
+         this.cuboidMinPoint,
+         this.cuboidMaxPoint,
          this.hullInflation,
          this.selectionMode,
          this.conflictMode,
-         this.selectionConfirmed
+         this.selectionConfirmed,
+         this.mode,
+         this.translation,
+         this.stackRegion,
+         this.rotation,
+         this.stageMode,
+         this.adjustmentStarted
       );
    }
 
@@ -1001,10 +1026,19 @@ public final class OperationSession implements SessionLifecycle {
       this.hullPoints.restore(snapshot.hullPoints());
       this.minOffset = snapshot.minOffset();
       this.maxOffset = snapshot.maxOffset();
+      this.cuboidMinPoint = snapshot.cuboidMinPoint();
+      this.cuboidMaxPoint = snapshot.cuboidMaxPoint();
       this.hullInflation = snapshot.hullInflation();
       this.selectionMode = snapshot.selectionMode();
       this.conflictMode = snapshot.conflictMode();
       this.selectionConfirmed = snapshot.selectionConfirmed();
+      this.mode = snapshot.mode();
+      this.translation = snapshot.translation();
+      this.stackRegion = snapshot.stackRegion();
+      this.stackVector = legacyStackVector(this.stackRegion);
+      this.rotation = snapshot.rotation();
+      this.stageMode = snapshot.stageMode();
+      this.adjustmentStarted = snapshot.adjustmentStarted();
       this.extend = false;
       this.pointDragState = null;
    }
@@ -1060,10 +1094,18 @@ public final class OperationSession implements SessionLifecycle {
       PointStateSnapshot hullPoints,
       BlockPos minOffset,
       BlockPos maxOffset,
+      BlockPos cuboidMinPoint,
+      BlockPos cuboidMaxPoint,
       int hullInflation,
       OperationSelectionMode selectionMode,
       OperationConflictMode conflictMode,
-      boolean selectionConfirmed
+      boolean selectionConfirmed,
+      OperationMode mode,
+      BlockPos translation,
+      OperationStackRegion stackRegion,
+      Vec3 rotation,
+      OperationStageMode stageMode,
+      boolean adjustmentStarted
    ) {
    }
 
@@ -1086,6 +1128,7 @@ public final class OperationSession implements SessionLifecycle {
       AxisGizmo.Operation operation,
       AxisGizmo.Axis axis,
       int direction,
+      SessionSnapshot sessionBaseline,
       TransformSnapshot baseline
    ) {
    }

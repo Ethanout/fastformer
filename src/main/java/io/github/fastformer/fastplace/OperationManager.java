@@ -359,9 +359,7 @@ public final class OperationManager {
          return false;
       }
 
-      OperationSelectionVolume selection = OperationSelectionVolume.create(
-         session.selectionMode(), session.points(), session.prismBasePointCount(), session.minOffset(), session.maxOffset(), session.hullInflation()
-      );
+      OperationSelectionVolume selection = session.currentSelectionVolume();
       if (selection == null) {
          return false;
       }
@@ -401,8 +399,8 @@ public final class OperationManager {
       return true;
    }
 
-   public static boolean applyWorkspace(ServerPlayer player, OperationWorkspacePlan plan) {
-      if (plan == null || plan.parts().isEmpty()) {
+   public static boolean applyWorkspace(ServerPlayer player, UUID transferId, OperationWorkspacePlan plan) {
+      if (transferId == null || plan == null || plan.parts().isEmpty()) {
          return false;
       }
       int maxPlacement = FastPlaceSettings.load(player).maxPlacement();
@@ -413,6 +411,7 @@ public final class OperationManager {
       TASKS.put(
          player.getUUID(),
          new WorkspaceTask(
+            transferId,
             plan,
             FastPlaceSettings.load(player).placementUpdateMode(),
             maxPlacement,
@@ -474,6 +473,7 @@ public final class OperationManager {
          if (task instanceof WorkspaceTask workspaceTask) {
             FastPlaceNetwork.sendWorkspaceResult(
                context.onlinePlayer(),
+               workspaceTask.transferId(),
                result == TaskResult.COMPLETE || result == TaskResult.EMPTY,
                workspaceTask.failedPartIds()
             );
@@ -500,7 +500,9 @@ public final class OperationManager {
             settleFailedTask(context, task);
          }
          if (task instanceof WorkspaceTask workspaceTask) {
-            FastPlaceNetwork.sendWorkspaceResult(context.onlinePlayer(), false, workspaceTask.failedPartIds());
+            FastPlaceNetwork.sendWorkspaceResult(
+               context.onlinePlayer(), workspaceTask.transferId(), false, workspaceTask.failedPartIds()
+            );
          }
          LOGGER.error("FastFormer operation task failed for {} and was transferred to recovery", owner, exception);
          context.actionBar(FastPlaceMessages.text("fastformer.message.operation_failed_rollback"));
@@ -1222,6 +1224,7 @@ public final class OperationManager {
 
    /** Applies a fully client-edited workspace after one all-or-nothing validation pass. */
    private static final class WorkspaceTask extends OperationTask {
+      private final UUID transferId;
       private final OperationWorkspacePlan plan;
       private final PlacementUpdateMode updateMode;
       private final int maxPlacement;
@@ -1240,16 +1243,22 @@ public final class OperationManager {
       private WorkspacePhase workspacePhase = WorkspacePhase.VALIDATE;
 
       private WorkspaceTask(
+         UUID transferId,
          OperationWorkspacePlan plan,
          PlacementUpdateMode updateMode,
          int maxPlacement,
          ResourceKey<Level> dimension
       ) {
          super();
+         this.transferId = transferId;
          this.plan = plan;
          this.updateMode = updateMode;
          this.maxPlacement = maxPlacement;
          this.dimension = dimension;
+      }
+
+      private UUID transferId() {
+         return this.transferId;
       }
 
       @Override

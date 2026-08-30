@@ -23,6 +23,7 @@ public final class FastPlaceSettings {
    private OperationSelectionMode operationSelectionMode = OperationSelectionMode.CUBOID;
    private PlacementUpdateMode placementUpdateMode = PlacementUpdateMode.NORMAL;
    private boolean smartWoodFrame = true;
+   private boolean emptyHandWrench = true;
    private int maxPlacement = 20972152;
    private int worldUndoHistoryLimit = DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
    private int sessionUndoHistoryLimit = DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
@@ -62,6 +63,7 @@ public final class FastPlaceSettings {
       }
       settings.placementUpdateMode = readEnum(tag, "placementUpdateMode", PlacementUpdateMode.NORMAL);
       settings.smartWoodFrame = !tag.contains("smartWoodFrame") || tag.getBoolean("smartWoodFrame");
+      settings.emptyHandWrench = !tag.contains("emptyHandWrench") || tag.getBoolean("emptyHandWrench");
       settings.maxPlacement = tag.contains("maxPlacement")
          ? Math.clamp((long)tag.getInt("maxPlacement"), 1, 20972152)
          : 20972152;
@@ -260,6 +262,15 @@ public final class FastPlaceSettings {
       this.save(player);
    }
 
+   public boolean emptyHandWrench() {
+      return this.emptyHandWrench;
+   }
+
+   public void toggleEmptyHandWrench(ServerPlayer player) {
+      this.emptyHandWrench = !this.emptyHandWrench;
+      this.save(player);
+   }
+
    public void setPlacementUpdateMode(ServerPlayer player, PlacementUpdateMode mode) {
       this.placementUpdateMode = mode;
       this.save(player);
@@ -302,6 +313,7 @@ public final class FastPlaceSettings {
       tag.putString("operationSelectionMode", this.operationSelectionMode.name());
       tag.putString("placementUpdateMode", this.placementUpdateMode.name());
       tag.putBoolean("smartWoodFrame", this.smartWoodFrame);
+      tag.putBoolean("emptyHandWrench", this.emptyHandWrench);
       tag.putInt("maxPlacement", this.maxPlacement);
       tag.putInt("undoHistoryLimit", this.worldUndoHistoryLimit);
       tag.putInt("sessionUndoHistoryLimit", this.sessionUndoHistoryLimit);

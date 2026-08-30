@@ -32,7 +32,8 @@ public record OperationPreviewPayload(
    Vec3 rotation,
    boolean adjustmentStarted,
    boolean copy,
-   boolean ctrlHeld
+   boolean ctrlHeld,
+   long revision
 ) implements CustomPacketPayload {
    private static final int MAX_PREVIEW_POINTS = 1024;
    public static final Type<OperationPreviewPayload> TYPE = new Type<>(
@@ -52,7 +53,7 @@ public record OperationPreviewPayload(
          buffer.readEnum(OperationSelectionMode.class), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(),
          buffer.readEnum(OperationMode.class), buffer.readEnum(OperationStageMode.class),
          buffer.readBlockPos(), buffer.readBlockPos(), buffer.readBlockPos(), readVec3(buffer),
-         buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean()
+         buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarLong()
       );
    }
 
@@ -64,19 +65,39 @@ public record OperationPreviewPayload(
       BlockPos stackMin, BlockPos stackMax, Vec3 rotation,
       boolean adjustmentStarted, boolean copy, boolean ctrlHeld
    ) {
+      return active(
+         0L, hasFirst, hasSecond, points, minOffset, maxOffset, selectionMode,
+         prismBasePointCount, selectedPointIndex, hullInflation, mode, stageMode,
+         translation, stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld
+      );
+   }
+
+   public static OperationPreviewPayload active(
+      long revision,
+      boolean hasFirst, boolean hasSecond, List<BlockPos> points,
+      BlockPos minOffset, BlockPos maxOffset, OperationSelectionMode selectionMode,
+      int prismBasePointCount, int selectedPointIndex, int hullInflation,
+      OperationMode mode, OperationStageMode stageMode, BlockPos translation,
+      BlockPos stackMin, BlockPos stackMax, Vec3 rotation,
+      boolean adjustmentStarted, boolean copy, boolean ctrlHeld
+   ) {
       return new OperationPreviewPayload(
          true, true, hasFirst, hasSecond, points, minOffset, maxOffset, selectionMode,
          prismBasePointCount, selectedPointIndex, hullInflation, mode, stageMode, translation,
-         stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld
+         stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld, revision
       );
    }
 
    public static OperationPreviewPayload inactive() {
+      return inactive(0L);
+   }
+
+   public static OperationPreviewPayload inactive(long revision) {
       return new OperationPreviewPayload(
          false, false, false, false, List.of(), BlockPos.ZERO, BlockPos.ZERO,
          OperationSelectionMode.CUBOID, 0, -1, 0, OperationMode.MOVE,
          OperationStageMode.TRANSFORM, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO,
-         Vec3.ZERO, false, false, false
+         Vec3.ZERO, false, false, false, revision
       );
    }
 
@@ -94,6 +115,7 @@ public record OperationPreviewPayload(
    public boolean operationAdjustmentStarted() { return this.adjustmentStarted; }
    public Vec3 operationRotation() { return this.rotation; }
    public boolean operationCopy() { return this.copy; }
+   public long operationRevision() { return this.revision; }
 
    /** Compatibility accessor for render code while it migrates to the interval model. */
    public BlockPos operationStackVector() {
@@ -130,6 +152,7 @@ public record OperationPreviewPayload(
       buffer.writeBoolean(this.adjustmentStarted);
       buffer.writeBoolean(this.copy);
       buffer.writeBoolean(this.ctrlHeld);
+      buffer.writeVarLong(this.revision);
    }
 
    @Override

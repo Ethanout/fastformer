@@ -8,6 +8,7 @@ import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
 import io.github.fastformer.fastplace.geometry.PointerGesture;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.network.OperationPointPayload;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.AABB;
@@ -472,11 +473,11 @@ public final class ServerInputDispatcher {
       OperationManager.applyConfirmed(player, copy);
    }
 
-   public static boolean applyWorkspace(ServerPlayer player, OperationWorkspacePlan plan) {
+   public static boolean applyWorkspace(ServerPlayer player, UUID transferId, OperationWorkspacePlan plan) {
       if (WorldHistoryManager.busy(player) || !canOperate(player) || nearNormalBlockReach(player)) {
          return false;
       }
-      return OperationManager.applyWorkspace(player, plan);
+      return OperationManager.applyWorkspace(player, transferId, plan);
    }
 
    public static void operationTransform(

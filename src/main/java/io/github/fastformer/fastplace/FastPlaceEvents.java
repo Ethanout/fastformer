@@ -73,6 +73,12 @@ public final class FastPlaceEvents {
          return;
       }
 
+      if (BlockTinker.use(player, event.getHitVec())) {
+         event.setCancellationResult(InteractionResult.SUCCESS);
+         event.setCanceled(true);
+         return;
+      }
+
       if (ServerInputDispatcher.rightClickBlock(player, event.getHitVec())) {
          event.setCancellationResult(InteractionResult.SUCCESS);
          event.setCanceled(true);
@@ -564,6 +570,8 @@ public final class FastPlaceEvents {
                settings.placementConflictMode(),
                settings.placementUpdateMode(),
                settings.smartWoodFrame(),
+               settings.emptyHandWrench(),
+               player.getServer().tickRateManager().isFrozen(),
                settings.worldUndoHistoryLimit(),
                settings.sessionUndoHistoryLimit()
             ),

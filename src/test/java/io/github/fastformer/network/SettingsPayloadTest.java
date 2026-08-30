@@ -27,6 +27,8 @@ class SettingsPayloadTest {
       assertEquals(RaycastPlacement.SURFACE, open.raycastPlacement());
       assertEquals(OperationConflictMode.KEEP_EXISTING, open.placementConflictMode());
       assertEquals(PlacementUpdateMode.CLIENT_ONLY, open.placementUpdateMode());
+      assertEquals(true, open.emptyHandWrench());
+      assertEquals(false, open.globalFrozen());
       assertEquals(300, open.worldUndoHistoryLimit());
       assertEquals(120, open.sessionUndoHistoryLimit());
 

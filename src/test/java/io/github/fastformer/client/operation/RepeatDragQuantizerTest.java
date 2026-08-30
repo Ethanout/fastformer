@@ -35,7 +35,7 @@ class RepeatDragQuantizerTest {
    @Test
    void cuboidUsesSelectionExtentEvenWhenItsEdgeContainsNoBlocks() {
       OperationSelectionVolume selection = new OperationSelectionVolume(
-         OperationSelectionMode.CUBOID, new AABB(2, 3, 4, 8, 5, 7), null, java.util.List.of(), 0
+         OperationSelectionMode.CUBOID, new AABB(2, 3, 4, 8, 5, 7), null, java.util.List.of(), 0, null, null
       );
       ClientSelectionPart part = new ClientSelectionPart(
          1, ClientSelectionPart.Source.WORLD, selection, Map.of(), WorkspaceTransform.IDENTITY, false
