@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.render;
 
 /** Applies a caller-provided visibility policy without owning gameplay rules. */
 public final class PreviewOpacityController {

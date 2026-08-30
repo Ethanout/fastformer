@@ -32,10 +32,20 @@ import io.github.fastformer.fastplace.geometry.PlaneAxes;
 import io.github.fastformer.fastplace.OperationMode;
 import io.github.fastformer.fastplace.OperationStageMode;
 import io.github.fastformer.client.operation.ClientOperationController;
+import io.github.fastformer.client.input.InteractionContext;
+import io.github.fastformer.client.input.InteractionIntentProvider;
+import io.github.fastformer.client.input.InteractionIntentResolver;
+import io.github.fastformer.client.input.ModifierReticleMode;
+import io.github.fastformer.client.input.OperationInteractionIntent;
 import io.github.fastformer.client.operation.ClientSelectionPart;
 import io.github.fastformer.client.operation.OccupiedBlockBounds;
 import io.github.fastformer.client.operation.WorkspacePreviewComposer;
 import io.github.fastformer.client.operation.WorkspaceTransform;
+import io.github.fastformer.client.placement.QuickReplaceMode;
+import io.github.fastformer.client.render.FastPlaceClientShaders;
+import io.github.fastformer.client.render.HudFadeTimer;
+import io.github.fastformer.client.render.PreviewBlockOcclusion;
+import io.github.fastformer.client.render.WorkspacePreviewRenderer;
 import io.github.fastformer.fastplace.OperationSelectionMode;
 import io.github.fastformer.fastplace.OperationSelectionStage;
 import io.github.fastformer.fastplace.OperationSelectionVolume;
@@ -1298,7 +1308,7 @@ public final class FastPlaceClientPreview {
       smoothReticleFrame = false;
       Minecraft minecraft = Minecraft.getInstance();
       if (minecraft.screen != null || minecraft.player == null) {
-         SmoothReticlePostEffect.updateTarget(FastPlaceClientInput.ModifierReticleMode.NONE);
+         SmoothReticlePostEffect.updateTarget(ModifierReticleMode.NONE);
          return;
       }
       boolean reticleNeeded = SmoothReticlePostEffect.updateTarget(FastPlaceClientInput.modifierReticleMode());
@@ -2410,7 +2420,7 @@ public final class FastPlaceClientPreview {
 
       poseStack.popPose();
       if (hit != null) {
-         renderWorkspaceHintLabel(
+         WorkspacePreviewRenderer.renderHintLabel(
             poseStack, buffers, minecraft, camera,
             hit.point().add(hit.normal().scale(0.08)),
             Component.translatable("fastformer.operation.face_drag_hint").getString()
@@ -2512,7 +2522,7 @@ public final class FastPlaceClientPreview {
             );
          }
          poseStack.popPose();
-         renderWorkspacePartLabel(
+         WorkspacePreviewRenderer.renderPartLabel(
             poseStack, buffers, minecraft, camera, bounds.center(), part.id(), selected, hovered, controlPreview, pulse
          );
 
@@ -2522,13 +2532,15 @@ public final class FastPlaceClientPreview {
             if (altFocused) {
                blockAlpha *= 0.45F;
             }
-            renderWorkspaceBlocks(
+            WorkspacePreviewRenderer.renderBlocks(
                poseStack, buffers, minecraft, camera, resolved,
-               1.0F, 1.0F, 1.0F, blockAlpha
+               1.0F, 1.0F, 1.0F, blockAlpha, worldPreviewOpacity
             );
          }
          if (part.pendingDelete()) {
-            renderPendingDeleteBlocks(poseStack, buffers, camera, part.sourceSnapshot().keySet());
+            WorkspacePreviewRenderer.renderPendingDeleteBlocks(
+               poseStack, buffers, camera, part.sourceSnapshot().keySet(), pendingGridDashOffset()
+            );
          }
 
          if (hoveredFace != null && hoveredFace.partId() == part.id()) {
@@ -2547,7 +2559,7 @@ public final class FastPlaceClientPreview {
             );
             buffers.endBatch(RenderType.lines());
             poseStack.popPose();
-            renderWorkspaceHintLabel(
+            WorkspacePreviewRenderer.renderHintLabel(
                poseStack, buffers, minecraft, camera,
                displayedWorkspaceFaceHit.point().add(displayedWorkspaceFaceHit.normal().scale(0.08)),
                Component.translatable(
@@ -2666,187 +2678,10 @@ public final class FastPlaceClientPreview {
          0.35F, 0.95F, 1.0F, 0.48F + 0.26F * pulse
       );
       poseStack.popPose();
-      renderWorkspaceHintLabel(
+      WorkspacePreviewRenderer.renderHintLabel(
          poseStack, buffers, minecraft, camera, Vec3.atCenterOf(position).add(0.0, 0.68, 0.0),
          Component.translatable("fastformer.operation.selection_create_hint").getString()
       );
-   }
-
-   private static void renderWorkspaceBlocks(
-      PoseStack poseStack,
-      BufferSource buffers,
-      Minecraft minecraft,
-      Vec3 camera,
-      Map<BlockPos, io.github.fastformer.client.operation.ClientBlockSnapshot> blocks,
-      float red,
-      float green,
-      float blue,
-      float alpha
-   ) {
-      RenderSystem.enableBlend();
-      RenderSystem.defaultBlendFunc();
-      RenderSystem.setShaderColor(red, green, blue, alpha * worldPreviewOpacity);
-      try {
-         for (var entry : blocks.entrySet()) {
-            poseStack.pushPose();
-            poseStack.translate(
-               entry.getKey().getX() - camera.x,
-               entry.getKey().getY() - camera.y,
-               entry.getKey().getZ() - camera.z
-            );
-            minecraft.getBlockRenderer().renderSingleBlock(
-               entry.getValue().state(),
-               poseStack,
-               buffers,
-               LightTexture.FULL_BRIGHT,
-               OverlayTexture.NO_OVERLAY
-            );
-            poseStack.popPose();
-         }
-      } finally {
-         buffers.endBatch();
-         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-         RenderSystem.disableBlend();
-      }
-   }
-
-   private static void renderWorkspacePartLabel(
-      PoseStack poseStack,
-      BufferSource buffers,
-      Minecraft minecraft,
-      Vec3 camera,
-      Vec3 center,
-      int id,
-      boolean selected,
-      boolean hovered,
-      boolean controlPreview,
-      float pulse
-   ) {
-      String text = hovered && controlPreview
-         ? "#" + id + (selected ? "  Ctrl · 取消选择" : "  Ctrl · 追加选择")
-         : hovered ? "#" + id + " part" : selected ? "#" + id + " selected" : "#" + id;
-      poseStack.pushPose();
-      float emphasis = hovered ? 1.28F + pulse * 0.08F : selected ? 1.14F : 1.0F;
-      poseStack.translate(center.x - camera.x, center.y - camera.y + 0.22 + (hovered ? pulse * 0.05F : 0.0F), center.z - camera.z);
-      poseStack.mulPose(minecraft.gameRenderer.getMainCamera().rotation());
-      poseStack.scale(-0.025F * emphasis, -0.025F * emphasis, 0.025F * emphasis);
-      float x = -minecraft.font.width(text) * 0.5F;
-      minecraft.font.drawInBatch(
-         text,
-         x,
-         -minecraft.font.lineHeight * 0.5F,
-         hovered ? 0xFF83F5FF : selected ? 0xFFFFD66B : 0xFFB9D7E8,
-         false,
-         poseStack.last().pose(),
-         buffers,
-         Font.DisplayMode.SEE_THROUGH,
-         hovered ? 0xC0004050 : selected ? 0xA0603D00 : 0x50000000,
-         0x00F000F0
-      );
-      poseStack.popPose();
-   }
-
-   private static void renderWorkspaceHintLabel(
-      PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera, Vec3 position, String text
-   ) {
-      poseStack.pushPose();
-      poseStack.translate(position.x - camera.x, position.y - camera.y, position.z - camera.z);
-      poseStack.mulPose(minecraft.gameRenderer.getMainCamera().rotation());
-      poseStack.scale(-0.021F, -0.021F, 0.021F);
-      minecraft.font.drawInBatch(
-         text, -minecraft.font.width(text) * 0.5F, -minecraft.font.lineHeight - 3.0F,
-         0xFFFFFFFF, false, poseStack.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
-         0xB0203038, LightTexture.FULL_BRIGHT
-      );
-      poseStack.popPose();
-   }
-
-   private static void renderPendingDeleteBlocks(
-      PoseStack poseStack,
-      BufferSource buffers,
-      Vec3 camera,
-      java.util.Collection<BlockPos> blocks
-   ) {
-      poseStack.pushPose();
-      poseStack.translate(-camera.x, -camera.y, -camera.z);
-      VertexConsumer lines = buffers.getBuffer(RenderType.lines());
-      double offset = pendingGridDashOffset();
-      for (BlockPos pos : blocks) {
-         Vec3 center = Vec3.atCenterOf(pos);
-         renderDeleteFlowingBox(
-            poseStack,
-            lines,
-            center,
-            new Vec3(0.505, 0.505, 0.505),
-            offset + (pos.getX() + pos.getY() + pos.getZ()) * 0.17,
-            0.94F
-         );
-      }
-      poseStack.popPose();
-   }
-
-   private static void renderDeleteFlowingBox(
-      PoseStack poseStack,
-      VertexConsumer consumer,
-      Vec3 center,
-      Vec3 halfExtents,
-      double offset,
-      float alpha
-   ) {
-      double x0 = center.x - halfExtents.x;
-      double y0 = center.y - halfExtents.y;
-      double z0 = center.z - halfExtents.z;
-      double x1 = center.x + halfExtents.x;
-      double y1 = center.y + halfExtents.y;
-      double z1 = center.z + halfExtents.z;
-      Vec3[] corners = {
-         new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y1, z0), new Vec3(x0, y1, z0),
-         new Vec3(x0, y0, z1), new Vec3(x1, y0, z1), new Vec3(x1, y1, z1), new Vec3(x0, y1, z1)
-      };
-      int[][] edgesAndFaceDiagonals = {
-         {0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4},
-         {0, 4}, {1, 5}, {2, 6}, {3, 7},
-         {0, 2}, {1, 3}, {4, 6}, {5, 7},
-         {0, 5}, {1, 4}, {3, 6}, {2, 7},
-         {0, 7}, {3, 4}, {1, 6}, {2, 5}
-      };
-      for (int[] edge : edgesAndFaceDiagonals) {
-         renderRedFlowingDashedLine(
-            poseStack, consumer, corners[edge[0]], corners[edge[1]], alpha, offset
-         );
-      }
-   }
-
-   private static void renderRedFlowingDashedLine(
-      PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha, double offset
-   ) {
-      Vec3 vector = to.subtract(from);
-      double length = vector.length();
-      if (length < EPSILON) {
-         return;
-      }
-      Vec3 direction = vector.scale(1.0 / length);
-      int index = (int)Math.floor(-offset / SELECTION_DASH_LENGTH) - 1;
-      for (double start = index * SELECTION_DASH_LENGTH + offset;
-           start < length;
-           start += SELECTION_DASH_LENGTH, index++) {
-         double clippedStart = Math.max(0.0, start);
-         double clippedEnd = Math.min(length, start + SELECTION_DASH_LENGTH);
-         if (clippedEnd <= clippedStart) {
-            continue;
-         }
-         boolean bright = Math.floorMod(index, 2) == 0;
-         renderLine(
-            poseStack,
-            consumer,
-            from.add(direction.scale(clippedStart)),
-            from.add(direction.scale(clippedEnd)),
-            bright ? 1.0F : 0.38F,
-            bright ? 0.12F : 0.0F,
-            bright ? 0.08F : 0.0F,
-            alpha
-         );
-      }
    }
 
    private static void renderOperationPointDragGuides(
@@ -4938,11 +4773,11 @@ public final class FastPlaceClientPreview {
       poseStack.popPose();
    }
 
-   private static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to) {
+   public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to) {
       renderLine(poseStack, consumer, from, to, 0.18F, 0.78F, 1.0F, 0.68F);
    }
 
-   private static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float red, float green, float blue, float alpha) {
+   public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float red, float green, float blue, float alpha) {
       Vec3 normal = normalize(to.subtract(from));
       if (!(normal.lengthSqr() < 1.0E-7)) {
          Pose pose = poseStack.last();

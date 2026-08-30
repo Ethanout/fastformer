@@ -1,5 +1,7 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.FastPlaceClientInput;
+import io.github.fastformer.client.FastPlaceClientPreview;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.phys.BlockHitResult;

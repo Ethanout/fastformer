@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.render;
 
 /** Smoothly approaches a visible or hidden render state. */
 public final class VisibilityInterpolator {

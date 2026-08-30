@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.ui;
 
 import io.github.fastformer.fastplace.FaceRasterizationMode;
 import io.github.fastformer.fastplace.OperationConflictMode;

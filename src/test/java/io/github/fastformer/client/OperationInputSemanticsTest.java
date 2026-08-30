@@ -1,5 +1,6 @@
 package io.github.fastformer.client;
 
+import io.github.fastformer.client.input.OperationInputSemantics;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.fastplace.OperationSelectionMode;

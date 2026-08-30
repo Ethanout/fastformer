@@ -1,5 +1,7 @@
 package io.github.fastformer.client;
 
+import io.github.fastformer.client.render.HudFadeTimer;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

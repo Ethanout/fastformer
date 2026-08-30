@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.placement;
 
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;

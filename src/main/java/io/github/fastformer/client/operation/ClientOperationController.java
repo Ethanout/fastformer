@@ -4,7 +4,7 @@ import io.github.fastformer.fastplace.OperationSelectionMode;
 import io.github.fastformer.fastplace.OperationSelectionVolume;
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.client.ClientPlacementRouter;
+import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.network.OperationPreviewPayload;
 import io.github.fastformer.network.OperationWorkspaceResultPayload;
 import java.io.IOException;

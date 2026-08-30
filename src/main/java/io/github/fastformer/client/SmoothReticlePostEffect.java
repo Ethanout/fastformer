@@ -1,5 +1,6 @@
 package io.github.fastformer.client;
 
+import io.github.fastformer.client.input.ModifierReticleMode;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import java.io.IOException;
@@ -26,8 +27,8 @@ final class SmoothReticlePostEffect {
    private static int height = -1;
    private static long nextRetryAt;
    private static boolean failureReported;
-   private static FastPlaceClientInput.ModifierReticleMode transitionFrom = FastPlaceClientInput.ModifierReticleMode.NONE;
-   private static FastPlaceClientInput.ModifierReticleMode transitionTo = FastPlaceClientInput.ModifierReticleMode.NONE;
+   private static ModifierReticleMode transitionFrom = ModifierReticleMode.NONE;
+   private static ModifierReticleMode transitionTo = ModifierReticleMode.NONE;
    private static long transitionStartedAt;
    private static boolean transitionActive;
 
@@ -70,9 +71,9 @@ final class SmoothReticlePostEffect {
       }
    }
 
-   static boolean updateTarget(FastPlaceClientInput.ModifierReticleMode mode) {
-      FastPlaceClientInput.ModifierReticleMode requested = mode == null
-         ? FastPlaceClientInput.ModifierReticleMode.NONE
+   static boolean updateTarget(ModifierReticleMode mode) {
+      ModifierReticleMode requested = mode == null
+         ? ModifierReticleMode.NONE
          : mode;
       if (requested != transitionTo) {
          transitionFrom = transitionTo;
@@ -143,14 +144,14 @@ final class SmoothReticlePostEffect {
 
    static void reset() {
       close();
-      transitionFrom = FastPlaceClientInput.ModifierReticleMode.NONE;
-      transitionTo = FastPlaceClientInput.ModifierReticleMode.NONE;
+      transitionFrom = ModifierReticleMode.NONE;
+      transitionTo = ModifierReticleMode.NONE;
       transitionStartedAt = 0L;
       transitionActive = false;
    }
 
    private static boolean needsRender() {
-      return transitionActive || transitionTo != FastPlaceClientInput.ModifierReticleMode.NONE;
+      return transitionActive || transitionTo != ModifierReticleMode.NONE;
    }
 
    private static float transitionProgress() {
@@ -168,7 +169,7 @@ final class SmoothReticlePostEffect {
       }
    }
 
-   private static float modeValue(FastPlaceClientInput.ModifierReticleMode mode) {
+   private static float modeValue(ModifierReticleMode mode) {
       return switch (mode) {
          case NONE -> 0.0F;
          case EMBEDDED -> 1.0F;

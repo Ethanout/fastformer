@@ -690,7 +690,7 @@ public final class FastPlaceNetwork {
 
    private static void applyClientOpenSettings(OpenSettingsPayload payload) {
       try {
-         Class<?> handler = Class.forName("io.github.fastformer.client.FastFormerSettingsScreen");
+         Class<?> handler = Class.forName("io.github.fastformer.client.ui.FastFormerSettingsScreen");
          handler.getMethod(
             "open", boolean.class, io.github.fastformer.fastplace.FaceRasterizationMode.class,
             io.github.fastformer.fastplace.RaycastPlacement.class,

@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.input;
 
 import java.util.Optional;
 

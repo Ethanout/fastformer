@@ -2,6 +2,14 @@ package io.github.fastformer.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.fastformer.client.operation.ClientOperationController;
+import io.github.fastformer.client.input.InteractionContext;
+import io.github.fastformer.client.input.ModifierReticleMode;
+import io.github.fastformer.client.input.OperationInputSemantics;
+import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.placement.ClientPlacementRouter;
+import io.github.fastformer.client.placement.QuickReplaceMode;
+import io.github.fastformer.client.session.ClientSessionManager;
+import io.github.fastformer.client.ui.GeometryRadialScreen;
 import io.github.fastformer.client.operation.ClientSelectionPart;
 import io.github.fastformer.client.operation.PixelPerfectAngles;
 import io.github.fastformer.client.operation.RepeatDragQuantizer;
@@ -908,6 +916,7 @@ public final class FastPlaceClientInput {
    public static void onClientTick(Post event) {
       Minecraft minecraft = Minecraft.getInstance();
       pollModifierKeys(minecraft);
+      ClientSessionManager.instance().refresh(minecraft);
       InteractionContext.tick(minecraft);
       if (minecraft.player == null || minecraft.getConnection() == null) {
          QuickReplaceMode.clear();
@@ -2391,238 +2400,8 @@ public final class FastPlaceClientInput {
       return axis == 0 ? value.x : axis == 1 ? value.y : value.z;
    }
 
-   private record OperationDrag(
-      int axis,
-      boolean positive,
-      DragAxisFrame frame,
-      Vec3 normal,
-      int sentSteps,
-      int mouseButton,
-      OperationGeometry.RayHit faceHit,
-      AxisGizmo.HandleKey gizmoKey,
-      double gizmoBaseValue,
-      DeferredDragClick deferredClick
-   ) {
-      private OperationDrag withFrame(DragAxisFrame value) {
-         return new OperationDrag(
-            this.axis,
-            this.positive,
-            value,
-            this.normal,
-            this.sentSteps,
-            this.mouseButton,
-            this.faceHit,
-            this.gizmoKey,
-            this.gizmoBaseValue,
-            this.deferredClick
-         );
-      }
-
-      private OperationDrag withSentSteps(int value) {
-         return new OperationDrag(
-            this.axis,
-            this.positive,
-            this.frame,
-            this.normal,
-            value,
-            this.mouseButton,
-            this.faceHit,
-            this.gizmoKey,
-            this.gizmoBaseValue,
-            this.deferredClick
-         );
-      }
-
-      private OperationDrag withDeferredClick(DeferredDragClick value) {
-         return new OperationDrag(
-            this.axis,
-            this.positive,
-            this.frame,
-            this.normal,
-            this.sentSteps,
-            this.mouseButton,
-            this.faceHit,
-            this.gizmoKey,
-            this.gizmoBaseValue,
-            value
-         );
-      }
-   }
-
-   private record WorkspaceFaceDrag(
-      ClientSelectionPart baseline,
-      int axis,
-      boolean positive,
-      DragAxisFrame frame,
-      Vec3 normal,
-      int sentSteps,
-      int mouseButton,
-      DeferredDragClick deferredClick,
-      OperationGeometry.RayHit hit,
-      io.github.fastformer.client.operation.ClientOperationWorkspace.EditToken editToken
-   ) {
-      private WorkspaceFaceDrag withSentSteps(int value) {
-         return new WorkspaceFaceDrag(
-            this.baseline, this.axis, this.positive, this.frame, this.normal, value,
-            this.mouseButton, this.deferredClick, this.hit, this.editToken
-         );
-      }
-
-      private WorkspaceFaceDrag withDeferredClick(DeferredDragClick value) {
-         return new WorkspaceFaceDrag(
-            this.baseline, this.axis, this.positive, this.frame, this.normal, this.sentSteps,
-            this.mouseButton, value, this.hit, this.editToken
-         );
-      }
-   }
-
-   private record OperationPointDrag(
-      int pointIndex,
-      int mouseButton,
-      BlockPos initialPoint,
-      BlockPos sentTarget,
-      SelectionPrism.GridPlane plane,
-      Vec3 planeGrabOffset,
-      SelectionPrism.GridLine line,
-      double lineGrabBaseline,
-      Vec3 axisBaselines,
-      OperationPointDragConstraint constraint,
-      long pressedAt
-   ) {
-      private OperationPointDrag withSentTarget(BlockPos target) {
-         return new OperationPointDrag(
-            this.pointIndex,
-            this.mouseButton,
-            this.initialPoint,
-            target,
-            this.plane,
-            this.planeGrabOffset,
-            this.line,
-            this.lineGrabBaseline,
-            this.axisBaselines,
-            this.constraint,
-            this.pressedAt
-         );
-      }
-
-      private OperationPointDrag withConstraint(OperationPointDragConstraint value) {
-         return new OperationPointDrag(
-            this.pointIndex,
-            this.mouseButton,
-            this.initialPoint,
-            this.sentTarget,
-            this.plane,
-            this.planeGrabOffset,
-            this.line,
-            this.lineGrabBaseline,
-            this.axisBaselines,
-            value,
-            this.pressedAt
-         );
-      }
-
-      private OperationPointDrag withPlaneFrame(
-         SelectionPrism.GridPlane value,
-         Vec3 grabOffset,
-         Vec3 axisBaselines,
-         OperationPointDragConstraint constraint
-      ) {
-         return new OperationPointDrag(
-            this.pointIndex,
-            this.mouseButton,
-            this.initialPoint,
-            this.sentTarget,
-            value,
-            grabOffset,
-            this.line,
-            this.lineGrabBaseline,
-            axisBaselines,
-            constraint,
-            this.pressedAt
-         );
-      }
-
-      private OperationPointDrag withLineFrame(
-         SelectionPrism.GridLine value, double grabBaseline, OperationPointDragConstraint constraint
-      ) {
-         return new OperationPointDrag(
-            this.pointIndex,
-            this.mouseButton,
-            this.initialPoint,
-            this.sentTarget,
-            this.plane,
-            this.planeGrabOffset,
-            value,
-            grabBaseline,
-            this.axisBaselines,
-            constraint,
-            this.pressedAt
-         );
-      }
-   }
-
    private static Vec3 normalize(Vec3 vector) {
       return vector == null || vector.lengthSqr() < 1.0E-7 ? Vec3.ZERO : vector.normalize();
    }
 
-   private record GeometryGizmoDrag(
-      AxisGizmo.Operation operation,
-      AxisGizmo.Axis axis,
-      Vec3 origin,
-      Vec3 axisVector,
-      int sentSteps,
-      double baseValue,
-      Vec3 center,
-      Vec3 startRadial,
-      Vec3 startTangent,
-      AxisGizmo.Direction direction,
-      int mouseButton
-   ) {
-      private GeometryGizmoDrag withSentSteps(int value) {
-         return new GeometryGizmoDrag(
-            this.operation,
-            this.axis,
-            this.origin,
-            this.axisVector,
-            value,
-            this.baseValue,
-            this.center,
-            this.startRadial,
-            this.startTangent,
-            this.direction,
-            this.mouseButton
-         );
-      }
-   }
-
-   private record WorkspaceGizmoDrag(
-      int partId,
-      boolean common,
-      AxisGizmo.Operation operation,
-      AxisGizmo.Axis axis,
-      Vec3 origin,
-      Vec3 axisVector,
-      int sentSteps,
-      Vec3 center,
-      Vec3 startRadial,
-      Vec3 startTangent,
-      AxisGizmo.Direction direction,
-      int mouseButton,
-      java.util.List<io.github.fastformer.client.operation.ClientSelectionPart> baseline,
-      io.github.fastformer.client.operation.ClientOperationWorkspace.EditToken editToken
-   ) {
-      private WorkspaceGizmoDrag withSentSteps(int value) {
-         return new WorkspaceGizmoDrag(
-            this.partId, this.common, this.operation, this.axis, this.origin, this.axisVector,
-            value, this.center, this.startRadial, this.startTangent, this.direction, this.mouseButton,
-            this.baseline, this.editToken
-         );
-      }
-   }
-
-   public enum ModifierReticleMode {
-      NONE,
-      EMBEDDED,
-      HALF_GRID
-   }
 }

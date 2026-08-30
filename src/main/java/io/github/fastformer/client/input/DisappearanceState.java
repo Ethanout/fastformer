@@ -1,21 +1,21 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.input;
 
 /**
  * Tick-based visibility gate for the near-vanilla transition. Zero is fully
  * visible; capacity is fully disappeared. The state deliberately has no
  * gameplay knowledge so its condition and applicable sessions can evolve.
  */
-final class DisappearanceState {
+public final class DisappearanceState {
    private final int capacity;
    private int count;
    private int previousCount;
    private boolean disappeared;
 
-   DisappearanceState(int capacity) {
+   public DisappearanceState(int capacity) {
       this.capacity = Math.max(1, capacity);
    }
 
-   void tick(boolean eligible, boolean condition) {
+   public void tick(boolean eligible, boolean condition) {
       previousCount = count;
       if (!eligible) {
          count = Math.max(0, count - 1);
@@ -31,28 +31,28 @@ final class DisappearanceState {
       }
    }
 
-   boolean disappeared() {
+   public boolean disappeared() {
       return disappeared;
    }
 
-   float visibility() {
+   public float visibility() {
       return 1.0F - (float) count / (float) capacity;
    }
 
    /** Returns visibility interpolated from the previous client tick. */
-   float visibility(float partialTick) {
+   public float visibility(float partialTick) {
       float amount = Math.clamp(partialTick, 0.0F, 1.0F);
       float interpolatedCount = previousCount + (count - previousCount) * amount;
       return 1.0F - interpolatedCount / (float) capacity;
    }
 
-   void reset() {
+   public void reset() {
       count = 0;
       previousCount = 0;
       disappeared = false;
    }
 
-   int count() {
+   public int count() {
       return count;
    }
 }

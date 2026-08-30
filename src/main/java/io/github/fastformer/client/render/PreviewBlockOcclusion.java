@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.render;
 
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -31,7 +31,7 @@ public final class PreviewBlockOcclusion {
          || Block.shouldRenderFace(state, previewLevel, pos, direction, neighbor);
    }
 
-   static boolean hasPreviewNeighbor(Set<BlockPos> blocks, BlockPos pos, Direction direction) {
+   public static boolean hasPreviewNeighbor(Set<BlockPos> blocks, BlockPos pos, Direction direction) {
       return blocks.contains(pos.relative(direction));
    }
 

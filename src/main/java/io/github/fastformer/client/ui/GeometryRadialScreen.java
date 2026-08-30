@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.ui;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.fastformer.fastplace.GeometryMode;

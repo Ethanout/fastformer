@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.placement;
 
 import io.github.fastformer.fastplace.PlaceableItems;
 import io.github.fastformer.fastplace.PlacementContextSnapshot;

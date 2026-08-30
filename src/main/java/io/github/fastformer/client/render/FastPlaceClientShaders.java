@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.render;
 
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import java.io.IOException;

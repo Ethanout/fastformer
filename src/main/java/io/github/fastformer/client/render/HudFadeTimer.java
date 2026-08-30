@@ -1,4 +1,4 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.render;
 
 /** Keeps short-lived HUD feedback visible before fading it out. */
 public final class HudFadeTimer {

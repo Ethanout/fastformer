@@ -1,12 +1,12 @@
-package io.github.fastformer.client;
+package io.github.fastformer.client.input;
 
 import io.github.fastformer.fastplace.OperationSelectionMode;
 
-final class OperationInputSemantics {
+public final class OperationInputSemantics {
    private OperationInputSemantics() {
    }
 
-   static LeftAction leftAction(
+   public static LeftAction leftAction(
       OperationSelectionMode selectionMode,
       boolean selectionReady,
       boolean adjustmentStarted,
@@ -23,13 +23,13 @@ final class OperationInputSemantics {
          : LeftAction.VANILLA;
    }
 
-   static boolean yieldToVanillaNearBlock(
+   public static boolean yieldToVanillaNearBlock(
       boolean nearBlock, boolean modifierOverride, boolean gizmoHit
    ) {
       return nearBlock && !modifierOverride && !gizmoHit;
    }
 
-   enum LeftAction {
+   public enum LeftAction {
       VANILLA,
       SELECTION_UNDO,
       ADJUSTMENT_UNDO,
