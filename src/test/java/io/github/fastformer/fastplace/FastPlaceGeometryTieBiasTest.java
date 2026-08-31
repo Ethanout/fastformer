@@ -1,5 +1,10 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.workflow.*;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

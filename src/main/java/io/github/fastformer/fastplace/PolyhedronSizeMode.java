@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum PolyhedronSizeMode implements TranslatableText {
    RADIUS("fastformer.geometry.polyhedron_size.radius"),
    DIAMETER("fastformer.geometry.polyhedron_size.diameter");

@@ -2,15 +2,16 @@ package io.github.fastformer.client.placement;
 
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;
-import io.github.fastformer.network.ConfirmPayload;
-import io.github.fastformer.network.OperationApplyPayload;
-import io.github.fastformer.network.OperationWorkspaceApplyPayload;
-import io.github.fastformer.network.QuickReplacePayload;
-import io.github.fastformer.network.QuickShapePayload;
-import io.github.fastformer.network.StartPlacementPayload;
+import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.network.payload.placement.ConfirmPayload;
+import io.github.fastformer.network.payload.operation.OperationApplyPayload;
+import io.github.fastformer.network.payload.operation.OperationWorkspaceApplyPayload;
+import io.github.fastformer.network.payload.placement.QuickReplacePayload;
+import io.github.fastformer.network.payload.placement.QuickShapePayload;
+import io.github.fastformer.network.payload.placement.ShapePlacementPayload;
+import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,15 +26,54 @@ public final class ClientPlacementRouter {
    }
 
    public static boolean canConfirm(Minecraft minecraft) {
-      return supports(minecraft, ConfirmPayload.TYPE);
+      return supports(minecraft, ShapePlacementPayload.TYPE)
+         || supports(minecraft, ConfirmPayload.TYPE);
    }
 
    public static boolean confirm(Minecraft minecraft) {
+      ShapeSubmissionResult clientResult = submitClientShape(minecraft);
+      if (clientResult != ShapeSubmissionResult.UNSUPPORTED) {
+         return clientResult == ShapeSubmissionResult.SENT;
+      }
       return send(minecraft, ConfirmPayload.TYPE, ConfirmPayload.INSTANCE);
    }
 
    public static boolean quickShape(Minecraft minecraft) {
+      ShapeSubmissionResult clientResult = submitClientShape(minecraft);
+      if (clientResult != ShapeSubmissionResult.UNSUPPORTED) {
+         return clientResult == ShapeSubmissionResult.SENT;
+      }
       return send(minecraft, QuickShapePayload.TYPE, QuickShapePayload.INSTANCE);
+   }
+
+   /** Sends a client-resolved shape package when the current preview is ready. */
+   private static ShapeSubmissionResult submitClientShape(Minecraft minecraft) {
+      if (!supports(minecraft, ShapePlacementPayload.TYPE)) {
+         return ShapeSubmissionResult.UNSUPPORTED;
+      }
+      try {
+         Optional<OperationWorkspacePlan> clientShape = FastPlaceClientPreview.clientBuildingPlacementPlan();
+         if (clientShape.isEmpty()) {
+            clientShape = FastPlaceClientPreview.clientGeometryPlacementPlan();
+         }
+         if (clientShape.isEmpty()) {
+            return ShapeSubmissionResult.NOT_READY;
+         }
+         Optional<ShapeSubmission> submission = prepareShapePlacement(minecraft, clientShape.get());
+         if (submission.isEmpty()) {
+            return ShapeSubmissionResult.NOT_READY;
+         }
+         submission.get().send();
+         return ShapeSubmissionResult.SENT;
+      } catch (IOException | RuntimeException ignored) {
+         return ShapeSubmissionResult.NOT_READY;
+      }
+   }
+
+   private enum ShapeSubmissionResult {
+      SENT,
+      NOT_READY,
+      UNSUPPORTED
    }
 
    public static boolean applyOperation(Minecraft minecraft, boolean copy) {
@@ -59,18 +99,40 @@ public final class ClientPlacementRouter {
          return Optional.empty();
       }
       byte[] compressed = OperationWorkspacePlanCodec.encodeCompressed(plan);
-      int chunkSize = OperationWorkspaceApplyPayload.MAX_CHUNK_BYTES;
-      int chunkCount = (compressed.length + chunkSize - 1) / chunkSize;
       UUID transferId = UUID.randomUUID();
-      List<OperationWorkspaceApplyPayload> chunks = new ArrayList<>(chunkCount);
+      List<OperationWorkspaceApplyPayload> chunks = chunk(
+         compressed,
+         OperationWorkspaceApplyPayload.MAX_CHUNK_BYTES,
+         (index, count, data) -> new OperationWorkspaceApplyPayload(transferId, index, count, data)
+      );
+      return Optional.of(new WorkspaceSubmission(transferId, chunks));
+   }
+
+   public static Optional<ShapeSubmission> prepareShapePlacement(
+      Minecraft minecraft, OperationWorkspacePlan plan
+   ) throws IOException {
+      if (!supports(minecraft, ShapePlacementPayload.TYPE)) {
+         return Optional.empty();
+      }
+      byte[] compressed = OperationWorkspacePlanCodec.encodeCompressed(plan);
+      UUID transferId = UUID.randomUUID();
+      List<ShapePlacementPayload> chunks = chunk(
+         compressed,
+         ShapePlacementPayload.MAX_CHUNK_BYTES,
+         (index, count, data) -> new ShapePlacementPayload(transferId, index, count, data)
+      );
+      return Optional.of(new ShapeSubmission(transferId, chunks));
+   }
+
+   private static <T> List<T> chunk(byte[] data, int chunkSize, ChunkFactory<T> factory) {
+      int chunkCount = (data.length + chunkSize - 1) / chunkSize;
+      List<T> chunks = new ArrayList<>(chunkCount);
       for (int index = 0; index < chunkCount; index++) {
          int from = index * chunkSize;
-         int to = Math.min(compressed.length, from + chunkSize);
-         chunks.add(new OperationWorkspaceApplyPayload(
-            transferId, index, chunkCount, Arrays.copyOfRange(compressed, from, to)
-         ));
+         int to = Math.min(data.length, from + chunkSize);
+         chunks.add(factory.create(index, chunkCount, java.util.Arrays.copyOfRange(data, from, to)));
       }
-      return Optional.of(new WorkspaceSubmission(transferId, chunks));
+      return List.copyOf(chunks);
    }
 
    private static boolean supports(Minecraft minecraft, CustomPacketPayload.Type<?> type) {
@@ -86,6 +148,11 @@ public final class ClientPlacementRouter {
       return true;
    }
 
+   @FunctionalInterface
+   private interface ChunkFactory<T> {
+      T create(int index, int count, byte[] data);
+   }
+
    public record WorkspaceSubmission(UUID transferId, List<OperationWorkspaceApplyPayload> chunks) {
       public WorkspaceSubmission {
          if (transferId == null || chunks == null || chunks.isEmpty()) {
@@ -98,6 +165,19 @@ public final class ClientPlacementRouter {
          this.chunks.forEach(chunk ->
             PacketDistributor.sendToServer(chunk, new CustomPacketPayload[0])
          );
+      }
+   }
+
+   public record ShapeSubmission(UUID transferId, List<ShapePlacementPayload> chunks) {
+      public ShapeSubmission {
+         if (transferId == null || chunks == null || chunks.isEmpty()) {
+            throw new IllegalArgumentException("A shape submission requires chunks");
+         }
+         chunks = List.copyOf(chunks);
+      }
+
+      public void send() {
+         chunks.forEach(chunk -> PacketDistributor.sendToServer(chunk, new CustomPacketPayload[0]));
       }
    }
 }

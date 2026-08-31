@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum ConePrismStage implements TranslatableText {
    FACE("fastformer.geometry.cone_stage.face"),
    BODY("fastformer.geometry.cone_stage.body"),

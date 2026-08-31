@@ -19,7 +19,8 @@ public record GeometryPreviewPlan(
    List<GuideLine> guideLines,
    List<GuidePlane> guidePlanes,
    List<GeometryInteractionTarget> interactionTargets,
-   List<GeometryTextBlock> textBlocks
+   List<GeometryTextBlock> textBlocks,
+   boolean placementReady
 ) {
    public GeometryPreviewPlan {
       controlPoints = List.copyOf(controlPoints);
@@ -63,7 +64,8 @@ public record GeometryPreviewPlan(
          this.guideLines,
          this.guidePlanes,
          this.interactionTargets,
-         this.textBlocks
+         this.textBlocks,
+         this.placementReady
       );
    }
 
@@ -96,6 +98,7 @@ public record GeometryPreviewPlan(
          new GeometryTextBlock(GeometryTextBlock.HINT_ID, GeometryTextBlock.Placement.BOTTOM_HINT, null, true)
       );
       private List<ControlPoint> controlPoints;
+      private boolean placementReady;
 
       private Builder(List<BlockPos> points, BlockPos hoveredPoint) {
          this.points = List.copyOf(points);
@@ -184,6 +187,12 @@ public record GeometryPreviewPlan(
          return this;
       }
 
+      /** Marks that ghostBlocks contains the complete shape, not a fallback outline. */
+      public Builder placementReady(boolean placementReady) {
+         this.placementReady = placementReady;
+         return this;
+      }
+
       public GeometryPreviewPlan build() {
          return new GeometryPreviewPlan(
             this.controlPoints(),
@@ -197,7 +206,8 @@ public record GeometryPreviewPlan(
             this.guideLines,
             this.guidePlanes,
             this.interactionTargets,
-            this.resolvedTextBlocks()
+            this.resolvedTextBlocks(),
+            this.placementReady
          );
       }
 

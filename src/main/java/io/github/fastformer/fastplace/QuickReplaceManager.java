@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.Optional;

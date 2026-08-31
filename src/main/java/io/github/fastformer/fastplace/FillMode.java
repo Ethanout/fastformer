@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum FillMode implements TranslatableText {
    OUTLINE("fastformer.fill.wireframe"),
    HOLLOW("fastformer.fill.hollow"),

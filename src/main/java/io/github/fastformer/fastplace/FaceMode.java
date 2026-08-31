@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum FaceMode implements FastPlaceMode {
    COORDINATE_PLANE("fastformer.mode.face.coordinate_plane"),
    PARALLELOGRAM_BASE_PLANE("fastformer.mode.face.parallelogram_base_plane"),

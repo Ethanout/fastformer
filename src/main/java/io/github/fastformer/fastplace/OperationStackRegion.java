@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.ArrayList;
 import java.util.List;

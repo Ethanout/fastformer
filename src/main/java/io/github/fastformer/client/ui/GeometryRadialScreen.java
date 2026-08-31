@@ -2,7 +2,7 @@ package io.github.fastformer.client.ui;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.fastformer.fastplace.GeometryMode;
-import io.github.fastformer.network.GeometrySelectModePayload;
+import io.github.fastformer.network.payload.geometry.GeometrySelectModePayload;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

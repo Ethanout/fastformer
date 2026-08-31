@@ -252,7 +252,7 @@
   "fastformer.stage.volume": "Volume",
 
   "fastformer.mode.point.raycast": "Raycast",
-  "fastformer.mode.line.axis": "Axis",
+  "fastformer.mode.line.axis": "Level & Plumb",
   "fastformer.mode.line.free_scroll": "Free scroll",
   "fastformer.mode.line.raycast": "Raycast",
   "fastformer.mode.face.coordinate_plane": "Coordinate plane",

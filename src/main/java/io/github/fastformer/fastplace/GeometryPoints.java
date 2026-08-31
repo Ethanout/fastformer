@@ -1,25 +1,28 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
-final class GeometryPoints {
+/** Shared immutable views of the point roles used by geometry sessions. */
+public final class GeometryPoints {
    private GeometryPoints() {
    }
 
-   static Polyhedron polyhedron(List<Vec3> points, List<ControlPointRole> roles, PolyhedronSizeMode mode) {
+   public static Polyhedron polyhedron(List<Vec3> points, List<ControlPointRole> roles, PolyhedronSizeMode mode) {
       return new Polyhedron(points, roles, mode);
    }
 
-   static Cone cone(List<GeometryPoint> points, ConePlaneMode mode) {
+   public static Cone cone(List<GeometryPoint> points, ConePlaneMode mode) {
       return new Cone(points, mode);
    }
 
-   record Polyhedron(List<Vec3> points, List<ControlPointRole> roles, PolyhedronSizeMode mode) {
-      Polyhedron {
+   public record Polyhedron(List<Vec3> points, List<ControlPointRole> roles, PolyhedronSizeMode mode) {
+      public Polyhedron {
          points = List.copyOf(points);
          mode = mode == null ? PolyhedronSizeMode.RADIUS : mode;
          java.util.ArrayList<ControlPointRole> normalizedRoles = new java.util.ArrayList<>(roles);
@@ -32,13 +35,13 @@ final class GeometryPoints {
          roles = List.copyOf(normalizedRoles.subList(0, Math.min(normalizedRoles.size(), points.size())));
       }
 
-      boolean hasFirstInput() {
+      public boolean hasFirstInput() {
          return this.mode == PolyhedronSizeMode.RADIUS
             ? this.point(ControlPointRole.CENTER).isPresent()
             : this.point(ControlPointRole.DIAMETER_A).isPresent();
       }
 
-      Optional<Vec3> center() {
+      public Optional<Vec3> center() {
          if (this.mode == PolyhedronSizeMode.RADIUS) {
             return this.point(ControlPointRole.CENTER);
          }
@@ -47,7 +50,7 @@ final class GeometryPoints {
          );
       }
 
-      Optional<Vec3> radiusPoint() {
+      public Optional<Vec3> radiusPoint() {
          if (this.mode == PolyhedronSizeMode.RADIUS) {
             return this.center().flatMap(center -> this.point(ControlPointRole.RADIUS).map(point ->
                quantizedRadiusPoint(center, point)
@@ -60,11 +63,11 @@ final class GeometryPoints {
          );
       }
 
-      boolean canGenerate() {
+      public boolean canGenerate() {
          return this.center().isPresent() && this.radiusPoint().isPresent();
       }
 
-      double radius(double fallback) {
+      public double radius(double fallback) {
          return this.center()
             .flatMap(center -> this.radiusPoint().map(center::distanceTo))
             .orElse(fallback);
@@ -87,32 +90,32 @@ final class GeometryPoints {
       }
    }
 
-   record Cone(List<GeometryPoint> points, ConePlaneMode mode) {
-      Cone {
+   public record Cone(List<GeometryPoint> points, ConePlaneMode mode) {
+      public Cone {
          points = List.copyOf(points);
          mode = mode == null ? ConePlaneMode.RADIUS : mode;
       }
 
-      ConePrismStage stage() {
+      public ConePrismStage stage() {
          if (!this.faceComplete()) {
             return ConePrismStage.FACE;
          }
          return this.heightPoint().isPresent() ? ConePrismStage.ADJUST : ConePrismStage.BODY;
       }
 
-      int facePointCount() {
+      public int facePointCount() {
          return this.mode.facePointCount();
       }
 
-      int requiredPointCount() {
+      public int requiredPointCount() {
          return this.mode.requiredPoints();
       }
 
-      int pointCount() {
+      public int pointCount() {
          return this.points.size();
       }
 
-      List<BlockPos> facePoints() {
+      public List<BlockPos> facePoints() {
          return this.points.stream()
             .filter(point -> point.role() != ControlPointRole.HEIGHT)
             .limit(this.facePointCount())
@@ -120,7 +123,7 @@ final class GeometryPoints {
             .toList();
       }
 
-      List<Vec3> facePointLocations() {
+      public List<Vec3> facePointLocations() {
          return this.points.stream()
             .filter(point -> point.role() != ControlPointRole.HEIGHT)
             .limit(this.facePointCount())
@@ -128,29 +131,29 @@ final class GeometryPoints {
             .toList();
       }
 
-      boolean hasFacePoints() {
+      public boolean hasFacePoints() {
          return !this.facePoints().isEmpty();
       }
 
-      boolean faceComplete() {
+      public boolean faceComplete() {
          return this.facePointLocations().size() >= this.facePointCount();
       }
 
-      Optional<BlockPos> heightPoint() {
+      public Optional<BlockPos> heightPoint() {
          return this.points.stream()
             .filter(point -> point.role() == ControlPointRole.HEIGHT)
             .map(GeometryPoint::block)
             .findFirst();
       }
 
-      Optional<Vec3> heightPointLocation() {
+      public Optional<Vec3> heightPointLocation() {
          return this.points.stream()
             .filter(point -> point.role() == ControlPointRole.HEIGHT)
             .map(GeometryPoint::location)
             .findFirst();
       }
 
-      boolean bodyComplete() {
+      public boolean bodyComplete() {
          return this.faceComplete() && this.heightPoint().isPresent();
       }
    }

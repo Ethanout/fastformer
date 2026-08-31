@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum OperationSelectionMode implements TranslatableText {
    CUBOID("fastformer.operation.selection.cuboid"),
    PRISM("fastformer.operation.selection.prism"),

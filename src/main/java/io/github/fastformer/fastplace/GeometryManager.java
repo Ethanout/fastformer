@@ -1,5 +1,9 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
+import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
@@ -336,7 +340,7 @@ public final class GeometryManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.geometry_scan_too_large", max));
          return false;
       }
-      if (!FastPlaceManager.queueGeneratedPlacement(player, build.blocks(), placeState)) {
+      if (!FastPlaceManager.queueGeneratedPlacement(player, build.blocks(), placeState, build.scanCells())) {
          return false;
       }
       cancel(player);

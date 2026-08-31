@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum OperationStageMode implements TranslatableText {
    TRANSFORM("fastformer.operation.stage.transform", true),
    SWEEP("fastformer.operation.stage.sweep", false),

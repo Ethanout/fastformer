@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum PointMode implements FastPlaceMode {
    RAYCAST("fastformer.mode.point.raycast");
 

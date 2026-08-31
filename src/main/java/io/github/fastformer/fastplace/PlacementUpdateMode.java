@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum PlacementUpdateMode implements TranslatableText {
    NORMAL(3, "fastformer.placement.update.normal"),
    CLIENT_ONLY(2 | 16 | 32, "fastformer.placement.update.client_only");

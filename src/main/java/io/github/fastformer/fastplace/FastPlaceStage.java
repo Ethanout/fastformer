@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum FastPlaceStage implements TranslatableText {
    POINT("fastformer.stage.point"),
    LINE("fastformer.stage.line"),

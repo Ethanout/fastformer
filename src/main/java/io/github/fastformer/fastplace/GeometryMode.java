@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum GeometryMode implements TranslatableText {
    WALL("fastformer.geometry.mode.wall"),
    POLYHEDRON("fastformer.geometry.mode.polyhedron"),

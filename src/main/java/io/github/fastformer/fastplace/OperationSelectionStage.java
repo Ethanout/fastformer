@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum OperationSelectionStage implements TranslatableText {
    EXTENT("fastformer.operation.selection_stage.extent"),
    FIRST_EDGE("fastformer.operation.selection_stage.first_edge"),

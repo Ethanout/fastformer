@@ -1,11 +1,13 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 
-final class FastPlaceMessages {
+public final class FastPlaceMessages {
    private FastPlaceMessages() {
    }
 
@@ -17,7 +19,7 @@ final class FastPlaceMessages {
       actionBar(player, value.translationKey(), args);
    }
 
-   static void actionBar(ServerPlayer player, Component message) {
+   public static void actionBar(ServerPlayer player, Component message) {
       player.displayClientMessage(message, true);
    }
 
@@ -29,19 +31,19 @@ final class FastPlaceMessages {
       chat(player, value.translationKey(), args);
    }
 
-   static void chat(ServerPlayer player, Component message) {
+   public static void chat(ServerPlayer player, Component message) {
       player.displayClientMessage(message, false);
    }
 
-   static MutableComponent text(String key, Object... args) {
+   public static MutableComponent text(String key, Object... args) {
       return Component.translatable(key, cleanArgs(args));
    }
 
-   static MutableComponent text(TranslatableText value) {
+   public static MutableComponent text(TranslatableText value) {
       return value.text();
    }
 
-   static MutableComponent text(TranslatableText value, Object... args) {
+   public static MutableComponent text(TranslatableText value, Object... args) {
       return Component.translatable(value.translationKey(), cleanArgs(args));
    }
 

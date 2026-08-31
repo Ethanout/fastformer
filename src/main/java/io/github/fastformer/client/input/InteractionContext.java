@@ -1,7 +1,6 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.FastPlaceClientInput;
-import io.github.fastformer.client.FastPlaceClientPreview;
+import io.github.fastformer.client.render.FastPlaceClientPreview;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.phys.BlockHitResult;
@@ -52,7 +51,7 @@ public record InteractionContext(
       // of handing the click back to vanilla; this keeps corner adjustment
       // available while a selection session owns the input vocabulary.
       if (FastPlaceClientPreview.operationActive()
-         || io.github.fastformer.client.operation.ClientOperationController.active()) {
+         || io.github.fastformer.client.operation.controller.ClientOperationController.active()) {
          return false;
       }
       return DISAPPEARANCE.disappeared();
@@ -75,7 +74,7 @@ public record InteractionContext(
       cameraInitialized = true;
 
       boolean selectionSession = FastPlaceClientPreview.operationActive()
-         || io.github.fastformer.client.operation.ClientOperationController.active();
+         || io.github.fastformer.client.operation.controller.ClientOperationController.active();
       if (selectionSession) {
          DISAPPEARANCE.reset();
          return;
@@ -99,7 +98,7 @@ public record InteractionContext(
    public static float previewVisibility(Minecraft minecraft, float partialTick) {
       if (minecraft.player == null
          || FastPlaceClientPreview.operationActive()
-         || io.github.fastformer.client.operation.ClientOperationController.active()) {
+         || io.github.fastformer.client.operation.controller.ClientOperationController.active()) {
          return 1.0F;
       }
       return DISAPPEARANCE.visibility(partialTick);

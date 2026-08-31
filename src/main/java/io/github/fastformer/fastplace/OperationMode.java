@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum OperationMode implements TranslatableText {
    MOVE("fastformer.operation.mode.move"),
    STACK("fastformer.operation.mode.stack");

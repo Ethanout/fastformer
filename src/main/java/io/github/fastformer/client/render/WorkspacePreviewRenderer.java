@@ -14,8 +14,8 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-import io.github.fastformer.client.operation.ClientBlockSnapshot;
-import io.github.fastformer.client.FastPlaceClientPreview;
+import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.client.render.FastPlaceClientPreview;
 
 /** Renders client workspace blocks and the small labels attached to them. */
 public final class WorkspacePreviewRenderer {

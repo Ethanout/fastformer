@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum ConePlaneMode implements TranslatableText {
    RADIUS("fastformer.geometry.cone_plane.radius"),
    DIAMETER("fastformer.geometry.cone_plane.diameter"),

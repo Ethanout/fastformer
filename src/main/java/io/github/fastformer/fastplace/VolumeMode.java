@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum VolumeMode implements FastPlaceMode {
    PERPENDICULAR_TO_FACE("fastformer.mode.volume.perpendicular_to_face"),
    FREE("fastformer.mode.volume.free");

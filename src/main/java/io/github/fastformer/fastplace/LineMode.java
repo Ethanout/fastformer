@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum LineMode implements FastPlaceMode {
    AXIS("fastformer.mode.line.axis"),
    FREE_SCROLL("fastformer.mode.line.free_scroll"),

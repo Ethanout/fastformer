@@ -1,0 +1,3575 @@
+package io.github.fastformer.client.render.core;
+
+import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
+
+import com.mojang.logging.LogUtils;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.PoseStack.Pose;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
+import javax.annotation.Nullable;
+import io.github.fastformer.fastplace.FaceMode;
+import io.github.fastformer.fastplace.FastPlaceGeometry;
+import io.github.fastformer.fastplace.FastPlaceActivity;
+import io.github.fastformer.fastplace.FastPlaceMode;
+import io.github.fastformer.fastplace.FastPlaceStage;
+import io.github.fastformer.fastplace.FastPlaceStateMachine;
+import io.github.fastformer.fastplace.FillMode;
+import io.github.fastformer.fastplace.TranslatableText;
+import io.github.fastformer.fastplace.LineMode;
+import io.github.fastformer.fastplace.LongRangeBlockRaycast;
+import io.github.fastformer.fastplace.ConePlaneMode;
+import io.github.fastformer.fastplace.ConePrismStage;
+import io.github.fastformer.fastplace.GeometryHit;
+import io.github.fastformer.fastplace.GeometryMode;
+import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.fastplace.geometry.PlaneAxes;
+import io.github.fastformer.fastplace.OperationMode;
+import io.github.fastformer.fastplace.OperationStageMode;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.client.input.FastPlaceClientInput;
+import io.github.fastformer.client.input.InteractionContext;
+import io.github.fastformer.client.input.ModifierReticleMode;
+import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.client.operation.selection.ClientSelectionState;
+import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
+import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
+import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.client.placement.QuickReplaceMode;
+import io.github.fastformer.client.placement.plan.ClientShapePlanFactory;
+import io.github.fastformer.client.session.ClientSessionManager;
+import io.github.fastformer.client.render.FastPlaceClientShaders;
+import io.github.fastformer.client.render.HudFadeTimer;
+import io.github.fastformer.client.render.PreviewBlockOcclusion;
+import io.github.fastformer.client.render.WorkspacePreviewRenderer;
+import io.github.fastformer.client.render.guide.GuideRenderer;
+import io.github.fastformer.client.render.hud.GeometryTextBlockRenderer;
+import io.github.fastformer.client.render.hud.HudValueFormatter;
+import io.github.fastformer.client.render.hud.GizmoHudTextFormatter;
+import io.github.fastformer.client.render.interaction.OperationPointerKind;
+import io.github.fastformer.client.render.interaction.OperationPointerTarget;
+import io.github.fastformer.client.render.state.ClientPreviewState;
+import io.github.fastformer.client.render.model.*;
+import io.github.fastformer.client.render.cache.BuildingShellCache;
+import io.github.fastformer.client.render.cache.GhostMeshCache;
+import io.github.fastformer.client.render.cache.PendingGhostBufferCache;
+import io.github.fastformer.client.render.cache.PendingGhostMeshCache;
+import io.github.fastformer.client.render.FastPlaceClientShaders;
+import io.github.fastformer.client.render.GizmoViewScale;
+import io.github.fastformer.client.render.HudFadeTimer;
+import io.github.fastformer.client.render.GhostOutlineDepthBias;
+import io.github.fastformer.client.render.OperationFaceHitInterpolator;
+import io.github.fastformer.client.render.OperationGizmoPresentation;
+import io.github.fastformer.client.render.PendingPreviewGrid;
+import io.github.fastformer.client.render.PreviewAsyncPolicy;
+import io.github.fastformer.client.render.PreviewBlockOcclusion;
+import io.github.fastformer.client.render.ShapeShellMesh;
+import io.github.fastformer.client.render.SmoothReticlePostEffect;
+import io.github.fastformer.client.render.shell.ShapeShellRenderer;
+import io.github.fastformer.client.render.mesh.GhostMeshBuilder;
+import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
+import io.github.fastformer.fastplace.OperationSelectionMode;
+import io.github.fastformer.fastplace.OperationSelectionStage;
+import io.github.fastformer.fastplace.OperationSelectionVolume;
+import io.github.fastformer.fastplace.OperationWorkspacePlan;
+import io.github.fastformer.fastplace.geometry.ControlPoint;
+import io.github.fastformer.fastplace.geometry.ControlPointRole;
+import io.github.fastformer.fastplace.geometry.ControlPointFeedback;
+import io.github.fastformer.fastplace.geometry.ControlPointStyle;
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.fastplace.geometry.GeometryAction;
+import io.github.fastformer.fastplace.geometry.GeometryInteractionHit;
+import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.GeometryNumbers;
+import io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks;
+import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
+import io.github.fastformer.fastplace.geometry.TransformFrame;
+import io.github.fastformer.fastplace.workflow.GeometryWorkflowView;
+import io.github.fastformer.fastplace.workflow.GeometryWorkflows;
+import io.github.fastformer.fastplace.geometry.GizmoTextComponent;
+import io.github.fastformer.fastplace.geometry.GizmoTextContext;
+import io.github.fastformer.fastplace.geometry.generation.WallGenerator;
+import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
+import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
+import io.github.fastformer.fastplace.geometry.generation.ConePrismGenerator;
+import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
+import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
+import io.github.fastformer.fastplace.geometry.generation.GenerationLimitExceeded;
+import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.fastplace.geometry.GuideLine;
+import io.github.fastformer.fastplace.geometry.GuidePlane;
+import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
+import io.github.fastformer.fastplace.PointMode;
+import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.PlaceableItems;
+import io.github.fastformer.fastplace.PlacementContextSnapshot;
+import io.github.fastformer.fastplace.RaycastPlacement;
+import io.github.fastformer.fastplace.VolumeMode;
+import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
+import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
+import io.github.fastformer.network.payload.preview.ActivityStatePayload;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.OptionalDouble;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.renderer.RenderStateShard;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.HitResult.Type;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.BlockGetter;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut;
+import net.neoforged.neoforge.client.event.RenderGuiEvent.Post;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import org.joml.Matrix4f;
+import org.slf4j.Logger;
+
+@EventBusSubscriber(
+   modid = "fastformer",
+   value = {Dist.CLIENT}
+)
+public class FastPlaceClientPreviewCore {
+   private static final Logger LOGGER = LogUtils.getLogger();
+   private static final double PREVIEW_REACH = LongRangeBlockRaycast.MAX_REACH;
+   private static final int CONFIRMED_FACE_BLOCK_LIMIT = 16000;
+   static final float GHOST_RED = 1.0F;
+   static final float GHOST_GREEN = 1.0F;
+   static final float GHOST_BLUE = 1.0F;
+   private static final float PENDING_RED = 1.0F;
+   private static final float PENDING_GREEN = 1.0F;
+   private static final float PENDING_BLUE = 1.0F;
+   static final float GHOST_FACE_ALPHA_MIN = 0.10F;
+   static final float GHOST_FACE_ALPHA_MAX = 0.20F;
+   private static final long FACE_NORMAL_INTERPOLATION_NANOS = 50_000_000L;
+   private static final long PREVIEW_FAILURE_LOG_INTERVAL_NANOS = 5_000_000_000L;
+   static final float SELECTION_HIGHLIGHT_ALPHA = 0.42F;
+   static final float GHOST_OUTLINE_ALPHA_MIN = 0.45F;
+   static final float GHOST_OUTLINE_ALPHA_MAX = 0.90F;
+   private static final float PENDING_GRID_ALPHA = 0.52F;
+   private static final float PENDING_XRAY_ALPHA = 0.10F;
+   static final float SELECTION_XRAY_ALPHA = 0.34F;
+   private static final double PENDING_DASH_UNIT = 1.0 / 16.0;
+   private static final double PENDING_DASH_LENGTH = PENDING_DASH_UNIT * 4.0;
+   private static final double PENDING_DASH_GAP = PENDING_DASH_UNIT * 2.0;
+   private static final double PENDING_DASH_SPEED = 1.0;
+   private static final double SELECTION_DASH_LENGTH = PENDING_DASH_UNIT * 4.0;
+   private static final double SELECTION_DASH_PERIOD = SELECTION_DASH_LENGTH * 2.0;
+   private static final long GHOST_BREATH_PERIOD_NANOS = 2_400_000_000L;
+   private static final double GHOST_FACE_OFFSET = 0.002;
+   static final double SELECTION_FACE_INFLATE = OperationSelectionVolume.RAYCAST_INFLATE;
+   private static final double GHOST_OUTLINE_CAMERA_BIAS = 0.012;
+   private static final double CONTROL_POINT_OUTLINE_INFLATE = 0.003;
+   private static final float OCCLUDED_POINT_ALPHA = 0.38F;
+   private static final ResourceLocation CROSSHAIR_SPRITE = ResourceLocation.withDefaultNamespace("hud/crosshair");
+   static final double EPSILON = 1.0E-7;
+   private static final ClientPreviewState PREVIEW_STATE = new ClientPreviewState();
+   private static final HudFadeTimer SCROLL_FEEDBACK = new HudFadeTimer(1_500_000_000L, 400_000_000L);
+   private static final HudFadeTimer GIZMO_FEEDBACK = new HudFadeTimer(1_500_000_000L, 400_000_000L);
+   static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
+   static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
+   static float worldPreviewOpacity = 1.0F;
+   private static LongRangeBlockRaycast.Result raycastDebug;
+   private static LongRangeBlockRaycast.Result cachedRaycast;
+   private static Vec3 cachedRaycastStart;
+   private static Vec3 cachedRaycastDirection;
+   private static long cachedRaycastAt;
+   private static AxisGizmo.Axis lastGizmoFeedbackAxis;
+   private static AxisGizmo.Operation lastGizmoFeedbackOperation;
+   private static int lastGizmoFeedbackSteps;
+   private static double lastGizmoFeedbackBaseValue;
+   private static TransformStatus geometryTransformBaseline;
+   private static long lastPreviewFailureLogAt;
+   private static final GhostMeshCache CONFIRMED_GHOST_CACHE = new GhostMeshCache(
+      blocks -> GhostMeshBuilder.build(blocks, true, true, true)
+   );
+   private static final GhostMeshCache CONFIRMED_OUTLINE_CACHE = new GhostMeshCache(
+      blocks -> GhostMeshBuilder.build(blocks, false, true, true)
+   );
+   private static final BuildingShellCache CONFIRMED_BUILDING_SHELL_CACHE = new BuildingShellCache(false);
+   private static final BuildingShellCache PENDING_BUILDING_SHELL_CACHE = new BuildingShellCache(true);
+   private static final ThreadPoolExecutor PREVIEW_MESH_EXECUTOR = new ThreadPoolExecutor(
+      1,
+      1,
+      0L,
+      TimeUnit.MILLISECONDS,
+      new LinkedBlockingQueue<>(),
+      runnable -> {
+         Thread thread = new Thread(runnable, "FastFormer preview mesh");
+         thread.setDaemon(true);
+         return thread;
+      }
+   );
+   private static final ThreadPoolExecutor PREVIEW_GENERATION_EXECUTOR = new ThreadPoolExecutor(
+      1,
+      1,
+      0L,
+      TimeUnit.MILLISECONDS,
+      new LinkedBlockingQueue<>(),
+      runnable -> {
+         Thread thread = new Thread(runnable, "FastFormer preview generation");
+         thread.setDaemon(true);
+         return thread;
+      }
+   );
+   private static final PendingGhostMeshCache PENDING_GHOST_CACHE = new PendingGhostMeshCache(
+      PREVIEW_MESH_EXECUTOR,
+      GhostMeshBuilder::buildPending,
+      failure -> logPreviewFailure("Unable to build FastFormer preview mesh; suppressing pending mesh", failure)
+   );
+   private static final PendingGhostBufferCache PENDING_GHOST_BUFFER_CACHE = new PendingGhostBufferCache(
+      FastPlaceClientPreviewCore::uploadPendingGrid
+   );
+   private static BuildingPreviewPayload cachedConfirmedBuildingState;
+   private static LineTieBias cachedConfirmedBuildingBias = LineTieBias.DEFAULT;
+   private static Set<BlockPos> cachedConfirmedBuildingBlocks = Set.of();
+   private static BuildingPreviewKey cachedBuildingPreviewKey;
+   private static Set<BlockPos> cachedBuildingPreviewBlocks = Set.of();
+   private static Set<BlockPos> cachedBuildingFallbackBlocks = Set.of();
+   private static Future<BuildingBlockResult> cachedBuildingPreviewFuture;
+   private static ProgressiveBlockGeneration cachedBuildingPreviewProgress;
+   private static boolean cachedBuildingPreviewAtLimit;
+   private static long cachedBuildingPreviewResultVersion;
+   private static BuildingRenderKey cachedBuildingRenderKey;
+   private static BuildingRenderLayers cachedBuildingRenderLayers = BuildingRenderLayers.empty();
+   private static GeometryPlanKey cachedGeometryPlanKey;
+   private static GeometryPreviewPlan cachedGeometryPlan;
+   private static GeometryPreviewPlan cachedGeometryRenderSource;
+   private static GeometryRenderLayers cachedGeometryRenderLayers = GeometryRenderLayers.empty();
+   private static boolean smoothReticleFrame;
+
+   protected FastPlaceClientPreviewCore() {
+   }
+
+   public static void applyBuilding(BuildingPreviewPayload payload) {
+      if (!ClientSessionManager.instance().acceptAuthoritativeSnapshot(Minecraft.getInstance(), payload.active())) {
+         return;
+      }
+      PREVIEW_STATE.applyBuilding(payload);
+      cachedConfirmedBuildingState = null;
+      cachedConfirmedBuildingBias = LineTieBias.DEFAULT;
+      cachedConfirmedBuildingBlocks = Set.of();
+      cachedBuildingPreviewKey = null;
+      cachedBuildingPreviewBlocks = Set.of();
+      cachedBuildingFallbackBlocks = Set.of();
+      cachedBuildingPreviewAtLimit = false;
+      cancelBuildingPreviewGeneration();
+      cachedBuildingRenderKey = null;
+      cachedBuildingRenderLayers = BuildingRenderLayers.empty();
+   }
+
+   public static void applyOperation(OperationPreviewPayload payload) {
+      if (ClientOperationController.synchronize(payload)) {
+         PREVIEW_STATE.applyOperation(payload);
+      }
+   }
+
+   public static void applyGeometry(GeometryPreviewPayload payload) {
+      if (!ClientSessionManager.instance().acceptAuthoritativeSnapshot(Minecraft.getInstance(), payload.active())) {
+         return;
+      }
+      if (!continuesGeometryTransform(PREVIEW_STATE.geometry(), payload)) {
+         geometryTransformBaseline = null;
+      }
+      PREVIEW_STATE.applyGeometry(payload);
+      cachedGeometryPlanKey = null;
+      cachedGeometryPlan = null;
+      cachedGeometryRenderSource = null;
+      cachedGeometryRenderLayers = GeometryRenderLayers.empty();
+   }
+
+   public static void applyActivity(ActivityStatePayload payload) {
+      if (!ClientSessionManager.instance().acceptAuthoritativeSnapshot(
+         Minecraft.getInstance(), payload.activity().task()
+      )) {
+         return;
+      }
+      PREVIEW_STATE.applyActivity(payload);
+   }
+
+   /** Changes whenever a server preview or activity snapshot is applied. */
+   public static long stateRevision() {
+      return PREVIEW_STATE.revision();
+   }
+
+   public static void noteScrollFeedback() {
+      SCROLL_FEEDBACK.touch(System.nanoTime());
+   }
+
+   public static void noteGizmoFeedback(
+      AxisGizmo.Axis axis, AxisGizmo.Operation operation, int steps, double baseValue
+   ) {
+      lastGizmoFeedbackAxis = axis;
+      lastGizmoFeedbackOperation = operation;
+      lastGizmoFeedbackSteps = steps;
+      lastGizmoFeedbackBaseValue = GeometryNumbers.finiteOr(baseValue, operation == AxisGizmo.Operation.SCALE ? 1.0 : 0.0);
+      GIZMO_FEEDBACK.touch(System.nanoTime());
+   }
+
+   public static boolean active() {
+      return PREVIEW_STATE.building().active();
+   }
+
+   /** Builds a resolved client-owned shape package when the current preview is placeable. */
+   public static Optional<OperationWorkspacePlan> clientBuildingPlacementPlan() {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (!PREVIEW_STATE.building().active() || player == null || PREVIEW_STATE.building().points().size() < 2) {
+         return Optional.empty();
+      }
+      Set<BlockPos> blocks;
+      try {
+         blocks = confirmedBuildingBlocks(PREVIEW_STATE.building());
+      } catch (RuntimeException exception) {
+         logPreviewFailure("Unable to build the client shape placement package", exception);
+         return Optional.empty();
+      }
+      if (blocks.isEmpty() || blocks.size() >= FastPlaceGeometry.PREVIEW_MAX_BLOCKS) {
+         return Optional.empty();
+      }
+      BlockState state = PlaceableItems.placementState(
+         player.getMainHandItem(), player, previewPlacementContext(PREVIEW_STATE.building(), player)
+      ).orElse(null);
+      if (state == null || state.isAir()) {
+         return Optional.empty();
+      }
+      OperationWorkspacePlan plan = ClientShapePlanFactory.singlePart(blocks, state);
+      return plan.parts().isEmpty() ? Optional.empty() : Optional.of(plan);
+   }
+
+   /** Builds a resolved shape package from the complete client geometry preview. */
+   public static Optional<OperationWorkspacePlan> clientGeometryPlacementPlan() {
+      if (!PREVIEW_STATE.geometry().active()) {
+         return Optional.empty();
+      }
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (player == null) {
+         return Optional.empty();
+      }
+      GeometryWorkflowView workflowView = geometryWorkflowView(player.getViewVector(1.0F));
+      GeometryPreviewPlan plan = GeometryWorkflows.previewPlan(
+         workflowView,
+         PREVIEW_STATE.geometry().points(),
+         null,
+         (GeometryHit)null,
+         player.getEyePosition()
+      );
+      if (!plan.placementReady() || plan.ghostBlocks().isEmpty()) {
+         return Optional.empty();
+      }
+      BlockState state = PlaceableItems.defaultBlockState(player.getMainHandItem()).orElse(null);
+      if (state == null || state.isAir()) {
+         return Optional.empty();
+      }
+      OperationWorkspacePlan placementPlan = ClientShapePlanFactory.singlePart(plan.ghostBlocks(), state);
+      return placementPlan.parts().isEmpty() ? Optional.empty() : Optional.of(placementPlan);
+   }
+
+   public static boolean enabled() {
+      return PREVIEW_STATE.building().enabled();
+   }
+
+   public static boolean middleConfirmEnabled() {
+      return PREVIEW_STATE.building().middleConfirmEnabled();
+   }
+
+   public static boolean taskActive() {
+      return PREVIEW_STATE.activity().task();
+   }
+
+   public static boolean activityCancellable() {
+      return PREVIEW_STATE.activity().cancellable();
+   }
+
+   public static boolean operationActive() {
+      return PREVIEW_STATE.operation().active() || ClientOperationController.active();
+   }
+
+   public static boolean operationNeedsSecond() {
+      return PREVIEW_STATE.operation().active() && !PREVIEW_STATE.operation().hasSecond();
+   }
+
+   public static boolean operationNeedsFirst() {
+      return PREVIEW_STATE.operation().active() && !PREVIEW_STATE.operation().hasFirst();
+   }
+
+   public static boolean operationSelectionReady() {
+      return ClientOperationController.operationSelectionReady();
+   }
+
+   public static boolean operationSelectionConfirmed() {
+      return ClientOperationController.operationSelectionConfirmed();
+   }
+
+   public static boolean operationAdjustmentStarted() {
+      return ClientOperationController.operationAdjustmentStarted();
+   }
+
+   public static int operationPointCount() {
+      return PREVIEW_STATE.operation().active() ? PREVIEW_STATE.operation().points().size() : 0;
+   }
+
+   public static boolean operationCuboid() {
+      return ClientOperationController.operationCuboid();
+   }
+
+   public static boolean operationPrism() {
+      return ClientOperationController.operationPrism();
+   }
+
+   public static boolean operationPrismBaseOpen() {
+      return PREVIEW_STATE.operation().active()
+         && PREVIEW_STATE.operation().operationSelectionMode() == OperationSelectionMode.PRISM
+         && PREVIEW_STATE.operation().operationPrismBasePointCount() == 0;
+   }
+
+   public static boolean operationPointSelected() {
+      return PREVIEW_STATE.operation().active()
+         && PREVIEW_STATE.operation().operationSelectedPointIndex() >= 0
+         && PREVIEW_STATE.operation().operationSelectedPointIndex() < PREVIEW_STATE.operation().points().size();
+   }
+
+   public static int operationSelectedPointIndex() {
+      return operationPointSelected() ? PREVIEW_STATE.operation().operationSelectedPointIndex() : -1;
+   }
+
+   public static Vec3 operationPointCenter(int index) {
+      return PREVIEW_STATE.operation().active() && index >= 0 && index < PREVIEW_STATE.operation().points().size()
+         ? Vec3.atCenterOf(PREVIEW_STATE.operation().points().get(index))
+         : null;
+   }
+
+   public static int operationPointUnderCrosshairIndex() {
+      if (!PREVIEW_STATE.operation().active() || operationSelectionConfirmed() || PREVIEW_STATE.operation().points().isEmpty()) {
+         return -1;
+      }
+      BlockPos point = pointUnderCrosshair(PREVIEW_STATE.operation().points(), true);
+      return point == null ? -1 : PREVIEW_STATE.operation().points().indexOf(point);
+   }
+
+   public static SelectionPrism.EdgeInsertion operationPrismEdgeInsertion() {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (!operationPrism() || operationSelectionConfirmed() || FastPlaceClientInput.modifierHeld() || player == null || PREVIEW_STATE.operation().points().size() < 2
+         || operationPointUnderCrosshairIndex() >= 0) {
+         return null;
+      }
+      raycastBlocks(player);
+      return SelectionPrism.resolveEdgeInsertion(
+         PREVIEW_STATE.operation().points(),
+         PREVIEW_STATE.operation().operationPrismBasePointCount(),
+         player.getEyePosition(),
+         player.getViewVector(1.0F),
+         raycastDebug == null ? 0.0 : raycastDebug.distance()
+      );
+   }
+
+   public static SelectionPrism.GridPlane operationPointGridPlane(int pointIndex) {
+      if (!operationPrism() || pointIndex < 0 || pointIndex >= PREVIEW_STATE.operation().points().size()) {
+         return null;
+      }
+      int baseCount = PREVIEW_STATE.operation().operationPrismBasePointCount() >= 3
+         ? PREVIEW_STATE.operation().operationPrismBasePointCount()
+         : PREVIEW_STATE.operation().points().size();
+      return pointIndex < baseCount && baseCount >= 3
+         ? SelectionPrism.gridPlane(PREVIEW_STATE.operation().points().subList(0, baseCount))
+         : null;
+   }
+
+   public static SelectionPrism.GridLine operationPointGridLine(int pointIndex) {
+      if (!operationPrism() || pointIndex < 0 || pointIndex >= PREVIEW_STATE.operation().points().size()) {
+         return null;
+      }
+      int closedBaseCount = PREVIEW_STATE.operation().operationPrismBasePointCount();
+      int baseCount = closedBaseCount >= 3 ? closedBaseCount : PREVIEW_STATE.operation().points().size();
+      if (baseCount < 3 || pointIndex != 0 && (closedBaseCount < 3 || pointIndex < baseCount)) {
+         return null;
+      }
+      return SelectionPrism.heightGridLine(PREVIEW_STATE.operation().points().subList(0, baseCount));
+   }
+
+   public static BlockPos operationCandidatePoint() {
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft.player == null || operationSelectionConfirmed() || FastPlaceClientInput.modifierHeld()) {
+         return null;
+      }
+      BlockHitResult hit = raycastBlocks(minecraft.player);
+      if (operationPrismBaseOpen() && PREVIEW_STATE.operation().points().size() >= 3) {
+         return SelectionPrism.resolveBasePlanePoint(
+            PREVIEW_STATE.operation().points(),
+            minecraft.player.getEyePosition(),
+            minecraft.player.getViewVector(1.0F),
+            raycastDebug == null ? 0.0 : raycastDebug.distance()
+         );
+      }
+      if (operationWaitingForPrismHeight()) {
+         int baseCount = PREVIEW_STATE.operation().operationPrismBasePointCount();
+         return SelectionPrism.resolveHeightPoint(
+            PREVIEW_STATE.operation().points().subList(0, baseCount),
+            minecraft.player.getEyePosition(),
+            minecraft.player.getViewVector(1.0F),
+            raycastDebug == null ? 0.0 : raycastDebug.distance()
+         );
+      }
+      return hit.getType() == Type.BLOCK ? hit.getBlockPos() : null;
+   }
+
+   public static OperationPointerTarget operationPointerTarget() {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (player == null) {
+         return OperationPointerTarget.none();
+      }
+      BlockHitResult worldHit = raycastBlocks(player);
+      OperationGeometry.RayHit faceHit = null;
+      if (operationCuboid() && operationSelectionReady()) {
+         OperationSelectionVolume selection = operationSelection();
+         if (selection != null) {
+            faceHit = selection.raycast(player.getEyePosition(), player.getViewVector(1.0F), visiblePreviewReach(player));
+         }
+      }
+      double worldDistance = worldHit.getType() == Type.BLOCK
+         ? player.getEyePosition().distanceTo(worldHit.getLocation())
+         : Double.POSITIVE_INFINITY;
+      if (worldHit.getType() == Type.BLOCK && (faceHit == null || worldDistance < faceHit.distance())) {
+         return OperationPointerTarget.world(worldHit.getBlockPos(), worldDistance);
+      }
+      return faceHit == null ? OperationPointerTarget.none() : OperationPointerTarget.face(faceHit);
+   }
+
+   private static boolean operationWaitingForPrismHeight() {
+      return PREVIEW_STATE.operation().active()
+         && PREVIEW_STATE.operation().operationSelectionMode() == OperationSelectionMode.PRISM
+         && PREVIEW_STATE.operation().operationPrismBasePointCount() >= 3
+         && PREVIEW_STATE.operation().points().size() == PREVIEW_STATE.operation().operationPrismBasePointCount();
+   }
+
+   public static AxisGizmo operationGizmo() {
+      if (ClientOperationController.active()) {
+         return null;
+      }
+      OperationSelectionVolume selection = operationSelection();
+      Minecraft minecraft = Minecraft.getInstance();
+      if (selection == null
+         || !operationSelectionReady()
+         || minecraft.player == null) {
+         return null;
+      }
+      AxisGizmo.Operation[] operations = OperationGizmoPresentation.operations(PREVIEW_STATE.operation().operationStageMode())
+         .toArray(AxisGizmo.Operation[]::new);
+      if (operations.length == 0) {
+         return null;
+      }
+      AABB bounds = selection.bounds();
+      Vec3 center = bounds.getCenter();
+      BlockPos minDisplacement = OperationGeometry.stackDisplacement(bounds, PREVIEW_STATE.operation().operationStackMin());
+      BlockPos maxDisplacement = OperationGeometry.stackDisplacement(bounds, PREVIEW_STATE.operation().operationStackMax());
+      center = center.add(
+         (minDisplacement.getX() + maxDisplacement.getX()) * 0.5,
+         (minDisplacement.getY() + maxDisplacement.getY()) * 0.5,
+         (minDisplacement.getZ() + maxDisplacement.getZ()) * 0.5
+      ).add(Vec3.atLowerCornerOf(PREVIEW_STATE.operation().operationTranslation()));
+      Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
+      GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
+      TransformFrame frame = TransformFrame.world(center);
+      AxisGizmo gizmo = AxisGizmo.inFrame(
+         frame,
+         scale.axisLength(),
+         scale.handleRadius(),
+         operations
+      ).withTextComponent(GizmoTextComponent.pointLevel());
+      AxisGizmo.Hit hit = gizmo.hitTest(
+         minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), PREVIEW_REACH
+      );
+      AxisGizmo.HandleKey hovered = hit == null ? null : hit.handle().key();
+      return gizmo.withState(hovered, FastPlaceClientInput.operationGizmoDragKey());
+   }
+
+   public static double operationGizmoValue(AxisGizmo.Axis axis, AxisGizmo.Operation operation) {
+      if (!operationSelectionReady() || axis == null || operation == null) {
+         return 0.0;
+      }
+      return switch (operation) {
+         case MOVE -> axisComponent(Vec3.atLowerCornerOf(PREVIEW_STATE.operation().operationTranslation()), axis);
+         case SCALE -> axisComponent(Vec3.atLowerCornerOf(PREVIEW_STATE.operation().operationStackVector()), axis);
+         case ROTATE -> Math.toDegrees(axisComponent(PREVIEW_STATE.operation().operationRotation(), axis));
+      };
+   }
+
+   public static AxisGizmo.Hit operationGizmoHit() {
+      OperationInteractionIntent.Gizmo workspaceTarget = operationWorkspaceGizmoHit();
+      if (ClientOperationController.active()) {
+         return workspaceTarget == null ? null : workspaceTarget.hit();
+      }
+      AxisGizmo gizmo = operationGizmo();
+      Minecraft minecraft = Minecraft.getInstance();
+      return gizmo == null || minecraft.player == null
+         ? null
+         : gizmo.hitTest(minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), PREVIEW_REACH);
+   }
+
+   public static Optional<OperationInteractionIntent> operationInteractionIntent() {
+      return WorkspaceInteractionResolver.resolveCurrentIntent();
+   }
+
+   public static OperationInteractionIntent.Gizmo operationWorkspaceGizmoHit() {
+      return WorkspaceInteractionResolver.currentGizmo();
+   }
+
+   public static OperationGeometry.RayHit operationFaceHit() {
+      if (!operationCuboid() || operationSelectionConfirmed() || FastPlaceClientInput.modifierHeld()) {
+         return null;
+      }
+      OperationPointerTarget target = operationPointerTarget();
+      return target.kind() == OperationPointerKind.FACE ? target.face() : null;
+   }
+
+   static OperationGeometry.RayHit operationFaceTarget(OperationSelectionVolume selection) {
+      OperationGeometry.RayHit dragged = FastPlaceClientInput.operationFaceDragHit();
+      if (dragged == null) {
+         return operationFaceHit();
+      }
+      if (selection == null || selection.prism() != null || dragged.axis() < 0 || dragged.axis() > 2) {
+         return dragged;
+      }
+      AABB bounds = selection.bounds();
+      boolean positive = dragged.normal().dot(selection.axis(dragged.axis())) > 0.0;
+      double coordinate = switch (dragged.axis()) {
+         case 0 -> positive ? bounds.maxX : bounds.minX;
+         case 1 -> positive ? bounds.maxY : bounds.minY;
+         default -> positive ? bounds.maxZ : bounds.minZ;
+      };
+      Vec3 point = switch (dragged.axis()) {
+         case 0 -> new Vec3(
+            coordinate,
+            Math.clamp(dragged.point().y, bounds.minY, bounds.maxY),
+            Math.clamp(dragged.point().z, bounds.minZ, bounds.maxZ)
+         );
+         case 1 -> new Vec3(
+            Math.clamp(dragged.point().x, bounds.minX, bounds.maxX),
+            coordinate,
+            Math.clamp(dragged.point().z, bounds.minZ, bounds.maxZ)
+         );
+         default -> new Vec3(
+            Math.clamp(dragged.point().x, bounds.minX, bounds.maxX),
+            Math.clamp(dragged.point().y, bounds.minY, bounds.maxY),
+            coordinate
+         );
+      };
+      Vec3 normal = selection.axis(dragged.axis()).scale(positive ? 1.0 : -1.0);
+      return new OperationGeometry.RayHit(point, normal, dragged.distance(), dragged.axis());
+   }
+
+   public static boolean geometryActive() {
+      return PREVIEW_STATE.geometry().active();
+   }
+
+   public static boolean geometryAwaitingFirstPoint() {
+      return PREVIEW_STATE.geometry().active() && PREVIEW_STATE.geometry().points().isEmpty();
+   }
+
+   public static boolean geometryPointSelected() {
+      return PREVIEW_STATE.geometry().active() && PREVIEW_STATE.geometry().selectedPointIndex() >= 0;
+   }
+
+   public static boolean buildingRaycastSubmodeAvailable() {
+      if (!PREVIEW_STATE.building().enabled()) {
+         return false;
+      }
+      if (!PREVIEW_STATE.building().active()) {
+         Minecraft minecraft = Minecraft.getInstance();
+         if (minecraft.player == null || !PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())) {
+            return false;
+         }
+      }
+      return buildingRaycastSubmode();
+   }
+
+   public static GeometryInteractionHit geometryInteractionHit() {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.nearVanillaBlock(minecraft)) {
+         return null;
+      }
+      Vec3 eye = player.getEyePosition();
+      Vec3 view = player.getViewVector(1.0F);
+      GeometryWorkflowView workflowView = geometryWorkflowView(view);
+      List<GeometryInteractionTarget> targets = GeometryWorkflows.get(PREVIEW_STATE.geometry().mode()).interactionTargets(workflowView);
+      return GeometryInteractionHit.nearest(eye, view, visiblePreviewReach(player), targets);
+   }
+
+   public static boolean embeddedModifierReticle() {
+      if (FastPlaceClientInput.modifierHeld() && PREVIEW_STATE.geometry().active()) {
+         return PREVIEW_STATE.geometry().mode() == GeometryMode.WALL;
+      }
+      return !PREVIEW_STATE.geometry().active()
+         && !PREVIEW_STATE.operation().active()
+         && buildingRaycastSubmode()
+         && FastPlaceClientInput.modifierHeld();
+   }
+
+   public static boolean halfGridModifierReticle() {
+      if (buildingRaycastSubmode()) {
+         return false;
+      }
+      if (!PREVIEW_STATE.geometry().active()) {
+         return false;
+      }
+      return switch (PREVIEW_STATE.geometry().mode()) {
+         case POLYHEDRON -> !PREVIEW_STATE.geometry().closed();
+         case CONE_PRISM -> PREVIEW_STATE.geometry().conePlaneMode().stageFor(PREVIEW_STATE.geometry().points().size()) != ConePrismStage.ADJUST;
+         case CONVEX_POLYHEDRON -> true;
+         default -> false;
+      };
+   }
+
+   public static AxisGizmo.Hit geometryGizmoHit() {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.nearVanillaBlock(minecraft)) {
+         return null;
+      }
+      Vec3 view = player.getViewVector(1.0F);
+      AxisGizmo gizmo = geometryGizmo(view);
+      return gizmo == null ? null : gizmo.hitTest(player.getEyePosition(), view, visiblePreviewReach(player));
+   }
+
+   public static AxisGizmo geometryGizmo() {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      Vec3 view = player == null ? new Vec3(0.0, 0.0, 1.0) : player.getViewVector(1.0F);
+      return geometryGizmo(view);
+   }
+
+   public static double geometryGizmoValue(AxisGizmo.Axis axis, AxisGizmo.Operation operation) {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (axis == null || operation == null || player == null || !PREVIEW_STATE.geometry().active()) {
+         return operation == AxisGizmo.Operation.SCALE ? 1.0 : 0.0;
+      }
+      GeometryPreviewPlan plan = geometryPreviewPlan(player.getViewVector(1.0F));
+      return geometryGizmoValue(plan, axis, operation);
+   }
+
+   private static AxisGizmo geometryGizmo(Vec3 view) {
+      Minecraft minecraft = Minecraft.getInstance();
+      if (!PREVIEW_STATE.geometry().active() || minecraft.player == null || InteractionContext.nearVanillaBlock(minecraft)) {
+         return null;
+      }
+      return geometryPreviewPlan(view).gizmo();
+   }
+
+   public static BlockPos geometryPointUnderCrosshair() {
+      if (!PREVIEW_STATE.geometry().active()
+         || PREVIEW_STATE.geometry().mode() != GeometryMode.WALL
+         || PREVIEW_STATE.geometry().closed()
+         || PREVIEW_STATE.geometry().points().isEmpty()) {
+         return null;
+      }
+      return pointUnderCrosshair(List.of(PREVIEW_STATE.geometry().points().getFirst()));
+   }
+
+   public static boolean closePathAtHoveredStart() {
+      List<BlockPos> points = closablePathPoints(3);
+      return !points.isEmpty() && points.getFirst().equals(pointUnderCrosshair(List.of(points.getFirst())));
+   }
+
+   public static boolean canDoubleClickClosePath() {
+      return !closablePathPoints(2).isEmpty();
+   }
+
+   public static BlockPos pathCandidatePoint() {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (player == null) {
+         return null;
+      }
+      if (PREVIEW_STATE.geometry().active()) {
+         return geometryCandidatePoint(minecraft, player);
+      }
+      if (PREVIEW_STATE.operation().active()) {
+         return operationCandidatePoint();
+      }
+      return PREVIEW_STATE.building().active() ? buildingCandidatePoint(PREVIEW_STATE.building(), player) : null;
+   }
+
+   private static List<BlockPos> closablePathPoints(int minimumPoints) {
+      if (operationPrismBaseOpen() && PREVIEW_STATE.operation().points().size() >= minimumPoints) {
+         return PREVIEW_STATE.operation().points();
+      }
+      if (PREVIEW_STATE.geometry().active()
+         && PREVIEW_STATE.geometry().mode() == GeometryMode.WALL
+         && !PREVIEW_STATE.geometry().closed()
+         && PREVIEW_STATE.geometry().points().size() >= minimumPoints) {
+         return PREVIEW_STATE.geometry().points();
+      }
+      if (PREVIEW_STATE.building().active()
+         && PREVIEW_STATE.building().faceMode() == FaceMode.POLYGON
+         && !PREVIEW_STATE.building().polygonClosed()
+         && PREVIEW_STATE.building().points().size() >= minimumPoints) {
+         return PREVIEW_STATE.building().points();
+      }
+      return List.of();
+   }
+
+   private static BlockPos pointUnderCrosshair(List<BlockPos> points) {
+      return pointUnderCrosshair(points, false);
+   }
+
+   private static BlockPos pointUnderCrosshair(List<BlockPos> points, boolean throughBlocks) {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (player == null || points.isEmpty()) {
+         return null;
+      }
+      Vec3 eye = player.getEyePosition();
+      Vec3 direction = player.getViewVector(1.0F).normalize();
+      double maxDistance = PREVIEW_REACH;
+      if (!throughBlocks) {
+         BlockHitResult worldHit = raycastBlocks(player);
+         if (worldHit.getType() == Type.BLOCK) {
+            maxDistance = Math.min(maxDistance, eye.distanceTo(worldHit.getLocation()) + 1.0E-4);
+         }
+      }
+      Vec3 end = eye.add(direction.scale(maxDistance));
+      BlockPos closest = null;
+      double bestRayDistance = Double.POSITIVE_INFINITY;
+      for (BlockPos point : points) {
+         java.util.Optional<Vec3> hit = new AABB(point).clip(eye, end);
+         if (hit.isPresent()) {
+            double rayDistance = eye.distanceToSqr(hit.orElseThrow());
+            if (rayDistance >= bestRayDistance) {
+               continue;
+            }
+            bestRayDistance = rayDistance;
+            closest = point;
+         }
+      }
+      return closest;
+   }
+
+   public static BlockPos lineModeCandidate() {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
+      if (player == null || minecraft.level == null || !snapshot.active() || FastPlaceGeometry.stageFor(snapshot.points()) != FastPlaceStage.LINE) {
+         return null;
+      }
+
+      Vec3 eye = player.getEyePosition();
+      Vec3 view = player.getViewVector(1.0F);
+      BlockHitResult hit = raycastBlocks(player);
+      BlockPos hitBlock;
+      BlockPos surfaceBlock;
+      if (hit.getType() == Type.BLOCK) {
+         hitBlock = hit.getBlockPos();
+         surfaceBlock = hit.getBlockPos().relative(hit.getDirection());
+      } else {
+         BlockPos offset = snapshot.freeScrollOffset();
+         BlockPos base = snapshot.points().isEmpty() ? BlockPos.ZERO : snapshot.points().getFirst();
+         BlockPos anchor = base.offset(offset);
+         hitBlock = anchor;
+         surfaceBlock = anchor;
+      }
+
+      return FastPlaceGeometry.resolveCandidate(
+         snapshot.points(),
+         snapshot.polygonClosed(),
+         hitBlock,
+         surfaceBlock,
+         snapshot.faceBaseOffset(),
+         snapshot.volumeBaseOffset(),
+         snapshot.perpendicularAnchor(),
+         eye,
+         view,
+         snapshot.freeScrollOffset(),
+          effectiveBuildingModes(snapshot)
+      );
+   }
+
+   public static AABB operationBounds() {
+      OperationSelectionVolume selection = operationSelection();
+      return selection == null ? null : selection.bounds();
+   }
+
+   public static OperationSelectionVolume operationSelection() {
+      OperationPreviewPayload snapshot = PREVIEW_STATE.operation();
+      return snapshot.active()
+         ? OperationSelectionVolume.create(
+            snapshot.operationSelectionMode(),
+            snapshot.points(),
+            snapshot.operationPrismBasePointCount(),
+            snapshot.operationMinOffset(),
+            snapshot.operationMaxOffset(),
+            snapshot.operationHullInflation()
+         )
+         : null;
+   }
+
+   public static boolean usesAngleDistance() {
+      if (!PREVIEW_STATE.building().enabled()) {
+         return false;
+      } else {
+         FastPlaceStage stage = PREVIEW_STATE.building().active() ? FastPlaceGeometry.stageFor(PREVIEW_STATE.building().points()) : FastPlaceStage.POINT;
+         return stage == FastPlaceStage.LINE && PREVIEW_STATE.building().lineMode() == LineMode.FREE_SCROLL;
+      }
+   }
+
+   public static boolean usesScrollContext() {
+      if (PREVIEW_STATE.geometry().active()) {
+         return geometryAllows(GeometryAction.SCALAR_ADJUST);
+      } else if (PREVIEW_STATE.operation().active()) {
+         return false;
+      } else if (!PREVIEW_STATE.building().active()) {
+         return false;
+      } else {
+         FastPlaceStage stage = effectiveStage(PREVIEW_STATE.building());
+         return usesAngleDistance()
+            || stage == FastPlaceStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE
+            || stage == FastPlaceStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(PREVIEW_STATE.building().modes());
+      }
+   }
+
+   @SubscribeEvent
+   public static void onRenderGuiLayerPre(RenderGuiLayerEvent.Pre event) {
+      if (!VanillaGuiLayers.CROSSHAIR.equals(event.getName())) {
+         return;
+      }
+
+      smoothReticleFrame = false;
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft.screen != null || minecraft.player == null) {
+         SmoothReticlePostEffect.updateTarget(ModifierReticleMode.NONE);
+         return;
+      }
+      boolean reticleNeeded = SmoothReticlePostEffect.updateTarget(FastPlaceClientInput.modifierReticleMode());
+      if (InteractionContext.nearVanillaBlock(minecraft) || !reticleNeeded) {
+         return;
+      }
+
+      // NeoForge exposes the vanilla crosshair as a cancellable GUI layer. This
+      // keeps the post effect from inverting a second, pixelated crosshair.
+      smoothReticleFrame = SmoothReticlePostEffect.prepare(minecraft);
+      if (smoothReticleFrame) {
+         event.setCanceled(true);
+      }
+   }
+
+   @SubscribeEvent
+   public static void onRenderGui(Post event) {
+      Minecraft minecraft = Minecraft.getInstance();
+      GuiGraphics graphics = event.getGuiGraphics();
+      BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
+      if (!(snapshot.enabled() || PREVIEW_STATE.geometry().active() || PREVIEW_STATE.operation().active() || PREVIEW_STATE.activity().task() || QuickReplaceMode.active())) {
+         restoreVanillaCrosshairIfNeeded(graphics);
+         smoothReticleFrame = false;
+         return;
+      }
+
+      Vec3 view = minecraft.player == null ? new Vec3(0.0, 0.0, 1.0) : minecraft.player.getViewVector(1.0F);
+      RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+      try {
+
+      MutableComponent fill = Component.translatable(
+            "fastformer.message.fill_mode",
+            Component.translatable((PREVIEW_STATE.geometry().active() ? PREVIEW_STATE.geometry().fillMode() : snapshot.fillMode()).translationKey()),
+            keyName(minecraft.options.keySwapOffhand)
+      )
+      .withStyle(ChatFormatting.AQUA);
+      graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
+      if (QuickReplaceMode.active()) {
+         graphics.drawString(minecraft.font, Component.translatable("fastformer.quick_replace.active"), 8, 20, 0xFF80E8FF, true);
+      }
+
+      MutableComponent embeddedHint = buildingRaycastHint();
+      if (embeddedHint != null && minecraft.screen == null && !PREVIEW_STATE.activity().task()) {
+         int x = Math.max(8, graphics.guiWidth() - minecraft.font.width(embeddedHint) - 8);
+         graphics.drawString(minecraft.font, embeddedHint, x, 8, 0xFFAAAAAA, true);
+      }
+      if (PREVIEW_STATE.activity().task()) {
+         MutableComponent task = Component.translatable(PREVIEW_STATE.activity().translationKey()).withStyle(ChatFormatting.GREEN);
+         if (PREVIEW_STATE.activity().cancellable()) {
+            String hintKey = PREVIEW_STATE.activity() == FastPlaceActivity.RESTORE_TASK
+               ? "fastformer.activity.pause_hint"
+               : "fastformer.activity.cancel_hint";
+            task.append(Component.literal(" ").append(Component.translatable(hintKey)).withStyle(ChatFormatting.GRAY));
+         }
+         graphics.drawString(minecraft.font, task, 8, 20, -1, true);
+      }
+
+      GeometryPreviewPlan geometryPlan = null;
+      if (!PREVIEW_STATE.activity().task()) {
+         geometryPlan = renderSessionHud(graphics, minecraft, view);
+      }
+      renderCrosshairHud(graphics, minecraft, geometryPlan);
+      graphics.flush();
+      RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+      boolean cancelledVanillaCrosshair = smoothReticleFrame;
+      boolean renderedReticle = cancelledVanillaCrosshair
+         && SmoothReticlePostEffect.process(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
+      if (cancelledVanillaCrosshair && !renderedReticle) {
+         // The shader failed after the layer event had already cancelled the
+         // vanilla layer. Restore the actual vanilla sprite, not a GUI variant.
+         restoreVanillaCrosshairIfNeeded(graphics);
+         graphics.flush();
+      }
+      smoothReticleFrame = false;
+      } finally {
+         restoreVanillaCrosshairIfNeeded(graphics);
+         graphics.flush();
+         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+         smoothReticleFrame = false;
+      }
+   }
+
+   public static boolean geometryAllows(GeometryAction action) {
+      return PREVIEW_STATE.geometry().active()
+         && GeometryWorkflows.allows(geometryWorkflowView(new Vec3(0.0, 0.0, 1.0)), action);
+   }
+
+   private static GeometryPreviewPlan renderSessionHud(GuiGraphics graphics, Minecraft minecraft, Vec3 view) {
+      if (PREVIEW_STATE.geometry().active()) {
+         GeometryPreviewPlan geometryPlan = geometryPreviewPlan(view);
+         GeometryTextBlockRenderer.render(graphics, minecraft, geometryPlan);
+         renderScrollFeedbackBottom(graphics, minecraft);
+         return geometryPlan;
+      }
+
+      MutableComponent primary;
+      MutableComponent secondary = null;
+      if (PREVIEW_STATE.operation().active()) {
+         primary = operationBottomStatus();
+      } else {
+         primary = buildingBottomStatus();
+         secondary = buildingBottomHint();
+      }
+      renderScrollFeedbackBottom(graphics, minecraft);
+      if (primary != null && !primary.getString().isBlank()) {
+         int bottomOffset = PREVIEW_STATE.operation().active() ? 48 : 64;
+         graphics.drawCenteredString(
+            minecraft.font, primary, graphics.guiWidth() / 2, graphics.guiHeight() - bottomOffset, -1
+         );
+      }
+      if (secondary != null && !secondary.getString().isBlank()) {
+         graphics.drawCenteredString(minecraft.font, secondary, graphics.guiWidth() / 2, graphics.guiHeight() - 50, -1);
+      }
+      return null;
+   }
+
+   private static TransformStatus transformStatus(GeometryPreviewPlan geometryPlan) {
+      TransformStatus current = rawTransformStatus(geometryPlan);
+      if (current == null) {
+         return null;
+      }
+      if (geometryTransformBaseline == null) {
+         geometryTransformBaseline = current;
+      }
+      TransformStatus baseline = geometryTransformBaseline;
+      return current.relativeTo(baseline);
+   }
+
+   private static TransformStatus rawTransformStatus(GeometryPreviewPlan geometryPlan) {
+      if (!geometryAdjusting(PREVIEW_STATE.geometry())) {
+         return null;
+      }
+      if (PREVIEW_STATE.geometry().mode() == GeometryMode.CONE_PRISM) {
+         ConePrismGeometry geometry = coneGeometry(PREVIEW_STATE.geometry());
+         if (geometry == null || !geometry.heightReady()) {
+            return null;
+         }
+         Vec3 center = geometry.base().center().add(geometry.topCenter()).scale(0.5);
+         return new TransformStatus(
+            center,
+            new Vec3(geometry.scaleX(), Math.max(0.5, Math.abs(geometry.height())), geometry.scaleZ()),
+            new Vec3(0.0, Math.toDegrees(PREVIEW_STATE.geometry().coneRotationRadians()), 0.0)
+         );
+      }
+      if (PREVIEW_STATE.geometry().mode() == GeometryMode.POLYHEDRON) {
+         Vec3 center = transformCenter(geometryPlan);
+         if (center == null) {
+            return null;
+         }
+         Vec3 scale = PREVIEW_STATE.geometry().polyhedronGizmoLocal()
+            ? PREVIEW_STATE.geometry().polyhedronLocalScale()
+            : PREVIEW_STATE.geometry().polyhedronWorldScale();
+         return new TransformStatus(center, scale, TransformStatus.eulerDegrees(PREVIEW_STATE.geometry().rotation()));
+      }
+      return null;
+   }
+
+   private static Vec3 transformCenter(GeometryPreviewPlan geometryPlan) {
+      if (geometryPlan != null && geometryPlan.gizmo() != null) {
+         return geometryPlan.gizmo().center();
+      }
+      return PREVIEW_STATE.geometry().pointLocations().isEmpty() ? null : PREVIEW_STATE.geometry().pointLocations().getFirst();
+   }
+
+   private static int drawScaledLabel(
+      GuiGraphics graphics, Minecraft minecraft, Component label, int x, int y, int color
+   ) {
+      float scale = 0.75F;
+      graphics.pose().pushPose();
+      graphics.pose().translate(x, y + 1, 0.0F);
+      graphics.pose().scale(scale, scale, 1.0F);
+      graphics.drawString(minecraft.font, label, 0, 0, color, true);
+      graphics.pose().popPose();
+      return x + scaledLabelWidth(minecraft, label);
+   }
+
+   private static int scaledLabelWidth(Minecraft minecraft, Component label) {
+      return (int)Math.ceil(minecraft.font.width(label) * 0.75F);
+   }
+
+   private static double axisComponent(Vec3 value, AxisGizmo.Axis axis) {
+      return switch (axis) {
+         case X -> value.x;
+         case Y -> value.y;
+         case Z -> value.z;
+      };
+   }
+
+   private static double geometryGizmoValue(
+      GeometryPreviewPlan geometryPlan, AxisGizmo.Axis axis, AxisGizmo.Operation operation
+   ) {
+      TransformStatus transform = transformStatus(geometryPlan);
+      if (transform == null) {
+         return operation == AxisGizmo.Operation.SCALE ? 1.0 : 0.0;
+      }
+      return switch (operation) {
+         case MOVE -> {
+            AxisGizmo gizmo = geometryPlan == null ? null : geometryPlan.gizmo();
+            Vec3 direction = gizmo == null ? axisVector(axis) : gizmo.axisVector(axis);
+            yield transform.position().dot(direction);
+         }
+         case SCALE -> axisComponent(transform.scale(), axis);
+         case ROTATE -> axisComponent(transform.rotationDegrees(), axis);
+      };
+   }
+
+   private static Vec3 axisVector(AxisGizmo.Axis axis) {
+      return switch (axis) {
+         case X -> new Vec3(1.0, 0.0, 0.0);
+         case Y -> new Vec3(0.0, 1.0, 0.0);
+         case Z -> new Vec3(0.0, 0.0, 1.0);
+      };
+   }
+
+   private static boolean continuesGeometryTransform(
+      GeometryPreviewPayload previous, GeometryPreviewPayload next
+   ) {
+      return previous != null
+         && next != null
+         && previous.active()
+         && next.active()
+         && previous.mode() == next.mode()
+         && geometryAdjusting(previous)
+         && geometryAdjusting(next);
+   }
+
+   private static boolean geometryAdjusting(GeometryPreviewPayload payload) {
+      if (payload == null || !payload.active()) {
+         return false;
+      }
+      return switch (payload.mode()) {
+         case POLYHEDRON -> payload.closed();
+         case CONE_PRISM -> payload.conePlaneMode().stageFor(payload.points().size()) == ConePrismStage.ADJUST;
+         default -> false;
+      };
+   }
+
+   private static ConePrismGeometry coneGeometry(GeometryPreviewPayload payload) {
+      int facePointCount = Math.min(payload.pointLocations().size(), payload.conePlaneMode().facePointCount());
+      List<Vec3> facePoints = List.copyOf(payload.pointLocations().subList(0, facePointCount));
+      Optional<Vec3> heightPoint = payload.pointLocations().size() > facePointCount
+         ? Optional.of(payload.pointLocations().get(facePointCount))
+         : Optional.empty();
+      return ConePrismGeometry.from(new ConePrismParameters(
+         facePoints,
+         heightPoint,
+         payload.coneShapeVariant(),
+         payload.conePlaneMode(),
+         payload.coneRadius(),
+         payload.coneScaleX(),
+         payload.coneScaleZ(),
+         payload.coneTopScaleOffset(),
+         payload.coneTopOffset(),
+         payload.coneRotationRadians()
+      ));
+   }
+
+   private static MutableComponent buildingBottomStatus() {
+      if (!PREVIEW_STATE.building().active()) {
+         return null;
+      }
+
+      FastPlaceStage stage = effectiveStage(PREVIEW_STATE.building());
+      MutableComponent status = Component.translatable(stage.translationKey()).withStyle(ChatFormatting.WHITE);
+      status.append(Component.literal(" | ").withStyle(ChatFormatting.DARK_GRAY));
+      if (PREVIEW_STATE.building().polygonClosed()) {
+         PolygonVolumeShape selected = PREVIEW_STATE.building().polygonVolumeShape();
+         PolygonVolumeShape[] modes = PolygonVolumeShape.values();
+         for (int index = 0; index < modes.length; index++) {
+            if (index > 0) {
+                status.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
+            }
+            appendBuildingMode(status, modes[index], modes[index] == selected);
+         }
+      } else {
+         List<? extends FastPlaceMode> modes = FastPlaceStateMachine.allowedModes(
+            stage,
+            PREVIEW_STATE.building().lineMode(),
+            PREVIEW_STATE.building().faceMode()
+         );
+         FastPlaceMode selected = selectedMode(PREVIEW_STATE.building(), stage);
+         for (int index = 0; index < modes.size(); index++) {
+            if (index > 0) {
+                status.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
+            }
+            FastPlaceMode mode = modes.get(index);
+            appendBuildingMode(status, mode, mode == selected);
+         }
+      }
+      return status;
+   }
+
+   private static void appendBuildingMode(MutableComponent status, TranslatableText mode, boolean selected) {
+      status.append(Component.translatable(mode.translationKey()).withStyle(selected ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+   }
+
+   private static MutableComponent buildingRaycastHint() {
+      if (PREVIEW_STATE.geometry().active()
+         || PREVIEW_STATE.operation().active()
+         || !buildingRaycastSubmodeAvailable()
+         || !FastPlaceClientInput.modifierHeld()
+         || PREVIEW_STATE.building().raycastPlacement() == RaycastPlacement.EMBEDDED) {
+         return null;
+      }
+      return Component.translatable("fastformer.hud.raycast_embedded_hint");
+   }
+
+   private static boolean buildingRaycastSubmode() {
+      if (PREVIEW_STATE.geometry().active() || PREVIEW_STATE.operation().active()) {
+         return false;
+      }
+      return switch (effectiveStage(PREVIEW_STATE.building())) {
+         case POINT -> PREVIEW_STATE.building().pointMode() == PointMode.RAYCAST;
+         case LINE -> PREVIEW_STATE.building().lineMode() == LineMode.RAYCAST;
+         default -> false;
+      };
+   }
+
+   private static MutableComponent buildingBottomHint() {
+      if (!PREVIEW_STATE.building().active()) {
+         return null;
+      }
+      FastPlaceStage stage = effectiveStage(PREVIEW_STATE.building());
+      if (stage == FastPlaceStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.POLYGON && !PREVIEW_STATE.building().polygonClosed()) {
+         return Component.translatable("fastformer.message.polygon_close_hint").withStyle(ChatFormatting.GRAY);
+      }
+      return Component.translatable(
+         stage == FastPlaceStage.VOLUME
+            ? PREVIEW_STATE.building().polygonClosed()
+               ? "fastformer.message.building_hint_height"
+               : "fastformer.message.building_hint_points"
+            : "fastformer.message.building_hint_points"
+      ).withStyle(ChatFormatting.GRAY);
+   }
+
+   private static MutableComponent operationBottomStatus() {
+      boolean confirmed = operationSelectionReady();
+      MutableComponent status = Component.translatable(
+         confirmed ? "fastformer.hud.operation_label" : "fastformer.hud.selection_label"
+      ).withStyle(ChatFormatting.WHITE);
+      status.append(Component.literal(" | ").withStyle(ChatFormatting.DARK_GRAY));
+      if (confirmed) {
+         OperationStageMode[] stageModes = OperationStageMode.values();
+         for (int index = 0; index < stageModes.length; index++) {
+            if (index > 0) {
+               status.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
+            }
+            OperationStageMode mode = stageModes[index];
+            status.append(Component.translatable(mode.translationKey()).withStyle(
+               mode == PREVIEW_STATE.operation().operationStageMode() ? ChatFormatting.GREEN : ChatFormatting.GRAY
+            ));
+         }
+         return status;
+      }
+      OperationSelectionMode[] modes = {OperationSelectionMode.CUBOID, OperationSelectionMode.PRISM};
+      for (int index = 0; index < modes.length; index++) {
+         if (index > 0) {
+            status.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
+         }
+         OperationSelectionMode mode = modes[index];
+         status.append(Component.translatable(mode.translationKey()).withStyle(
+            mode == PREVIEW_STATE.operation().operationSelectionMode() ? ChatFormatting.GREEN : ChatFormatting.GRAY
+         ));
+      }
+      return status;
+   }
+
+   private static void renderCrosshairHud(
+      GuiGraphics graphics, Minecraft minecraft, GeometryPreviewPlan geometryPlan
+   ) {
+      if (minecraft.screen != null || minecraft.player == null) {
+         return;
+      }
+      int x = graphics.guiWidth() / 2 + 10;
+      int y = graphics.guiHeight() / 2 + 6;
+      if (PREVIEW_STATE.operation().active()
+         && operationSelectionReady()
+         && operationFaceHit() != null
+         && operationGizmoHit() == null
+         && operationPointUnderCrosshairIndex() < 0) {
+         graphics.drawString(minecraft.font, Component.translatable("fastformer.hud.selection.push"), x, y, 0xFFFFFFFF, true);
+         graphics.drawString(minecraft.font, Component.translatable("fastformer.hud.selection.pull"), x, y + 10, 0xFFFFFFFF, true);
+         return;
+      }
+      GizmoHudInput hudInput = gizmoHudInput(geometryPlan);
+      AxisGizmo.Axis dragAxis = hudInput.dragAxis();
+      AxisGizmo.Axis axis = dragAxis;
+      AxisGizmo.Operation operation = dragAxis == null ? null : hudInput.dragOperation();
+      AxisGizmo displayedGizmo = hudInput.gizmo();
+      boolean retainedGizmo = false;
+      boolean hoveredGizmo = false;
+      int gizmoAlpha = 255;
+      if (axis == null) {
+         AxisGizmo gizmo = displayedGizmo;
+         AxisGizmo.Hit hit = gizmo == null || !hudInput.allowNearBlock() && InteractionContext.nearVanillaBlock(minecraft)
+            ? null
+            : gizmo.hitTest(
+               minecraft.player.getEyePosition(),
+               minecraft.player.getViewVector(1.0F),
+               hudInput.operationSelection() ? PREVIEW_REACH : visiblePreviewReach(minecraft.player)
+            );
+         if (hit != null) {
+            axis = hit.handle().axis();
+            operation = hit.handle().operation();
+            hoveredGizmo = true;
+            gizmoAlpha = GIZMO_FEEDBACK.alpha(System.nanoTime());
+            retainedGizmo = gizmoAlpha > 0 && axis == lastGizmoFeedbackAxis;
+         } else {
+            gizmoAlpha = GIZMO_FEEDBACK.alpha(System.nanoTime());
+            if (gizmoAlpha > 0) {
+               axis = lastGizmoFeedbackAxis;
+               operation = lastGizmoFeedbackOperation;
+               retainedGizmo = axis != null;
+            }
+         }
+      }
+      if (axis != null && operation != null) {
+         int axisColor = gizmoAxisHudColor(axis);
+         if (retainedGizmo && !hoveredGizmo) {
+            axisColor = withAlpha(axisColor, gizmoAlpha);
+         }
+         GizmoTextComponent textComponent = displayedGizmo == null
+            ? GizmoTextComponent.none()
+            : displayedGizmo.textComponent();
+         boolean valueAvailable = dragAxis != null || retainedGizmo;
+         boolean useTemplate = !textComponent.empty() && (hoveredGizmo || dragAxis != null);
+         if (useTemplate) {
+            double baseValue = dragAxis != null
+               ? hudInput.dragBaseValue()
+               : lastGizmoFeedbackBaseValue;
+            double currentValue = gizmoHudValue(hudInput, geometryPlan, axis, operation);
+            int steps = dragAxis != null ? hudInput.dragSteps() : lastGizmoFeedbackSteps;
+            GizmoTextContext context = hudInput.operationSelection() && operationSelectionReady()
+               ? GizmoHudTextFormatter.operationTransformTextContext(axis, operation, baseValue, currentValue, steps)
+               : GizmoHudTextFormatter.textContext(axis, operation, baseValue, currentValue, steps);
+            String text = textComponent.render(context, valueAvailable);
+            if (!text.isBlank()) {
+               graphics.drawString(minecraft.font, text, x, y, axisColor, true);
+            }
+         } else {
+            int labelEnd = operation == AxisGizmo.Operation.MOVE && valueAvailable
+               ? drawGizmoAxisLabel(graphics, minecraft, axis, x, y, axisColor)
+                  : drawGizmoActionLabel(graphics, minecraft, axis, operation, x, y, axisColor);
+            if (valueAvailable) {
+               double baseValue = dragAxis != null
+                  ? hudInput.dragBaseValue()
+                  : lastGizmoFeedbackBaseValue;
+               double currentValue = gizmoHudValue(hudInput, geometryPlan, axis, operation);
+               String value = GizmoHudTextFormatter.formatValue(
+                  dragAxis != null ? hudInput.dragOperation() : lastGizmoFeedbackOperation,
+                  baseValue,
+                  currentValue,
+                  dragAxis != null ? hudInput.dragSteps() : lastGizmoFeedbackSteps
+               );
+               int valueColor = retainedGizmo ? withAlpha(axisColor, gizmoAlpha) : axisColor;
+               graphics.drawString(minecraft.font, value, labelEnd + 3, y, valueColor, true);
+            }
+         }
+      }
+
+   }
+
+   private static GizmoHudInput gizmoHudInput(GeometryPreviewPlan geometryPlan) {
+      if (ClientOperationController.active()) {
+         OperationInteractionIntent.Gizmo target = operationWorkspaceGizmoHit();
+         return new GizmoHudInput(
+            target == null ? null : target.gizmo(),
+            FastPlaceClientInput.operationGizmoDragAxis(),
+            FastPlaceClientInput.operationGizmoDragOperation(),
+            FastPlaceClientInput.operationGizmoDragBaseValue(),
+            FastPlaceClientInput.operationGizmoDragSteps(),
+            true,
+            false
+         );
+      }
+      if (PREVIEW_STATE.operation().active()) {
+         return new GizmoHudInput(
+            operationGizmo(),
+            FastPlaceClientInput.operationGizmoDragAxis(),
+            FastPlaceClientInput.operationGizmoDragOperation(),
+            FastPlaceClientInput.operationGizmoDragBaseValue(),
+            FastPlaceClientInput.operationGizmoDragSteps(),
+            true,
+            true
+         );
+      }
+      return new GizmoHudInput(
+         geometryPlan == null ? null : geometryPlan.gizmo(),
+         FastPlaceClientInput.geometryGizmoDragAxis(),
+         FastPlaceClientInput.geometryGizmoDragOperation(),
+         FastPlaceClientInput.geometryGizmoDragBaseValue(),
+         FastPlaceClientInput.geometryGizmoDragSteps(),
+         false,
+         false
+      );
+   }
+
+   private static double gizmoHudValue(
+      GizmoHudInput input,
+      GeometryPreviewPlan geometryPlan,
+      AxisGizmo.Axis axis,
+      AxisGizmo.Operation operation
+   ) {
+      if (!input.operationSelection()) {
+         return geometryGizmoValue(geometryPlan, axis, operation);
+      }
+      if (operationSelectionReady()) {
+         return operationGizmoValue(axis, operation);
+      }
+      double value = input.gizmo() == null
+         ? input.dragBaseValue()
+         : axisComponent(input.gizmo().center(), axis);
+      if (axis == input.dragAxis()
+         && operation == AxisGizmo.Operation.MOVE
+         && input.dragSteps() != 0
+         && Math.abs(value - input.dragBaseValue()) < EPSILON) {
+         return input.dragBaseValue() + input.dragSteps();
+      }
+      return value;
+   }
+
+   private static int gizmoAxisHudColor(AxisGizmo.Axis axis) {
+      return 0xFF000000 | AxisGizmo.axisColor(axis);
+   }
+
+   private static void restoreVanillaCrosshairIfNeeded(GuiGraphics graphics) {
+      if (smoothReticleFrame) {
+         smoothReticleFrame = false;
+         renderVanillaCrosshair(graphics);
+      }
+   }
+
+   private static void renderVanillaCrosshair(GuiGraphics graphics) {
+      RenderSystem.enableBlend();
+      RenderSystem.blendFuncSeparate(
+         GlStateManager.SourceFactor.ONE_MINUS_DST_COLOR,
+         GlStateManager.DestFactor.ONE_MINUS_SRC_COLOR,
+         GlStateManager.SourceFactor.ONE,
+         GlStateManager.DestFactor.ZERO
+      );
+      int x = (graphics.guiWidth() - 15) / 2;
+      int y = (graphics.guiHeight() - 15) / 2;
+      graphics.blitSprite(CROSSHAIR_SPRITE, x, y, 15, 15);
+      RenderSystem.defaultBlendFunc();
+      RenderSystem.disableBlend();
+   }
+
+   private static int drawGizmoActionLabel(
+      GuiGraphics graphics,
+      Minecraft minecraft,
+      AxisGizmo.Axis axis,
+      AxisGizmo.Operation operation,
+      int x,
+      int y,
+      int color
+   ) {
+      int axisEnd = drawGizmoAxisLabel(graphics, minecraft, axis, x, y, color);
+      return drawScaledLabel(
+         graphics,
+         minecraft,
+         Component.translatable(GizmoHudTextFormatter.transformLabelKey(operation)),
+         axisEnd + 3,
+         y,
+         color
+      );
+   }
+
+   private static int drawGizmoAxisLabel(
+      GuiGraphics graphics,
+      Minecraft minecraft,
+      AxisGizmo.Axis axis,
+      int x,
+      int y,
+      int color
+   ) {
+      graphics.drawString(minecraft.font, axis.name(), x, y, color, true);
+      return x + minecraft.font.width(axis.name());
+   }
+
+   private static void renderScrollFeedbackBottom(GuiGraphics graphics, Minecraft minecraft) {
+      int alpha = SCROLL_FEEDBACK.alpha(System.nanoTime());
+      if (alpha <= 0) {
+         return;
+      }
+      ScrollFeedbackData data = scrollFeedbackData();
+      if (data == null) {
+         return;
+      }
+      int y = graphics.guiHeight() - 88;
+      if (!data.axes().isEmpty()) {
+         int spacing = 14;
+         int width = data.axes().stream()
+            .mapToInt(axis -> minecraft.font.width(axis.label() + ":" + axis.value()))
+            .sum() + spacing * Math.max(0, data.axes().size() - 1);
+         int x = (graphics.guiWidth() - width) / 2;
+         for (AxisFeedback axis : data.axes()) {
+            String text = axis.label() + ":" + axis.value();
+            graphics.drawString(minecraft.font, text, x, y, withAlpha(axis.color(), alpha), true);
+            x += minecraft.font.width(text) + spacing;
+         }
+      } else if (!data.text().isBlank()) {
+         graphics.drawCenteredString(minecraft.font, data.text(), graphics.guiWidth() / 2, y, withAlpha(0xFFFFFFFF, alpha));
+      }
+   }
+
+   private static ScrollFeedbackData scrollFeedbackData() {
+      if (PREVIEW_STATE.operation().active() && operationSelectionReady()) {
+         BlockPos value = operationSelectionConfirmed() && FastPlaceClientInput.modifierHeld()
+            ? PREVIEW_STATE.operation().stackVector()
+            : PREVIEW_STATE.operation().translation();
+         return new ScrollFeedbackData(xyzFeedback(value), "");
+      }
+      if (PREVIEW_STATE.geometry().active() && PREVIEW_STATE.geometry().mode() == GeometryMode.CONE_PRISM) {
+         Vec3 offset = PREVIEW_STATE.geometry().coneTopOffset();
+         return new ScrollFeedbackData(
+            List.of(
+               new AxisFeedback("X", GeometryNumbers.fixed(offset.x, 2), gizmoAxisHudColor(AxisGizmo.Axis.X)),
+               new AxisFeedback("Z", GeometryNumbers.fixed(offset.z, 2), gizmoAxisHudColor(AxisGizmo.Axis.Z))
+            ),
+            ""
+         );
+      }
+      if (PREVIEW_STATE.building().active()) {
+         FastPlaceStage stage = effectiveStage(PREVIEW_STATE.building());
+         if (stage == FastPlaceStage.LINE && PREVIEW_STATE.building().lineMode() == LineMode.FREE_SCROLL) {
+            return new ScrollFeedbackData(xyzFeedback(PREVIEW_STATE.building().freeScrollOffset()), "");
+         }
+         if (stage == FastPlaceStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
+            LocalPlayer player = Minecraft.getInstance().player;
+            if (player != null) {
+               return new ScrollFeedbackData(
+                  List.of(),
+                  GeometryNumbers.fixed(
+                     FastPlaceGeometry.faceBaseOffsetValue(PREVIEW_STATE.building().points(), PREVIEW_STATE.building().faceBaseOffset(), player.getViewVector(1.0F)),
+                     0
+                  )
+               );
+            }
+         }
+         if (stage == FastPlaceStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(effectiveBuildingModes(PREVIEW_STATE.building()))) {
+            return PREVIEW_STATE.building().volumeMode() == VolumeMode.FREE
+               ? new ScrollFeedbackData(xyzFeedback(PREVIEW_STATE.building().volumeBaseOffset()), "")
+               : new ScrollFeedbackData(List.of(), formatScalar(PREVIEW_STATE.building().volumeBaseOffset()));
+         }
+      }
+      return null;
+   }
+
+   private static List<AxisFeedback> xyzFeedback(BlockPos value) {
+      return List.of(
+         new AxisFeedback("X", Integer.toString(value.getX()), gizmoAxisHudColor(AxisGizmo.Axis.X)),
+         new AxisFeedback("Y", Integer.toString(value.getY()), gizmoAxisHudColor(AxisGizmo.Axis.Y)),
+         new AxisFeedback("Z", Integer.toString(value.getZ()), gizmoAxisHudColor(AxisGizmo.Axis.Z))
+      );
+   }
+
+   private static List<AxisFeedback> xyzFeedback(Vec3 value) {
+      Vec3 clean = GeometryNumbers.cleanZero(value);
+      return List.of(
+         new AxisFeedback("X", HudValueFormatter.coordinate(clean.x), gizmoAxisHudColor(AxisGizmo.Axis.X)),
+         new AxisFeedback("Y", HudValueFormatter.coordinate(clean.y), gizmoAxisHudColor(AxisGizmo.Axis.Y)),
+         new AxisFeedback("Z", HudValueFormatter.coordinate(clean.z), gizmoAxisHudColor(AxisGizmo.Axis.Z))
+      );
+   }
+
+   private static int withAlpha(int color, int alpha) {
+      return (Math.clamp(alpha, 0, 255) << 24) | (color & 0x00FFFFFF);
+   }
+
+   private static void logPreviewFailure(String message, Throwable failure) {
+      long now = System.nanoTime();
+      if (lastPreviewFailureLogAt == 0L
+         || now < lastPreviewFailureLogAt
+         || now - lastPreviewFailureLogAt >= PREVIEW_FAILURE_LOG_INTERVAL_NANOS) {
+         lastPreviewFailureLogAt = now;
+         LOGGER.warn(message, failure);
+      }
+   }
+
+   private static void renderQuickReplaceGhost(RenderLevelStageEvent event, Minecraft minecraft, LocalPlayer player) {
+      QuickReplaceMode.Preview preview = QuickReplaceMode.preview(minecraft);
+      if (preview == null) return;
+      PoseStack poseStack = event.getPoseStack();
+      Vec3 camera = event.getCamera().getPosition();
+      BufferSource buffers = minecraft.renderBuffers().bufferSource();
+      poseStack.pushPose();
+      poseStack.translate(preview.position().getX() - camera.x, preview.position().getY() - camera.y, preview.position().getZ() - camera.z);
+      RenderSystem.enableBlend();
+      RenderSystem.defaultBlendFunc();
+      RenderSystem.setShaderColor(0.55F, 0.9F, 1.0F, 0.42F);
+      minecraft.getBlockRenderer().renderSingleBlock(preview.state(), poseStack, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+      RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+      RenderSystem.disableBlend();
+      poseStack.popPose();
+   }
+
+   private static void renderOperationSelection(
+      RenderLevelStageEvent event, Minecraft minecraft, LocalPlayer player, OperationPreviewPayload snapshot
+   ) {
+      OperationPreviewRenderer.renderOperationSelection(event, minecraft, player, snapshot);
+   }
+
+   private static void renderClientOperationWorkspace(
+      RenderLevelStageEvent event, Minecraft minecraft, OperationInteractionIntent pointerIntent
+   ) {
+      OperationPreviewRenderer.renderClientOperationWorkspace(event, minecraft, pointerIntent);
+   }
+
+   private static void renderSelectionCreationCandidate(
+      RenderLevelStageEvent event, Minecraft minecraft, OperationInteractionIntent pointerIntent
+   ) {
+      OperationPreviewRenderer.renderSelectionCreationCandidate(event, minecraft, pointerIntent);
+   }
+
+   @SubscribeEvent
+   public static void onRenderLevelStage(RenderLevelStageEvent event) {
+      BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
+      if (event.getStage() == Stage.AFTER_PARTICLES) {
+          Minecraft minecraft = Minecraft.getInstance();
+          LocalPlayer player = minecraft.player;
+          if (QuickReplaceMode.active() && QuickReplaceMode.canReplace(minecraft) && minecraft.level != null && player != null) {
+             renderQuickReplaceGhost(event, minecraft, player);
+          }
+          boolean emptyBuildingPreview = snapshot.enabled()
+             && player != null
+             && PlaceableItems.isPlaceable(player.getMainHandItem());
+          if (!(snapshot.active() || emptyBuildingPreview || PREVIEW_STATE.operation().active()
+             || ClientOperationController.active() || PREVIEW_STATE.geometry().active() || QuickReplaceMode.active())) {
+             return;
+          }
+          worldPreviewOpacity = updateWorldPreviewOpacity(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
+          if (emptyBuildingPreview && worldPreviewOpacity <= 0.01F) {
+             return;
+          }
+         if (minecraft.level != null && player != null && PREVIEW_STATE.geometry().active()) {
+            renderGeometryWall(event, minecraft);
+         } else if (minecraft.level != null && player != null
+            && (PREVIEW_STATE.operation().active() || ClientOperationController.active())) {
+            OperationInteractionIntent pointerIntent = operationInteractionIntent().orElse(null);
+            // The confirmed selection is retained as source data, but the workspace owns
+            // its overlay and hit targets from this point on.
+            if (PREVIEW_STATE.operation().active() && !ClientOperationController.active()
+               && !ClientOperationController.selectionDraftActive()
+               && ClientOperationController.interactionState() != ClientSelectionState.ALT_FOCUSED) {
+               renderOperationSelection(event, minecraft, player, PREVIEW_STATE.operation());
+            }
+            if (ClientOperationController.active()) {
+               renderClientOperationWorkspace(event, minecraft, pointerIntent);
+            }
+            renderSelectionCreationCandidate(event, minecraft, pointerIntent);
+         } else if (minecraft.level != null
+            && player != null
+            && (snapshot.active() || PlaceableItems.isPlaceable(player.getMainHandItem()))) {
+            Vec3 eye = player.getEyePosition();
+            Vec3 view = player.getViewVector(1.0F);
+            BlockPos candidate = buildingCandidatePoint(snapshot, player);
+            BlockPos hoveredPoint = snapshot.points().isEmpty()
+               ? null
+               : pointUnderCrosshair(List.of(snapshot.points().getFirst()));
+            List<BlockPos> previewPoints = new ArrayList<>(snapshot.points());
+            boolean closing = isBuildingClosingCandidate(snapshot, candidate, hoveredPoint);
+            if (!snapshot.polygonHeightConfirmed()
+               && (candidate != null || closing)) {
+               BlockPos previewPoint = closing ? snapshot.points().getFirst() : candidate;
+               if (previewPoints.isEmpty() || !previewPoint.equals(previewPoints.getLast())) {
+                  previewPoints.add(previewPoint);
+               }
+            }
+
+             boolean polygonHeightConfirmed = snapshot.polygonHeightConfirmed()
+                || snapshot.polygonClosed() && previewPoints.size() > snapshot.points().size();
+             Set<BlockPos> previewBlocks = buildingPreviewBlocksCached(snapshot, previewPoints, polygonHeightConfirmed);
+             Set<BlockPos> candidateBlocks = buildingCandidateBlocks(snapshot, candidate, hoveredPoint);
+             BuildingRenderLayers layers = buildingRenderLayers(snapshot, previewBlocks, candidateBlocks, candidate, hoveredPoint);
+             List<GuidePlane> planes = FastPlaceGeometry.guidePlanes(
+               snapshot.points(),
+               snapshot.polygonClosed(),
+               candidate,
+                layers.allBlocks(),
+               snapshot.faceBaseOffset(),
+               snapshot.volumeBaseOffset(),
+               snapshot.perpendicularAnchor(),
+               eye,
+               view,
+               effectiveBuildingModes(snapshot)
+            );
+            List<GuideLine> lines = FastPlaceGeometry.guideLines(
+               snapshot.points(), snapshot.polygonClosed(), snapshot.faceBaseOffset(), snapshot.perpendicularAnchor(), eye, view, effectiveBuildingModes(snapshot)
+            );
+            BufferSource buffers = minecraft.renderBuffers().bufferSource();
+            PoseStack poseStack = event.getPoseStack();
+            Vec3 camera = event.getCamera().getPosition();
+            BlockState previewState = PlaceableItems.placementState(
+               player.getMainHandItem(), player, previewPlacementContext(snapshot, player)
+            ).orElse(null);
+            List<ControlPoint> buildingPoints = buildingControlPoints(snapshot, candidate, hoveredPoint);
+            Map<BlockPos, BuildingSpecialBlock> specialBlockStyles = buildingSpecialBlockStyles(
+               snapshot, candidate, hoveredPoint, layers.allBlocks()
+            );
+            FastPlaceGeometry.Modes buildingModes = effectiveBuildingModes(snapshot);
+            List<GuideLine> confirmedOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE
+               ? PreviewGeometrySupport.outlineGeometryEdges(snapshot.points(), buildingModes.faceMode())
+               : List.of();
+            List<GuideLine> pendingOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE
+               ? PreviewGeometrySupport.outlineGeometryEdges(previewPoints, buildingModes.faceMode())
+               : List.of();
+            if (pendingOutlineEdges.equals(confirmedOutlineEdges)) {
+               pendingOutlineEdges = List.of();
+            }
+            HashSet<BlockPos> confirmedPreviewBlocks = new HashSet<>(layers.confirmedRenderBlocks());
+            specialBlockStyles.forEach((pos, special) -> {
+               if (special.confirmed()) {
+                  confirmedPreviewBlocks.add(pos);
+               }
+            });
+            HashSet<BlockPos> pendingPreviewBlocks = new HashSet<>(layers.pendingRenderBlocks());
+            for (ControlPoint point : buildingPoints) {
+               if (!point.confirmed()) {
+                  pendingPreviewBlocks.add(BlockPos.containing(point.center()));
+               }
+            }
+            Set<BlockPos> shapeEnvironment = PreviewGeometrySupport.unionBlocks(confirmedPreviewBlocks, pendingPreviewBlocks);
+            renderBuildingShells(
+               player,
+               poseStack,
+               buffers,
+               camera,
+               previewState,
+               confirmedPreviewBlocks,
+               pendingPreviewBlocks,
+               shapeEnvironment,
+               specialBlockStyles,
+               buildingModes,
+               !confirmedOutlineEdges.isEmpty() || !pendingOutlineEdges.isEmpty()
+            );
+            if (!confirmedOutlineEdges.isEmpty() || !pendingOutlineEdges.isEmpty()) {
+               ShapeShellRenderer.renderOutlineEdges(
+                  poseStack,
+                  buffers.getBuffer(RenderType.lines()),
+                  camera,
+                  confirmedOutlineEdges,
+                  pendingOutlineEdges
+               );
+            }
+            renderBuildingFallbackPoints(
+               poseStack, buffers, camera, buildingPoints, shapeEnvironment
+            );
+            renderBuildingGuidePlaneGrid(poseStack, buffers.getBuffer(RenderType.lines()), camera, planes);
+            renderBuildingGuideLines(poseStack, buffers.getBuffer(RenderType.lines()), camera, lines);
+            buffers.endBatch(RenderType.lines());
+         }
+      }
+   }
+
+   private static void renderGeometryWall(RenderLevelStageEvent event, Minecraft minecraft) {
+      Vec3 view = minecraft.player == null ? new Vec3(0.0, 0.0, 1.0) : minecraft.player.getViewVector(1.0F);
+      GeometryPreviewPlan plan = geometryPreviewPlan(view);
+      BufferSource buffers = minecraft.renderBuffers().bufferSource();
+      PoseStack poseStack = event.getPoseStack();
+      Vec3 camera = event.getCamera().getPosition();
+      GeometryRenderLayers layers = geometryRenderLayers();
+      renderConfirmedBlocks(poseStack, buffers, camera, layers.confirmed());
+      renderPendingBlocks(
+         poseStack,
+         buffers,
+         camera,
+         event.getModelViewMatrix(),
+         event.getProjectionMatrix(),
+         layers.pending()
+      );
+      renderGeometryControlPoints(poseStack, buffers, camera, plan);
+      renderGuidePlaneGrid(poseStack, buffers.getBuffer(RenderType.lines()), camera, plan.guidePlanes());
+      renderGuideLines(poseStack, buffers.getBuffer(RenderType.lines()), camera, plan.guideLines());
+      buffers.endBatch(RenderType.lines());
+      if (plan.gizmo() != null) {
+         renderGeometryGizmo(poseStack, buffers, camera, plan.gizmo());
+      }
+   }
+
+   private static GeometryWorkflowView geometryWorkflowView(Vec3 view) {
+      return new GeometryWorkflowView(
+         PREVIEW_STATE.geometry().mode(),
+         PREVIEW_STATE.geometry().points().size(),
+         PREVIEW_STATE.geometry().pointLocations(),
+         PREVIEW_STATE.geometry().pointRoles(),
+         PREVIEW_STATE.geometry().closed(),
+         FastPlaceClientInput.modifierHeld(),
+         PREVIEW_STATE.geometry().polyhedronShapeVariant(),
+         PREVIEW_STATE.geometry().coneShapeVariant(),
+         PREVIEW_STATE.geometry().compoundShapeVariant(),
+         PREVIEW_STATE.geometry().polyhedronSizeMode(),
+         PREVIEW_STATE.geometry().extrusion(),
+         PREVIEW_STATE.geometry().conePlaneMode(),
+         PREVIEW_STATE.geometry().coneRadius(),
+         PREVIEW_STATE.geometry().coneScaleX(),
+         PREVIEW_STATE.geometry().coneScaleZ(),
+         PREVIEW_STATE.geometry().coneTopScaleOffset(),
+         PREVIEW_STATE.geometry().coneTopOffset(),
+         PREVIEW_STATE.geometry().coneRotationRadians(),
+         PREVIEW_STATE.geometry().coneGizmoLocal(),
+         PREVIEW_STATE.geometry().rotation(),
+         PREVIEW_STATE.geometry().polyhedronLocalScale(),
+         PREVIEW_STATE.geometry().polyhedronWorldScale(),
+         PREVIEW_STATE.geometry().polyhedronGizmoLocal(),
+         PREVIEW_STATE.geometry().fillMode(),
+         view,
+         PREVIEW_STATE.geometry().selectedPointIndex()
+      );
+   }
+
+   private static BlockPos buildingCandidatePoint(BuildingPreviewPayload snapshot, LocalPlayer player) {
+      if (snapshot.polygonHeightConfirmed()) {
+         return snapshot.points().isEmpty() ? null : snapshot.points().getLast();
+      }
+      Vec3 eye = player.getEyePosition();
+      Vec3 view = player.getViewVector(1.0F);
+      BlockHitResult hit = raycastBlocks(player);
+      BlockPos hitBlock;
+      BlockPos surfaceBlock;
+      if (hit.getType() == Type.BLOCK) {
+         hitBlock = hit.getBlockPos();
+         surfaceBlock = hit.getBlockPos().relative(hit.getDirection());
+      } else {
+         BlockPos offset = snapshot.freeScrollOffset();
+         BlockPos base = snapshot.points().isEmpty() ? BlockPos.ZERO : snapshot.points().getFirst();
+         BlockPos anchor = base.offset(offset);
+         hitBlock = anchor;
+         surfaceBlock = anchor;
+      }
+      return FastPlaceGeometry.resolveCandidate(
+         snapshot.points(),
+         snapshot.polygonClosed(),
+         hitBlock,
+         surfaceBlock,
+         snapshot.faceBaseOffset(),
+         snapshot.volumeBaseOffset(),
+         snapshot.perpendicularAnchor(),
+         eye,
+         view,
+         snapshot.freeScrollOffset(),
+          effectiveBuildingModes(snapshot)
+      );
+   }
+
+   private static PlacementContextSnapshot previewPlacementContext(
+      BuildingPreviewPayload snapshot, LocalPlayer player
+   ) {
+      if (snapshot.placementContext() != null || !snapshot.points().isEmpty()) {
+         return snapshot.placementContext();
+      }
+      BlockHitResult hit = raycastBlocks(player);
+      if (hit.getType() != Type.BLOCK) {
+         return null;
+      }
+      FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
+      boolean embedded = snapshot.pointMode() == PointMode.RAYCAST
+         && modes.raycastPlacement() == RaycastPlacement.EMBEDDED;
+      return PlacementContextSnapshot.capture(
+         player.level(), player, player.getMainHandItem(), hit, embedded
+      );
+   }
+
+   private static Set<BlockPos> confirmedBuildingBlocks(BuildingPreviewPayload snapshot) {
+      LineTieBias effectiveBias = effectiveBuildingModes(snapshot).faceTieBias();
+      if (cachedConfirmedBuildingState != snapshot || cachedConfirmedBuildingBias != effectiveBias) {
+         cachedConfirmedBuildingState = snapshot;
+         cachedConfirmedBuildingBias = effectiveBias;
+         FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
+         try {
+            Set<BlockPos> generated = buildingPreviewBlocks(
+               snapshot,
+               snapshot.points(),
+               snapshot.polygonHeightConfirmed(),
+               modes
+            );
+            cachedConfirmedBuildingBlocks = completedBuildingPreview(
+               snapshot, snapshot.points(), snapshot.polygonHeightConfirmed(), modes, generated
+            );
+         } catch (RuntimeException exception) {
+            logPreviewFailure("Unable to generate FastFormer confirmed building preview; using outline fallback", exception);
+            cachedConfirmedBuildingBlocks = buildingPreviewLimitFallbackSafely(
+               snapshot, snapshot.points(), snapshot.polygonHeightConfirmed(), modes
+            );
+         }
+      }
+      return cachedConfirmedBuildingBlocks;
+   }
+
+   private static Set<BlockPos> buildingPreviewBlocks(
+      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
+   ) {
+      return buildingPreviewBlocks(snapshot, points, polygonHeightConfirmed, effectiveBuildingModes(snapshot));
+   }
+
+   private static Set<BlockPos> buildingPreviewBlocks(
+      BuildingPreviewPayload snapshot,
+      List<BlockPos> points,
+      boolean polygonHeightConfirmed,
+      FastPlaceGeometry.Modes modes
+   ) {
+      return buildingPreviewBlocks(snapshot, points, polygonHeightConfirmed, modes, null);
+   }
+
+   private static Set<BlockPos> buildingPreviewBlocks(
+      BuildingPreviewPayload snapshot,
+      List<BlockPos> points,
+      boolean polygonHeightConfirmed,
+      FastPlaceGeometry.Modes modes,
+      ProgressiveBlockGeneration progress
+   ) {
+      return snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()
+         ? WallGenerator.generate(
+            points,
+            false,
+            BlockPos.ZERO,
+            FastPlaceGeometry.PREVIEW_MAX_BLOCKS,
+            progress == null ? io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver.NONE : progress
+         )
+         : FastPlaceGeometry.blocks(
+            points,
+            modes,
+            polygonHeightConfirmed,
+            snapshot.polygonVolumeShape(),
+            FastPlaceGeometry.PREVIEW_MAX_BLOCKS,
+            progress == null ? io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver.NONE : progress
+          );
+   }
+
+   private static Set<BlockPos> buildingPreviewBlocksCached(
+      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
+   ) {
+      BuildingPreviewKey key = new BuildingPreviewKey(
+         PREVIEW_STATE.buildingVersion(),
+         List.copyOf(points),
+         polygonHeightConfirmed,
+         FastPlaceClientInput.modifierHeld()
+      );
+      if (!key.equals(cachedBuildingPreviewKey)) {
+         cachedBuildingPreviewKey = key;
+         cachedBuildingFallbackBlocks = Set.of();
+         cachedBuildingPreviewAtLimit = false;
+         cachedBuildingPreviewResultVersion++;
+         if (cachedBuildingPreviewProgress != null) {
+            cachedBuildingPreviewProgress.cancel();
+            cachedBuildingPreviewProgress = null;
+         }
+         if (cachedBuildingPreviewFuture != null) {
+            cachedBuildingPreviewFuture.cancel(true);
+         }
+         PREVIEW_GENERATION_EXECUTOR.getQueue().clear();
+         FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
+         PreviewAsyncPolicy.Workload workload = buildingPreviewWorkload(snapshot, key.points(), polygonHeightConfirmed);
+         if (PreviewAsyncPolicy.generateSynchronously(key.points(), workload)) {
+            try {
+               Set<BlockPos> generated = buildingPreviewBlocks(snapshot, key.points(), polygonHeightConfirmed, modes);
+               cachedBuildingPreviewBlocks = completedBuildingPreview(
+                  snapshot, key.points(), polygonHeightConfirmed, modes, generated
+               );
+            } catch (RuntimeException exception) {
+               logPreviewFailure("Unable to generate FastFormer building preview; using outline fallback", exception);
+               cachedBuildingPreviewBlocks = buildingPreviewLimitFallbackSafely(
+                  snapshot, key.points(), polygonHeightConfirmed, modes
+               );
+            }
+            cachedBuildingPreviewResultVersion++;
+            cachedBuildingPreviewFuture = null;
+         } else {
+            cachedBuildingPreviewBlocks = Set.of();
+            if ((workload == PreviewAsyncPolicy.Workload.PLANE || workload == PreviewAsyncPolicy.Workload.VOLUME)
+               && modes.fillMode() != FillMode.OUTLINE) {
+               cachedBuildingFallbackBlocks = buildingPreviewLimitFallbackSafely(
+                  snapshot, key.points(), polygonHeightConfirmed, modes
+               );
+               cachedBuildingPreviewBlocks = cachedBuildingFallbackBlocks;
+            }
+            cachedBuildingPreviewProgress = new ProgressiveBlockGeneration(
+               PreviewAsyncPolicy.estimateScanCells(key.points(), workload)
+            );
+            ProgressiveBlockGeneration progress = cachedBuildingPreviewProgress;
+            cachedBuildingPreviewFuture = PREVIEW_GENERATION_EXECUTOR.submit(
+               () -> {
+                  Set<BlockPos> blocks = buildingPreviewBlocks(
+                     snapshot, key.points(), polygonHeightConfirmed, modes, progress
+                  );
+                  progress.complete();
+                  return new BuildingBlockResult(key, blocks);
+               }
+            );
+         }
+      }
+      if (cachedBuildingPreviewFuture != null && cachedBuildingPreviewFuture.isDone()) {
+         try {
+            BuildingBlockResult result = cachedBuildingPreviewFuture.get();
+            if (result.key().equals(cachedBuildingPreviewKey)) {
+               FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
+               cachedBuildingPreviewBlocks = completedBuildingPreview(
+                  snapshot, result.key().points(), polygonHeightConfirmed, modes, result.blocks()
+               );
+               cachedBuildingPreviewAtLimit = false;
+               cachedBuildingPreviewResultVersion++;
+            }
+         } catch (CancellationException ignored) {
+            // A newer snapped candidate superseded this generation.
+         } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            cachedBuildingPreviewBlocks = buildingPreviewLimitFallbackSafely(
+               snapshot, key.points(), polygonHeightConfirmed, effectiveBuildingModes(snapshot)
+            );
+            cachedBuildingPreviewAtLimit = false;
+            cachedBuildingPreviewResultVersion++;
+         } catch (java.util.concurrent.ExecutionException exception) {
+            if (!(exception.getCause() instanceof CancellationException)) {
+               logPreviewFailure(
+                  "Unable to generate FastFormer building preview asynchronously; using outline fallback",
+                  exception.getCause()
+               );
+               cachedBuildingPreviewBlocks = buildingPreviewLimitFallbackSafely(
+                  snapshot, key.points(), polygonHeightConfirmed, effectiveBuildingModes(snapshot)
+               );
+               cachedBuildingPreviewAtLimit = false;
+               cachedBuildingPreviewResultVersion++;
+            }
+         } finally {
+            cachedBuildingPreviewFuture = null;
+            cachedBuildingPreviewProgress = null;
+         }
+      } else if (cachedBuildingPreviewProgress != null) {
+         ProgressiveBlockGeneration.Snapshot progress = cachedBuildingPreviewProgress.snapshot();
+         if (cachedBuildingPreviewAtLimit || progress.generated() >= FastPlaceGeometry.PREVIEW_MAX_BLOCKS) {
+            holdBuildingPreviewAtFallback(snapshot, key.points(), polygonHeightConfirmed);
+         } else {
+            List<ProgressiveBlockGeneration.SectionBatch> batches = cachedBuildingPreviewProgress.drainPublished();
+            long published = 0L;
+            for (ProgressiveBlockGeneration.SectionBatch batch : batches) {
+               published += batch.blocks().size();
+            }
+            if (published >= FastPlaceGeometry.PREVIEW_MAX_BLOCKS - (long)cachedBuildingPreviewBlocks.size()) {
+               holdBuildingPreviewAtFallback(snapshot, key.points(), polygonHeightConfirmed);
+            } else if (!batches.isEmpty()) {
+               HashSet<BlockPos> progressive = new HashSet<>(cachedBuildingPreviewBlocks);
+               for (ProgressiveBlockGeneration.SectionBatch batch : batches) {
+                  progressive.addAll(batch.blocks());
+               }
+               cachedBuildingPreviewBlocks = Set.copyOf(progressive);
+               cachedBuildingPreviewResultVersion++;
+            }
+         }
+      }
+      return cachedBuildingPreviewBlocks;
+   }
+
+   private static Set<BlockPos> completedBuildingPreview(
+      BuildingPreviewPayload snapshot,
+      List<BlockPos> points,
+      boolean polygonHeightConfirmed,
+      FastPlaceGeometry.Modes modes,
+      Set<BlockPos> generated
+   ) {
+      return GenerationLimitExceeded.is(generated)
+         ? buildingPreviewLimitFallbackSafely(snapshot, points, polygonHeightConfirmed, modes)
+         : generated;
+   }
+
+   private static void holdBuildingPreviewAtFallback(
+      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
+   ) {
+      cachedBuildingPreviewAtLimit = true;
+      if (cachedBuildingPreviewProgress != null) {
+         cachedBuildingPreviewProgress.drainPublished();
+      }
+      Set<BlockPos> fallback = cachedBuildingFallbackBlocks;
+      if (fallback.isEmpty()) {
+         fallback = buildingPreviewLimitFallbackSafely(
+            snapshot, points, polygonHeightConfirmed, effectiveBuildingModes(snapshot)
+         );
+         cachedBuildingFallbackBlocks = fallback;
+      }
+      if (!cachedBuildingPreviewBlocks.equals(fallback)) {
+         cachedBuildingPreviewBlocks = fallback;
+         cachedBuildingPreviewResultVersion++;
+      }
+   }
+
+   private static Set<BlockPos> buildingPreviewLimitFallback(
+      BuildingPreviewPayload snapshot,
+      List<BlockPos> points,
+      boolean polygonHeightConfirmed,
+      FastPlaceGeometry.Modes modes
+   ) {
+      if (modes.fillMode() != FillMode.OUTLINE) {
+         Set<BlockPos> outline = buildingPreviewBlocks(
+            snapshot,
+            points,
+            polygonHeightConfirmed,
+            modes.withFillMode(FillMode.OUTLINE)
+         );
+         if (!GenerationLimitExceeded.is(outline)) {
+            return outline;
+         }
+      }
+      return Set.copyOf(new HashSet<>(points));
+   }
+
+   private static Set<BlockPos> buildingPreviewLimitFallbackSafely(
+      BuildingPreviewPayload snapshot,
+      List<BlockPos> points,
+      boolean polygonHeightConfirmed,
+      FastPlaceGeometry.Modes modes
+   ) {
+      try {
+         return buildingPreviewLimitFallback(snapshot, points, polygonHeightConfirmed, modes);
+      } catch (RuntimeException exception) {
+         logPreviewFailure("Unable to generate FastFormer outline preview; using control points", exception);
+         return Set.copyOf(new HashSet<>(points));
+      }
+   }
+
+   private static PreviewAsyncPolicy.Workload buildingPreviewWorkload(
+      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
+   ) {
+      if (points.size() <= 2) {
+         return PreviewAsyncPolicy.Workload.LINE;
+      }
+      if (snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()) {
+         return PreviewAsyncPolicy.Workload.PATH;
+      }
+      if (points.size() == 3 || snapshot.faceMode() == FaceMode.POLYGON && !polygonHeightConfirmed) {
+         return PreviewAsyncPolicy.Workload.PLANE;
+      }
+      return PreviewAsyncPolicy.Workload.VOLUME;
+   }
+
+   private static void cancelBuildingPreviewGeneration() {
+      if (cachedBuildingPreviewFuture != null) {
+         cachedBuildingPreviewFuture.cancel(true);
+         cachedBuildingPreviewFuture = null;
+      }
+      if (cachedBuildingPreviewProgress != null) {
+         cachedBuildingPreviewProgress.cancel();
+         cachedBuildingPreviewProgress = null;
+      }
+      cachedBuildingPreviewAtLimit = false;
+      PREVIEW_GENERATION_EXECUTOR.getQueue().clear();
+      cachedBuildingFallbackBlocks = Set.of();
+   }
+
+   private static BuildingRenderLayers buildingRenderLayers(
+      BuildingPreviewPayload snapshot,
+      Set<BlockPos> previewBlocks,
+      Set<BlockPos> candidateBlocks,
+      BlockPos candidate,
+      BlockPos hoveredPoint
+   ) {
+      BuildingRenderKey key = new BuildingRenderKey(
+         PREVIEW_STATE.buildingVersion(),
+         cachedBuildingPreviewKey,
+         cachedBuildingPreviewResultVersion,
+         candidate,
+         hoveredPoint
+      );
+      if (!key.equals(cachedBuildingRenderKey)) {
+         GeometryPreviewBlocks.Layers split = GeometryPreviewBlocks.layersPreservingConfirmed(
+            confirmedBuildingBlocks(snapshot), previewBlocks
+         );
+         HashSet<BlockPos> pending = new HashSet<>(split.pending());
+         pending.addAll(candidateBlocks);
+         Set<BlockPos> all = PreviewGeometrySupport.unionBlocks(split.confirmed(), pending);
+         HashSet<BlockPos> confirmedMarkers = new HashSet<>(snapshot.points());
+         confirmedMarkers.addAll(candidateBlocks);
+         HashSet<BlockPos> pendingMarkers = new HashSet<>(snapshot.points());
+         if (candidate != null) {
+            pendingMarkers.add(candidate);
+         }
+         cachedBuildingRenderKey = key;
+         cachedBuildingRenderLayers = new BuildingRenderLayers(
+            PreviewGeometrySupport.withoutBlocks(split.confirmed(), confirmedMarkers),
+            PreviewGeometrySupport.withoutBlocks(pending, pendingMarkers),
+            all
+         );
+      }
+      return cachedBuildingRenderLayers;
+   }
+
+   private static FastPlaceGeometry.Modes effectiveBuildingModes(BuildingPreviewPayload snapshot) {
+      FastPlaceGeometry.Modes modes = snapshot.modes().withModifierHeld(FastPlaceClientInput.modifierHeld());
+      FastPlaceStage stage = effectiveStage(snapshot);
+      if (snapshot.faceMode() != FaceMode.POLYGON
+         && FastPlaceClientInput.modifierHeld()
+         && (stage == FastPlaceStage.FACE || stage == FastPlaceStage.VOLUME)) {
+         modes = modes.withFaceTieBias(LineTieBias.OPPOSITE);
+      }
+      boolean firstRaycastPoint = stage == FastPlaceStage.POINT
+         && snapshot.pointMode() == PointMode.RAYCAST
+         && snapshot.points().isEmpty();
+      boolean raycastLine = stage == FastPlaceStage.LINE && snapshot.lineMode() == LineMode.RAYCAST;
+      if (firstRaycastPoint || raycastLine) {
+         return modes.withRaycastPlacement(
+            FastPlaceClientInput.modifierHeld() ? RaycastPlacement.EMBEDDED : modes.raycastPlacement()
+         );
+      }
+      return modes;
+   }
+
+   private static GeometryPreviewPlan geometryPreviewPlan(Vec3 view) {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      GeometryWorkflowView workflowView = geometryWorkflowView(view);
+      GeometryHit candidate = GeometryWorkflows.allows(workflowView, GeometryAction.CANDIDATE_INPUT)
+         ? geometryCandidateHit(minecraft, player)
+         : null;
+      Vec3 eye = player == null ? Vec3.ZERO : player.getEyePosition();
+      BlockPos hoveredPoint = geometryPointUnderCrosshair();
+      GeometryPlanKey key = new GeometryPlanKey(
+         PREVIEW_STATE.geometryVersion(),
+         FastPlaceClientInput.modifierHeld(),
+         eye,
+         view,
+         candidate,
+         hoveredPoint
+      );
+      if (!key.equals(cachedGeometryPlanKey)) {
+         cachedGeometryPlanKey = key;
+         try {
+            cachedGeometryPlan = GeometryWorkflows.previewPlan(
+               workflowView, PREVIEW_STATE.geometry().points(), hoveredPoint, candidate, eye
+            );
+         } catch (RuntimeException exception) {
+            logPreviewFailure("Unable to generate FastFormer geometry preview plan; using control points", exception);
+            cachedGeometryPlan = GeometryPreviewPlan.controlPoints(PREVIEW_STATE.geometry().points(), hoveredPoint);
+         }
+      }
+      GeometryPreviewPlan plan = cachedGeometryPlan;
+      AxisGizmo gizmo = hoveredGeometryGizmo(plan.gizmo(), view);
+      return gizmo == plan.gizmo() ? plan : plan.withGizmo(gizmo);
+   }
+
+   private static GeometryRenderLayers geometryRenderLayers() {
+      GeometryPreviewPlan source = cachedGeometryPlan;
+      if (source == null) {
+         return GeometryRenderLayers.empty();
+      }
+      if (cachedGeometryRenderSource != source) {
+         Set<BlockPos> controlPoints = source.controlPoints()
+            .stream()
+            .map(ControlPoint::pos)
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+         Set<BlockPos> pendingBlocks = source.pendingBlocks();
+         if (pendingBlocks.isEmpty()
+            && PREVIEW_STATE.geometry().mode() == GeometryMode.CONE_PRISM
+            && PREVIEW_STATE.geometry().conePlaneMode().stageFor(PREVIEW_STATE.geometry().points().size()) == ConePrismStage.BODY
+            && !FastPlaceClientInput.modifierHeld()) {
+            pendingBlocks = coneBasePreviewFallback();
+         }
+         cachedGeometryRenderSource = source;
+         cachedGeometryRenderLayers = new GeometryRenderLayers(
+            PreviewGeometrySupport.withoutBlocks(source.ghostBlocks(), controlPoints),
+            PreviewGeometrySupport.withoutBlocks(pendingBlocks, controlPoints)
+         );
+      }
+      return cachedGeometryRenderLayers;
+   }
+
+   private static Set<BlockPos> coneBasePreviewFallback() {
+      int facePointCount = Math.min(PREVIEW_STATE.geometry().pointLocations().size(), PREVIEW_STATE.geometry().conePlaneMode().facePointCount());
+      if (facePointCount < PREVIEW_STATE.geometry().conePlaneMode().facePointCount()) {
+         return Set.of();
+      }
+      List<Vec3> facePoints = List.copyOf(PREVIEW_STATE.geometry().pointLocations().subList(0, facePointCount));
+      ConePrismParameters parameters = new ConePrismParameters(
+         facePoints,
+         Optional.empty(),
+         PREVIEW_STATE.geometry().coneShapeVariant(),
+         PREVIEW_STATE.geometry().conePlaneMode(),
+         PREVIEW_STATE.geometry().coneRadius(),
+         PREVIEW_STATE.geometry().coneScaleX(),
+         PREVIEW_STATE.geometry().coneScaleZ(),
+         PREVIEW_STATE.geometry().coneTopScaleOffset(),
+         PREVIEW_STATE.geometry().coneTopOffset(),
+         PREVIEW_STATE.geometry().coneRotationRadians()
+      );
+      return ConePrismGenerator.baseOutline(parameters, 16_384);
+   }
+
+   private static BlockPos geometryCandidatePoint(Minecraft minecraft, LocalPlayer player) {
+      GeometryHit hit = geometryCandidateHit(minecraft, player);
+      return hit == null ? null : hit.point();
+   }
+
+   private static GeometryHit geometryCandidateHit(Minecraft minecraft, LocalPlayer player) {
+      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.nearVanillaBlock(minecraft)) {
+         return null;
+      }
+      BlockHitResult hit = raycastBlocks(player);
+      if (hit.getType() == Type.BLOCK) {
+         return GeometryHit.from(hit);
+      }
+      List<BlockPos> points = PREVIEW_STATE.geometry().points();
+      BlockPos fallback = points.isEmpty() ? BlockPos.containing(player.getEyePosition().add(player.getViewVector(1.0F).scale(8.0))) : points.getLast();
+      return GeometryHit.point(fallback);
+   }
+
+   private static AxisGizmo hoveredGeometryGizmo(AxisGizmo gizmo, Vec3 view) {
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (gizmo == null || player == null) {
+         return gizmo;
+      }
+
+      gizmo = cameraScaledGizmo(gizmo, minecraft);
+      if (InteractionContext.nearVanillaBlock(minecraft)) {
+         return gizmo;
+      }
+      AxisGizmo.Hit hit = gizmo.hitTest(player.getEyePosition(), view, visiblePreviewReach(player));
+      AxisGizmo.HandleKey hoveredKey = hit == null ? null : hit.handle().key();
+      return gizmo.withState(hoveredKey, FastPlaceClientInput.geometryGizmoDragKey());
+   }
+
+   private static AxisGizmo cameraScaledGizmo(AxisGizmo gizmo, Minecraft minecraft) {
+      Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
+      GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(gizmo.center()));
+      return new AxisGizmo(
+         gizmo.center(),
+         scale.axisLength(),
+         scale.handleRadius(),
+         gizmo.frame(),
+         gizmo.handles(),
+         gizmo.textComponent()
+      );
+   }
+
+   private static double visiblePreviewReach(LocalPlayer player) {
+      if (player == null) {
+         return 0.0;
+      }
+      BlockHitResult hit = raycastBlocks(player);
+      double limit = raycastDebug == null ? PREVIEW_REACH : raycastDebug.distance();
+      return hit.getType() == Type.BLOCK
+         ? GeometryRayVisibility.visibleReach(limit, player.getEyePosition(), hit)
+         : limit;
+   }
+
+   private static float updateWorldPreviewOpacity(Minecraft minecraft, float partialTick) {
+      return InteractionContext.previewVisibility(minecraft, partialTick);
+   }
+
+   private static void renderBuildingFallbackPoints(
+      PoseStack poseStack,
+      BufferSource buffers,
+      Vec3 camera,
+      List<ControlPoint> points,
+      Set<BlockPos> shellBlocks
+   ) {
+      List<ControlPoint> fallback = points.stream()
+         .filter(point -> !shellBlocks.contains(BlockPos.containing(point.center())))
+         .toList();
+      renderControlPoints(poseStack, buffers, camera, fallback);
+   }
+
+   private static Map<BlockPos, BuildingSpecialBlock> buildingSpecialBlockStyles(
+      BuildingPreviewPayload snapshot, BlockPos candidate, BlockPos hoveredPoint, Set<BlockPos> ghostBlocks
+   ) {
+      HashMap<BlockPos, BuildingSpecialBlock> result = new HashMap<>();
+      for (ControlPoint point : buildingControlPoints(snapshot, candidate, hoveredPoint)) {
+         BlockPos pos = BlockPos.containing(point.center());
+         if (point.confirmed() && ghostBlocks.contains(pos)) {
+            result.put(
+               pos.immutable(),
+               new BuildingSpecialBlock(
+                  point.feedback().style(point.role(), point.hovered()), point.confirmed()
+               )
+            );
+         }
+      }
+      return Map.copyOf(result);
+   }
+
+   private static List<ControlPoint> buildingControlPoints(BuildingPreviewPayload snapshot, BlockPos candidate, BlockPos hoveredPoint) {
+      if (snapshot.points().isEmpty() && candidate == null) {
+         return List.of();
+      }
+      boolean closing = isBuildingClosingCandidate(snapshot, candidate, hoveredPoint);
+      boolean closeable = snapshot.faceMode() == FaceMode.POLYGON
+         && !snapshot.polygonClosed()
+         && snapshot.points().size() >= 3;
+      ArrayList<ControlPoint> result = new ArrayList<>(snapshot.points().size() + (candidate == null ? 0 : 1));
+      if (!snapshot.points().isEmpty()) {
+         result.add(closeable
+            ? ControlPoint.primary(snapshot.points().getFirst(), closing)
+            : ControlPoint.of(snapshot.points().getFirst(), ControlPointRole.PRIMARY));
+         for (int i = 1; i < snapshot.points().size(); i++) {
+            BlockPos point = snapshot.points().get(i);
+            result.add(ControlPoint.secondary(point));
+         }
+      }
+      if (candidate != null && !snapshot.polygonHeightConfirmed() && !closing && !snapshot.points().contains(candidate)) {
+         ControlPointRole role = snapshot.points().isEmpty() ? ControlPointRole.PRIMARY : ControlPointRole.SECONDARY;
+         result.add(ControlPoint.pending(Vec3.atCenterOf(candidate), role));
+      }
+      return result;
+   }
+
+   static List<ControlPoint> operationControlPoints(
+      OperationPreviewPayload snapshot, BlockPos candidate, boolean edgeInsertionHovered
+   ) {
+      List<BlockPos> points = snapshot.points();
+      ArrayList<ControlPoint> result = new ArrayList<>(points.size() + (candidate == null ? 0 : 1));
+      int pointIndex = 0;
+      int hoveredIndex = snapshot.operationSelectionMode() == OperationSelectionMode.PRISM
+         ? operationPointUnderCrosshairIndex()
+         : -1;
+      if (snapshot.hasFirst() && pointIndex < points.size()) {
+         boolean closeable = snapshot.operationSelectionMode() == OperationSelectionMode.PRISM
+            && snapshot.operationPrismBasePointCount() == 0
+            && points.size() >= 3;
+         boolean hovered = closeable && operationPointUnderCrosshairIndex() == pointIndex;
+         ControlPoint first = closeable
+            ? ControlPoint.primary(points.get(pointIndex), hovered)
+            : ControlPoint.of(points.get(pointIndex), ControlPointRole.PRIMARY);
+         if (hoveredIndex == pointIndex) {
+            first = first.withFeedback(ControlPointFeedback.hoverable()).withHovered(true);
+         }
+         result.add(first);
+         pointIndex++;
+      }
+      if (snapshot.hasSecond() && pointIndex < points.size()) {
+         ControlPoint second = ControlPoint.secondary(points.get(pointIndex));
+         if (hoveredIndex == pointIndex) {
+            second = second.withFeedback(ControlPointFeedback.hoverable()).withHovered(true);
+         }
+         result.add(second);
+         pointIndex++;
+      }
+      while (pointIndex < points.size()) {
+         ControlPoint point = ControlPoint.secondary(points.get(pointIndex));
+         if (hoveredIndex == pointIndex) {
+            point = point.withFeedback(ControlPointFeedback.hoverable()).withHovered(true);
+         }
+         result.add(point);
+         pointIndex++;
+      }
+      if (candidate != null && !points.contains(candidate)) {
+         ControlPointRole role = snapshot.hasFirst() ? ControlPointRole.SECONDARY : ControlPointRole.PRIMARY;
+         ControlPoint pending = ControlPoint.pending(Vec3.atCenterOf(candidate), role);
+         result.add(edgeInsertionHovered
+            ? pending.withFeedback(ControlPointFeedback.hoverable()).withHovered(true)
+            : pending);
+      }
+      return List.copyOf(result);
+   }
+
+   private static Set<BlockPos> buildingCandidateBlocks(
+      BuildingPreviewPayload snapshot, BlockPos candidate, BlockPos hoveredPoint
+   ) {
+      return candidate == null
+         || snapshot.polygonHeightConfirmed()
+         || snapshot.points().contains(candidate)
+         || isBuildingClosingCandidate(snapshot, candidate, hoveredPoint)
+         ? Set.of()
+         : Set.of(candidate.immutable());
+   }
+
+   private static boolean isBuildingClosingCandidate(
+      BuildingPreviewPayload snapshot, BlockPos candidate, BlockPos hoveredPoint
+   ) {
+      return snapshot.faceMode() == FaceMode.POLYGON
+         && !snapshot.polygonClosed()
+         && snapshot.points().size() >= 3
+         && snapshot.points().getFirst().equals(hoveredPoint);
+   }
+
+   private static void renderGeometryControlPoints(PoseStack poseStack, BufferSource buffers, Vec3 camera, GeometryPreviewPlan plan) {
+      renderControlPoints(poseStack, buffers, camera, plan.controlPoints());
+   }
+
+   static void renderControlPoints(PoseStack poseStack, BufferSource buffers, Vec3 camera, List<ControlPoint> points) {
+      if (points.isEmpty()) {
+         return;
+      }
+
+      // BufferSource has one active builder. Finish one render type before switching
+      // between the hidden and visible passes; interleaving consumers crashes.
+      buffers.endLastBatch();
+      VertexConsumer occludedBoxes = buffers.getBuffer(OCCLUDED_CONTROL_POINTS);
+      for (ControlPoint point : points) {
+         if (!point.confirmed()) {
+            continue;
+         }
+         ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+         addControlPointBox(
+            poseStack,
+            occludedBoxes,
+            camera,
+            point,
+            style.alpha() * worldPreviewOpacity * OCCLUDED_POINT_ALPHA
+         );
+      }
+      buffers.endBatch(OCCLUDED_CONTROL_POINTS);
+
+      VertexConsumer boxes = buffers.getBuffer(RenderType.debugFilledBox());
+      for (ControlPoint point : points) {
+         if (point.confirmed()) {
+            ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+            addControlPointBox(poseStack, boxes, camera, point, style.alpha() * worldPreviewOpacity);
+         }
+      }
+      buffers.endBatch(RenderType.debugFilledBox());
+
+      VertexConsumer occludedLines = buffers.getBuffer(PENDING_XRAY_LINES);
+      renderConfirmedControlPointOutlines(poseStack, occludedLines, camera, points, OCCLUDED_POINT_ALPHA);
+      renderPendingControlPoints(poseStack, occludedLines, camera, points, OCCLUDED_POINT_ALPHA);
+      buffers.endBatch(PENDING_XRAY_LINES);
+
+      VertexConsumer lines = buffers.getBuffer(PENDING_LINES);
+      renderConfirmedControlPointOutlines(poseStack, lines, camera, points, 1.0F);
+      renderPendingControlPoints(poseStack, lines, camera, points, 1.0F);
+      buffers.endBatch(PENDING_LINES);
+   }
+
+   private static void renderConfirmedControlPointOutlines(
+      PoseStack poseStack,
+      VertexConsumer lines,
+      Vec3 camera,
+      List<ControlPoint> points,
+      float alphaScale
+   ) {
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      for (ControlPoint point : points) {
+         if (!point.confirmed()) {
+            continue;
+         }
+         Vec3 center = point.center();
+         Vec3 halfExtents = point.shape().visualHalfExtents(point.center());
+         ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+         LevelRenderer.renderLineBox(
+            poseStack,
+            lines,
+            new AABB(
+               center.x - halfExtents.x,
+               center.y - halfExtents.y,
+               center.z - halfExtents.z,
+               center.x + halfExtents.x,
+               center.y + halfExtents.y,
+               center.z + halfExtents.z
+            ).inflate(CONTROL_POINT_OUTLINE_INFLATE),
+            style.red(),
+            style.green(),
+            style.blue(),
+            style.alpha() * alphaScale * worldPreviewOpacity
+         );
+      }
+      poseStack.popPose();
+   }
+
+   private static void renderPendingControlPoints(
+      PoseStack poseStack,
+      VertexConsumer lines,
+      Vec3 camera,
+      List<ControlPoint> points,
+      float alphaScale
+   ) {
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      double offset = pendingGridDashOffset();
+      for (ControlPoint point : points) {
+         if (point.confirmed()) {
+            continue;
+         }
+         ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+         renderFlowingDashedBox(
+            poseStack,
+            lines,
+            point.center(),
+            point.shape().visualHalfExtents(point.center()),
+            offset,
+            style.alpha() * alphaScale
+         );
+      }
+      poseStack.popPose();
+   }
+
+   private static void addControlPointBox(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 camera, ControlPoint point, float alpha
+   ) {
+      Vec3 center = point.center();
+      Vec3 halfExtents = point.shape().visualHalfExtents(point.center());
+      ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+      LevelRenderer.addChainedFilledBoxVertices(
+         poseStack,
+         consumer,
+         center.x - halfExtents.x - camera.x,
+         center.y - halfExtents.y - camera.y,
+         center.z - halfExtents.z - camera.z,
+         center.x + halfExtents.x - camera.x,
+         center.y + halfExtents.y - camera.y,
+         center.z + halfExtents.z - camera.z,
+         style.red(),
+         style.green(),
+         style.blue(),
+         alpha
+      );
+   }
+
+   static void renderFlowingDashedBox(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      Vec3 center,
+      Vec3 halfExtents,
+      double offset,
+      float alpha
+   ) {
+      renderFlowingDashedBox(poseStack, consumer, center, halfExtents, null, offset, alpha);
+   }
+
+   static void renderFlowingDashedBox(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      Vec3 center,
+      Vec3 halfExtents,
+      Vec3 camera,
+      double offset,
+      float alpha
+   ) {
+      double x0 = center.x - halfExtents.x;
+      double y0 = center.y - halfExtents.y;
+      double z0 = center.z - halfExtents.z;
+      double x1 = center.x + halfExtents.x;
+      double y1 = center.y + halfExtents.y;
+      double z1 = center.z + halfExtents.z;
+      Vec3[] corners = {
+         new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y1, z0), new Vec3(x0, y1, z0),
+         new Vec3(x0, y0, z1), new Vec3(x1, y0, z1), new Vec3(x1, y1, z1), new Vec3(x0, y1, z1)
+      };
+      if (camera != null) {
+         for (int index = 0; index < corners.length; index++) {
+            corners[index] = GhostOutlineDepthBias.towardCamera(corners[index], camera, GHOST_OUTLINE_CAMERA_BIAS);
+         }
+      }
+      int[][] edges = {
+         {0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}
+      };
+      for (int[] edge : edges) {
+         renderAlternatingDashedLine(
+            poseStack, consumer, corners[edge[0]], corners[edge[1]], alpha, offset
+         );
+      }
+   }
+
+   static void renderOperationOutlineLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha) {
+      renderAlternatingDashedLine(poseStack, consumer, from, to, alpha, selectionDashOffset());
+   }
+
+   static void renderStaticOperationGuideLine(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha
+   ) {
+      renderAlternatingDashedLine(poseStack, consumer, from, to, alpha, 0.0);
+   }
+
+   private static void renderAlternatingDashedLine(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha, double offset
+   ) {
+      GuideRenderer.renderAlternatingDashedLine(
+         poseStack, consumer, from, to, alpha, offset, SELECTION_DASH_LENGTH, worldPreviewOpacity
+      );
+   }
+
+   static void renderGeometryGizmo(PoseStack poseStack, BufferSource buffers, Vec3 camera, AxisGizmo gizmo) {
+      renderGeometryGizmo(poseStack, buffers, camera, gizmo, 1.0F);
+   }
+
+   static void renderGeometryGizmo(
+      PoseStack poseStack, BufferSource buffers, Vec3 camera, AxisGizmo gizmo, float alphaScale
+   ) {
+      Vec3 center = gizmo.center();
+      double axisLength = gizmo.axisLength();
+
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+
+      VertexConsumer lines = buffers.getBuffer(GIZMO_LINES);
+      for (AxisGizmo.Axis gizmoAxis : AxisGizmo.Axis.values()) {
+         Vec3 axis = gizmo.axisVector(gizmoAxis);
+         float[] color = gizmoAxisColor(gizmoAxis);
+         AxisGizmo.Handle positiveMove = gizmo.handles().stream()
+            .filter(handle -> handle.operation() == AxisGizmo.Operation.MOVE
+               && handle.axis() == gizmoAxis && handle.direction() == AxisGizmo.Direction.POSITIVE)
+            .findFirst().orElse(null);
+         AxisGizmo.Handle negativeMove = gizmo.handles().stream()
+            .filter(handle -> handle.operation() == AxisGizmo.Operation.MOVE
+               && handle.axis() == gizmoAxis && handle.direction() == AxisGizmo.Direction.NEGATIVE)
+            .findFirst().orElse(null);
+         double positiveLength = positiveMove == null ? axisLength : gizmo.endpointDistance(positiveMove);
+         double negativeLength = negativeMove == null ? axisLength : gizmo.endpointDistance(negativeMove);
+         renderLine(
+            poseStack, lines,
+            center.subtract(axis.scale(negativeLength)), center.add(axis.scale(positiveLength)),
+            color[0], color[1], color[2], 0.96F * alphaScale
+         );
+      }
+      renderGizmoLineHandles(poseStack, lines, gizmo, false, alphaScale);
+      buffers.endBatch(GIZMO_LINES);
+
+      VertexConsumer hoverLines = buffers.getBuffer(GIZMO_HOVER_LINES);
+      renderGizmoLineHandles(poseStack, hoverLines, gizmo, true, alphaScale);
+      buffers.endBatch(GIZMO_HOVER_LINES);
+
+      VertexConsumer solids = buffers.getBuffer(GIZMO_SOLIDS);
+      for (AxisGizmo.Handle handle : gizmo.handles()) {
+         if (handle.operation() == AxisGizmo.Operation.SCALE) {
+            float[] color = gizmoHandleColor(handle);
+            renderScaleHandle(poseStack, solids, gizmo, handle, color, gizmoHandleAlpha(handle) * alphaScale);
+         }
+      }
+      buffers.endBatch(GIZMO_SOLIDS);
+      poseStack.popPose();
+   }
+
+   /** Low-contrast local UVW guide: repeat is authored before the subsequent rotation. */
+   static void renderLocalWorkspaceGizmo(
+      PoseStack poseStack,
+      BufferSource buffers,
+      Vec3 camera,
+      Vec3 center,
+      double axisLength,
+      Vec3 rotation,
+      AxisGizmo.Axis highlightedAxis,
+      float alphaScale
+   ) {
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      VertexConsumer lines = buffers.getBuffer(GIZMO_LINES);
+      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+         Vec3 localAxis = PreviewGeometrySupport.rotateLocalAxis(axis, rotation);
+         boolean highlighted = axis == highlightedAxis;
+         float[] color = PreviewGeometrySupport.softLocalAxisColor(axis);
+         float alpha = (highlighted ? 0.90F : 0.26F) * alphaScale;
+         double length = highlighted ? axisLength * 1.15 : axisLength;
+         renderColoredDashedLine(
+            poseStack, lines, center.subtract(localAxis.scale(length)), center.add(localAxis.scale(length)),
+            color[0], color[1], color[2], alpha
+         );
+      }
+      buffers.endBatch(GIZMO_LINES);
+      poseStack.popPose();
+   }
+
+   private static void renderColoredDashedLine(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float red, float green, float blue, float alpha
+   ) {
+      Vec3 vector = to.subtract(from);
+      double length = vector.length();
+      if (length < EPSILON) {
+         return;
+      }
+      Vec3 direction = vector.scale(1.0 / length);
+      double dashLength = 0.18;
+      for (double start = 0.0; start < length; start += dashLength * 2.0) {
+         double end = Math.min(length, start + dashLength);
+         renderLine(poseStack, consumer, from.add(direction.scale(start)), from.add(direction.scale(end)), red, green, blue, alpha);
+      }
+   }
+
+   private static void renderGizmoLineHandles(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      AxisGizmo gizmo,
+      boolean highlighted,
+      float alphaScale
+   ) {
+      for (AxisGizmo.Handle handle : gizmo.handles()) {
+         if (handle.operation() == AxisGizmo.Operation.SCALE
+            || highlighted != (handle.hovered() || handle.active())) {
+            continue;
+         }
+
+         float[] color = gizmoHandleColor(handle);
+         if (handle.drawsRing()) {
+            renderRotationRing(
+               poseStack,
+               consumer,
+               gizmo.center(),
+               gizmo.axisVector(handle.axis()),
+               gizmo.rotationRingRadius(handle),
+               color[0],
+               color[1],
+               color[2],
+               gizmoRingAlpha(handle) * alphaScale
+            );
+         } else if (handle.operation() == AxisGizmo.Operation.MOVE) {
+            if (highlighted) {
+               Vec3 direction = gizmo.axisVector(handle.axis());
+               if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
+                  direction = direction.scale(-1.0);
+               }
+               renderLine(
+                  poseStack,
+                  consumer,
+                  gizmo.center(),
+                  gizmo.handleCenter(handle),
+                  color[0],
+                  color[1],
+                  color[2],
+                  gizmoHandleAlpha(handle) * alphaScale
+               );
+            }
+            renderMoveArrow(poseStack, consumer, gizmo, handle, color, gizmoHandleAlpha(handle) * alphaScale);
+         }
+      }
+   }
+
+   static float operationGizmoAlpha(AxisGizmo gizmo) {
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft.player == null || gizmo == null) {
+         return 0.5F;
+      }
+      Vec3 eye = minecraft.player.getEyePosition();
+      Vec3 view = minecraft.player.getViewVector(1.0F).normalize();
+      double rayDistance = Math.max(0.0, gizmo.center().subtract(eye).dot(view));
+      double distanceSqr = eye.add(view.scale(rayDistance)).distanceToSqr(gizmo.center());
+      boolean nearCenter = distanceSqr <= Math.pow(gizmo.handleRadius() * 1.5, 2.0);
+      return OperationGizmoPresentation.alpha(nearCenter);
+   }
+
+   private static float[] gizmoAxisColor(AxisGizmo.Axis axis) {
+      int color = AxisGizmo.axisColor(axis);
+      return new float[]{
+         ((color >>> 16) & 0xFF) / 255.0F,
+         ((color >>> 8) & 0xFF) / 255.0F,
+         (color & 0xFF) / 255.0F
+      };
+   }
+
+   private static float[] gizmoHandleColor(AxisGizmo.Handle handle) {
+      int color = handle.hoverFeedback().color(handle.hovered(), handle.active());
+      return new float[]{
+         ((color >>> 16) & 0xFF) / 255.0F,
+         ((color >>> 8) & 0xFF) / 255.0F,
+         (color & 0xFF) / 255.0F
+      };
+   }
+
+   private static float gizmoHandleAlpha(AxisGizmo.Handle handle) {
+      if (handle.active()) {
+         return 1.0F;
+      }
+      if (handle.hovered()) {
+         return 1.0F;
+      }
+      return handle.direction() == AxisGizmo.Direction.NEGATIVE ? 0.86F : 0.98F;
+   }
+
+   private static float gizmoRingAlpha(AxisGizmo.Handle handle) {
+      if (handle.active()) {
+         return 1.0F;
+      }
+      if (handle.hovered()) {
+         return 1.0F;
+      }
+      return 0.88F;
+   }
+
+   private static void renderRotationRing(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      Vec3 center,
+      Vec3 normal,
+      double radius,
+      float red,
+      float green,
+      float blue,
+      float alpha
+   ) {
+      PlaneAxes planeAxes = PlaneAxes.fromNormal(normal);
+      Vec3 u = planeAxes.horizontal();
+      Vec3 v = planeAxes.vertical();
+      int segments = 64;
+      Vec3 previous = center.add(u.scale(radius));
+      for (int i = 1; i <= segments; i++) {
+         double angle = Math.PI * 2.0 * (double)i / (double)segments;
+         Vec3 next = center.add(u.scale(Math.cos(angle) * radius)).add(v.scale(Math.sin(angle) * radius));
+         renderLine(poseStack, consumer, previous, next, red, green, blue, alpha);
+         previous = next;
+      }
+   }
+
+   private static void renderMoveArrow(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      AxisGizmo gizmo,
+      AxisGizmo.Handle handle,
+      float[] color,
+      float alpha
+   ) {
+      Vec3 direction = gizmo.axisVector(handle.axis());
+      if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
+         direction = direction.scale(-1.0);
+      }
+      direction = normalize(direction);
+      Vec3 tip = gizmo.handleCenter(handle);
+      double radius = gizmo.visualRadius(handle);
+      Vec3 base = tip.subtract(direction.scale(radius * 2.8));
+      PlaneAxes axes = PlaneAxes.fromNormal(direction);
+      Vec3 u = axes.horizontal().scale(radius * 1.35);
+      Vec3 v = axes.vertical().scale(radius * 1.35);
+      Vec3[] rim = {base.add(u), base.add(v), base.subtract(u), base.subtract(v)};
+      for (int i = 0; i < rim.length; i++) {
+         renderLine(poseStack, consumer, tip, rim[i], color[0], color[1], color[2], alpha);
+         renderLine(poseStack, consumer, rim[i], rim[(i + 1) % rim.length], color[0], color[1], color[2], alpha);
+      }
+   }
+
+   private static void renderScaleHandle(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      AxisGizmo gizmo,
+      AxisGizmo.Handle handle,
+      float[] color,
+      float alpha
+   ) {
+      Vec3 center = gizmo.handleCenter(handle);
+      double radius = gizmo.visualRadius(handle);
+      float[] brightColor = gizmoHandleColor(handle);
+      renderSolidBox(poseStack, consumer, center, radius, brightColor[0], brightColor[1], brightColor[2], alpha);
+   }
+
+   private static void renderSolidBox(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 center, double radius, float red, float green, float blue, float alpha
+   ) {
+      double x0 = center.x - radius;
+      double y0 = center.y - radius;
+      double z0 = center.z - radius;
+      double x1 = center.x + radius;
+      double y1 = center.y + radius;
+      double z1 = center.z + radius;
+      Vec3 p000 = new Vec3(x0, y0, z0);
+      Vec3 p001 = new Vec3(x0, y0, z1);
+      Vec3 p010 = new Vec3(x0, y1, z0);
+      Vec3 p011 = new Vec3(x0, y1, z1);
+      Vec3 p100 = new Vec3(x1, y0, z0);
+      Vec3 p101 = new Vec3(x1, y0, z1);
+      Vec3 p110 = new Vec3(x1, y1, z0);
+      Vec3 p111 = new Vec3(x1, y1, z1);
+      addGhostQuad(poseStack, consumer, p000, p100, p110, p010, red, green, blue, alpha);
+      addGhostQuad(poseStack, consumer, p101, p001, p011, p111, red, green, blue, alpha);
+      addGhostQuad(poseStack, consumer, p001, p000, p010, p011, red, green, blue, alpha);
+      addGhostQuad(poseStack, consumer, p100, p101, p111, p110, red, green, blue, alpha);
+      addGhostQuad(poseStack, consumer, p010, p110, p111, p011, red, green, blue, alpha);
+      addGhostQuad(poseStack, consumer, p001, p101, p100, p000, red, green, blue, alpha);
+   }
+
+   @SubscribeEvent
+   public static void onLoggingOut(LoggingOut event) {
+      ClientSessionManager.instance().markDisconnected();
+      // Keep the player-owned preview snapshots. The next connection/world
+      // boundary is reconciled only after a newer authoritative packet arrives.
+      ClientOperationController.onDisconnected();
+      WorkspaceInteractionResolver.clearCache();
+      SCROLL_FEEDBACK.clear();
+      GIZMO_FEEDBACK.clear();
+      lastGizmoFeedbackAxis = null;
+      lastGizmoFeedbackOperation = null;
+      lastGizmoFeedbackSteps = 0;
+      lastGizmoFeedbackBaseValue = 0.0;
+      geometryTransformBaseline = null;
+      OPERATION_FACE_INTERPOLATOR.reset();
+      worldPreviewOpacity = 1.0F;
+      raycastDebug = null;
+      cachedRaycast = null;
+      cachedRaycastStart = null;
+      cachedRaycastDirection = null;
+      cachedRaycastAt = 0L;
+      cachedConfirmedBuildingState = null;
+      cachedConfirmedBuildingBias = LineTieBias.DEFAULT;
+      cachedConfirmedBuildingBlocks = Set.of();
+      cachedBuildingPreviewKey = null;
+      cachedBuildingPreviewBlocks = Set.of();
+      cancelBuildingPreviewGeneration();
+      cachedBuildingRenderKey = null;
+      cachedBuildingRenderLayers = BuildingRenderLayers.empty();
+      cachedGeometryPlanKey = null;
+      cachedGeometryPlan = null;
+      cachedGeometryRenderSource = null;
+      cachedGeometryRenderLayers = GeometryRenderLayers.empty();
+      CONFIRMED_GHOST_CACHE.clear();
+      CONFIRMED_OUTLINE_CACHE.clear();
+      CONFIRMED_BUILDING_SHELL_CACHE.clear();
+      PENDING_BUILDING_SHELL_CACHE.clear();
+      PENDING_GHOST_CACHE.clear();
+      PENDING_GHOST_BUFFER_CACHE.clear();
+      SmoothReticlePostEffect.reset();
+      smoothReticleFrame = false;
+   }
+
+   private static BlockHitResult raycastBlocks(LocalPlayer player) {
+      Vec3 start = player.getEyePosition();
+      Vec3 direction = player.getViewVector(1.0F);
+      long now = System.nanoTime();
+      if (cachedRaycast != null
+         && start.equals(cachedRaycastStart)
+         && direction.equals(cachedRaycastDirection)
+         && now - cachedRaycastAt <= 16_000_000L) {
+         return cachedRaycast.hit();
+      }
+      cachedRaycast = LongRangeBlockRaycast.clip(player.level(), player, start, direction);
+      cachedRaycastStart = start;
+      cachedRaycastDirection = direction;
+      cachedRaycastAt = now;
+      raycastDebug = cachedRaycast;
+      return cachedRaycast.hit();
+   }
+
+   private static Set<BlockPos> withoutBlocks(Set<BlockPos> blocks, Set<BlockPos> excluded) {
+      if (blocks.isEmpty() || excluded.isEmpty() || excluded.stream().noneMatch(blocks::contains)) {
+         return blocks;
+      }
+      HashSet<BlockPos> result = new HashSet<>(blocks);
+      result.removeAll(excluded);
+      return result;
+   }
+
+   private static Set<BlockPos> unionBlocks(Set<BlockPos> first, Set<BlockPos> second) {
+      if (first.isEmpty()) {
+         return second;
+      }
+      if (second.isEmpty()) {
+         return first;
+      }
+      HashSet<BlockPos> result = new HashSet<>(first);
+      result.addAll(second);
+      return result;
+   }
+
+   private static void renderBuildingShells(
+      LocalPlayer player,
+      PoseStack poseStack,
+      BufferSource buffers,
+      Vec3 camera,
+      BlockState state,
+      Set<BlockPos> confirmedBlocks,
+      Set<BlockPos> pendingBlocks,
+      Set<BlockPos> shapeEnvironment,
+      Map<BlockPos, BuildingSpecialBlock> specialStyles,
+      FastPlaceGeometry.Modes modes,
+      boolean cleanOutlineEdges
+   ) {
+      BlockGetter previewLevel = state == null
+         ? player.level()
+         : PreviewBlockOcclusion.level(shapeEnvironment, state);
+      net.minecraft.world.phys.shapes.CollisionContext collision = net.minecraft.world.phys.shapes.CollisionContext.of(player);
+      ShapeShellMesh.Mesh confirmed = CONFIRMED_BUILDING_SHELL_CACHE.mesh(
+         previewLevel, state, collision, confirmedBlocks, shapeEnvironment, specialStyles, player.isShiftKeyDown()
+      );
+      ShapeShellMesh.Mesh pending = PENDING_BUILDING_SHELL_CACHE.mesh(
+         previewLevel, state, collision, pendingBlocks, shapeEnvironment, Map.of(), player.isShiftKeyDown()
+      );
+
+      ShapeShellRenderer.renderFaces(
+         poseStack, buffers.getBuffer(GHOST_FACES), camera, confirmed.faces(), 0.80F * worldPreviewOpacity
+      );
+      float pendingFaceAlpha = (0.30F + 0.20F * ghostBreathPulse()) * worldPreviewOpacity;
+      ShapeShellRenderer.renderFaces(poseStack, buffers.getBuffer(GHOST_FACES), camera, pending.faces(), pendingFaceAlpha);
+      buffers.endBatch(GHOST_FACES);
+
+      if (!cleanOutlineEdges) {
+         ShapeShellRenderer.renderEdges(
+            poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, confirmed.edges(), 0.16F * worldPreviewOpacity
+         );
+         ShapeShellRenderer.renderEdges(
+            poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, pending.edges(), 0.12F * worldPreviewOpacity
+         );
+         buffers.endBatch(PENDING_XRAY_LINES);
+
+         ShapeShellRenderer.renderEdges(
+            poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, confirmed.edges(), 0.92F * worldPreviewOpacity
+         );
+         ShapeShellRenderer.renderEdges(
+            poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, pending.edges(), 0.82F * worldPreviewOpacity
+         );
+         buffers.endBatch(GHOST_OUTLINE_LINES);
+      }
+   }
+
+   private static List<GuideLine> outlineGeometryEdges(List<BlockPos> points, FaceMode faceMode) {
+      if (points == null || points.size() < 2 || faceMode == FaceMode.POLYGON) {
+         return List.of();
+      }
+      if (points.size() == 2) {
+         return List.of(new GuideLine(Vec3.atCenterOf(points.getFirst()), Vec3.atCenterOf(points.getLast())));
+      }
+      List<Vec3> base = PlanarFaceGeometry.vertices(points, faceMode);
+      if (base.size() != 4) {
+         return List.of();
+      }
+      if (points.size() == 3) {
+         return closedEdges(base);
+      }
+      Vec3 anchor = Vec3.atCenterOf(points.get(2));
+      Vec3 extrusion = Vec3.atCenterOf(points.get(3)).subtract(anchor);
+      if (extrusion.lengthSqr() < 1.0E-7) {
+         return closedEdges(base);
+      }
+      return new SelectionPrism(base, extrusion).edges();
+   }
+
+   private static List<GuideLine> closedEdges(List<Vec3> vertices) {
+      ArrayList<GuideLine> edges = new ArrayList<>(vertices.size());
+      for (int index = 0; index < vertices.size(); index++) {
+         edges.add(new GuideLine(vertices.get(index), vertices.get((index + 1) % vertices.size())));
+      }
+      return List.copyOf(edges);
+   }
+
+   private static void renderConfirmedBlocks(PoseStack poseStack, BufferSource buffers, Vec3 camera, Set<BlockPos> blocks) {
+      if (blocks.isEmpty()) {
+         return;
+      }
+      boolean renderFaces = blocks.size() <= CONFIRMED_FACE_BLOCK_LIMIT;
+      GhostMesh mesh = renderFaces ? CONFIRMED_GHOST_CACHE.mesh(blocks) : CONFIRMED_OUTLINE_CACHE.mesh(blocks);
+      float pulse = ghostBreathPulse();
+      float faceAlpha = GHOST_FACE_ALPHA_MIN + (GHOST_FACE_ALPHA_MAX - GHOST_FACE_ALPHA_MIN) * pulse;
+      float outlineAlpha = GHOST_OUTLINE_ALPHA_MIN + (GHOST_OUTLINE_ALPHA_MAX - GHOST_OUTLINE_ALPHA_MIN) * pulse;
+      if (renderFaces) {
+         renderGhostFaces(poseStack, buffers.getBuffer(GHOST_FACES), camera, mesh.faces(), GHOST_RED, GHOST_GREEN, GHOST_BLUE, faceAlpha);
+         buffers.endBatch(GHOST_FACES);
+      }
+      renderGhostOutline(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, mesh.edges(), GHOST_RED, GHOST_GREEN, GHOST_BLUE, outlineAlpha);
+      buffers.endBatch(GHOST_OUTLINE_LINES);
+   }
+
+   static void renderOperationVolume(
+      PoseStack poseStack, VertexConsumer lines, OperationSelectionVolume selection, Vec3 offset, float alpha
+   ) {
+      if (selection.prism() != null) {
+         for (GuideLine edge : selection.prism().move(offset).edges()) {
+            renderOperationOutlineLine(poseStack, lines, edge.from(), edge.to(), alpha);
+         }
+      } else {
+         renderOperationBoxOutline(
+            poseStack,
+            lines,
+            selection.bounds().move(offset).inflate(SELECTION_FACE_INFLATE),
+            alpha
+         );
+      }
+   }
+
+   private static void renderOperationBoxOutline(PoseStack poseStack, VertexConsumer lines, AABB box, float alpha) {
+      Vec3 p000 = new Vec3(box.minX, box.minY, box.minZ);
+      Vec3 p001 = new Vec3(box.minX, box.minY, box.maxZ);
+      Vec3 p010 = new Vec3(box.minX, box.maxY, box.minZ);
+      Vec3 p011 = new Vec3(box.minX, box.maxY, box.maxZ);
+      Vec3 p100 = new Vec3(box.maxX, box.minY, box.minZ);
+      Vec3 p101 = new Vec3(box.maxX, box.minY, box.maxZ);
+      Vec3 p110 = new Vec3(box.maxX, box.maxY, box.minZ);
+      Vec3 p111 = new Vec3(box.maxX, box.maxY, box.maxZ);
+      renderOperationOutlineLine(poseStack, lines, p000, p001, alpha);
+      renderOperationOutlineLine(poseStack, lines, p000, p010, alpha);
+      renderOperationOutlineLine(poseStack, lines, p000, p100, alpha);
+      renderOperationOutlineLine(poseStack, lines, p001, p011, alpha);
+      renderOperationOutlineLine(poseStack, lines, p001, p101, alpha);
+      renderOperationOutlineLine(poseStack, lines, p010, p011, alpha);
+      renderOperationOutlineLine(poseStack, lines, p010, p110, alpha);
+      renderOperationOutlineLine(poseStack, lines, p100, p101, alpha);
+      renderOperationOutlineLine(poseStack, lines, p100, p110, alpha);
+      renderOperationOutlineLine(poseStack, lines, p011, p111, alpha);
+      renderOperationOutlineLine(poseStack, lines, p101, p111, alpha);
+      renderOperationOutlineLine(poseStack, lines, p110, p111, alpha);
+   }
+
+   private static void renderPendingBlocks(
+      PoseStack poseStack,
+      BufferSource buffers,
+      Vec3 camera,
+      Matrix4f eventModelView,
+      Matrix4f projectionMatrix,
+      Set<BlockPos> blocks
+   ) {
+      if (blocks.isEmpty()) {
+         PENDING_GHOST_CACHE.clearPreview();
+         PENDING_GHOST_BUFFER_CACHE.clear();
+         return;
+      }
+      PendingGhostMesh mesh = PENDING_GHOST_CACHE.mesh(blocks);
+      VertexBuffer buffer = PENDING_GHOST_BUFFER_CACHE.buffer(mesh);
+      if (buffer == null) {
+         return;
+      }
+      if (FastPlaceClientShaders.pendingDashedLines() == null) {
+         renderPendingFallback(poseStack, buffers, camera, mesh);
+         return;
+      }
+      Matrix4f modelView = new Matrix4f(eventModelView).translate(
+         (float)-camera.x,
+         (float)-camera.y,
+         (float)-camera.z
+      );
+      renderPendingBuffer(buffer, PENDING_DASHED_XRAY_LINES, modelView, projectionMatrix, PENDING_XRAY_ALPHA);
+      renderPendingBuffer(buffer, PENDING_DASHED_LINES, modelView, projectionMatrix, PENDING_GRID_ALPHA);
+   }
+
+   private static void renderPendingFallback(
+      PoseStack poseStack, BufferSource buffers, Vec3 camera, PendingGhostMesh mesh
+   ) {
+      double offset = pendingDashOffset();
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      VertexConsumer xray = buffers.getBuffer(PENDING_XRAY_LINES);
+      VertexConsumer visible = buffers.getBuffer(PENDING_LINES);
+      for (PendingPreviewGrid.Segment edge : mesh.gridEdges()) {
+         Vec3 from = new Vec3(edge.from().x(), edge.from().y(), edge.from().z());
+         Vec3 to = new Vec3(edge.to().x(), edge.to().y(), edge.to().z());
+         renderAlternatingDashedLine(poseStack, xray, from, to, PENDING_XRAY_ALPHA, offset);
+         renderAlternatingDashedLine(poseStack, visible, from, to, PENDING_GRID_ALPHA, offset);
+      }
+      poseStack.popPose();
+      buffers.endBatch(PENDING_XRAY_LINES);
+      buffers.endBatch(PENDING_LINES);
+   }
+
+   private static void renderPendingBuffer(
+      VertexBuffer buffer,
+      RenderType renderType,
+      Matrix4f modelView,
+      Matrix4f projectionMatrix,
+      float alpha
+   ) {
+      ShaderInstance shader = FastPlaceClientShaders.pendingDashedLines();
+      if (shader == null) {
+         return;
+      }
+      renderType.setupRenderState();
+      try {
+         FastPlaceClientShaders.setPendingDashOffset((float)pendingGridDashOffset());
+         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha * worldPreviewOpacity);
+         buffer.bind();
+         buffer.drawWithShader(modelView, projectionMatrix, shader);
+         VertexBuffer.unbind();
+      } finally {
+         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+         renderType.clearRenderState();
+      }
+   }
+
+   private static double pendingDashOffset() {
+      double seconds = (System.nanoTime() % 10_000_000_000L) / 1_000_000_000.0;
+      double distance = seconds * PENDING_DASH_SPEED;
+      double snappedDistance = Math.floor(distance / PENDING_DASH_UNIT) * PENDING_DASH_UNIT;
+      return snappedDistance % (PENDING_DASH_LENGTH + PENDING_DASH_GAP);
+   }
+
+   static double pendingGridDashOffset() {
+      double seconds = (System.nanoTime() % 10_000_000_000L) / 1_000_000_000.0;
+      return seconds * PENDING_DASH_SPEED % SELECTION_DASH_PERIOD;
+   }
+
+   private static double selectionDashOffset() {
+      double seconds = (System.nanoTime() % 10_000_000_000L) / 1_000_000_000.0;
+      double distance = seconds * PENDING_DASH_SPEED;
+      double snappedDistance = Math.floor(distance / PENDING_DASH_UNIT) * PENDING_DASH_UNIT;
+      return snappedDistance % SELECTION_DASH_PERIOD;
+   }
+
+   static float ghostBreathPulse() {
+      double phase = (System.nanoTime() % GHOST_BREATH_PERIOD_NANOS) / (double)GHOST_BREATH_PERIOD_NANOS;
+      return (float)(0.5 - Math.cos(phase * Math.PI * 2.0) * 0.5);
+   }
+
+   private static void renderGhostOutline(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GhostEdge> edges, float red, float green, float blue, float alpha
+   ) {
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      for (GhostEdge edge : edges) {
+         renderLine(
+            poseStack,
+            consumer,
+            GhostOutlineDepthBias.towardCamera(edge.from().vec3(), camera, GHOST_OUTLINE_CAMERA_BIAS),
+            GhostOutlineDepthBias.towardCamera(edge.to().vec3(), camera, GHOST_OUTLINE_CAMERA_BIAS),
+            red,
+            green,
+            blue,
+            alpha
+         );
+      }
+      poseStack.popPose();
+   }
+
+   private static void renderGhostFaces(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GhostQuad> faces, float red, float green, float blue, float alpha
+   ) {
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      for (GhostQuad face : faces) {
+         renderGhostFace(poseStack, consumer, face, red, green, blue, alpha);
+      }
+      poseStack.popPose();
+   }
+
+   private static void renderGhostFace(
+      PoseStack poseStack, VertexConsumer consumer, GhostQuad face, float red, float green, float blue, float alpha
+   ) {
+      Vec3 normal = Vec3.atLowerCornerOf(face.direction().getNormal()).scale(GHOST_FACE_OFFSET);
+      double x0 = face.x0() + normal.x;
+      double y0 = face.y0() + normal.y;
+      double z0 = face.z0() + normal.z;
+      double x1 = face.x1() + normal.x;
+      double y1 = face.y1() + normal.y;
+      double z1 = face.z1() + normal.z;
+      switch (face.direction()) {
+         case DOWN, UP -> addGhostQuad(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y0, z1), new Vec3(x0, y0, z1), red, green, blue, alpha);
+         case NORTH, SOUTH -> addGhostQuad(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y1, z0), new Vec3(x0, y1, z0), red, green, blue, alpha);
+         case WEST, EAST -> addGhostQuad(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x0, y0, z1), new Vec3(x0, y1, z1), new Vec3(x0, y1, z0), red, green, blue, alpha);
+      }
+   }
+
+   public static void addGhostQuad(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      Vec3 a,
+      Vec3 b,
+      Vec3 c,
+      Vec3 d,
+      float red,
+      float green,
+      float blue,
+      float alpha
+   ) {
+      Pose pose = poseStack.last();
+      float visibleAlpha = alpha * worldPreviewOpacity;
+      consumer.addVertex(pose, (float)a.x, (float)a.y, (float)a.z).setColor(red, green, blue, visibleAlpha);
+      consumer.addVertex(pose, (float)b.x, (float)b.y, (float)b.z).setColor(red, green, blue, visibleAlpha);
+      consumer.addVertex(pose, (float)c.x, (float)c.y, (float)c.z).setColor(red, green, blue, visibleAlpha);
+      consumer.addVertex(pose, (float)d.x, (float)d.y, (float)d.z).setColor(red, green, blue, visibleAlpha);
+   }
+
+   static void renderGuidePlaneGrid(PoseStack poseStack, VertexConsumer lineConsumer, Vec3 camera, List<GuidePlane> planes) {
+      GuideRenderer.renderGeometryPlanes(poseStack, lineConsumer, camera, planes, worldPreviewOpacity);
+   }
+
+   private static void renderBuildingGuidePlaneGrid(
+      PoseStack poseStack, VertexConsumer lineConsumer, Vec3 camera, List<GuidePlane> planes
+   ) {
+      GuideRenderer.renderBuildingPlanes(poseStack, lineConsumer, camera, planes, worldPreviewOpacity);
+   }
+
+   static void renderGuideLines(PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GuideLine> lines) {
+      GuideRenderer.renderGeometryLines(poseStack, consumer, camera, lines, worldPreviewOpacity);
+   }
+
+   private static void renderBuildingGuideLines(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GuideLine> lines
+   ) {
+      GuideRenderer.renderBuildingLines(
+         poseStack, consumer, camera, lines, (float)SELECTION_DASH_LENGTH, worldPreviewOpacity
+      );
+   }
+
+   public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to) {
+      GuideRenderer.renderLine(poseStack, consumer, from, to, worldPreviewOpacity);
+   }
+
+   public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float red, float green, float blue, float alpha) {
+      GuideRenderer.renderLine(poseStack, consumer, from, to, red, green, blue, alpha, worldPreviewOpacity);
+   }
+
+   private static Vec3 normalize(Vec3 vector) {
+      double length = vector.length();
+      return length < 1.0E-7 ? Vec3.ZERO : vector.scale(1.0 / length);
+   }
+
+   private static FastPlaceMode selectedMode(BuildingPreviewPayload snapshot, FastPlaceStage stage) {
+      return (FastPlaceMode)(switch (stage) {
+         case POINT -> snapshot.pointMode();
+         case LINE -> snapshot.lineMode();
+         case FACE -> snapshot.faceMode();
+         case VOLUME -> snapshot.volumeMode();
+      });
+   }
+
+   private static MutableComponent contextValue(BuildingPreviewPayload snapshot) {
+      if (!snapshot.active()) {
+         return null;
+      }
+      Minecraft minecraft = Minecraft.getInstance();
+      LocalPlayer player = minecraft.player;
+      if (player == null) {
+         return null;
+      }
+      FastPlaceStage stage = effectiveStage(snapshot);
+      if (stage == FastPlaceStage.LINE && snapshot.lineMode() == LineMode.FREE_SCROLL) {
+         BlockPos offset = snapshot.freeScrollOffset();
+         return Component.translatable("fastformer.message.context.free_scroll", offset.getX(), offset.getY(), offset.getZ()).withStyle(ChatFormatting.YELLOW);
+      } else if (stage == FastPlaceStage.LINE && snapshot.lineMode() == LineMode.RAYCAST) {
+         return Component.translatable(
+               "fastformer.message.context.raycast",
+               snapshot.raycastPlacement() == io.github.fastformer.fastplace.RaycastPlacement.EMBEDDED
+                  ? Component.translatable("fastformer.mode.raycast.embedded")
+                  : Component.translatable("fastformer.mode.raycast.surface")
+            )
+            .withStyle(ChatFormatting.YELLOW);
+      } else if (stage == FastPlaceStage.FACE && snapshot.faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
+         return Component.translatable(
+               "fastformer.message.context.face_offset",
+               GeometryNumbers.fixed(FastPlaceGeometry.faceBaseOffsetValue(snapshot.points(), snapshot.faceBaseOffset(), player.getViewVector(1.0F)), 0)
+             )
+             .withStyle(ChatFormatting.YELLOW);
+      } else if (stage == FastPlaceStage.FACE && snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()) {
+         return Component.translatable("fastformer.message.polygon_close_hint").withStyle(ChatFormatting.YELLOW);
+      } else {
+         return stage == FastPlaceStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(snapshot.modes())
+            ? Component.translatable(
+                  snapshot.volumeMode() == VolumeMode.FREE ? "fastformer.message.context.volume_free" : "fastformer.message.context.volume_base",
+                  snapshot.volumeMode() == VolumeMode.FREE ? formatOffset(snapshot.volumeBaseOffset()) : formatScalar(snapshot.volumeBaseOffset())
+               )
+               .withStyle(ChatFormatting.YELLOW)
+            : null;
+      }
+   }
+
+   private static String formatOffset(Vec3 offset) {
+      Vec3 clean = GeometryNumbers.cleanZero(offset);
+      return GeometryNumbers.fixed(clean.x, 0) + ", " + GeometryNumbers.fixed(clean.y, 0) + ", " + GeometryNumbers.fixed(clean.z, 0);
+   }
+
+   private static String formatScalar(Vec3 offset) {
+      double value = Math.abs(offset.x) >= Math.abs(offset.y) && Math.abs(offset.x) >= Math.abs(offset.z)
+         ? offset.x
+         : Math.abs(offset.y) >= Math.abs(offset.z) ? offset.y : offset.z;
+      return GeometryNumbers.fixed(value, 0);
+   }
+
+   private static FastPlaceStage effectiveStage(BuildingPreviewPayload snapshot) {
+      return FastPlaceGeometry.effectiveStage(snapshot.points(), snapshot.faceMode(), snapshot.polygonClosed());
+   }
+
+   private static VertexBuffer uploadPendingGrid(List<PendingPreviewGrid.Segment> edges) {
+      long estimatedBytes = (long)edges.size() * 2L * DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL.getVertexSize();
+      int initialCapacity = (int)Math.clamp(estimatedBytes, 256L, 16L * 1024L * 1024L);
+      try (ByteBufferBuilder bytes = new ByteBufferBuilder(initialCapacity)) {
+         BufferBuilder builder = new BufferBuilder(
+            bytes,
+            VertexFormat.Mode.LINES,
+            DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL
+         );
+         for (PendingPreviewGrid.Segment edge : edges) {
+            PendingPreviewGrid.Point from = edge.from();
+            PendingPreviewGrid.Point to = edge.to();
+            float dx = to.x() - from.x();
+            float dy = to.y() - from.y();
+            float dz = to.z() - from.z();
+            float length = Math.abs(dx) + Math.abs(dy) + Math.abs(dz);
+            if (length <= 0.0F) {
+               continue;
+            }
+            float inverseLength = 1.0F / length;
+            float nx = dx * inverseLength;
+            float ny = dy * inverseLength;
+            float nz = dz * inverseLength;
+            builder.addVertex(from.x(), from.y(), from.z())
+               .setUv(0.0F, 0.0F)
+               .setColor(PENDING_RED, PENDING_GREEN, PENDING_BLUE, 1.0F)
+               .setNormal(nx, ny, nz);
+            builder.addVertex(to.x(), to.y(), to.z())
+               .setUv(length, 0.0F)
+               .setColor(PENDING_RED, PENDING_GREEN, PENDING_BLUE, 1.0F)
+               .setNormal(nx, ny, nz);
+         }
+         MeshData data = builder.buildOrThrow();
+         VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+         try {
+            buffer.bind();
+            buffer.upload(data);
+            VertexBuffer.unbind();
+            return buffer;
+         } catch (RuntimeException | Error exception) {
+            VertexBuffer.unbind();
+            buffer.close();
+            throw exception;
+         }
+      }
+   }
+
+   private static String keyName(KeyMapping mapping) {
+      return mapping.getTranslatedKeyMessage().getString();
+   }
+
+}

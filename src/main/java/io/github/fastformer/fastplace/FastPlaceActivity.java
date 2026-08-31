@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum FastPlaceActivity implements TranslatableText {
    NONE("fastformer.activity.none", false, false),
    BUILDING_SESSION("fastformer.activity.building_session", false, true),

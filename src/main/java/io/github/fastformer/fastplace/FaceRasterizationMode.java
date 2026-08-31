@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum FaceRasterizationMode {
    POINT_SWEEP,
    GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL;

@@ -1,9 +1,11 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.client.operation.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.ClientOperationWorkspace;
-import io.github.fastformer.client.operation.ClientSelectionPart;
-import io.github.fastformer.client.operation.WorkspaceTransform;
+import io.github.fastformer.fastplace.world.*;
+
+import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

@@ -1,11 +1,16 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.workflow.*;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.client.operation.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.ClientSelectionPart;
-import io.github.fastformer.client.operation.WorkspaceTransform;
+import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;

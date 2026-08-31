@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 public enum PolygonVolumeShape implements TranslatableText {
    EXTRUDE("fastformer.mode.polygon_volume.extrude"),
    APEX("fastformer.mode.polygon_volume.apex");

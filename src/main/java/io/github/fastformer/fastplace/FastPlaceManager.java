@@ -1,12 +1,15 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
+import io.github.fastformer.fastplace.session.*;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
+import io.github.fastformer.fastplace.task.PlacementTask;
+import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.network.FastPlaceNetwork;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,7 +20,6 @@ import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
 import java.util.function.Supplier;
-import java.util.function.Function;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
@@ -28,17 +30,16 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import org.slf4j.Logger;
 
 public final class FastPlaceManager {
    private static final Logger LOGGER = LogUtils.getLogger();
-   private static final int ASYNC_FILL_THRESHOLD = 2048;
+   /** Generate ordinary placements on the server thread up to this size. */
+   private static final long SYNCHRONOUS_PLACEMENT_LIMIT = 262_144L;
    private static final int BLOCKS_PER_TICK = 4096;
    private static final Map<UUID, FastPlaceSession> SESSIONS = new HashMap<>();
-   private static final Map<UUID, FastPlaceManager.PlacementTask> TASKS = new HashMap<>();
+   private static final Map<UUID, PlacementTask> TASKS = new HashMap<>();
    private static final Map<UUID, Boolean> MODIFIER_HELD = new HashMap<>();
 
    private FastPlaceManager() {
@@ -235,7 +236,7 @@ public final class FastPlaceManager {
    }
 
    public static TaskCancellationResult cancelTask(ServerPlayer player) {
-      FastPlaceManager.PlacementTask task = TASKS.remove(player.getUUID());
+      PlacementTask task = TASKS.remove(player.getUUID());
       if (task == null) {
          return TaskCancellationResult.NOT_ACTIVE;
       }
@@ -498,11 +499,12 @@ public final class FastPlaceManager {
                      polygonHeightConfirmed,
                      polygonVolumeShape
                   )
-               )
+            )
                : null;
             FastPlaceGeometry.Modes outlineModes = modes.withFillMode(FillMode.OUTLINE);
-            if (estimatedBlocks(points) > 16_000L) {
-               ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(estimatedBlocks(points));
+            long estimatedPlacement = estimatedBlocks(points);
+            if (estimatedPlacement > SYNCHRONOUS_PLACEMENT_LIMIT) {
+               ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(estimatedPlacement);
                CompletableFuture<Set<BlockPos>> future = CompletableFuture.supplyAsync(() -> {
                   Set<BlockPos> generated = FastPlaceGeometry.blocks(
                      points, modes, polygonHeightConfirmed, polygonVolumeShape, maxPlacement + 1, progress
@@ -517,12 +519,12 @@ public final class FastPlaceManager {
                      : CompletableFuture.supplyAsync(() -> FastPlaceGeometry.blocks(
                         points, outlineModes, polygonHeightConfirmed, polygonVolumeShape, maxPlacement + 1
                      ));
-               TASKS.put(player.getUUID(), FastPlaceManager.PlacementTask.generating(
+               TASKS.put(player.getUUID(), PlacementTask.generating(
                   future,
                   outlineFuture,
                   progress,
                   state,
-                  smartFrame,
+                  smartFrame == null ? null : positions -> SmartWoodFrame.resolve(positions, state, smartFrame),
                   settings.placementConflictMode(),
                   settings.placementUpdateMode(),
                   maxPlacement,
@@ -547,11 +549,11 @@ public final class FastPlaceManager {
                   cancel(player);
                   FastPlaceMessages.actionBar(player, "fastformer.message.placement_too_large", maxPlacement);
                 } else {
-                   TASKS.put(player.getUUID(), FastPlaceManager.PlacementTask.ready(
+                   TASKS.put(player.getUUID(), PlacementTask.ready(
                       blocks,
                       outline,
                       state,
-                      smartFrame,
+                      smartFrame == null ? null : positions -> SmartWoodFrame.resolve(positions, state, smartFrame),
                       settings.placementConflictMode(),
                       settings.placementUpdateMode(),
                       maxPlacement,
@@ -603,7 +605,7 @@ public final class FastPlaceManager {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       TASKS.put(
          player.getUUID(),
-         FastPlaceManager.PlacementTask.ready(best, placeState.get(), settings.placementConflictMode(), settings.placementUpdateMode(), maxPlacement, player.serverLevel().dimension())
+         PlacementTask.ready(best, placeState.get(), settings.placementConflictMode(), settings.placementUpdateMode(), maxPlacement, player.serverLevel().dimension())
       );
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.point_plane_queued", best.size()));
       return true;
@@ -639,20 +641,36 @@ public final class FastPlaceManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
          return false;
       }
-      TASKS.put(player.getUUID(), FastPlaceManager.PlacementTask.ready(blocks, state, settings.placementConflictMode(), settings.placementUpdateMode(), maxPlacement, player.serverLevel().dimension()));
+      TASKS.put(player.getUUID(), PlacementTask.ready(blocks, state, settings.placementConflictMode(), settings.placementUpdateMode(), maxPlacement, player.serverLevel().dimension()));
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_queued", blocks.size()));
       return true;
    }
 
-   public static boolean queueGeneratedPlacement(ServerPlayer player, Supplier<Set<BlockPos>> generator, BlockState state) {
+   public static boolean queueGeneratedPlacement(
+      ServerPlayer player,
+      Supplier<Set<BlockPos>> generator,
+      BlockState state,
+      long estimatedWork
+   ) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int maxPlacement = settings.maxPlacement();
       if (placementBusy(player)) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
          return false;
       }
+      if (estimatedWork <= SYNCHRONOUS_PLACEMENT_LIMIT) {
+         Set<BlockPos> blocks;
+         try {
+            blocks = generator.get();
+         } catch (RuntimeException | OutOfMemoryError exception) {
+            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
+            LOGGER.error("FastFormer synchronous placement generation failed for {}", player.getUUID(), exception);
+            return false;
+         }
+         return queuePlacement(player, blocks, state);
+      }
       CompletableFuture<Set<BlockPos>> future = CompletableFuture.supplyAsync(generator);
-      TASKS.put(player.getUUID(), FastPlaceManager.PlacementTask.generating(
+      TASKS.put(player.getUUID(), PlacementTask.generating(
          future,
          null,
          state,
@@ -703,6 +721,26 @@ public final class FastPlaceManager {
       return true;
    }
 
+   /**
+    * Detaches a player instance while retaining UUID-owned sessions and tasks.
+    * Reconnect and dimension transitions create a new player instance; their
+    * state is reconciled when the replacement logs in.
+    */
+   public static void detachPlayer(ServerPlayer player) {
+      if (player == null) {
+         return;
+      }
+      UUID owner = player.getUUID();
+      MODIFIER_HELD.remove(owner);
+      // Modifier state belongs to the old connection, unlike the workflow
+      // points and shape data that remain owned by the player UUID.
+      FastPlaceSession session = SESSIONS.get(owner);
+      if (session != null) {
+         session.setModifierHeld(false);
+      }
+      FastPlaceNetwork.forgetActivity(player);
+   }
+
    /** Drops server-bound sessions/tasks before a world instance is replaced. */
    public static void clearServer() {
       for (PlacementTask task : TASKS.values()) {
@@ -715,7 +753,7 @@ public final class FastPlaceManager {
       GeometryManager.clearServer();
    }
 
-   static void tickWorld(net.minecraft.server.MinecraftServer server) {
+   public static void tickWorld(net.minecraft.server.MinecraftServer server) {
       for (UUID owner : List.copyOf(TASKS.keySet())) {
          if (!PersistentRecoveryJournal.writesAllowed()) {
             break;
@@ -729,7 +767,7 @@ public final class FastPlaceManager {
 
    private static void tickTask(WorldTaskContext context) {
       UUID owner = context.owner();
-      FastPlaceManager.PlacementTask task = TASKS.get(owner);
+      PlacementTask task = TASKS.get(owner);
       if (task == null) {
          return;
       }
@@ -864,121 +902,6 @@ public final class FastPlaceManager {
       return WorldHistoryManager.requestUndo(player, 1);
    }
 
-   private static BlockWriteResult setBlockWithUndo(
-      WorldTaskContext context,
-      ServerLevel level,
-      BlockPos pos,
-      BlockState state,
-      OperationConflictMode conflictMode,
-      PlacementUpdateMode updateMode,
-      ArrayDeque<ReversibleBlockSnapshot> undo,
-      Map<BlockPos, ReversibleBlockSnapshot> expected,
-      Map<BlockPos, ReversibleBlockSnapshot> after
-   ) {
-      BlockState previous = level.getBlockState(pos);
-      ReversibleBlockSnapshot expectedSnapshot = expected == null ? null : expected.get(pos);
-      if (expectedSnapshot != null && !expectedSnapshot.matches(level, pos)) {
-         // This also covers a target that happened to equal the desired state
-         // during validation but was edited before the write phase.
-         return conflictMode == OperationConflictMode.KEEP_EXISTING && !previous.canBeReplaced()
-            ? BlockWriteResult.SKIPPED
-            : BlockWriteResult.FAILED;
-      }
-      if (conflictMode == OperationConflictMode.KEEP_EXISTING && !previous.canBeReplaced()) {
-         return BlockWriteResult.SKIPPED;
-      }
-      if (previous.equals(state)) {
-         return BlockWriteResult.SKIPPED;
-      }
-      ReversibleBlockSnapshot before = expectedSnapshot;
-      if (before == null) {
-         Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
-         if (snapshot.isEmpty()) {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.block_snapshot_failed", pos.toShortString()));
-            return BlockWriteResult.FAILED;
-         }
-         before = snapshot.orElseThrow();
-      }
-      // Journal before entering setBlock. A callback failure or exception may
-      // happen after the world has already changed.
-      undo.addFirst(before);
-      if (WorldWriteSideEffectGuard.setBlock(level, pos, state, updateMode.flags())) {
-         if (after != null) {
-            Optional<ReversibleBlockSnapshot> written = ReversibleBlockSnapshot.capture(level, pos);
-            if (written.isEmpty()) {
-               after.put(
-                  pos.immutable(),
-                  new ReversibleBlockSnapshot(pos, level.getBlockState(pos), level.getFluidState(pos), null)
-               );
-               return BlockWriteResult.FAILED;
-            }
-            after.put(pos.immutable(), written.orElseThrow());
-            if (updateMode == PlacementUpdateMode.NORMAL
-               && !ReversibleBlockSnapshot.refreshTaskOwnedNeighbors(
-                  level, pos, expected, undo, after
-               )) {
-               return BlockWriteResult.FAILED;
-            }
-         }
-         return BlockWriteResult.PLACED;
-      }
-      // setBlock may have performed part of a block-entity/update callback
-      // before returning false.  Keep an after fingerprint so recovery never
-      // silently drops this position.
-      if (after != null) {
-         Optional<ReversibleBlockSnapshot> written = ReversibleBlockSnapshot.capture(level, pos);
-         after.put(
-            pos.immutable(),
-            written.orElseGet(() -> new ReversibleBlockSnapshot(
-               pos, level.getBlockState(pos), level.getFluidState(pos), null
-            ))
-         );
-         if (updateMode == PlacementUpdateMode.NORMAL) {
-            ReversibleBlockSnapshot.refreshTaskOwnedNeighbors(
-               level, pos, expected, undo, after
-            );
-         }
-      }
-      return BlockWriteResult.FAILED;
-   }
-
-   private static Optional<List<ReversibleBlockSnapshot>> predictedPlacementAfter(
-      ServerLevel level,
-      List<ReversibleBlockSnapshot> before,
-      Function<BlockPos, BlockState> placedStateAt,
-      OperationConflictMode conflictMode
-   ) {
-      List<ReversibleBlockSnapshot> result = new ArrayList<>(before.size());
-      try {
-         for (ReversibleBlockSnapshot snapshot : before) {
-            BlockState placedState = placedStateAt.apply(snapshot.pos());
-            if (snapshot.state().equals(placedState)
-               || conflictMode == OperationConflictMode.KEEP_EXISTING && !snapshot.state().canBeReplaced()) {
-               result.add(snapshot);
-               continue;
-            }
-            BlockEntitySnapshot blockEntityData = null;
-            EntityBlock entityBlock = placedState.getBlock() instanceof EntityBlock block ? block : null;
-            if (entityBlock != null) {
-               if (snapshot.state().getBlock() == placedState.getBlock() && snapshot.blockEntity() != null) {
-                  blockEntityData = snapshot.blockEntity();
-               } else {
-                  BlockEntity blockEntity = entityBlock.newBlockEntity(snapshot.pos(), placedState);
-                  if (blockEntity != null) {
-                     blockEntityData = new BlockEntitySnapshot(blockEntity.saveWithFullMetadata(level.registryAccess()));
-                  }
-               }
-            }
-            result.add(new ReversibleBlockSnapshot(
-               snapshot.pos(), placedState, placedState.getFluidState(), blockEntityData
-            ));
-         }
-      } catch (RuntimeException exception) {
-         return Optional.empty();
-      }
-      return Optional.of(result);
-   }
-
    private static boolean placementBusy(ServerPlayer player) {
       return localTaskBusy(player)
          || OperationManager.taskBusy(player)
@@ -1088,443 +1011,6 @@ public final class FastPlaceManager {
          int maxZ = points.stream().mapToInt(Vec3i::getZ).max().orElse(0);
          return (long)(maxX - minX + 1) * (long)(maxY - minY + 1) * (long)(maxZ - minZ + 1);
       }
-   }
-
-   private static final class PlacementTask {
-      private final CompletableFuture<Set<BlockPos>> future;
-      private final CompletableFuture<Set<BlockPos>> smartOutlineFuture;
-      private final ProgressiveBlockGeneration generationProgress;
-      private final BlockState state;
-      private final SmartWoodFrame.Config smartFrameConfig;
-      private final OperationConflictMode conflictMode;
-      private final PlacementUpdateMode updateMode;
-      private final int maxPlacement;
-      private final ResourceKey<Level> dimension;
-      private final ArrayDeque<ReversibleBlockSnapshot> undo = new ArrayDeque<>();
-      private final Map<BlockPos, ReversibleBlockSnapshot> expected = new HashMap<>();
-      private final Map<BlockPos, ReversibleBlockSnapshot> after = new HashMap<>();
-      private Set<BlockPos> targets;
-      private Set<BlockPos> smartOutline;
-      private Map<BlockPos, BlockState> smartStates = Map.of();
-      private Iterator<BlockPos> blocks;
-      private Iterator<BlockPos> validationIterator;
-      private int validationRemaining;
-      private boolean snapshotsValidated;
-      private int remaining;
-      private int total;
-      private int placed;
-      private boolean exceededLimit;
-      private boolean generationConstraintsFailed;
-      private boolean memoryChecked;
-      private boolean memoryUnsafe;
-      private long blockEntityReserve;
-      private boolean failed;
-      private PersistentRecoveryJournal journal;
-      private CompletableFuture<Optional<PersistentRecoveryJournal>> journalFuture;
-      private WorldOperationCommit commitPreparation;
-      private Iterator<Map.Entry<BlockPos, ReversibleBlockSnapshot>> finalizationIterator;
-      private volatile boolean cancelled;
-
-      private PlacementTask(
-         CompletableFuture<Set<BlockPos>> future,
-         CompletableFuture<Set<BlockPos>> smartOutlineFuture,
-         ProgressiveBlockGeneration generationProgress,
-         Set<BlockPos> targets,
-         Set<BlockPos> smartOutline,
-         BlockState state,
-         SmartWoodFrame.Config smartFrameConfig,
-         OperationConflictMode conflictMode,
-         PlacementUpdateMode updateMode,
-         int maxPlacement,
-         ResourceKey<Level> dimension
-      ) {
-         this.future = future;
-         this.smartOutlineFuture = smartOutlineFuture;
-         this.generationProgress = generationProgress;
-         this.targets = targets;
-         this.smartOutline = smartOutline;
-         this.remaining = targets == null ? 0 : targets.size();
-         this.total = this.remaining;
-         this.validationRemaining = this.remaining;
-         this.state = state;
-         this.smartFrameConfig = smartFrameConfig;
-         this.conflictMode = conflictMode;
-         this.updateMode = updateMode;
-         this.maxPlacement = maxPlacement;
-         this.dimension = dimension;
-      }
-
-      static FastPlaceManager.PlacementTask generating(
-         CompletableFuture<Set<BlockPos>> future,
-         ProgressiveBlockGeneration progress,
-         BlockState state,
-         OperationConflictMode conflictMode,
-         PlacementUpdateMode updateMode,
-         int maxPlacement,
-         ResourceKey<Level> dimension
-      ) {
-         return new FastPlaceManager.PlacementTask(future, null, progress, null, null, state, null, conflictMode, updateMode, maxPlacement, dimension);
-      }
-
-      static FastPlaceManager.PlacementTask generating(
-         CompletableFuture<Set<BlockPos>> future,
-         CompletableFuture<Set<BlockPos>> smartOutlineFuture,
-         ProgressiveBlockGeneration progress,
-         BlockState state,
-         SmartWoodFrame.Config smartFrameConfig,
-         OperationConflictMode conflictMode,
-         PlacementUpdateMode updateMode,
-         int maxPlacement,
-         ResourceKey<Level> dimension
-      ) {
-         return new FastPlaceManager.PlacementTask(
-            future, smartOutlineFuture, progress, null, null, state, smartFrameConfig,
-            conflictMode, updateMode, maxPlacement, dimension
-         );
-      }
-
-      static FastPlaceManager.PlacementTask ready(
-         Set<BlockPos> blocks,
-         BlockState state,
-         OperationConflictMode conflictMode,
-         PlacementUpdateMode updateMode,
-         int maxPlacement,
-         ResourceKey<Level> dimension
-      ) {
-         return new FastPlaceManager.PlacementTask(null, null, null, blocks, null, state, null, conflictMode, updateMode, maxPlacement, dimension);
-      }
-
-      static FastPlaceManager.PlacementTask ready(
-         Set<BlockPos> blocks,
-         Set<BlockPos> smartOutline,
-         BlockState state,
-         SmartWoodFrame.Config smartFrameConfig,
-         OperationConflictMode conflictMode,
-         PlacementUpdateMode updateMode,
-         int maxPlacement,
-         ResourceKey<Level> dimension
-      ) {
-         return new FastPlaceManager.PlacementTask(
-            null, null, null, blocks, smartOutline, state, smartFrameConfig,
-            conflictMode, updateMode, maxPlacement, dimension
-         );
-      }
-
-      boolean prepare() {
-         if (this.targets != null) {
-            this.prepareSmartStates();
-            this.checkMemory();
-            return true;
-         } else if (!this.future.isDone() || this.smartOutlineFuture != null && !this.smartOutlineFuture.isDone()) {
-            return false;
-         } else {
-            Set<BlockPos> generated;
-            try {
-               generated = this.future.join();
-            } catch (RuntimeException var3) {
-               this.failed = true;
-               this.targets = Set.of();
-               return true;
-            }
-
-            if (GenerationFailed.is(generated)) {
-               this.generationConstraintsFailed = true;
-               this.targets = Set.of();
-               this.remaining = 0;
-               this.total = 0;
-               this.validationRemaining = 0;
-               return true;
-            }
-
-            this.exceededLimit = generated.size() > this.maxPlacement;
-            this.targets = this.exceededLimit ? Set.of() : generated;
-            if (this.smartOutlineFuture != null) {
-               try {
-                  Set<BlockPos> generatedOutline = this.smartOutlineFuture.join();
-                  this.smartOutline = GenerationFailed.is(generatedOutline) ? Set.of() : generatedOutline;
-               } catch (RuntimeException ignored) {
-                  this.smartOutline = Set.of();
-               }
-            }
-            this.remaining = this.exceededLimit ? 0 : generated.size();
-            this.total = this.remaining;
-            this.validationRemaining = this.remaining;
-            this.prepareSmartStates();
-            this.checkMemory();
-            return true;
-         }
-      }
-
-      private void prepareSmartStates() {
-         if (!this.smartStates.isEmpty() || this.smartFrameConfig == null || this.smartOutline == null) {
-            return;
-         }
-         Set<BlockPos> applicable = new java.util.HashSet<>(this.smartOutline);
-         applicable.retainAll(this.targets);
-         this.smartStates = SmartWoodFrame.resolve(applicable, this.state, this.smartFrameConfig);
-      }
-
-      private BlockState stateAt(BlockPos pos) {
-         return this.smartStates.getOrDefault(pos, this.state);
-      }
-
-      private void checkMemory() {
-         if (this.memoryChecked || this.exceededLimit || this.targets == null) {
-            return;
-         }
-         this.memoryChecked = true;
-         this.memoryUnsafe = !WorldOperationMemory.canPrepare(this.targets.size());
-         if (this.memoryUnsafe) {
-            this.targets = Set.of();
-            this.remaining = 0;
-            this.validationRemaining = 0;
-         }
-      }
-
-      boolean validateSnapshots(ServerLevel level, WorldTaskBudget budget) {
-         if (this.snapshotsValidated || this.failed || this.exceededLimit) {
-            return true;
-         }
-         if (this.validationIterator == null) {
-            this.validationIterator = this.targets.iterator();
-         }
-         while (this.validationIterator.hasNext() && budget.tryConsume()) {
-            BlockPos pos = this.validationIterator.next();
-            this.validationRemaining--;
-            BlockState previous = level.getBlockState(pos);
-            Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
-            if (snapshot.isEmpty()) {
-               this.failed = true;
-               return true;
-            }
-            ReversibleBlockSnapshot captured = snapshot.orElseThrow();
-            this.blockEntityReserve = WorldOperationMemory.saturatingAdd(
-               this.blockEntityReserve,
-               WorldOperationMemory.snapshotNbtReserve(captured)
-            );
-            if (!WorldOperationMemory.canPrepare(this.targets.size(), this.blockEntityReserve)) {
-               this.memoryUnsafe = true;
-               return true;
-            }
-            this.expected.put(pos.immutable(), captured);
-            if (previous.equals(this.stateAt(pos))
-               || this.conflictMode == OperationConflictMode.KEEP_EXISTING && !previous.canBeReplaced()) {
-               continue;
-            }
-         }
-         if (!this.validationIterator.hasNext()) {
-            this.snapshotsValidated = true;
-            this.blocks = this.targets.iterator();
-         }
-         return this.snapshotsValidated;
-      }
-
-      JournalPreparation prepareJournal(WorldTaskContext context) {
-         if (this.journal != null || this.expected.isEmpty()) {
-            return JournalPreparation.READY;
-         }
-         if (this.journalFuture == null) {
-            ServerLevel journalLevel = context.level(this.dimension);
-            var server = context.server();
-            UUID owner = context.owner();
-            this.journalFuture = CompletableFuture.supplyAsync(() -> {
-               List<ReversibleBlockSnapshot> journalBefore = List.copyOf(this.expected.values());
-               Optional<List<ReversibleBlockSnapshot>> journalAfter = predictedPlacementAfter(
-                  journalLevel, journalBefore, this::stateAt, this.conflictMode
-               );
-               return journalAfter.flatMap(after -> PersistentRecoveryJournal.begin(
-                  server, owner, this.dimension, journalBefore, after
-               ));
-            }, PersistentRecoveryJournal.executor());
-            return JournalPreparation.PENDING;
-         }
-         if (!this.journalFuture.isDone()) {
-            return JournalPreparation.PENDING;
-         }
-         try {
-            this.journal = this.journalFuture.join().orElse(null);
-         } catch (RuntimeException exception) {
-            this.failed = true;
-            return JournalPreparation.FAILED;
-         }
-         return this.journal == null ? JournalPreparation.FAILED : JournalPreparation.READY;
-      }
-
-      boolean finalizeSnapshots(ServerLevel level, WorldTaskBudget budget) {
-         if (this.after.isEmpty()) {
-            return true;
-         }
-         if (this.finalizationIterator == null) {
-            this.finalizationIterator = this.after.entrySet().iterator();
-         }
-         while (this.finalizationIterator.hasNext() && budget.tryConsume()) {
-            Map.Entry<BlockPos, ReversibleBlockSnapshot> entry = this.finalizationIterator.next();
-            Optional<ReversibleBlockSnapshot> actual = ReversibleBlockSnapshot.capture(level, entry.getKey());
-            if (actual.isEmpty()) {
-               this.failed = true;
-               return true;
-            }
-            entry.setValue(actual.orElseThrow());
-         }
-         return !this.finalizationIterator.hasNext();
-      }
-
-      JournalPreparation prepareCommit() {
-         if (this.commitPreparation == null) {
-            this.commitPreparation = WorldOperationCommit.begin(this.dimension, this.undo, this.after, this.journal);
-         }
-         return this.commitPreparation.poll();
-      }
-
-      Optional<WorldChangeBatch> preparedBatch() {
-         return this.commitPreparation == null ? Optional.empty() : this.commitPreparation.batch();
-      }
-
-      boolean completeJournal() {
-         return this.journal == null || this.journal.discardUnused();
-      }
-
-      PersistentRecoveryJournal journal() {
-         return this.journal;
-      }
-
-      boolean acquireLease(WorldTaskContext context) {
-         return WorldWriteCoordinator.tryAcquire(context.server(), this.dimension, context.owner());
-      }
-
-      void releaseLease(WorldTaskContext context) {
-         WorldWriteCoordinator.release(context.server(), this.dimension, context.owner());
-      }
-
-      void releaseAfterCancelledJournal(WorldTaskContext context) {
-         WorldWriteCoordinator.releaseAfterUnusedJournal(
-            context.server(), this.dimension, context.owner(), this.journal, this.journalFuture
-         );
-      }
-
-      boolean hasWrites() {
-         return !this.undo.isEmpty();
-      }
-
-      int validationRemaining() {
-         return Math.max(0, this.validationRemaining);
-      }
-
-      void cancel() {
-         this.cancelled = true;
-         if (this.commitPreparation != null) {
-            this.commitPreparation.cancel();
-         }
-         if (this.journalFuture != null) {
-            this.journalFuture.whenComplete((created, exception) -> {
-               if (this.cancelled && this.journal == null && exception == null && created != null) {
-                  created.ifPresent(PersistentRecoveryJournal::discardUnused);
-               }
-            });
-         }
-         if (this.future != null) {
-            this.future.cancel(true);
-         }
-         if (this.smartOutlineFuture != null && this.smartOutlineFuture != this.future) {
-            this.smartOutlineFuture.cancel(true);
-         }
-         if (this.generationProgress != null) {
-            this.generationProgress.cancel();
-         }
-      }
-
-      Iterator<BlockPos> blocks() {
-         return this.blocks;
-      }
-
-      void consumed() {
-         this.remaining--;
-      }
-
-      int remaining() {
-         return this.remaining;
-      }
-
-      int total() {
-         return this.total;
-      }
-
-      int processed() {
-         return Math.max(0, this.total - this.remaining);
-      }
-
-      ProgressiveBlockGeneration.Snapshot generationProgress() {
-         return this.generationProgress == null ? null : this.generationProgress.snapshot();
-      }
-
-      BlockState state() {
-         return this.state;
-      }
-
-      void place(WorldTaskContext context, ServerLevel level, BlockPos pos) {
-         BlockWriteResult result = FastPlaceManager.setBlockWithUndo(
-            context,
-            level,
-            pos,
-            this.stateAt(pos),
-            this.conflictMode,
-            this.updateMode,
-            this.undo,
-            this.expected,
-            this.after
-         );
-         if (result == BlockWriteResult.PLACED) {
-            this.placed++;
-         } else if (result == BlockWriteResult.FAILED) {
-            this.failed = true;
-         }
-      }
-
-      int placed() {
-         return this.placed;
-      }
-
-      boolean generatedAsynchronously() {
-         return this.future != null;
-      }
-
-      int maxPlacement() {
-         return this.maxPlacement;
-      }
-
-      ResourceKey<Level> dimension() {
-         return this.dimension;
-      }
-
-      boolean exceededLimit() {
-         return this.exceededLimit;
-      }
-
-      boolean generationConstraintsFailed() {
-         return this.generationConstraintsFailed;
-      }
-
-      boolean memoryUnsafe() {
-         return this.memoryUnsafe;
-      }
-
-      boolean failed() {
-         return this.failed;
-      }
-
-      ArrayDeque<ReversibleBlockSnapshot> undoChanges() {
-         return this.undo;
-      }
-
-      Map<BlockPos, ReversibleBlockSnapshot> afterChanges() {
-         return this.after;
-      }
-   }
-
-   private enum BlockWriteResult {
-      PLACED,
-      SKIPPED,
-      FAILED
    }
 
 }

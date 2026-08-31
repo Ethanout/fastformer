@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.world.*;
+
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,7 +45,7 @@ import net.minecraft.world.level.block.state.properties.WallSide;
 import net.minecraft.world.phys.BlockHitResult;
 
 /** Axiom-style empty-hand block manipulation with type-specific semantics. */
-final class BlockTinker {
+public final class BlockTinker {
    private static final List<Property<?>> GENERIC_FALLBACK = List.of(
       BlockStateProperties.FACING,
       BlockStateProperties.HORIZONTAL_FACING,
@@ -60,7 +62,7 @@ final class BlockTinker {
    private BlockTinker() {
    }
 
-   static boolean use(ServerPlayer player, BlockHitResult hit) {
+   public static boolean use(ServerPlayer player, BlockHitResult hit) {
       if (player == null || hit == null || !player.isCreative() || !player.getMainHandItem().isEmpty()
          || WorldHistoryManager.busy(player) || FastPlaceManager.active(player)
          || OperationManager.active(player) || GeometryManager.active(player)

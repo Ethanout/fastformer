@@ -1,10 +1,12 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.client.operation.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.ClientOperationWorkspace;
-import io.github.fastformer.client.operation.ClientSelectionPart;
-import io.github.fastformer.client.operation.WorkspacePreviewComposer;
-import io.github.fastformer.client.operation.WorkspaceTransform;
+import io.github.fastformer.fastplace.world.*;
+
+import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
+import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -39,8 +41,8 @@ public final class OperationWorkspaceValidator {
          }
          if (!part.pendingDelete()) {
             long cells = part.transform().repeats().cellCount();
-            io.github.fastformer.client.operation.OccupiedBlockBounds bounds =
-               io.github.fastformer.client.operation.OccupiedBlockBounds.from(part.blocks().keySet()).orElseThrow();
+            io.github.fastformer.client.operation.selection.OccupiedBlockBounds bounds =
+               io.github.fastformer.client.operation.selection.OccupiedBlockBounds.from(part.blocks().keySet()).orElseThrow();
             long scaledX = Math.max(1L, Math.round(bounds.width(io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.X) * part.transform().scale().x));
             long scaledY = Math.max(1L, Math.round(bounds.width(io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.Y) * part.transform().scale().y));
             long scaledZ = Math.max(1L, Math.round(bounds.width(io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.Z) * part.transform().scale().z));

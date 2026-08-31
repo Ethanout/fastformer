@@ -1,6 +1,6 @@
 package io.github.fastformer;
 
-import io.github.fastformer.fastplace.FastPlaceEvents;
+import io.github.fastformer.fastplace.events.FastPlaceEvents;
 import io.github.fastformer.network.FastPlaceNetwork;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
