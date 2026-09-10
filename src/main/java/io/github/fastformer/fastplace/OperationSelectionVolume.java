@@ -35,6 +35,19 @@ public record OperationSelectionVolume(
       return create(mode, points, legacyBasePointCount, minOffset, maxOffset, hullInflation);
    }
 
+   public static OperationSelectionVolume cuboid(BlockPos min, BlockPos max, BlockPos point1, BlockPos point2) {
+      if (min == null || max == null) {
+         return null;
+      }
+      BlockPos low = new BlockPos(Math.min(min.getX(), max.getX()), Math.min(min.getY(), max.getY()), Math.min(min.getZ(), max.getZ()));
+      BlockPos high = new BlockPos(Math.max(min.getX(), max.getX()), Math.max(min.getY(), max.getY()), Math.max(min.getZ(), max.getZ()));
+      return new OperationSelectionVolume(
+         OperationSelectionMode.CUBOID,
+         new AABB(low.getX(), low.getY(), low.getZ(), high.getX() + 1.0, high.getY() + 1.0, high.getZ() + 1.0),
+         null, List.of(), 0, point1, point2
+      );
+   }
+
    public static OperationSelectionVolume create(
       OperationSelectionMode mode,
       List<BlockPos> points,
@@ -68,6 +81,34 @@ public record OperationSelectionVolume(
          : this.prism != null
          ? this.prism.contains(point)
          : OperationGeometry.insideConvexHull(point, this.hullFaces, this.hullInflation);
+   }
+
+   public OperationSelectionVolume withCuboidPoint(int index, BlockPos point) {
+      if (this.mode != OperationSelectionMode.CUBOID || index < 0 || index > 1 || point == null) {
+         throw new IllegalArgumentException("Invalid cuboid point edit");
+      }
+      BlockPos first = index == 0 ? point : this.point1;
+      BlockPos second = index == 1 ? point : this.point2;
+      if (first == null || second == null) {
+         BlockPos only = first != null ? first : second;
+         return new OperationSelectionVolume(
+            OperationSelectionMode.CUBOID,
+            new AABB(only.getX(), only.getY(), only.getZ(), only.getX() + 1.0, only.getY() + 1.0, only.getZ() + 1.0),
+            null, List.of(), 0, first, second
+         );
+      }
+      return create(this.mode, List.of(first, second), BlockPos.ZERO, BlockPos.ZERO, 0);
+   }
+
+   public OperationSelectionVolume expandCuboidTo(BlockPos point) {
+      if (this.mode != OperationSelectionMode.CUBOID || point == null) {
+         throw new IllegalArgumentException("Invalid cuboid expansion");
+      }
+      AABB expanded = new AABB(
+         Math.min(bounds.minX, point.getX()), Math.min(bounds.minY, point.getY()), Math.min(bounds.minZ, point.getZ()),
+         Math.max(bounds.maxX, point.getX() + 1.0), Math.max(bounds.maxY, point.getY() + 1.0), Math.max(bounds.maxZ, point.getZ() + 1.0)
+      );
+      return new OperationSelectionVolume(mode, expanded, null, List.of(), 0, point1, point2);
    }
 
    public boolean intersects(AABB box) {

@@ -50,4 +50,28 @@ class OperationInputSemanticsTest {
       assertEquals(false, OperationInputSemantics.yieldToVanillaNearBlock(true, false, true));
       assertEquals(false, OperationInputSemantics.yieldToVanillaNearBlock(false, false, false));
    }
+
+   @Test
+   void oneSnapshotResolvesActionAndVanillaOwnershipTogether() {
+      OperationInputSemantics.LeftDecision decision = OperationInputSemantics.decideLeftPress(
+         new OperationInputSemantics.LeftPressSnapshot(
+            OperationSelectionMode.PRISM, true, false, true, true, false, true
+         )
+      );
+
+      assertEquals(OperationInputSemantics.LeftAction.GIZMO_DRAG, decision.action());
+      assertEquals(false, decision.yieldToVanilla());
+   }
+
+   @Test
+   void nearBlockWithoutAnOverrideKeepsTheWholePressVanilla() {
+      OperationInputSemantics.LeftDecision decision = OperationInputSemantics.decideLeftPress(
+         new OperationInputSemantics.LeftPressSnapshot(
+            OperationSelectionMode.PRISM, false, false, false, true, false, false
+         )
+      );
+
+      assertEquals(OperationInputSemantics.LeftAction.SELECTION_UNDO, decision.action());
+      assertEquals(true, decision.yieldToVanilla());
+   }
 }

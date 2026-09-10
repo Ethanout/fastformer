@@ -2,7 +2,6 @@ package io.github.fastformer.fastplace.geometry.generation;
 
 import io.github.fastformer.fastplace.FillMode;
 import io.github.fastformer.fastplace.FaceRasterizationMode;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -275,9 +274,12 @@ public final class TiltedBoxGenerator {
       if (staged.size() > maxBlocks) {
          return Set.of();
       }
-      Set<BlockPos> result = new ObservedBlockSet(observer);
-      result.addAll(staged);
-      return Collections.unmodifiableSet(new LinkedHashSet<>(result));
+      BlockGenerationObserver actualObserver = observer == null ? BlockGenerationObserver.NONE : observer;
+      for (BlockPos position : staged) {
+         actualObserver.checkCancelled();
+         actualObserver.onGenerated(position);
+      }
+      return GeneratedBlockSets.readOnly(staged);
    }
 
    private static Set<BlockPos> sentinel(int maxBlocks) {

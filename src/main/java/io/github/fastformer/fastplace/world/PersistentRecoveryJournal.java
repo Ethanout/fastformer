@@ -74,17 +74,31 @@ public final class PersistentRecoveryJournal {
 
    private final Path file;
    private final ResourceKey<Level> dimension;
+   private final UUID operationId;
+   private final long preparedDecodedBytes;
    private boolean committed;
    private volatile boolean finalAfterPrepared;
    private volatile boolean correctionRequired;
 
    PersistentRecoveryJournal(Path file) {
-      this(file, null);
+      this(file, null, null, MAX_DECOMPRESSED_BYTES);
    }
 
    private PersistentRecoveryJournal(Path file, ResourceKey<Level> dimension) {
+      this(file, dimension, null, MAX_DECOMPRESSED_BYTES);
+   }
+
+   private PersistentRecoveryJournal(
+      Path file, ResourceKey<Level> dimension, UUID operationId, long preparedDecodedBytes
+   ) {
       this.file = file;
       this.dimension = dimension;
+      this.operationId = operationId;
+      this.preparedDecodedBytes = Math.max(1L, Math.min(MAX_DECOMPRESSED_BYTES, preparedDecodedBytes));
+   }
+
+   public UUID operationId() {
+      return this.operationId;
    }
 
    public static Optional<PersistentRecoveryJournal> begin(
@@ -106,6 +120,17 @@ public final class PersistentRecoveryJournal {
       Collection<ReversibleBlockSnapshot> before,
       Collection<ReversibleBlockSnapshot> after
    ) {
+      return begin(server, owner, dimension, before, after, null);
+   }
+
+   public static Optional<PersistentRecoveryJournal> begin(
+      MinecraftServer server,
+      UUID owner,
+      ResourceKey<Level> dimension,
+      Collection<ReversibleBlockSnapshot> before,
+      Collection<ReversibleBlockSnapshot> after,
+      UUID operationId
+   ) {
       if (server == null || owner == null || dimension == null || before == null || before.isEmpty() || after == null) {
          return Optional.empty();
       }
@@ -121,8 +146,8 @@ public final class PersistentRecoveryJournal {
       long sequence = SEQUENCE.updateAndGet(previous -> Math.max(previous + 1L, System.currentTimeMillis() * 1000L));
       Path file = directory.resolve(String.format("%020d-%s.dat", sequence, owner));
       try {
-         writePrepared(file, dimension, before, after);
-         return Optional.of(new PersistentRecoveryJournal(file, dimension));
+         long preparedDecodedBytes = writePrepared(file, dimension, before, after, operationId);
+         return Optional.of(new PersistentRecoveryJournal(file, dimension, operationId, preparedDecodedBytes));
       } catch (IOException | RuntimeException exception) {
          LOGGER.error("Could not create FastFormer recovery journal for {}", owner, exception);
          return Optional.empty();
@@ -289,6 +314,9 @@ public final class PersistentRecoveryJournal {
       List<Path> recovered = new ArrayList<>();
       try (var files = Files.list(directory)) {
          List<Path> entries = files.toList();
+         if (!validateSegmentDirectories(entries)) {
+            success = false;
+         }
          java.util.Set<String> conflictingForms = conflictingJournalForms(entries);
          if (!conflictingForms.isEmpty()) {
             success = false;
@@ -323,11 +351,13 @@ public final class PersistentRecoveryJournal {
             }
          }
           List<Path> prepared = recoveryOrder(entries.stream()
-             .filter(path -> path.getFileName().toString().endsWith(".dat"))
+             .filter(path -> path.getFileName().toString().endsWith(".dat")
+                || Files.isDirectory(path) && Files.exists(path.resolve("manifest.dat")) && !Files.exists(path.resolve("seal.done")))
              .filter(path -> !conflictingForms.contains(journalStem(path)))
              .toList());
           List<Path> committed = entries.stream()
-             .filter(path -> path.getFileName().toString().endsWith(".done"))
+             .filter(path -> path.getFileName().toString().endsWith(".done")
+                || Files.isDirectory(path) && Files.exists(path.resolve("seal.done")))
              .filter(path -> !conflictingForms.contains(journalStem(path)))
             .sorted(Comparator.comparing(path -> path.getFileName().toString()))
             .toList();
@@ -361,8 +391,16 @@ public final class PersistentRecoveryJournal {
          } else {
             for (Path path : recovered) {
                try {
+                   boolean segmented = Files.isDirectory(path);
+                   if (segmented) {
+                      try (var children = Files.list(path)) {
+                         for (Path child : children.toList()) {
+                            Files.delete(child);
+                         }
+                      }
+                   }
                    Files.deleteIfExists(path);
-                   Files.deleteIfExists(correctionPath(path));
+                   if (!segmented) Files.deleteIfExists(correctionPath(path));
                 } catch (IOException | RuntimeException exception) {
                    LOGGER.error("Recovered FastFormer journal will be retried next startup: {}", path, exception);
                    success = false;
@@ -372,6 +410,66 @@ public final class PersistentRecoveryJournal {
       }
       startupRecoveryBlocked = !success;
       return success;
+   }
+
+   /**
+    * Checks sealed segment files before startup restores their world contents.
+    */
+   static boolean validateSegmentDirectories(Collection<Path> entries) {
+      if (entries == null) {
+         return false;
+      }
+      boolean valid = true;
+      for (Path directory : entries) {
+         if (!Files.isDirectory(directory)) {
+            continue;
+         }
+         boolean segmentedMarker = Files.exists(directory.resolve("manifest.dat"))
+            || Files.exists(directory.resolve("seal.done"));
+         if (!segmentedMarker) {
+            try (var stream = Files.list(directory)) {
+               segmentedMarker = stream.anyMatch(path -> path.getFileName().toString().startsWith("segment-"));
+            } catch (IOException | RuntimeException exception) {
+               valid = false;
+               LOGGER.error("Could not inspect segmented recovery operation: {}", directory, exception);
+               continue;
+            }
+         }
+         if (!segmentedMarker) {
+            continue;
+         }
+         try {
+            if (!Files.exists(directory.resolve("manifest.dat"))) {
+               throw new IOException("Segmented recovery operation has no manifest: " + directory);
+            }
+            RecoveryJournalManifest.Manifest manifest = RecoveryJournalManifest.read(directory.resolve("manifest.dat"));
+            Path seal = directory.resolve("seal.done");
+            if (!Files.exists(seal)) {
+               var segments = RecoveryJournalSegments.readUnsealed(directory, manifest.operationId(), manifest.segmentLimit());
+               ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(manifest.dimension()));
+               for (var segment : segments) validateHeader(segment.payload(), dimension);
+               continue;
+            }
+            RecoveryJournalSeal.Seal sealData = RecoveryJournalSeal.read(seal, manifest.operationId());
+            if (sealData.segmentCount() > manifest.segmentLimit()) {
+               throw new IOException("Segmented recovery operation exceeds manifest segment limit");
+            }
+            List<RecoveryJournalSegments.CompoundSegment> segments = RecoveryJournalSegments.readComplete(
+               directory, manifest.operationId(), sealData.segmentCount()
+            );
+            if (RecoveryJournalSegments.digest(segments) != sealData.digest()) {
+               throw new IOException("Segmented recovery operation digest mismatch");
+            }
+            ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(manifest.dimension()));
+            for (var segment : segments) {
+               validateHeader(segment.payload(), dimension);
+            }
+         } catch (IOException | RuntimeException exception) {
+            valid = false;
+            LOGGER.error("FastFormer found an invalid segmented recovery operation: {}", directory, exception);
+         }
+      }
+      return valid;
    }
 
    public static boolean writesAllowed() {
@@ -461,7 +559,11 @@ public final class PersistentRecoveryJournal {
       return matchesAfter ? StartupRecoveryAction.RESTORE : StartupRecoveryAction.PRESERVE_EXTERNAL;
    }
 
-   private static boolean recoverOne(MinecraftServer server, Path file, boolean committed) {
+   static boolean recoverOne(MinecraftServer server, Path file, boolean committed) {
+      if (Files.isDirectory(file)) {
+         return recoverSealedSegments(server, file);
+      }
+      UUID operationId = null;
       try {
          CompoundTag root = NbtIo.readCompressed(file, NbtAccounter.create(recoveryDecodeLimit()));
          if (root.getInt("Version") != VERSION) {
@@ -471,17 +573,21 @@ public final class PersistentRecoveryJournal {
          if (NbtUtils.getDataVersion(root, -1) != currentDataVersion) {
             throw new IOException("Journal was written by a different Minecraft data version");
          }
-         ResourceLocation dimensionId = ResourceLocation.tryParse(root.getString("Dimension"));
+          ResourceLocation dimensionId = ResourceLocation.tryParse(root.getString("Dimension"));
          if (dimensionId == null) {
             throw new IOException("Invalid journal dimension");
          }
-         ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
+          ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, dimensionId);
+         operationId = readOperationId(root);
          ServerLevel level = server.getLevel(dimension);
          if (level == null) {
             throw new IOException("Journal dimension is not loaded: " + dimensionId);
          }
           DecodedJournal decoded = decode(level, root);
           DecodedCorrections corrections = decodeCorrections(level, file, dimension);
+          if (corrections != null) {
+             validateCorrectionPositions(decoded.positions(), corrections.positions());
+          }
           int correctionIndex = 0;
           int preserved = 0;
           for (int i = 0; i < decoded.size(); i++) {
@@ -504,20 +610,80 @@ public final class PersistentRecoveryJournal {
                && !target.restore(level, PlacementUpdateMode.CLIENT_ONLY.flags())) {
                throw new IOException("Could not restore " + target.pos().toShortString());
           }
-          if (corrections != null && correctionIndex != corrections.size()) {
-             throw new IOException("Recovery correction positions are not aligned with the base journal");
-          }
+         }
+         if (corrections != null && correctionIndex != corrections.size()) {
+            throw new IOException("Recovery correction positions are not aligned with the base journal");
          }
          LOGGER.warn(
-            "{} {} positions from FastFormer journal {}; preserved {} external changes",
-            committed ? "Replayed" : "Rolled back", decoded.size(), file.getFileName(), preserved
+             "{} {} positions from FastFormer journal {} (operation={}); preserved {} external changes",
+             committed ? "Replayed" : "Rolled back", decoded.size(), file.getFileName(), operationId, preserved
          );
          return true;
       } catch (IOException | RuntimeException exception) {
-         LOGGER.error("FastFormer left recovery journal {} untouched because recovery was not safe", file, exception);
+          LOGGER.error(
+             "FastFormer left recovery journal {} untouched because recovery was not safe (operation={})",
+             file,
+             operationId,
+             exception
+          );
          return false;
       } catch (OutOfMemoryError error) {
-         LOGGER.error("FastFormer left recovery journal {} untouched because the JVM heap was insufficient", file, error);
+         LOGGER.error(
+            "FastFormer left recovery journal {} untouched because the JVM heap was insufficient (operation={})",
+            file,
+            operationId,
+            error
+         );
+         return false;
+      }
+   }
+
+   private static boolean recoverSealedSegments(MinecraftServer server, Path directory) {
+      try {
+         if (!validateSegmentDirectories(List.of(directory))) return false;
+         var manifest = RecoveryJournalManifest.read(directory.resolve("manifest.dat"));
+         boolean sealed = Files.exists(directory.resolve("seal.done"));
+         var segments = sealed
+            ? RecoveryJournalSegments.readComplete(directory, manifest.operationId(),
+               RecoveryJournalSeal.read(directory.resolve("seal.done"), manifest.operationId()).segmentCount())
+            : RecoveryJournalSegments.readUnsealed(directory, manifest.operationId(), manifest.segmentLimit());
+         ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(manifest.dimension()));
+         ServerLevel level = server.getLevel(dimension);
+         if (level == null) throw new IOException("Journal dimension is not loaded: " + manifest.dimension());
+         List<DecodedJournal> decoded = new ArrayList<>(segments.size());
+         for (var segment : segments) {
+            DecodedJournal journal = decode(level, segment.payload());
+            // Reject invalid palette references before the first world write.
+            for (int index = 0; index < journal.size(); index++) journal.pair(index);
+            decoded.add(journal);
+         }
+         int restored = 0;
+         int preserved = 0;
+         for (int segmentIndex = 0; segmentIndex < decoded.size(); segmentIndex++) {
+            var journal = decoded.get(sealed ? segmentIndex : decoded.size() - 1 - segmentIndex);
+            for (int cell = 0; cell < journal.size(); cell++) {
+               int index = sealed ? cell : journal.size() - 1 - cell;
+               JournalPair pair = journal.pair(index);
+               var target = sealed ? pair.after() : pair.before();
+               var source = sealed ? pair.before() : pair.after();
+               StartupRecoveryAction action = startupRecoveryAction(
+                  target.matches(level, target.pos()), source.matches(level, source.pos())
+               );
+               if (action == StartupRecoveryAction.PRESERVE_EXTERNAL) {
+                  preserved++;
+               } else if (action == StartupRecoveryAction.RESTORE) {
+                  if (!target.restore(level, PlacementUpdateMode.CLIENT_ONLY.flags())) {
+                     throw new IOException("Could not restore " + target.pos().toShortString());
+                  }
+                  restored++;
+               }
+            }
+         }
+         LOGGER.warn("{} {} positions from segmented journal {} (operation={}); preserved {} external changes",
+            sealed ? "Replayed" : "Rolled back", restored, directory, manifest.operationId(), preserved);
+         return true;
+      } catch (IOException | RuntimeException | OutOfMemoryError exception) {
+         LOGGER.error("Could not restore sealed segmented journal {}; files remain for retry", directory, exception);
          return false;
       }
    }
@@ -530,7 +696,9 @@ public final class PersistentRecoveryJournal {
          if (!Files.exists(this.file) || Files.exists(committedPath(this.file))) {
             return false;
          }
-         CompoundTag root = NbtIo.readCompressed(this.file, NbtAccounter.create(recoveryDecodeLimit()));
+         CompoundTag root = NbtIo.readCompressed(
+            this.file, NbtAccounter.create(correctionDecodeLimit(this.preparedDecodedBytes))
+         );
          validateHeader(root, this.dimension);
          PaletteLayout layout = correctionLayout(root, actualAfter);
          if (layout.positions().length == 0) {
@@ -541,7 +709,10 @@ public final class PersistentRecoveryJournal {
          }
          CompoundTag correctionRoot = new CompoundTag();
          correctionRoot.putInt("Version", VERSION);
-         correctionRoot.putString("Dimension", this.dimension.location().toString());
+          correctionRoot.putString("Dimension", this.dimension.location().toString());
+          if (this.operationId != null) {
+             correctionRoot.putString("OperationId", this.operationId.toString());
+          }
          correctionRoot.putByteArray("BaseSha256", sha256(this.file));
          correctionRoot.putLongArray("Positions", layout.positions());
          putPalette(correctionRoot, "After", layout);
@@ -685,6 +856,18 @@ public final class PersistentRecoveryJournal {
       return new DecodedCorrections(positions, palette, ids, root.getInt("AfterUniformPaletteId"));
    }
 
+   private static void validateCorrectionPositions(long[] base, long[] corrections) throws IOException {
+      int correctionIndex = 0;
+      for (long position : base) {
+         if (correctionIndex < corrections.length && position == corrections[correctionIndex]) {
+            correctionIndex++;
+         }
+      }
+      if (correctionIndex != corrections.length) {
+         throw new IOException("Recovery correction positions are not aligned with the base journal");
+      }
+   }
+
    private static void validateHeader(CompoundTag root, ResourceKey<Level> expectedDimension) throws IOException {
       if (root.getInt("Version") != VERSION) {
          throw new IOException("Unsupported journal version " + root.getInt("Version"));
@@ -699,17 +882,35 @@ public final class PersistentRecoveryJournal {
       }
    }
 
-   private static void writePrepared(
+   private static UUID readOperationId(CompoundTag root) throws IOException {
+      if (!root.contains("OperationId")) {
+         return null;
+      }
+      String encoded = root.getString("OperationId");
+      try {
+         return UUID.fromString(encoded);
+      } catch (IllegalArgumentException exception) {
+         throw new IOException("Invalid journal operation ID", exception);
+      }
+   }
+
+   private static long writePrepared(
       Path file,
       ResourceKey<Level> dimension,
       Collection<ReversibleBlockSnapshot> before,
-      Collection<ReversibleBlockSnapshot> after
+      Collection<ReversibleBlockSnapshot> after,
+      UUID operationId
    ) throws IOException {
       CompoundTag encoded = encodePrepared(dimension, before, after);
       if (encoded.sizeInBytes() > MAX_DECOMPRESSED_BYTES) {
          throw new IOException("Recovery journal exceeds the safe decoded-size limit");
       }
+      if (operationId != null) {
+         encoded.putString("OperationId", operationId.toString());
+      }
+      long preparedDecodedBytes = encoded.sizeInBytes();
       atomicWriteCompressed(file, encoded);
+      return preparedDecodedBytes;
    }
 
    static CompoundTag encodePrepared(
@@ -920,6 +1121,10 @@ public final class PersistentRecoveryJournal {
       return recoveryDecodeLimit(runtime.maxMemory(), runtime.totalMemory(), runtime.freeMemory());
    }
 
+   static long correctionDecodeLimit(long preparedDecodedBytes) {
+      return Math.max(1L, Math.min(MAX_DECOMPRESSED_BYTES, preparedDecodedBytes));
+   }
+
    static long recoveryDecodeLimit(long maxMemory, long totalMemory, long freeMemory) {
       long used = Math.max(0L, totalMemory - freeMemory);
       long available = Math.max(0L, maxMemory - used);
@@ -957,7 +1162,7 @@ public final class PersistentRecoveryJournal {
       return server.getWorldPath(LevelResource.ROOT).resolve(DIRECTORY);
    }
 
-   private static boolean hasOwnerJournal(Path directory, UUID owner) {
+   static boolean hasOwnerJournal(Path directory, UUID owner) {
       if (!Files.exists(directory)) {
          return false;
       }
@@ -965,10 +1170,15 @@ public final class PersistentRecoveryJournal {
       try (var files = Files.list(directory)) {
          return files.anyMatch(path -> {
             String name = path.getFileName().toString();
-            return name.startsWith(".") == false
-               && name.endsWith(suffix + ".dat");
+            if (name.startsWith(".")) {
+               return false;
+            }
+            // Only a prepared journal owns an unfinished operation. Committed
+            // markers remain replayable until the next durable level save, but
+            // recovery order already composes them with newer operations.
+            return name.endsWith(suffix + ".dat");
          });
-      } catch (IOException exception) {
+      } catch (IOException | RuntimeException exception) {
          LOGGER.error("Could not check existing FastFormer journals for {}", owner, exception);
          return true;
       }

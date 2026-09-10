@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,17 +15,29 @@ import net.minecraft.core.SectionPos;
 /** Thread-safe progress bridge from a background generator to a client/server tick thread. */
 public final class ProgressiveBlockGeneration implements BlockGenerationObserver {
    private static final int PUBLISH_BLOCKS = 4096;
+   private static final int MAX_PUBLISHED_BATCHES = 64;
    private final long estimatedScan;
+   private final boolean publishBatches;
    private final AtomicLong scanned = new AtomicLong();
    private final AtomicLong generated = new AtomicLong();
    private final ConcurrentLinkedQueue<SectionBatch> published = new ConcurrentLinkedQueue<>();
-   private final Map<Long, ArrayList<BlockPos>> pendingBySection = new HashMap<>();
+   private final Map<Long, LongArrayList> pendingBySection = new HashMap<>();
    private int pendingCount;
    private volatile boolean complete;
    private volatile boolean cancelled;
 
    public ProgressiveBlockGeneration(long estimatedScan) {
+      this(estimatedScan, true);
+   }
+
+   /**
+    * Creates a progress bridge. Server-side placement generation has no
+    * preview consumer, so it can disable batch retention and avoid both a
+    * second position working set and producer backpressure deadlock.
+    */
+   public ProgressiveBlockGeneration(long estimatedScan, boolean publishBatches) {
       this.estimatedScan = Math.max(0L, estimatedScan);
+      this.publishBatches = publishBatches;
    }
 
    @Override
@@ -36,14 +50,17 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
    @Override
    public synchronized void onGenerated(BlockPos position) {
       this.checkCancelled();
+      this.generated.incrementAndGet();
+      if (!this.publishBatches) {
+         return;
+      }
       long section = SectionPos.asLong(
          SectionPos.blockToSectionCoord(position.getX()),
          SectionPos.blockToSectionCoord(position.getY()),
          SectionPos.blockToSectionCoord(position.getZ())
       );
-      this.pendingBySection.computeIfAbsent(section, ignored -> new ArrayList<>()).add(position.immutable());
+      this.pendingBySection.computeIfAbsent(section, ignored -> new LongArrayList()).add(position.asLong());
       this.pendingCount++;
-      this.generated.incrementAndGet();
       if (this.pendingCount >= PUBLISH_BLOCKS) {
          this.publishPending();
       }
@@ -58,13 +75,19 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
 
    public synchronized void complete() {
       if (!this.cancelled) {
-         this.publishPending();
+         if (this.publishBatches) {
+            this.publishPending();
+         }
          this.complete = true;
       }
    }
 
-   public void cancel() {
+   public synchronized void cancel() {
       this.cancelled = true;
+      this.published.clear();
+      this.pendingBySection.clear();
+      this.pendingCount = 0;
+      this.notifyAll();
    }
 
    public List<SectionBatch> drainPublished() {
@@ -72,7 +95,20 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
       for (SectionBatch batch; (batch = this.published.poll()) != null;) {
          result.add(batch);
       }
+      if (!result.isEmpty()) {
+         synchronized (this) {
+            this.notifyAll();
+         }
+      }
       return List.copyOf(result);
+   }
+
+   /** Releases queued progress batches once the placement owns the final targets. */
+   public synchronized void releasePublished() {
+      this.published.clear();
+      this.pendingBySection.clear();
+      this.pendingCount = 0;
+      this.notifyAll();
    }
 
    public Snapshot snapshot() {
@@ -83,9 +119,18 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
       if (this.pendingCount == 0) {
          return;
       }
-      for (Map.Entry<Long, ArrayList<BlockPos>> entry : this.pendingBySection.entrySet()) {
+      while (this.published.size() >= MAX_PUBLISHED_BATCHES) {
+         this.checkCancelled();
+         try {
+            this.wait(50L);
+         } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new CancellationException("FastFormer block generation interrupted while waiting for consumers");
+         }
+      }
+      for (Map.Entry<Long, LongArrayList> entry : this.pendingBySection.entrySet()) {
          if (!entry.getValue().isEmpty()) {
-            this.published.add(new SectionBatch(entry.getKey(), List.copyOf(entry.getValue())));
+            this.published.add(new SectionBatch(entry.getKey(), entry.getValue().toLongArray()));
          }
       }
       this.pendingBySection.clear();
@@ -99,9 +144,36 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
    public record Snapshot(long scanned, long estimatedScan, long generated, boolean complete) {
    }
 
-   public record SectionBatch(long section, List<BlockPos> blocks) {
+   public record SectionBatch(long section, long[] packedBlocks) {
       public SectionBatch {
-         blocks = List.copyOf(blocks);
+         packedBlocks = packedBlocks.clone();
+      }
+
+      /**
+       * Keeps the existing preview API while avoiding a second boxed position
+       * collection in the bounded publication queue.
+       */
+      public List<BlockPos> blocks() {
+         return new AbstractList<>() {
+            @Override
+            public BlockPos get(int index) {
+               return BlockPos.of(SectionBatch.this.packedBlocks[index]);
+            }
+
+            @Override
+            public int size() {
+               return SectionBatch.this.packedBlocks.length;
+            }
+         };
+      }
+
+      @Override
+      public long[] packedBlocks() {
+         return this.packedBlocks.clone();
+      }
+
+      public long packedBlockCount() {
+         return this.packedBlocks.length;
       }
    }
 }

@@ -23,12 +23,23 @@ public final class GenerationLimitExceeded {
    }
 
    static Set<BlockPos> witness(int size, BlockGenerationObserver observer) {
-      if (size <= 0) {
-         return Set.of();
-      }
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
       effectiveObserver.checkCancelled();
-      return new Witness(size, effectiveObserver);
+      return new Witness(Math.max(0, size), effectiveObserver);
+   }
+
+   static int probeLimit(int maxBlocks) {
+      return maxBlocks == Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(0, maxBlocks + 1);
+   }
+
+   static Set<BlockPos> boundedResult(
+      Set<BlockPos> blocks,
+      int maxBlocks,
+      BlockGenerationObserver observer
+   ) {
+      return blocks.size() > maxBlocks
+         ? witness(maxBlocks, observer)
+         : GeneratedBlockSets.readOnly(blocks);
    }
 
    /**

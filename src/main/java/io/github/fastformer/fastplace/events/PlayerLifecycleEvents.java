@@ -47,9 +47,9 @@ public final class PlayerLifecycleEvents {
 
    private static void onPlayerChangedDimension(PlayerChangedDimensionEvent event) {
       if (event.getEntity() instanceof ServerPlayer player) {
-         // The player instance survives a dimension change, but the client
-         // still needs a fresh authoritative snapshot for the retained UUID box.
-         FastPlaceManager.syncCurrentPreview(player);
+         // Selection coordinates and placement tasks are dimension-local. End
+         // the old session instead of carrying it across coordinate scaling.
+         FastPlaceManager.quit(player);
       }
    }
 

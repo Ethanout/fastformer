@@ -11,6 +11,7 @@ import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
 import io.github.fastformer.fastplace.geometry.generation.LoftGenerator;
 import io.github.fastformer.fastplace.geometry.generation.SweepGenerator;
+import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.core.BlockPos;
@@ -51,7 +52,8 @@ public final class CompoundWorkflow implements GeometryWorkflow {
       long scanCells = estimateScanCells(session.points(), shapeVariant);
       return GeometryBuildResult.ready(
          scanCells,
-         () -> generate(session.points(), shapeVariant, fillMode, maxBlocks)
+         maxBlocks,
+         () -> generateResult(session.points(), shapeVariant, fillMode, maxBlocks)
       );
    }
 
@@ -95,6 +97,14 @@ public final class CompoundWorkflow implements GeometryWorkflow {
       return Math.floorMod(shapeVariant, 2) == 0
          ? SweepGenerator.generate(points, fillMode, maxBlocks)
          : LoftGenerator.generate(points, maxBlocks);
+   }
+
+   private static BlockGenerationResult generateResult(
+      List<BlockPos> points, int shapeVariant, FillMode fillMode, int maxBlocks
+   ) {
+      return Math.floorMod(shapeVariant, 2) == 0
+         ? SweepGenerator.generateResult(points, fillMode, maxBlocks)
+         : LoftGenerator.generateResult(points, maxBlocks);
    }
 
    private static long estimateScanCells(List<BlockPos> points, int shapeVariant) {

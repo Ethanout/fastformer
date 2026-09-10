@@ -63,6 +63,16 @@ public final class IncomingPayloadTransfers {
       shapeTransfers.clear();
    }
 
+   /** Removes stalled transfers even when the client sends no further chunks. */
+   public void purgeExpired() {
+      purgeExpired(System.nanoTime());
+   }
+
+   void purgeExpired(long now) {
+      workspaceTransfers.entrySet().removeIf(entry -> entry.getValue().expired(now, TRANSFER_TIMEOUT_NANOS));
+      shapeTransfers.entrySet().removeIf(entry -> entry.getValue().expired(now, TRANSFER_TIMEOUT_NANOS));
+   }
+
    private static byte[] accept(
       Map<UUID, ChunkedPayloadTransfer> transfers,
       UUID owner,

@@ -4,7 +4,12 @@ import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.resources.ResourceLocation;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class FastPlaceSettings {
    private static final String KEY = "fastformer";
@@ -24,7 +29,7 @@ public final class FastPlaceSettings {
    private OperationConflictMode placementConflictMode = OperationConflictMode.REPLACE;
    private OperationSelectionMode operationSelectionMode = OperationSelectionMode.CUBOID;
    private PlacementUpdateMode placementUpdateMode = PlacementUpdateMode.NORMAL;
-   private boolean smartWoodFrame = true;
+   private final Set<ResourceLocation> enabledPlacementEffects = new HashSet<>();
    private boolean emptyHandWrench = true;
    private int maxPlacement = 20972152;
    private int worldUndoHistoryLimit = DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
@@ -32,6 +37,9 @@ public final class FastPlaceSettings {
    private double angleDegrees = 0.0;
 
    private FastPlaceSettings() {
+      this.enabledPlacementEffects.add(
+         io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect.ID
+      );
    }
 
    public static FastPlaceSettings load(ServerPlayer player) {
@@ -64,7 +72,21 @@ public final class FastPlaceSettings {
          settings.operationSelectionMode = OperationSelectionMode.CUBOID;
       }
       settings.placementUpdateMode = readEnum(tag, "placementUpdateMode", PlacementUpdateMode.NORMAL);
-      settings.smartWoodFrame = !tag.contains("smartWoodFrame") || tag.getBoolean("smartWoodFrame");
+      if (tag.contains("enabledPlacementEffects", Tag.TAG_LIST)) {
+         settings.enabledPlacementEffects.clear();
+         ListTag effectIds = tag.getList("enabledPlacementEffects", Tag.TAG_STRING);
+         for (int index = 0; index < effectIds.size(); index++) {
+            ResourceLocation id = ResourceLocation.tryParse(effectIds.getString(index));
+            if (id != null && io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry.contains(id)) {
+               settings.enabledPlacementEffects.add(id);
+            }
+         }
+      } else if (tag.contains("smartWoodFrame") && !tag.getBoolean("smartWoodFrame")) {
+         // Migrate the pre-registry setting once when a player first loads it.
+         settings.enabledPlacementEffects.remove(
+            io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect.ID
+         );
+      }
       settings.emptyHandWrench = !tag.contains("emptyHandWrench") || tag.getBoolean("emptyHandWrench");
       settings.maxPlacement = tag.contains("maxPlacement")
          ? Math.clamp((long)tag.getInt("maxPlacement"), 1, 20972152)
@@ -255,12 +277,23 @@ public final class FastPlaceSettings {
       return this.placementUpdateMode;
    }
 
-   public boolean smartWoodFrame() {
-      return this.smartWoodFrame;
+   public boolean isPlacementEffectEnabled(ResourceLocation effectId) {
+      return effectId != null && this.enabledPlacementEffects.contains(effectId);
    }
 
-   public void toggleSmartWoodFrame(ServerPlayer player) {
-      this.smartWoodFrame = !this.smartWoodFrame;
+   public Set<ResourceLocation> enabledPlacementEffects() {
+      return Set.copyOf(this.enabledPlacementEffects);
+   }
+
+   public void setPlacementEffectEnabled(ServerPlayer player, ResourceLocation effectId, boolean enabled) {
+      if (effectId == null) {
+         return;
+      }
+      if (enabled) {
+         this.enabledPlacementEffects.add(effectId);
+      } else {
+         this.enabledPlacementEffects.remove(effectId);
+      }
       this.save(player);
    }
 
@@ -314,7 +347,10 @@ public final class FastPlaceSettings {
       tag.putString("placementConflictMode", this.placementConflictMode.name());
       tag.putString("operationSelectionMode", this.operationSelectionMode.name());
       tag.putString("placementUpdateMode", this.placementUpdateMode.name());
-      tag.putBoolean("smartWoodFrame", this.smartWoodFrame);
+      ListTag effectIds = new ListTag();
+      this.enabledPlacementEffects.stream().map(ResourceLocation::toString).sorted()
+         .forEach(id -> effectIds.add(net.minecraft.nbt.StringTag.valueOf(id)));
+      tag.put("enabledPlacementEffects", effectIds);
       tag.putBoolean("emptyHandWrench", this.emptyHandWrench);
       tag.putInt("maxPlacement", this.maxPlacement);
       tag.putInt("undoHistoryLimit", this.worldUndoHistoryLimit);

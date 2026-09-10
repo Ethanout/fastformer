@@ -79,4 +79,19 @@ class SphereGeneratorTest {
       assertEquals(expected, actual);
       assertEquals(columns, SphereGenerator.estimateScanCells(parameters));
    }
+
+   @Test
+   void largeSphereUsesAComputedLazyView() {
+      PolyhedronParameters parameters = new PolyhedronParameters(
+         new Vec3(0.5, 0.5, 0.5),
+         new Vec3(32.5, 0.5, 0.5),
+         5,
+         null
+      );
+
+      Set<BlockPos> blocks = SphereGenerator.generate(parameters, FillMode.SOLID, 1_000_000);
+
+      assertTrue(blocks.getClass().getSimpleName().contains("LazyBlockSet"));
+      assertEquals(blocks.size(), new HashSet<>(blocks).size());
+   }
 }

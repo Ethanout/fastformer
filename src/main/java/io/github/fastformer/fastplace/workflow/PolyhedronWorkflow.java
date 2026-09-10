@@ -119,7 +119,8 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
       PolyhedronParameters parameters = parameters(session);
       return GeometryBuildResult.ready(
          PolyhedronGenerator.estimateScanCells(parameters),
-         () -> PolyhedronGenerator.generate(parameters, fillMode, maxBlocks)
+         maxBlocks,
+         () -> PolyhedronGenerator.generateResult(parameters, fillMode, maxBlocks)
       );
    }
 

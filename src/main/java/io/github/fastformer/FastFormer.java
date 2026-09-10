@@ -12,5 +12,6 @@ public final class FastFormer {
    public FastFormer(IEventBus modBus) {
       FastPlaceNetwork.register(modBus);
       FastPlaceEvents.register();
+      modBus.addListener(FastFormerGameTests::register);
    }
 }

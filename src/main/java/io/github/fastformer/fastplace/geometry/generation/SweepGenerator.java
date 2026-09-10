@@ -1,7 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
 import io.github.fastformer.fastplace.FillMode;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -12,17 +11,23 @@ public final class SweepGenerator {
 
    public static Set<BlockPos> generate(List<BlockPos> points, FillMode fillMode, int maxBlocks) {
       if (points.size() < 3) {
-         return Set.copyOf(points);
+         return GenerationLimitExceeded.boundedResult(Set.copyOf(points), maxBlocks, BlockGenerationObserver.NONE);
       }
+      int stagingLimit = GenerationLimitExceeded.probeLimit(maxBlocks);
       double radius = Math.max(1.0, Math.sqrt(points.getFirst().distSqr(points.get(1))));
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
-      for (int index = 2; index < points.size() && result.size() < maxBlocks; index++) {
-         addBall(result, points.get(index), radius, fillMode, maxBlocks);
+      Set<BlockPos> result = new ObservedBlockSet(BlockGenerationObserver.NONE);
+      for (int index = 2; index < points.size() && result.size() < stagingLimit; index++) {
+         addBall(result, points.get(index), radius, fillMode, stagingLimit);
          if (index > 2) {
-            addSweptSegment(result, points.get(index - 1), points.get(index), radius, fillMode, maxBlocks);
+            addSweptSegment(result, points.get(index - 1), points.get(index), radius, fillMode, stagingLimit);
          }
       }
-      return Set.copyOf(result);
+      return GenerationLimitExceeded.boundedResult(result, maxBlocks, BlockGenerationObserver.NONE);
+   }
+
+   /** Typed boundary used by server placement; preview callers may keep using generate. */
+   public static BlockGenerationResult generateResult(List<BlockPos> points, FillMode fillMode, int maxBlocks) {
+      return BlockGenerationResult.fromLegacy(generate(points, fillMode, maxBlocks));
    }
 
    public static long estimateScanCells(List<BlockPos> points) {

@@ -104,6 +104,33 @@ class PrismGeneratorTest {
       }
    }
 
+   @Test
+   void outlineAndHollowReportRatherThanSilentlyTruncateAtTheLimit() {
+      List<Vec3> base = polygon(
+         new Vec3(0.5, 0.5, 0.5),
+         new Vec3(3.0, 0.0, 0.0),
+         new Vec3(0.0, 0.0, 3.0)
+      );
+      Vec3 extrusion = new Vec3(0.0, 7.0, 0.0);
+      for (FillMode mode : List.of(FillMode.OUTLINE, FillMode.HOLLOW)) {
+         Set<BlockPos> complete = PrismGenerator.generatePolygon(base, extrusion, mode, 100000);
+
+         assertFalse(GenerationLimitExceeded.is(complete), mode.name());
+         assertFalse(complete.isEmpty(), mode.name());
+         assertEquals(
+            complete,
+            PrismGenerator.generatePolygon(base, extrusion, mode, complete.size()),
+            mode.name()
+         );
+         assertTrue(
+            GenerationLimitExceeded.is(
+               PrismGenerator.generatePolygon(base, extrusion, mode, complete.size() - 1)
+            ),
+            mode.name()
+         );
+      }
+   }
+
    private static void assertPrismContract(List<Vec3> base, Vec3 extrusion, String name) {
       try {
          Set<BlockPos> face = PolygonFaceGenerator.generate(base, FillMode.SOLID, 100000);

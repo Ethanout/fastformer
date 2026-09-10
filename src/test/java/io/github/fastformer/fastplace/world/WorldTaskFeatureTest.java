@@ -40,18 +40,6 @@ class WorldTaskFeatureTest {
    }
 
    @Test
-   void failedTaskRecoversOnlyWhenItActuallyWroteBlocks() {
-      assertEquals(
-         WorldTaskFeature.FailureDisposition.DISCARD_UNUSED_JOURNAL,
-         WorldTaskFeature.failureDisposition(false)
-      );
-      assertEquals(
-         WorldTaskFeature.FailureDisposition.RECOVER_WRITES,
-         WorldTaskFeature.failureDisposition(true)
-      );
-   }
-
-   @Test
    void schedulerPhaseFailureStopsTheCallerFromAdvancing() {
       assertTrue(WorldTaskFeature.tickSafely("test-success", () -> {
       }));

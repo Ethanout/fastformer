@@ -62,6 +62,14 @@ class ConePrismGeneratorTest {
    }
 
    @Test
+   void largeVolumeUsesLazyStorage() {
+      Set<BlockPos> solid = ConePrismGenerator.generate(parameters(0, 20.0, 20.0), FillMode.SOLID, 100_000);
+
+      assertTrue(solid.getClass().getSimpleName().contains("LazyBlockSet"));
+      assertEquals(solid.size(), new java.util.HashSet<>(solid).size());
+   }
+
+   @Test
    void tiltedHollowMatchesTheSixNeighborBoundary() {
       List<Vec3> face = List.of(
          new Vec3(0.5, 0.5, 0.5),
@@ -103,6 +111,25 @@ class ConePrismGeneratorTest {
       ));
       assertEquals(685, solid.size());
       assertEquals(281, hollow.size());
+   }
+
+   @Test
+   void placementOutlineReportsLimitWhilePreviewRemainsBounded() {
+      ConePrismParameters parameters = parameters(0, 8.0, 10.0);
+      Set<BlockPos> complete = ConePrismGenerator.generate(parameters, FillMode.OUTLINE, 10000);
+
+      assertFalse(complete.isEmpty());
+      assertEquals(
+         complete,
+         ConePrismGenerator.generate(parameters, FillMode.OUTLINE, complete.size())
+      );
+      assertTrue(GenerationLimitExceeded.is(
+         ConePrismGenerator.generate(parameters, FillMode.OUTLINE, complete.size() - 1)
+      ));
+
+      Set<BlockPos> preview = ConePrismGenerator.previewOutline(parameters, complete.size() - 1);
+      assertFalse(GenerationLimitExceeded.is(preview));
+      assertTrue(preview.size() <= complete.size() - 1);
    }
 
    private static ConePrismParameters parameters(int shapeVariant, double radius, double height) {

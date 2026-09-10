@@ -356,6 +356,20 @@ class OperationSelectionSessionTest {
    }
 
    @Test
+   void draggingCuboidPointRecomputesBoundsImmediately() {
+      OperationSession session = new OperationSession();
+      session.setFirst(new BlockPos(2, 2, 2));
+      session.setSecond(new BlockPos(5, 5, 5));
+
+      assertTrue(session.movePoint(0, 0, 6));
+
+      assertEquals(new BlockPos(8, 2, 2), session.first());
+      assertEquals(new BlockPos(5, 5, 5), session.second());
+      assertEquals(new BlockPos(5, 2, 2), session.cuboidMinPoint());
+      assertEquals(new BlockPos(8, 5, 5), session.cuboidMaxPoint());
+   }
+
+   @Test
    void enterConfirmationDoesNotCreateAnOperationMutation() {
       OperationSession session = new OperationSession();
       session.setFirst(BlockPos.ZERO);

@@ -2,13 +2,16 @@ package io.github.fastformer.fastplace.geometry.generation;
 
 import io.github.fastformer.fastplace.FaceRasterizationMode;
 import java.math.BigInteger;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -461,11 +464,26 @@ final class BresenhamColumnVolume {
       };
    }
 
+   private static BlockPos safeNeighbor(BlockPos position, int[] step) {
+      long x = (long)position.getX() + step[0];
+      long y = (long)position.getY() + step[1];
+      long z = (long)position.getZ() + step[2];
+      if (x < Integer.MIN_VALUE || x > Integer.MAX_VALUE
+         || y < Integer.MIN_VALUE || y > Integer.MAX_VALUE
+         || z < Integer.MIN_VALUE || z > Integer.MAX_VALUE) {
+         return null;
+      }
+      return new BlockPos((int)x, (int)y, (int)z);
+   }
+
    private static Result publish(Result staged, BlockGenerationObserver observer) {
-      Set<BlockPos> blocks = new ObservedBlockSet(observer);
-      blocks.addAll(staged.blocks());
+      BlockGenerationObserver actualObserver = observer == null ? BlockGenerationObserver.NONE : observer;
+      for (BlockPos position : staged.blocks()) {
+         actualObserver.checkCancelled();
+         actualObserver.onGenerated(position);
+      }
       return new Result(
-         Collections.unmodifiableSet(new LinkedHashSet<>(blocks)),
+         GeneratedBlockSets.readOnly(staged.blocks()),
          true,
          staged.shell()
       );
@@ -534,18 +552,6 @@ final class BresenhamColumnVolume {
       }
    }
 
-   private record LongSpan(long minimum, long maximum) {
-      private static final LongSpan EMPTY = new LongSpan(1L, 0L);
-
-      boolean empty() {
-         return this.minimum > this.maximum;
-      }
-
-      long length() {
-         return this.empty() ? 0L : this.maximum - this.minimum + 1L;
-      }
-   }
-
    static Set<BlockPos> boundaryFromSpansForTesting(Set<BlockPos> solid, int axis) {
       ColumnAccumulator accumulator = columnAccumulatorForTesting(solid, axis);
       Result result = accumulator.boundaryResult(Integer.MAX_VALUE, BlockGenerationObserver.NONE);
@@ -557,6 +563,19 @@ final class BresenhamColumnVolume {
 
    static long fiveNeighborOpeningsFromSpansForTesting(Set<BlockPos> solid, int axis) {
       return columnAccumulatorForTesting(solid, axis).fiveNeighborOpenings();
+   }
+
+   static Set<BlockPos> solidFromSpansForTesting(Set<BlockPos> solid, int axis) {
+      Result result = columnAccumulatorForTesting(solid, axis)
+         .solidResult(Integer.MAX_VALUE, BlockGenerationObserver.NONE);
+      if (!result.complete()) {
+         throw new IllegalStateException("test solid exceeded the integer output limit");
+      }
+      return result.blocks();
+   }
+
+   static boolean usesLazyColumnStorageForTesting(Set<BlockPos> blocks) {
+      return blocks instanceof ColumnBlockSet || blocks instanceof BoundaryColumnBlockSet;
    }
 
    static boolean hasEnclosedAirFromColumnPartsForTesting(
@@ -935,135 +954,39 @@ final class BresenhamColumnVolume {
       }
 
       Result solidResult(int maxBlocks, BlockGenerationObserver observer) {
+         this.overlays.removeIf(this::coveredBySpan);
          if (this.blockCount() > maxBlocks) {
             return limitResult(maxBlocks, observer);
          }
-         Set<BlockPos> blocks = new ObservedBlockSet(observer);
-         for (Map.Entry<ColumnKey, Span> entry : this.spans.entrySet()) {
-            this.addRange(blocks, entry.getKey(), entry.getValue().minimum(), entry.getValue().maximum());
-         }
-         blocks.addAll(this.overlays);
-         return new Result(
-            Collections.unmodifiableSet(new LinkedHashSet<>(blocks)),
-            true,
-            Collections.unmodifiableSet(new LinkedHashSet<>(this.shell))
+         Set<BlockPos> blocks = new ColumnBlockSet(
+            this.axis, this.firstKeyAxis, this.secondKeyAxis, this.spans, this.overlays, this.blockCount()
          );
+         return new Result(
+            blocks,
+            true,
+            Collections.unmodifiableSet(this.shell)
+         );
+      }
+
+      private boolean coveredBySpan(BlockPos position) {
+         Span span = this.spans.get(this.key(position));
+         return span != null && span.contains(coordinate(position, this.axis));
       }
 
       Result boundaryResult(int maxBlocks, BlockGenerationObserver observer) {
-         LinkedHashSet<BlockPos> staged = new LinkedHashSet<>();
-         for (Map.Entry<ColumnKey, Span> entry : this.spans.entrySet()) {
-            Span span = entry.getValue();
-            for (long coordinate = span.minimum(); coordinate <= span.maximum(); coordinate++) {
-               this.observer.checkCancelled();
-               BlockPos position = this.position(entry.getKey(), (int)coordinate);
-               if (this.isBoundary(position) && !staged.contains(position)) {
-                  if (staged.size() >= maxBlocks) {
-                     return limitResult(maxBlocks, observer);
-                  }
-                  staged.add(position);
-               }
-            }
+         this.overlays.removeIf(this::coveredBySpan);
+         ColumnBlockSet solid = new ColumnBlockSet(
+            this.axis, this.firstKeyAxis, this.secondKeyAxis, this.spans, this.overlays, this.blockCount()
+         );
+         BoundaryColumnBlockSet blocks = BoundaryColumnBlockSet.create(solid, maxBlocks, this.observer);
+         if (blocks == null) {
+            return limitResult(maxBlocks, observer);
          }
-         for (BlockPos overlay : this.overlays) {
-            this.observer.checkCancelled();
-            if (this.isBoundary(overlay) && !staged.contains(overlay)) {
-               if (staged.size() >= maxBlocks) {
-                  return limitResult(maxBlocks, observer);
-               }
-               staged.add(overlay);
-            }
-         }
-         Set<BlockPos> blocks = new ObservedBlockSet(observer);
-         blocks.addAll(staged);
          return new Result(
-            Collections.unmodifiableSet(new LinkedHashSet<>(blocks)),
+            blocks,
             true,
             Set.of()
          );
-      }
-
-      private LinkedHashSet<BlockPos> materializeSolid() {
-         LinkedHashSet<BlockPos> solid = new LinkedHashSet<>();
-         for (Map.Entry<ColumnKey, Span> entry : this.spans.entrySet()) {
-            this.addRange(solid, entry.getKey(), entry.getValue().minimum(), entry.getValue().maximum());
-         }
-         solid.addAll(this.overlays);
-         return solid;
-      }
-
-      private boolean isBoundary(BlockPos position) {
-         for (int[] step : SIX_NEIGHBORS) {
-            BlockPos neighbor = safeNeighbor(position, step);
-            if (neighbor == null || !this.contains(neighbor)) {
-               return true;
-            }
-         }
-         return false;
-      }
-
-      private long boundaryCount() {
-         long result = 0L;
-         for (Map.Entry<ColumnKey, Span> entry : this.spans.entrySet()) {
-            this.observer.checkCancelled();
-            Span span = entry.getValue();
-            long boundary = span.length() - this.interior(entry.getKey(), span).length();
-            result = saturatedAdd(result, boundary);
-         }
-         return result;
-      }
-
-      private LongSpan interior(ColumnKey key, Span span) {
-         long minimum = (long)span.minimum() + 1L;
-         long maximum = (long)span.maximum() - 1L;
-         if (minimum > maximum) {
-            return LongSpan.EMPTY;
-         }
-         Span[] neighbors = {
-            this.neighbor(key, -1, 0),
-            this.neighbor(key, 1, 0),
-            this.neighbor(key, 0, -1),
-            this.neighbor(key, 0, 1)
-         };
-         for (Span neighbor : neighbors) {
-            if (neighbor == null) {
-               return LongSpan.EMPTY;
-            }
-            minimum = Math.max(minimum, neighbor.minimum());
-            maximum = Math.min(maximum, neighbor.maximum());
-            if (minimum > maximum) {
-               return LongSpan.EMPTY;
-            }
-         }
-         return new LongSpan(minimum, maximum);
-      }
-
-      private boolean sideNeighborsContain(ColumnKey key, long coordinate) {
-         Span firstNegative = this.neighbor(key, -1, 0);
-         Span firstPositive = this.neighbor(key, 1, 0);
-         Span secondNegative = this.neighbor(key, 0, -1);
-         Span secondPositive = this.neighbor(key, 0, 1);
-         return firstNegative != null && firstNegative.contains(coordinate)
-            && firstPositive != null && firstPositive.contains(coordinate)
-            && secondNegative != null && secondNegative.contains(coordinate)
-            && secondPositive != null && secondPositive.contains(coordinate);
-      }
-
-      private Span neighbor(ColumnKey key, int firstDelta, int secondDelta) {
-         long first = (long)key.first() + firstDelta;
-         long second = (long)key.second() + secondDelta;
-         if (first < Integer.MIN_VALUE || first > Integer.MAX_VALUE
-            || second < Integer.MIN_VALUE || second > Integer.MAX_VALUE) {
-            return null;
-         }
-         return this.spans.get(new ColumnKey((int)first, (int)second));
-      }
-
-      private void addRange(Set<BlockPos> blocks, ColumnKey key, long minimum, long maximum) {
-         for (long coordinate = minimum; coordinate <= maximum; coordinate++) {
-            this.observer.checkCancelled();
-            blocks.add(this.position(key, (int)coordinate));
-         }
       }
 
       private void addCount(long amount) {
@@ -1079,16 +1002,183 @@ final class BresenhamColumnVolume {
          };
       }
 
-      private static BlockPos safeNeighbor(BlockPos position, int[] step) {
-         long x = (long)position.getX() + step[0];
-         long y = (long)position.getY() + step[1];
-         long z = (long)position.getZ() + step[2];
-         if (x < Integer.MIN_VALUE || x > Integer.MAX_VALUE
-            || y < Integer.MIN_VALUE || y > Integer.MAX_VALUE
-            || z < Integer.MIN_VALUE || z > Integer.MAX_VALUE) {
-            return null;
+   }
+
+   /** Immutable set view that expands compact column spans only while iterating. */
+   private static final class ColumnBlockSet extends AbstractSet<BlockPos> {
+      private final int axis;
+      private final int firstKeyAxis;
+      private final int secondKeyAxis;
+      private final Map<ColumnKey, Span> spans;
+      private final Set<BlockPos> overlays;
+      private final int size;
+
+      private ColumnBlockSet(
+         int axis,
+         int firstKeyAxis,
+         int secondKeyAxis,
+         Map<ColumnKey, Span> spans,
+         Set<BlockPos> overlays,
+         long size
+      ) {
+         if (size < 0L || size > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Column block count is outside Set limits: " + size);
          }
-         return new BlockPos((int)x, (int)y, (int)z);
+         this.axis = axis;
+         this.firstKeyAxis = firstKeyAxis;
+         this.secondKeyAxis = secondKeyAxis;
+         this.spans = Collections.unmodifiableMap(spans);
+         this.overlays = Collections.unmodifiableSet(overlays);
+         this.size = (int)size;
+      }
+
+      @Override
+      public int size() {
+         return this.size;
+      }
+
+      @Override
+      public boolean contains(Object candidate) {
+         if (!(candidate instanceof BlockPos position)) {
+            return false;
+         }
+         if (this.overlays.contains(position)) {
+            return true;
+         }
+         Span span = this.spans.get(key(position));
+         return span != null && span.contains(coordinate(position, this.axis));
+      }
+
+      @Override
+      public Iterator<BlockPos> iterator() {
+         return new ColumnIterator();
+      }
+
+      private ColumnKey key(BlockPos position) {
+         return new ColumnKey(
+            coordinate(position, this.firstKeyAxis), coordinate(position, this.secondKeyAxis)
+         );
+      }
+
+      private BlockPos position(ColumnKey key, long coordinate) {
+         int[] values = new int[3];
+         values[this.axis] = (int)coordinate;
+         values[this.firstKeyAxis] = key.first();
+         values[this.secondKeyAxis] = key.second();
+         return new BlockPos(values[0], values[1], values[2]);
+      }
+
+      private final class ColumnIterator implements Iterator<BlockPos> {
+         private final Iterator<Map.Entry<ColumnKey, Span>> columns = ColumnBlockSet.this.spans.entrySet().iterator();
+         private final Iterator<BlockPos> overlayIterator = ColumnBlockSet.this.overlays.iterator();
+         private Map.Entry<ColumnKey, Span> column;
+         private long coordinate;
+
+         @Override
+         public boolean hasNext() {
+            return hasColumnValue() || this.overlayIterator.hasNext();
+         }
+
+         @Override
+         public BlockPos next() {
+            if (hasColumnValue()) {
+               return ColumnBlockSet.this.position(this.column.getKey(), this.coordinate++);
+            }
+            if (this.overlayIterator.hasNext()) {
+               return this.overlayIterator.next();
+            }
+            throw new NoSuchElementException();
+         }
+
+         private boolean hasColumnValue() {
+            while (this.column == null || this.coordinate > this.column.getValue().maximum()) {
+               if (!this.columns.hasNext()) {
+                  return false;
+               }
+               this.column = this.columns.next();
+               this.coordinate = this.column.getValue().minimum();
+            }
+            return true;
+         }
+      }
+   }
+
+   /** Boundary view that filters a compact solid without retaining its expanded positions. */
+   private static final class BoundaryColumnBlockSet extends AbstractSet<BlockPos> {
+      private final ColumnBlockSet solid;
+      private final int size;
+
+      private BoundaryColumnBlockSet(ColumnBlockSet solid, int size) {
+         this.solid = solid;
+         this.size = size;
+      }
+
+      static BoundaryColumnBlockSet create(
+         ColumnBlockSet solid,
+         int maxBlocks,
+         BlockGenerationObserver observer
+      ) {
+         int count = 0;
+         for (BlockPos position : solid) {
+            observer.checkCancelled();
+            if (isBoundary(solid, position) && ++count > maxBlocks) {
+               return null;
+            }
+         }
+         return new BoundaryColumnBlockSet(solid, count);
+      }
+
+      @Override
+      public int size() {
+         return this.size;
+      }
+
+      @Override
+      public boolean contains(Object candidate) {
+         return candidate instanceof BlockPos position
+            && this.solid.contains(position)
+            && isBoundary(this.solid, position);
+      }
+
+      @Override
+      public Iterator<BlockPos> iterator() {
+         return new BoundaryIterator();
+      }
+
+      private static boolean isBoundary(Set<BlockPos> solid, BlockPos position) {
+         for (int[] step : SIX_NEIGHBORS) {
+            BlockPos neighbor = safeNeighbor(position, step);
+            if (neighbor == null || !solid.contains(neighbor)) {
+               return true;
+            }
+         }
+         return false;
+      }
+
+      private final class BoundaryIterator implements Iterator<BlockPos> {
+         private final Iterator<BlockPos> candidates = BoundaryColumnBlockSet.this.solid.iterator();
+         private BlockPos next;
+
+         @Override
+         public boolean hasNext() {
+            while (this.next == null && this.candidates.hasNext()) {
+               BlockPos candidate = this.candidates.next();
+               if (BoundaryColumnBlockSet.isBoundary(BoundaryColumnBlockSet.this.solid, candidate)) {
+                  this.next = candidate;
+               }
+            }
+            return this.next != null;
+         }
+
+         @Override
+         public BlockPos next() {
+            if (!this.hasNext()) {
+               throw new NoSuchElementException();
+            }
+            BlockPos result = this.next;
+            this.next = null;
+            return result;
+         }
       }
    }
 

@@ -6,7 +6,10 @@ import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.workflow.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
+import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -99,7 +102,7 @@ class SmartWoodFrameTest {
       BlockPos from = new BlockPos(0, 0, 0);
       BlockPos to = new BlockPos(9, 4, 0);
       Set<BlockPos> edge = Set.copyOf(
-         io.github.fastformer.fastplace.geometry.generation.LineGenerator.path(from, to)
+         LineGenerator.path(from, to)
       );
       SmartWoodFrame.Config config = new SmartWoodFrame.Config(Direction.Axis.Y, List.of(from, to));
 
@@ -119,7 +122,7 @@ class SmartWoodFrameTest {
       );
       Set<BlockPos> outline = new java.util.HashSet<>();
       for (SmartWoodFrame.Edge edge : edges) {
-         outline.addAll(io.github.fastformer.fastplace.geometry.generation.LineGenerator.path(edge.from(), edge.to()));
+         outline.addAll(LineGenerator.path(edge.from(), edge.to()));
       }
       SmartWoodFrame.Config config = new SmartWoodFrame.Config(Direction.Axis.Y, points, edges);
 
@@ -139,12 +142,112 @@ class SmartWoodFrameTest {
       assertEquals(12, edges.size());
       Set<BlockPos> outline = new java.util.HashSet<>();
       for (SmartWoodFrame.Edge edge : edges) {
-         outline.addAll(io.github.fastformer.fastplace.geometry.generation.LineGenerator.path(edge.from(), edge.to()));
+         outline.addAll(LineGenerator.path(edge.from(), edge.to()));
       }
       SmartWoodFrame.Config config = new SmartWoodFrame.Config(Direction.Axis.Y, points, edges);
       assertEquals(Direction.Axis.X, SmartWoodFrame.axisForTest(outline, new BlockPos(2, 0, 0), config));
       assertEquals(Direction.Axis.Z, SmartWoodFrame.axisForTest(outline, new BlockPos(0, 0, 2), config));
       assertEquals(Direction.Axis.Y, SmartWoodFrame.axisForTest(outline, new BlockPos(0, 2, 4), config));
+   }
+
+   @Test
+   void generatedTiltedPrismKeepsAllTwelveAuthoredEdgeDirections() {
+      List<BlockPos> points = List.of(
+         new BlockPos(0, 0, 0),
+         new BlockPos(8, 3, 1),
+         new BlockPos(1, 1, 7),
+         new BlockPos(3, 8, 9)
+      );
+      FastPlaceGeometry.Modes modes = new FastPlaceGeometry.Modes(
+         PointMode.RAYCAST,
+         RaycastPlacement.EMBEDDED,
+         LineMode.AXIS,
+         FaceMode.COORDINATE_PLANE,
+         VolumeMode.FREE,
+         FillMode.OUTLINE,
+         0.0,
+         false
+      ).withFaceTieBias(LineTieBias.OPPOSITE);
+      Set<BlockPos> outline = FastPlaceGeometry.blocks(
+         points, modes, false, PolygonVolumeShape.EXTRUDE, 10_000
+      );
+      SmartWoodFrame.Config config = SmartWoodFrame.config(
+         Direction.Axis.Y, points, modes, false, PolygonVolumeShape.EXTRUDE
+      );
+
+      assertEquals(12, config.edges().size());
+      for (SmartWoodFrame.Edge edge : config.edges()) {
+         List<BlockPos> path = LineGenerator.path(
+            edge.from(), edge.to(), config.tieBias()
+         );
+         Direction.Axis expected = dominantAxis(edge);
+         for (int index = 1; index < path.size() - 1; index++) {
+            BlockPos member = path.get(index);
+            assertTrue(outline.contains(member));
+            assertEquals(expected, SmartWoodFrame.axisForTest(outline, member, config));
+         }
+      }
+   }
+
+   @Test
+   void axisAlignedCuboidAssignsAllTwelveEdgesWithoutSplittingColumns() {
+      List<BlockPos> points = List.of(
+         new BlockPos(0, 0, 0),
+         new BlockPos(2, 0, 0),
+         new BlockPos(0, 0, 4),
+         new BlockPos(0, 3, 4)
+      );
+      FastPlaceGeometry.Modes modes = new FastPlaceGeometry.Modes(
+         PointMode.RAYCAST,
+         RaycastPlacement.EMBEDDED,
+         LineMode.AXIS,
+         FaceMode.COORDINATE_PLANE,
+         VolumeMode.PERPENDICULAR_TO_FACE,
+         FillMode.OUTLINE,
+         0.0,
+         false
+      );
+      Set<BlockPos> targets = FastPlaceGeometry.blocks(
+         points, modes, false, PolygonVolumeShape.EXTRUDE, 1_000
+      );
+      SmartWoodFrame.Config config = SmartWoodFrame.config(
+         Direction.Axis.Y, points, modes, false, PolygonVolumeShape.EXTRUDE
+      );
+
+      for (int y : new int[]{0, 3}) {
+         for (int z : new int[]{0, 4}) {
+            assertEquals(Direction.Axis.X, SmartWoodFrame.axisForTest(targets, new BlockPos(1, y, z), config));
+         }
+      }
+      for (int x : new int[]{0, 2}) {
+         for (int z : new int[]{0, 4}) {
+            assertEquals(Direction.Axis.Y, SmartWoodFrame.axisForTest(targets, new BlockPos(x, 1, z), config));
+            assertEquals(Direction.Axis.Y, SmartWoodFrame.axisForTest(targets, new BlockPos(x, 2, z), config));
+         }
+      }
+      for (int x : new int[]{0, 2}) {
+         for (int y : new int[]{0, 3}) {
+            for (int z = 1; z < 4; z++) {
+               assertEquals(Direction.Axis.Z, SmartWoodFrame.axisForTest(targets, new BlockPos(x, y, z), config));
+            }
+         }
+      }
+   }
+
+   @Test
+   void rasterizedMembershipWinsOverACloserUnrelatedContinuousEdge() {
+      SmartWoodFrame.Edge owningEdge = new SmartWoodFrame.Edge(
+         new BlockPos(-3, -3, -3), new BlockPos(-3, -2, 1)
+      );
+      SmartWoodFrame.Edge nearbyEdge = new SmartWoodFrame.Edge(
+         new BlockPos(-3, -3, -2), new BlockPos(-2, -1, 0)
+      );
+      BlockPos member = new BlockPos(-3, -2, -1);
+      SmartWoodFrame.Config config = new SmartWoodFrame.Config(
+         Direction.Axis.X, List.of(), List.of(owningEdge, nearbyEdge)
+      );
+
+      assertEquals(Direction.Axis.Z, SmartWoodFrame.axisForTest(Set.of(member), member, config));
    }
 
    @Test
@@ -161,5 +264,13 @@ class SmartWoodFrameTest {
       );
 
       assertEquals(Direction.Axis.Y, SmartWoodFrame.axisForTest(positions, BlockPos.ZERO, config));
+   }
+
+   private static Direction.Axis dominantAxis(SmartWoodFrame.Edge edge) {
+      int x = Math.abs(edge.to().getX() - edge.from().getX());
+      int y = Math.abs(edge.to().getY() - edge.from().getY());
+      int z = Math.abs(edge.to().getZ() - edge.from().getZ());
+      int maximum = Math.max(x, Math.max(y, z));
+      return x == maximum ? Direction.Axis.X : y == maximum ? Direction.Axis.Y : Direction.Axis.Z;
    }
 }

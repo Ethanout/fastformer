@@ -45,8 +45,7 @@ import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
 import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
 import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import io.github.fastformer.client.placement.QuickReplaceMode;
-import io.github.fastformer.client.placement.plan.ClientShapePlanFactory;
-import io.github.fastformer.client.session.ClientSessionManager;
+import io.github.fastformer.client.placement.effect.PlacementEffectPreview;
 import io.github.fastformer.client.render.FastPlaceClientShaders;
 import io.github.fastformer.client.render.HudFadeTimer;
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
@@ -63,15 +62,12 @@ import io.github.fastformer.client.render.cache.BuildingShellCache;
 import io.github.fastformer.client.render.cache.GhostMeshCache;
 import io.github.fastformer.client.render.cache.PendingGhostBufferCache;
 import io.github.fastformer.client.render.cache.PendingGhostMeshCache;
-import io.github.fastformer.client.render.FastPlaceClientShaders;
 import io.github.fastformer.client.render.GizmoViewScale;
-import io.github.fastformer.client.render.HudFadeTimer;
 import io.github.fastformer.client.render.GhostOutlineDepthBias;
 import io.github.fastformer.client.render.OperationFaceHitInterpolator;
 import io.github.fastformer.client.render.OperationGizmoPresentation;
 import io.github.fastformer.client.render.PendingPreviewGrid;
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
-import io.github.fastformer.client.render.PreviewBlockOcclusion;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.SmoothReticlePostEffect;
 import io.github.fastformer.client.render.shell.ShapeShellRenderer;
@@ -80,7 +76,6 @@ import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
 import io.github.fastformer.fastplace.OperationSelectionMode;
 import io.github.fastformer.fastplace.OperationSelectionStage;
 import io.github.fastformer.fastplace.OperationSelectionVolume;
-import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.geometry.ControlPoint;
 import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.ControlPointFeedback;
@@ -105,27 +100,32 @@ import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGenera
 import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
 import io.github.fastformer.fastplace.geometry.generation.GenerationLimitExceeded;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import io.github.fastformer.fastplace.geometry.GuidePlane;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
 import io.github.fastformer.fastplace.PointMode;
 import io.github.fastformer.fastplace.PolygonVolumeShape;
 import io.github.fastformer.fastplace.PlaceableItems;
+import io.github.fastformer.fastplace.SmartWoodFrame;
 import io.github.fastformer.fastplace.PlacementContextSnapshot;
+import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
 import io.github.fastformer.fastplace.RaycastPlacement;
 import io.github.fastformer.fastplace.VolumeMode;
 import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewEffectPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
 import io.github.fastformer.network.payload.preview.ActivityStatePayload;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.OptionalDouble;
 import java.util.Optional;
 import java.util.Set;
@@ -157,6 +157,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.HitResult.Type;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.BlockGetter;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -287,10 +288,29 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static void applyBuilding(BuildingPreviewPayload payload) {
-      if (!ClientSessionManager.instance().acceptAuthoritativeSnapshot(Minecraft.getInstance(), payload.active())) {
-         return;
-      }
       PREVIEW_STATE.applyBuilding(payload);
+      resetBuildingPreviewCaches();
+   }
+
+   public static void applyBuildingSession(BuildingPreviewSessionPayload payload) {
+      if (PREVIEW_STATE.applyBuildingSession(payload)) {
+         resetBuildingPreviewCaches();
+      }
+   }
+
+   public static void applyBuildingParameters(BuildingPreviewParametersPayload payload) {
+      if (PREVIEW_STATE.applyBuildingParameters(payload)) {
+         resetBuildingPreviewCaches();
+      }
+   }
+
+   public static void applyBuildingEffect(BuildingPreviewEffectPayload payload) {
+      if (PREVIEW_STATE.applyBuildingEffect(payload)) {
+         resetBuildingPreviewCaches();
+      }
+   }
+
+   private static void resetBuildingPreviewCaches() {
       cachedConfirmedBuildingState = null;
       cachedConfirmedBuildingBias = LineTieBias.DEFAULT;
       cachedConfirmedBuildingBlocks = Set.of();
@@ -310,9 +330,6 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static void applyGeometry(GeometryPreviewPayload payload) {
-      if (!ClientSessionManager.instance().acceptAuthoritativeSnapshot(Minecraft.getInstance(), payload.active())) {
-         return;
-      }
       if (!continuesGeometryTransform(PREVIEW_STATE.geometry(), payload)) {
          geometryTransformBaseline = null;
       }
@@ -324,11 +341,6 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static void applyActivity(ActivityStatePayload payload) {
-      if (!ClientSessionManager.instance().acceptAuthoritativeSnapshot(
-         Minecraft.getInstance(), payload.activity().task()
-      )) {
-         return;
-      }
       PREVIEW_STATE.applyActivity(payload);
    }
 
@@ -355,62 +367,6 @@ public class FastPlaceClientPreviewCore {
       return PREVIEW_STATE.building().active();
    }
 
-   /** Builds a resolved client-owned shape package when the current preview is placeable. */
-   public static Optional<OperationWorkspacePlan> clientBuildingPlacementPlan() {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (!PREVIEW_STATE.building().active() || player == null || PREVIEW_STATE.building().points().size() < 2) {
-         return Optional.empty();
-      }
-      Set<BlockPos> blocks;
-      try {
-         blocks = confirmedBuildingBlocks(PREVIEW_STATE.building());
-      } catch (RuntimeException exception) {
-         logPreviewFailure("Unable to build the client shape placement package", exception);
-         return Optional.empty();
-      }
-      if (blocks.isEmpty() || blocks.size() >= FastPlaceGeometry.PREVIEW_MAX_BLOCKS) {
-         return Optional.empty();
-      }
-      BlockState state = PlaceableItems.placementState(
-         player.getMainHandItem(), player, previewPlacementContext(PREVIEW_STATE.building(), player)
-      ).orElse(null);
-      if (state == null || state.isAir()) {
-         return Optional.empty();
-      }
-      OperationWorkspacePlan plan = ClientShapePlanFactory.singlePart(blocks, state);
-      return plan.parts().isEmpty() ? Optional.empty() : Optional.of(plan);
-   }
-
-   /** Builds a resolved shape package from the complete client geometry preview. */
-   public static Optional<OperationWorkspacePlan> clientGeometryPlacementPlan() {
-      if (!PREVIEW_STATE.geometry().active()) {
-         return Optional.empty();
-      }
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (player == null) {
-         return Optional.empty();
-      }
-      GeometryWorkflowView workflowView = geometryWorkflowView(player.getViewVector(1.0F));
-      GeometryPreviewPlan plan = GeometryWorkflows.previewPlan(
-         workflowView,
-         PREVIEW_STATE.geometry().points(),
-         null,
-         (GeometryHit)null,
-         player.getEyePosition()
-      );
-      if (!plan.placementReady() || plan.ghostBlocks().isEmpty()) {
-         return Optional.empty();
-      }
-      BlockState state = PlaceableItems.defaultBlockState(player.getMainHandItem()).orElse(null);
-      if (state == null || state.isAir()) {
-         return Optional.empty();
-      }
-      OperationWorkspacePlan placementPlan = ClientShapePlanFactory.singlePart(plan.ghostBlocks(), state);
-      return placementPlan.parts().isEmpty() ? Optional.empty() : Optional.of(placementPlan);
-   }
-
    public static boolean enabled() {
       return PREVIEW_STATE.building().enabled();
    }
@@ -421,6 +377,10 @@ public class FastPlaceClientPreviewCore {
 
    public static boolean taskActive() {
       return PREVIEW_STATE.activity().task();
+   }
+
+   public static FastPlaceActivity activity() {
+      return PREVIEW_STATE.activity();
    }
 
    public static boolean activityCancellable() {
@@ -940,16 +900,25 @@ public class FastPlaceClientPreviewCore {
 
    public static OperationSelectionVolume operationSelection() {
       OperationPreviewPayload snapshot = PREVIEW_STATE.operation();
-      return snapshot.active()
-         ? OperationSelectionVolume.create(
+      if (!snapshot.active()) {
+         return null;
+      }
+      if (snapshot.operationSelectionMode() == io.github.fastformer.fastplace.OperationSelectionMode.CUBOID
+         && snapshot.selectionMin() != null && snapshot.selectionMax() != null) {
+         return OperationSelectionVolume.cuboid(
+            snapshot.selectionMin(), snapshot.selectionMax(),
+            snapshot.points().isEmpty() ? null : snapshot.points().getFirst(),
+            snapshot.points().size() < 2 ? null : snapshot.points().get(1)
+         );
+      }
+      return OperationSelectionVolume.create(
             snapshot.operationSelectionMode(),
             snapshot.points(),
             snapshot.operationPrismBasePointCount(),
             snapshot.operationMinOffset(),
             snapshot.operationMaxOffset(),
             snapshot.operationHullInflation()
-         )
-         : null;
+         );
    }
 
    public static boolean usesAngleDistance() {
@@ -1034,10 +1003,9 @@ public class FastPlaceClientPreviewCore {
       }
       if (PREVIEW_STATE.activity().task()) {
          MutableComponent task = Component.translatable(PREVIEW_STATE.activity().translationKey()).withStyle(ChatFormatting.GREEN);
-         if (PREVIEW_STATE.activity().cancellable()) {
-            String hintKey = PREVIEW_STATE.activity() == FastPlaceActivity.RESTORE_TASK
-               ? "fastformer.activity.pause_hint"
-               : "fastformer.activity.cancel_hint";
+         if (PREVIEW_STATE.activity().cancellable()
+            && PREVIEW_STATE.activity() != FastPlaceActivity.RESTORE_TASK) {
+            String hintKey = "fastformer.activity.cancel_hint";
             task.append(Component.literal(" ").append(Component.translatable(hintKey)).withStyle(ChatFormatting.GRAY));
          }
          graphics.drawString(minecraft.font, task, 8, 20, -1, true);
@@ -1757,9 +1725,26 @@ public class FastPlaceClientPreviewCore {
 
              boolean polygonHeightConfirmed = snapshot.polygonHeightConfirmed()
                 || snapshot.polygonClosed() && previewPoints.size() > snapshot.points().size();
-             Set<BlockPos> previewBlocks = buildingPreviewBlocksCached(snapshot, previewPoints, polygonHeightConfirmed);
+             FastPlaceGeometry.Modes buildingModes = effectiveBuildingModes(snapshot);
+             BlockState previewState = PlaceableItems.placementState(
+               player.getMainHandItem(), player, previewPlacementContext(snapshot, player)
+            ).orElse(null);
+             ResolvedPlacementEffect previewEffect = PlacementEffectPreview.resolve(
+                snapshot,
+                player,
+                previewState,
+                previewPoints,
+                polygonHeightConfirmed,
+                buildingModes,
+                previewPlacementContext(snapshot, player)
+             );
+             Set<BlockPos> previewBlocks = PlacementEffectPreview.applyToTargets(
+                previewEffect, buildingPreviewBlocksCached(snapshot, previewPoints, polygonHeightConfirmed)
+             );
              Set<BlockPos> candidateBlocks = buildingCandidateBlocks(snapshot, candidate, hoveredPoint);
-             BuildingRenderLayers layers = buildingRenderLayers(snapshot, previewBlocks, candidateBlocks, candidate, hoveredPoint);
+             BuildingRenderLayers layers = buildingRenderLayers(
+                snapshot, previewEffect, previewBlocks, candidateBlocks, candidate, hoveredPoint
+             );
              List<GuidePlane> planes = FastPlaceGeometry.guidePlanes(
                snapshot.points(),
                snapshot.polygonClosed(),
@@ -1778,14 +1763,17 @@ public class FastPlaceClientPreviewCore {
             BufferSource buffers = minecraft.renderBuffers().bufferSource();
             PoseStack poseStack = event.getPoseStack();
             Vec3 camera = event.getCamera().getPosition();
-            BlockState previewState = PlaceableItems.placementState(
-               player.getMainHandItem(), player, previewPlacementContext(snapshot, player)
-            ).orElse(null);
             List<ControlPoint> buildingPoints = buildingControlPoints(snapshot, candidate, hoveredPoint);
             Map<BlockPos, BuildingSpecialBlock> specialBlockStyles = buildingSpecialBlockStyles(
                snapshot, candidate, hoveredPoint, layers.allBlocks()
             );
-            FastPlaceGeometry.Modes buildingModes = effectiveBuildingModes(snapshot);
+            Map<BlockPos, BlockState> previewStateOverrides = previewEffectStates(
+               previewEffect, snapshot, previewPoints, polygonHeightConfirmed, buildingModes, layers.allBlocks()
+            );
+            updateWoodFrameDebug(
+               snapshot, previewEffect, previewBlocks, previewStateOverrides,
+               previewPoints, polygonHeightConfirmed, buildingModes
+            );
             List<GuideLine> confirmedOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE
                ? PreviewGeometrySupport.outlineGeometryEdges(snapshot.points(), buildingModes.faceMode())
                : List.of();
@@ -1814,6 +1802,7 @@ public class FastPlaceClientPreviewCore {
                buffers,
                camera,
                previewState,
+               previewStateOverrides,
                confirmedPreviewBlocks,
                pendingPreviewBlocks,
                shapeEnvironment,
@@ -2234,6 +2223,7 @@ public class FastPlaceClientPreviewCore {
 
    private static BuildingRenderLayers buildingRenderLayers(
       BuildingPreviewPayload snapshot,
+      ResolvedPlacementEffect previewEffect,
       Set<BlockPos> previewBlocks,
       Set<BlockPos> candidateBlocks,
       BlockPos candidate,
@@ -2248,7 +2238,7 @@ public class FastPlaceClientPreviewCore {
       );
       if (!key.equals(cachedBuildingRenderKey)) {
          GeometryPreviewBlocks.Layers split = GeometryPreviewBlocks.layersPreservingConfirmed(
-            confirmedBuildingBlocks(snapshot), previewBlocks
+            PlacementEffectPreview.applyToTargets(previewEffect, confirmedBuildingBlocks(snapshot)), previewBlocks
          );
          HashSet<BlockPos> pending = new HashSet<>(split.pending());
          pending.addAll(candidateBlocks);
@@ -2267,6 +2257,78 @@ public class FastPlaceClientPreviewCore {
          );
       }
       return cachedBuildingRenderLayers;
+   }
+
+   private static Map<BlockPos, BlockState> previewEffectStates(
+      ResolvedPlacementEffect effect,
+      BuildingPreviewPayload snapshot,
+      List<BlockPos> points,
+      boolean polygonHeightConfirmed,
+      FastPlaceGeometry.Modes modes,
+      Set<BlockPos> previewBlocks
+   ) {
+      if (effect == null || previewBlocks.isEmpty()) {
+         return Map.of();
+      }
+      return PlacementEffectPreview.resolveStates(effect, previewBlocks);
+   }
+
+   private static void updateWoodFrameDebug(
+      BuildingPreviewPayload snapshot,
+      ResolvedPlacementEffect effect,
+      Set<BlockPos> previewBlocks,
+      Map<BlockPos, BlockState> stateOverrides,
+      List<BlockPos> points,
+      boolean polygonHeightConfirmed,
+      FastPlaceGeometry.Modes modes
+   ) {
+      if (effect == null || !io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect.ID.equals(effect.id())
+         || modes.fillMode() != FillMode.OUTLINE || previewBlocks.isEmpty()) {
+         return;
+      }
+      Direction.Axis baseAxis = snapshot.placementContext() == null
+         ? Direction.Axis.Y
+         : snapshot.placementContext().clickedFace().getAxis();
+      SmartWoodFrame.Config config = SmartWoodFrame.config(
+         baseAxis, points, modes, polygonHeightConfirmed, snapshot.polygonVolumeShape()
+      );
+      int anomalies = 0;
+      int inspected = 0;
+      int corners = 0;
+      Map<BlockPos, Integer> memberships = new HashMap<>();
+      for (SmartWoodFrame.Edge edge : config.edges()) {
+         for (BlockPos member : LineGenerator.path(edge.from(), edge.to(), config.tieBias())) {
+            if (!previewBlocks.contains(member)) {
+               continue;
+            }
+            memberships.merge(member, 1, Integer::sum);
+         }
+      }
+      for (SmartWoodFrame.Edge edge : config.edges()) {
+         Direction.Axis expected = dominantAxis(edge.from(), edge.to());
+         for (BlockPos member : LineGenerator.path(edge.from(), edge.to(), config.tieBias())) {
+            if (!previewBlocks.contains(member)) {
+               continue;
+            }
+            if (memberships.getOrDefault(member, 0) > 1) {
+               corners++;
+               continue;
+            }
+            inspected++;
+            BlockState resolved = stateOverrides.get(member);
+            if (resolved != null && resolved.hasProperty(BlockStateProperties.AXIS)
+               && resolved.getValue(BlockStateProperties.AXIS) != expected) {
+               anomalies++;
+            }
+         }
+      }
+   }
+
+   private static Direction.Axis dominantAxis(BlockPos from, BlockPos to) {
+      long x = Math.abs((long)to.getX() - from.getX());
+      long y = Math.abs((long)to.getY() - from.getY());
+      long z = Math.abs((long)to.getZ() - from.getZ());
+      return x >= y && x >= z ? Direction.Axis.X : y >= z ? Direction.Axis.Y : Direction.Axis.Z;
    }
 
    private static FastPlaceGeometry.Modes effectiveBuildingModes(BuildingPreviewPayload snapshot) {
@@ -3038,9 +3100,7 @@ public class FastPlaceClientPreviewCore {
 
    @SubscribeEvent
    public static void onLoggingOut(LoggingOut event) {
-      ClientSessionManager.instance().markDisconnected();
-      // Keep the player-owned preview snapshots. The next connection/world
-      // boundary is reconciled only after a newer authoritative packet arrives.
+      PREVIEW_STATE.resetConnection();
       ClientOperationController.onDisconnected();
       WorkspaceInteractionResolver.clearCache();
       SCROLL_FEEDBACK.clear();
@@ -3097,33 +3157,13 @@ public class FastPlaceClientPreviewCore {
       return cachedRaycast.hit();
    }
 
-   private static Set<BlockPos> withoutBlocks(Set<BlockPos> blocks, Set<BlockPos> excluded) {
-      if (blocks.isEmpty() || excluded.isEmpty() || excluded.stream().noneMatch(blocks::contains)) {
-         return blocks;
-      }
-      HashSet<BlockPos> result = new HashSet<>(blocks);
-      result.removeAll(excluded);
-      return result;
-   }
-
-   private static Set<BlockPos> unionBlocks(Set<BlockPos> first, Set<BlockPos> second) {
-      if (first.isEmpty()) {
-         return second;
-      }
-      if (second.isEmpty()) {
-         return first;
-      }
-      HashSet<BlockPos> result = new HashSet<>(first);
-      result.addAll(second);
-      return result;
-   }
-
    private static void renderBuildingShells(
       LocalPlayer player,
       PoseStack poseStack,
       BufferSource buffers,
       Vec3 camera,
       BlockState state,
+      Map<BlockPos, BlockState> stateOverrides,
       Set<BlockPos> confirmedBlocks,
       Set<BlockPos> pendingBlocks,
       Set<BlockPos> shapeEnvironment,
@@ -3133,13 +3173,13 @@ public class FastPlaceClientPreviewCore {
    ) {
       BlockGetter previewLevel = state == null
          ? player.level()
-         : PreviewBlockOcclusion.level(shapeEnvironment, state);
+         : PreviewBlockOcclusion.level(shapeEnvironment, state, stateOverrides);
       net.minecraft.world.phys.shapes.CollisionContext collision = net.minecraft.world.phys.shapes.CollisionContext.of(player);
       ShapeShellMesh.Mesh confirmed = CONFIRMED_BUILDING_SHELL_CACHE.mesh(
-         previewLevel, state, collision, confirmedBlocks, shapeEnvironment, specialStyles, player.isShiftKeyDown()
+         previewLevel, state, stateOverrides, collision, confirmedBlocks, shapeEnvironment, specialStyles, player.isShiftKeyDown()
       );
       ShapeShellMesh.Mesh pending = PENDING_BUILDING_SHELL_CACHE.mesh(
-         previewLevel, state, collision, pendingBlocks, shapeEnvironment, Map.of(), player.isShiftKeyDown()
+         previewLevel, state, stateOverrides, collision, pendingBlocks, shapeEnvironment, Map.of(), player.isShiftKeyDown()
       );
 
       ShapeShellRenderer.renderFaces(
@@ -3166,36 +3206,6 @@ public class FastPlaceClientPreviewCore {
          );
          buffers.endBatch(GHOST_OUTLINE_LINES);
       }
-   }
-
-   private static List<GuideLine> outlineGeometryEdges(List<BlockPos> points, FaceMode faceMode) {
-      if (points == null || points.size() < 2 || faceMode == FaceMode.POLYGON) {
-         return List.of();
-      }
-      if (points.size() == 2) {
-         return List.of(new GuideLine(Vec3.atCenterOf(points.getFirst()), Vec3.atCenterOf(points.getLast())));
-      }
-      List<Vec3> base = PlanarFaceGeometry.vertices(points, faceMode);
-      if (base.size() != 4) {
-         return List.of();
-      }
-      if (points.size() == 3) {
-         return closedEdges(base);
-      }
-      Vec3 anchor = Vec3.atCenterOf(points.get(2));
-      Vec3 extrusion = Vec3.atCenterOf(points.get(3)).subtract(anchor);
-      if (extrusion.lengthSqr() < 1.0E-7) {
-         return closedEdges(base);
-      }
-      return new SelectionPrism(base, extrusion).edges();
-   }
-
-   private static List<GuideLine> closedEdges(List<Vec3> vertices) {
-      ArrayList<GuideLine> edges = new ArrayList<>(vertices.size());
-      for (int index = 0; index < vertices.size(); index++) {
-         edges.add(new GuideLine(vertices.get(index), vertices.get((index + 1) % vertices.size())));
-      }
-      return List.copyOf(edges);
    }
 
    private static void renderConfirmedBlocks(PoseStack poseStack, BufferSource buffers, Vec3 camera, Set<BlockPos> blocks) {

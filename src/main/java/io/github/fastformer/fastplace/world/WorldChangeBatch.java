@@ -3,13 +3,16 @@ package io.github.fastformer.fastplace.world;
 import java.util.ArrayList;
 import java.util.AbstractList;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -28,6 +31,7 @@ import net.minecraft.world.level.material.FluidState;
  */
 public final class WorldChangeBatch {
    private final ResourceKey<Level> dimension;
+   private final UUID operationId;
    private final long[] positions;
    private final int denseMinX;
    private final int denseMinY;
@@ -51,6 +55,7 @@ public final class WorldChangeBatch {
 
    private WorldChangeBatch(
       ResourceKey<Level> dimension,
+      UUID operationId,
       long[] positions,
       int denseMinX,
       int denseMinY,
@@ -73,6 +78,7 @@ public final class WorldChangeBatch {
       int estimatedBytes
    ) {
       this.dimension = dimension;
+      this.operationId = operationId;
       this.positions = positions;
       this.denseMinX = denseMinX;
       this.denseMinY = denseMinY;
@@ -105,12 +111,7 @@ public final class WorldChangeBatch {
       if (level == null || changes == null || changes.isEmpty()) {
          return Optional.empty();
       }
-      List<ReversibleBlockSnapshot> ordered = new ArrayList<>(changes.size());
-      var iterator = changes.descendingIterator();
-      while (iterator.hasNext()) {
-         ordered.add(iterator.next());
-      }
-      return capture(level, ordered);
+      return capture(level, (Collection<ReversibleBlockSnapshot>)changes);
    }
 
    /** Builds a batch from snapshots in oldest-to-newest order. */
@@ -118,25 +119,20 @@ public final class WorldChangeBatch {
       if (level == null || changes == null || changes.isEmpty()) {
          return Optional.empty();
       }
-      // LinkedHashMap gives deterministic output and removes repeated writes
-      // to one position without retaining duplicate before states.
-      Map<Long, ReversibleBlockSnapshot> beforeByPosition = new LinkedHashMap<>();
-      for (ReversibleBlockSnapshot change : oldestFirst(changes)) {
-         if (change != null) {
-            beforeByPosition.putIfAbsent(change.pos().asLong(), change);
-         }
-      }
+      // The primitive linked map preserves first-write order without boxed
+      // Long keys or one linked-list node per changed position.
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> beforeByPosition = oldestBeforeByPosition(changes);
       if (beforeByPosition.isEmpty()) {
          return Optional.empty();
       }
-      Map<Long, ReversibleBlockSnapshot> afterByPosition = new HashMap<>();
-      for (Map.Entry<Long, ReversibleBlockSnapshot> entry : beforeByPosition.entrySet()) {
-         BlockPos pos = BlockPos.of(entry.getKey());
+      Long2ObjectOpenHashMap<ReversibleBlockSnapshot> afterByPosition = new Long2ObjectOpenHashMap<>();
+      for (Long2ObjectMap.Entry<ReversibleBlockSnapshot> entry : beforeByPosition.long2ObjectEntrySet()) {
+         BlockPos pos = BlockPos.of(entry.getLongKey());
          Optional<ReversibleBlockSnapshot> after = ReversibleBlockSnapshot.capture(level, pos);
          if (after.isEmpty()) {
             return Optional.empty();
          }
-         afterByPosition.put(entry.getKey(), after.orElseThrow());
+         afterByPosition.put(entry.getLongKey(), after.orElseThrow());
       }
       return build(level.dimension(), beforeByPosition, afterByPosition);
    }
@@ -170,19 +166,17 @@ public final class WorldChangeBatch {
       if (dimension == null || changes == null || changes.isEmpty() || afterByPosition == null || afterByPosition.isEmpty()) {
          return Optional.empty();
       }
-      Map<Long, ReversibleBlockSnapshot> beforeByPosition = new LinkedHashMap<>();
-      for (ReversibleBlockSnapshot change : oldestFirst(changes)) {
-         if (change != null) {
-            beforeByPosition.putIfAbsent(change.pos().asLong(), change);
-         }
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> beforeByPosition = oldestBeforeByPosition(changes);
+      if (afterByPosition.size() != beforeByPosition.size()) {
+         throw new IllegalStateException("Before/after snapshot positions are not aligned");
       }
-      for (Long position : beforeByPosition.keySet()) {
+      for (long position : beforeByPosition.keySet()) {
          ReversibleBlockSnapshot after = afterByPosition.get(position);
          if (after == null || after.pos().asLong() != position) {
             throw new IllegalStateException("Missing expected-after snapshot");
          }
       }
-      return build(dimension, beforeByPosition, afterByPosition);
+      return build(dimension, beforeByPosition, afterByPosition::get);
    }
 
    public static Optional<WorldChangeBatch> capturePairsByPos(
@@ -201,16 +195,53 @@ public final class WorldChangeBatch {
       Collection<ReversibleBlockSnapshot> changes,
       Map<BlockPos, ReversibleBlockSnapshot> afterByPosition
    ) {
-      if (dimension == null || afterByPosition == null || afterByPosition.isEmpty()) {
+      if (dimension == null || changes == null || afterByPosition == null || afterByPosition.isEmpty()) {
          return Optional.empty();
       }
-      Map<Long, ReversibleBlockSnapshot> packed = new HashMap<>();
-      for (Map.Entry<BlockPos, ReversibleBlockSnapshot> entry : afterByPosition.entrySet()) {
-         if (entry.getKey() != null && entry.getValue() != null) {
-            packed.put(entry.getKey().asLong(), entry.getValue());
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> beforeByPosition = oldestBeforeByPosition(changes);
+      if (beforeByPosition.isEmpty() || afterByPosition.size() != beforeByPosition.size()) {
+         return Optional.empty();
+      }
+      // Keep the caller's position-keyed map as the lookup source.  Copying it
+      // into a second packed map briefly doubles the snapshot-map footprint for
+      // large operations, even though build() only needs point lookups.
+      return capturePairs(
+         dimension,
+         beforeByPosition,
+         packed -> {
+            ReversibleBlockSnapshot snapshot = afterByPosition.get(BlockPos.of(packed));
+            return snapshot == null || snapshot.pos().asLong() != packed ? null : snapshot;
+         }
+      );
+   }
+
+   private static Optional<WorldChangeBatch> capturePairs(
+      ResourceKey<Level> dimension,
+      Collection<ReversibleBlockSnapshot> changes,
+      SnapshotLookup afterByPosition
+   ) {
+      if (dimension == null || changes == null || changes.isEmpty() || afterByPosition == null) {
+         return Optional.empty();
+      }
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> beforeByPosition = oldestBeforeByPosition(changes);
+      if (beforeByPosition.isEmpty()) {
+         return Optional.empty();
+      }
+      return capturePairs(dimension, beforeByPosition, afterByPosition);
+   }
+
+   private static Optional<WorldChangeBatch> capturePairs(
+      ResourceKey<Level> dimension,
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> beforeByPosition,
+      SnapshotLookup afterByPosition
+   ) {
+      for (long position : beforeByPosition.keySet()) {
+         ReversibleBlockSnapshot after = afterByPosition.get(position);
+         if (after == null || after.pos().asLong() != position) {
+            throw new IllegalStateException("Missing expected-after snapshot");
          }
       }
-      return capturePairs(dimension, changes, packed);
+      return build(dimension, beforeByPosition, afterByPosition);
    }
 
    static Optional<WorldChangeBatch> fromPairsForTest(
@@ -221,8 +252,8 @@ public final class WorldChangeBatch {
       if (dimension == null || changes == null || changes.isEmpty() || afterByPosition == null || afterByPosition.isEmpty()) {
          return Optional.empty();
       }
-      Map<Long, ReversibleBlockSnapshot> beforeByPosition = new LinkedHashMap<>();
-      Map<Long, ReversibleBlockSnapshot> packedAfter = new HashMap<>();
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> beforeByPosition = new Long2ObjectLinkedOpenHashMap<>();
+      Long2ObjectOpenHashMap<ReversibleBlockSnapshot> packedAfter = new Long2ObjectOpenHashMap<>();
       for (ReversibleBlockSnapshot change : changes) {
          if (change != null) {
             beforeByPosition.putIfAbsent(change.pos().asLong(), change);
@@ -233,81 +264,110 @@ public final class WorldChangeBatch {
             packedAfter.put(entry.getKey().asLong(), entry.getValue());
          }
       }
+      if (packedAfter.size() != beforeByPosition.size()) {
+         return Optional.empty();
+      }
       return build(dimension, beforeByPosition, packedAfter);
    }
 
-   private static List<ReversibleBlockSnapshot> oldestFirst(Collection<ReversibleBlockSnapshot> changes) {
+   /** Builds the oldest-first position map without copying an entire deque. */
+   private static Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> oldestBeforeByPosition(
+      Collection<ReversibleBlockSnapshot> changes
+   ) {
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> result = new Long2ObjectLinkedOpenHashMap<>();
       if (changes instanceof ArrayDeque<?> rawDeque) {
          @SuppressWarnings("unchecked")
          ArrayDeque<ReversibleBlockSnapshot> deque = (ArrayDeque<ReversibleBlockSnapshot>)rawDeque;
-         List<ReversibleBlockSnapshot> ordered = new ArrayList<>(deque.size());
          var iterator = deque.descendingIterator();
          while (iterator.hasNext()) {
-            ordered.add(iterator.next());
+            ReversibleBlockSnapshot change = iterator.next();
+            if (change != null) {
+               result.putIfAbsent(change.pos().asLong(), change);
+            }
          }
-         return ordered;
+      } else {
+         for (ReversibleBlockSnapshot change : changes) {
+            if (change != null) {
+               result.putIfAbsent(change.pos().asLong(), change);
+            }
+         }
       }
-      return new ArrayList<>(changes);
+      return result;
    }
 
    private static Optional<WorldChangeBatch> build(
       ResourceKey<Level> dimension,
-      Map<Long, ReversibleBlockSnapshot> beforeByPosition,
-      Map<Long, ReversibleBlockSnapshot> afterByPosition
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> beforeByPosition,
+      Long2ObjectMap<ReversibleBlockSnapshot> afterByPosition
    ) {
-      List<Entry> entries = new ArrayList<>(beforeByPosition.size());
-      for (Map.Entry<Long, ReversibleBlockSnapshot> entry : beforeByPosition.entrySet()) {
-         ReversibleBlockSnapshot after = afterByPosition.get(entry.getKey());
+      return build(dimension, beforeByPosition, afterByPosition::get);
+   }
+
+   private static Optional<WorldChangeBatch> build(
+      ResourceKey<Level> dimension,
+      Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> beforeByPosition,
+      SnapshotLookup afterByPosition
+   ) {
+      int changedCount = 0;
+      for (Long2ObjectMap.Entry<ReversibleBlockSnapshot> entry : beforeByPosition.long2ObjectEntrySet()) {
+         ReversibleBlockSnapshot after = afterByPosition.get(entry.getLongKey());
          ReversibleBlockSnapshot before = entry.getValue();
          if (before == null
-            || before.pos().asLong() != entry.getKey()
+            || before.pos().asLong() != entry.getLongKey()
             || after == null
-            || after.pos().asLong() != entry.getKey()) {
+            || after.pos().asLong() != entry.getLongKey()) {
             return Optional.empty();
          }
          if (!before.sameContents(after)) {
-            entries.add(new Entry(entry.getKey(), before, after));
+            changedCount++;
          }
       }
-      if (entries.isEmpty()) {
+      if (changedCount == 0) {
          return Optional.empty();
       }
-      entries.sort(Comparator.comparingLong(Entry::packedPosition));
-
-      DenseShape dense = denseShape(entries);
-      if (dense != null) {
-         entries = dense.entries();
+      long[] changedPositions = new long[changedCount];
+      int changedIndex = 0;
+      for (Long2ObjectMap.Entry<ReversibleBlockSnapshot> entry : beforeByPosition.long2ObjectEntrySet()) {
+         if (!entry.getValue().sameContents(afterByPosition.get(entry.getLongKey()))) {
+            changedPositions[changedIndex++] = entry.getLongKey();
+         }
       }
+      Arrays.sort(changedPositions);
+      DenseShape dense = denseShape(changedPositions);
 
       Palette<BlockState> blockPalette = new Palette<>();
       Palette<FluidState> fluidPalette = new Palette<>();
-      int size = entries.size();
-      long[] positions = dense == null ? new long[size] : null;
+      int size = changedPositions.length;
+      long[] positions = dense == null ? changedPositions : null;
       int[] beforeBlockIds = new int[size];
       int[] afterBlockIds = new int[size];
       int[] beforeFluidIds = new int[size];
       int[] afterFluidIds = new int[size];
-      boolean hasBeforeEntity = entries.stream().anyMatch(entry -> entry.before().blockEntity() != null);
-      boolean hasAfterEntity = entries.stream().anyMatch(entry -> entry.after().blockEntity() != null);
+      boolean hasBeforeEntity = false;
+      boolean hasAfterEntity = false;
+      for (int index = 0; index < size; index++) {
+         long packed = dense == null ? changedPositions[index] : dense.packedPosition(index);
+         hasBeforeEntity |= beforeByPosition.get(packed).blockEntity() != null;
+         hasAfterEntity |= afterByPosition.get(packed).blockEntity() != null;
+      }
       BlockEntitySnapshot[] beforeEntities = hasBeforeEntity ? new BlockEntitySnapshot[size] : null;
       BlockEntitySnapshot[] afterEntities = hasAfterEntity ? new BlockEntitySnapshot[size] : null;
       Palette<BlockEntitySnapshot> beforeEntityPalette = new Palette<>();
       Palette<BlockEntitySnapshot> afterEntityPalette = new Palette<>();
 
       for (int index = 0; index < size; index++) {
-         Entry entry = entries.get(index);
-         if (positions != null) {
-            positions[index] = entry.packedPosition();
-         }
-         beforeBlockIds[index] = blockPalette.id(entry.before().state());
-         afterBlockIds[index] = blockPalette.id(entry.after().state());
-         beforeFluidIds[index] = fluidPalette.id(entry.before().fluidState());
-         afterFluidIds[index] = fluidPalette.id(entry.after().fluidState());
+         long packed = dense == null ? changedPositions[index] : dense.packedPosition(index);
+         ReversibleBlockSnapshot before = beforeByPosition.get(packed);
+         ReversibleBlockSnapshot after = afterByPosition.get(packed);
+         beforeBlockIds[index] = blockPalette.id(before.state());
+         afterBlockIds[index] = blockPalette.id(after.state());
+         beforeFluidIds[index] = fluidPalette.id(before.fluidState());
+         afterFluidIds[index] = fluidPalette.id(after.fluidState());
          if (beforeEntities != null) {
-            beforeEntities[index] = beforeEntityPalette.intern(entry.before().blockEntity());
+            beforeEntities[index] = beforeEntityPalette.intern(before.blockEntity());
          }
          if (afterEntities != null) {
-            afterEntities[index] = afterEntityPalette.intern(entry.after().blockEntity());
+            afterEntities[index] = afterEntityPalette.intern(after.blockEntity());
          }
       }
 
@@ -331,8 +391,9 @@ public final class WorldChangeBatch {
          fluidPalette.values()
       );
       return Optional.of(new WorldChangeBatch(
-         dimension,
-         positions,
+          dimension,
+          null,
+          positions,
          dense == null ? 0 : dense.minX(),
          dense == null ? 0 : dense.minY(),
          dense == null ? 0 : dense.minZ(),
@@ -357,6 +418,41 @@ public final class WorldChangeBatch {
 
    public ResourceKey<Level> dimension() {
       return this.dimension;
+   }
+
+   public UUID operationId() {
+      return this.operationId;
+   }
+
+   /** Reuses the compressed arrays while attaching the owning operation ID. */
+   public WorldChangeBatch withOperationId(UUID operationId) {
+      if (operationId == null || operationId.equals(this.operationId)) {
+         return this;
+      }
+      return new WorldChangeBatch(
+         this.dimension,
+         operationId,
+         this.positions,
+         this.denseMinX,
+         this.denseMinY,
+         this.denseMinZ,
+         this.denseWidth,
+         this.denseHeight,
+         this.denseDepth,
+         this.blockStates,
+         this.fluidStates,
+         this.beforeBlockIds,
+         this.uniformBeforeBlockId,
+         this.afterBlockIds,
+         this.uniformAfterBlockId,
+         this.beforeFluidIds,
+         this.uniformBeforeFluidId,
+         this.afterFluidIds,
+         this.uniformAfterFluidId,
+         this.beforeEntities,
+         this.afterEntities,
+         this.estimatedBytes
+      );
    }
 
    public int size() {
@@ -534,15 +630,15 @@ public final class WorldChangeBatch {
       return (int)Math.min(Integer.MAX_VALUE, bytes);
    }
 
-   private static DenseShape denseShape(List<Entry> entries) {
+   private static DenseShape denseShape(long[] positions) {
       int minX = Integer.MAX_VALUE;
       int minY = Integer.MAX_VALUE;
       int minZ = Integer.MAX_VALUE;
       int maxX = Integer.MIN_VALUE;
       int maxY = Integer.MIN_VALUE;
       int maxZ = Integer.MIN_VALUE;
-      for (Entry entry : entries) {
-         BlockPos pos = BlockPos.of(entry.packedPosition());
+      for (long packed : positions) {
+         BlockPos pos = BlockPos.of(packed);
          minX = Math.min(minX, pos.getX());
          minY = Math.min(minY, pos.getY());
          minZ = Math.min(minZ, pos.getZ());
@@ -559,39 +655,10 @@ public final class WorldChangeBatch {
          return null;
       }
       long volume = width * height * depth;
-      if (width <= 0L || height <= 0L || depth <= 0L || volume != entries.size() || volume > Integer.MAX_VALUE) {
+      if (width <= 0L || height <= 0L || depth <= 0L || volume != positions.length || volume > Integer.MAX_VALUE) {
          return null;
       }
-      entries.sort((left, right) -> {
-         BlockPos a = BlockPos.of(left.packedPosition());
-         BlockPos b = BlockPos.of(right.packedPosition());
-         int compare = Integer.compare(a.getX(), b.getX());
-         if (compare == 0) {
-            compare = Integer.compare(a.getY(), b.getY());
-         }
-         return compare == 0 ? Integer.compare(a.getZ(), b.getZ()) : compare;
-      });
-      int index = 0;
-      for (int x = 0; x < width; x++) {
-         for (int y = 0; y < height; y++) {
-            for (int z = 0; z < depth; z++) {
-               Entry entry = entries.get(index++);
-               BlockPos actual = BlockPos.of(entry.packedPosition());
-               if (actual.getX() != minX + x || actual.getY() != minY + y || actual.getZ() != minZ + z) {
-                  return null;
-               }
-            }
-         }
-      }
-      return new DenseShape(
-         minX,
-         minY,
-         minZ,
-         (int)width,
-         (int)height,
-         (int)depth,
-         entries
-      );
+      return new DenseShape(minX, minY, minZ, (int)width, (int)height, (int)depth);
    }
 
    private static long entityBytes(BlockEntitySnapshot[] entities) {
@@ -604,10 +671,20 @@ public final class WorldChangeBatch {
       return bytes;
    }
 
-   private record Entry(long packedPosition, ReversibleBlockSnapshot before, ReversibleBlockSnapshot after) {
+   private record DenseShape(int minX, int minY, int minZ, int width, int height, int depth) {
+      long packedPosition(int index) {
+         int plane = this.height * this.depth;
+         int x = index / plane;
+         int remainder = index % plane;
+         int y = remainder / this.depth;
+         int z = remainder % this.depth;
+         return BlockPos.asLong(this.minX + x, this.minY + y, this.minZ + z);
+      }
    }
 
-   private record DenseShape(int minX, int minY, int minZ, int width, int height, int depth, List<Entry> entries) {
+   @FunctionalInterface
+   private interface SnapshotLookup {
+      ReversibleBlockSnapshot get(long packedPosition);
    }
 
    private static final class Palette<T> {

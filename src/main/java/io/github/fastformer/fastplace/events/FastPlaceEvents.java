@@ -42,7 +42,7 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (WorldHistoryManager.busy(player)) {
+      if (ServerInputDispatcher.interactionBlocked(player)) {
          event.setCanceled(true);
          return;
       }
@@ -64,7 +64,7 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (WorldHistoryManager.busy(player)) {
+      if (ServerInputDispatcher.interactionBlocked(player)) {
          event.setCanceled(true);
          return;
       }
@@ -80,7 +80,7 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (WorldHistoryManager.busy(player)) {
+      if (ServerInputDispatcher.interactionBlocked(player)) {
          event.setCanceled(true);
          return;
       }
@@ -134,6 +134,7 @@ public final class FastPlaceEvents {
    }
 
    private static void onServerTick(ServerTickEvent.Post event) {
+      FastPlaceNetwork.tick();
       WorldTaskFeature.tick(event.getServer());
    }
 

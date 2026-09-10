@@ -69,8 +69,22 @@ class WorldHistoryRecoveryPolicyTest {
    }
 
    @Test
-   void pausedRecoveryAutoResumesWhenItsOwnerIsOffline() {
-      assertEquals(true, WorldHistoryManager.retainRecoveryForManualResume(true));
-      assertEquals(false, WorldHistoryManager.retainRecoveryForManualResume(false));
+   void retainedRecoveryRetriesAutomaticallyUnlessTheUserPausedIt() {
+      assertEquals(
+         WorldHistoryManager.RecoveryRetentionAction.RETRY_AUTOMATICALLY,
+         WorldHistoryManager.recoveryRetentionAction(true, true, false)
+      );
+      assertEquals(
+         WorldHistoryManager.RecoveryRetentionAction.PAUSE_FOR_USER,
+         WorldHistoryManager.recoveryRetentionAction(true, true, true)
+      );
+      assertEquals(
+         WorldHistoryManager.RecoveryRetentionAction.NONE,
+         WorldHistoryManager.recoveryRetentionAction(false, true, false)
+      );
+      assertEquals(
+         WorldHistoryManager.RecoveryRetentionAction.NONE,
+         WorldHistoryManager.recoveryRetentionAction(true, false, false)
+      );
    }
 }

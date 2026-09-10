@@ -658,11 +658,17 @@ public final class OperationSession implements SessionLifecycle {
       } else {
          setPoint(pointIndex, target);
       }
+      if (this.selectionMode == OperationSelectionMode.CUBOID) {
+         this.recomputeCuboidBounds();
+      }
       if (this.selectionReady() && OperationSelectionVolume.create(
          this.selectionMode, this.points(), this.selectionPoints().prismBasePointCount, this.minOffset, this.maxOffset, this.hullInflation
       ) == null) {
          for (int index = 0; index < before.size(); index++) {
             setPoint(index, before.get(index));
+         }
+         if (this.selectionMode == OperationSelectionMode.CUBOID) {
+            this.recomputeCuboidBounds();
          }
          return false;
       }

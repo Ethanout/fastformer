@@ -19,18 +19,20 @@ public final class SphereGenerator {
       PolyhedronGeometry.Bounds bounds = PolyhedronGeometry.bounds(parameters, false);
       double radius = parameters.radius(1.0);
       Vec3 zDirection = PolyhedronGeometry.toLocal(new Vec3(0.0, 0.0, 1.0), parameters);
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
-      for (int x = bounds.minX(); x <= bounds.maxX() && result.size() < maxBlocks; x++) {
-         for (int y = bounds.minY(); y <= bounds.maxY() && result.size() < maxBlocks; y++) {
-            IntSpan span = zSpan(parameters, radius, zDirection, x, y);
-            if (fillMode == FillMode.SOLID) {
-               addRange(result, x, y, span.min(), span.max(), maxBlocks);
-            } else {
-               addBoundary(result, parameters, radius, zDirection, x, y, span, maxBlocks);
-            }
-         }
+      long count = countBlocks(parameters, radius, zDirection, bounds, fillMode != FillMode.SOLID);
+      if (count > maxBlocks) {
+         return GenerationLimitExceeded.witness(maxBlocks);
       }
-      return Set.copyOf(result);
+      boolean boundaryOnly = fillMode != FillMode.SOLID;
+      return new LazyBlockSet(
+         bounds.minX(), bounds.minY(), bounds.minZ(),
+         bounds.maxX(), bounds.maxY(), bounds.maxZ(), (int)count,
+         (x, y, z) -> {
+            IntSpan span = zSpan(parameters, radius, zDirection, x, y);
+            return !span.empty() && z >= span.min() && z <= span.max()
+               && (!boundaryOnly || isBoundary(parameters, radius, zDirection, new BlockPos(x, y, z)));
+         }
+      );
    }
 
    public static long estimateScanCells(PolyhedronParameters parameters) {
@@ -95,6 +97,48 @@ public final class SphereGenerator {
       addRange(output, x, y, interiorMax + 1, span.max(), maxBlocks);
    }
 
+   private static long countBlocks(
+      PolyhedronParameters parameters,
+      double radius,
+      Vec3 zDirection,
+      PolyhedronGeometry.Bounds bounds,
+      boolean boundaryOnly
+   ) {
+      long count = 0L;
+      for (long x = bounds.minX(); x <= (long)bounds.maxX(); x++) {
+         for (long y = bounds.minY(); y <= (long)bounds.maxY(); y++) {
+            IntSpan span = zSpan(parameters, radius, zDirection, (int)x, (int)y);
+            if (span.empty()) {
+               continue;
+            }
+            long column = boundaryOnly
+               ? boundaryCount(parameters, radius, zDirection, (int)x, (int)y, span)
+               : span.length();
+            count = count > Long.MAX_VALUE - column ? Long.MAX_VALUE : count + column;
+         }
+      }
+      return count;
+   }
+
+   private static long boundaryCount(
+      PolyhedronParameters parameters,
+      double radius,
+      Vec3 zDirection,
+      int x,
+      int y,
+      IntSpan span
+   ) {
+      IntSpan left = zSpan(parameters, radius, zDirection, x - 1, y);
+      IntSpan right = zSpan(parameters, radius, zDirection, x + 1, y);
+      IntSpan down = zSpan(parameters, radius, zDirection, x, y - 1);
+      IntSpan up = zSpan(parameters, radius, zDirection, x, y + 1);
+      int interiorMin = Math.max(span.min() + 1, Math.max(Math.max(left.min(), right.min()), Math.max(down.min(), up.min())));
+      int interiorMax = Math.min(span.max() - 1, Math.min(Math.min(left.max(), right.max()), Math.min(down.max(), up.max())));
+      return interiorMin > interiorMax
+         ? span.length()
+         : (long)interiorMin - span.min() + (long)span.max() - interiorMax;
+   }
+
    private static IntSpan zSpan(
       PolyhedronParameters parameters, double radius, Vec3 zDirection, int x, int y
    ) {
@@ -136,5 +180,32 @@ public final class SphereGenerator {
       boolean empty() {
          return this.min > this.max;
       }
+
+      long length() {
+         return empty() ? 0L : (long)this.max - this.min + 1L;
+      }
+   }
+
+   private static boolean isBoundary(
+      PolyhedronParameters parameters,
+      double radius,
+      Vec3 zDirection,
+      BlockPos position
+   ) {
+      int x = position.getX();
+      int y = position.getY();
+      int z = position.getZ();
+      IntSpan span = zSpan(parameters, radius, zDirection, x, y);
+      return z < span.min() || z > span.max()
+         || !contains(zSpan(parameters, radius, zDirection, x - 1, y), z)
+         || !contains(zSpan(parameters, radius, zDirection, x + 1, y), z)
+         || !contains(zSpan(parameters, radius, zDirection, x, y - 1), z)
+         || !contains(zSpan(parameters, radius, zDirection, x, y + 1), z)
+         || !contains(zSpan(parameters, radius, zDirection, x, y), z - 1)
+         || !contains(zSpan(parameters, radius, zDirection, x, y), z + 1);
+   }
+
+   private static boolean contains(IntSpan span, int value) {
+      return !span.empty() && value >= span.min() && value <= span.max();
    }
 }

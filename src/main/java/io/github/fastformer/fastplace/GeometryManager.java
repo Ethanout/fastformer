@@ -336,11 +336,13 @@ public final class GeometryManager {
          FastPlaceMessages.actionBar(player, build.blockedReason());
          return false;
       }
-      if (build.scanCells() > max) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.geometry_scan_too_large", max));
-         return false;
-      }
-      if (!FastPlaceManager.queueGeneratedPlacement(player, build.blocks(), placeState, build.scanCells())) {
+      if (!FastPlaceManager.queueGeneratedPlacement(
+         player,
+         build.generation(),
+         placeState,
+         build.scanCells(),
+         build.targetCapacity()
+      )) {
          return false;
       }
       cancel(player);

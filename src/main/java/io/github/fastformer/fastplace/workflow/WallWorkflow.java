@@ -92,7 +92,8 @@ public final class WallWorkflow implements GeometryWorkflow {
    public GeometryBuildResult build(GeometrySession session, GeometryActionContext context, FillMode fillMode, int maxBlocks) {
       return GeometryBuildResult.ready(
          WallGenerator.estimateScanCells(session.points(), true, session.extrusion()),
-         () -> WallGenerator.generate(session.points(), true, session.extrusion(), maxBlocks)
+         maxBlocks,
+         () -> WallGenerator.generateResult(session.points(), true, session.extrusion(), maxBlocks)
       );
    }
 

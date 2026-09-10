@@ -47,6 +47,16 @@ class ConvexPolyhedronGeneratorTest {
       ).allMatch(hollow::contains));
    }
 
+   @Test
+   void largeConvexShapeUsesLazyStorage() {
+      PolyhedronParameters parameters = parameters(2);
+
+      Set<BlockPos> blocks = ConvexPolyhedronGenerator.generate(parameters, FillMode.SOLID, 100_000);
+
+      assertTrue(blocks.getClass().getSimpleName().contains("LazyBlockSet"));
+      assertEquals(blocks.size(), new HashSet<>(blocks).size());
+   }
+
    private static Set<BlockPos> bruteForce(PolyhedronParameters parameters) {
       PolyhedronGeometry.Bounds bounds = PolyhedronGeometry.bounds(parameters, true);
       HashSet<BlockPos> result = new HashSet<>();

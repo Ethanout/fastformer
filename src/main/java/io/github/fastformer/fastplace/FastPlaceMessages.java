@@ -8,6 +8,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class FastPlaceMessages {
+   private static final int MAX_DYNAMIC_TEXT = 512;
    private FastPlaceMessages() {
    }
 
@@ -57,6 +58,11 @@ public final class FastPlaceMessages {
             result[i] = GeometryNumbers.finiteOr(value, 0.0);
          } else if (result[i] instanceof Float value) {
             result[i] = (float)GeometryNumbers.finiteOr(value, 0.0);
+         } else if (result[i] instanceof String value && value.length() > MAX_DYNAMIC_TEXT) {
+            result[i] = value.substring(0, MAX_DYNAMIC_TEXT) + "...";
+         } else if (result[i] instanceof Component component && component.getString().length() > MAX_DYNAMIC_TEXT) {
+            String value = component.getString();
+            result[i] = Component.literal(value.substring(0, MAX_DYNAMIC_TEXT) + "...");
          }
       }
       return result;

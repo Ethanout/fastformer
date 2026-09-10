@@ -10,4 +10,8 @@ public enum TaskCancellationResult {
    public boolean handled() {
       return this != NOT_ACTIVE;
    }
+
+   public boolean recoveryCreated() {
+      return this == ROLLBACK_STARTED;
+   }
 }

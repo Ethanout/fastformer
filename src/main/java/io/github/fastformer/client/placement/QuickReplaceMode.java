@@ -46,6 +46,7 @@ public final class QuickReplaceMode {
       LocalPlayer player = minecraft.player;
       BlockHitResult hit = LongRangeBlockRaycast.clip(
          minecraft.level, player, player.getEyePosition(), player.getViewVector(1.0F)
+         , net.minecraft.world.level.ClipContext.Block.COLLIDER
       ).hit();
       if (hit == null || hit.getType() != HitResult.Type.BLOCK) {
          return null;

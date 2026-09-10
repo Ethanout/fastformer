@@ -43,14 +43,14 @@ import net.neoforged.fml.loading.FMLPaths;
 
 /** Bridges the pure client workspace to Minecraft input, world capture and persistent clipboard storage. */
 public final class ClientOperationController {
-   private static final Path CLIPBOARD_FILE = FMLPaths.CONFIGDIR.get()
-      .resolve("fastformer-operation-clipboard.nbt.gz");
+   private static final String CLIPBOARD_FILE_NAME = "fastformer-operation-clipboard.nbt.gz";
    private static final ClientOperationWorkspace FALLBACK_WORKSPACE = new ClientOperationWorkspace();
    private static final SourceBlockRenderMask SOURCE_MASK = new SourceBlockRenderMask();
    private static final ClientSelectionSession FALLBACK_SELECTION_SESSION = new ClientSelectionSession();
    private static OperationClipboard clipboard;
    private static boolean clipboardLoaded;
    private static boolean workspaceSubmissionPending;
+   private static boolean awaitingOperationSnapshot;
    private static UUID pendingWorkspaceTransferId;
    private static OperationPreviewPayload serverPreview = OperationPreviewPayload.inactive();
    private static long lastServerPreviewRevision = -1L;
@@ -147,23 +147,18 @@ public final class ClientOperationController {
       if (payload == null) {
          return false;
       }
-      ClientSessionManager sessionManager = ClientSessionManager.instance();
-      // A dimension change can deliver the server's inactive snapshot before
-      // the regular client tick observes the new world instance. Gate this
-      // packet before it can erase the player's retained workspace.
-      if (!sessionManager.acceptAuthoritativeSnapshot(Minecraft.getInstance(), payload.active())) {
-         return false;
-      }
       if (payload.operationRevision() < lastServerPreviewRevision) {
          return false;
       }
       boolean previousServerOperationActive = serverPreview.active();
+      boolean reconnectSnapshot = awaitingOperationSnapshot;
+      awaitingOperationSnapshot = false;
       lastServerPreviewRevision = payload.operationRevision();
       serverPreview = payload;
       if (!payload.active()) {
-         if (previousServerOperationActive
-            && !workspaceSubmissionPending
-            && !sessionManager.isAwaitingAuthoritativeSnapshot()) {
+         if (shouldClearWorkspaceAfterSnapshot(
+            previousServerOperationActive, reconnectSnapshot, workspaceSubmissionPending
+         )) {
             clearWorkspace();
          }
          return true;
@@ -180,6 +175,14 @@ public final class ClientOperationController {
          payload.operationMaxOffset(),
          payload.operationHullInflation()
       );
+      if (payload.operationSelectionMode() == OperationSelectionMode.CUBOID
+         && payload.selectionMin() != null && payload.selectionMax() != null) {
+         selection = OperationSelectionVolume.cuboid(
+            payload.selectionMin(), payload.selectionMax(),
+            payload.points().isEmpty() ? null : payload.points().getFirst(),
+            payload.points().size() < 2 ? null : payload.points().get(1)
+         );
+      }
       if (selection == null) {
          return true;
       }
@@ -208,7 +211,7 @@ public final class ClientOperationController {
       clipboard = copied.orElseThrow();
       clipboardLoaded = true;
       try {
-         OperationClipboardStore.save(CLIPBOARD_FILE, OperationClipboardCodec.encode(clipboard));
+         OperationClipboardStore.save(clipboardFile(), OperationClipboardCodec.encode(clipboard));
          return true;
       } catch (IOException | RuntimeException exception) {
          return false;
@@ -445,31 +448,9 @@ public final class ClientOperationController {
          Mth.floor(worldPoint.getY() - translation.y),
          Mth.floor(worldPoint.getZ() - translation.z)
       );
-      AABB bounds = part.selection().bounds();
-      BlockPos first = new BlockPos(Mth.floor(bounds.minX), Mth.floor(bounds.minY), Mth.floor(bounds.minZ));
-      BlockPos second = new BlockPos(
-         Mth.ceil(bounds.maxX) - 1, Mth.ceil(bounds.maxY) - 1, Mth.ceil(bounds.maxZ) - 1
-      );
-      if (mouseButton == 0) {
-         first = localPoint;
-      } else if (mouseButton == 1) {
-         second = localPoint;
-      } else {
-         first = new BlockPos(
-            Math.min(first.getX(), localPoint.getX()),
-            Math.min(first.getY(), localPoint.getY()),
-            Math.min(first.getZ(), localPoint.getZ())
-         );
-         second = new BlockPos(
-            Math.max(second.getX(), localPoint.getX()),
-            Math.max(second.getY(), localPoint.getY()),
-            Math.max(second.getZ(), localPoint.getZ())
-         );
-      }
-      OperationSelectionVolume selection = OperationSelectionVolume.create(
-         OperationSelectionMode.CUBOID, List.of(first, second), 0,
-         BlockPos.ZERO, BlockPos.ZERO, 0
-      );
+      OperationSelectionVolume selection = mouseButton == 2
+         ? part.selection().expandCuboidTo(localPoint)
+         : part.selection().withCuboidPoint(mouseButton, localPoint);
       if (selection == null) {
          workspace().cancelEdit();
          return false;
@@ -685,6 +666,14 @@ public final class ClientOperationController {
       pendingWorkspaceTransferId = null;
    }
 
+   static boolean shouldClearWorkspaceAfterSnapshot(
+      boolean previousServerOperationActive,
+      boolean reconnectSnapshot,
+      boolean submissionPending
+   ) {
+      return !submissionPending && (previousServerOperationActive || reconnectSnapshot);
+   }
+
    /**
     * Clears connection-local interaction state without deleting the player's session box.
     * The workspace and its history remain attached to the player's UUID for reconnects,
@@ -698,6 +687,7 @@ public final class ClientOperationController {
       playerWorkspace.setLocked(false);
       workspaceSubmissionPending = false;
       pendingWorkspaceTransferId = null;
+      awaitingOperationSnapshot = !playerWorkspace.isEmpty();
       serverPreview = OperationPreviewPayload.inactive();
       lastServerPreviewRevision = -1L;
       SOURCE_MASK.clear();
@@ -717,7 +707,7 @@ public final class ClientOperationController {
          return Optional.empty();
       }
       try {
-         CompoundTag root = OperationClipboardStore.load(CLIPBOARD_FILE).orElse(null);
+         CompoundTag root = OperationClipboardStore.load(clipboardFile()).orElse(null);
          if (root == null) {
             return Optional.empty();
          }
@@ -728,6 +718,10 @@ public final class ClientOperationController {
       } catch (IOException | RuntimeException exception) {
          return Optional.empty();
       }
+   }
+
+   private static Path clipboardFile() {
+      return FMLPaths.CONFIGDIR.get().resolve(CLIPBOARD_FILE_NAME);
    }
 
    private static Map<BlockPos, ClientBlockSnapshot> capture(OperationSelectionVolume selection) {
@@ -823,8 +817,7 @@ public final class ClientOperationController {
    private static boolean finishDraft(int prismBaseCount) {
       OperationSelectionVolume selection = OperationSelectionVolume.create(
          selectionSession().selectionMode(),
-         selectionSession().selectionMode() == OperationSelectionMode.CUBOID
-            ? selectionSession().selectionDraftPoints() : selectionSession().draftPoints(),
+         selectionSession().draftPoints(),
          prismBaseCount,
          BlockPos.ZERO,
          BlockPos.ZERO,
@@ -832,6 +825,10 @@ public final class ClientOperationController {
       );
       if (selection == null) {
          return false;
+      }
+      if (selection.mode() == OperationSelectionMode.CUBOID) {
+         selection = selection.expandCuboidTo(selectionSession().draftMinPoint())
+            .expandCuboidTo(selectionSession().draftMaxPoint());
       }
       boolean added = workspace().addPartsWithoutHistory(List.of(new ClientSelectionPart(
          0,

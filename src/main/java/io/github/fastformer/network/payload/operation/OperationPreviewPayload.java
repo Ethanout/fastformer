@@ -18,6 +18,8 @@ public record OperationPreviewPayload(
    boolean hasFirst,
    boolean hasSecond,
    List<BlockPos> points,
+   BlockPos selectionMin,
+   BlockPos selectionMax,
    BlockPos minOffset,
    BlockPos maxOffset,
    OperationSelectionMode selectionMode,
@@ -49,7 +51,8 @@ public record OperationPreviewPayload(
    private OperationPreviewPayload(FriendlyByteBuf buffer) {
       this(
          buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(),
-         readPoints(buffer), buffer.readBlockPos(), buffer.readBlockPos(),
+         readPoints(buffer), buffer.readNullable(b -> b.readBlockPos()), buffer.readNullable(b -> b.readBlockPos()),
+         buffer.readBlockPos(), buffer.readBlockPos(),
          buffer.readEnum(OperationSelectionMode.class), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(),
          buffer.readEnum(OperationMode.class), buffer.readEnum(OperationStageMode.class),
          buffer.readBlockPos(), buffer.readBlockPos(), buffer.readBlockPos(), readVec3(buffer),
@@ -66,9 +69,27 @@ public record OperationPreviewPayload(
       boolean adjustmentStarted, boolean copy, boolean ctrlHeld
    ) {
       return active(
-         0L, hasFirst, hasSecond, points, minOffset, maxOffset, selectionMode,
+         0L, hasFirst, hasSecond, points, null, null, minOffset, maxOffset, selectionMode,
          prismBasePointCount, selectedPointIndex, hullInflation, mode, stageMode,
          translation, stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld
+      );
+   }
+
+   public static OperationPreviewPayload active(
+      long revision,
+      boolean hasFirst, boolean hasSecond, List<BlockPos> points,
+      BlockPos selectionMin, BlockPos selectionMax,
+      BlockPos minOffset, BlockPos maxOffset, OperationSelectionMode selectionMode,
+      int prismBasePointCount, int selectedPointIndex, int hullInflation,
+      OperationMode mode, OperationStageMode stageMode, BlockPos translation,
+      BlockPos stackMin, BlockPos stackMax, Vec3 rotation,
+      boolean adjustmentStarted, boolean copy, boolean ctrlHeld
+   ) {
+      return new OperationPreviewPayload(
+         true, true, hasFirst, hasSecond, points,
+         selectionMin, selectionMax, minOffset, maxOffset, selectionMode,
+         prismBasePointCount, selectedPointIndex, hullInflation, mode, stageMode, translation,
+         stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld, revision
       );
    }
 
@@ -81,11 +102,9 @@ public record OperationPreviewPayload(
       BlockPos stackMin, BlockPos stackMax, Vec3 rotation,
       boolean adjustmentStarted, boolean copy, boolean ctrlHeld
    ) {
-      return new OperationPreviewPayload(
-         true, true, hasFirst, hasSecond, points, minOffset, maxOffset, selectionMode,
-         prismBasePointCount, selectedPointIndex, hullInflation, mode, stageMode, translation,
-         stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld, revision
-      );
+      return active(revision, hasFirst, hasSecond, points, null, null, minOffset, maxOffset,
+         selectionMode, prismBasePointCount, selectedPointIndex, hullInflation, mode, stageMode,
+         translation, stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld);
    }
 
    public static OperationPreviewPayload inactive() {
@@ -94,7 +113,7 @@ public record OperationPreviewPayload(
 
    public static OperationPreviewPayload inactive(long revision) {
       return new OperationPreviewPayload(
-         false, false, false, false, List.of(), BlockPos.ZERO, BlockPos.ZERO,
+         false, false, false, false, List.of(), null, null, BlockPos.ZERO, BlockPos.ZERO,
          OperationSelectionMode.CUBOID, 0, -1, 0, OperationMode.MOVE,
          OperationStageMode.TRANSFORM, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO,
          Vec3.ZERO, false, false, false, revision
@@ -137,6 +156,8 @@ public record OperationPreviewPayload(
       buffer.writeBoolean(this.hasFirst);
       buffer.writeBoolean(this.hasSecond);
       buffer.writeCollection(this.points, (writer, point) -> writer.writeBlockPos(point));
+      buffer.writeNullable(this.selectionMin, (b, value) -> b.writeBlockPos(value));
+      buffer.writeNullable(this.selectionMax, (b, value) -> b.writeBlockPos(value));
       buffer.writeBlockPos(this.minOffset);
       buffer.writeBlockPos(this.maxOffset);
       buffer.writeEnum(this.selectionMode);

@@ -58,7 +58,8 @@ class BuildingPreviewPayloadTest {
          FillMode.SOLID,
          LineTieBias.OPPOSITE,
          FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
-         placement
+         placement,
+         net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("fastformer", "wood_frame")
       );
 
       FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
@@ -74,5 +75,33 @@ class BuildingPreviewPayloadTest {
          decoded.modes().faceRasterizationMode()
       );
       assertEquals(placement, decoded.placementContext());
+      assertEquals(payload.activePlacementEffect(), decoded.activePlacementEffect());
+      assertEquals(payload.points(), decoded.session().points());
+      assertEquals(payload.faceTieBias(), decoded.parameters().faceTieBias());
+      assertEquals(payload.activePlacementEffect(), decoded.effect().activeEffect());
+   }
+
+   @Test
+   void splitPreviewPayloadsPreserveRevisionAndValues() {
+      BuildingPreviewPayload source = BuildingPreviewPayload.inactive();
+      BuildingPreviewSessionPayload session = new BuildingPreviewSessionPayload(12L, source.session());
+      BuildingPreviewParametersPayload parameters = new BuildingPreviewParametersPayload(12L, source.parameters());
+      BuildingPreviewEffectPayload effect = new BuildingPreviewEffectPayload(12L, source.effect());
+
+      FriendlyByteBuf sessionBuffer = new FriendlyByteBuf(Unpooled.buffer());
+      BuildingPreviewSessionPayload.STREAM_CODEC.encode(sessionBuffer, session);
+      FriendlyByteBuf parameterBuffer = new FriendlyByteBuf(Unpooled.buffer());
+      BuildingPreviewParametersPayload.STREAM_CODEC.encode(parameterBuffer, parameters);
+      FriendlyByteBuf effectBuffer = new FriendlyByteBuf(Unpooled.buffer());
+      BuildingPreviewEffectPayload.STREAM_CODEC.encode(effectBuffer, effect);
+
+      BuildingPreviewSessionPayload decodedSession = BuildingPreviewSessionPayload.STREAM_CODEC.decode(sessionBuffer);
+      BuildingPreviewParametersPayload decodedParameters = BuildingPreviewParametersPayload.STREAM_CODEC.decode(parameterBuffer);
+      BuildingPreviewEffectPayload decodedEffect = BuildingPreviewEffectPayload.STREAM_CODEC.decode(effectBuffer);
+
+      assertEquals(12L, decodedSession.revision());
+      assertEquals(session.value(), decodedSession.value());
+      assertEquals(parameters.value(), decodedParameters.value());
+      assertEquals(effect.value(), decodedEffect.value());
    }
 }

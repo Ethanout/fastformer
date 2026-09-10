@@ -19,11 +19,12 @@ public final class WallGenerator {
       if (points.size() < 2) {
          Set<BlockPos> result = new ObservedBlockSet(observer);
          result.addAll(points);
-         return result;
+         return GenerationLimitExceeded.boundedResult(result, maxBlocks, observer);
       }
+      int stagingLimit = GenerationLimitExceeded.probeLimit(maxBlocks);
       Set<BlockPos> result = new ObservedBlockSet(observer);
       int layers = Math.max(Math.abs(extrusion.getX()), Math.max(Math.abs(extrusion.getY()), Math.abs(extrusion.getZ())));
-      for (int layer = 0; layer <= layers && result.size() < maxBlocks; layer++) {
+      for (int layer = 0; layer <= layers && result.size() < stagingLimit; layer++) {
          double ratio = layers == 0 ? 0.0 : (double)layer / (double)layers;
          BlockPos offset = new BlockPos(
             (int)Math.round(extrusion.getX() * ratio),
@@ -31,13 +32,25 @@ public final class WallGenerator {
             (int)Math.round(extrusion.getZ() * ratio)
          );
          int edgeCount = closed ? points.size() : points.size() - 1;
-         for (int edge = 0; edge < edgeCount && result.size() < maxBlocks; edge++) {
+         for (int edge = 0; edge < edgeCount && result.size() < stagingLimit; edge++) {
             BlockPos from = points.get(edge).offset(offset);
             BlockPos to = points.get((edge + 1) % points.size()).offset(offset);
-            LineGenerator.add(result, from, to, maxBlocks);
+            LineGenerator.add(result, from, to, stagingLimit);
          }
       }
-      return Set.copyOf(result);
+      return GenerationLimitExceeded.boundedResult(result, maxBlocks, observer);
+   }
+
+   public static BlockGenerationResult generateResult(
+      List<BlockPos> points, boolean closed, BlockPos extrusion, int maxBlocks, BlockGenerationObserver observer
+   ) {
+      return BlockGenerationResult.fromLegacy(generate(points, closed, extrusion, maxBlocks, observer));
+   }
+
+   public static BlockGenerationResult generateResult(
+      List<BlockPos> points, boolean closed, BlockPos extrusion, int maxBlocks
+   ) {
+      return generateResult(points, closed, extrusion, maxBlocks, BlockGenerationObserver.NONE);
    }
 
    public static long estimateScanCells(List<BlockPos> points, boolean closed, BlockPos extrusion) {

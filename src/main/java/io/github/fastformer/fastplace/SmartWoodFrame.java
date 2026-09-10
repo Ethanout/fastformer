@@ -1,7 +1,11 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
-import java.util.HashMap;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,13 +16,13 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.Vec3;
 
 /** Builds the geometric frame and applies axes selected by {@link SmartWoodFrameOrientation}. */
-final class SmartWoodFrame {
+public final class SmartWoodFrame {
    private SmartWoodFrame() {
    }
 
    /** A continuous geometric edge. It does not contain a Minecraft wood axis. */
-   record Edge(BlockPos from, BlockPos to) {
-      Edge {
+   public record Edge(BlockPos from, BlockPos to) {
+      public Edge {
          from = from == null ? BlockPos.ZERO : from.immutable();
          to = to == null ? from : to.immutable();
       }
@@ -33,16 +37,44 @@ final class SmartWoodFrame {
       }
    }
 
-   record Config(Direction.Axis baseAxis, List<BlockPos> guidePoints, List<Edge> edges) {
+   public record Config(
+      Direction.Axis baseAxis,
+      List<BlockPos> guidePoints,
+      List<Edge> edges,
+      LineTieBias tieBias
+   ) {
       Config(Direction.Axis baseAxis, List<BlockPos> guidePoints) {
-         this(baseAxis, guidePoints, List.of());
+         this(baseAxis, guidePoints, List.of(), LineTieBias.DEFAULT);
       }
 
-      Config {
+      Config(Direction.Axis baseAxis, List<BlockPos> guidePoints, List<Edge> edges) {
+         this(baseAxis, guidePoints, edges, LineTieBias.DEFAULT);
+      }
+
+      public Config {
          baseAxis = baseAxis == null ? Direction.Axis.Y : baseAxis;
          guidePoints = guidePoints == null ? List.of() : List.copyOf(guidePoints);
          edges = edges == null ? List.of() : List.copyOf(edges);
+         tieBias = tieBias == null ? LineTieBias.DEFAULT : tieBias;
       }
+   }
+
+   public static Config config(
+      Direction.Axis baseAxis,
+      List<BlockPos> points,
+      FastPlaceGeometry.Modes modes,
+      boolean polygonHeightConfirmed,
+      PolygonVolumeShape volumeShape
+   ) {
+      LineTieBias edgeTieBias = points.size() >= 3 && modes.faceMode() != FaceMode.POLYGON
+         ? modes.faceTieBias()
+         : LineTieBias.DEFAULT;
+      return new Config(
+         baseAxis,
+         points,
+         edgeGuides(points, modes.faceMode(), polygonHeightConfirmed, volumeShape),
+         edgeTieBias
+      );
    }
 
    /** Builds the authored geometric edges used by the shape generator. */
@@ -100,18 +132,13 @@ final class SmartWoodFrame {
       return List.copyOf(result);
    }
 
-   static Map<BlockPos, BlockState> resolve(Set<BlockPos> positions, BlockState prototype, Config config) {
+   public static Map<BlockPos, BlockState> resolve(Set<BlockPos> positions, BlockState prototype, Config config) {
       if (positions == null || positions.isEmpty() || config == null || prototype == null
          || !prototype.hasProperty(BlockStateProperties.AXIS)) {
          return Map.of();
       }
       Map<BlockPos, Direction.Axis> axes = SmartWoodFrameOrientation.resolve(positions, config);
-      Map<BlockPos, BlockState> result = new HashMap<>();
-      for (BlockPos position : positions) {
-         Direction.Axis axis = axes.getOrDefault(position, config.baseAxis());
-         result.put(position, prototype.setValue(BlockStateProperties.AXIS, axis));
-      }
-      return Map.copyOf(result);
+      return new ResolvedStateMap(axes, prototype);
    }
 
    static Direction.Axis axisForTest(Set<BlockPos> positions, BlockPos position, Config config) {
@@ -120,5 +147,54 @@ final class SmartWoodFrame {
       }
       return SmartWoodFrameOrientation.resolve(positions, config)
          .getOrDefault(position, config.baseAxis());
+   }
+
+   /** Read-only state view that avoids copying one BlockState entry per edge voxel. */
+   private static final class ResolvedStateMap extends AbstractMap<BlockPos, BlockState> {
+      private final Map<BlockPos, Direction.Axis> axes;
+      private final BlockState prototype;
+
+      private ResolvedStateMap(Map<BlockPos, Direction.Axis> axes, BlockState prototype) {
+         this.axes = Collections.unmodifiableMap(axes);
+         this.prototype = prototype;
+      }
+
+      @Override
+      public Set<Entry<BlockPos, BlockState>> entrySet() {
+         return new AbstractSet<>() {
+            @Override
+            public int size() {
+               return ResolvedStateMap.this.axes.size();
+            }
+
+            @Override
+            public Iterator<Entry<BlockPos, BlockState>> iterator() {
+               Iterator<Entry<BlockPos, Direction.Axis>> source =
+                  ResolvedStateMap.this.axes.entrySet().iterator();
+               return new Iterator<>() {
+                  @Override
+                  public boolean hasNext() {
+                     return source.hasNext();
+                  }
+
+                  @Override
+                  public Entry<BlockPos, BlockState> next() {
+                     Entry<BlockPos, Direction.Axis> entry = source.next();
+                     return new SimpleImmutableEntry<>(
+                        entry.getKey(), ResolvedStateMap.this.prototype.setValue(
+                           BlockStateProperties.AXIS, entry.getValue()
+                        )
+                     );
+                  }
+               };
+            }
+         };
+      }
+
+      @Override
+      public BlockState get(Object key) {
+         Direction.Axis axis = this.axes.get(key);
+         return axis == null ? null : this.prototype.setValue(BlockStateProperties.AXIS, axis);
+      }
    }
 }

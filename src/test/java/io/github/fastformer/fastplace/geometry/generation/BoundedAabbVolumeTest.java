@@ -22,11 +22,22 @@ class BoundedAabbVolumeTest {
                ));
                Set<BlockPos> solid = box.materialize(false, 100, BlockGenerationObserver.NONE);
                Set<BlockPos> boundary = box.materialize(true, 100, BlockGenerationObserver.NONE);
+               assertEquals(true, BoundedAabbVolume.usesLazyStorageForTesting(solid));
+               assertEquals(true, BoundedAabbVolume.usesLazyStorageForTesting(boundary));
                assertEquals(physicalBoundary(solid), boundary, "dimensions=" + x + "x" + y + "x" + z);
                assertEquals(boundary.size(), box.boundaryCount());
             }
          }
       }
+   }
+
+   @Test
+   void boundaryIteratorHandlesIntegerMaximumCoordinates() {
+      Vec3 corner = new Vec3(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+      BoundedAabbVolume box = BoundedAabbVolume.containing(List.of(corner));
+
+      assertEquals(Set.of(new BlockPos(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE)),
+         box.materialize(true, 1, BlockGenerationObserver.NONE));
    }
 
    private static Set<BlockPos> physicalBoundary(Set<BlockPos> solid) {

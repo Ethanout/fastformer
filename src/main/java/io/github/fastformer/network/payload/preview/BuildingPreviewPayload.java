@@ -45,7 +45,8 @@ public record BuildingPreviewPayload(
       FillMode fillMode,
       LineTieBias faceTieBias,
       FaceRasterizationMode faceRasterizationMode,
-      PlacementContextSnapshot placementContext
+      PlacementContextSnapshot placementContext,
+      ResourceLocation activePlacementEffect
 ) implements CustomPacketPayload {
    private static final int MAX_PREVIEW_POINTS = 1024;
    public static final Type<BuildingPreviewPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("fastformer", "building_preview"));
@@ -94,7 +95,7 @@ public record BuildingPreviewPayload(
          enabled, middleConfirmEnabled, active, ctrlHeld, polygonClosed, polygonHeightConfirmed,
          polygonVolumeShape, points, angleDistance, freeScrollOffset, faceBaseOffset, volumeBaseOffset,
          perpendicularAnchor, angleDegrees, pointMode, raycastPlacement, lineMode, faceMode, volumeMode,
-         fillMode, faceTieBias, FaceRasterizationMode.POINT_SWEEP, placementContext
+         fillMode, faceTieBias, FaceRasterizationMode.POINT_SWEEP, placementContext, null
       );
    }
 
@@ -122,7 +123,8 @@ public record BuildingPreviewPayload(
          buffer.readEnum(FillMode.class),
          buffer.readEnum(LineTieBias.class),
          buffer.readEnum(FaceRasterizationMode.class),
-         readPlacementContext(buffer)
+         readPlacementContext(buffer),
+         buffer.readBoolean() ? ResourceLocation.parse(buffer.readUtf(128)) : null
       );
    }
 
@@ -139,6 +141,7 @@ public record BuildingPreviewPayload(
       BlockPos freeScrollOffset,
       LineTieBias faceTieBias,
       PlacementContextSnapshot placementContext,
+      ResourceLocation activePlacementEffect,
       FastPlaceSettings settings
    ) {
       return new BuildingPreviewPayload(
@@ -164,7 +167,8 @@ public record BuildingPreviewPayload(
          settings.fillMode(),
          faceTieBias,
          settings.faceRasterizationMode(),
-         placementContext
+         placementContext,
+         activePlacementEffect
       );
    }
 
@@ -192,6 +196,7 @@ public record BuildingPreviewPayload(
          settings.fillMode(),
          LineTieBias.DEFAULT,
          settings.faceRasterizationMode(),
+         null,
          null
       );
    }
@@ -220,8 +225,49 @@ public record BuildingPreviewPayload(
          FillMode.OUTLINE,
          LineTieBias.DEFAULT,
          FaceRasterizationMode.POINT_SWEEP,
+         null,
          null
       );
+   }
+
+   /** Returns the interaction state as one cohesive value object. */
+   public BuildingPreviewSession session() {
+      return new BuildingPreviewSession(
+         enabled,
+         middleConfirmEnabled,
+         active,
+         ctrlHeld,
+         polygonClosed,
+         polygonHeightConfirmed,
+         polygonVolumeShape,
+         points,
+         freeScrollOffset,
+         placementContext
+      );
+   }
+
+   /** Returns the geometry parameters required to reproduce this preview. */
+   public BuildingPreviewParameters parameters() {
+      return new BuildingPreviewParameters(
+         angleDistance,
+         faceBaseOffset,
+         volumeBaseOffset,
+         perpendicularAnchor,
+         angleDegrees,
+         pointMode,
+         raycastPlacement,
+         lineMode,
+         faceMode,
+         volumeMode,
+         fillMode,
+         faceTieBias,
+         faceRasterizationMode
+      );
+   }
+
+   /** Returns the server-selected effect identity for this preview. */
+   public BuildingPreviewEffectSnapshot effect() {
+      return new BuildingPreviewEffectSnapshot(activePlacementEffect);
    }
 
    public FastPlaceGeometry.Modes modes() {
@@ -264,6 +310,10 @@ public record BuildingPreviewPayload(
       buffer.writeEnum(this.faceTieBias);
       buffer.writeEnum(this.faceRasterizationMode);
       writePlacementContext(buffer, this.placementContext);
+      buffer.writeBoolean(this.activePlacementEffect != null);
+      if (this.activePlacementEffect != null) {
+         buffer.writeUtf(this.activePlacementEffect.toString(), 128);
+      }
    }
 
    @Override

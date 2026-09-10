@@ -51,4 +51,20 @@ class IncomingPayloadTransfersTest {
          owner, new OperationWorkspaceApplyPayload(UUID.randomUUID(), 1, 2, new byte[] {2})
       ));
    }
+
+   @Test
+   void purgesStalledTransfersWithoutAnotherChunk() throws IOException {
+      IncomingPayloadTransfers transfers = new IncomingPayloadTransfers();
+      UUID owner = UUID.randomUUID();
+      UUID transferId = UUID.randomUUID();
+      assertNull(transfers.acceptWorkspace(
+         owner, new OperationWorkspaceApplyPayload(transferId, 0, 2, new byte[] {1})
+      ));
+
+      transfers.purgeExpired(Long.MAX_VALUE);
+
+      assertThrows(IOException.class, () -> transfers.acceptWorkspace(
+         owner, new OperationWorkspaceApplyPayload(transferId, 1, 2, new byte[] {2})
+      ));
+   }
 }

@@ -42,11 +42,16 @@ public final class FastPlaceNetwork {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("57").optional();
+      PayloadRegistrar registrar = event.registrar("58").optional();
       registrar.playToServer(ModifierStatePayload.TYPE, ModifierStatePayload.STREAM_CODEC, FastPlaceNetwork::handleModifierState);
       registrar.playToServer(MiddleConfirmSettingPayload.TYPE, MiddleConfirmSettingPayload.STREAM_CODEC, FastPlaceNetwork::handleMiddleConfirmSetting);
       registrar.playToServer(FaceRasterizationSettingPayload.TYPE, FaceRasterizationSettingPayload.STREAM_CODEC, FastPlaceNetwork::handleFaceRasterizationSetting);
       registrar.playToServer(SettingsActionPayload.TYPE, SettingsActionPayload.STREAM_CODEC, FastPlaceNetwork::handleSettingsAction);
+      registrar.playToServer(
+         PlacementEffectSettingPayload.TYPE,
+         PlacementEffectSettingPayload.STREAM_CODEC,
+         FastPlaceNetwork::handlePlacementEffectSetting
+      );
       registrar.playToServer(OperationPointPayload.TYPE, OperationPointPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationPoint);
       registrar.playToServer(OperationExtendPayload.TYPE, OperationExtendPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationExtend);
       registrar.playToServer(OperationSelectPointPayload.TYPE, OperationSelectPointPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationSelectPoint);
@@ -65,9 +70,12 @@ public final class FastPlaceNetwork {
          FastPlaceNetwork::handleShapePlacement
       );
       registrar.playToServer(OperationTransformPayload.TYPE, OperationTransformPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationTransform);
-      registrar.playToServer(ConfirmPayload.TYPE, ConfirmPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryConfirm);
       registrar.playToServer(StartPlacementPayload.TYPE, StartPlacementPayload.STREAM_CODEC, FastPlaceNetwork::handleStartPlacement);
-      registrar.playToServer(QuickShapePayload.TYPE, QuickShapePayload.STREAM_CODEC, FastPlaceNetwork::handleQuickShape);
+      registrar.playToServer(
+         PlacementActionPayload.TYPE,
+         PlacementActionPayload.STREAM_CODEC,
+         FastPlaceNetwork::handlePlacementAction
+      );
       registrar.playToServer(QuickReplacePayload.TYPE, QuickReplacePayload.STREAM_CODEC, FastPlaceNetwork::handleQuickReplace);
       registrar.playToServer(GeometryRemovePointPayload.TYPE, GeometryRemovePointPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryRemovePoint);
       registrar.playToServer(GeometrySelectModePayload.TYPE, GeometrySelectModePayload.STREAM_CODEC, FastPlaceNetwork::handleGeometrySelectMode);
@@ -81,7 +89,21 @@ public final class FastPlaceNetwork {
       registrar.playToServer(UndoFastPlacePayload.TYPE, UndoFastPlacePayload.STREAM_CODEC, FastPlaceNetwork::handleUndo);
       registrar.playToServer(WorldUndoPayload.TYPE, WorldUndoPayload.STREAM_CODEC, FastPlaceNetwork::handleWorldUndo);
       registrar.playToServer(WorldRedoPayload.TYPE, WorldRedoPayload.STREAM_CODEC, FastPlaceNetwork::handleWorldRedo);
-      registrar.playToClient(BuildingPreviewPayload.TYPE, BuildingPreviewPayload.STREAM_CODEC, FastPlaceNetwork::handleBuildingPreview);
+      registrar.playToClient(
+         BuildingPreviewSessionPayload.TYPE,
+         BuildingPreviewSessionPayload.STREAM_CODEC,
+         FastPlaceNetwork::handleBuildingPreviewSession
+      );
+      registrar.playToClient(
+         BuildingPreviewParametersPayload.TYPE,
+         BuildingPreviewParametersPayload.STREAM_CODEC,
+         FastPlaceNetwork::handleBuildingPreviewParameters
+      );
+      registrar.playToClient(
+         BuildingPreviewEffectPayload.TYPE,
+         BuildingPreviewEffectPayload.STREAM_CODEC,
+         FastPlaceNetwork::handleBuildingPreviewEffect
+      );
       registrar.playToClient(OperationPreviewPayload.TYPE, OperationPreviewPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationPreview);
       registrar.playToClient(
          OperationWorkspaceResultPayload.TYPE,
@@ -144,7 +166,6 @@ public final class FastPlaceNetwork {
                case CYCLE_PLACEMENT_UPDATE -> settings.setPlacementUpdateMode(
                   player, next(settings.placementUpdateMode(), PlacementUpdateMode.values())
                );
-               case TOGGLE_SMART_WOOD_FRAME -> settings.toggleSmartWoodFrame(player);
                case TOGGLE_EMPTY_HAND_WRENCH -> settings.toggleEmptyHandWrench(player);
                case TOGGLE_GLOBAL_FREEZE -> {
                   var manager = player.getServer().tickRateManager();
@@ -157,6 +178,19 @@ public final class FastPlaceNetwork {
             }
             FastPlaceManager.syncCurrentPreview(player);
          }
+      });
+   }
+
+   private static void handlePlacementEffectSetting(
+      PlacementEffectSettingPayload payload, IPayloadContext context
+   ) {
+      context.enqueueWork(() -> {
+         if (!(context.player() instanceof ServerPlayer player)
+            || !io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry.contains(payload.effectId())) {
+            return;
+         }
+         FastPlaceSettings.load(player).setPlacementEffectEnabled(player, payload.effectId(), payload.enabled());
+         FastPlaceManager.syncCurrentPreview(player);
       });
    }
 
@@ -291,19 +325,12 @@ public final class FastPlaceNetwork {
       });
    }
 
-   private static void handleGeometryConfirm(ConfirmPayload payload, IPayloadContext context) {
+   private static void handlePlacementAction(PlacementActionPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
-         if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.confirm(player);
+         if (!(context.player() instanceof ServerPlayer player)) {
+            return;
          }
-      });
-   }
-
-   private static void handleQuickShape(QuickShapePayload payload, IPayloadContext context) {
-      context.enqueueWork(() -> {
-         if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.quickShape(player);
-         }
+         ServerInputDispatcher.placementAction(player, payload);
       });
    }
 
@@ -363,8 +390,22 @@ public final class FastPlaceNetwork {
       });
    }
 
-   private static void handleBuildingPreview(BuildingPreviewPayload payload, IPayloadContext context) {
-      context.enqueueWork(() -> ClientPayloadDispatcher.applyBuildingPreview(payload));
+   private static void handleBuildingPreviewSession(
+      BuildingPreviewSessionPayload payload, IPayloadContext context
+   ) {
+      context.enqueueWork(() -> ClientPayloadDispatcher.applyBuildingSession(payload));
+   }
+
+   private static void handleBuildingPreviewParameters(
+      BuildingPreviewParametersPayload payload, IPayloadContext context
+   ) {
+      context.enqueueWork(() -> ClientPayloadDispatcher.applyBuildingParameters(payload));
+   }
+
+   private static void handleBuildingPreviewEffect(
+      BuildingPreviewEffectPayload payload, IPayloadContext context
+   ) {
+      context.enqueueWork(() -> ClientPayloadDispatcher.applyBuildingEffect(payload));
    }
 
    private static void handleOperationPreview(OperationPreviewPayload payload, IPayloadContext context) {
@@ -465,6 +506,11 @@ public final class FastPlaceNetwork {
    public static void clearServer() {
       PlayerPreviewSync.clearServer();
       INCOMING_TRANSFERS.clear();
+   }
+
+   /** Cleans incomplete client payloads without waiting for another packet. */
+   public static void tick() {
+      INCOMING_TRANSFERS.purgeExpired();
    }
 
    public static void sendWorkspaceResult(

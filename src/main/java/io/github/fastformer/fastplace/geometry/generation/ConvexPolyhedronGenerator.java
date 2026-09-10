@@ -21,18 +21,22 @@ public final class ConvexPolyhedronGenerator {
       double radius = parameters.radius(1.0);
       List<Constraint> constraints = constraints(parameters.shapeVariant(), radius);
       Vec3 zDirection = PolyhedronGeometry.toLocal(new Vec3(0.0, 0.0, 1.0), parameters);
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
-      for (int x = bounds.minX(); x <= bounds.maxX() && result.size() < maxBlocks; x++) {
-         for (int y = bounds.minY(); y <= bounds.maxY() && result.size() < maxBlocks; y++) {
-            IntSpan span = zSpan(parameters, bounds, constraints, zDirection, x, y);
-            if (fillMode == FillMode.SOLID) {
-               addRange(result, x, y, span.min(), span.max(), maxBlocks);
-            } else {
-               addBoundary(result, parameters, bounds, constraints, zDirection, x, y, span, maxBlocks);
-            }
-         }
+      boolean boundaryOnly = fillMode != FillMode.SOLID;
+      long count = countBlocks(parameters, bounds, constraints, zDirection, boundaryOnly);
+      if (count > maxBlocks) {
+         return GenerationLimitExceeded.witness(maxBlocks);
       }
-      return Set.copyOf(result);
+      return new LazyBlockSet(
+         bounds.minX(), bounds.minY(), bounds.minZ(),
+         bounds.maxX(), bounds.maxY(), bounds.maxZ(), (int)count,
+         (x, y, z) -> {
+            IntSpan span = zSpan(parameters, bounds, constraints, zDirection, x, y);
+            return !span.empty() && z >= span.min() && z <= span.max()
+               && (!boundaryOnly || isBoundary(
+                  parameters, bounds, constraints, zDirection, new BlockPos(x, y, z)
+               ));
+         }
+      );
    }
 
    public static long estimateScanCells(PolyhedronParameters parameters) {
@@ -94,6 +98,49 @@ public final class ConvexPolyhedronGenerator {
       }
       addRange(output, x, y, span.min(), interiorMin - 1, maxBlocks);
       addRange(output, x, y, interiorMax + 1, span.max(), maxBlocks);
+   }
+
+   private static long countBlocks(
+      PolyhedronParameters parameters,
+      PolyhedronGeometry.Bounds bounds,
+      List<Constraint> constraints,
+      Vec3 zDirection,
+      boolean boundaryOnly
+   ) {
+      long count = 0L;
+      for (long x = bounds.minX(); x <= (long)bounds.maxX(); x++) {
+         for (long y = bounds.minY(); y <= (long)bounds.maxY(); y++) {
+            IntSpan span = zSpan(parameters, bounds, constraints, zDirection, (int)x, (int)y);
+            if (span.empty()) {
+               continue;
+            }
+            long column = boundaryOnly
+               ? boundaryCount(parameters, bounds, constraints, zDirection, (int)x, (int)y, span)
+               : span.length();
+            count = count > Long.MAX_VALUE - column ? Long.MAX_VALUE : count + column;
+         }
+      }
+      return count;
+   }
+
+   private static long boundaryCount(
+      PolyhedronParameters parameters,
+      PolyhedronGeometry.Bounds bounds,
+      List<Constraint> constraints,
+      Vec3 zDirection,
+      int x,
+      int y,
+      IntSpan span
+   ) {
+      IntSpan left = zSpan(parameters, bounds, constraints, zDirection, x - 1, y);
+      IntSpan right = zSpan(parameters, bounds, constraints, zDirection, x + 1, y);
+      IntSpan down = zSpan(parameters, bounds, constraints, zDirection, x, y - 1);
+      IntSpan up = zSpan(parameters, bounds, constraints, zDirection, x, y + 1);
+      int interiorMin = Math.max(span.min() + 1, Math.max(Math.max(left.min(), right.min()), Math.max(down.min(), up.min())));
+      int interiorMax = Math.min(span.max() - 1, Math.min(Math.min(left.max(), right.max()), Math.min(down.max(), up.max())));
+      return interiorMin > interiorMax
+         ? span.length()
+         : (long)interiorMin - span.min() + (long)span.max() - interiorMax;
    }
 
    private static IntSpan zSpan(
@@ -197,5 +244,32 @@ public final class ConvexPolyhedronGenerator {
       boolean empty() {
          return this.min > this.max;
       }
+
+      long length() {
+         return empty() ? 0L : (long)this.max - this.min + 1L;
+      }
    }
+
+   private static boolean isBoundary(
+      PolyhedronParameters parameters,
+      PolyhedronGeometry.Bounds bounds,
+      List<Constraint> constraints,
+      Vec3 zDirection,
+      BlockPos position
+   ) {
+      int x = position.getX();
+      int y = position.getY();
+      int z = position.getZ();
+      return !contains(zSpan(parameters, bounds, constraints, zDirection, x - 1, y), z)
+         || !contains(zSpan(parameters, bounds, constraints, zDirection, x + 1, y), z)
+         || !contains(zSpan(parameters, bounds, constraints, zDirection, x, y - 1), z)
+         || !contains(zSpan(parameters, bounds, constraints, zDirection, x, y + 1), z)
+         || !contains(zSpan(parameters, bounds, constraints, zDirection, x, y), z - 1)
+         || !contains(zSpan(parameters, bounds, constraints, zDirection, x, y), z + 1);
+   }
+
+   private static boolean contains(IntSpan span, int value) {
+      return !span.empty() && value >= span.min() && value <= span.max();
+   }
+
 }

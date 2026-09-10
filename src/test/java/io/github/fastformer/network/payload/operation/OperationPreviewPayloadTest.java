@@ -45,6 +45,8 @@ class OperationPreviewPayloadTest {
       OperationPreviewPayload decoded = OperationPreviewPayload.STREAM_CODEC.decode(buffer);
 
       assertEquals(payload.points(), decoded.points());
+      assertEquals(payload.selectionMin(), decoded.selectionMin());
+      assertEquals(payload.selectionMax(), decoded.selectionMax());
       assertEquals(3, decoded.operationPrismBasePointCount());
       assertEquals(1, decoded.operationSelectedPointIndex());
       assertEquals(new BlockPos(0, 0, 2), decoded.operationMaxOffset());
@@ -54,5 +56,21 @@ class OperationPreviewPayloadTest {
       assertEquals(OperationStageMode.TRANSFORM, decoded.operationStageMode());
       assertEquals(new Vec3(0.1, 0.2, 0.3), decoded.operationRotation());
       assertEquals(37L, decoded.operationRevision());
+   }
+
+   @Test
+   void cuboidBoundsAreIndependentFromPointIdentity() {
+      OperationPreviewPayload payload = OperationPreviewPayload.active(
+         3L, true, true, List.of(new BlockPos(10, 10, 10), new BlockPos(12, 12, 12)),
+         new BlockPos(2, 3, 4), new BlockPos(20, 21, 22), BlockPos.ZERO, BlockPos.ZERO,
+         OperationSelectionMode.CUBOID, 0, -1, 0, OperationMode.MOVE, OperationStageMode.TRANSFORM,
+         BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, Vec3.ZERO, false, false, false
+      );
+      FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+      OperationPreviewPayload.STREAM_CODEC.encode(buffer, payload);
+      OperationPreviewPayload decoded = OperationPreviewPayload.STREAM_CODEC.decode(buffer);
+      assertEquals(new BlockPos(2, 3, 4), decoded.selectionMin());
+      assertEquals(new BlockPos(20, 21, 22), decoded.selectionMax());
+      assertEquals(payload.points(), decoded.points());
    }
 }

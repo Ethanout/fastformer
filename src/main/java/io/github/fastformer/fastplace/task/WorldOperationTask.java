@@ -1,14 +1,13 @@
 package io.github.fastformer.fastplace.task;
 
 import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeBatch;
+import io.github.fastformer.fastplace.world.WorldChangeTransaction;
+import io.github.fastformer.fastplace.world.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
-import java.util.ArrayDeque;
-import java.util.Map;
+import java.util.UUID;
 import java.util.Optional;
-import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -29,13 +28,55 @@ public interface WorldOperationTask {
 
    void releaseAfterCancelledJournal(WorldTaskContext context);
 
-   boolean hasWrites();
+   WorldChangeTransaction transaction();
 
-   ArrayDeque<ReversibleBlockSnapshot> undoChanges();
+   default boolean hasWrites() {
+      return transaction().hasWrites();
+   }
 
-   Map<BlockPos, ReversibleBlockSnapshot> afterChanges();
+   /** Stops task-owned preparation and transfers recovery storage once. */
+   default WorldRecoverySnapshot stopAndTransferRecovery() {
+      cancelJournalPreparation();
+      return transaction().transferRecoverySnapshot();
+   }
 
    ResourceKey<Level> dimension();
 
-   Optional<WorldChangeBatch> preparedBatch();
+   default Optional<WorldChangeBatch> preparedBatch() {
+      return transaction().preparedBatch(operationId());
+   }
+
+   UUID operationId();
+
+   String metricsSummary();
+
+   void markWorldUnloaded();
+
+   void markComplete();
+
+   default boolean memoryThrottled() {
+      return false;
+   }
+
+   default int previousBatchCells() {
+      return 0;
+   }
+
+   default long previousBatchNanos() {
+      return 0L;
+   }
+
+   /** Re-establishes a released working-set reservation after a world reload. */
+   default boolean ensureMemoryReservation() {
+      return true;
+   }
+
+   default void recordBatch(int cells, long elapsedNanos) {
+   }
+
+   default void releaseMemoryReservation() {
+   }
+
+   default void releaseCommittedTransactionState() {
+   }
 }

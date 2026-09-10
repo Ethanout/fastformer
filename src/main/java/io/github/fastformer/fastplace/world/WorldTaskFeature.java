@@ -23,11 +23,6 @@ public final class WorldTaskFeature {
    private WorldTaskFeature() {
    }
 
-   public enum FailureDisposition {
-      RECOVER_WRITES,
-      DISCARD_UNUSED_JOURNAL
-   }
-
    public static void tick(MinecraftServer server) {
       // Recovery has priority. A writer that transfers itself to recovery is
       // removed from its manager before the next manager gets a chance to run.
@@ -51,10 +46,6 @@ public final class WorldTaskFeature {
          LOGGER.error("FastFormer {} world task scheduler failed; journals and leases were retained", kind, exception);
          return false;
       }
-   }
-
-   public static FailureDisposition failureDisposition(boolean hasWrites) {
-      return hasWrites ? FailureDisposition.RECOVER_WRITES : FailureDisposition.DISCARD_UNUSED_JOURNAL;
    }
 
    static void deferActionBar(UUID owner, Component message) {

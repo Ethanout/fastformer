@@ -8,6 +8,8 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
+import java.util.ArrayList;
+import java.util.List;
 
 public record OpenSettingsPayload(
    boolean middleConfirmEnabled,
@@ -15,7 +17,7 @@ public record OpenSettingsPayload(
    RaycastPlacement raycastPlacement,
    OperationConflictMode placementConflictMode,
    PlacementUpdateMode placementUpdateMode,
-   boolean smartWoodFrame,
+   List<ResourceLocation> enabledPlacementEffects,
    boolean emptyHandWrench,
    boolean globalFrozen,
    int worldUndoHistoryLimit,
@@ -30,7 +32,7 @@ public record OpenSettingsPayload(
       this(
          buffer.readBoolean(), buffer.readEnum(FaceRasterizationMode.class), buffer.readEnum(RaycastPlacement.class),
          buffer.readEnum(OperationConflictMode.class), buffer.readEnum(PlacementUpdateMode.class),
-         buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt()
+         readEffectIds(buffer), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt()
       );
    }
 
@@ -41,13 +43,14 @@ public record OpenSettingsPayload(
       raycastPlacement = raycastPlacement == null ? RaycastPlacement.EMBEDDED : raycastPlacement;
       placementConflictMode = placementConflictMode == null ? OperationConflictMode.REPLACE : placementConflictMode;
       placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.NORMAL : placementUpdateMode;
+      enabledPlacementEffects = enabledPlacementEffects == null ? List.of() : List.copyOf(enabledPlacementEffects);
       worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
       sessionUndoHistoryLimit = Math.clamp((long)sessionUndoHistoryLimit, 1, 800);
    }
 
    public OpenSettingsPayload(boolean middleConfirmEnabled) {
       this(middleConfirmEnabled, FaceRasterizationMode.POINT_SWEEP, RaycastPlacement.EMBEDDED,
-         OperationConflictMode.REPLACE, PlacementUpdateMode.NORMAL, true, true, false, 200, 100);
+         OperationConflictMode.REPLACE, PlacementUpdateMode.NORMAL, List.of(), true, false, 200, 100);
    }
 
    public OpenSettingsPayload(
@@ -61,7 +64,7 @@ public record OpenSettingsPayload(
    ) {
       this(
          middleConfirmEnabled, faceRasterizationMode, raycastPlacement, placementConflictMode,
-         placementUpdateMode, true, true, false, worldUndoHistoryLimit, sessionUndoHistoryLimit
+         placementUpdateMode, List.of(), true, false, worldUndoHistoryLimit, sessionUndoHistoryLimit
       );
    }
 
@@ -71,7 +74,8 @@ public record OpenSettingsPayload(
       buffer.writeEnum(this.raycastPlacement);
       buffer.writeEnum(this.placementConflictMode);
       buffer.writeEnum(this.placementUpdateMode);
-      buffer.writeBoolean(this.smartWoodFrame);
+      buffer.writeVarInt(this.enabledPlacementEffects.size());
+      this.enabledPlacementEffects.forEach(id -> buffer.writeUtf(id.toString(), 128));
       buffer.writeBoolean(this.emptyHandWrench);
       buffer.writeBoolean(this.globalFrozen);
       buffer.writeVarInt(this.worldUndoHistoryLimit);
@@ -81,5 +85,17 @@ public record OpenSettingsPayload(
    @Override
    public Type<OpenSettingsPayload> type() {
       return TYPE;
+   }
+
+   private static List<ResourceLocation> readEffectIds(FriendlyByteBuf buffer) {
+      int count = buffer.readVarInt();
+      if (count < 0 || count > 256) {
+         throw new IllegalArgumentException("Invalid placement effect count: " + count);
+      }
+      List<ResourceLocation> result = new ArrayList<>(count);
+      for (int index = 0; index < count; index++) {
+         result.add(ResourceLocation.parse(buffer.readUtf(128)));
+      }
+      return List.copyOf(result);
    }
 }

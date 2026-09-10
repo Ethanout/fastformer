@@ -12,7 +12,10 @@ import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
 import io.github.fastformer.fastplace.geometry.PointerGesture;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.network.payload.operation.OperationPointPayload;
+import io.github.fastformer.network.payload.placement.PlacementActionPayload;
 import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.AABB;
@@ -24,6 +27,7 @@ public final class ServerInputDispatcher {
    public static final double EXTENDED_REACH = LongRangeBlockRaycast.MAX_REACH;
    private static final int MAX_DRAG_STEPS_PER_PACKET = 128;
    private static final int MAX_INHERITED_LINE_OFFSET = 128;
+   private static final Map<UUID, Long> LAST_PLACEMENT_ACTION = new HashMap<>();
 
    private ServerInputDispatcher() {
    }
@@ -32,6 +36,17 @@ public final class ServerInputDispatcher {
       return player.isCreative()
          && FastPlaceSettings.load(player).enabled()
          && PersistentRecoveryJournal.writesAllowed();
+   }
+
+   /** A world task owns all editing input until it releases its resources. */
+   public static boolean interactionBlocked(ServerPlayer player) {
+      return interactionBlocked(player.getUUID());
+   }
+
+   static boolean interactionBlocked(UUID owner) {
+      return FastPlaceManager.taskActive(owner)
+         || OperationManager.taskActive(owner)
+         || WorldHistoryManager.busy(owner);
    }
 
    public static void stopBecauseUnavailable(ServerPlayer player) {
@@ -45,7 +60,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean rightClickBlock(ServerPlayer player, BlockHitResult hit) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || withinNormalBlockReach(player, hit.getLocation())) {
+      if (interactionBlocked(player) || !canOperate(player) || withinNormalBlockReach(player, hit.getLocation())) {
          return false;
       }
 
@@ -80,7 +95,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean rightClickItem(ServerPlayer player) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player)) {
+      if (interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
 
@@ -131,7 +146,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void startPlacement(ServerPlayer player, boolean embedded) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player)
+      if (interactionBlocked(player) || !canOperate(player)
          || !PlaceableItems.isPlaceable(player.getMainHandItem())
          || FastPlaceManager.active(player)
          || OperationManager.active(player)
@@ -155,7 +170,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean leftClickBlock(ServerPlayer player, BlockPos point) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player)) {
+      if (interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
       if (withinNormalBlockReach(player, new AABB(point))) {
@@ -165,7 +180,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void middleClick(ServerPlayer player, BlockPos point) {
-      if (!WorldHistoryManager.busy(player) && canOperate(player) && OperationManager.active(player) && !withinNormalBlockReach(player, new AABB(point))) {
+      if (!interactionBlocked(player) && canOperate(player) && OperationManager.active(player) && !withinNormalBlockReach(player, new AABB(point))) {
          OperationManager.session(player).ifPresent(session -> {
             if (session.selectionMode() == OperationSelectionMode.CUBOID) {
                OperationManager.expandTo(player, point);
@@ -177,7 +192,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void extend(ServerPlayer player, int axis, boolean positive, int steps, boolean finish) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || !OperationManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
          return;
       }
       if (!finish && nearNormalBlockReach(player) && !FastPlaceManager.modifierHeld(player)) {
@@ -187,7 +202,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void operationSelectPoint(ServerPlayer player, int index) {
-      if (!WorldHistoryManager.busy(player)
+      if (!interactionBlocked(player)
          && canOperate(player)
          && OperationManager.active(player)
          && (!nearNormalBlockReach(player) || FastPlaceManager.modifierHeld(player))) {
@@ -196,7 +211,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void operationRemovePoint(ServerPlayer player, int index) {
-      if (!WorldHistoryManager.busy(player) && canOperate(player) && OperationManager.active(player)) {
+      if (!interactionBlocked(player) && canOperate(player) && OperationManager.active(player)) {
          OperationManager.removePoint(player, index);
       }
    }
@@ -208,14 +223,14 @@ public final class ServerInputDispatcher {
       OperationPointDragConstraint constraint,
       boolean finish
    ) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || !OperationManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
          return;
       }
       OperationManager.dragPoint(player, index, target, constraint, finish);
    }
 
    public static void operationInsertPoint(ServerPlayer player) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || !OperationManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
          return;
       }
       OperationSession session = OperationManager.session(player).orElse(null);
@@ -238,7 +253,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void geometryGizmoDrag(ServerPlayer player, int operation, int axis, int steps, boolean finish) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || !GeometryManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !GeometryManager.active(player)) {
          return;
       }
       if (!finish && nearNormalBlockReach(player)) {
@@ -258,14 +273,14 @@ public final class ServerInputDispatcher {
       GeometryInteractionAction action,
       PointerGesture gesture
    ) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || nearNormalBlockReach(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)) {
          return;
       }
       GeometryManager.interaction(player, targetType, index, action, gesture);
    }
 
    public static void operationPoint(ServerPlayer player, OperationPointPayload.Role role) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player)) {
+      if (interactionBlocked(player) || !canOperate(player)) {
          return;
       }
       LongRangeBlockRaycast.Result raycast = LongRangeBlockRaycast.clip(
@@ -331,13 +346,13 @@ public final class ServerInputDispatcher {
    }
 
    public static void legacyGeometryRemovePoint(ServerPlayer player, BlockPos point) {
-      if (!WorldHistoryManager.busy(player) && canOperate(player) && GeometryManager.active(player) && !withinNormalBlockReach(player, new AABB(point))) {
+      if (!interactionBlocked(player) && canOperate(player) && GeometryManager.active(player) && !withinNormalBlockReach(player, new AABB(point))) {
          rollbackActiveSession(player);
       }
    }
 
    public static void closeActivePath(ServerPlayer player) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player)) {
+      if (interactionBlocked(player) || !canOperate(player)) {
          return;
       }
       if (OperationManager.active(player)) {
@@ -352,7 +367,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean selectGeometryMode(ServerPlayer player, GeometryMode mode) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || FastPlaceManager.active(player) || OperationManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || FastPlaceManager.active(player) || OperationManager.active(player)) {
          return false;
       }
       if (!GeometryManager.active(player) || GeometryManager.awaitingFirstPoint(player)) {
@@ -363,7 +378,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void setModifierHeld(ServerPlayer player, boolean held) {
-      if (WorldHistoryManager.busy(player)) {
+      if (interactionBlocked(player)) {
          return;
       }
       boolean allowed = canOperate(player)
@@ -376,14 +391,14 @@ public final class ServerInputDispatcher {
    }
 
    public static void shortModifier(ServerPlayer player, BlockPos lineCandidate, boolean hasLineCandidate) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player)) {
+      if (interactionBlocked(player) || !canOperate(player)) {
          return;
       }
       cycleModeAction(player, lineCandidate, hasLineCandidate);
    }
 
    public static boolean commandCycleMode(ServerPlayer player) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || !hasActiveSession(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !hasActiveSession(player)) {
          return false;
       }
       return cycleModeAction(player, null, false);
@@ -403,7 +418,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void scroll(ServerPlayer player, int steps) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || steps == 0) {
+      if (interactionBlocked(player) || !canOperate(player) || steps == 0) {
          return;
       }
       if (nearNormalBlockReach(player)) {
@@ -413,7 +428,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean commandAdjust(ServerPlayer player, int steps) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || steps == 0 || !hasActiveSession(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || steps == 0 || !hasActiveSession(player)) {
          return false;
       }
       if (GeometryManager.active(player) && !GeometryManager.allows(player, GeometryAction.SCALAR_ADJUST)) {
@@ -437,7 +452,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean fill(ServerPlayer player) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player)) {
+      if (interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
       BlockHitResult hit = raycastBlocks(player, EXTENDED_REACH);
@@ -459,10 +474,44 @@ public final class ServerInputDispatcher {
    }
 
    public static void confirm(ServerPlayer player) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || nearNormalBlockReach(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)) {
          return;
       }
       confirmAction(player);
+   }
+
+   /** Routes a semantic placement action through the same server-side guards. */
+   public static void placementAction(ServerPlayer player, PlacementActionPayload payload) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player)) {
+         return;
+      }
+      if (!acceptPlacementAction(player.getUUID(), payload.requestId())) {
+         return;
+      }
+      switch (payload.action()) {
+         case CONFIRM -> confirm(player);
+         case QUICK_SHAPE -> quickShape(player);
+      }
+   }
+
+   static boolean acceptPlacementAction(UUID owner, long requestId) {
+      if (owner == null || requestId <= 0L) {
+         return false;
+      }
+      Long previous = LAST_PLACEMENT_ACTION.get(owner);
+      if (previous != null && requestId <= previous) {
+         return false;
+      }
+      LAST_PLACEMENT_ACTION.put(owner, requestId);
+      return true;
+   }
+
+   static void clearPlacementActions(UUID owner) {
+      LAST_PLACEMENT_ACTION.remove(owner);
+   }
+
+   static void clearAllPlacementActions() {
+      LAST_PLACEMENT_ACTION.clear();
    }
 
    public static void quickShape(ServerPlayer player) {
@@ -471,14 +520,14 @@ public final class ServerInputDispatcher {
    }
 
    public static void applyOperation(ServerPlayer player, boolean copy) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || nearNormalBlockReach(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)) {
          return;
       }
       OperationManager.applyConfirmed(player, copy);
    }
 
    public static boolean applyWorkspace(ServerPlayer player, UUID transferId, OperationWorkspacePlan plan) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || nearNormalBlockReach(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)) {
          return false;
       }
       return OperationManager.applyWorkspace(player, transferId, plan);
@@ -487,7 +536,7 @@ public final class ServerInputDispatcher {
    public static void operationTransform(
       ServerPlayer player, int operation, int axis, int direction, int totalSteps, boolean finish
    ) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player)) {
+      if (interactionBlocked(player) || !canOperate(player)) {
          return;
       }
       AxisGizmo.Operation[] operations = AxisGizmo.Operation.values();
@@ -499,7 +548,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean commandConfirm(ServerPlayer player) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || !hasActiveSession(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !hasActiveSession(player)) {
          return false;
       }
       return confirmAction(player);
@@ -518,9 +567,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void undo(ServerPlayer player) {
-      if (canOperate(player) && !WorldHistoryManager.busy(player) && hasActiveSession(player) && !nearNormalBlockReach(player)) {
-         rollbackActiveSession(player);
-      }
+      requestWorldUndo(player, 1, true);
    }
 
    /** Ctrl+Z path: session rollback is allowed at any distance; only when no
@@ -624,7 +671,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean commandSubmode(ServerPlayer player, boolean active) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || !hasActiveSession(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !hasActiveSession(player)) {
          return false;
       }
       setModifierHeld(player, active);
@@ -676,7 +723,21 @@ public final class ServerInputDispatcher {
 
    public static BlockHitResult raycastBlocks(ServerPlayer player, double range) {
       Vec3 start = player.getEyePosition();
-      return LongRangeBlockRaycast.clip(player.level(), player, start, player.getViewVector(1.0F)).hit();
+      LongRangeBlockRaycast.Result result = LongRangeBlockRaycast.clip(
+         player.level(), player, start, player.getViewVector(1.0F)
+      );
+      BlockHitResult hit = result.hit();
+      if (hit.getType() != HitResult.Type.BLOCK || isWithinRaycastRange(start, hit.getLocation(), range)) {
+         return hit;
+      }
+      Vec3 direction = player.getViewVector(1.0F).normalize();
+      Vec3 end = start.add(direction.scale(range));
+      return BlockHitResult.miss(end, net.minecraft.core.Direction.UP, BlockPos.containing(end));
+   }
+
+   static boolean isWithinRaycastRange(Vec3 start, Vec3 hit, double range) {
+      return start != null && hit != null && Double.isFinite(range) && range >= 0.0
+         && hit.distanceToSqr(start) <= range * range;
    }
 
    public static double visibleExtendedReach(ServerPlayer player) {
@@ -719,7 +780,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean geometryPoint(ServerPlayer player) {
-      if (WorldHistoryManager.busy(player) || !canOperate(player) || !GeometryManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !GeometryManager.active(player)) {
          return false;
       }
       return rightClickGeometry(player, raycastBlocks(player, EXTENDED_REACH));

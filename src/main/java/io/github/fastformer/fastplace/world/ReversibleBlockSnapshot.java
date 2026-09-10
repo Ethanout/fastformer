@@ -2,7 +2,6 @@ package io.github.fastformer.fastplace.world;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -37,46 +36,42 @@ public record ReversibleBlockSnapshot(
    public static boolean refreshTaskOwnedNeighbors(
       ServerLevel level,
       BlockPos changed,
-      Map<BlockPos, ReversibleBlockSnapshot> expected,
-      java.util.ArrayDeque<ReversibleBlockSnapshot> undo,
-      Map<BlockPos, ReversibleBlockSnapshot> after
+      WorldChangeTransaction transaction
    ) {
       if (level == null || changed == null) {
          return true;
       }
       for (Direction direction : Direction.values()) {
          BlockPos neighbor = changed.relative(direction);
-         boolean expectedOwned = expected != null && expected.containsKey(neighbor);
-         boolean afterOwned = after != null && after.containsKey(neighbor);
+         boolean expectedOwned = transaction != null && transaction.expects(neighbor);
+         boolean afterOwned = transaction != null && transaction.afterAt(neighbor) != null;
          if (!expectedOwned && !afterOwned) {
             continue;
          }
          Optional<ReversibleBlockSnapshot> refreshed = capture(level, neighbor);
          if (refreshed.isEmpty()) {
             if (expectedOwned) {
-               ReversibleBlockSnapshot previous = expected.get(neighbor);
-               if (!afterOwned && previous != null && undo != null) {
-                  undo.addFirst(previous);
+               ReversibleBlockSnapshot previous = transaction.expectedAt(neighbor);
+               if (!afterOwned && previous != null && transaction != null) {
+                  transaction.recordBefore(previous);
                }
             }
             return false;
          }
          ReversibleBlockSnapshot current = refreshed.orElseThrow();
          if (expectedOwned) {
-            ReversibleBlockSnapshot previous = expected.get(neighbor);
+            ReversibleBlockSnapshot previous = transaction.expectedAt(neighbor);
             if (!afterOwned && previous != null && !current.sameContents(previous)) {
-               if (undo != null) {
-                  undo.addFirst(previous);
-               }
-               if (after != null) {
-                  after.put(neighbor.immutable(), current);
+               if (transaction != null) {
+                  transaction.recordBefore(previous);
+                  transaction.recordAfter(neighbor, current);
                   afterOwned = true;
                }
             }
-            expected.put(neighbor.immutable(), current);
+            transaction.recordExpected(neighbor, current);
          }
          if (afterOwned) {
-            after.put(neighbor.immutable(), current);
+            transaction.recordAfter(neighbor, current);
          }
       }
       return true;

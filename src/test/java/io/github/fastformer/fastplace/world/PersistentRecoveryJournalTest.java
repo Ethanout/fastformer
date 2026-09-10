@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
@@ -187,6 +188,20 @@ class PersistentRecoveryJournalTest {
    }
 
    @Test
+   void onlyPreparedJournalKeepsOwnerLockedBetweenConsecutiveOperations() throws IOException {
+      UUID owner = UUID.randomUUID();
+      Path directory = this.temporaryDirectory.resolve("fastformer-recovery");
+      Files.createDirectories(directory);
+
+      Files.writeString(directory.resolve("00000000000000000009-" + owner + ".done"), "committed");
+      Files.writeString(directory.resolve("00000000000000000009-" + owner + ".delta"), "correction");
+      assertEquals(false, PersistentRecoveryJournal.hasOwnerJournal(directory, owner));
+
+      Files.writeString(directory.resolve("00000000000000000010-" + owner + ".dat"), "prepared");
+      assertEquals(true, PersistentRecoveryJournal.hasOwnerJournal(directory, owner));
+   }
+
+   @Test
    void recoveryDecodeBudgetRetainsHeapHeadroomAndNeverExceedsTheFormatCap() {
       long gibibyte = 1024L * 1024L * 1024L;
 
@@ -199,6 +214,17 @@ class PersistentRecoveryJournalTest {
          PersistentRecoveryJournal.recoveryDecodeLimit(gibibyte, gibibyte, 512L * 1024L * 1024L)
       );
       assertEquals(1L, PersistentRecoveryJournal.recoveryDecodeLimit(512L, 512L, 0L));
+   }
+
+   @Test
+   void finalCorrectionUsesThePreparedJournalSizeWhenFreeHeapDrops() {
+      long preparedDecodedBytes = 64L * 1024L;
+
+      assertEquals(1L, PersistentRecoveryJournal.recoveryDecodeLimit(512L, 512L, 0L));
+      assertEquals(
+         preparedDecodedBytes,
+         PersistentRecoveryJournal.correctionDecodeLimit(preparedDecodedBytes)
+      );
    }
 
    @Test

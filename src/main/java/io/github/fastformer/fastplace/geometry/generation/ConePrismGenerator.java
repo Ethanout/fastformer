@@ -14,35 +14,63 @@ public final class ConePrismGenerator {
    public static Set<BlockPos> generate(ConePrismParameters parameters, FillMode fillMode, int maxBlocks) {
       ConePrismGeometry geometry = ConePrismGeometry.from(parameters);
       if (maxBlocks <= 0) {
-         return Set.of();
+         return GenerationLimitExceeded.witness(maxBlocks);
       }
       if (geometry == null || !geometry.heightReady()) {
-         return controlPoints(parameters);
+         return GenerationLimitExceeded.boundedResult(
+            controlPoints(parameters), maxBlocks, BlockGenerationObserver.NONE
+         );
       }
       return fillMode == FillMode.OUTLINE
-         ? previewOutline(parameters, maxBlocks)
+         ? generateOutline(parameters, maxBlocks)
          : generateVolume(geometry, fillMode == FillMode.HOLLOW, maxBlocks);
+   }
+
+   public static BlockGenerationResult generateResult(ConePrismParameters parameters, FillMode fillMode, int maxBlocks) {
+      if (parameters == null) {
+         return BlockGenerationResult.constraintsFailed();
+      }
+      ConePrismGeometry geometry = ConePrismGeometry.from(parameters);
+      if (geometry == null || !geometry.heightReady()) {
+         return BlockGenerationResult.constraintsFailed();
+      }
+      return BlockGenerationResult.fromLegacy(generate(parameters, fillMode, maxBlocks));
+   }
+
+   private static Set<BlockPos> generateOutline(ConePrismParameters parameters, int maxBlocks) {
+      Set<BlockPos> outline = previewOutline(parameters, GenerationLimitExceeded.probeLimit(maxBlocks));
+      return GenerationLimitExceeded.boundedResult(outline, maxBlocks, BlockGenerationObserver.NONE);
    }
 
    private static Set<BlockPos> generateVolume(ConePrismGeometry geometry, boolean boundaryOnly, int maxBlocks) {
       ConePrismGeometry.VoxelBounds bounds = geometry.voxelBounds();
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
-      for (int x = bounds.minX(); x <= bounds.maxX() && result.size() < maxBlocks; x++) {
-         for (int y = bounds.minY(); y <= bounds.maxY() && result.size() < maxBlocks; y++) {
-            for (int z = bounds.minZ(); z <= bounds.maxZ() && result.size() < maxBlocks; z++) {
-               double centerX = x + 0.5;
-               double centerY = y + 0.5;
-               double centerZ = z + 0.5;
-               if (!geometry.contains(centerX, centerY, centerZ)) {
-                  continue;
-               }
-               if (!boundaryOnly || geometry.isBoundary(centerX, centerY, centerZ)) {
-                  result.add(new BlockPos(x, y, z));
+      long count = countVolume(geometry, bounds, boundaryOnly);
+      if (count > maxBlocks) {
+         return GenerationLimitExceeded.witness(maxBlocks);
+      }
+      return new LazyBlockSet(
+         bounds.minX(), bounds.minY(), bounds.minZ(),
+         bounds.maxX(), bounds.maxY(), bounds.maxZ(), (int)count,
+         (x, y, z) -> geometry.contains(x + 0.5, y + 0.5, z + 0.5)
+            && (!boundaryOnly || geometry.isBoundary(x + 0.5, y + 0.5, z + 0.5))
+      );
+   }
+
+   private static long countVolume(
+      ConePrismGeometry geometry, ConePrismGeometry.VoxelBounds bounds, boolean boundaryOnly
+   ) {
+      long count = 0L;
+      for (long x = bounds.minX(); x <= (long)bounds.maxX(); x++) {
+         for (long y = bounds.minY(); y <= (long)bounds.maxY(); y++) {
+            for (long z = bounds.minZ(); z <= (long)bounds.maxZ(); z++) {
+               if (geometry.contains(x + 0.5, y + 0.5, z + 0.5)
+                  && (!boundaryOnly || geometry.isBoundary(x + 0.5, y + 0.5, z + 0.5))) {
+                  count = count == Long.MAX_VALUE ? count : count + 1L;
                }
             }
          }
       }
-      return Set.copyOf(result);
+      return count;
    }
 
    public static Set<BlockPos> baseOutline(ConePrismParameters parameters, int maxBlocks) {

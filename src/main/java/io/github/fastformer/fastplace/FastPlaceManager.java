@@ -6,7 +6,11 @@ import io.github.fastformer.fastplace.session.*;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.task.PlacementTask;
+import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
+import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
+import io.github.fastformer.fastplace.placement.plan.PlacementGenerationPlan;
 import io.github.fastformer.network.FastPlaceNetwork;
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -18,8 +22,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
-import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
+import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import java.util.function.Supplier;
+import java.util.function.Function;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
@@ -31,13 +36,13 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
 public final class FastPlaceManager {
    private static final Logger LOGGER = LogUtils.getLogger();
    /** Generate ordinary placements on the server thread up to this size. */
    private static final long SYNCHRONOUS_PLACEMENT_LIMIT = 262_144L;
-   private static final int BLOCKS_PER_TICK = 4096;
    private static final Map<UUID, FastPlaceSession> SESSIONS = new HashMap<>();
    private static final Map<UUID, PlacementTask> TASKS = new HashMap<>();
    private static final Map<UUID, Boolean> MODIFIER_HELD = new HashMap<>();
@@ -172,7 +177,7 @@ public final class FastPlaceManager {
             session.onStageChanged();
             FastPlaceNetwork.syncPreview(player, session);
          } else {
-            FastPlaceMessages.actionBar(player, "fastformer.message.closed_points", session.points().size());
+            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.closed_points", session.points().size()));
             cancel(player);
          }
       } else if (!collectingPolygon && session.points().size() == 4) {
@@ -218,50 +223,29 @@ public final class FastPlaceManager {
    }
 
    public static void quit(ServerPlayer player) {
-      boolean restoringPlacement = restoreActive(player);
-      boolean restoringOperation = OperationManager.restoreActive(player);
+      boolean restoring = WorldHistoryManager.restoreActive(player);
       cancel(player);
-      if (restoringPlacement || restoringOperation) {
-         cancelRestore(player);
-         OperationManager.cancelRestore(player);
-      } else {
+      if (!restoring) {
          cancelTask(player);
          OperationManager.cancelTask(player);
       }
-      FastPlaceMessages.actionBar(player, "fastformer.message.quit");
-   }
-
-   public static boolean cancelRestore(ServerPlayer player) {
-      return WorldHistoryManager.cancel(player);
+      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.quit"));
    }
 
    public static TaskCancellationResult cancelTask(ServerPlayer player) {
-      PlacementTask task = TASKS.remove(player.getUUID());
+      return cancelTask(new WorldTaskContext(player.getServer(), player.getUUID()));
+   }
+
+   static TaskCancellationResult cancelTask(WorldTaskContext context) {
+      PlacementTask task = TASKS.remove(context.owner());
       if (task == null) {
          return TaskCancellationResult.NOT_ACTIVE;
       }
-      // Detach and cancel first. The server tick can no longer write another
-      // block from this task while its completed write journal is recovered.
-      task.cancel();
-      ArrayDeque<ReversibleBlockSnapshot> undoChanges = task.undoChanges();
-      ServerLevel taskLevel = player.getServer().getLevel(task.dimension());
-      if (undoChanges.isEmpty()) {
-         task.releaseAfterCancelledJournal(new WorldTaskContext(player.getServer(), player.getUUID()));
-         return TaskCancellationResult.CANCELLED_BEFORE_WRITE;
-      }
-      boolean rollbackStarted;
-      if (taskLevel != null) {
-         rollbackStarted = WorldHistoryManager.startRollback(
-            player, taskLevel, undoChanges, task.afterChanges(), task.journal()
-         );
-      } else {
-         rollbackStarted = WorldHistoryManager.startRollback(
-            player, task.dimension(), undoChanges, task.afterChanges(), task.journal()
-         );
-      }
-      return rollbackStarted
-         ? TaskCancellationResult.ROLLBACK_STARTED
-         : TaskCancellationResult.RECOVERY_BLOCKED;
+      return WorldHistoryManager.acceptStoppedTask(context, task);
+   }
+
+   static void addTaskForTest(UUID owner, PlacementTask task) {
+      TASKS.put(owner, task);
    }
 
    public static void cycleStageMode(ServerPlayer player) {
@@ -487,84 +471,79 @@ public final class FastPlaceManager {
             PolygonVolumeShape polygonVolumeShape = session.polygonVolumeShape();
             FastPlaceGeometry.Modes modes = settings.modes().withFaceTieBias(effectiveFaceTieBias(session, settings));
             BlockState state = placeState.get();
-            SmartWoodFrame.Config smartFrame = settings.smartWoodFrame()
-               ? new SmartWoodFrame.Config(
-                  session.placementContext() == null
-                     ? Direction.Axis.Y
-                     : session.placementContext().clickedFace().getAxis(),
-                  points,
-                  SmartWoodFrame.edgeGuides(
-                     points,
-                     modes.faceMode(),
-                     polygonHeightConfirmed,
-                     polygonVolumeShape
-                  )
-            )
-               : null;
-            FastPlaceGeometry.Modes outlineModes = modes.withFillMode(FillMode.OUTLINE);
+            ResolvedPlacementEffect effect = PlacementEffectResolver.resolve(
+               player, settings, session, state, modes
+            ).orElse(null);
             long estimatedPlacement = estimatedBlocks(points);
-            if (estimatedPlacement > SYNCHRONOUS_PLACEMENT_LIMIT) {
-               ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(estimatedPlacement);
-               CompletableFuture<Set<BlockPos>> future = CompletableFuture.supplyAsync(() -> {
-                  Set<BlockPos> generated = FastPlaceGeometry.blocks(
-                     points, modes, polygonHeightConfirmed, polygonVolumeShape, maxPlacement + 1, progress
-                  );
-                  progress.complete();
-                  return generated;
-               });
-               CompletableFuture<Set<BlockPos>> outlineFuture = smartFrame == null
-                  ? null
-                  : modes.fillMode() == FillMode.OUTLINE
-                     ? future
-                     : CompletableFuture.supplyAsync(() -> FastPlaceGeometry.blocks(
-                        points, outlineModes, polygonHeightConfirmed, polygonVolumeShape, maxPlacement + 1
-                     ));
-               TASKS.put(player.getUUID(), PlacementTask.generating(
-                  future,
-                  outlineFuture,
-                  progress,
-                  state,
-                  smartFrame == null ? null : positions -> SmartWoodFrame.resolve(positions, state, smartFrame),
-                  settings.placementConflictMode(),
-                  settings.placementUpdateMode(),
-                  maxPlacement,
-                  player.serverLevel().dimension()
-               ));
+            PlacementGenerationPlan generationPlan = new PlacementGenerationPlan(
+               points,
+               modes,
+               polygonHeightConfirmed,
+               polygonVolumeShape,
+               effect,
+               estimatedPlacement,
+               taskPlan(player, settings, state, effect == null ? null : effect.stateOverrides())
+            );
+            var generationAdmission = WorldOperationMemory.generationAdmission(
+               generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()
+            );
+            if (!generationAdmission.allowed()) {
                cancel(player);
-               FastPlaceMessages.actionBar(player, "fastformer.message.placement_generating");
-            } else {
-               Set<BlockPos> blocks = FastPlaceGeometry.blocks(points, modes, polygonHeightConfirmed, polygonVolumeShape, maxPlacement + 1);
-               Set<BlockPos> outline = smartFrame == null
-                  ? Set.of()
-                  : modes.fillMode() == FillMode.OUTLINE
-                     ? blocks
-                     : FastPlaceGeometry.blocks(points, outlineModes, polygonHeightConfirmed, polygonVolumeShape, maxPlacement + 1);
-               if (GenerationFailed.is(outline)) {
-                  outline = Set.of();
+               FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+               return;
+            }
+            if (generationPlan.estimatedTargetBlocks() > SYNCHRONOUS_PLACEMENT_LIMIT || generationAdmission.throttled()) {
+               Optional<MemoryReservation> generationReservation = WorldOperationMemory.reserveGeneration(
+                  generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()
+               );
+               if (generationReservation.isEmpty()) {
+                  cancel(player);
+                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+                  return;
                }
-               if (GenerationFailed.is(blocks)) {
+               TASKS.put(player.getUUID(), generationPlan.generateAsync(generationReservation.orElseThrow()));
+               cancel(player);
+               FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generating"));
+            } else {
+               PlacementGenerationPlan.GeneratedPlacement generated;
+               Optional<MemoryReservation> generationReservation = WorldOperationMemory.reserveGeneration(
+                  generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()
+               );
+               if (generationReservation.isEmpty()) {
+                  cancel(player);
+                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+                  return;
+               }
+               try {
+                  generated = generationPlan.generateNow();
+               } catch (RuntimeException | OutOfMemoryError exception) {
+                  cancel(player);
+                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
+                  LOGGER.error("FastFormer synchronous placement generation failed for {}", player.getUUID(), exception);
+                  return;
+               } finally {
+                  generationReservation.orElseThrow().close();
+               }
+               BlockGenerationResult generationResult = generated.result();
+               Set<BlockPos> blocks = generationResult.blocks();
+               if (generationResult.status() == BlockGenerationResult.Status.CONSTRAINTS_FAILED) {
                   cancel(player);
                   FastPlaceMessages.chat(player, "fastformer.message.face_generation_constraints_failed");
-               } else if (blocks.size() > maxPlacement) {
+               } else if (generationResult.status() == BlockGenerationResult.Status.LIMIT_EXCEEDED
+                  || blocks.size() > maxPlacement) {
                   cancel(player);
-                  FastPlaceMessages.actionBar(player, "fastformer.message.placement_too_large", maxPlacement);
+                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_too_large", maxPlacement));
+               } else if (blocks.isEmpty()) {
+                  cancel(player);
+                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
                 } else {
-                   TASKS.put(player.getUUID(), PlacementTask.ready(
-                      blocks,
-                      outline,
-                      state,
-                      smartFrame == null ? null : positions -> SmartWoodFrame.resolve(positions, state, smartFrame),
-                      settings.placementConflictMode(),
-                      settings.placementUpdateMode(),
-                      maxPlacement,
-                      player.serverLevel().dimension()
-                   ));
+                   TASKS.put(player.getUUID(), PlacementTask.ready(blocks, generationPlan.taskPlan()));
                    cancel(player);
-                   FastPlaceMessages.actionBar(player, "fastformer.message.placement_queued", blocks.size());
+                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_queued", blocks.size()));
                 }
             }
          } else {
-            FastPlaceMessages.actionBar(player, "fastformer.message.placement_hold_block");
+            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_hold_block"));
          }
       }
    }
@@ -605,7 +584,7 @@ public final class FastPlaceManager {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       TASKS.put(
          player.getUUID(),
-         PlacementTask.ready(best, placeState.get(), settings.placementConflictMode(), settings.placementUpdateMode(), maxPlacement, player.serverLevel().dimension())
+         PlacementTask.ready(best, taskPlan(player, settings, placeState.get(), null))
       );
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.point_plane_queued", best.size()));
       return true;
@@ -627,13 +606,22 @@ public final class FastPlaceManager {
    }
 
    public static boolean queuePlacement(ServerPlayer player, Set<BlockPos> blocks, BlockState state) {
+      return queuePlacementResult(player, BlockGenerationResult.fromLegacy(blocks), state);
+   }
+
+   private static boolean queuePlacementResult(
+      ServerPlayer player,
+      BlockGenerationResult generationResult,
+      BlockState state
+   ) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int maxPlacement = settings.maxPlacement();
-      if (GenerationFailed.is(blocks)) {
+      if (generationResult.status() == BlockGenerationResult.Status.CONSTRAINTS_FAILED) {
          FastPlaceMessages.chat(player, "fastformer.message.face_generation_constraints_failed");
          return false;
       }
-      if (blocks.size() > maxPlacement) {
+      if (generationResult.status() == BlockGenerationResult.Status.LIMIT_EXCEEDED
+         || generationResult.blocks().size() > maxPlacement) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_too_large", maxPlacement));
          return false;
       }
@@ -641,16 +629,22 @@ public final class FastPlaceManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
          return false;
       }
-      TASKS.put(player.getUUID(), PlacementTask.ready(blocks, state, settings.placementConflictMode(), settings.placementUpdateMode(), maxPlacement, player.serverLevel().dimension()));
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_queued", blocks.size()));
+      Set<BlockPos> targets = generationResult.blocks();
+      if (targets.isEmpty()) {
+         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
+         return false;
+      }
+      TASKS.put(player.getUUID(), PlacementTask.ready(targets, taskPlan(player, settings, state, null)));
+      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_queued", targets.size()));
       return true;
    }
 
    public static boolean queueGeneratedPlacement(
       ServerPlayer player,
-      Supplier<Set<BlockPos>> generator,
+      Supplier<BlockGenerationResult> generator,
       BlockState state,
-      long estimatedWork
+      long estimatedScanCells,
+      long targetCapacity
    ) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int maxPlacement = settings.maxPlacement();
@@ -658,26 +652,42 @@ public final class FastPlaceManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
          return false;
       }
-      if (estimatedWork <= SYNCHRONOUS_PLACEMENT_LIMIT) {
-         Set<BlockPos> blocks;
+      var generationAdmission = WorldOperationMemory.generationAdmission(targetCapacity, 0L);
+      if (!generationAdmission.allowed()) {
+         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+         return false;
+      }
+      Optional<MemoryReservation> generationReservation = WorldOperationMemory.reserve(generationAdmission);
+      if (generationReservation.isEmpty()) {
+         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+         return false;
+      }
+      if (estimatedScanCells <= SYNCHRONOUS_PLACEMENT_LIMIT && !generationAdmission.throttled()) {
+         BlockGenerationResult generationResult;
          try {
-            blocks = generator.get();
+            generationResult = java.util.Objects.requireNonNull(generator.get(), "generation result");
          } catch (RuntimeException | OutOfMemoryError exception) {
             FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
             LOGGER.error("FastFormer synchronous placement generation failed for {}", player.getUUID(), exception);
             return false;
+         } finally {
+            generationReservation.orElseThrow().close();
          }
-         return queuePlacement(player, blocks, state);
+         return queuePlacementResult(player, generationResult, state);
       }
-      CompletableFuture<Set<BlockPos>> future = CompletableFuture.supplyAsync(generator);
-      TASKS.put(player.getUUID(), PlacementTask.generating(
+      CompletableFuture<BlockGenerationResult> future;
+      try {
+         future = CompletableFuture.supplyAsync(generator);
+      } catch (RuntimeException | OutOfMemoryError exception) {
+         generationReservation.orElseThrow().close();
+         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
+         LOGGER.error("FastFormer asynchronous placement generation could not be scheduled for {}", player.getUUID(), exception);
+         return false;
+      }
+      TASKS.put(player.getUUID(), PlacementTask.generatingResult(
          future,
-         null,
-         state,
-         settings.placementConflictMode(),
-         settings.placementUpdateMode(),
-         maxPlacement,
-         player.serverLevel().dimension()
+         taskPlan(player, settings, state, null),
+         generationReservation.orElseThrow()
       ));
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generating"));
       return true;
@@ -702,7 +712,9 @@ public final class FastPlaceManager {
             }
          }
       }
-      return Set.copyOf(visited);
+      // Preserve the breadth-first order used to discover the plane while
+      // avoiding a second full-size copy before the placement task owns it.
+      return java.util.Collections.unmodifiableSet(visited);
    }
 
    public static void setMaxPlacement(ServerPlayer player, int value) {
@@ -717,8 +729,25 @@ public final class FastPlaceManager {
       OperationManager.remove(player);
       GeometryManager.remove(player);
       WorldHistoryManager.remove(player);
+      ServerInputDispatcher.clearPlacementActions(player.getUUID());
       FastPlaceNetwork.forgetActivity(player);
       return true;
+   }
+
+   private static PlacementTaskPlan taskPlan(
+      ServerPlayer player,
+      FastPlaceSettings settings,
+      BlockState state,
+      Function<Set<BlockPos>, Map<BlockPos, BlockState>> stateResolver
+   ) {
+      return new PlacementTaskPlan(
+         state,
+         stateResolver,
+         settings.placementConflictMode(),
+         settings.placementUpdateMode(),
+         settings.maxPlacement(),
+         player.serverLevel().dimension()
+      );
    }
 
    /**
@@ -745,12 +774,14 @@ public final class FastPlaceManager {
    public static void clearServer() {
       for (PlacementTask task : TASKS.values()) {
          task.cancel();
+         task.releaseMemoryReservation();
       }
       TASKS.clear();
       SESSIONS.clear();
       MODIFIER_HELD.clear();
       OperationManager.clearServer();
       GeometryManager.clearServer();
+      ServerInputDispatcher.clearAllPlacementActions();
    }
 
    public static void tickWorld(net.minecraft.server.MinecraftServer server) {
@@ -776,35 +807,61 @@ public final class FastPlaceManager {
             if (task.generationConstraintsFailed()) {
                TASKS.remove(owner);
                task.releaseLease(context);
+               task.releaseMemoryReservation();
                context.chat(FastPlaceMessages.text("fastformer.message.face_generation_constraints_failed"));
             } else if (task.failed()) {
                TASKS.remove(owner);
                task.releaseLease(context);
+               task.releaseMemoryReservation();
                context.actionBar(FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
             } else if (task.exceededLimit()) {
                TASKS.remove(owner);
                task.releaseLease(context);
                context.actionBar(FastPlaceMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement()));
+            } else if (task.total() == 0) {
+               TASKS.remove(owner);
+               task.releaseLease(context);
+               task.releaseMemoryReservation();
+               context.actionBar(FastPlaceMessages.text("fastformer.message.operation_empty"));
             } else if (task.memoryUnsafe()) {
                TASKS.remove(owner);
                task.releaseLease(context);
+               task.releaseMemoryReservation();
                context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
             } else if (context.level(task.dimension()) == null) {
+               task.markWorldUnloaded();
+               task.releaseMemoryReservation();
                context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
+            } else if (!task.ensureMemoryReservation()) {
+               TASKS.remove(owner);
+               task.releaseLease(context);
+               task.releaseMemoryReservation();
+               context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
             } else if (!task.acquireLease(context)) {
                context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
             } else {
-               WorldTaskBudget budget = WorldTaskBudget.forServerTick();
+               WorldTaskBudget budget = WorldTaskBudget.forSmallOperation(
+                  task.memoryThrottled(), task.total(), task.previousBatchCells(), task.previousBatchNanos()
+               );
                if (!task.validateSnapshots(context.level(task.dimension()), budget)) {
                 context.actionBar(FastPlaceMessages.text("fastformer.message.placement_validating", task.validationRemaining()));
                } else if (task.memoryUnsafe()) {
-                TASKS.remove(owner);
-                task.releaseLease(context);
-                context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+                  TASKS.remove(owner);
+                  task.releaseLease(context);
+                  task.releaseMemoryReservation();
+                  context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
                } else if (task.failed()) {
-                TASKS.remove(owner);
-                task.releaseLease(context);
-                context.actionBar(FastPlaceMessages.text("fastformer.message.placement_snapshot_validation_failed"));
+                  TASKS.remove(owner);
+                  task.cancel();
+                  task.releaseLease(context);
+                  task.releaseMemoryReservation();
+                  LOGGER.warn(
+                     "FastFormer placement snapshot validation failed for {} ({}): {}",
+                     owner,
+                     task.operationId(),
+                     task.failureReason()
+                  );
+                  context.actionBar(FastPlaceMessages.text("fastformer.message.placement_snapshot_validation_failed"));
                } else {
                 ServerLevel level = context.level(task.dimension());
                JournalPreparation journalPreparation = task.prepareJournal(context);
@@ -818,7 +875,12 @@ public final class FastPlaceManager {
                   context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_failed"));
                   return;
                }
-                while (PersistentRecoveryJournal.writesAllowed()
+               if (task.memoryThrottled()) {
+                  context.actionBar(FastPlaceMessages.text("fastformer.message.placement_memory_throttled"));
+               }
+               long batchStartedAt = System.nanoTime();
+               int batchStartProcessed = task.processed();
+               while (PersistentRecoveryJournal.writesAllowed()
                    && budget.tryConsume()
                    && task.blocks().hasNext()) {
                    BlockPos pos = task.blocks().next();
@@ -828,6 +890,7 @@ public final class FastPlaceManager {
                      break;
                   }
                }
+               task.recordBatch(task.processed() - batchStartProcessed, System.nanoTime() - batchStartedAt);
 
                if (!PersistentRecoveryJournal.writesAllowed()) {
                   TASKS.remove(owner, task);
@@ -839,16 +902,30 @@ public final class FastPlaceManager {
                if (task.failed()) {
                   TASKS.remove(owner);
                   settleFailedTask(context, task);
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.placement_failed_rollback"));
-                } else if (!task.blocks().hasNext()) {
-                   if (!task.finalizeSnapshots(level, budget)) {
+                  LOGGER.warn(
+                     "FastFormer placement write failed for {}: {} ({})",
+                     owner,
+                     task.failureReason(),
+                     task.metricsSummary()
+                  );
+                  context.actionBar(failureStatus(task, context.owner()));
+               } else if (!task.blocks().hasNext()) {
+                  task.releaseGenerationState();
+                  task.resizeMemoryReservationForTransaction();
+                  if (!task.finalizeSnapshots(level, budget)) {
                       context.actionBar(FastPlaceMessages.text("fastformer.message.placement_finalizing"));
                       return;
                    }
                    if (task.failed()) {
                       TASKS.remove(owner);
                       settleFailedTask(context, task);
-                      context.actionBar(FastPlaceMessages.text("fastformer.message.placement_failed_rollback"));
+                      LOGGER.warn(
+                         "FastFormer placement finalization failed for {}: {} ({})",
+                         owner,
+                         task.failureReason(),
+                         task.metricsSummary()
+                      );
+                      context.actionBar(failureStatus(task, context.owner()));
                       return;
                    }
                    JournalPreparation finalCommit = task.prepareCommit();
@@ -859,15 +936,18 @@ public final class FastPlaceManager {
                    if (finalCommit == JournalPreparation.FAILED) {
                       TASKS.remove(owner, task);
                       settleFailedTask(context, task);
-                      context.actionBar(FastPlaceMessages.text("fastformer.message.placement_failed_rollback"));
+                     context.actionBar(failureStatus(task, context.owner()));
                    } else if (!WorldHistoryManager.commitPreparedOperation(context, task.preparedBatch(), task.journal())) {
                       TASKS.remove(owner, task);
                       settleFailedTask(context, task);
-                      context.actionBar(FastPlaceMessages.text("fastformer.message.placement_failed_rollback"));
-                   } else {
-                      TASKS.remove(owner, task);
-                      task.releaseLease(context);
-                      context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
+                      context.actionBar(failureStatus(task, context.owner()));
+                  } else {
+                     TASKS.remove(owner, task);
+                     task.releaseLease(context);
+                     task.releaseMemoryReservation();
+                     task.releaseCommittedTransactionState();
+                     task.markComplete();
+                     context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
                   }
                } else {
                   context.actionBar(FastPlaceMessages.text(
@@ -893,8 +973,13 @@ public final class FastPlaceManager {
          if (TASKS.remove(owner, task)) {
             settleFailedTask(context, task);
          }
-         LOGGER.error("FastFormer placement task failed for {} and was transferred to recovery", owner, exception);
-         context.actionBar(FastPlaceMessages.text("fastformer.message.placement_failed_rollback"));
+         LOGGER.error(
+            "FastFormer placement task failed for {} and was transferred to recovery: {}",
+            owner,
+            task.metricsSummary(),
+            exception
+         );
+            context.actionBar(failureStatus(task, context.owner()));
       }
    }
 
@@ -951,33 +1036,29 @@ public final class FastPlaceManager {
       }
    }
 
-   private static void startRestore(
-      ServerPlayer player,
-      ArrayDeque<ReversibleBlockSnapshot> changes,
-      Map<BlockPos, ReversibleBlockSnapshot> after,
-      PersistentRecoveryJournal journal
-   ) {
-      WorldHistoryManager.startRollback(player, player.serverLevel(), changes, after, journal);
-   }
-
-   private static void startRestore(
-      WorldTaskContext context,
-      ResourceKey<Level> dimension,
-      ArrayDeque<ReversibleBlockSnapshot> changes,
-      Map<BlockPos, ReversibleBlockSnapshot> after,
-      PersistentRecoveryJournal journal
-   ) {
-      WorldHistoryManager.startRollback(context, dimension, changes, after, journal);
-   }
-
    private static void settleFailedTask(WorldTaskContext context, PlacementTask task) {
-      task.cancel();
-      switch (WorldTaskFeature.failureDisposition(task.hasWrites())) {
-         case RECOVER_WRITES -> startRestore(
-            context, task.dimension(), task.undoChanges(), task.afterChanges(), task.journal()
-         );
-         case DISCARD_UNUSED_JOURNAL -> task.releaseAfterCancelledJournal(context);
+      TaskCancellationResult result = WorldHistoryManager.acceptStoppedTask(context, task);
+      if (result.recoveryCreated()) {
+         task.markRecoveryTaskCreated();
       }
+   }
+
+   private static net.minecraft.network.chat.MutableComponent failureStatus(PlacementTask task, UUID owner) {
+      if (task.failurePhase() == WorldOperationPhase.COMMIT && task.hasWrites()) {
+         return FastPlaceMessages.text(
+            "fastformer.message.placement_history_unavailable",
+            task.operationId().toString()
+         );
+      }
+      String key = task.recoveryTaskCreated()
+         ? "fastformer.message.placement_failed_rollback"
+         : "fastformer.message.placement_failed_no_recovery";
+      return FastPlaceMessages.text(
+         key,
+         task.failurePhase().name(),
+         task.operationId().toString(),
+         task.failureReason()
+      );
    }
 
    public static void restoreTossedItem(ServerPlayer player, ItemStack tossed) {

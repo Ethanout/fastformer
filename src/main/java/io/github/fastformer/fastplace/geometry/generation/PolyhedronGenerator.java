@@ -12,6 +12,13 @@ public final class PolyhedronGenerator {
       return SphereGenerator.generate(parameters, fillMode, maxBlocks);
    }
 
+   public static BlockGenerationResult generateResult(PolyhedronParameters parameters, FillMode fillMode, int maxBlocks) {
+      if (parameters == null || !parameters.ready()) {
+         return BlockGenerationResult.constraintsFailed();
+      }
+      return BlockGenerationResult.fromLegacy(generate(parameters, fillMode, maxBlocks));
+   }
+
    public static long estimateScanCells(PolyhedronParameters parameters) {
       return SphereGenerator.estimateScanCells(parameters);
    }

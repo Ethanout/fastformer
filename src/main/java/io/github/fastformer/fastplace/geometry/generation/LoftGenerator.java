@@ -1,6 +1,5 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -12,18 +11,24 @@ public final class LoftGenerator {
 
    public static Set<BlockPos> generate(List<BlockPos> points, int maxBlocks) {
       if (points.size() < 4) {
-         return Set.copyOf(points);
+         return GenerationLimitExceeded.boundedResult(Set.copyOf(points), maxBlocks, BlockGenerationObserver.NONE);
       }
+      int stagingLimit = GenerationLimitExceeded.probeLimit(maxBlocks);
       int half = points.size() / 2;
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
-      for (int index = 0; index < half && index + half < points.size() && result.size() < maxBlocks; index++) {
-         addLine(result, points.get(index), points.get(index + half), maxBlocks);
+      Set<BlockPos> result = new ObservedBlockSet(BlockGenerationObserver.NONE);
+      for (int index = 0; index < half && index + half < points.size() && result.size() < stagingLimit; index++) {
+         addLine(result, points.get(index), points.get(index + half), stagingLimit);
          if (index > 0) {
-            addLine(result, points.get(index - 1), points.get(index), maxBlocks);
-            addLine(result, points.get(index + half - 1), points.get(index + half), maxBlocks);
+            addLine(result, points.get(index - 1), points.get(index), stagingLimit);
+            addLine(result, points.get(index + half - 1), points.get(index + half), stagingLimit);
          }
       }
-      return Set.copyOf(result);
+      return GenerationLimitExceeded.boundedResult(result, maxBlocks, BlockGenerationObserver.NONE);
+   }
+
+   /** Typed boundary used by server placement; preview callers may keep using generate. */
+   public static BlockGenerationResult generateResult(List<BlockPos> points, int maxBlocks) {
+      return BlockGenerationResult.fromLegacy(generate(points, maxBlocks));
    }
 
    public static long estimateScanCells(List<BlockPos> points) {

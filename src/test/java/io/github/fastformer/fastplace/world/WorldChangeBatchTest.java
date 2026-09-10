@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
@@ -88,6 +89,24 @@ class WorldChangeBatchTest {
    }
 
    @Test
+   void operationIdCanBeAttachedWithoutChangingCompressedPayload() {
+      BlockPos pos = new BlockPos(2, 3, 4);
+      WorldChangeBatch batch = WorldChangeBatch.fromPairsForTest(
+         DIMENSION,
+         List.of(snapshot(pos, "before")),
+         Map.of(pos, snapshot(pos, "after"))
+      ).orElseThrow();
+      UUID operationId = UUID.randomUUID();
+
+      WorldChangeBatch identified = batch.withOperationId(operationId);
+
+      assertEquals(operationId, identified.operationId());
+      assertEquals(batch.size(), identified.size());
+      assertEquals(batch.estimatedBytes(), identified.estimatedBytes());
+      assertEquals(batch.position(0), identified.position(0));
+   }
+
+   @Test
    void mismatchedAfterPositionIsRejected() {
       BlockPos target = new BlockPos(0, 0, 0);
       BlockPos wrong = new BlockPos(1, 0, 0);
@@ -98,6 +117,54 @@ class WorldChangeBatchTest {
          List.of(before),
          Map.of(target, snapshot(wrong, "after"))
       ).isEmpty());
+   }
+
+   @Test
+   void extraAfterPositionIsRejectedInsteadOfSilentlyDropped() {
+      BlockPos target = new BlockPos(0, 0, 0);
+      BlockPos extra = new BlockPos(1, 0, 0);
+
+      assertTrue(WorldChangeBatch.fromPairsForTest(
+         DIMENSION,
+         List.of(snapshot(target, "before")),
+         Map.of(
+            target, snapshot(target, "after"),
+            extra, snapshot(extra, "unrelated")
+         )
+      ).isEmpty());
+   }
+
+   @Test
+   void nullBeforeSnapshotsAreRejectedAsAnEmptyBatch() {
+      BlockPos target = new BlockPos(2, 2, 2);
+
+      assertTrue(WorldChangeBatch.fromPairsForTest(
+         DIMENSION,
+         null,
+         Map.of(target, snapshot(target, "after"))
+      ).isEmpty());
+   }
+
+   @Test
+   void denseUniformBatchAvoidsRepeatingPositionsAndStates() {
+      List<ReversibleBlockSnapshot> denseBefore = new ArrayList<>();
+      Map<BlockPos, ReversibleBlockSnapshot> denseAfter = new HashMap<>();
+      List<ReversibleBlockSnapshot> sparseBefore = new ArrayList<>();
+      Map<BlockPos, ReversibleBlockSnapshot> sparseAfter = new HashMap<>();
+      for (int index = 0; index < 8; index++) {
+         BlockPos dense = new BlockPos(index % 2, (index / 2) % 2, index / 4);
+         denseBefore.add(snapshot(dense, "before"));
+         denseAfter.put(dense, snapshot(dense, "after"));
+         BlockPos sparse = new BlockPos(index * 3, 0, 0);
+         sparseBefore.add(snapshot(sparse, "before"));
+         sparseAfter.put(sparse, snapshot(sparse, "after"));
+      }
+
+      WorldChangeBatch denseBatch = WorldChangeBatch.fromPairsForTest(DIMENSION, denseBefore, denseAfter).orElseThrow();
+      WorldChangeBatch sparseBatch = WorldChangeBatch.fromPairsForTest(DIMENSION, sparseBefore, sparseAfter).orElseThrow();
+
+      assertEquals(denseBatch.size(), sparseBatch.size());
+      assertTrue(denseBatch.estimatedBytes() < sparseBatch.estimatedBytes());
    }
 
    @Test

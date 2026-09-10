@@ -27,10 +27,22 @@ public final class LongRangeBlockRaycast {
    }
 
    public static Result clip(Level level, Entity source, Vec3 start, Vec3 direction) {
+      return clip(level, source, start, direction, ClipContext.Block.OUTLINE);
+   }
+
+   /**
+    * Performs a raycast with the shape policy used by the caller. Placement
+    * targets use COLLIDER so blocks with no collision volume (snow layers,
+    * grass and similar replaceable blocks) do not steal the placement hit.
+    * Selection and gizmo hit testing keep the OUTLINE policy above.
+    */
+   public static Result clip(
+      Level level, Entity source, Vec3 start, Vec3 direction, ClipContext.Block blockMode
+   ) {
       long startedAt = System.nanoTime();
       Vec3 ray = direction.lengthSqr() < EPSILON ? Vec3.ZERO : direction.normalize();
       if (ray.lengthSqr() < EPSILON) {
-         BlockHitResult hit = level.clip(new ClipContext(start, start, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, source));
+         BlockHitResult hit = level.clip(new ClipContext(start, start, blockMode, ClipContext.Fluid.NONE, source));
          return new Result(hit, 0.0, 0.0, Limit.ZERO_DIRECTION, 0, System.nanoTime() - startedAt);
       }
 
@@ -41,7 +53,7 @@ public final class LongRangeBlockRaycast {
       double distance = Math.max(0.0, Math.min(bounded.distance(), loaded.distance()));
       Limit limit = loaded.distance() + EPSILON < bounded.distance() ? Limit.UNLOADED_CHUNK : bounded.limit();
       Vec3 end = start.add(ray.scale(distance));
-      BlockHitResult hit = level.clip(new ClipContext(start, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, source));
+      BlockHitResult hit = level.clip(new ClipContext(start, end, blockMode, ClipContext.Fluid.NONE, source));
       hit = firstCellEntry(start, end, hit);
       return new Result(hit, distance, world.distance(), limit, loaded.checkedChunks(), System.nanoTime() - startedAt);
    }

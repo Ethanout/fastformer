@@ -7,6 +7,15 @@ import io.github.fastformer.fastplace.RaycastPlacement;
 import io.github.fastformer.network.payload.settings.FaceRasterizationSettingPayload;
 import io.github.fastformer.network.payload.settings.MiddleConfirmSettingPayload;
 import io.github.fastformer.network.payload.settings.SettingsActionPayload;
+import io.github.fastformer.network.payload.settings.PlacementEffectSettingPayload;
+import io.github.fastformer.fastplace.placement.effect.PlacementEffect;
+import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -22,7 +31,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private RaycastPlacement raycastPlacement;
    private OperationConflictMode placementConflictMode;
    private PlacementUpdateMode placementUpdateMode;
-   private boolean smartWoodFrame;
+   private final Set<ResourceLocation> enabledPlacementEffects;
    private boolean emptyHandWrench;
    private boolean globalFrozen;
    private int worldUndoHistoryLimit;
@@ -32,7 +41,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private Button raycastPlacementButton;
    private Button placementConflictButton;
    private Button placementUpdateButton;
-   private Button smartWoodFrameButton;
+   private final Map<ResourceLocation, Button> placementEffectButtons = new HashMap<>();
    private Button emptyHandWrenchButton;
    private Button globalFreezeButton;
    private Button worldHistoryButton;
@@ -44,7 +53,7 @@ public final class FastFormerSettingsScreen extends Screen {
       RaycastPlacement raycastPlacement,
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
-      boolean smartWoodFrame,
+      List<ResourceLocation> enabledPlacementEffects,
       boolean emptyHandWrench,
       boolean globalFrozen,
       int worldUndoHistoryLimit,
@@ -58,7 +67,9 @@ public final class FastFormerSettingsScreen extends Screen {
       this.raycastPlacement = raycastPlacement == null ? RaycastPlacement.EMBEDDED : raycastPlacement;
       this.placementConflictMode = placementConflictMode == null ? OperationConflictMode.REPLACE : placementConflictMode;
       this.placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.NORMAL : placementUpdateMode;
-      this.smartWoodFrame = smartWoodFrame;
+      this.enabledPlacementEffects = new HashSet<>(
+         enabledPlacementEffects == null ? List.of() : enabledPlacementEffects
+      );
       this.emptyHandWrench = emptyHandWrench;
       this.globalFrozen = globalFrozen;
       this.worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
@@ -71,7 +82,7 @@ public final class FastFormerSettingsScreen extends Screen {
       RaycastPlacement raycastPlacement,
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
-      boolean smartWoodFrame,
+      List<ResourceLocation> enabledPlacementEffects,
       boolean emptyHandWrench,
       boolean globalFrozen,
       int worldUndoHistoryLimit,
@@ -80,7 +91,7 @@ public final class FastFormerSettingsScreen extends Screen {
       Minecraft.getInstance().setScreen(
          new FastFormerSettingsScreen(
             middleConfirmEnabled, faceRasterizationMode, raycastPlacement, placementConflictMode,
-            placementUpdateMode, smartWoodFrame, emptyHandWrench, globalFrozen,
+            placementUpdateMode, enabledPlacementEffects, emptyHandWrench, globalFrozen,
             worldUndoHistoryLimit, sessionUndoHistoryLimit
          )
       );
@@ -89,7 +100,7 @@ public final class FastFormerSettingsScreen extends Screen {
    @Override
    protected void init() {
       int centerX = this.width / 2;
-      int top = Math.max(36, this.height / 2 - 92);
+      int top = this.settingsTop();
       int leftX = centerX - 206;
       int rightX = centerX + 6;
       this.middleConfirmButton = this.addRenderableWidget(
@@ -117,33 +128,40 @@ public final class FastFormerSettingsScreen extends Screen {
             .bounds(leftX, top + 136, 200, 20)
             .build()
       );
-      this.smartWoodFrameButton = this.addRenderableWidget(
-         Button.builder(this.smartWoodFrameLabel(), button -> this.toggleSmartWoodFrame())
-            .bounds(rightX, top, 200, 20).build()
-      );
+      int effectRow = 0;
+      this.placementEffectButtons.clear();
+      for (PlacementEffect effect : PlacementEffectRegistry.effects()) {
+         Button button = this.addRenderableWidget(
+            Button.builder(this.placementEffectLabel(effect.id()), ignored -> this.togglePlacementEffect(effect.id()))
+               .bounds(rightX, top + effectRow * 34, 200, 20).build()
+         );
+         this.placementEffectButtons.put(effect.id(), button);
+         effectRow++;
+      }
+      int staticRow = this.rightStaticStartRow();
       this.emptyHandWrenchButton = this.addRenderableWidget(
          Button.builder(this.emptyHandWrenchLabel(), button -> this.toggleEmptyHandWrench())
-            .bounds(rightX, top + 34, 200, 20).build()
+            .bounds(rightX, top + staticRow * 34, 200, 20).build()
       );
       this.globalFreezeButton = this.addRenderableWidget(
          Button.builder(this.globalFreezeLabel(), button -> this.toggleGlobalFreeze())
-            .bounds(rightX, top + 68, 200, 20).build()
+            .bounds(rightX, top + (staticRow + 1) * 34, 200, 20).build()
       );
       this.addRenderableWidget(Button.builder(Component.literal("-"), button -> this.adjustWorldHistory(-10))
-         .bounds(rightX, top + 102, 20, 20).build());
+         .bounds(rightX, top + (staticRow + 2) * 34, 20, 20).build());
       this.worldHistoryButton = this.addRenderableWidget(Button.builder(this.worldHistoryLabel(), button -> {})
-         .bounds(rightX + 24, top + 102, 152, 20).build());
+         .bounds(rightX + 24, top + (staticRow + 2) * 34, 152, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("+"), button -> this.adjustWorldHistory(10))
-         .bounds(rightX + 180, top + 102, 20, 20).build());
+         .bounds(rightX + 180, top + (staticRow + 2) * 34, 20, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("-"), button -> this.adjustSessionHistory(-10))
-         .bounds(rightX, top + 136, 20, 20).build());
+         .bounds(rightX, top + (staticRow + 3) * 34, 20, 20).build());
       this.sessionHistoryButton = this.addRenderableWidget(Button.builder(this.sessionHistoryLabel(), button -> {})
-         .bounds(rightX + 24, top + 136, 152, 20).build());
+         .bounds(rightX + 24, top + (staticRow + 3) * 34, 152, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("+"), button -> this.adjustSessionHistory(10))
-         .bounds(rightX + 180, top + 136, 20, 20).build());
+         .bounds(rightX + 180, top + (staticRow + 3) * 34, 20, 20).build());
       this.addRenderableWidget(
          Button.builder(Component.translatable("gui.done"), button -> this.onClose())
-            .bounds(centerX - 100, top + 176, 200, 20)
+            .bounds(centerX - 100, top + this.contentRows() * 34 + 6, 200, 20)
             .build()
       );
    }
@@ -151,7 +169,7 @@ public final class FastFormerSettingsScreen extends Screen {
    @Override
    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
       this.renderBackground(graphics, mouseX, mouseY, partialTick);
-      int top = Math.max(36, this.height / 2 - 92);
+      int top = this.settingsTop();
       int leftX = this.width / 2 - 206;
       int rightX = this.width / 2 + 6;
       graphics.drawCenteredString(this.font, this.title, this.width / 2, top - 18, 0xFFFFFFFF);
@@ -160,11 +178,16 @@ public final class FastFormerSettingsScreen extends Screen {
       this.labelAt(graphics, "fastformer.settings.raycast_placement", leftX, top + 57);
       this.labelAt(graphics, "fastformer.settings.placement_conflict", leftX, top + 91);
       this.labelAt(graphics, "fastformer.settings.placement_update", leftX, top + 125);
-      this.labelAt(graphics, "fastformer.settings.smart_wood_frame", rightX, top - 11);
-      this.labelAt(graphics, "fastformer.settings.empty_hand_wrench", rightX, top + 23);
-      this.labelAt(graphics, "fastformer.settings.global_freeze", rightX, top + 57);
-      this.labelAt(graphics, "fastformer.settings.world_history", rightX, top + 91);
-      this.labelAt(graphics, "fastformer.settings.session_history", rightX, top + 125);
+      int effectRow = 0;
+      for (PlacementEffect effect : PlacementEffectRegistry.effects()) {
+         this.labelAt(graphics, effect.translationKey(), rightX, top + effectRow * 34 - 11);
+         effectRow++;
+      }
+      int staticRow = this.rightStaticStartRow();
+      this.labelAt(graphics, "fastformer.settings.empty_hand_wrench", rightX, top + staticRow * 34 - 11);
+      this.labelAt(graphics, "fastformer.settings.global_freeze", rightX, top + (staticRow + 1) * 34 - 11);
+      this.labelAt(graphics, "fastformer.settings.world_history", rightX, top + (staticRow + 2) * 34 - 11);
+      this.labelAt(graphics, "fastformer.settings.session_history", rightX, top + (staticRow + 3) * 34 - 11);
       super.render(graphics, mouseX, mouseY, partialTick);
    }
 
@@ -229,14 +252,35 @@ public final class FastFormerSettingsScreen extends Screen {
       this.send(SettingsActionPayload.Action.CYCLE_PLACEMENT_UPDATE);
    }
 
-   private void toggleSmartWoodFrame() {
-      this.smartWoodFrame = !this.smartWoodFrame;
-      this.smartWoodFrameButton.setMessage(this.smartWoodFrameLabel());
-      this.send(SettingsActionPayload.Action.TOGGLE_SMART_WOOD_FRAME);
+   private void togglePlacementEffect(ResourceLocation effectId) {
+      boolean enabled = !this.enabledPlacementEffects.remove(effectId);
+      if (enabled) {
+         this.enabledPlacementEffects.add(effectId);
+      }
+      this.placementEffectButtons.get(effectId).setMessage(this.placementEffectLabel(effectId));
+      if (this.minecraft.getConnection() != null
+         && NetworkRegistry.hasChannel(this.minecraft.getConnection(), PlacementEffectSettingPayload.TYPE.id())) {
+         PacketDistributor.sendToServer(
+            new PlacementEffectSettingPayload(effectId, enabled),
+            new CustomPacketPayload[0]
+         );
+      }
    }
 
-   private Component smartWoodFrameLabel() {
-      return Component.translatable(this.smartWoodFrame ? "options.on" : "options.off");
+   private Component placementEffectLabel(ResourceLocation effectId) {
+      return Component.translatable(this.enabledPlacementEffects.contains(effectId) ? "options.on" : "options.off");
+   }
+
+   private int rightStaticStartRow() {
+      return PlacementEffectRegistry.effects().size();
+   }
+
+   private int contentRows() {
+      return Math.max(5, this.rightStaticStartRow() + 4);
+   }
+
+   private int settingsTop() {
+      return Math.max(36, this.height / 2 - (this.contentRows() * 34 + 20) / 2);
    }
 
    private void toggleEmptyHandWrench() {

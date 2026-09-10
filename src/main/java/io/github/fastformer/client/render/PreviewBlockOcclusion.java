@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render;
 
 import java.util.Set;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter;
@@ -16,7 +17,13 @@ public final class PreviewBlockOcclusion {
    }
 
    public static BlockGetter level(Set<BlockPos> blocks, BlockState state) {
-      return new PreviewLevel(Set.copyOf(blocks), state);
+      return level(blocks, state, Map.of());
+   }
+
+   public static BlockGetter level(
+      Set<BlockPos> blocks, BlockState defaultState, Map<BlockPos, BlockState> stateOverrides
+   ) {
+      return new PreviewLevel(Set.copyOf(blocks), defaultState, Map.copyOf(stateOverrides));
    }
 
    public static boolean shouldRender(
@@ -37,11 +44,13 @@ public final class PreviewBlockOcclusion {
 
    private static final class PreviewLevel implements BlockGetter {
       private final Set<BlockPos> blocks;
-      private final BlockState state;
+      private final BlockState defaultState;
+      private final Map<BlockPos, BlockState> stateOverrides;
 
-      PreviewLevel(Set<BlockPos> blocks, BlockState state) {
+      PreviewLevel(Set<BlockPos> blocks, BlockState defaultState, Map<BlockPos, BlockState> stateOverrides) {
          this.blocks = blocks;
-         this.state = state;
+         this.defaultState = defaultState;
+         this.stateOverrides = stateOverrides;
       }
 
       @Override
@@ -51,7 +60,9 @@ public final class PreviewBlockOcclusion {
 
       @Override
       public BlockState getBlockState(BlockPos pos) {
-         return this.blocks.contains(pos) ? this.state : Blocks.AIR.defaultBlockState();
+         return this.blocks.contains(pos)
+            ? this.stateOverrides.getOrDefault(pos, this.defaultState)
+            : Blocks.AIR.defaultBlockState();
       }
 
       @Override

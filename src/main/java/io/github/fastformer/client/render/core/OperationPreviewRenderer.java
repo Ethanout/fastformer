@@ -74,6 +74,13 @@ final class OperationPreviewRenderer {
          snapshot.operationMaxOffset(),
          snapshot.operationHullInflation()
       );
+      if (snapshot.operationSelectionMode() == OperationSelectionMode.CUBOID
+         && snapshot.selectionMin() != null && snapshot.selectionMax() != null) {
+         selection = OperationSelectionVolume.cuboid(
+            snapshot.selectionMin(), snapshot.selectionMax(),
+            points.isEmpty() ? null : points.getFirst(), points.size() < 2 ? null : points.get(1)
+         );
+      }
       AABB bounds = selection == null ? null : selection.bounds();
       Vec3 eye = player.getEyePosition();
       AxisGizmo gizmo = operationGizmo();
@@ -402,7 +409,11 @@ final class OperationPreviewRenderer {
       }
       VertexConsumer consumer = buffers.getBuffer(RenderType.lines());
       if (plane != null) {
-         List<Vec3> bounds = new ArrayList<>(snapshot.points().stream().map(Vec3::atCenterOf).toList());
+         List<BlockPos> guidePoints = snapshot.operationSelectionMode() == OperationSelectionMode.CUBOID
+            && snapshot.selectionMin() != null && snapshot.selectionMax() != null
+            ? List.of(snapshot.selectionMin(), snapshot.selectionMax())
+            : snapshot.points();
+         List<Vec3> bounds = new ArrayList<>(guidePoints.stream().map(Vec3::atCenterOf).toList());
          BlockPos target = FastPlaceClientInput.operationPointDragTarget();
          if (target != null) {
             bounds.add(Vec3.atCenterOf(target));

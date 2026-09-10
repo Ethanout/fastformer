@@ -5,6 +5,8 @@ import io.github.fastformer.fastplace.FastPlaceManager;
 import io.github.fastformer.fastplace.FastPlaceSettings;
 import io.github.fastformer.fastplace.GeometryManager;
 import io.github.fastformer.fastplace.OperationManager;
+import io.github.fastformer.fastplace.PlaceableItems;
+import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
 import io.github.fastformer.fastplace.session.FastPlaceSession;
 import io.github.fastformer.fastplace.session.GeometrySession;
 import io.github.fastformer.fastplace.session.OperationSession;
@@ -12,6 +14,10 @@ import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
 import io.github.fastformer.network.payload.preview.ActivityStatePayload;
 import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewEffectPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewEffectSnapshot;
+import io.github.fastformer.network.payload.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,20 +29,25 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public final class PlayerPreviewSync {
    private static final Map<UUID, FastPlaceActivity> LAST_ACTIVITY = new ConcurrentHashMap<>();
    private static final Map<UUID, Long> OPERATION_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
+   private static final Map<UUID, Long> BUILDING_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
 
    private PlayerPreviewSync() {
    }
 
    public static void syncPreview(ServerPlayer player, FastPlaceSession session) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
-      sendPreview(
-         player,
-         BuildingPreviewPayload.active(
+      var modes = FastPlaceManager.effectiveModes(settings, session);
+      var activeEffect = PlaceableItems.placementState(
+         player.getMainHandItem(), player, session.placementContext()
+      ).flatMap(state -> PlacementEffectResolver.resolve(player, settings, session, state, modes))
+         .map(io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect::id)
+         .orElse(null);
+      BuildingPreviewPayload payload = BuildingPreviewPayload.active(
             session.points(),
             session.faceBaseOffset(),
             session.volumeBaseOffset(),
             session.perpendicularAnchor(),
-            FastPlaceManager.effectiveModes(settings, session).raycastPlacement(),
+            modes.raycastPlacement(),
             session.modifierHeld(),
             session.polygonClosed(),
             session.polygonHeightConfirmed(),
@@ -44,9 +55,10 @@ public final class PlayerPreviewSync {
             session.freeScrollOffset(),
             session.faceTieBias(),
             session.placementContext(),
+            activeEffect,
             settings
-         )
       );
+      sendPreview(player, payload);
       syncActivity(player);
    }
 
@@ -58,6 +70,8 @@ public final class PlayerPreviewSync {
             session.hasFirst(),
             session.hasSecond(),
             session.points(),
+            session.cuboidMinPoint(),
+            session.cuboidMaxPoint(),
             session.minOffset(),
             session.maxOffset(),
             session.selectionMode(),
@@ -144,11 +158,14 @@ public final class PlayerPreviewSync {
          return;
       }
       LAST_ACTIVITY.remove(player.getUUID());
+      BUILDING_PREVIEW_REVISIONS.remove(player.getUUID());
+      OPERATION_PREVIEW_REVISIONS.remove(player.getUUID());
    }
 
    public static void clearServer() {
       LAST_ACTIVITY.clear();
       OPERATION_PREVIEW_REVISIONS.clear();
+      BUILDING_PREVIEW_REVISIONS.clear();
    }
 
    private static long nextOperationPreviewRevision(ServerPlayer player) {
@@ -156,6 +173,13 @@ public final class PlayerPreviewSync {
          return 0L;
       }
       return OPERATION_PREVIEW_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
+   }
+
+   private static long nextBuildingPreviewRevision(ServerPlayer player) {
+      if (player == null) {
+         return 0L;
+      }
+      return BUILDING_PREVIEW_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
    }
 
    private static FastPlaceActivity currentActivity(ServerPlayer player) {
@@ -181,8 +205,27 @@ public final class PlayerPreviewSync {
    }
 
    private static void sendPreview(ServerPlayer player, BuildingPreviewPayload payload) {
-      if (player.connection.hasChannel(BuildingPreviewPayload.TYPE)) {
-         PacketDistributor.sendToPlayer(player, payload, new CustomPacketPayload[0]);
+      long revision = nextBuildingPreviewRevision(player);
+      if (player.connection.hasChannel(BuildingPreviewSessionPayload.TYPE)) {
+         PacketDistributor.sendToPlayer(
+            player,
+            new BuildingPreviewSessionPayload(revision, payload.session()),
+            new CustomPacketPayload[0]
+         );
+      }
+      if (player.connection.hasChannel(BuildingPreviewParametersPayload.TYPE)) {
+         PacketDistributor.sendToPlayer(
+            player,
+            new BuildingPreviewParametersPayload(revision, payload.parameters()),
+            new CustomPacketPayload[0]
+         );
+      }
+      if (player.connection.hasChannel(BuildingPreviewEffectPayload.TYPE)) {
+         PacketDistributor.sendToPlayer(
+            player,
+            new BuildingPreviewEffectPayload(revision, new BuildingPreviewEffectSnapshot(payload.activePlacementEffect())),
+            new CustomPacketPayload[0]
+         );
       }
    }
 

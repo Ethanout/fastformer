@@ -370,7 +370,7 @@ public final class FastPlaceCommandRegistry {
                settings.raycastPlacement(),
                settings.placementConflictMode(),
                settings.placementUpdateMode(),
-               settings.smartWoodFrame(),
+               settings.enabledPlacementEffects().stream().sorted().toList(),
                settings.emptyHandWrench(),
                player.getServer().tickRateManager().isFrozen(),
                settings.worldUndoHistoryLimit(),

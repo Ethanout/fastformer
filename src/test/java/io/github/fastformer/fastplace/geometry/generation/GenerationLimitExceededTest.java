@@ -72,7 +72,7 @@ class GenerationLimitExceededTest {
    }
 
    @Test
-   void degenerateTiltedBoxPropagatesTypedQuadLimitWhilePyramidKeepsGenericFallback() {
+   void degenerateTiltedBoxAndPyramidBothPropagateTypedLimits() {
       List<Vec3> face = fixedFace();
       int faceSize = QuadFaceGenerator.generate(face, FillMode.SOLID, 10_000).size();
       int boxLimit = faceSize - 1;
@@ -81,10 +81,9 @@ class GenerationLimitExceededTest {
       Set<BlockPos> pyramid = PyramidGenerator.generate(face, new Vec3(0.0, 12.0, 0.0), FillMode.SOLID, pyramidLimit);
       Set<BlockPos> degenerateBox = TiltedBoxGenerator.generate(face, Vec3.ZERO, FillMode.SOLID, boxLimit);
 
-      assertFalse(GenerationLimitExceeded.is(pyramid));
+      assertTrue(GenerationLimitExceeded.is(pyramid));
       assertTrue(GenerationLimitExceeded.is(degenerateBox));
-      assertFalse(pyramid.isEmpty());
-      assertTrue(pyramid.size() <= pyramidLimit);
+      assertEquals(pyramidLimit, pyramid.size());
       assertEquals(boxLimit, degenerateBox.size());
    }
 

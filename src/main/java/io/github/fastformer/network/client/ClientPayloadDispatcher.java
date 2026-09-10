@@ -9,6 +9,9 @@ import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
 import io.github.fastformer.network.payload.operation.OperationWorkspaceResultPayload;
 import io.github.fastformer.network.payload.preview.ActivityStatePayload;
 import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewEffectPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload;
 import io.github.fastformer.network.payload.settings.OpenSettingsPayload;
 
 /** Isolates physical-client entry points from common network registration code. */
@@ -23,6 +26,18 @@ public final class ClientPayloadDispatcher {
 
    public static void applyBuildingPreview(BuildingPreviewPayload payload) {
       invokeStatic(PREVIEW_CLASS, "applyBuilding", BuildingPreviewPayload.class, payload);
+   }
+
+   public static void applyBuildingSession(BuildingPreviewSessionPayload payload) {
+      invokeStatic(PREVIEW_CLASS, "applyBuildingSession", BuildingPreviewSessionPayload.class, payload);
+   }
+
+   public static void applyBuildingParameters(BuildingPreviewParametersPayload payload) {
+      invokeStatic(PREVIEW_CLASS, "applyBuildingParameters", BuildingPreviewParametersPayload.class, payload);
+   }
+
+   public static void applyBuildingEffect(BuildingPreviewEffectPayload payload) {
+      invokeStatic(PREVIEW_CLASS, "applyBuildingEffect", BuildingPreviewEffectPayload.class, payload);
    }
 
    public static void applyOperationPreview(OperationPreviewPayload payload) {
@@ -51,7 +66,7 @@ public final class ClientPayloadDispatcher {
             RaycastPlacement.class,
             OperationConflictMode.class,
             PlacementUpdateMode.class,
-            boolean.class,
+            java.util.List.class,
             boolean.class,
             boolean.class,
             int.class,
@@ -63,7 +78,7 @@ public final class ClientPayloadDispatcher {
             payload.raycastPlacement(),
             payload.placementConflictMode(),
             payload.placementUpdateMode(),
-            payload.smartWoodFrame(),
+            payload.enabledPlacementEffects(),
             payload.emptyHandWrench(),
             payload.globalFrozen(),
             payload.worldUndoHistoryLimit(),

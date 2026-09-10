@@ -25,9 +25,47 @@ public final class LineGenerator {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      Set<BlockPos> result = new ObservedBlockSet(observer);
-      add(result, Vec3.atCenterOf(from), Vec3.atCenterOf(to), maxBlocks, tieBias);
-      return result;
+      if (maxBlocks > 0 && estimateBlocks(from, to) > maxBlocks) {
+         return GenerationLimitExceeded.witness(maxBlocks, observer);
+      }
+      if (maxBlocks <= 0) {
+         return Set.of();
+      }
+      return new LazyLineBlockSet(from, to, tieBias, observer);
+   }
+
+   public static BlockPositionSource generateSource(
+      BlockPos from, BlockPos to, int maxBlocks, BlockGenerationObserver observer, LineTieBias tieBias
+   ) {
+      if (maxBlocks > 0 && estimateBlocks(from, to) > maxBlocks) {
+         return new SetPositionSource(GenerationLimitExceeded.witness(maxBlocks, observer));
+      }
+      if (maxBlocks <= 0) {
+         return new SetPositionSource(Set.of());
+      }
+      return new SetPositionSource(new LazyLineBlockSet(from, to, tieBias, observer));
+   }
+
+   private record SetPositionSource(Set<BlockPos> blocks) implements BlockPositionSource {
+      @Override
+      public int size() {
+         return this.blocks.size();
+      }
+
+      @Override
+      public java.util.Iterator<BlockPos> iterator() {
+         return this.blocks.iterator();
+      }
+
+      @Override
+      public java.util.Iterator<BlockPos> drainingIterator() {
+         return this.blocks instanceof DrainingBlockSet draining ? draining.drainingIterator() : iterator();
+      }
+
+      @Override
+      public boolean supportsDraining() {
+         return this.blocks instanceof DrainingBlockSet;
+      }
    }
 
    public static List<BlockPos> offsets(Vec3 delta, int maxBlocks) {
@@ -152,7 +190,7 @@ public final class LineGenerator {
       });
    }
 
-   private static int[] axesByDescendingSlope(long[] distance) {
+   static int[] axesByDescendingSlope(long[] distance) {
       int[] result = {0, 1, 2};
       for (int index = 1; index < result.length; index++) {
          int axis = result[index];
@@ -185,6 +223,10 @@ public final class LineGenerator {
       }
       int y = Integer.compare(first.getY(), second.getY());
       return y != 0 ? y : Integer.compare(first.getZ(), second.getZ());
+   }
+
+   static BlockPos orderedStart(BlockPos first, BlockPos second) {
+      return compare(first, second) <= 0 ? first : second;
    }
 
 }

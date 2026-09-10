@@ -9,6 +9,7 @@ import io.github.fastformer.fastplace.geometry.PlaneAxes;
 import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver;
+import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
 import io.github.fastformer.fastplace.geometry.generation.PolygonFaceGenerator;
 import io.github.fastformer.fastplace.geometry.generation.PrismGenerator;
@@ -112,6 +113,51 @@ public final class FastPlaceGeometry {
       } else {
          return prism(points, modes, maxBlocks, observer);
       }
+   }
+
+   /**
+    * Explicit server-generation boundary. Legacy callers may continue to use
+    * {@link #blocks(List, Modes, boolean, PolygonVolumeShape, int, BlockGenerationObserver)},
+    * but placement tasks consume the typed status before touching targets.
+    */
+   public static BlockGenerationResult blocksResult(
+      List<BlockPos> points,
+      FastPlaceGeometry.Modes modes,
+      boolean polygonHeightConfirmed,
+      PolygonVolumeShape polygonVolumeShape,
+      int maxBlocks,
+      BlockGenerationObserver observer
+   ) {
+      if (points == null || points.isEmpty()) {
+         return BlockGenerationResult.constraintsFailed();
+      }
+      if (maxBlocks <= 0) {
+         return BlockGenerationResult.limitExceeded();
+      }
+      if (points.size() == 1 || points.size() == 2) {
+         BlockPos from = points.getFirst();
+         BlockPos to = points.size() == 1 ? from : points.get(1);
+         if (LineGenerator.estimateBlocks(from, to) > maxBlocks) {
+            return BlockGenerationResult.limitExceeded();
+         }
+         var line = LineGenerator.generateSource(from, to, maxBlocks, observer, LineTieBias.DEFAULT);
+         return BlockGenerationResult.success(line);
+      }
+      return BlockGenerationResult.fromLegacy(
+         blocks(points, modes, polygonHeightConfirmed, polygonVolumeShape, maxBlocks, observer)
+      );
+   }
+
+   public static BlockGenerationResult blocksResult(
+      List<BlockPos> points,
+      FastPlaceGeometry.Modes modes,
+      boolean polygonHeightConfirmed,
+      PolygonVolumeShape polygonVolumeShape,
+      int maxBlocks
+   ) {
+      return blocksResult(
+         points, modes, polygonHeightConfirmed, polygonVolumeShape, maxBlocks, BlockGenerationObserver.NONE
+      );
    }
 
    private static Set<BlockPos> prism(

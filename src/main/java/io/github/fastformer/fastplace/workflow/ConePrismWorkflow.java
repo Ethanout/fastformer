@@ -161,7 +161,8 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
       long scanCells = ConePrismGenerator.estimateScanCells(parameters);
       return GeometryBuildResult.ready(
          scanCells,
-         () -> ConePrismGenerator.generate(parameters, fillMode, maxBlocks)
+         maxBlocks,
+         () -> ConePrismGenerator.generateResult(parameters, fillMode, maxBlocks)
       );
    }
 

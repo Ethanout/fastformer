@@ -8,22 +8,23 @@ import io.github.fastformer.fastplace.OperationWorkspaceValidator;
 import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
-import io.github.fastformer.fastplace.world.WorldChangeBatch;
-import io.github.fastformer.fastplace.world.WorldOperationCommit;
+import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationMemory;
+import io.github.fastformer.fastplace.world.WorldOperationMetrics;
+import io.github.fastformer.fastplace.world.WorldJournalPreparation;
+import io.github.fastformer.fastplace.world.WorldBatchFeedback;
+import io.github.fastformer.fastplace.world.WorldOperationPhase;
+import io.github.fastformer.fastplace.world.MemoryReservation;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -40,16 +41,16 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    private final PlacementUpdateMode updateMode;
    private final int maxPlacement;
    private final ResourceKey<Level> dimension;
-   private final ArrayDeque<ReversibleBlockSnapshot> undo = new ArrayDeque<>();
-   private final Map<BlockPos, ReversibleBlockSnapshot> expected = new HashMap<>();
-   private final Map<BlockPos, ReversibleBlockSnapshot> after = new HashMap<>();
+   private final WorldOperationMetrics metrics = new WorldOperationMetrics();
+   private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
+   private MemoryReservation memoryReservation;
+   private long blockEntityReserve;
+   private boolean memoryThrottled;
+   private final WorldChangeTransaction transaction = new WorldChangeTransaction();
    private Map<BlockPos, ClientBlockSnapshot> desired = Map.of();
    private Iterator<Map.Entry<BlockPos, ClientBlockSnapshot>> writeIterator;
-   private Iterator<Map.Entry<BlockPos, ReversibleBlockSnapshot>> finalizationIterator;
-   private PersistentRecoveryJournal journal;
-   private CompletableFuture<Optional<PersistentRecoveryJournal>> journalFuture;
-   private WorldOperationCommit commitPreparation;
-   private boolean cancelled;
+   private Iterator<BlockPos> finalizationIterator;
+   private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
    private List<Integer> invalidPartIds = List.of();
    private Phase phase = Phase.VALIDATE;
 
@@ -65,6 +66,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       this.updateMode = updateMode;
       this.maxPlacement = maxPlacement;
       this.dimension = dimension;
+      this.metrics.queued();
    }
 
    public UUID transferId() {
@@ -77,6 +79,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
+      this.metrics.phase(phaseMetric());
       while (budget.tryConsume()) {
          if (!PersistentRecoveryJournal.writesAllowed()) {
             return OperationTaskResult.FAILED;
@@ -111,18 +114,19 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
             }
             case FINALIZE -> {
                if (finalizationIterator == null) {
-                  finalizationIterator = after.entrySet().iterator();
+                  finalizationIterator = transaction.afterPositions();
                }
                if (!finalizationIterator.hasNext()) {
+                  releaseWriteStagingForCommit();
                   phase = Phase.FINAL_JOURNAL;
                   continue;
                }
-               Map.Entry<BlockPos, ReversibleBlockSnapshot> entry = finalizationIterator.next();
-               Optional<ReversibleBlockSnapshot> actual = ReversibleBlockSnapshot.capture(level, entry.getKey());
+               BlockPos position = finalizationIterator.next();
+               Optional<ReversibleBlockSnapshot> actual = ReversibleBlockSnapshot.capture(level, position);
                if (actual.isEmpty()) {
                   return OperationTaskResult.FAILED;
                }
-               entry.setValue(actual.orElseThrow());
+               transaction.recordAfter(position, actual.orElseThrow());
             }
             case FINAL_JOURNAL -> {
                JournalPreparation preparation = prepareCommit();
@@ -155,11 +159,29 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       if (composed.size() > maxPlacement) {
          return OperationTaskResult.EXCEEDED;
       }
-      long blockEntityReserve = captureExpectedSnapshots(level, composed);
-      if (blockEntityReserve < 0L) {
+      metrics.targetCount(composed.size());
+      long capturedEntityReserve = captureExpectedSnapshots(level, composed);
+      if (capturedEntityReserve < 0L) {
          return OperationTaskResult.FAILED;
       }
-      if (!WorldOperationMemory.canPrepare(composed.size(), blockEntityReserve)) {
+      blockEntityReserve = capturedEntityReserve;
+      var admission = WorldOperationMemory.snapshotAdmission(composed.size(), blockEntityReserve);
+      if (!admission.allowed()) {
+         return OperationTaskResult.MEMORY_UNSAFE;
+      }
+      memoryThrottled = admission.throttled();
+      if (memoryReservation == null) {
+         memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
+      } else if (!memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())) {
+         return OperationTaskResult.MEMORY_UNSAFE;
+      }
+      if (memoryReservation == null) {
+         return OperationTaskResult.MEMORY_UNSAFE;
+      }
+      var journalAdmission = WorldOperationMemory.journalAdmission(composed.size(), blockEntityReserve);
+      memoryThrottled = journalAdmission.throttled();
+      if (!journalAdmission.allowed()
+         || !memoryReservation.resize(journalAdmission.requestedBytes(), journalAdmission.usableBytes())) {
          return OperationTaskResult.MEMORY_UNSAFE;
       }
       desired = Map.copyOf(composed);
@@ -191,7 +213,8 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
             return -1L;
          }
          ReversibleBlockSnapshot snapshot = captured.orElseThrow();
-         expected.put(entry.getKey().immutable(), snapshot);
+         metrics.snapshotCaptured();
+         transaction.recordExpected(entry.getKey(), snapshot);
          blockEntityReserve = WorldOperationMemory.saturatingAdd(
             blockEntityReserve, WorldOperationMemory.snapshotNbtReserve(snapshot)
          );
@@ -220,7 +243,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    private boolean write(ServerLevel level, Map.Entry<BlockPos, ClientBlockSnapshot> entry) {
       BlockPos pos = entry.getKey();
-      ReversibleBlockSnapshot before = expected.get(pos);
+      ReversibleBlockSnapshot before = transaction.expectedAt(pos);
       if (before == null || !before.matches(level, pos)) {
          return false;
       }
@@ -231,74 +254,84 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
          target.state().getFluidState(),
          target.blockEntity() == null ? null : new BlockEntitySnapshot(target.blockEntity())
       );
-      undo.addFirst(before);
+      transaction.recordBefore(before);
       if (!desiredSnapshot.placeAt(level, pos, updateMode.flags())) {
-         ReversibleBlockSnapshot.capture(level, pos).ifPresent(actual -> after.put(pos.immutable(), actual));
+         metrics.writeAttempt(false);
+         transaction.recordAfter(
+            pos,
+            ReversibleBlockSnapshot.capture(level, pos).orElseGet(() -> currentSnapshot(level, pos))
+         );
          return false;
       }
+      metrics.writeAttempt(true);
       Optional<ReversibleBlockSnapshot> actual = ReversibleBlockSnapshot.capture(level, pos);
       if (actual.isEmpty()) {
          return false;
       }
-      expected.put(pos.immutable(), actual.orElseThrow());
-      after.put(pos.immutable(), actual.orElseThrow());
-      return updateMode != PlacementUpdateMode.NORMAL || ReversibleBlockSnapshot.refreshTaskOwnedNeighbors(
-         level, pos, expected, undo, after
-      );
+      transaction.recordAfter(pos, actual.orElseThrow());
+      // The primary block write is already durable. A neighbour refresh is a
+      // best-effort side effect and must not replace the expected snapshot or
+      // turn a successful write into an immediate rollback.
+      if (updateMode == PlacementUpdateMode.NORMAL) {
+         ReversibleBlockSnapshot.refreshTaskOwnedNeighbors(level, pos, transaction);
+      }
+      return true;
+   }
+
+   private static ReversibleBlockSnapshot currentSnapshot(ServerLevel level, BlockPos pos) {
+      return new ReversibleBlockSnapshot(pos, level.getBlockState(pos), level.getFluidState(pos), null);
    }
 
    private JournalPreparation prepareJournal(WorldTaskContext context) {
-      if (journal != null) {
-         return JournalPreparation.READY;
-      }
-      if (journalFuture == null) {
-         Optional<List<ReversibleBlockSnapshot>> predicted = predictedFinalSnapshots();
-         if (predicted.isEmpty()) {
-            return JournalPreparation.FAILED;
-         }
-         List<ReversibleBlockSnapshot> before = new ArrayList<>(expected.values());
-         journalFuture = CompletableFuture.supplyAsync(
-            () -> PersistentRecoveryJournal.begin(
-               context.server(), context.owner(), dimension, before, predicted.orElseThrow()
-            ),
-            PersistentRecoveryJournal.executor()
+      return journalPreparation.poll(() -> {
+         Collection<ReversibleBlockSnapshot> before = transaction.expectedView();
+         Collection<ReversibleBlockSnapshot> predicted = predictedFinalSnapshots(before);
+         return PersistentRecoveryJournal.begin(
+            context.server(), context.owner(), dimension, before, predicted, operationId()
          );
-         return JournalPreparation.PENDING;
-      }
-      if (!journalFuture.isDone()) {
-         return JournalPreparation.PENDING;
-      }
-      try {
-         journal = journalFuture.join().orElse(null);
-         return journal == null ? JournalPreparation.FAILED : JournalPreparation.READY;
-      } catch (RuntimeException exception) {
-         return JournalPreparation.FAILED;
-      }
+      });
    }
 
-   private Optional<List<ReversibleBlockSnapshot>> predictedFinalSnapshots() {
-      List<ReversibleBlockSnapshot> before = new ArrayList<>(expected.values());
-      List<ReversibleBlockSnapshot> predicted = new ArrayList<>(before.size());
-      for (ReversibleBlockSnapshot original : before) {
+   private Collection<ReversibleBlockSnapshot> predictedFinalSnapshots(
+      Collection<ReversibleBlockSnapshot> before
+   ) {
+      return PlacementTask.lazyMappedCollection(before, original -> {
          ClientBlockSnapshot target = desired.get(original.pos());
          if (target == null) {
-            return Optional.empty();
+            throw new IllegalStateException("Workspace journal target is missing");
          }
-         predicted.add(new ReversibleBlockSnapshot(
+         return new ReversibleBlockSnapshot(
             original.pos(),
             target.state(),
             target.state().getFluidState(),
             target.blockEntity() == null ? null : new BlockEntitySnapshot(target.blockEntity())
-         ));
-      }
-      return Optional.of(predicted);
+         );
+      });
    }
 
    private JournalPreparation prepareCommit() {
-      if (commitPreparation == null) {
-         commitPreparation = WorldOperationCommit.begin(dimension, undo, after, journal);
+      return transaction.prepareCommit(dimension, journalPreparation.journal(), this::reserveCommitMemory);
+   }
+
+   private void releaseWriteStagingForCommit() {
+      transaction.clearExpected();
+      desired = Map.of();
+      writeIterator = null;
+   }
+
+   private boolean reserveCommitMemory() {
+      var admission = WorldOperationMemory.commitAdmission(
+         transaction.snapshotCount(), transaction.largestSideCount(), transaction.commitBlockEntityReserve()
+      );
+      memoryThrottled = admission.throttled();
+      if (!admission.allowed()) {
+         return false;
       }
-      return commitPreparation.poll();
+      if (memoryReservation == null) {
+         memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
+         return memoryReservation != null;
+      }
+      return memoryReservation.resize(admission.requestedBytes(), admission.usableBytes());
    }
 
    private static ClientBlockSnapshot clientSnapshot(ReversibleBlockSnapshot snapshot) {
@@ -333,27 +366,21 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public void cancelJournalPreparation() {
-      cancelled = true;
-      if (commitPreparation != null) {
-         commitPreparation.cancel();
-      }
-      if (journalFuture != null) {
-         journalFuture.whenComplete((created, exception) -> {
-            if (cancelled && journal == null && exception == null && created != null) {
-               created.ifPresent(PersistentRecoveryJournal::discardUnused);
-            }
-         });
-      }
+      journalPreparation.cancel();
    }
 
    @Override
    public PersistentRecoveryJournal journal() {
-      return journal;
+      return journalPreparation.journal();
    }
 
    @Override
    public boolean acquireLease(WorldTaskContext context) {
-      return WorldWriteCoordinator.tryAcquire(context.server(), dimension, context.owner());
+      boolean acquired = WorldWriteCoordinator.tryAcquire(context.server(), dimension, context.owner());
+      if (acquired) {
+         this.metrics.leaseAcquired();
+      }
+      return acquired;
    }
 
    @Override
@@ -363,25 +390,13 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public void releaseAfterCancelledJournal(WorldTaskContext context) {
-      cancelJournalPreparation();
-      WorldWriteCoordinator.releaseAfterUnusedJournal(
-         context.server(), dimension, context.owner(), journal, journalFuture
-      );
+      transaction.cancelCommit();
+      journalPreparation.releaseAfterCancellation(context, dimension);
    }
 
    @Override
-   public boolean hasWrites() {
-      return !undo.isEmpty();
-   }
-
-   @Override
-   public ArrayDeque<ReversibleBlockSnapshot> undoChanges() {
-      return undo;
-   }
-
-   @Override
-   public Map<BlockPos, ReversibleBlockSnapshot> afterChanges() {
-      return after;
+   public WorldChangeTransaction transaction() {
+      return transaction;
    }
 
    @Override
@@ -390,8 +405,93 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    }
 
    @Override
-   public Optional<WorldChangeBatch> preparedBatch() {
-      return commitPreparation == null ? Optional.empty() : commitPreparation.batch();
+   public UUID operationId() {
+      return metrics.operationId();
+   }
+
+   @Override
+   public String metricsSummary() {
+      return metrics.summary();
+   }
+
+   @Override
+   public void markWorldUnloaded() {
+      metrics.phase(WorldOperationPhase.WORLD_UNLOADED);
+   }
+
+   @Override
+   public void markComplete() {
+      metrics.complete();
+   }
+
+   @Override
+   public boolean memoryThrottled() {
+      return memoryThrottled;
+   }
+
+   @Override
+   public boolean ensureMemoryReservation() {
+      if (memoryReservation != null) {
+         return true;
+      }
+      if (phase != Phase.FINAL_JOURNAL && desired.isEmpty()) {
+         return true;
+      }
+      var admission = phase == Phase.FINAL_JOURNAL
+         ? WorldOperationMemory.commitAdmission(
+            transaction.snapshotCount(), transaction.largestSideCount(), transaction.commitBlockEntityReserve()
+         )
+         : phase == Phase.JOURNAL
+            ? WorldOperationMemory.journalAdmission(desired.size(), blockEntityReserve)
+            : WorldOperationMemory.snapshotAdmission(desired.size(), blockEntityReserve);
+      if (!admission.allowed()) {
+         memoryThrottled = admission.throttled();
+         return false;
+      }
+      memoryThrottled = admission.throttled();
+      memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
+      return memoryReservation != null;
+   }
+
+   @Override
+   public int previousBatchCells() {
+      return batchFeedback.cells();
+   }
+
+   @Override
+   public long previousBatchNanos() {
+      return batchFeedback.elapsedNanos();
+   }
+
+   @Override
+   public void recordBatch(int cells, long elapsedNanos) {
+      batchFeedback.record(cells, elapsedNanos);
+   }
+
+   @Override
+   public void releaseMemoryReservation() {
+      if (memoryReservation != null) {
+         memoryReservation.close();
+         memoryReservation = null;
+      }
+   }
+
+   @Override
+   public void releaseCommittedTransactionState() {
+      transaction.releaseCommitted();
+      desired = Map.of();
+      writeIterator = null;
+      finalizationIterator = null;
+   }
+
+   private WorldOperationPhase phaseMetric() {
+      return switch (phase) {
+         case VALIDATE -> WorldOperationPhase.SNAPSHOT;
+         case JOURNAL -> WorldOperationPhase.JOURNAL;
+         case WRITE -> WorldOperationPhase.WRITE;
+         case FINALIZE -> WorldOperationPhase.FINALIZE;
+         case FINAL_JOURNAL -> WorldOperationPhase.COMMIT;
+      };
    }
 
    private enum Phase {

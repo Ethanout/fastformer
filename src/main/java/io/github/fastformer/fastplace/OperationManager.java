@@ -370,7 +370,7 @@ public final class OperationManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_too_large", maxPlacement));
          return false;
       }
-      if (!WorldOperationMemory.canPrepare(volume)) {
+      if (!WorldOperationMemory.snapshotAdmission(volume, 0L).allowed()) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
          return false;
       }
@@ -439,27 +439,52 @@ public final class OperationManager {
       if (task == null) {
          return;
       }
+      WorldTaskBudget budget = null;
+      long batchStartedAt = 0L;
+      boolean recoveryCreated = false;
       try {
       ServerLevel level = context.level(task.dimension());
       if (level == null) {
+         task.markWorldUnloaded();
+         task.releaseMemoryReservation();
+         LOGGER.warn("FastFormer operation {} is waiting for unloaded dimension {} (phase={})",
+            task.operationId(), task.dimension().location(), task.phaseName());
          context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
+         return;
+      }
+      if (!task.ensureMemoryReservation()) {
+         context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
          return;
       }
       if (!task.acquireLease(context)) {
          context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
          return;
       }
-      OperationTaskResult result = task.tick(context, level, WorldTaskBudget.forServerTick());
+      batchStartedAt = System.nanoTime();
+      budget = WorldTaskBudget.forServerTick(
+         task.memoryThrottled(), task.previousBatchCells(), task.previousBatchNanos()
+      );
+      OperationTaskResult result = task.tick(
+         context,
+         level,
+         budget
+      );
+      task.recordBatch(budget.consumed(), System.nanoTime() - batchStartedAt);
       if (result != OperationTaskResult.ACTIVE) {
+         boolean failureTransferred = result == OperationTaskResult.FAILED
+            || result == OperationTaskResult.JOURNAL_FAILED;
          if (result == OperationTaskResult.FAILED) {
-            settleFailedTask(context, task);
+            recoveryCreated = settleFailedTask(context, task);
          } else if (result == OperationTaskResult.JOURNAL_FAILED) {
-            settleFailedTask(context, task);
+            recoveryCreated = settleFailedTask(context, task);
          } else if (task.hasWrites()) {
             if (!WorldHistoryManager.commitPreparedOperation(context, task.preparedBatch(), task.journal())) {
                result = OperationTaskResult.FAILED;
-               settleFailedTask(context, task);
+               failureTransferred = true;
+               recoveryCreated = settleFailedTask(context, task);
             } else {
+               task.markComplete();
+               task.releaseCommittedTransactionState();
                task.releaseLease(context);
             }
          } else {
@@ -476,6 +501,14 @@ public final class OperationManager {
                workspaceTask.failedPartIds()
             );
          }
+         if (result == OperationTaskResult.COMPLETE) {
+            task.markComplete();
+         }
+         LOGGER.info("FastFormer operation {} finished with result {}: {}",
+            task.operationId(), result, task.metricsSummary());
+         if (!failureTransferred) {
+            task.releaseMemoryReservation();
+         }
          TASKS.remove(owner, task);
          context.actionBar(
             result == OperationTaskResult.COMPLETE
@@ -483,7 +516,7 @@ public final class OperationManager {
                : result == OperationTaskResult.EMPTY
                   ? FastPlaceMessages.text("fastformer.message.operation_empty")
                   : result == OperationTaskResult.FAILED
-                     ? FastPlaceMessages.text("fastformer.message.operation_failed_rollback")
+                     ? operationFailureStatus(task, recoveryCreated)
                       : result == OperationTaskResult.JOURNAL_FAILED
                          ? FastPlaceMessages.text("fastformer.message.recovery_journal_failed")
                          : result == OperationTaskResult.MEMORY_UNSAFE
@@ -494,8 +527,14 @@ public final class OperationManager {
          context.actionBar(FastPlaceMessages.text("fastformer.message.operation_phase", task.phaseName()));
       }
       } catch (RuntimeException | OutOfMemoryError exception) {
+         // Preserve the failed tick in latency metrics before transferring
+         // ownership to recovery. This keeps adaptive scheduling evidence
+         // available even when the task exits through an exception.
+         if (budget != null) {
+            task.recordBatch(budget.consumed(), System.nanoTime() - batchStartedAt);
+         }
          if (TASKS.remove(owner, task)) {
-            settleFailedTask(context, task);
+            recoveryCreated = settleFailedTask(context, task);
          }
          if (task instanceof ClientWorkspacePlacementTask workspaceTask) {
             FastPlaceNetwork.sendWorkspaceResult(
@@ -503,18 +542,23 @@ public final class OperationManager {
             );
          }
          LOGGER.error("FastFormer operation task failed for {} and was transferred to recovery", owner, exception);
-         context.actionBar(FastPlaceMessages.text("fastformer.message.operation_failed_rollback"));
+         LOGGER.error("FastFormer operation metrics: {}", task.metricsSummary());
+         context.actionBar(operationFailureStatus(task, recoveryCreated));
       }
    }
 
-   private static void settleFailedTask(WorldTaskContext context, WorldOperationTask task) {
-      task.cancelJournalPreparation();
-      switch (WorldTaskFeature.failureDisposition(task.hasWrites())) {
-         case RECOVER_WRITES -> startRestore(
-            context, task.dimension(), task.undoChanges(), task.afterChanges(), task.journal()
-         );
-         case DISCARD_UNUSED_JOURNAL -> task.releaseAfterCancelledJournal(context);
-      }
+
+   private static boolean settleFailedTask(WorldTaskContext context, WorldOperationTask task) {
+      return WorldHistoryManager.acceptStoppedTask(context, task).recoveryCreated();
+   }
+
+   private static net.minecraft.network.chat.MutableComponent operationFailureStatus(
+      WorldOperationTask task, boolean recoveryCreated
+   ) {
+      String key = recoveryCreated
+         ? "fastformer.message.operation_failed_rollback"
+         : "fastformer.message.operation_failed_no_recovery";
+      return FastPlaceMessages.text(key, task.phaseName(), task.operationId(), task.metricsSummary());
    }
 
    public static void cancel(ServerPlayer player) {
@@ -536,63 +580,30 @@ public final class OperationManager {
    public static void clearServer() {
       for (WorldOperationTask task : TASKS.values()) {
          task.cancelJournalPreparation();
+         task.releaseMemoryReservation();
       }
       TASKS.clear();
       SESSIONS.clear();
    }
 
-   public static boolean cancelRestore(ServerPlayer player) {
-      return WorldHistoryManager.cancel(player);
+   public static TaskCancellationResult cancelTask(ServerPlayer player) {
+      return cancelTask(new WorldTaskContext(player.getServer(), player.getUUID()));
    }
 
-   public static TaskCancellationResult cancelTask(ServerPlayer player) {
-      WorldOperationTask task = TASKS.remove(player.getUUID());
+   static TaskCancellationResult cancelTask(WorldTaskContext context) {
+      WorldOperationTask task = TASKS.remove(context.owner());
       if (task == null) {
          return TaskCancellationResult.NOT_ACTIVE;
       }
-      task.cancelJournalPreparation();
-      ArrayDeque<ReversibleBlockSnapshot> undoChanges = task.undoChanges();
-      ServerLevel taskLevel = player.getServer().getLevel(task.dimension());
-      if (undoChanges.isEmpty()) {
-         task.releaseAfterCancelledJournal(new WorldTaskContext(player.getServer(), player.getUUID()));
-         return TaskCancellationResult.CANCELLED_BEFORE_WRITE;
-      }
-      boolean rollbackStarted;
-      if (taskLevel != null) {
-         rollbackStarted = WorldHistoryManager.startRollback(
-            player, taskLevel, undoChanges, task.afterChanges(), task.journal()
-         );
-      } else {
-         rollbackStarted = WorldHistoryManager.startRollback(
-            player, task.dimension(), undoChanges, task.afterChanges(), task.journal()
-         );
-      }
-      return rollbackStarted
-         ? TaskCancellationResult.ROLLBACK_STARTED
-         : TaskCancellationResult.RECOVERY_BLOCKED;
+      return WorldHistoryManager.acceptStoppedTask(context, task);
+   }
+
+   static void addTaskForTest(UUID owner, WorldOperationTask task) {
+      TASKS.put(owner, task);
    }
 
    public static boolean undoLast(ServerPlayer player) {
       return WorldHistoryManager.requestUndo(player, 1);
-   }
-
-   private static void startRestore(
-      ServerPlayer player,
-      ArrayDeque<ReversibleBlockSnapshot> changes,
-      Map<BlockPos, ReversibleBlockSnapshot> after,
-      PersistentRecoveryJournal journal
-   ) {
-      WorldHistoryManager.startRollback(player, player.serverLevel(), changes, after, journal);
-   }
-
-   private static void startRestore(
-      WorldTaskContext context,
-      ResourceKey<Level> dimension,
-      ArrayDeque<ReversibleBlockSnapshot> changes,
-      Map<BlockPos, ReversibleBlockSnapshot> after,
-      PersistentRecoveryJournal journal
-   ) {
-      WorldHistoryManager.startRollback(context, dimension, changes, after, journal);
    }
 
    private static boolean operationBusy(ServerPlayer player) {

@@ -15,6 +15,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 public final class BuildingShellCache {
    private final boolean pending;
    private BlockState state;
+   private Map<net.minecraft.core.BlockPos, BlockState> stateOverrides = Map.of();
    private Set<net.minecraft.core.BlockPos> blocks = Set.of();
    private Set<net.minecraft.core.BlockPos> shapeEnvironment = Set.of();
    private Map<net.minecraft.core.BlockPos, BuildingSpecialBlock> specialStyles = Map.of();
@@ -28,6 +29,7 @@ public final class BuildingShellCache {
    public ShapeShellMesh.Mesh mesh(
       BlockGetter previewLevel,
       BlockState state,
+      Map<net.minecraft.core.BlockPos, BlockState> stateOverrides,
       CollisionContext collision,
       Set<net.minecraft.core.BlockPos> blocks,
       Set<net.minecraft.core.BlockPos> shapeEnvironment,
@@ -36,6 +38,7 @@ public final class BuildingShellCache {
    ) {
       if (this.state == state
          && this.blocks.equals(blocks)
+         && this.stateOverrides.equals(stateOverrides)
          && this.shapeEnvironment.equals(shapeEnvironment)
          && this.specialStyles.equals(specialStyles)
          && this.playerShift == playerShift) {
@@ -44,15 +47,17 @@ public final class BuildingShellCache {
 
       this.state = state;
       this.blocks = Set.copyOf(blocks);
+      this.stateOverrides = Map.copyOf(stateOverrides);
       this.shapeEnvironment = Set.copyOf(shapeEnvironment);
       this.specialStyles = Map.copyOf(specialStyles);
       this.playerShift = playerShift;
 
       ArrayList<ShapeShellMesh.Part> parts = new ArrayList<>(blocks.size());
       for (net.minecraft.core.BlockPos pos : blocks) {
-         List<AABB> boxes = state == null
+         BlockState stateAt = stateOverrides.getOrDefault(pos, state);
+         List<AABB> boxes = stateAt == null
             ? List.of(new AABB(pos))
-            : state.getShape(previewLevel, pos, collision).toAabbs().stream()
+            : stateAt.getShape(previewLevel, pos, collision).toAabbs().stream()
                .map(box -> box.move(pos))
                .toList();
          if (boxes.isEmpty()) {
@@ -74,6 +79,7 @@ public final class BuildingShellCache {
 
    public void clear() {
       this.state = null;
+      this.stateOverrides = Map.of();
       this.blocks = Set.of();
       this.shapeEnvironment = Set.of();
       this.specialStyles = Map.of();

@@ -2,19 +2,17 @@ package io.github.fastformer.client.placement;
 
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
-import io.github.fastformer.network.payload.placement.ConfirmPayload;
 import io.github.fastformer.network.payload.operation.OperationApplyPayload;
 import io.github.fastformer.network.payload.operation.OperationWorkspaceApplyPayload;
 import io.github.fastformer.network.payload.placement.QuickReplacePayload;
-import io.github.fastformer.network.payload.placement.QuickShapePayload;
-import io.github.fastformer.network.payload.placement.ShapePlacementPayload;
+import io.github.fastformer.network.payload.placement.PlacementActionPayload;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -22,58 +20,25 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Single client boundary for requests that may ultimately modify the world. */
 public final class ClientPlacementRouter {
+   private static final AtomicLong NEXT_ACTION_ID = new AtomicLong();
    private ClientPlacementRouter() {
    }
 
    public static boolean canConfirm(Minecraft minecraft) {
-      return supports(minecraft, ShapePlacementPayload.TYPE)
-         || supports(minecraft, ConfirmPayload.TYPE);
+      return supports(minecraft, PlacementActionPayload.TYPE);
    }
 
    public static boolean confirm(Minecraft minecraft) {
-      ShapeSubmissionResult clientResult = submitClientShape(minecraft);
-      if (clientResult != ShapeSubmissionResult.UNSUPPORTED) {
-         return clientResult == ShapeSubmissionResult.SENT;
-      }
-      return send(minecraft, ConfirmPayload.TYPE, ConfirmPayload.INSTANCE);
+      return sendAction(minecraft, PlacementActionPayload.Action.CONFIRM);
    }
 
    public static boolean quickShape(Minecraft minecraft) {
-      ShapeSubmissionResult clientResult = submitClientShape(minecraft);
-      if (clientResult != ShapeSubmissionResult.UNSUPPORTED) {
-         return clientResult == ShapeSubmissionResult.SENT;
-      }
-      return send(minecraft, QuickShapePayload.TYPE, QuickShapePayload.INSTANCE);
+      return sendAction(minecraft, PlacementActionPayload.Action.QUICK_SHAPE);
    }
 
-   /** Sends a client-resolved shape package when the current preview is ready. */
-   private static ShapeSubmissionResult submitClientShape(Minecraft minecraft) {
-      if (!supports(minecraft, ShapePlacementPayload.TYPE)) {
-         return ShapeSubmissionResult.UNSUPPORTED;
-      }
-      try {
-         Optional<OperationWorkspacePlan> clientShape = FastPlaceClientPreview.clientBuildingPlacementPlan();
-         if (clientShape.isEmpty()) {
-            clientShape = FastPlaceClientPreview.clientGeometryPlacementPlan();
-         }
-         if (clientShape.isEmpty()) {
-            return ShapeSubmissionResult.NOT_READY;
-         }
-         Optional<ShapeSubmission> submission = prepareShapePlacement(minecraft, clientShape.get());
-         if (submission.isEmpty()) {
-            return ShapeSubmissionResult.NOT_READY;
-         }
-         submission.get().send();
-         return ShapeSubmissionResult.SENT;
-      } catch (IOException | RuntimeException ignored) {
-         return ShapeSubmissionResult.NOT_READY;
-      }
-   }
-
-   private enum ShapeSubmissionResult {
-      SENT,
-      NOT_READY,
-      UNSUPPORTED
+   private static boolean sendAction(Minecraft minecraft, PlacementActionPayload.Action action) {
+      long requestId = NEXT_ACTION_ID.incrementAndGet();
+      return send(minecraft, PlacementActionPayload.TYPE, new PlacementActionPayload(action, requestId));
    }
 
    public static boolean applyOperation(Minecraft minecraft, boolean copy) {
@@ -106,22 +71,6 @@ public final class ClientPlacementRouter {
          (index, count, data) -> new OperationWorkspaceApplyPayload(transferId, index, count, data)
       );
       return Optional.of(new WorkspaceSubmission(transferId, chunks));
-   }
-
-   public static Optional<ShapeSubmission> prepareShapePlacement(
-      Minecraft minecraft, OperationWorkspacePlan plan
-   ) throws IOException {
-      if (!supports(minecraft, ShapePlacementPayload.TYPE)) {
-         return Optional.empty();
-      }
-      byte[] compressed = OperationWorkspacePlanCodec.encodeCompressed(plan);
-      UUID transferId = UUID.randomUUID();
-      List<ShapePlacementPayload> chunks = chunk(
-         compressed,
-         ShapePlacementPayload.MAX_CHUNK_BYTES,
-         (index, count, data) -> new ShapePlacementPayload(transferId, index, count, data)
-      );
-      return Optional.of(new ShapeSubmission(transferId, chunks));
    }
 
    private static <T> List<T> chunk(byte[] data, int chunkSize, ChunkFactory<T> factory) {
@@ -168,16 +117,4 @@ public final class ClientPlacementRouter {
       }
    }
 
-   public record ShapeSubmission(UUID transferId, List<ShapePlacementPayload> chunks) {
-      public ShapeSubmission {
-         if (transferId == null || chunks == null || chunks.isEmpty()) {
-            throw new IllegalArgumentException("A shape submission requires chunks");
-         }
-         chunks = List.copyOf(chunks);
-      }
-
-      public void send() {
-         chunks.forEach(chunk -> PacketDistributor.sendToServer(chunk, new CustomPacketPayload[0]));
-      }
-   }
 }

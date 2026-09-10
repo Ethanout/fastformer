@@ -107,7 +107,8 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
       List<Vec3> points = List.copyOf(session.pointLocations());
       return GeometryBuildResult.ready(
          ArbitraryConvexPolyhedronGenerator.estimateScanCells(points),
-         () -> ArbitraryConvexPolyhedronGenerator.generate(points, fillMode, maxBlocks)
+         maxBlocks,
+         () -> ArbitraryConvexPolyhedronGenerator.generateResult(points, fillMode, maxBlocks)
       );
    }
 

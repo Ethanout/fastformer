@@ -23,26 +23,35 @@ public final class ArbitraryConvexPolyhedronGenerator {
 
    public static Set<BlockPos> generate(List<Vec3> points, FillMode fillMode, int maxBlocks) {
       Hull hull = derive(points);
-      if (!hull.ready() || maxBlocks <= 0) {
+      if (!hull.ready()) {
          return Set.of();
       }
+      if (maxBlocks <= 0) {
+         return GenerationLimitExceeded.witness(maxBlocks);
+      }
       if (fillMode == FillMode.OUTLINE) {
-         return outline(hull, maxBlocks);
+         Set<BlockPos> outline = outline(hull, GenerationLimitExceeded.probeLimit(maxBlocks));
+         return GenerationLimitExceeded.boundedResult(outline, maxBlocks, BlockGenerationObserver.NONE);
       }
 
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
       Bounds bounds = hull.bounds();
-      for (int x = bounds.minX(); x <= bounds.maxX() && result.size() < maxBlocks; x++) {
-         for (int y = bounds.minY(); y <= bounds.maxY() && result.size() < maxBlocks; y++) {
-            IntSpan span = zSpan(hull, x, y);
-            if (fillMode == FillMode.SOLID) {
-               addRange(result, x, y, span.min(), span.max(), maxBlocks);
-            } else {
-               addBoundary(result, hull, x, y, span, maxBlocks);
-            }
-         }
+      boolean boundaryOnly = fillMode != FillMode.SOLID;
+      long count = countBlocks(hull, boundaryOnly);
+      if (count > maxBlocks) {
+         return GenerationLimitExceeded.witness(maxBlocks);
       }
-      return Set.copyOf(result);
+      return new LazyColumnBlockSet(
+         bounds.minX(), bounds.minY(), bounds.maxX(), bounds.maxY(), (int)count,
+         (x, y) -> zSpan(hull, x, y),
+         (x, y, z) -> !boundaryOnly || isBoundary(hull, x, y, z)
+      );
+   }
+
+   public static BlockGenerationResult generateResult(List<Vec3> points, FillMode fillMode, int maxBlocks) {
+      if (!ready(points)) {
+         return BlockGenerationResult.constraintsFailed();
+      }
+      return BlockGenerationResult.fromLegacy(generate(points, fillMode, maxBlocks));
    }
 
    /**
@@ -64,7 +73,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
       for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
          for (int y = bounds.minY(); y <= bounds.maxY(); y++) {
             actualObserver.checkCancelled();
-            IntSpan span = zSpan(hull, x, y);
+            BlockColumnSpan span = zSpan(hull, x, y);
             for (int z = span.min(); z <= span.max(); z++) {
                if (!visitor.test(new BlockPos(x, y, z))) {
                   return false;
@@ -104,7 +113,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
       long firstMinimum = coordinate(hull.bounds(), firstAxis, false);
       long firstMaximum = coordinate(hull.bounds(), firstAxis, true);
       for (long first = firstMinimum; first <= firstMaximum; first++) {
-         IntSpan secondSpan = projectedSecondSpan(
+         BlockColumnSpan secondSpan = projectedSecondSpan(
             projection,
             first + 0.5,
             coordinate(hull.bounds(), secondAxis, false),
@@ -116,7 +125,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
          }
          for (long second = secondSpan.min(); second <= secondSpan.max(); second++) {
             actualObserver.checkCancelled();
-            IntSpan span = axisSpan(hull, axis, firstAxis, (int)first, secondAxis, (int)second);
+            BlockColumnSpan span = axisSpan(hull, axis, firstAxis, (int)first, secondAxis, (int)second);
             if (!span.empty() && !visitor.visit((int)first, (int)second, span.min(), span.max())) {
                return false;
             }
@@ -159,7 +168,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
       long firstMaximum = coordinate(hull.bounds(), firstAxis, true);
       for (long first = firstMinimum; first <= firstMaximum; first++) {
          actualObserver.checkCancelled();
-         IntSpan secondSpan = projectedSecondSpan(
+         BlockColumnSpan secondSpan = projectedSecondSpan(
             projection,
             first + 0.5,
             coordinate(hull.bounds(), secondAxis, false),
@@ -203,15 +212,15 @@ public final class ArbitraryConvexPolyhedronGenerator {
    }
 
    private static void addBoundary(
-      Set<BlockPos> output, Hull hull, int x, int y, IntSpan span, int maxBlocks
+      Set<BlockPos> output, Hull hull, int x, int y, BlockColumnSpan span, int maxBlocks
    ) {
       if (span.empty()) {
          return;
       }
-      IntSpan left = zSpan(hull, x - 1, y);
-      IntSpan right = zSpan(hull, x + 1, y);
-      IntSpan down = zSpan(hull, x, y - 1);
-      IntSpan up = zSpan(hull, x, y + 1);
+      BlockColumnSpan left = zSpan(hull, x - 1, y);
+      BlockColumnSpan right = zSpan(hull, x + 1, y);
+      BlockColumnSpan down = zSpan(hull, x, y - 1);
+      BlockColumnSpan up = zSpan(hull, x, y + 1);
       int interiorMin = Math.max(span.min() + 1, Math.max(Math.max(left.min(), right.min()), Math.max(down.min(), up.min())));
       int interiorMax = Math.min(span.max() - 1, Math.min(Math.min(left.max(), right.max()), Math.min(down.max(), up.max())));
       if (interiorMin > interiorMax) {
@@ -222,10 +231,38 @@ public final class ArbitraryConvexPolyhedronGenerator {
       addRange(output, x, y, interiorMax + 1, span.max(), maxBlocks);
    }
 
-   private static IntSpan zSpan(Hull hull, int x, int y) {
+   private static long countBlocks(Hull hull, boolean boundaryOnly) {
+      long count = 0L;
+      Bounds bounds = hull.bounds();
+      for (long x = bounds.minX(); x <= (long)bounds.maxX(); x++) {
+         for (long y = bounds.minY(); y <= (long)bounds.maxY(); y++) {
+            BlockColumnSpan span = zSpan(hull, (int)x, (int)y);
+            if (span.empty()) {
+               continue;
+            }
+            long column = boundaryOnly ? boundaryCount(hull, (int)x, (int)y, span) : span.length();
+            count = count > Long.MAX_VALUE - column ? Long.MAX_VALUE : count + column;
+         }
+      }
+      return count;
+   }
+
+   private static long boundaryCount(Hull hull, int x, int y, BlockColumnSpan span) {
+      BlockColumnSpan left = zSpan(hull, x - 1, y);
+      BlockColumnSpan right = zSpan(hull, x + 1, y);
+      BlockColumnSpan down = zSpan(hull, x, y - 1);
+      BlockColumnSpan up = zSpan(hull, x, y + 1);
+      int interiorMin = Math.max(span.min() + 1, Math.max(Math.max(left.min(), right.min()), Math.max(down.min(), up.min())));
+      int interiorMax = Math.min(span.max() - 1, Math.min(Math.min(left.max(), right.max()), Math.min(down.max(), up.max())));
+      return interiorMin > interiorMax
+         ? span.length()
+         : (long)interiorMin - span.min() + (long)span.max() - interiorMax;
+   }
+
+   private static BlockColumnSpan zSpan(Hull hull, int x, int y) {
       Bounds bounds = hull.bounds();
       if (x < bounds.minX() || x > bounds.maxX() || y < bounds.minY() || y > bounds.maxY()) {
-         return IntSpan.EMPTY;
+         return BlockColumnSpan.EMPTY;
       }
       double minimumCenter = bounds.minZ() + 0.5;
       double maximumCenter = bounds.maxZ() + 0.5;
@@ -235,7 +272,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
          double remaining = plane.offset() - fixed;
          if (Math.abs(coefficient) <= EPSILON) {
             if (remaining < -EPSILON) {
-               return IntSpan.EMPTY;
+               return BlockColumnSpan.EMPTY;
             }
          } else if (coefficient > 0.0) {
             maximumCenter = Math.min(maximumCenter, remaining / coefficient);
@@ -243,12 +280,12 @@ public final class ArbitraryConvexPolyhedronGenerator {
             minimumCenter = Math.max(minimumCenter, remaining / coefficient);
          }
          if (minimumCenter > maximumCenter + EPSILON) {
-            return IntSpan.EMPTY;
+            return BlockColumnSpan.EMPTY;
          }
       }
       int minimum = (int)Math.ceil(minimumCenter - 0.5 - EPSILON);
       int maximum = (int)Math.floor(maximumCenter - 0.5 + EPSILON);
-      return minimum > maximum ? IntSpan.EMPTY : new IntSpan(minimum, maximum);
+      return minimum > maximum ? BlockColumnSpan.EMPTY : new BlockColumnSpan(minimum, maximum);
    }
 
    private static List<ProjectionPoint> projectedHull(Hull hull, int firstAxis, int secondAxis) {
@@ -323,7 +360,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
       return List.copyOf(result);
    }
 
-   private static IntSpan projectedSecondSpan(
+   private static BlockColumnSpan projectedSecondSpan(
       List<ProjectionHalfPlane> projection,
       double firstCenter,
       int secondMinimum,
@@ -339,7 +376,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
          double fixed = halfPlane.firstCoefficient() * firstCenter;
          if (Math.abs(secondCoefficient) <= EPSILON) {
             if (fixed < halfPlane.offset() - EPSILON) {
-               return IntSpan.EMPTY;
+               return BlockColumnSpan.EMPTY;
             }
             continue;
          }
@@ -350,12 +387,12 @@ public final class ArbitraryConvexPolyhedronGenerator {
             maximumCenter = Math.min(maximumCenter, bound);
          }
          if (minimumCenter > maximumCenter + EPSILON) {
-            return IntSpan.EMPTY;
+            return BlockColumnSpan.EMPTY;
          }
       }
       int minimum = Math.max(secondMinimum, (int)Math.ceil(minimumCenter - 0.5 - EPSILON));
       int maximum = Math.min(secondMaximum, (int)Math.floor(maximumCenter - 0.5 + EPSILON));
-      return minimum > maximum ? IntSpan.EMPTY : new IntSpan(minimum, maximum);
+      return minimum > maximum ? BlockColumnSpan.EMPTY : new BlockColumnSpan(minimum, maximum);
    }
 
    private static double projectionCross(
@@ -371,7 +408,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
       return value == 0.0 ? 0.0 : value;
    }
 
-   private static IntSpan axisSpan(
+   private static BlockColumnSpan axisSpan(
       Hull hull,
       int axis,
       int firstAxis,
@@ -389,7 +426,7 @@ public final class ArbitraryConvexPolyhedronGenerator {
          double remaining = plane.offset() - fixed;
          if (Math.abs(coefficient) <= EPSILON) {
             if (remaining < -EPSILON) {
-               return IntSpan.EMPTY;
+               return BlockColumnSpan.EMPTY;
             }
          } else if (coefficient > 0.0) {
             maximumCenter = Math.min(maximumCenter, remaining / coefficient);
@@ -397,12 +434,12 @@ public final class ArbitraryConvexPolyhedronGenerator {
             minimumCenter = Math.max(minimumCenter, remaining / coefficient);
          }
          if (minimumCenter > maximumCenter + EPSILON) {
-            return IntSpan.EMPTY;
+            return BlockColumnSpan.EMPTY;
          }
       }
       int minimum = (int)Math.ceil(minimumCenter - 0.5 - EPSILON);
       int maximum = (int)Math.floor(maximumCenter - 0.5 + EPSILON);
-      return minimum > maximum ? IntSpan.EMPTY : new IntSpan(minimum, maximum);
+      return minimum > maximum ? BlockColumnSpan.EMPTY : new BlockColumnSpan(minimum, maximum);
    }
 
    private static double coordinate(Vec3 vector, int axis) {
@@ -629,11 +666,16 @@ public final class ArbitraryConvexPolyhedronGenerator {
       }
    }
 
-   private record IntSpan(int min, int max) {
-      private static final IntSpan EMPTY = new IntSpan(Integer.MAX_VALUE, Integer.MIN_VALUE);
+   private static boolean isBoundary(Hull hull, int x, int y, int z) {
+      return !contains(zSpan(hull, x - 1, y), z)
+         || !contains(zSpan(hull, x + 1, y), z)
+         || !contains(zSpan(hull, x, y - 1), z)
+         || !contains(zSpan(hull, x, y + 1), z)
+         || !contains(zSpan(hull, x, y), z - 1)
+         || !contains(zSpan(hull, x, y), z + 1);
+   }
 
-      boolean empty() {
-         return this.min > this.max;
-      }
+   private static boolean contains(BlockColumnSpan span, int value) {
+      return span.contains(value);
    }
 }

@@ -247,7 +247,7 @@ class LineGeneratorTest {
    }
 
    @Test
-   void pathKeepsEndpointsLengthAndOutputLimit() {
+   void pathKeepsEndpointsLengthAndGenerateReportsOutputLimit() {
       BlockPos from = new BlockPos(-3, 8, 2);
       BlockPos to = new BlockPos(8, 2, -5);
       List<BlockPos> path = LineGenerator.path(from, to);
@@ -255,7 +255,19 @@ class LineGeneratorTest {
       assertTrue(path.contains(from));
       assertTrue(path.contains(to));
       assertEquals(12, path.size());
-      assertEquals(7, LineGenerator.generate(from, to, 7).size());
+      assertEquals(12, LineGenerator.generate(from, to, 12).size());
+      assertTrue(GenerationLimitExceeded.is(LineGenerator.generate(from, to, 7)));
+   }
+
+   @Test
+   void successfulGenerationKeepsOnlyLazyLineState() {
+      Set<BlockPos> generated = LineGenerator.generate(
+         BlockPos.ZERO, new BlockPos(1_000_000, 3, 2), 1_000_001
+      );
+
+      assertTrue(generated instanceof LazyLineBlockSet);
+      assertEquals(1_000_001, generated.size());
+      assertEquals(BlockPos.ZERO, generated.iterator().next());
    }
 
    private static void assertOwnedEdgeInteriorHasNoRightAngle(List<BlockPos> path, int droppedAxis) {

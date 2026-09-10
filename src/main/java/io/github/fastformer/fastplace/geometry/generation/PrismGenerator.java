@@ -98,31 +98,36 @@ public final class PrismGenerator {
    private static Set<BlockPos> outline(
       List<Vec3> base, Vec3 extrusion, int maxBlocks, BlockGenerationObserver observer
    ) {
-      List<BlockPos> offsets = LineGenerator.offsets(extrusion, maxBlocks);
+      int stagingLimit = GenerationLimitExceeded.probeLimit(maxBlocks);
+      List<BlockPos> offsets = LineGenerator.offsets(extrusion, stagingLimit);
       if (offsets.isEmpty()) {
          return Set.of();
       }
-      Set<BlockPos> result = new ObservedBlockSet(observer);
-      Set<BlockPos> baseOutline = PlanarFaceRasterizer.outline(base, maxBlocks, BlockGenerationObserver.NONE);
-      if (GenerationLimitExceeded.is(baseOutline)) {
+      if (offsets.size() > maxBlocks) {
          return GenerationLimitExceeded.witness(maxBlocks, observer);
       }
-      addTranslated(result, baseOutline, offsets.getFirst(), maxBlocks);
-      addTranslated(result, baseOutline, offsets.getLast(), maxBlocks);
-      for (Vec3 vertex : base) {
-         LineGenerator.add(result, vertex, vertex.add(extrusion), maxBlocks);
+      Set<BlockPos> result = new ObservedBlockSet(observer);
+      Set<BlockPos> baseOutline = PlanarFaceRasterizer.outline(base, stagingLimit, BlockGenerationObserver.NONE);
+      if (GenerationLimitExceeded.is(baseOutline) || baseOutline.size() > maxBlocks) {
+         return GenerationLimitExceeded.witness(maxBlocks, observer);
       }
-      return result;
+      addTranslated(result, baseOutline, offsets.getFirst(), stagingLimit);
+      addTranslated(result, baseOutline, offsets.getLast(), stagingLimit);
+      for (Vec3 vertex : base) {
+         LineGenerator.add(result, vertex, vertex.add(extrusion), stagingLimit);
+      }
+      return GenerationLimitExceeded.boundedResult(result, maxBlocks, observer);
    }
 
    private static Set<BlockPos> hollow(Set<BlockPos> solid, int maxBlocks, BlockGenerationObserver observer) {
       Set<BlockPos> result = new ObservedBlockSet(observer);
+      int stagingLimit = GenerationLimitExceeded.probeLimit(maxBlocks);
       for (BlockPos position : solid) {
          if (isBoundary(position, solid)) {
             result.add(position);
          }
-         if (result.size() >= maxBlocks) {
-            return result;
+         if (result.size() >= stagingLimit) {
+            return GenerationLimitExceeded.witness(maxBlocks, observer);
          }
       }
       return result;

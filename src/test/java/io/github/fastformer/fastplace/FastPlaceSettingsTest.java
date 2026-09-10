@@ -6,11 +6,37 @@ import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.workflow.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect;
 import org.junit.jupiter.api.Test;
 
 class FastPlaceSettingsTest {
+   @Test
+   void placementEffectsDefaultToWoodFrameAndRoundTripAsIds() {
+      FastPlaceSettings settings = FastPlaceSettings.fromTag(new CompoundTag());
+
+      assertTrue(settings.isPlacementEffectEnabled(WoodFramePlacementEffect.ID));
+      assertTrue(FastPlaceSettings.fromTag(settings.toTag())
+         .isPlacementEffectEnabled(WoodFramePlacementEffect.ID));
+      CompoundTag disabled = settings.toTag();
+      disabled.put("enabledPlacementEffects", new ListTag());
+      assertFalse(FastPlaceSettings.fromTag(disabled)
+         .isPlacementEffectEnabled(WoodFramePlacementEffect.ID));
+   }
+
+   @Test
+   void legacyWoodFrameFlagMigratesIntoEffectSet() {
+      CompoundTag tag = new CompoundTag();
+      tag.putBoolean("smartWoodFrame", false);
+
+      assertFalse(FastPlaceSettings.fromTag(tag)
+         .isPlacementEffectEnabled(WoodFramePlacementEffect.ID));
+   }
+
    @Test
    void faceRasterizationDefaultsToPointSweepAndExperimentalModeRoundTrips() {
       assertEquals(

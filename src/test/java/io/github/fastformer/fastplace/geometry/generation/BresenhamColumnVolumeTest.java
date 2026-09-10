@@ -42,6 +42,36 @@ class BresenhamColumnVolumeTest {
    }
 
    @Test
+   void solidResultKeepsCompactLazyColumnStorage() {
+      Set<BlockPos> expected = new LinkedHashSet<>();
+      for (int x = -2; x <= 2; x++) {
+         for (int y = 4; y <= 8; y++) {
+            expected.add(new BlockPos(x, y, 11));
+         }
+      }
+
+      Set<BlockPos> actual = BresenhamColumnVolume.solidFromSpansForTesting(expected, 1);
+
+      assertTrue(BresenhamColumnVolume.usesLazyColumnStorageForTesting(actual));
+      assertEquals(expected.size(), actual.size());
+      assertEquals(expected, actual);
+      assertTrue(actual.contains(new BlockPos(0, 6, 11)));
+      assertFalse(actual.contains(new BlockPos(0, 9, 11)));
+   }
+
+   @Test
+   void lazyColumnIteratorStopsAtMaximumIntegerCoordinate() {
+      BlockPos penultimate = new BlockPos(Integer.MAX_VALUE - 1, 3, -5);
+      BlockPos last = new BlockPos(Integer.MAX_VALUE, 3, -5);
+      Set<BlockPos> actual = BresenhamColumnVolume.solidFromSpansForTesting(
+         new LinkedHashSet<>(List.of(penultimate, last)),
+         0
+      );
+
+      assertEquals(List.of(penultimate, last), new ArrayList<>(actual));
+   }
+
+   @Test
    void oldTranslatedFaceCavityRegressionIsClosedByTheColumnVolume() {
       assertVolumeContract(
          parallelogram(
@@ -583,6 +613,7 @@ class BresenhamColumnVolumeTest {
             long actualOpenings = BresenhamColumnVolume.fiveNeighborOpeningsFromSpansForTesting(solid, axis);
 
             assertEquals(expectedBoundary, actualBoundary, "axis=" + axis + " sample=" + sample);
+            assertTrue(BresenhamColumnVolume.usesLazyColumnStorageForTesting(actualBoundary));
             assertEquals(expectedOpenings, actualOpenings, "axis=" + axis + " sample=" + sample);
          }
       }

@@ -80,10 +80,55 @@ class ArbitraryConvexPolyhedronGeneratorTest {
    }
 
    @Test
+   void placementOutlineReportsLimitWhilePreviewRemainsBounded() {
+      List<Vec3> points = cube(0, 8);
+      Set<BlockPos> complete = ArbitraryConvexPolyhedronGenerator.generate(
+         points, FillMode.OUTLINE, 10000
+      );
+
+      assertFalse(complete.isEmpty());
+      assertEquals(
+         complete,
+         ArbitraryConvexPolyhedronGenerator.generate(points, FillMode.OUTLINE, complete.size())
+      );
+      assertTrue(GenerationLimitExceeded.is(
+         ArbitraryConvexPolyhedronGenerator.generate(points, FillMode.OUTLINE, complete.size() - 1)
+      ));
+
+      Set<BlockPos> preview = ArbitraryConvexPolyhedronGenerator.previewOutline(
+         points, complete.size() - 1
+      );
+      assertFalse(GenerationLimitExceeded.is(preview));
+      assertTrue(preview.size() <= complete.size() - 1);
+   }
+
+   @Test
    void generationHonorsOutputLimit() {
       Set<BlockPos> solid = ArbitraryConvexPolyhedronGenerator.generate(cube(0, 8), FillMode.SOLID, 17);
 
       assertEquals(17, solid.size());
+   }
+
+   @Test
+   void largeSolidBodyUsesLazyStorage() {
+      Set<BlockPos> solid = ArbitraryConvexPolyhedronGenerator.generate(cube(0, 32), FillMode.SOLID, 100_000);
+
+      assertEquals(LazyColumnBlockSet.class, solid.getClass());
+      assertEquals(solid.size(), new java.util.HashSet<>(solid).size());
+   }
+
+   @Test
+   void lazyColumnIterationDoesNotWrapAtIntegerBounds() {
+      for (int minimum : List.of(Integer.MIN_VALUE, Integer.MAX_VALUE - 1)) {
+         Set<BlockPos> solid = ArbitraryConvexPolyhedronGenerator.generate(
+            cube(minimum, minimum + 1),
+            FillMode.SOLID,
+            16
+         );
+
+         assertEquals(8, solid.size(), "minimum=" + minimum);
+         assertEquals(solid.size(), new java.util.HashSet<>(solid).size(), "minimum=" + minimum);
+      }
    }
 
    @Test
