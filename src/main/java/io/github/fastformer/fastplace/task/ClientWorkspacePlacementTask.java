@@ -333,6 +333,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
             journalPreparation.journal().appendSegment(slice, predictedFinalSnapshots(slice))
          );
       if (preparation == JournalPreparation.READY && !slice.isEmpty()) {
+         metrics.journalReady();
          for (ReversibleBlockSnapshot snapshot : slice) {
             ClientBlockSnapshot target = desired.get(snapshot.pos());
             if (target == null) {

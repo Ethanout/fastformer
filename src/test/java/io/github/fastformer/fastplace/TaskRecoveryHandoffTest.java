@@ -80,6 +80,47 @@ class TaskRecoveryHandoffTest {
    }
 
    @Test
+   void placementSnapshotFailureAfterAnEarlierBatchStartsRecovery() throws Exception {
+      assertPlacementFailureStartsRecovery("failed");
+   }
+
+   @Test
+   void placementMemoryRejectionAfterAnEarlierBatchStartsRecovery() throws Exception {
+      assertPlacementFailureStartsRecovery("memoryUnsafe");
+   }
+
+   private static void assertPlacementFailureStartsRecovery(String failureField) throws Exception {
+      UUID owner = UUID.randomUUID();
+      BlockPos pos = new BlockPos(3, 4, 5);
+      PlacementTask task = PlacementTask.ready(
+         Set.of(pos),
+         new PlacementTaskPlan(
+            null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+         )
+      );
+      assertTrue(task.prepare());
+      var transactionField = PlacementTask.class.getDeclaredField("transaction");
+      transactionField.setAccessible(true);
+      WorldChangeTransaction transaction = (WorldChangeTransaction)transactionField.get(task);
+      transaction.recordBefore(snapshot(pos, "before"));
+      transaction.recordAfter(pos, snapshot(pos, "after"));
+      var terminalField = PlacementTask.class.getDeclaredField(failureField);
+      terminalField.setAccessible(true);
+      terminalField.setBoolean(task, true);
+      FastPlaceManager.addTaskForTest(owner, task);
+
+      FastPlaceManager.tickWorld(null);
+
+      assertTrue(task.recoveryTaskCreated());
+      assertTrue(WorldHistoryManager.busy(owner));
+      assertEquals(TaskCancellationResult.NOT_ACTIVE, FastPlaceManager.cancelTask(new WorldTaskContext(null, owner)));
+      WorldHistoryManager.tickWorld(null);
+      WorldChangeBatch recovery = WorldHistoryManagerTestAccess.activeRecoveryBatch(owner);
+      assertNotNull(recovery);
+      assertEquals("before", marker(WorldHistoryManagerTestAccess.targetSnapshots(recovery, true).getFirst()));
+   }
+
+   @Test
    void selectionCancellationTransfersRecoveryOnce() {
       OperationSelectionVolume selection = new OperationSelectionVolume(
          OperationSelectionMode.CUBOID,

@@ -575,6 +575,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
             journalPreparation.journal().appendSegment(prepared.before(), prepared.after())
          );
       if (preparation == JournalPreparation.READY) {
+         metrics.journalReady();
          for (ReversibleBlockSnapshot snapshot : slice) {
             journaledPositions.add(snapshot.pos());
          }

@@ -472,10 +472,10 @@ public final class OperationManager {
       task.recordBatch(budget.consumed(), System.nanoTime() - batchStartedAt);
       if (result != OperationTaskResult.ACTIVE) {
          boolean failureTransferred = result == OperationTaskResult.FAILED
-            || result == OperationTaskResult.JOURNAL_FAILED;
-         if (result == OperationTaskResult.FAILED) {
-            recoveryCreated = settleFailedTask(context, task);
-         } else if (result == OperationTaskResult.JOURNAL_FAILED) {
+            || result == OperationTaskResult.JOURNAL_FAILED
+            || result == OperationTaskResult.MEMORY_UNSAFE
+            || result == OperationTaskResult.EXCEEDED;
+         if (failureTransferred) {
             recoveryCreated = settleFailedTask(context, task);
          } else if (task.hasWrites()) {
             if (!WorldHistoryManager.commitPreparedOperation(context, task.preparedBatch(), task.journal())) {

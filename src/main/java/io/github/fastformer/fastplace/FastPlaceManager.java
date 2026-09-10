@@ -811,8 +811,7 @@ public final class FastPlaceManager {
                context.chat(FastPlaceMessages.text("fastformer.message.face_generation_constraints_failed"));
             } else if (task.failed()) {
                TASKS.remove(owner);
-               task.releaseLease(context);
-               task.releaseMemoryReservation();
+               settleFailedTask(context, task);
                context.actionBar(FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
             } else if (task.exceededLimit()) {
                TASKS.remove(owner);
@@ -825,8 +824,7 @@ public final class FastPlaceManager {
                context.actionBar(FastPlaceMessages.text("fastformer.message.operation_empty"));
             } else if (task.memoryUnsafe()) {
                TASKS.remove(owner);
-               task.releaseLease(context);
-               task.releaseMemoryReservation();
+               settleFailedTask(context, task);
                context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
             } else if (context.level(task.dimension()) == null) {
                task.markWorldUnloaded();
@@ -835,8 +833,7 @@ public final class FastPlaceManager {
             } else if (!task.ensureMemoryReservation()) {
                if (task.memoryUnsafe()) {
                   TASKS.remove(owner);
-                  task.releaseLease(context);
-                  task.releaseMemoryReservation();
+                  settleFailedTask(context, task);
                   context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
                } else {
                   context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
@@ -851,14 +848,11 @@ public final class FastPlaceManager {
                 context.actionBar(FastPlaceMessages.text("fastformer.message.placement_validating", task.validationRemaining()));
                } else if (task.memoryUnsafe()) {
                   TASKS.remove(owner);
-                  task.releaseLease(context);
-                  task.releaseMemoryReservation();
+                  settleFailedTask(context, task);
                   context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
                } else if (task.failed()) {
                   TASKS.remove(owner);
-                  task.cancel();
-                  task.releaseLease(context);
-                  task.releaseMemoryReservation();
+                  settleFailedTask(context, task);
                   LOGGER.warn(
                      "FastFormer placement snapshot validation failed for {} ({}): {}",
                      owner,

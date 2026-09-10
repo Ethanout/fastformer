@@ -561,9 +561,6 @@ public final class PlacementTask {
    /** Stops task activity while retaining its reservation for recovery capture. */
    public void cancelForRecovery() {
       this.journalPreparation.cancel();
-      if (this.future != null) {
-         this.future.cancel(true);
-      }
       if (this.generationProgress != null) {
          this.generationProgress.cancel();
          this.generationProgress.releasePublished();
@@ -616,8 +613,14 @@ public final class PlacementTask {
 
    private void releaseGenerationReservation() {
       if (this.generationReservation != null) {
-         this.generationReservation.close();
+         MemoryReservation reservation = this.generationReservation;
          this.generationReservation = null;
+         CompletableFuture<?> generationCompletion = this.future;
+         if (generationCompletion == null || generationCompletion.isDone()) {
+            reservation.close();
+         } else {
+            generationCompletion.whenComplete((ignored, exception) -> reservation.close());
+         }
       }
    }
 

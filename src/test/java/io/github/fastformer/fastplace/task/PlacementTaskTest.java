@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.OperationConflictMode;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.world.MemoryReservation;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldOperationMemory;
@@ -13,6 +14,8 @@ import java.util.Set;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
@@ -80,6 +83,75 @@ class PlacementTaskTest {
       assertTrue(task.prepare());
       task.cancel();
       assertEquals(baseline, MemoryReservation.reservedBytes());
+   }
+
+   @Test
+   void cancelledGenerationRetainsItsReservationUntilTheWorkerExits() throws Exception {
+      long baseline = MemoryReservation.reservedBytes();
+      MemoryReservation reservation = WorldOperationMemory.reserveGeneration(1L, 0L).orElseThrow();
+      long reserved = MemoryReservation.reservedBytes();
+      CountDownLatch started = new CountDownLatch(1);
+      CountDownLatch finish = new CountDownLatch(1);
+      CompletableFuture<BlockGenerationResult> worker = CompletableFuture.supplyAsync(() -> {
+         started.countDown();
+         try {
+            finish.await();
+         } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+         }
+         return BlockGenerationResult.fromLegacy(Set.of());
+      });
+      PlacementTask task = PlacementTask.generatingResult(
+         worker,
+         new PlacementTaskPlan(
+            null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 100, Level.OVERWORLD
+         ),
+         reservation
+      );
+
+      try {
+         assertTrue(started.await(5, TimeUnit.SECONDS));
+         task.cancel();
+
+         assertFalse(worker.isCancelled());
+         assertEquals(reserved, MemoryReservation.reservedBytes());
+         finish.countDown();
+         worker.join();
+         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+         while (MemoryReservation.reservedBytes() != baseline && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+         }
+         assertEquals(baseline, MemoryReservation.reservedBytes());
+      } finally {
+         finish.countDown();
+         worker.join();
+         reservation.close();
+      }
+   }
+
+   @Test
+   void successfulGenerationTransfersItsReservationToThePreparedTask() {
+      long baseline = MemoryReservation.reservedBytes();
+      MemoryReservation reservation = WorldOperationMemory.reserveGeneration(1L, 0L).orElseThrow();
+      CompletableFuture<BlockGenerationResult> worker = new CompletableFuture<>();
+      PlacementTask task = PlacementTask.generatingResult(
+         worker,
+         new PlacementTaskPlan(
+            null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 100, Level.OVERWORLD
+         ),
+         reservation
+      );
+
+      try {
+         worker.complete(BlockGenerationResult.fromLegacy(Set.of(BlockPos.ZERO)));
+         assertTrue(task.prepare());
+
+         assertTrue(MemoryReservation.reservedBytes() > baseline);
+         task.cancel();
+         assertEquals(baseline, MemoryReservation.reservedBytes());
+      } finally {
+         reservation.close();
+      }
    }
 
    @Test
