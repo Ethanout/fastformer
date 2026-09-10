@@ -47,17 +47,33 @@ public record PlacementGenerationPlan(
 
    public PlacementTask generateAsync(MemoryReservation generationReservation) {
       ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(this.estimatedTargetBlocks(), false);
-      CompletableFuture<BlockGenerationResult> targets = CompletableFuture.supplyAsync(() -> {
-         try {
-            return generateTargets(progress);
-         } finally {
-            // A failed or cancelled producer must not leave the progress
-            // bridge reporting an unfinished generation forever.
-            progress.complete();
-            progress.releasePublished();
+      CompletableFuture<BlockGenerationResult> targets;
+      try {
+         targets = CompletableFuture.supplyAsync(() -> generateTracked(progress));
+      } catch (RuntimeException | OutOfMemoryError exception) {
+         if (generationReservation != null) {
+            generationReservation.close();
          }
-      });
+         progress.cancel();
+         progress.releasePublished();
+         throw exception;
+      }
       return PlacementTask.generatingResult(targets, progress, this.taskPlan, generationReservation);
+   }
+
+   public PlacementTask waitForGenerationMemory() {
+      ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(this.estimatedTargetBlocks(), false);
+      return PlacementTask.waitingForGeneration(() -> generateTracked(progress), progress, this.taskPlan,
+         estimatedTargetBlocks(), additionalGeneratedBlockSets());
+   }
+
+   private BlockGenerationResult generateTracked(ProgressiveBlockGeneration progress) {
+      try {
+         return generateTargets(progress);
+      } finally {
+         progress.complete();
+         progress.releasePublished();
+      }
    }
 
    public GeneratedPlacement generateNow() {

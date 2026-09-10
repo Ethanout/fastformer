@@ -90,10 +90,12 @@ public final class WallWorkflow implements GeometryWorkflow {
 
    @Override
    public GeometryBuildResult build(GeometrySession session, GeometryActionContext context, FillMode fillMode, int maxBlocks) {
+      List<BlockPos> points = List.copyOf(session.points());
+      BlockPos extrusion = session.extrusion().immutable();
       return GeometryBuildResult.ready(
-         WallGenerator.estimateScanCells(session.points(), true, session.extrusion()),
+         WallGenerator.estimateScanCells(points, true, extrusion),
          maxBlocks,
-         () -> WallGenerator.generateResult(session.points(), true, session.extrusion(), maxBlocks)
+         () -> WallGenerator.generateResult(points, true, extrusion, maxBlocks)
       );
    }
 

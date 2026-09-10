@@ -497,8 +497,9 @@ public final class FastPlaceManager {
                   generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()
                );
                if (generationReservation.isEmpty()) {
+                  enqueueTask(player, generationPlan.waitForGenerationMemory());
                   cancel(player);
-                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
                   return;
                }
                enqueueTask(player, generationPlan.generateAsync(generationReservation.orElseThrow()));
@@ -510,8 +511,9 @@ public final class FastPlaceManager {
                   generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()
                );
                if (generationReservation.isEmpty()) {
+                  enqueueTask(player, generationPlan.waitForGenerationMemory());
                   cancel(player);
-                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+                  FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
                   return;
                }
                try {
@@ -659,8 +661,10 @@ public final class FastPlaceManager {
       }
       Optional<MemoryReservation> generationReservation = WorldOperationMemory.reserve(generationAdmission);
       if (generationReservation.isEmpty()) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
-         return false;
+         enqueueTask(player, PlacementTask.waitingForGeneration(
+            generator, null, taskPlan(player, settings, state, null), targetCapacity, 0L));
+         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
+         return true;
       }
       if (estimatedScanCells <= SYNCHRONOUS_PLACEMENT_LIMIT && !generationAdmission.throttled()) {
          BlockGenerationResult generationResult;
@@ -831,15 +835,15 @@ public final class FastPlaceManager {
                TASKS.remove(owner);
                task.releaseLease(context);
                context.actionBar(FastPlaceMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement()));
+            } else if (task.memoryUnsafe()) {
+               TASKS.remove(owner);
+               settleFailedTask(context, task);
+               context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
             } else if (task.total() == 0) {
                TASKS.remove(owner);
                task.releaseLease(context);
                task.releaseMemoryReservation();
                context.actionBar(FastPlaceMessages.text("fastformer.message.operation_empty"));
-            } else if (task.memoryUnsafe()) {
-               TASKS.remove(owner);
-               settleFailedTask(context, task);
-               context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
             } else if (context.level(task.dimension()) == null) {
                task.markWorldUnloaded();
                task.releaseMemoryReservation();
@@ -979,6 +983,8 @@ public final class FastPlaceManager {
                 }
                }
             }
+         } else if (task.waitingForGenerationMemory()) {
+            context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
          } else {
             ProgressiveBlockGeneration.Snapshot progress = task.generationProgress();
             if (progress == null) {

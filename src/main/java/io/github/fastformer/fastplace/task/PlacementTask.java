@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceKey;
@@ -54,6 +55,7 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class PlacementTask {
    private CompletableFuture<BlockGenerationResult> future;
+   private DeferredGeneration deferredGeneration;
    private MemoryReservation generationReservation;
    private final ProgressiveBlockGeneration generationProgress;
    private final PlacementTaskPlan plan;
@@ -174,7 +176,62 @@ public final class PlacementTask {
       return new PlacementTask(null, null, blocks, plan, null);
    }
 
+   /** Retains frozen inputs while another operation temporarily owns the generation budget. */
+   public static PlacementTask waitingForGeneration(
+      Supplier<BlockGenerationResult> generator, ProgressiveBlockGeneration progress, PlacementTaskPlan plan,
+      long estimatedBlocks, long additionalBlockSets
+   ) {
+      PlacementTask task = new PlacementTask(null, progress, null, plan, null);
+      task.deferredGeneration = new DeferredGeneration(
+         java.util.Objects.requireNonNull(generator), estimatedBlocks, additionalBlockSets);
+      return task;
+   }
+
+   public boolean waitingForGenerationMemory() {
+      return this.deferredGeneration != null;
+   }
+
+   private boolean startDeferredGeneration() {
+      DeferredGeneration pending = this.deferredGeneration;
+      MemoryAdmission admission = WorldOperationMemory.generationAdmission(pending.estimatedBlocks(), pending.additionalBlockSets());
+      this.metrics.phase(WorldOperationPhase.MEMORY_ADMISSION);
+      this.memoryThrottled = admission.throttled();
+      if (!admission.allowed()) {
+         this.memoryUnsafe = true;
+         this.targets = Set.of();
+         this.deferredGeneration = null;
+         return true;
+      }
+      this.generationReservation = WorldOperationMemory.reserve(admission).orElse(null);
+      if (this.generationReservation == null) {
+         return false;
+      }
+      this.deferredGeneration = null;
+      this.metrics.phase(WorldOperationPhase.GENERATION);
+      try {
+         this.future = CompletableFuture.supplyAsync(pending.generator());
+      } catch (RuntimeException | OutOfMemoryError exception) {
+         releaseGenerationReservation();
+         this.targets = Set.of();
+         fail(WorldOperationPhase.GENERATION, "generation scheduling: " + exception.getClass().getSimpleName());
+      }
+      return true;
+   }
+
+   private record DeferredGeneration(Supplier<BlockGenerationResult> generator, long estimatedBlocks, long additionalBlockSets) {}
+
    public boolean prepare() {
+      if (this.failed || this.memoryUnsafe) {
+         return true;
+      }
+      if (this.deferredGeneration != null) {
+         if (!startDeferredGeneration()) {
+            return false;
+         }
+         if (this.targets != null) {
+            return true;
+         }
+      }
       if (this.targets != null) {
          this.metrics.phase(WorldOperationPhase.MEMORY_ADMISSION);
          checkMemory();
@@ -582,6 +639,10 @@ public final class PlacementTask {
 
    /** Stops task activity while retaining its reservation for recovery capture. */
    public void cancelForRecovery() {
+      if (this.deferredGeneration != null) {
+         this.deferredGeneration = null;
+         this.targets = Set.of();
+      }
       this.journalPreparation.cancel();
       if (this.generationProgress != null) {
          this.generationProgress.cancel();

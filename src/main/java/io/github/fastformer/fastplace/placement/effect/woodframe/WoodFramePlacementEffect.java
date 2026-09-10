@@ -51,9 +51,10 @@ public final class WoodFramePlacementEffect implements PlacementEffect {
          context.polygonHeightConfirmed(),
          context.polygonVolumeShape()
       );
+      var prototype = context.prototype();
       return new ResolvedPlacementEffect(
          ID,
-         positions -> SmartWoodFrame.resolve(positions, context.prototype(), config)
+         positions -> SmartWoodFrame.resolve(positions, prototype, config)
       );
    }
 }

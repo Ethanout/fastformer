@@ -49,11 +49,12 @@ public final class CompoundWorkflow implements GeometryWorkflow {
    @Override
    public GeometryBuildResult build(GeometrySession session, GeometryActionContext context, FillMode fillMode, int maxBlocks) {
       int shapeVariant = session.compoundShapeVariant();
-      long scanCells = estimateScanCells(session.points(), shapeVariant);
+      List<BlockPos> points = List.copyOf(session.points());
+      long scanCells = estimateScanCells(points, shapeVariant);
       return GeometryBuildResult.ready(
          scanCells,
          maxBlocks,
-         () -> generateResult(session.points(), shapeVariant, fillMode, maxBlocks)
+         () -> generateResult(points, shapeVariant, fillMode, maxBlocks)
       );
    }
 

@@ -45,6 +45,46 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class TaskRecoveryHandoffTest {
+   @Test
+   void cancelRemovesDeferredGenerationBeforeItCanStart() {
+      UUID owner = UUID.randomUUID();
+      AtomicInteger starts = new AtomicInteger();
+      PlacementTask task = deferredGeneration(starts);
+      FastPlaceManager.addTaskForTest(owner, task);
+
+      assertEquals(TaskCancellationResult.CANCELLED_BEFORE_WRITE,
+         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner)));
+      FastPlaceManager.tickWorld(null);
+
+      assertFalse(task.waitingForGenerationMemory());
+      assertFalse(FastPlaceManager.taskActive(owner));
+      assertFalse(WorldHistoryManager.busy(owner));
+      assertEquals(0, starts.get());
+   }
+
+   @Test
+   void serverStopDiscardsDeferredGenerationInputs() {
+      UUID owner = UUID.randomUUID();
+      AtomicInteger starts = new AtomicInteger();
+      PlacementTask task = deferredGeneration(starts);
+      FastPlaceManager.addTaskForTest(owner, task);
+
+      FastPlaceManager.clearServer();
+      FastPlaceManager.tickWorld(null);
+
+      assertFalse(task.waitingForGenerationMemory());
+      assertFalse(FastPlaceManager.taskActive(owner));
+      assertEquals(0, starts.get());
+   }
+
+   private static PlacementTask deferredGeneration(AtomicInteger starts) {
+      return PlacementTask.waitingForGeneration(() -> {
+         starts.incrementAndGet();
+         return io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult.fromLegacy(Set.of(BlockPos.ZERO));
+      }, null, new PlacementTaskPlan(null, null, OperationConflictMode.REPLACE,
+         PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD), 1L, 0L);
+   }
+
    @AfterEach
    void clearTasks() {
       FastPlaceManager.clearServer();
