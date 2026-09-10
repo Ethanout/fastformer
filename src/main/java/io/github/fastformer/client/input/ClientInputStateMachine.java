@@ -113,6 +113,10 @@ public final class ClientInputStateMachine {
       };
    }
 
+   public boolean routesToVanilla(InputKind input) {
+      return dispatch(input) == Dispatch.VANILLA;
+   }
+
    public long beginGesture() {
       if (dispatch(InputKind.POINTER) == Dispatch.BLOCKED) {
          return 0L;

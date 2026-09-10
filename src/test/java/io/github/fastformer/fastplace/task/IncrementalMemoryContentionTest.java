@@ -127,6 +127,11 @@ class IncrementalMemoryContentionTest {
       assertTrue(task.ensureMemoryReservation());
       WorldChangeTransaction transaction = (WorldChangeTransaction)field(task, "transaction");
       prepareChangedTransaction(transaction);
+      task.releaseGenerationState();
+      task.resizeMemoryReservationForTransaction();
+      assertEquals(Set.of(), field(task, "targets"));
+      assertNull(field(task, "generatedPositions"));
+      assertEquals(0, transaction.expectedCount());
 
       MemoryReservation blocker = fillReservationLimit(commitAdmission(transaction));
       try {
@@ -139,11 +144,14 @@ class IncrementalMemoryContentionTest {
          assertNotNull(commit);
          task.releaseMemoryReservation();
          commit.completion().join();
+         task.releaseCommittedTransactionState();
       } finally {
          blocker.close();
          task.releaseMemoryReservation();
       }
       assertNull(field(task, "memoryReservation"));
+      assertTransactionReleased(transaction);
+      assertNull(field(task, "operationCommit"));
       assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 
@@ -154,6 +162,9 @@ class IncrementalMemoryContentionTest {
       setField(task, "desired", Collections.singletonMap(BlockPos.ZERO, null));
       assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
       prepareChangedTransaction(task.transaction());
+      invoke(task, "releaseWriteStagingForCommit");
+      assertEquals(Map.of(), field(task, "desired"));
+      assertEquals(0, task.transaction().expectedCount());
 
       MemoryReservation blocker = fillReservationLimit(commitAdmission(task.transaction()));
       try {
@@ -165,11 +176,14 @@ class IncrementalMemoryContentionTest {
          assertNotNull(task.operationCommit());
          task.releaseMemoryReservation();
          task.operationCommit().completion().join();
+         task.releaseCommittedTransactionState();
       } finally {
          blocker.close();
          task.releaseMemoryReservation();
       }
       assertNull(field(task, "memoryReservation"));
+      assertTransactionReleased(task.transaction());
+      assertNull(task.operationCommit());
       assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 
@@ -180,6 +194,9 @@ class IncrementalMemoryContentionTest {
       snapshotList(task).add(snapshot(BlockPos.ZERO));
       assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
       prepareChangedTransaction(task.transaction());
+      invoke(task, "releaseWriteStagingForCommit");
+      assertTrue(snapshotList(task).isEmpty());
+      assertEquals(0, task.transaction().expectedCount());
 
       MemoryReservation blocker = fillReservationLimit(commitAdmission(task.transaction()));
       try {
@@ -191,11 +208,14 @@ class IncrementalMemoryContentionTest {
          assertNotNull(task.operationCommit());
          task.releaseMemoryReservation();
          task.operationCommit().completion().join();
+         task.releaseCommittedTransactionState();
       } finally {
          blocker.close();
          task.releaseMemoryReservation();
       }
       assertNull(field(task, "memoryReservation"));
+      assertTransactionReleased(task.transaction());
+      assertNull(task.operationCommit());
       assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 
@@ -260,6 +280,11 @@ class IncrementalMemoryContentionTest {
    private static void prepareHardRejectedTransaction(WorldChangeTransaction transaction) throws Exception {
       prepareChangedTransaction(transaction);
       setField(transaction, "commitBlockEntityReserve", Long.MAX_VALUE);
+   }
+
+   private static void assertTransactionReleased(WorldChangeTransaction transaction) {
+      assertEquals(0L, transaction.snapshotCount());
+      assertEquals(0, transaction.expectedCount());
    }
 
    private static MemoryAdmission commitAdmission(WorldChangeTransaction transaction) {

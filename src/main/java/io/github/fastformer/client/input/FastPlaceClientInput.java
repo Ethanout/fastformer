@@ -353,7 +353,8 @@ public final class FastPlaceClientInput {
          event.setCanceled(true);
          return;
       }
-      if (QuickReplaceMode.canReplace(minecraft) && event.isUseItem()
+      if (INPUT_STATE.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION)
+         && QuickReplaceMode.canReplace(minecraft) && event.isUseItem()
          && minecraft.screen == null && minecraft.getConnection() != null
          && ClientPlacementRouter.quickReplace(minecraft)) {
          event.setSwingHand(false);
@@ -1020,8 +1021,7 @@ public final class FastPlaceClientInput {
          != ClientInputStateMachine.Dispatch.BLOCKED) {
          pollModifierKeys(minecraft);
       }
-      if (INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.INTERACTION)
-         == ClientInputStateMachine.Dispatch.VANILLA
+      if (INPUT_STATE.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION)
          && QuickReplaceMode.active() && minecraft.screen == null && minecraft.options.keyUse.isDown()) {
          ClientPlacementRouter.quickReplace(minecraft);
       }

@@ -277,6 +277,24 @@ class ClientInputStateMachineTest {
    }
 
    @Test
+   void vanillaExtensionsCannotRunInsideAFastFormerSession() {
+      ClientInputStateMachine state = new ClientInputStateMachine();
+      assertTrue(state.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION));
+
+      for (ClientInputStateMachine.State sessionState : new ClientInputStateMachine.State[] {
+         ClientInputStateMachine.State.BUILDING,
+         ClientInputStateMachine.State.GEOMETRY,
+         ClientInputStateMachine.State.SELECTING,
+         ClientInputStateMachine.State.ADJUSTING,
+         ClientInputStateMachine.State.PLACING,
+         ClientInputStateMachine.State.RESTORING
+      }) {
+         state.observe(sessionState);
+         assertFalse(state.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION));
+      }
+   }
+
+   @Test
    void cancellingRouteRejectsRepeatedAndLateInput() {
       ClientInputStateMachine state = new ClientInputStateMachine();
       state.observe(ClientInputStateMachine.State.SELECTING);
