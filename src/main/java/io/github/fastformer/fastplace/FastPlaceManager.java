@@ -833,10 +833,14 @@ public final class FastPlaceManager {
                task.releaseMemoryReservation();
                context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
             } else if (!task.ensureMemoryReservation()) {
-               TASKS.remove(owner);
-               task.releaseLease(context);
-               task.releaseMemoryReservation();
-               context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+               if (task.memoryUnsafe()) {
+                  TASKS.remove(owner);
+                  task.releaseLease(context);
+                  task.releaseMemoryReservation();
+                  context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+               } else {
+                  context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
+               }
             } else if (!task.acquireLease(context)) {
                context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
             } else {
@@ -909,7 +913,7 @@ public final class FastPlaceManager {
                      task.metricsSummary()
                   );
                   context.actionBar(failureStatus(task, context.owner()));
-               } else if (!task.blocks().hasNext()) {
+               } else if (task.readyToFinalize()) {
                   task.releaseGenerationState();
                   task.resizeMemoryReservationForTransaction();
                   if (!task.finalizeSnapshots(level, budget)) {
@@ -949,6 +953,8 @@ public final class FastPlaceManager {
                      task.markComplete();
                      context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
                   }
+               } else if (!task.snapshotsComplete()) {
+                  context.actionBar(FastPlaceMessages.text("fastformer.message.placement_validating", task.validationRemaining()));
                } else {
                   context.actionBar(FastPlaceMessages.text(
                      "fastformer.message.placement_progress", task.processed(), task.total(), task.placed()

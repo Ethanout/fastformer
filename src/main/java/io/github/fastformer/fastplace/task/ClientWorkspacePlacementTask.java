@@ -10,6 +10,7 @@ import io.github.fastformer.fastplace.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationMemory;
+import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldJournalPreparation;
 import io.github.fastformer.fastplace.world.WorldBatchFeedback;
@@ -18,6 +19,7 @@ import io.github.fastformer.fastplace.world.MemoryReservation;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -47,8 +50,13 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    private long blockEntityReserve;
    private boolean memoryThrottled;
    private final WorldChangeTransaction transaction = new WorldChangeTransaction();
+   private WorldOperationCommit operationCommit;
    private Map<BlockPos, ClientBlockSnapshot> desired = Map.of();
-   private Iterator<Map.Entry<BlockPos, ClientBlockSnapshot>> writeIterator;
+   private Iterator<Map.Entry<BlockPos, ClientBlockSnapshot>> captureIterator;
+   private boolean captureComplete;
+   private int journaledCount;
+   private List<ReversibleBlockSnapshot> pendingJournalSlice = List.of();
+   private final ArrayDeque<Map.Entry<BlockPos, ClientBlockSnapshot>> writable = new ArrayDeque<>();
    private Iterator<BlockPos> finalizationIterator;
    private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
    private List<Integer> invalidPartIds = List.of();
@@ -86,11 +94,17 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
          }
          switch (phase) {
             case VALIDATE -> {
-               OperationTaskResult validation = validate(level);
+               OperationTaskResult validation = captureNext(level);
                if (validation != OperationTaskResult.ACTIVE) {
                   return validation;
                }
-               phase = Phase.JOURNAL;
+               int unjournaled = transaction.expectedCount() - journaledCount - pendingJournalSlice.size();
+               if (unjournaled > 0 && (captureComplete
+                  || unjournaled >= PersistentRecoveryJournal.segmentBatchSize(journaledCount, unjournaled))) {
+                  phase = Phase.JOURNAL;
+               } else if (captureComplete && writable.isEmpty() && pendingJournalSlice.isEmpty()) {
+                  phase = Phase.FINALIZE;
+               }
             }
             case JOURNAL -> {
                JournalPreparation preparation = prepareJournal(context);
@@ -101,14 +115,21 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
                   return OperationTaskResult.JOURNAL_FAILED;
                }
                phase = Phase.WRITE;
-               writeIterator = desired.entrySet().iterator();
             }
             case WRITE -> {
-               if (!writeIterator.hasNext()) {
+               if (writable.isEmpty()) {
+                  if (!captureComplete) {
+                     phase = Phase.VALIDATE;
+                     continue;
+                  }
+                  if (transaction.expectedCount() > journaledCount) {
+                     phase = Phase.JOURNAL;
+                     continue;
+                  }
                   phase = Phase.FINALIZE;
                   continue;
                }
-               if (!write(level, writeIterator.next())) {
+               if (!write(level, writable.removeFirst())) {
                   return OperationTaskResult.FAILED;
                }
             }
@@ -142,7 +163,47 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       return OperationTaskResult.ACTIVE;
    }
 
-   private OperationTaskResult validate(ServerLevel level) {
+   private OperationTaskResult captureNext(ServerLevel level) {
+      if (desired.isEmpty() && !captureComplete) {
+         OperationTaskResult composed = composeDesired(level);
+         if (composed != OperationTaskResult.ACTIVE) {
+            return composed;
+         }
+      }
+      if (captureIterator != null && captureIterator.hasNext()) {
+         Map.Entry<BlockPos, ClientBlockSnapshot> entry = captureIterator.next();
+         if (!captureExpected(level, entry)) {
+            return OperationTaskResult.FAILED;
+         }
+         var admission = WorldOperationMemory.snapshotAdmission(desired.size(), blockEntityReserve);
+         if (!admission.allowed()) {
+            return OperationTaskResult.MEMORY_UNSAFE;
+         }
+         memoryThrottled = admission.throttled();
+         if (memoryReservation == null) {
+            memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
+         } else if (!memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())) {
+            return OperationTaskResult.MEMORY_UNSAFE;
+         }
+         if (memoryReservation == null) {
+            return OperationTaskResult.MEMORY_UNSAFE;
+         }
+      }
+      if (captureIterator == null || !captureIterator.hasNext()) {
+         captureComplete = true;
+         captureIterator = null;
+         var journalAdmission = WorldOperationMemory.journalAdmission(desired.size(), blockEntityReserve);
+         memoryThrottled = journalAdmission.throttled();
+         if (!journalAdmission.allowed()
+            || memoryReservation == null
+            || !memoryReservation.resize(journalAdmission.requestedBytes(), journalAdmission.usableBytes())) {
+            return OperationTaskResult.MEMORY_UNSAFE;
+         }
+      }
+      return OperationTaskResult.ACTIVE;
+   }
+
+   private OperationTaskResult composeDesired(ServerLevel level) {
       OperationWorkspaceValidator.Result validated = OperationWorkspaceValidator.validate(
          plan,
          pos -> ReversibleBlockSnapshot.capture(level, pos).map(ClientWorkspacePlacementTask::clientSnapshot),
@@ -154,37 +215,15 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       }
       LinkedHashMap<BlockPos, ClientBlockSnapshot> composed = composeDesiredSnapshots(validated);
       if (composed.isEmpty()) {
+         captureComplete = true;
          return OperationTaskResult.EMPTY;
       }
       if (composed.size() > maxPlacement) {
          return OperationTaskResult.EXCEEDED;
       }
       metrics.targetCount(composed.size());
-      long capturedEntityReserve = captureExpectedSnapshots(level, composed);
-      if (capturedEntityReserve < 0L) {
-         return OperationTaskResult.FAILED;
-      }
-      blockEntityReserve = capturedEntityReserve;
-      var admission = WorldOperationMemory.snapshotAdmission(composed.size(), blockEntityReserve);
-      if (!admission.allowed()) {
-         return OperationTaskResult.MEMORY_UNSAFE;
-      }
-      memoryThrottled = admission.throttled();
-      if (memoryReservation == null) {
-         memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
-      } else if (!memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())) {
-         return OperationTaskResult.MEMORY_UNSAFE;
-      }
-      if (memoryReservation == null) {
-         return OperationTaskResult.MEMORY_UNSAFE;
-      }
-      var journalAdmission = WorldOperationMemory.journalAdmission(composed.size(), blockEntityReserve);
-      memoryThrottled = journalAdmission.throttled();
-      if (!journalAdmission.allowed()
-         || !memoryReservation.resize(journalAdmission.requestedBytes(), journalAdmission.usableBytes())) {
-         return OperationTaskResult.MEMORY_UNSAFE;
-      }
       desired = Map.copyOf(composed);
+      captureIterator = desired.entrySet().iterator();
       return OperationTaskResult.ACTIVE;
    }
 
@@ -198,28 +237,21 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       return composed;
    }
 
-   /** Returns -1 when an external snapshot cannot be captured or validated. */
-   private long captureExpectedSnapshots(
-      ServerLevel level,
-      Map<BlockPos, ClientBlockSnapshot> composed
-   ) {
-      long blockEntityReserve = 0L;
-      for (Map.Entry<BlockPos, ClientBlockSnapshot> entry : composed.entrySet()) {
-         if (!validSnapshot(level, entry.getKey(), entry.getValue())) {
-            return -1L;
-         }
-         Optional<ReversibleBlockSnapshot> captured = ReversibleBlockSnapshot.capture(level, entry.getKey());
-         if (captured.isEmpty()) {
-            return -1L;
-         }
-         ReversibleBlockSnapshot snapshot = captured.orElseThrow();
-         metrics.snapshotCaptured();
-         transaction.recordExpected(entry.getKey(), snapshot);
-         blockEntityReserve = WorldOperationMemory.saturatingAdd(
-            blockEntityReserve, WorldOperationMemory.snapshotNbtReserve(snapshot)
-         );
+   private boolean captureExpected(ServerLevel level, Map.Entry<BlockPos, ClientBlockSnapshot> entry) {
+      if (!validSnapshot(level, entry.getKey(), entry.getValue())) {
+         return false;
       }
-      return blockEntityReserve;
+      Optional<ReversibleBlockSnapshot> captured = ReversibleBlockSnapshot.capture(level, entry.getKey());
+      if (captured.isEmpty()) {
+         return false;
+      }
+      ReversibleBlockSnapshot snapshot = captured.orElseThrow();
+      metrics.snapshotCaptured();
+      transaction.recordExpected(entry.getKey(), snapshot);
+      blockEntityReserve = WorldOperationMemory.saturatingAdd(
+         blockEntityReserve, WorldOperationMemory.snapshotNbtReserve(snapshot)
+      );
+      return true;
    }
 
    private static boolean validSnapshot(ServerLevel level, BlockPos pos, ClientBlockSnapshot snapshot) {
@@ -283,13 +315,35 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    }
 
    private JournalPreparation prepareJournal(WorldTaskContext context) {
-      return journalPreparation.poll(() -> {
-         Collection<ReversibleBlockSnapshot> before = transaction.expectedView();
-         Collection<ReversibleBlockSnapshot> predicted = predictedFinalSnapshots(before);
-         return PersistentRecoveryJournal.begin(
-            context.server(), context.owner(), dimension, before, predicted, operationId()
+      if (pendingJournalSlice.isEmpty()) {
+         int from = journaledCount;
+         int remaining = transaction.expectedCount() - from;
+         if (remaining <= 0) {
+            return JournalPreparation.READY;
+         }
+         int size = PersistentRecoveryJournal.segmentBatchSize(from, remaining);
+         pendingJournalSlice = transaction.expectedRange(from, from + size);
+      }
+      List<ReversibleBlockSnapshot> slice = pendingJournalSlice;
+      JournalPreparation preparation = journalPreparation.journal() == null
+         ? journalPreparation.poll(() -> PersistentRecoveryJournal.begin(
+            context.server(), context.owner(), dimension, slice, predictedFinalSnapshots(slice), operationId()
+         ))
+         : journalPreparation.pollAppend(() ->
+            journalPreparation.journal().appendSegment(slice, predictedFinalSnapshots(slice))
          );
-      });
+      if (preparation == JournalPreparation.READY && !slice.isEmpty()) {
+         for (ReversibleBlockSnapshot snapshot : slice) {
+            ClientBlockSnapshot target = desired.get(snapshot.pos());
+            if (target == null) {
+               return JournalPreparation.FAILED;
+            }
+            writable.addLast(Map.entry(snapshot.pos(), target));
+         }
+         journaledCount += slice.size();
+         pendingJournalSlice = List.of();
+      }
+      return preparation;
    }
 
    private Collection<ReversibleBlockSnapshot> predictedFinalSnapshots(
@@ -310,13 +364,21 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    }
 
    private JournalPreparation prepareCommit() {
-      return transaction.prepareCommit(dimension, journalPreparation.journal(), this::reserveCommitMemory);
+      if (operationCommit == null) {
+         if (!reserveCommitMemory()) {
+            return JournalPreparation.PENDING;
+         }
+         operationCommit = WorldOperationCommit.begin(dimension, transaction, journalPreparation.journal());
+      }
+      return operationCommit.poll();
    }
 
    private void releaseWriteStagingForCommit() {
       transaction.clearExpected();
       desired = Map.of();
-      writeIterator = null;
+      writable.clear();
+      pendingJournalSlice = List.of();
+      captureIterator = null;
    }
 
    private boolean reserveCommitMemory() {
@@ -390,13 +452,20 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public void releaseAfterCancelledJournal(WorldTaskContext context) {
-      transaction.cancelCommit();
+      if (operationCommit != null) {
+         operationCommit.cancel();
+      }
       journalPreparation.releaseAfterCancellation(context, dimension);
    }
 
    @Override
    public WorldChangeTransaction transaction() {
       return transaction;
+   }
+
+   @Override
+   public WorldOperationCommit operationCommit() {
+      return operationCommit;
    }
 
    @Override
@@ -471,16 +540,22 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    @Override
    public void releaseMemoryReservation() {
       if (memoryReservation != null) {
-         memoryReservation.close();
+         MemoryReservation reservation = memoryReservation;
          memoryReservation = null;
+         CompletableFuture<?> publicationCompletion = operationCommit == null
+            ? CompletableFuture.completedFuture(null)
+            : operationCommit.completion();
+         journalPreparation.releaseWhenIdle(reservation, publicationCompletion);
       }
    }
 
    @Override
    public void releaseCommittedTransactionState() {
-      transaction.releaseCommitted();
+      transaction.releaseWriteState();
+      operationCommit = null;
       desired = Map.of();
-      writeIterator = null;
+      writable.clear();
+      captureIterator = null;
       finalizationIterator = null;
    }
 

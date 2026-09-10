@@ -11,6 +11,7 @@ import net.minecraft.world.level.Level;
 public final class WorldJournalPreparation {
    private final Executor executor;
    private CompletableFuture<Optional<PersistentRecoveryJournal>> future;
+   private CompletableFuture<Boolean> appendFuture;
    private PersistentRecoveryJournal journal;
    private volatile boolean cancelled;
    private String failureReason;
@@ -56,6 +57,39 @@ public final class WorldJournalPreparation {
       return JournalPreparation.READY;
    }
 
+   public JournalPreparation pollAppend(Supplier<Boolean> appender) {
+      if (this.cancelled) return JournalPreparation.FAILED;
+      if (this.journal == null) {
+         this.failureReason = "journal append before create";
+         return JournalPreparation.FAILED;
+      }
+      if (this.appendFuture == null) {
+         this.appendFuture = CompletableFuture.supplyAsync(appender, this.executor);
+         if (!this.appendFuture.isDone()) {
+            return JournalPreparation.PENDING;
+         }
+      }
+      if (!this.appendFuture.isDone()) return JournalPreparation.PENDING;
+      try {
+         boolean written = Boolean.TRUE.equals(this.appendFuture.join());
+         this.appendFuture = null;
+         if (this.cancelled) {
+            this.failureReason = "journal preparation cancelled";
+            return JournalPreparation.FAILED;
+         }
+         if (!written) {
+            this.failureReason = "journal append returned empty";
+            return JournalPreparation.FAILED;
+         }
+         return JournalPreparation.READY;
+      } catch (RuntimeException | OutOfMemoryError exception) {
+         this.appendFuture = null;
+         Throwable cause = exception.getCause() == null ? exception : exception.getCause();
+         this.failureReason = cause.getClass().getSimpleName();
+         return JournalPreparation.FAILED;
+      }
+   }
+
    public boolean started() { return this.future != null; }
    public PersistentRecoveryJournal journal() { return this.journal; }
    public CompletableFuture<Optional<PersistentRecoveryJournal>> future() { return this.future; }
@@ -63,8 +97,28 @@ public final class WorldJournalPreparation {
       return this.failureReason == null ? "journal preparation failed" : this.failureReason;
    }
 
+   /** Releases a working-set reservation after the current journal I/O stops using it. */
+   public void releaseWhenIdle(MemoryReservation reservation) {
+      releaseWhenIdle(reservation, CompletableFuture.completedFuture(null));
+   }
+
+   /** Releases a reservation after journal I/O and its dependent publication terminate. */
+   public void releaseWhenIdle(MemoryReservation reservation, CompletableFuture<?> publicationCompletion) {
+      if (reservation == null) return;
+      CompletableFuture<?> journalCompletion = this.appendFuture != null ? this.appendFuture : this.future;
+      CompletableFuture<?> pending = journalCompletion == null
+         ? publicationCompletion
+         : CompletableFuture.allOf(journalCompletion, publicationCompletion);
+      if (pending.isDone()) {
+         reservation.close();
+         return;
+      }
+      pending.whenComplete((ignored, exception) -> reservation.close());
+   }
+
    public void reset() {
       this.future = null;
+      this.appendFuture = null;
       this.journal = null;
       this.cancelled = false;
       this.failureReason = null;

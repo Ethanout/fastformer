@@ -16,6 +16,16 @@ final class RecoveryJournalSegments {
 
    static List<CompoundSegment> readComplete(Path directory, UUID operationId, int expectedCount)
       throws IOException {
+      SegmentSet segmentSet = inspectComplete(directory, operationId, expectedCount);
+      List<CompoundSegment> result = new ArrayList<>(segmentSet.count());
+      for (int index = 0; index < segmentSet.count(); index++) {
+         result.add(read(directory, operationId, index));
+      }
+      return List.copyOf(result);
+   }
+
+   /** Validates every segment while retaining only aggregate metadata. */
+   static SegmentSet inspectComplete(Path directory, UUID operationId, int expectedCount) throws IOException {
       if (directory == null || operationId == null || expectedCount <= 0
          || expectedCount > MAX_SEGMENTS || !Files.isDirectory(directory)) {
          throw new IOException("Invalid recovery segment directory");
@@ -47,11 +57,20 @@ final class RecoveryJournalSegments {
       if (files.size() != expectedCount) {
          throw new IOException("Recovery segment count mismatch");
       }
-      List<CompoundSegment> result = new ArrayList<>(files.size());
+      long digest = 1L;
       for (int index = 0; index < files.size(); index++) {
-         result.add(new CompoundSegment(index, RecoveryJournalSegment.read(files.get(index), operationId, index)));
+         CompoundSegment segment = read(directory, operationId, index);
+         digest = appendDigest(digest, segment);
       }
-      return List.copyOf(result);
+      return new SegmentSet(files.size(), digest);
+   }
+
+   static CompoundSegment read(Path directory, UUID operationId, int sequence) throws IOException {
+      if (directory == null || operationId == null || sequence < 0 || sequence >= MAX_SEGMENTS) {
+         throw new IOException("Invalid recovery segment identity");
+      }
+      Path file = directory.resolve(String.format("segment-%06d.dat", sequence));
+      return new CompoundSegment(sequence, RecoveryJournalSegment.read(file, operationId, sequence));
    }
 
    static long digest(List<CompoundSegment> segments) {
@@ -60,21 +79,37 @@ final class RecoveryJournalSegments {
       }
       long value = 1L;
       for (CompoundSegment segment : segments) {
-         if (segment == null || segment.payload() == null) {
-            throw new IllegalArgumentException("Recovery segment digest contains a null segment");
-         }
-         value = 31L * value + RecoveryJournalSegment.checksum(segment.payload());
+         value = appendDigest(value, segment);
       }
       return value;
    }
 
+   private static long appendDigest(long value, CompoundSegment segment) {
+      if (segment == null || segment.payload() == null) {
+         throw new IllegalArgumentException("Recovery segment digest contains a null segment");
+      }
+      return 31L * value + RecoveryJournalSegment.checksum(segment.payload());
+   }
+
    static List<CompoundSegment> readUnsealed(Path directory, UUID operationId, int limit) throws IOException {
+      SegmentSet segmentSet = inspectUnsealed(directory, operationId, limit);
+      List<CompoundSegment> result = new ArrayList<>(segmentSet.count());
+      for (int index = 0; index < segmentSet.count(); index++) {
+         result.add(read(directory, operationId, index));
+      }
+      return List.copyOf(result);
+   }
+
+   static SegmentSet inspectUnsealed(Path directory, UUID operationId, int limit) throws IOException {
       long count;
       try (var files = Files.list(directory)) {
          count = files.filter(path -> path.getFileName().toString().matches("segment-[0-9]{6}\\.dat")).count();
       }
       if (count == 0 || count > limit) throw new IOException("Invalid unsealed segment count");
-      return readComplete(directory, operationId, (int) count);
+      return inspectComplete(directory, operationId, (int) count);
+   }
+
+   record SegmentSet(int count, long digest) {
    }
 
    record CompoundSegment(int sequence, net.minecraft.nbt.CompoundTag payload) {

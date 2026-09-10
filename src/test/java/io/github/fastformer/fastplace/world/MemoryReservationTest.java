@@ -4,9 +4,45 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.fastformer.fastplace.OperationConflictMode;
+import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.task.PlacementTask;
+import io.github.fastformer.fastplace.task.PlacementTaskPlan;
+import java.util.Set;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
 
 class MemoryReservationTest {
+   @Test
+   void placementWaitsForTemporaryReservationContentionAndCanRetry() {
+      long baseline = MemoryReservation.reservedBytes();
+      MemoryAdmission admission = WorldOperationMemory.snapshotAdmission(1L, 0L);
+      MemoryReservation blocker = MemoryReservation.tryAcquire(
+         admission.usableBytes() - baseline,
+         admission.usableBytes()
+      ).orElseThrow();
+      PlacementTask task = PlacementTask.ready(
+         Set.of(BlockPos.ZERO),
+         new PlacementTaskPlan(
+            null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.NORMAL, 1, Level.OVERWORLD
+         )
+      );
+      try {
+         assertTrue(task.prepare());
+         assertFalse(task.memoryUnsafe());
+         assertFalse(task.ensureMemoryReservation());
+
+         blocker.close();
+         assertTrue(task.ensureMemoryReservation());
+         assertFalse(task.memoryUnsafe());
+      } finally {
+         blocker.close();
+         task.releaseMemoryReservation();
+      }
+      assertEquals(baseline, MemoryReservation.reservedBytes());
+   }
+
    @Test
    void reservesResizesAndReleasesExactlyOnce() {
       long baseline = MemoryReservation.reservedBytes();

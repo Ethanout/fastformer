@@ -18,6 +18,31 @@ import org.junit.jupiter.api.Test;
 
 class SmartWoodFrameTest {
    @Test
+   void lineAndFaceStagesOrientTheirGeneratedOutline() {
+      FastPlaceGeometry.Modes modes = new FastPlaceGeometry.Modes(
+         PointMode.RAYCAST, RaycastPlacement.EMBEDDED, LineMode.AXIS,
+         FaceMode.COORDINATE_PLANE, VolumeMode.FREE, FillMode.OUTLINE, 0.0, false
+      );
+      for (List<BlockPos> points : List.of(
+         List.of(BlockPos.ZERO, new BlockPos(6, 0, 0)),
+         List.of(BlockPos.ZERO, new BlockPos(6, 0, 0), new BlockPos(0, 0, 4))
+      )) {
+         Set<BlockPos> targets = FastPlaceGeometry.blocks(
+            points, modes, false, PolygonVolumeShape.EXTRUDE, 1000
+         );
+         SmartWoodFrame.Config config = SmartWoodFrame.config(
+            Direction.Axis.Y, points, modes, false, PolygonVolumeShape.EXTRUDE
+         );
+         assertTrue(targets.contains(new BlockPos(3, 0, 0)));
+         assertEquals(Direction.Axis.X, SmartWoodFrame.axisForTest(targets, new BlockPos(3, 0, 0), config));
+         if (points.size() == 3) {
+            assertTrue(targets.contains(new BlockPos(6, 0, 2)));
+            assertEquals(Direction.Axis.Z, SmartWoodFrame.axisForTest(targets, new BlockPos(6, 0, 2), config));
+         }
+      }
+   }
+
+   @Test
    void slopedGuideUsesItsClosestWorldAxis() {
       Set<BlockPos> outline = Set.of(new BlockPos(0, 0, 0), new BlockPos(5, 1, 0), new BlockPos(10, 2, 0));
       SmartWoodFrame.Config config = new SmartWoodFrame.Config(
@@ -251,7 +276,7 @@ class SmartWoodFrameTest {
    }
 
    @Test
-   void cornerUsesTheLargestAbsoluteComponentAcrossIncidentDirections() {
+   void cornerFollowsTheLongestIncidentEdge() {
       SmartWoodFrame.Edge shallow = new SmartWoodFrame.Edge(
          new BlockPos(0, 0, 0), new BlockPos(10, 2, 0)
       );
@@ -263,7 +288,11 @@ class SmartWoodFrameTest {
          Direction.Axis.Z, List.of(), List.of(shallow, steep)
       );
 
-      assertEquals(Direction.Axis.Y, SmartWoodFrame.axisForTest(positions, BlockPos.ZERO, config));
+      assertEquals(Direction.Axis.X, SmartWoodFrame.axisForTest(positions, BlockPos.ZERO, config));
+      SmartWoodFrame.Config reversed = new SmartWoodFrame.Config(
+         Direction.Axis.Z, List.of(), List.of(steep, shallow)
+      );
+      assertEquals(Direction.Axis.X, SmartWoodFrame.axisForTest(positions, BlockPos.ZERO, reversed));
    }
 
    private static Direction.Axis dominantAxis(SmartWoodFrame.Edge edge) {

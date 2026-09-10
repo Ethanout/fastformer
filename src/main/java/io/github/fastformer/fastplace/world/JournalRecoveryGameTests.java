@@ -84,9 +84,12 @@ public final class JournalRecoveryGameTests {
          ReversibleBlockSnapshot.capture(level, second).orElseThrow()
       );
       UUID owner = UUID.randomUUID();
-      var journal = PersistentRecoveryJournal.begin(
-         level.getServer(), owner, level.dimension(), before, predicted, UUID.randomUUID()
-      ).orElseThrow();
+      Path directory = Files.createTempDirectory("fastformer-legacy-corrections-");
+      Path file = directory.resolve(owner + ".dat");
+      PersistentRecoveryJournal.atomicWriteCompressed(
+         file, PersistentRecoveryJournal.encodePrepared(level.dimension(), before, predicted)
+      );
+      var journal = new PersistentRecoveryJournal(file, level.dimension());
       try {
          level.setBlock(first, Blocks.GOLD_BLOCK.defaultBlockState(), 2);
          level.setBlock(second, Blocks.DIAMOND_BLOCK.defaultBlockState(), 2);
@@ -95,12 +98,6 @@ public final class JournalRecoveryGameTests {
             second, ReversibleBlockSnapshot.capture(level, second).orElseThrow()
          );
          helper.assertTrue(journal.finalizeAfter(actual).join(), "could not write journal corrections");
-         Path directory = level.getServer().getWorldPath(LevelResource.ROOT).resolve("fastformer-recovery");
-         Path file;
-         try (var files = Files.list(directory)) {
-            file = files.filter(path -> path.getFileName().toString().endsWith(owner + ".dat"))
-               .findFirst().orElseThrow();
-         }
          Path correction = file.resolveSibling(file.getFileName().toString().replace(".dat", ".delta"));
          var validCorrection = NbtIo.readCompressed(correction, NbtAccounter.create(1024 * 1024));
          var invalidCorrection = validCorrection.copy();
@@ -122,6 +119,165 @@ public final class JournalRecoveryGameTests {
          helper.succeed();
       } finally {
          journal.discardUnused();
+         Files.deleteIfExists(directory);
       }
+   }
+
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   public static void startupScanRestoresPreparedJournalBeforeCleanup(GameTestHelper helper) throws Exception {
+      var level = helper.getLevel();
+      BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+      var before = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+      level.setBlock(pos, Blocks.GOLD_BLOCK.defaultBlockState(), 2);
+      var after = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+      Path directory = recoveryDirectory(helper);
+      Path journal = directory.resolve("00000000000000000001-" + UUID.randomUUID() + ".dat");
+      Files.createDirectories(directory);
+      PersistentRecoveryJournal.atomicWriteCompressed(
+         journal, PersistentRecoveryJournal.encodePrepared(level.dimension(), List.of(before), List.of(after))
+      );
+
+      try {
+         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer()), "startup recovery scan failed");
+         helper.assertTrue(before.matches(level, pos), "startup scan did not roll back the prepared journal");
+         helper.assertTrue(!Files.exists(journal), "startup scan retained a journal after its durable save");
+         helper.assertTrue(PersistentRecoveryJournal.writesAllowed(), "successful startup recovery left writes blocked");
+         helper.succeed();
+      } finally {
+         before.restore(level, 2);
+         Files.deleteIfExists(journal);
+         deleteDirectoryIfEmpty(directory);
+         PersistentRecoveryJournal.resetWriteGateForTest();
+      }
+   }
+
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   public static void startupScanRetainsJournalUntilDurableSaveSucceeds(GameTestHelper helper) throws Exception {
+      var level = helper.getLevel();
+      BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+      var before = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+      level.setBlock(pos, Blocks.DIAMOND_BLOCK.defaultBlockState(), 2);
+      var after = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+      Path directory = recoveryDirectory(helper);
+      Path journal = directory.resolve("00000000000000000004-" + UUID.randomUUID() + ".dat");
+      Files.createDirectories(directory);
+      PersistentRecoveryJournal.atomicWriteCompressed(
+         journal, PersistentRecoveryJournal.encodePrepared(level.dimension(), List.of(before), List.of(after))
+      );
+
+      try {
+         helper.assertTrue(
+            !PersistentRecoveryJournal.recoverAll(level.getServer(), () -> false),
+            "startup recovery ignored a failed durable save"
+         );
+         helper.assertTrue(before.matches(level, pos), "startup recovery did not apply before the save attempt");
+         helper.assertTrue(Files.exists(journal), "startup recovery deleted the journal after a failed save");
+         helper.assertTrue(!PersistentRecoveryJournal.writesAllowed(), "failed durable save did not block writes");
+
+         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer()), "startup recovery retry failed");
+         helper.assertTrue(before.matches(level, pos), "startup recovery retry changed the restored state");
+         helper.assertTrue(!Files.exists(journal), "successful retry did not clean up the journal");
+         helper.assertTrue(PersistentRecoveryJournal.writesAllowed(), "successful retry left writes blocked");
+         helper.succeed();
+      } finally {
+         before.restore(level, 2);
+         Files.deleteIfExists(journal);
+         deleteDirectoryIfEmpty(directory);
+         PersistentRecoveryJournal.resetWriteGateForTest();
+      }
+   }
+
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   public static void startupScanRecoversSegmentedJournal(GameTestHelper helper) throws Exception {
+      var level = helper.getLevel();
+      BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+      var before = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+      level.setBlock(pos, Blocks.EMERALD_BLOCK.defaultBlockState(), 2);
+      var after = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+      Path recoveryDirectory = recoveryDirectory(helper);
+      UUID operation = UUID.randomUUID();
+      UUID owner = UUID.randomUUID();
+      Path journal = recoveryDirectory.resolve("00000000000000000005-" + owner + "-" + operation);
+      Files.createDirectories(journal);
+      RecoveryJournalManifest.write(
+         journal.resolve("manifest.dat"), operation, owner, level.dimension().location().toString(), 1
+      );
+      RecoveryJournalSegment.write(
+         journal.resolve("segment-000000.dat"), operation, 0,
+         PersistentRecoveryJournal.encodePrepared(level.dimension(), List.of(before), List.of(after))
+      );
+
+      try {
+         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer()), "segmented startup recovery failed");
+         helper.assertTrue(before.matches(level, pos), "segmented startup recovery did not roll back the world");
+         helper.assertTrue(!Files.exists(journal), "segmented startup journal was not cleaned up after save");
+         helper.assertTrue(PersistentRecoveryJournal.writesAllowed(), "segmented recovery left writes blocked");
+         helper.succeed();
+      } finally {
+         before.restore(level, 2);
+         deleteJournalDirectory(journal);
+         deleteDirectoryIfEmpty(recoveryDirectory);
+         PersistentRecoveryJournal.resetWriteGateForTest();
+      }
+   }
+
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100)
+   public static void startupScanRetainsUnsafeJournalsAndBlocksWrites(GameTestHelper helper) throws Exception {
+      var level = helper.getLevel();
+      BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
+      var unchanged = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+      Path directory = recoveryDirectory(helper);
+      String identity = UUID.randomUUID().toString();
+      Path corrupt = directory.resolve("00000000000000000002-" + identity + ".dat");
+      Path unknownDimension = directory.resolve("00000000000000000003-" + identity + ".dat");
+      Files.createDirectories(directory);
+      Files.write(corrupt, new byte[] {0x01, 0x02, 0x03});
+      var payload = PersistentRecoveryJournal.encodePrepared(
+         level.dimension(), List.of(unchanged), List.of(unchanged)
+      );
+      payload.putString("Dimension", "fastformer:missing_dimension");
+      PersistentRecoveryJournal.atomicWriteCompressed(unknownDimension, payload);
+
+      try {
+         helper.assertTrue(!PersistentRecoveryJournal.recoverAll(level.getServer()), "unsafe startup journals were accepted");
+         helper.assertTrue(!PersistentRecoveryJournal.writesAllowed(), "unsafe startup journals did not block new writes");
+         helper.assertTrue(Files.exists(corrupt), "corrupt startup journal was deleted");
+         helper.assertTrue(Files.exists(unknownDimension), "unknown-dimension journal was deleted");
+         helper.assertTrue(unchanged.matches(level, pos), "rejected startup journals changed the world");
+         helper.succeed();
+      } finally {
+         Files.deleteIfExists(corrupt);
+         Files.deleteIfExists(unknownDimension);
+         deleteDirectoryIfEmpty(directory);
+         PersistentRecoveryJournal.resetWriteGateForTest();
+      }
+   }
+
+   private static Path recoveryDirectory(GameTestHelper helper) {
+      return helper.getLevel().getServer().getWorldPath(LevelResource.ROOT).resolve("fastformer-recovery");
+   }
+
+   private static void deleteDirectoryIfEmpty(Path directory) throws Exception {
+      if (!Files.isDirectory(directory)) {
+         return;
+      }
+      try (var files = Files.list(directory)) {
+         if (files.findAny().isPresent()) {
+            return;
+         }
+      }
+      Files.deleteIfExists(directory);
+   }
+
+   private static void deleteJournalDirectory(Path directory) throws Exception {
+      if (!Files.isDirectory(directory)) {
+         return;
+      }
+      try (var files = Files.list(directory)) {
+         for (Path file : files.toList()) {
+            Files.deleteIfExists(file);
+         }
+      }
+      Files.deleteIfExists(directory);
    }
 }

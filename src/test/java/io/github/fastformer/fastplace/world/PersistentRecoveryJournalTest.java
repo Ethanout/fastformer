@@ -145,6 +145,33 @@ class PersistentRecoveryJournalTest {
    }
 
    @Test
+   void segmentBatchSizeKeepsTheFirstSegmentSmall() {
+      assertEquals(1, PersistentRecoveryJournal.segmentBatchSize(0, 1));
+      assertEquals(256, PersistentRecoveryJournal.segmentBatchSize(0, 10_000));
+      assertEquals(256, PersistentRecoveryJournal.segmentBatchSize(0, 256));
+      assertEquals(4096, PersistentRecoveryJournal.segmentBatchSize(256, 10_000));
+      assertEquals(12, PersistentRecoveryJournal.segmentBatchSize(256, 12));
+      assertEquals(0, PersistentRecoveryJournal.segmentBatchSize(0, 0));
+   }
+
+   @Test
+   void appendPayloadWritesTheNextSequentialSegment() throws Exception {
+      UUID owner = UUID.randomUUID();
+      UUID operation = UUID.randomUUID();
+      Path directory = segmentedDirectory(owner, operation);
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(directory);
+      CompoundTag payload = new CompoundTag();
+      payload.putInt("Count", 2);
+
+      journal.appendPayload(payload);
+
+      assertEquals(2, journal.nextSegmentIndex());
+      assertEquals(true, Files.exists(directory.resolve("segment-000001.dat")));
+      assertEquals(false, Files.exists(directory.resolve("seal.done")));
+      assertEquals(2, RecoveryJournalSegments.readUnsealed(directory, operation, 8).size());
+   }
+
+   @Test
    void unusedSegmentedJournalIsDiscardedWithoutASeal() throws Exception {
       UUID owner = UUID.randomUUID();
       UUID operation = UUID.randomUUID();

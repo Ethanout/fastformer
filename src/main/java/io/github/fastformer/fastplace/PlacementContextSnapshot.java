@@ -13,9 +13,6 @@ import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.Shapes;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * The vanilla placement inputs frozen when the first building point is accepted.
@@ -34,8 +31,6 @@ public record PlacementContextSnapshot(
       List<Direction> nearestDirections,
       boolean secondaryUseActive
 ) {
-   private static final double EXIT_TRACE_DISTANCE = 4.0;
-   private static final double EXIT_TRACE_INSET = 1.0E-4;
 
    public PlacementContextSnapshot {
       hitBlock = hitBlock.immutable();
@@ -56,7 +51,7 @@ public record PlacementContextSnapshot(
       BlockHitResult entryHit,
       boolean embedded
    ) {
-      BlockHitResult placementHit = embedded ? exitHit(level, player, entryHit) : entryHit;
+      BlockHitResult placementHit = entryHit;
       BlockPlaceContext vanilla = new BlockPlaceContext(
          level, player, InteractionHand.MAIN_HAND, stack, placementHit
       );
@@ -76,29 +71,6 @@ public record PlacementContextSnapshot(
 
    public BlockPlaceContext context(Level level, Player player, ItemStack stack) {
       return new FrozenBlockPlaceContext(level, player, stack, this);
-   }
-
-   private static BlockHitResult exitHit(Level level, Player player, BlockHitResult entryHit) {
-      Vec3 direction = player.getViewVector(1.0F).normalize();
-      if (direction.lengthSqr() < 1.0E-12) {
-         return entryHit;
-      }
-      BlockPos pos = entryHit.getBlockPos();
-      Vec3 inside = entryHit.getLocation().add(direction.scale(EXIT_TRACE_INSET));
-      Vec3 beyond = entryHit.getLocation().add(direction.scale(EXIT_TRACE_DISTANCE));
-      VoxelShape shape = level.getBlockState(pos).getShape(level, pos, CollisionContext.of(player));
-      BlockHitResult exit = shape.clip(beyond, inside, pos);
-      if (exit == null) {
-         exit = Shapes.block().clip(beyond, inside, pos);
-      }
-      return exit == null
-         ? new BlockHitResult(
-            Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(Direction.getNearest(direction.x, direction.y, direction.z).getNormal()).scale(0.5)),
-            Direction.getNearest(direction.x, direction.y, direction.z),
-            pos,
-            false
-         )
-         : new BlockHitResult(exit.getLocation(), exit.getDirection(), pos, false);
    }
 
    private static boolean finite(Vec3 value) {

@@ -19,6 +19,13 @@ public final class ClientPlayerSession {
       return playerId;
    }
 
+   public void endInteraction() {
+      operationWorkspace.clear();
+      selectionSession.clearDraft();
+      selectionSession.setAltHeld(false);
+      selectionSession.refresh(false, true, false);
+   }
+
    /** Player-owned editable workspace shared by all state cells. */
    public ClientOperationWorkspace operationWorkspace() {
       return operationWorkspace;

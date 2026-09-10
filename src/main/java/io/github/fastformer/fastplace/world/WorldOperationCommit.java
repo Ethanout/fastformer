@@ -45,6 +45,14 @@ public final class WorldOperationCommit {
       return new WorldOperationCommit(dimension, before, after, journal);
    }
 
+   public static WorldOperationCommit begin(
+      ResourceKey<Level> dimension,
+      WorldChangeTransaction transaction,
+      PersistentRecoveryJournal journal
+   ) {
+      return begin(dimension, transaction.beforeView(), transaction.afterView(), journal);
+   }
+
    static CompletableFuture<Optional<WorldChangeBatch>> prepareBatchAfterJournal(
       CompletableFuture<Boolean> journalFuture,
       java.util.function.Supplier<Optional<WorldChangeBatch>> batchSupplier,
@@ -81,6 +89,11 @@ public final class WorldOperationCommit {
 
    public Optional<WorldChangeBatch> batch() {
       return this.history.batch();
+   }
+
+   /** Completes after journal finalization and history compression terminate. */
+   public CompletableFuture<Void> completion() {
+      return this.history.completion();
    }
 
    public void cancel() {

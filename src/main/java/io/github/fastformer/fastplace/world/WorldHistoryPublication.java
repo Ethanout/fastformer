@@ -74,6 +74,10 @@ public final class WorldHistoryPublication {
       return this.future.handle((ignored, exception) -> null);
    }
 
+   CompletableFuture<Void> completion() {
+      return this.future.handle((ignored, exception) -> null);
+   }
+
    static CompletableFuture<Optional<WorldChangeBatch>> prepare(
       CompletableFuture<Boolean> journalReady,
       Supplier<Optional<WorldChangeBatch>> batchSupplier,

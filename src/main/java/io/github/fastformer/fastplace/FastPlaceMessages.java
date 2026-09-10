@@ -54,17 +54,29 @@ public final class FastPlaceMessages {
       }
       Object[] result = args.clone();
       for (int i = 0; i < result.length; i++) {
+         if (!(result[i] instanceof String) && !(result[i] instanceof Number)
+            && !(result[i] instanceof Boolean) && !(result[i] instanceof Component)) {
+            result[i] = String.valueOf(result[i]);
+         }
          if (result[i] instanceof Double value) {
             result[i] = GeometryNumbers.finiteOr(value, 0.0);
          } else if (result[i] instanceof Float value) {
             result[i] = (float)GeometryNumbers.finiteOr(value, 0.0);
          } else if (result[i] instanceof String value && value.length() > MAX_DYNAMIC_TEXT) {
-            result[i] = value.substring(0, MAX_DYNAMIC_TEXT) + "...";
+            result[i] = truncate(value);
          } else if (result[i] instanceof Component component && component.getString().length() > MAX_DYNAMIC_TEXT) {
             String value = component.getString();
-            result[i] = Component.literal(value.substring(0, MAX_DYNAMIC_TEXT) + "...");
+            result[i] = Component.literal(truncate(value));
          }
       }
       return result;
+   }
+
+   private static String truncate(String value) {
+      int end = MAX_DYNAMIC_TEXT;
+      if (Character.isHighSurrogate(value.charAt(end - 1)) && Character.isLowSurrogate(value.charAt(end))) {
+         end--;
+      }
+      return value.substring(0, end) + "...";
    }
 }

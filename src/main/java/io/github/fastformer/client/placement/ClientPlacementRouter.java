@@ -37,12 +37,31 @@ public final class ClientPlacementRouter {
    }
 
    private static boolean sendAction(Minecraft minecraft, PlacementActionPayload.Action action) {
+      if (!supports(minecraft, PlacementActionPayload.TYPE)
+         || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) {
+         return false;
+      }
       long requestId = NEXT_ACTION_ID.incrementAndGet();
-      return send(minecraft, PlacementActionPayload.TYPE, new PlacementActionPayload(action, requestId));
+      if (!io.github.fastformer.client.input.FastPlaceClientInput.beginPlacementRequest(requestId)) {
+         return false;
+      }
+      return sendSubmittedAction(
+         minecraft, PlacementActionPayload.TYPE, new PlacementActionPayload(action, requestId), requestId
+      );
    }
 
    public static boolean applyOperation(Minecraft minecraft, boolean copy) {
-      return send(minecraft, OperationApplyPayload.TYPE, new OperationApplyPayload(copy));
+      if (!supports(minecraft, OperationApplyPayload.TYPE)
+         || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) {
+         return false;
+      }
+      long requestId = NEXT_ACTION_ID.incrementAndGet();
+      if (!io.github.fastformer.client.input.FastPlaceClientInput.beginPlacementRequest(requestId)) {
+         return false;
+      }
+      return sendSubmittedAction(
+         minecraft, OperationApplyPayload.TYPE, new OperationApplyPayload(copy, requestId), requestId
+      );
    }
 
    public static boolean quickReplace(Minecraft minecraft) {
@@ -95,6 +114,21 @@ public final class ClientPlacementRouter {
       if (!supports(minecraft, type)) return false;
       PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
       return true;
+   }
+
+   private static boolean sendSubmittedAction(
+      Minecraft minecraft, CustomPacketPayload.Type<?> type, CustomPacketPayload payload, long requestId
+   ) {
+      try {
+         if (send(minecraft, type, payload)) {
+            return true;
+         }
+      } catch (RuntimeException exception) {
+         io.github.fastformer.client.input.FastPlaceClientInput.abortPlacementRequest(requestId);
+         return false;
+      }
+      io.github.fastformer.client.input.FastPlaceClientInput.abortPlacementRequest(requestId);
+      return false;
    }
 
    @FunctionalInterface

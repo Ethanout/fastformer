@@ -239,6 +239,11 @@ class TaskRecoveryHandoffTest {
       }
 
       @Override
+      public WorldOperationCommit operationCommit() {
+         return this.commit;
+      }
+
+      @Override
       public ResourceKey<Level> dimension() {
          return Level.OVERWORLD;
       }

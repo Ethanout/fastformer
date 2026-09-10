@@ -236,6 +236,16 @@ final class WorkspaceInteractionResolver {
          : Optional.of(new OperationInteractionIntent.CreateSelection(point));
    }
 
+   static AABB outlineBounds(ClientSelectionPart part, AABB occupiedBounds) {
+      if (part.editability() == ClientSelectionPart.Editability.FREE) {
+         AABB selection = selectionBounds(part);
+         if (selection != null) {
+            return selection;
+         }
+      }
+      return occupiedBounds;
+   }
+
    static AABB selectionBounds(ClientSelectionPart part) {
       if (part == null) {
          return null;

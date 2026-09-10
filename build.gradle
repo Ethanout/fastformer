@@ -253,7 +253,7 @@ tasks.named('check') {
 }
 
 tasks.register('deployTo233') {
-    dependsOn tasks.named('verifyModJar')
+    dependsOn tasks.named('check')
     def targetFile = file('D:/重要的资料/mc本体游戏/.minecraft/versions/1.21.1-NeoForge_21.1.233/mods/fastformer-0.1.0.jar')
     inputs.file(tasks.named('jar').flatMap { it.archiveFile })
     doLast {

@@ -27,6 +27,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.registries.Registries;
@@ -73,6 +74,8 @@ public final class PersistentRecoveryJournal {
    private static final java.util.Set<Path> CLEANUP_PENDING = ConcurrentHashMap.newKeySet();
 
    private static final int SEGMENTED_LIMIT = 65_536;
+   private static final int FIRST_SEGMENT_CELLS = 256;
+   private static final int NEXT_SEGMENT_CELLS = 4_096;
    private static final String MANIFEST_FILE = "manifest.dat";
    private static final String SEAL_FILE = "seal.done";
    private static final String CORRECTION_FILE = "correction.delta";
@@ -83,6 +86,7 @@ public final class PersistentRecoveryJournal {
    private final UUID operationId;
    private final long preparedDecodedBytes;
    private final boolean segmented;
+   private int nextSegmentIndex;
    private boolean committed;
    private volatile boolean finalAfterPrepared;
    private volatile boolean correctionRequired;
@@ -91,7 +95,7 @@ public final class PersistentRecoveryJournal {
       this(file, null, null, MAX_DECOMPRESSED_BYTES, Files.isDirectory(file));
    }
 
-   private PersistentRecoveryJournal(Path file, ResourceKey<Level> dimension) {
+   PersistentRecoveryJournal(Path file, ResourceKey<Level> dimension) {
       this(file, dimension, null, MAX_DECOMPRESSED_BYTES, Files.isDirectory(file));
    }
 
@@ -110,9 +114,26 @@ public final class PersistentRecoveryJournal {
    ) {
       this.file = file;
       this.dimension = dimension;
-      this.operationId = operationId;
-      this.preparedDecodedBytes = Math.max(1L, Math.min(MAX_DECOMPRESSED_BYTES, preparedDecodedBytes));
       this.segmented = segmented;
+      UUID resolvedOperation = operationId;
+      int nextSegment = 0;
+      if (segmented && file != null && Files.isDirectory(file)) {
+         nextSegment = countExistingSegments(file);
+         if (resolvedOperation == null) {
+            resolvedOperation = readManifestOperationId(file);
+         }
+      }
+      this.operationId = resolvedOperation;
+      this.preparedDecodedBytes = Math.max(1L, Math.min(MAX_DECOMPRESSED_BYTES, preparedDecodedBytes));
+      this.nextSegmentIndex = nextSegment;
+   }
+
+   public static int segmentBatchSize(int journaledCount, int remaining) {
+      if (remaining <= 0) {
+         return 0;
+      }
+      int cap = journaledCount <= 0 ? FIRST_SEGMENT_CELLS : NEXT_SEGMENT_CELLS;
+      return Math.min(remaining, cap);
    }
 
    public UUID operationId() {
@@ -371,6 +392,10 @@ public final class PersistentRecoveryJournal {
 
    /** Runs synchronously during ServerStartedEvent, before player operations. */
    public static boolean recoverAll(MinecraftServer server) {
+      return recoverAll(server, () -> saveDurably(server));
+   }
+
+   static boolean recoverAll(MinecraftServer server, BooleanSupplier durableSave) {
       startupRecoveryBlocked = false;
       COMMITTED.clear();
       CLEANUP_PENDING.clear();
@@ -453,7 +478,7 @@ public final class PersistentRecoveryJournal {
       if (!recovered.isEmpty()) {
          // Do not remove the write-ahead log until the restored chunks are
          // durably flushed. A second crash during startup can then retry.
-         if (!saveDurably(server)) {
+         if (!durableSave.getAsBoolean()) {
             LOGGER.error("FastFormer restored startup journals but the world save did not complete");
             success = false;
          } else {
@@ -513,24 +538,26 @@ public final class PersistentRecoveryJournal {
             RecoveryJournalManifest.Manifest manifest = RecoveryJournalManifest.read(directory.resolve("manifest.dat"));
             Path seal = directory.resolve("seal.done");
             if (!Files.exists(seal)) {
-               var segments = RecoveryJournalSegments.readUnsealed(directory, manifest.operationId(), manifest.segmentLimit());
+               var segments = RecoveryJournalSegments.inspectUnsealed(directory, manifest.operationId(), manifest.segmentLimit());
                ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(manifest.dimension()));
-               for (var segment : segments) validateHeader(segment.payload(), dimension);
+               for (int index = 0; index < segments.count(); index++) {
+                  validateHeader(RecoveryJournalSegments.read(directory, manifest.operationId(), index).payload(), dimension);
+               }
                continue;
             }
             RecoveryJournalSeal.Seal sealData = RecoveryJournalSeal.read(seal, manifest.operationId());
             if (sealData.segmentCount() > manifest.segmentLimit()) {
                throw new IOException("Segmented recovery operation exceeds manifest segment limit");
             }
-            List<RecoveryJournalSegments.CompoundSegment> segments = RecoveryJournalSegments.readComplete(
+            RecoveryJournalSegments.SegmentSet segments = RecoveryJournalSegments.inspectComplete(
                directory, manifest.operationId(), sealData.segmentCount()
             );
-            if (RecoveryJournalSegments.digest(segments) != sealData.digest()) {
+            if (segments.digest() != sealData.digest()) {
                throw new IOException("Segmented recovery operation digest mismatch");
             }
             ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(manifest.dimension()));
-            for (var segment : segments) {
-               validateHeader(segment.payload(), dimension);
+            for (int index = 0; index < segments.count(); index++) {
+               validateHeader(RecoveryJournalSegments.read(directory, manifest.operationId(), index).payload(), dimension);
             }
          } catch (IOException | RuntimeException exception) {
             valid = false;
@@ -712,19 +739,16 @@ public final class PersistentRecoveryJournal {
          var manifest = RecoveryJournalManifest.read(directory.resolve("manifest.dat"));
          boolean sealed = Files.exists(directory.resolve("seal.done"));
          var segments = sealed
-            ? RecoveryJournalSegments.readComplete(directory, manifest.operationId(),
+            ? RecoveryJournalSegments.inspectComplete(directory, manifest.operationId(),
                RecoveryJournalSeal.read(directory.resolve("seal.done"), manifest.operationId()).segmentCount())
-            : RecoveryJournalSegments.readUnsealed(directory, manifest.operationId(), manifest.segmentLimit());
+            : RecoveryJournalSegments.inspectUnsealed(directory, manifest.operationId(), manifest.segmentLimit());
+         if (sealed) {
+            var seal = RecoveryJournalSeal.read(directory.resolve("seal.done"), manifest.operationId());
+            if (segments.digest() != seal.digest()) throw new IOException("Segmented recovery journal digest mismatch");
+         }
          ResourceKey<Level> dimension = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(manifest.dimension()));
          ServerLevel level = server.getLevel(dimension);
          if (level == null) throw new IOException("Journal dimension is not loaded: " + manifest.dimension());
-         List<DecodedJournal> decoded = new ArrayList<>(segments.size());
-         for (var segment : segments) {
-            DecodedJournal journal = decode(level, segment.payload());
-            // Reject invalid palette references before the first world write.
-            for (int index = 0; index < journal.size(); index++) journal.pair(index);
-            decoded.add(journal);
-         }
          DecodedCorrections corrections = sealed
             ? decodeCorrections(
                level,
@@ -733,11 +757,32 @@ public final class PersistentRecoveryJournal {
                dimension
             )
             : null;
+         // Validate all decoded payloads before the first world mutation, but
+         // release each decoded segment before reading the next one.
+         int validatedCorrections = 0;
+         for (int segmentIndex = 0; segmentIndex < segments.count(); segmentIndex++) {
+            var segment = RecoveryJournalSegments.read(directory, manifest.operationId(), segmentIndex);
+            DecodedJournal journal = decode(level, segment.payload());
+            // Reject invalid palette references before the first world write.
+            for (int index = 0; index < journal.size(); index++) {
+               JournalPair pair = journal.pair(index);
+               if (corrections != null
+                  && validatedCorrections < corrections.size()
+                  && corrections.position(validatedCorrections) == pair.after().pos().asLong()) {
+                  validatedCorrections++;
+               }
+            }
+         }
+         if (corrections != null && validatedCorrections != corrections.size()) {
+            throw new IOException("Recovery correction positions are not aligned with the segmented journal");
+         }
          int correctionIndex = 0;
          int restored = 0;
          int preserved = 0;
-         for (int segmentIndex = 0; segmentIndex < decoded.size(); segmentIndex++) {
-            var journal = decoded.get(sealed ? segmentIndex : decoded.size() - 1 - segmentIndex);
+         for (int segmentOffset = 0; segmentOffset < segments.count(); segmentOffset++) {
+            int segmentIndex = sealed ? segmentOffset : segments.count() - 1 - segmentOffset;
+            var segment = RecoveryJournalSegments.read(directory, manifest.operationId(), segmentIndex);
+            var journal = decode(level, segment.payload());
             for (int cell = 0; cell < journal.size(); cell++) {
                int index = sealed ? cell : journal.size() - 1 - cell;
                JournalPair pair = journal.pair(index);
@@ -1013,10 +1058,56 @@ public final class PersistentRecoveryJournal {
       if (payload.sizeInBytes() > MAX_DECOMPRESSED_BYTES) {
          throw new IOException("Recovery journal exceeds the safe decoded-size limit");
       }
-      RecoveryJournalSegment.write(operationDirectory.resolve(FIRST_SEGMENT_FILE), operationId, 0, payload);
+      RecoveryJournalSegment.write(segmentPath(operationDirectory, 0), operationId, 0, payload);
       return new PersistentRecoveryJournal(
          operationDirectory, dimension, operationId, payload.sizeInBytes(), true
       );
+   }
+
+   public synchronized boolean appendSegment(
+      Collection<ReversibleBlockSnapshot> before,
+      Collection<ReversibleBlockSnapshot> after
+   ) {
+      if (!canAppendSegment() || this.dimension == null || before == null || before.isEmpty() || after == null) {
+         return false;
+      }
+      try {
+         CompoundTag payload = encodePrepared(this.dimension, before, after);
+         payload.putString("OperationId", this.operationId.toString());
+         if (payload.sizeInBytes() > MAX_DECOMPRESSED_BYTES) {
+            throw new IOException("Recovery journal exceeds the safe decoded-size limit");
+         }
+         appendPayload(payload);
+         return true;
+      } catch (IOException | RuntimeException exception) {
+         LOGGER.error("Could not append FastFormer recovery segment for {}", this.file, exception);
+         return false;
+      }
+   }
+
+   synchronized void appendPayload(CompoundTag payload) throws IOException {
+      if (!canAppendSegment() || payload == null) {
+         throw new IOException("Cannot append recovery segment");
+      }
+      RecoveryJournalSegment.write(
+         segmentPath(this.file, this.nextSegmentIndex), this.operationId, this.nextSegmentIndex, payload
+      );
+      this.nextSegmentIndex++;
+   }
+
+   int nextSegmentIndex() {
+      return this.nextSegmentIndex;
+   }
+
+   private boolean canAppendSegment() {
+      return this.segmented
+         && !this.committed
+         && this.operationId != null
+         && this.file != null
+         && Files.isDirectory(this.file)
+         && this.nextSegmentIndex >= 0
+         && this.nextSegmentIndex < SEGMENTED_LIMIT
+         && !Files.exists(this.file.resolve(SEAL_FILE));
    }
 
    private static void deleteDirectoryQuietly(Path directory) {
@@ -1310,6 +1401,30 @@ public final class PersistentRecoveryJournal {
 
    private static Path journalDirectory(MinecraftServer server) {
       return server.getWorldPath(LevelResource.ROOT).resolve(DIRECTORY);
+   }
+
+   private static Path segmentPath(Path directory, int sequence) {
+      return directory.resolve(String.format("segment-%06d.dat", sequence));
+   }
+
+   private static int countExistingSegments(Path directory) {
+      try (var files = Files.list(directory)) {
+         long count = files
+            .filter(path -> path.getFileName().toString().matches("segment-[0-9]{6}\\.dat"))
+            .count();
+         return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
+      } catch (IOException | RuntimeException exception) {
+         LOGGER.error("Could not count FastFormer recovery segments in {}", directory, exception);
+         return 0;
+      }
+   }
+
+   private static UUID readManifestOperationId(Path directory) {
+      try {
+         return RecoveryJournalManifest.read(directory.resolve(MANIFEST_FILE)).operationId();
+      } catch (IOException | RuntimeException exception) {
+         return null;
+      }
    }
 
    static boolean hasOwnerJournal(Path directory, UUID owner) {

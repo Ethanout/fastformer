@@ -42,7 +42,9 @@ public final class FastPlaceNetwork {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("58").optional();
+      PayloadRegistrar registrar = event.registrar("60").optional();
+      registrar.playToClient(PlacementActionAckPayload.TYPE, PlacementActionAckPayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> ClientPayloadDispatcher.acknowledgePlacement(payload)));
       registrar.playToServer(ModifierStatePayload.TYPE, ModifierStatePayload.STREAM_CODEC, FastPlaceNetwork::handleModifierState);
       registrar.playToServer(MiddleConfirmSettingPayload.TYPE, MiddleConfirmSettingPayload.STREAM_CODEC, FastPlaceNetwork::handleMiddleConfirmSetting);
       registrar.playToServer(FaceRasterizationSettingPayload.TYPE, FaceRasterizationSettingPayload.STREAM_CODEC, FastPlaceNetwork::handleFaceRasterizationSetting);
@@ -261,7 +263,11 @@ public final class FastPlaceNetwork {
    private static void handleOperationApply(OperationApplyPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.applyOperation(player, payload.copy());
+            try {
+               ServerInputDispatcher.applyOperation(player, payload.copy(), payload.requestId());
+            } finally {
+               acknowledgePlacement(player, payload.requestId());
+            }
          }
       });
    }
@@ -330,7 +336,11 @@ public final class FastPlaceNetwork {
          if (!(context.player() instanceof ServerPlayer player)) {
             return;
          }
-         ServerInputDispatcher.placementAction(player, payload);
+         try {
+            ServerInputDispatcher.placementAction(player, payload);
+         } finally {
+            acknowledgePlacement(player, payload.requestId());
+         }
       });
    }
 
@@ -340,6 +350,12 @@ public final class FastPlaceNetwork {
             ServerInputDispatcher.startPlacement(player, payload.embedded());
          }
       });
+   }
+
+   private static void acknowledgePlacement(ServerPlayer player, long requestId) {
+      FastPlaceManager.syncCurrentPreview(player);
+      syncActivity(player);
+      PacketDistributor.sendToPlayer(player, new PlacementActionAckPayload(requestId));
    }
 
    private static void handleGeometryRemovePoint(GeometryRemovePointPayload payload, IPayloadContext context) {
@@ -509,8 +525,11 @@ public final class FastPlaceNetwork {
    }
 
    /** Cleans incomplete client payloads without waiting for another packet. */
-   public static void tick() {
-      INCOMING_TRANSFERS.purgeExpired();
+   public static void tick(net.minecraft.server.MinecraftServer server) {
+      for (var expired : INCOMING_TRANSFERS.purgeExpired()) {
+         sendWorkspaceResult(server.getPlayerList().getPlayer(expired.owner()),
+            expired.transferId(), false, java.util.List.of());
+      }
    }
 
    public static void sendWorkspaceResult(

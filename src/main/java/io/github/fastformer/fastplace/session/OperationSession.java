@@ -539,17 +539,20 @@ public final class OperationSession implements SessionLifecycle {
          return false;
       }
       BlockPos offset = addAxis(BlockPos.ZERO, axis, steps);
+      if (this.selectionMode == OperationSelectionMode.CUBOID) {
+         if (this.cuboidMinPoint == null || this.cuboidMaxPoint == null) {
+            return false;
+         }
+         this.cuboidMinPoint = this.cuboidMinPoint.offset(offset).immutable();
+         this.cuboidMaxPoint = this.cuboidMaxPoint.offset(offset).immutable();
+         return true;
+      }
       this.selectionPoints().first = this.selectionPoints().first.offset(offset).immutable();
       if (this.selectionPoints().second != null) {
          this.selectionPoints().second = this.selectionPoints().second.offset(offset).immutable();
       }
       for (int index = 0; index < this.selectionPoints().extraPoints.size(); index++) {
          this.selectionPoints().extraPoints.set(index, this.selectionPoints().extraPoints.get(index).offset(offset).immutable());
-      }
-      if (this.selectionMode == OperationSelectionMode.CUBOID) {
-         this.minOffset = BlockPos.ZERO;
-         this.maxOffset = BlockPos.ZERO;
-         this.recomputeCuboidBounds();
       }
       this.selectionConfirmed = false;
       return true;
@@ -560,7 +563,8 @@ public final class OperationSession implements SessionLifecycle {
    }
 
    public boolean movePoint(int pointIndex, int axis, int steps) {
-      if (this.selectionConfirmed || steps == 0 || axis < 0 || axis > 2 || pointIndex < 0) {
+      if (this.selectionMode == OperationSelectionMode.CUBOID
+         || this.selectionConfirmed || steps == 0 || axis < 0 || axis > 2 || pointIndex < 0) {
          return false;
       }
       List<BlockPos> before = this.points();

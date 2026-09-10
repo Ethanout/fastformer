@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -48,6 +49,93 @@ class WorldJournalPreparationCancellationTest {
       assertFalse(Files.exists(oldFile));
       assertTrue(Files.exists(newFile));
       assertSame(newJournal, preparation.journal());
+   }
+
+   @Test
+   void pollAppendWritesAfterTheFirstJournalIsReady() throws Exception {
+      ArrayDeque<Runnable> queue = new ArrayDeque<>();
+      WorldJournalPreparation preparation = new WorldJournalPreparation(queue::addLast);
+      Path file = Files.createDirectory(directory.resolve("segmented"));
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(file);
+      assertEquals(JournalPreparation.PENDING, preparation.poll(() -> Optional.of(journal)));
+      queue.removeFirst().run();
+      assertEquals(JournalPreparation.READY, preparation.poll(Optional::empty));
+
+      java.util.concurrent.atomic.AtomicBoolean appended = new java.util.concurrent.atomic.AtomicBoolean();
+      assertEquals(JournalPreparation.PENDING, preparation.pollAppend(() -> {
+         appended.set(true);
+         return true;
+      }));
+      queue.removeFirst().run();
+      assertEquals(JournalPreparation.READY, preparation.pollAppend(() -> false));
+      assertEquals(true, appended.get());
+   }
+
+   @Test
+   void reservationRemainsHeldUntilPendingJournalCreationCompletes() {
+      long baseline = MemoryReservation.reservedBytes();
+      MemoryReservation reservation = WorldOperationMemory.reserveGeneration(1L, 0L).orElseThrow();
+      long reserved = MemoryReservation.reservedBytes();
+      ArrayDeque<Runnable> queue = new ArrayDeque<>();
+      WorldJournalPreparation preparation = new WorldJournalPreparation(queue::addLast);
+      assertEquals(JournalPreparation.PENDING, preparation.poll(Optional::empty));
+
+      try {
+         preparation.cancel();
+         preparation.releaseWhenIdle(reservation);
+
+         assertEquals(reserved, MemoryReservation.reservedBytes());
+         queue.removeFirst().run();
+         assertEquals(baseline, MemoryReservation.reservedBytes());
+      } finally {
+         reservation.close();
+      }
+   }
+
+   @Test
+   void reservationRemainsHeldUntilPendingJournalAppendCompletes() throws Exception {
+      long baseline = MemoryReservation.reservedBytes();
+      MemoryReservation reservation = WorldOperationMemory.reserveGeneration(1L, 0L).orElseThrow();
+      long reserved = MemoryReservation.reservedBytes();
+      ArrayDeque<Runnable> queue = new ArrayDeque<>();
+      WorldJournalPreparation preparation = new WorldJournalPreparation(queue::addLast);
+      Path file = Files.createDirectory(directory.resolve("pending-append"));
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(file);
+      assertEquals(JournalPreparation.PENDING, preparation.poll(() -> Optional.of(journal)));
+      queue.removeFirst().run();
+      assertEquals(JournalPreparation.READY, preparation.poll(Optional::empty));
+      assertEquals(JournalPreparation.PENDING, preparation.pollAppend(() -> true));
+
+      try {
+         preparation.cancel();
+         preparation.releaseWhenIdle(reservation);
+
+         assertEquals(reserved, MemoryReservation.reservedBytes());
+         queue.removeFirst().run();
+         assertEquals(baseline, MemoryReservation.reservedBytes());
+      } finally {
+         reservation.close();
+      }
+   }
+
+   @Test
+   void reservationRemainsHeldUntilPublicationCompletesWithoutCancellingIt() {
+      long baseline = MemoryReservation.reservedBytes();
+      MemoryReservation reservation = WorldOperationMemory.reserveGeneration(1L, 0L).orElseThrow();
+      long reserved = MemoryReservation.reservedBytes();
+      CompletableFuture<Void> publication = new CompletableFuture<>();
+      WorldJournalPreparation preparation = new WorldJournalPreparation(Runnable::run);
+
+      try {
+         preparation.releaseWhenIdle(reservation, publication);
+
+         assertEquals(reserved, MemoryReservation.reservedBytes());
+         assertFalse(publication.isCancelled());
+         publication.complete(null);
+         assertEquals(baseline, MemoryReservation.reservedBytes());
+      } finally {
+         reservation.close();
+      }
    }
 
    @Test

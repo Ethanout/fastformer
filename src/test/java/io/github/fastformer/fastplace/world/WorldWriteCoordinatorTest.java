@@ -130,8 +130,8 @@ class WorldWriteCoordinatorTest {
       UUID owner = UUID.randomUUID();
       Path blockedJournal = this.temporaryDirectory.resolve("blocked.dat");
       Files.createDirectories(blockedJournal);
-      Path blocker = blockedJournal.resolve("still-open");
-      Files.writeString(blocker, "block deletion");
+      Path blocker = Files.createDirectory(blockedJournal.resolve("still-open"));
+      Path blockerContent = Files.writeString(blocker.resolve("content"), "block deletion");
 
       assertTrue(WorldWriteCoordinator.tryAcquire(server, Level.OVERWORLD, owner));
       WorldWriteCoordinator.releaseAfterUnusedJournal(
@@ -145,6 +145,7 @@ class WorldWriteCoordinatorTest {
       assertFalse(WorldWriteCoordinator.tryAcquire(server, Level.OVERWORLD, owner));
       assertFalse(WorldWriteCoordinator.tryAcquire(server, Level.NETHER, owner));
 
+      Files.delete(blockerContent);
       Files.delete(blocker);
       WorldWriteCoordinator.retryUnusedJournalForTest(server, Level.OVERWORLD);
       assertFalse(WorldWriteCoordinator.busy(server, Level.OVERWORLD));
@@ -159,8 +160,8 @@ class WorldWriteCoordinatorTest {
       CompletableFuture<Optional<PersistentRecoveryJournal>> pending = new CompletableFuture<>();
       Path blockedJournal = this.temporaryDirectory.resolve("late.dat");
       Files.createDirectories(blockedJournal);
-      Path blocker = blockedJournal.resolve("still-open");
-      Files.writeString(blocker, "block deletion");
+      Path blocker = Files.createDirectory(blockedJournal.resolve("still-open"));
+      Path blockerContent = Files.writeString(blocker.resolve("content"), "block deletion");
 
       assertTrue(WorldWriteCoordinator.tryAcquire(server, Level.OVERWORLD, owner));
       WorldWriteCoordinator.releaseAfterUnusedJournal(server, Level.OVERWORLD, owner, null, pending);
@@ -168,6 +169,7 @@ class WorldWriteCoordinatorTest {
       pending.complete(Optional.of(new PersistentRecoveryJournal(blockedJournal)));
 
       assertFalse(WorldWriteCoordinator.busy(server, Level.OVERWORLD));
+      Files.delete(blockerContent);
       Files.delete(blocker);
       Files.delete(blockedJournal);
    }

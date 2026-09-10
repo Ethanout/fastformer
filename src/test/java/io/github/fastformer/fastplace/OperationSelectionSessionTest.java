@@ -16,6 +16,42 @@ import org.junit.jupiter.api.Test;
 
 class OperationSelectionSessionTest {
    @Test
+   void singleBlockBoundsRejectInversionAndPreserveHistoryOnEveryFace() {
+      for (int axis = 0; axis < 3; axis++) {
+         for (boolean positive : new boolean[] {false, true}) {
+            var session = new OperationSession();
+            BlockPos point = new BlockPos(-17, -60, -33);
+            session.setFirst(point);
+            session.setSecond(point);
+            session.beginEdit();
+            assertFalse(session.extend(axis, positive, -1));
+            assertFalse(session.commitEdit());
+            assertEquals(point, session.cuboidMinPoint());
+            assertEquals(point, session.cuboidMaxPoint());
+
+            session.beginEdit();
+            assertTrue(session.extend(axis, positive, 8));
+            assertTrue(session.commitEdit());
+            BlockPos expandedMin = session.cuboidMinPoint();
+            BlockPos expandedMax = session.cuboidMaxPoint();
+            session.beginEdit();
+            assertTrue(session.extend(axis, positive, -8));
+            assertFalse(session.extend(axis, positive, -1));
+            assertTrue(session.commitEdit());
+            assertEquals(point, session.cuboidMinPoint());
+            assertEquals(point, session.cuboidMaxPoint());
+            assertTrue(session.undoStep());
+            assertEquals(expandedMin, session.cuboidMinPoint());
+            assertEquals(expandedMax, session.cuboidMaxPoint());
+            assertTrue(session.redoStep());
+            assertEquals(point, session.cuboidMinPoint());
+            assertEquals(point, session.cuboidMaxPoint());
+            assertEquals(List.of(point, point), session.points());
+         }
+      }
+   }
+
+   @Test
    void readySelectionExposesOperationsWithoutConfirmation() {
       OperationSession session = new OperationSession();
       session.setFirst(BlockPos.ZERO);
@@ -356,17 +392,45 @@ class OperationSelectionSessionTest {
    }
 
    @Test
-   void draggingCuboidPointRecomputesBoundsImmediately() {
+   void cuboidInputPointsCannotBeMovedByControlPointCommands() {
       OperationSession session = new OperationSession();
       session.setFirst(new BlockPos(2, 2, 2));
       session.setSecond(new BlockPos(5, 5, 5));
 
-      assertTrue(session.movePoint(0, 0, 6));
+      assertFalse(session.movePoint(0, 0, 6));
 
-      assertEquals(new BlockPos(8, 2, 2), session.first());
+      assertEquals(new BlockPos(2, 2, 2), session.first());
       assertEquals(new BlockPos(5, 5, 5), session.second());
-      assertEquals(new BlockPos(5, 2, 2), session.cuboidMinPoint());
-      assertEquals(new BlockPos(8, 5, 5), session.cuboidMaxPoint());
+      assertEquals(new BlockPos(2, 2, 2), session.cuboidMinPoint());
+      assertEquals(new BlockPos(5, 5, 5), session.cuboidMaxPoint());
+   }
+
+   @Test
+   void movingExpandedCuboidPreservesBoundsAndInputRecordsAcrossUndo() {
+      OperationSession session = new OperationSession();
+      session.setFirst(new BlockPos(2, 3, 4));
+      session.setSecond(new BlockPos(5, 6, 7));
+      List<BlockPos> inputPoints = session.points();
+      assertTrue(session.extend(0, false, 6));
+      session.beginEdit();
+      assertTrue(session.moveSelection(1, -10));
+      assertTrue(session.commitEdit());
+      assertEquals(new BlockPos(-4, -7, 4), session.cuboidMinPoint());
+      assertEquals(new BlockPos(5, -4, 7), session.cuboidMaxPoint());
+      assertEquals(inputPoints, session.points());
+
+      assertTrue(session.undoStep());
+      assertEquals(new BlockPos(-4, 3, 4), session.cuboidMinPoint());
+      assertEquals(new BlockPos(5, 6, 7), session.cuboidMaxPoint());
+      assertTrue(session.redoStep());
+      assertEquals(new BlockPos(-4, -7, 4), session.cuboidMinPoint());
+      assertEquals(new BlockPos(5, -4, 7), session.cuboidMaxPoint());
+      assertEquals(inputPoints, session.points());
+
+      session.setSecond(new BlockPos(0, 0, 0));
+      assertEquals(inputPoints.getFirst(), session.first());
+      assertEquals(BlockPos.ZERO, session.cuboidMinPoint());
+      assertEquals(inputPoints.getFirst(), session.cuboidMaxPoint());
    }
 
    @Test

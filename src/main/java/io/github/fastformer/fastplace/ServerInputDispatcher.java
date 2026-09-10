@@ -519,8 +519,9 @@ public final class ServerInputDispatcher {
       confirm(player);
    }
 
-   public static void applyOperation(ServerPlayer player, boolean copy) {
-      if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)) {
+   public static void applyOperation(ServerPlayer player, boolean copy, long requestId) {
+      if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)
+         || !acceptPlacementAction(player.getUUID(), requestId)) {
          return;
       }
       OperationManager.applyConfirmed(player, copy);
@@ -723,9 +724,9 @@ public final class ServerInputDispatcher {
 
    public static BlockHitResult raycastBlocks(ServerPlayer player, double range) {
       Vec3 start = player.getEyePosition();
-      LongRangeBlockRaycast.Result result = LongRangeBlockRaycast.clip(
-         player.level(), player, start, player.getViewVector(1.0F)
-      );
+      LongRangeBlockRaycast.Result result = FastPlaceManager.classify(player) == InteractionState.BUILDING
+         ? LongRangeBlockRaycast.clipForPlacement(player.level(), player, start, player.getViewVector(1.0F))
+         : LongRangeBlockRaycast.clip(player.level(), player, start, player.getViewVector(1.0F));
       BlockHitResult hit = result.hit();
       if (hit.getType() != HitResult.Type.BLOCK || isWithinRaycastRange(start, hit.getLocation(), range)) {
          return hit;

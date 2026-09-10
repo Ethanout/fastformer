@@ -61,7 +61,11 @@ class IncomingPayloadTransfersTest {
          owner, new OperationWorkspaceApplyPayload(transferId, 0, 2, new byte[] {1})
       ));
 
-      transfers.purgeExpired(Long.MAX_VALUE);
+      org.junit.jupiter.api.Assertions.assertEquals(
+         java.util.List.of(new IncomingPayloadTransfers.ExpiredTransfer(owner, transferId)),
+         transfers.purgeExpired(Long.MAX_VALUE)
+      );
+      org.junit.jupiter.api.Assertions.assertTrue(transfers.purgeExpired(Long.MAX_VALUE).isEmpty());
 
       assertThrows(IOException.class, () -> transfers.acceptWorkspace(
          owner, new OperationWorkspaceApplyPayload(transferId, 1, 2, new byte[] {2})

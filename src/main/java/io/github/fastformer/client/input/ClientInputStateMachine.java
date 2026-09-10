@@ -7,6 +7,8 @@ public final class ClientInputStateMachine {
    private State state = State.IDLE;
    private long generation;
    private long gesture;
+   private long pendingRequest;
+   private java.util.UUID pendingTransfer;
 
    public State state() {
       return state;
@@ -19,8 +21,11 @@ public final class ClientInputStateMachine {
    /** Cancel stays in effect until the session and its recovery task end. */
    public void observe(State observed) {
       Objects.requireNonNull(observed, "observed");
-      if (observed == State.CANCELLING) {
+      if (observed == State.CANCELLING || observed == State.SUBMITTING) {
          throw new IllegalArgumentException("Use cancel() to request cancellation");
+      }
+      if (state == State.SUBMITTING) {
+         return;
       }
       if (state == State.CANCELLING && observed != State.IDLE) {
          return;
@@ -36,11 +41,62 @@ public final class ClientInputStateMachine {
       return true;
    }
 
+   public boolean submit(long requestId) {
+      if (requestId <= 0 || dispatch(InputKind.KEY) == Dispatch.BLOCKED) {
+         return false;
+      }
+      pendingRequest = requestId;
+      pendingTransfer = null;
+      transition(State.SUBMITTING);
+      return true;
+   }
+
+   public boolean submit(java.util.UUID transferId) {
+      Objects.requireNonNull(transferId, "transferId");
+      if (dispatch(InputKind.KEY) == Dispatch.BLOCKED) {
+         return false;
+      }
+      pendingRequest = 0;
+      pendingTransfer = transferId;
+      transition(State.SUBMITTING);
+      return true;
+   }
+
+   public void acknowledge(java.util.UUID transferId, State observed) {
+      if (state == State.SUBMITTING && transferId != null && transferId.equals(pendingTransfer)) {
+         Objects.requireNonNull(observed, "observed");
+         if (observed == State.SUBMITTING || observed == State.CANCELLING) {
+            throw new IllegalArgumentException("Acknowledgement requires a server state");
+         }
+         pendingTransfer = null;
+         transition(Objects.requireNonNull(observed, "observed"));
+      }
+   }
+
+   public void acknowledge(long requestId, State observed) {
+      if (state == State.SUBMITTING && requestId > 0 && pendingRequest == requestId) {
+         Objects.requireNonNull(observed, "observed");
+         if (observed == State.SUBMITTING || observed == State.CANCELLING) {
+            throw new IllegalArgumentException("Acknowledgement requires a server state");
+         }
+         pendingRequest = 0;
+         transition(Objects.requireNonNull(observed, "observed"));
+      }
+   }
+
+   public void abortSubmission(long requestId, State observed) {
+      acknowledge(requestId, observed);
+   }
+
+   public void abortSubmission(java.util.UUID transferId, State observed) {
+      acknowledge(transferId, observed);
+   }
+
    public Dispatch dispatch(InputKind input) {
       Objects.requireNonNull(input, "input");
       if (input == InputKind.CANCEL) {
          return switch (state) {
-            case BUILDING, GEOMETRY, SELECTING, ADJUSTING, PLACING -> Dispatch.CANCEL;
+            case BUILDING, GEOMETRY, SELECTING, ADJUSTING, SUBMITTING, PLACING -> Dispatch.CANCEL;
             case IDLE, RESTORING, CANCELLING -> Dispatch.BLOCKED;
          };
       }
@@ -49,7 +105,7 @@ public final class ClientInputStateMachine {
          case BUILDING -> Dispatch.BUILDING;
          case GEOMETRY -> Dispatch.GEOMETRY;
          case SELECTING, ADJUSTING -> Dispatch.OPERATION;
-         case PLACING, RESTORING, CANCELLING -> Dispatch.BLOCKED;
+         case SUBMITTING, PLACING, RESTORING, CANCELLING -> Dispatch.BLOCKED;
       };
    }
 
@@ -67,12 +123,18 @@ public final class ClientInputStateMachine {
 
    public void reset() {
       state = State.IDLE;
+      pendingRequest = 0;
+      pendingTransfer = null;
       invalidateGesture();
    }
 
    private void transition(State next) {
       if (next != state) {
          state = next;
+         if (next != State.SUBMITTING) {
+            pendingRequest = 0;
+            pendingTransfer = null;
+         }
          invalidateGesture();
       }
    }
@@ -88,6 +150,7 @@ public final class ClientInputStateMachine {
       GEOMETRY,
       SELECTING,
       ADJUSTING,
+      SUBMITTING,
       PLACING,
       RESTORING,
       CANCELLING

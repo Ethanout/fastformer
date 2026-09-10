@@ -3,11 +3,13 @@ package io.github.fastformer.fastplace.task;
 import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.world.WorldChangeBatch;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
+import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import java.util.UUID;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -30,6 +32,8 @@ public interface WorldOperationTask {
 
    WorldChangeTransaction transaction();
 
+   WorldOperationCommit operationCommit();
+
    default boolean hasWrites() {
       return transaction().hasWrites();
    }
@@ -37,13 +41,16 @@ public interface WorldOperationTask {
    /** Stops task-owned preparation and transfers recovery storage once. */
    default WorldRecoverySnapshot stopAndTransferRecovery() {
       cancelJournalPreparation();
-      return transaction().transferRecoverySnapshot();
+      WorldOperationCommit commit = operationCommit();
+      CompletableFuture<Void> ready = commit == null ? CompletableFuture.completedFuture(null) : commit.stopForRecovery();
+      return transaction().transferRecoverySnapshot(ready);
    }
 
    ResourceKey<Level> dimension();
 
    default Optional<WorldChangeBatch> preparedBatch() {
-      return transaction().preparedBatch(operationId());
+      WorldOperationCommit commit = operationCommit();
+      return commit == null ? Optional.empty() : commit.batch().map(batch -> batch.withOperationId(operationId()));
    }
 
    UUID operationId();

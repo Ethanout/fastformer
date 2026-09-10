@@ -36,6 +36,47 @@ class RecoveryJournalSegmentsTest {
    }
 
    @Test
+   void inspectionRetainsOnlyCountAndDigestWhileSegmentsRemainIndividuallyReadable() throws Exception {
+      UUID operation = UUID.randomUUID();
+      for (int sequence = 0; sequence < 3; sequence++) {
+         CompoundTag payload = new CompoundTag();
+         payload.putInt("Sequence", sequence);
+         RecoveryJournalSegment.write(
+            this.temporaryDirectory.resolve(String.format("segment-%06d.dat", sequence)),
+            operation,
+            sequence,
+            payload
+         );
+      }
+
+      RecoveryJournalSegments.SegmentSet inspected =
+         RecoveryJournalSegments.inspectComplete(this.temporaryDirectory, operation, 3);
+
+      assertEquals(3, inspected.count());
+      assertEquals(
+         RecoveryJournalSegments.digest(RecoveryJournalSegments.readComplete(this.temporaryDirectory, operation, 3)),
+         inspected.digest()
+      );
+      assertEquals(2, RecoveryJournalSegments.read(this.temporaryDirectory, operation, 2).payload().getInt("Sequence"));
+      assertEquals(0, RecoveryJournalSegments.read(this.temporaryDirectory, operation, 0).payload().getInt("Sequence"));
+   }
+
+   @Test
+   void unsealedInspectionValidatesEverySegmentBeforeReverseReadsBegin() throws Exception {
+      UUID operation = UUID.randomUUID();
+      RecoveryJournalSegment.write(
+         this.temporaryDirectory.resolve("segment-000000.dat"), operation, 0, new CompoundTag()
+      );
+      RecoveryJournalSegment.write(
+         this.temporaryDirectory.resolve("segment-000001.dat"), UUID.randomUUID(), 1, new CompoundTag()
+      );
+
+      assertThrows(IOException.class, () ->
+         RecoveryJournalSegments.inspectUnsealed(this.temporaryDirectory, operation, 2)
+      );
+   }
+
+   @Test
    void missingSegmentBlocksRecovery() throws Exception {
       UUID operation = UUID.randomUUID();
       RecoveryJournalSegment.write(

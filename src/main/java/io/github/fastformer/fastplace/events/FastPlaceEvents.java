@@ -134,7 +134,7 @@ public final class FastPlaceEvents {
    }
 
    private static void onServerTick(ServerTickEvent.Post event) {
-      FastPlaceNetwork.tick();
+      FastPlaceNetwork.tick(event.getServer());
       WorldTaskFeature.tick(event.getServer());
    }
 

@@ -220,6 +220,7 @@ public class FastPlaceClientPreviewCore {
    private static Vec3 cachedRaycastStart;
    private static Vec3 cachedRaycastDirection;
    private static long cachedRaycastAt;
+   private static boolean cachedRaycastForPlacement;
    private static AxisGizmo.Axis lastGizmoFeedbackAxis;
    private static AxisGizmo.Operation lastGizmoFeedbackOperation;
    private static int lastGizmoFeedbackSteps;
@@ -1770,10 +1771,6 @@ public class FastPlaceClientPreviewCore {
             Map<BlockPos, BlockState> previewStateOverrides = previewEffectStates(
                previewEffect, snapshot, previewPoints, polygonHeightConfirmed, buildingModes, layers.allBlocks()
             );
-            updateWoodFrameDebug(
-               snapshot, previewEffect, previewBlocks, previewStateOverrides,
-               previewPoints, polygonHeightConfirmed, buildingModes
-            );
             List<GuideLine> confirmedOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE
                ? PreviewGeometrySupport.outlineGeometryEdges(snapshot.points(), buildingModes.faceMode())
                : List.of();
@@ -2271,64 +2268,6 @@ public class FastPlaceClientPreviewCore {
          return Map.of();
       }
       return PlacementEffectPreview.resolveStates(effect, previewBlocks);
-   }
-
-   private static void updateWoodFrameDebug(
-      BuildingPreviewPayload snapshot,
-      ResolvedPlacementEffect effect,
-      Set<BlockPos> previewBlocks,
-      Map<BlockPos, BlockState> stateOverrides,
-      List<BlockPos> points,
-      boolean polygonHeightConfirmed,
-      FastPlaceGeometry.Modes modes
-   ) {
-      if (effect == null || !io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect.ID.equals(effect.id())
-         || modes.fillMode() != FillMode.OUTLINE || previewBlocks.isEmpty()) {
-         return;
-      }
-      Direction.Axis baseAxis = snapshot.placementContext() == null
-         ? Direction.Axis.Y
-         : snapshot.placementContext().clickedFace().getAxis();
-      SmartWoodFrame.Config config = SmartWoodFrame.config(
-         baseAxis, points, modes, polygonHeightConfirmed, snapshot.polygonVolumeShape()
-      );
-      int anomalies = 0;
-      int inspected = 0;
-      int corners = 0;
-      Map<BlockPos, Integer> memberships = new HashMap<>();
-      for (SmartWoodFrame.Edge edge : config.edges()) {
-         for (BlockPos member : LineGenerator.path(edge.from(), edge.to(), config.tieBias())) {
-            if (!previewBlocks.contains(member)) {
-               continue;
-            }
-            memberships.merge(member, 1, Integer::sum);
-         }
-      }
-      for (SmartWoodFrame.Edge edge : config.edges()) {
-         Direction.Axis expected = dominantAxis(edge.from(), edge.to());
-         for (BlockPos member : LineGenerator.path(edge.from(), edge.to(), config.tieBias())) {
-            if (!previewBlocks.contains(member)) {
-               continue;
-            }
-            if (memberships.getOrDefault(member, 0) > 1) {
-               corners++;
-               continue;
-            }
-            inspected++;
-            BlockState resolved = stateOverrides.get(member);
-            if (resolved != null && resolved.hasProperty(BlockStateProperties.AXIS)
-               && resolved.getValue(BlockStateProperties.AXIS) != expected) {
-               anomalies++;
-            }
-         }
-      }
-   }
-
-   private static Direction.Axis dominantAxis(BlockPos from, BlockPos to) {
-      long x = Math.abs((long)to.getX() - from.getX());
-      long y = Math.abs((long)to.getY() - from.getY());
-      long z = Math.abs((long)to.getZ() - from.getZ());
-      return x >= y && x >= z ? Direction.Axis.X : y >= z ? Direction.Axis.Y : Direction.Axis.Z;
    }
 
    private static FastPlaceGeometry.Modes effectiveBuildingModes(BuildingPreviewPayload snapshot) {
@@ -3100,6 +3039,18 @@ public class FastPlaceClientPreviewCore {
 
    @SubscribeEvent
    public static void onLoggingOut(LoggingOut event) {
+      endWorldSession();
+   }
+
+   @SubscribeEvent
+   public static void onClientLevelUnload(net.neoforged.neoforge.event.level.LevelEvent.Unload event) {
+      if (event.getLevel().isClientSide()) {
+         endWorldSession();
+      }
+   }
+
+   private static void endWorldSession() {
+      FastPlaceClientInput.endWorldSession();
       PREVIEW_STATE.resetConnection();
       ClientOperationController.onDisconnected();
       WorkspaceInteractionResolver.clearCache();
@@ -3142,14 +3093,19 @@ public class FastPlaceClientPreviewCore {
    private static BlockHitResult raycastBlocks(LocalPlayer player) {
       Vec3 start = player.getEyePosition();
       Vec3 direction = player.getViewVector(1.0F);
+      boolean placement = !PREVIEW_STATE.operation().active() && !PREVIEW_STATE.geometry().active();
       long now = System.nanoTime();
       if (cachedRaycast != null
+         && cachedRaycastForPlacement == placement
          && start.equals(cachedRaycastStart)
          && direction.equals(cachedRaycastDirection)
          && now - cachedRaycastAt <= 16_000_000L) {
          return cachedRaycast.hit();
       }
-      cachedRaycast = LongRangeBlockRaycast.clip(player.level(), player, start, direction);
+      cachedRaycast = placement
+         ? LongRangeBlockRaycast.clipForPlacement(player.level(), player, start, direction)
+         : LongRangeBlockRaycast.clip(player.level(), player, start, direction);
+      cachedRaycastForPlacement = placement;
       cachedRaycastStart = start;
       cachedRaycastDirection = direction;
       cachedRaycastAt = now;

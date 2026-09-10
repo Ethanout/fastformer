@@ -30,19 +30,24 @@ public final class LongRangeBlockRaycast {
       return clip(level, source, start, direction, ClipContext.Block.OUTLINE);
    }
 
-   /**
-    * Performs a raycast with the shape policy used by the caller. Placement
-    * targets use COLLIDER so blocks with no collision volume (snow layers,
-    * grass and similar replaceable blocks) do not steal the placement hit.
-    * Selection and gizmo hit testing keep the OUTLINE policy above.
-    */
+   public static Result clipForPlacement(Level level, Entity source, Vec3 start, Vec3 direction) {
+      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, true);
+   }
+
    public static Result clip(
       Level level, Entity source, Vec3 start, Vec3 direction, ClipContext.Block blockMode
+   ) {
+      return clip(level, source, start, direction, blockMode, false);
+   }
+
+   private static Result clip(
+      Level level, Entity source, Vec3 start, Vec3 direction, ClipContext.Block blockMode,
+      boolean skipReplaceable
    ) {
       long startedAt = System.nanoTime();
       Vec3 ray = direction.lengthSqr() < EPSILON ? Vec3.ZERO : direction.normalize();
       if (ray.lengthSqr() < EPSILON) {
-         BlockHitResult hit = level.clip(new ClipContext(start, start, blockMode, ClipContext.Fluid.NONE, source));
+         BlockHitResult hit = level.clip(context(start, start, blockMode, source, skipReplaceable));
          return new Result(hit, 0.0, 0.0, Limit.ZERO_DIRECTION, 0, System.nanoTime() - startedAt);
       }
 
@@ -53,9 +58,25 @@ public final class LongRangeBlockRaycast {
       double distance = Math.max(0.0, Math.min(bounded.distance(), loaded.distance()));
       Limit limit = loaded.distance() + EPSILON < bounded.distance() ? Limit.UNLOADED_CHUNK : bounded.limit();
       Vec3 end = start.add(ray.scale(distance));
-      BlockHitResult hit = level.clip(new ClipContext(start, end, blockMode, ClipContext.Fluid.NONE, source));
+      BlockHitResult hit = level.clip(context(start, end, blockMode, source, skipReplaceable));
       hit = firstCellEntry(start, end, hit);
       return new Result(hit, distance, world.distance(), limit, loaded.checkedChunks(), System.nanoTime() - startedAt);
+   }
+
+   private static ClipContext context(
+      Vec3 start, Vec3 end, ClipContext.Block mode, Entity source, boolean skipReplaceable
+   ) {
+      return new ClipContext(start, end, mode, ClipContext.Fluid.NONE, source) {
+         @Override
+         public net.minecraft.world.phys.shapes.VoxelShape getBlockShape(
+            net.minecraft.world.level.block.state.BlockState state,
+            net.minecraft.world.level.BlockGetter level, BlockPos pos
+         ) {
+            return skipReplaceable && state.canBeReplaced()
+               ? net.minecraft.world.phys.shapes.Shapes.empty()
+               : super.getBlockShape(state, level, pos);
+         }
+      };
    }
 
    /** Replaces a collision-shape's interior face with the face where the ray entered its block cell. */

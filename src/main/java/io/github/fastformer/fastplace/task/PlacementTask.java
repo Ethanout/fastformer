@@ -10,6 +10,7 @@ import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeBatch;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationMemory;
+import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldJournalPreparation;
 import io.github.fastformer.fastplace.world.WorldBatchFeedback;
@@ -26,10 +27,12 @@ import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import java.util.ArrayDeque;
 import java.util.AbstractCollection;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -57,14 +60,28 @@ public final class PlacementTask {
    private final WorldOperationMetrics metrics = new WorldOperationMetrics();
    private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
    private final WorldChangeTransaction transaction = new WorldChangeTransaction();
+   private WorldOperationCommit operationCommit;
    private Set<BlockPos> targets;
    private BlockPositionSource generatedPositions;
    private Map<BlockPos, BlockState> resolvedStates = Map.of();
    private boolean resolvedStatesPrepared;
-   private Iterator<BlockPos> blocks;
+   private final ArrayDeque<BlockPos> writable = new ArrayDeque<>();
+   private final Iterator<BlockPos> blocks = new Iterator<>() {
+      @Override
+      public boolean hasNext() {
+         return !PlacementTask.this.writable.isEmpty();
+      }
+
+      @Override
+      public BlockPos next() {
+         return PlacementTask.this.writable.removeFirst();
+      }
+   };
    private Iterator<BlockPos> validationIterator;
    private int validationRemaining;
    private boolean snapshotsValidated;
+   private int journaledCount;
+   private List<ReversibleBlockSnapshot> pendingJournalSlice = List.of();
    private int remaining;
    private int processed;
    private int total;
@@ -280,10 +297,8 @@ public final class PlacementTask {
          ? this.memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())
          : (this.memoryReservation = WorldOperationMemory.reserve(admission).orElse(null)) != null;
       if (!reserved) {
-         this.memoryUnsafe = true;
-         this.targets = Set.of();
-         this.remaining = 0;
-         this.validationRemaining = 0;
+         this.memoryChecked = false;
+         this.memoryThrottled = true;
       }
    }
 
@@ -324,22 +339,23 @@ public final class PlacementTask {
             return true;
          }
          this.transaction.recordExpected(pos, captured);
+         if (!this.journalPreparation.started()) {
+            int unjournaled = this.transaction.expectedCount() - this.journaledCount;
+            if (unjournaled >= PersistentRecoveryJournal.segmentBatchSize(this.journaledCount, unjournaled)) {
+               break;
+            }
+         }
          if (previous.equals(stateAt(pos))
             || this.plan.conflictMode() == OperationConflictMode.KEEP_EXISTING && !previous.canBeReplaced()) {
             continue;
          }
       }
       if (!this.validationIterator.hasNext()) {
-         var journalAdmission = WorldOperationMemory.journalAdmission(this.total, this.blockEntityReserve);
-         this.memoryThrottled = journalAdmission.throttled();
-         if (!journalAdmission.allowed()
-            || this.memoryReservation == null
-            || !this.memoryReservation.resize(journalAdmission.requestedBytes(), journalAdmission.usableBytes())) {
+         if (!reserveJournalMemory()) {
             this.memoryUnsafe = true;
             return true;
          }
          this.snapshotsValidated = true;
-         this.blocks = this.transaction.expectedPositions();
          // The validation map owns the snapshots from this point onward. A
          // packed position stream avoids retaining the generator's hash table
          // for the full duration of world writes.
@@ -347,12 +363,39 @@ public final class PlacementTask {
          this.generatedPositions = null;
          this.validationIterator = null;
       }
-      return this.snapshotsValidated;
+      return journalBatchReady(budget);
+   }
+
+   private boolean journalBatchReady(WorldTaskBudget budget) {
+      int unjournaled = this.transaction.expectedCount() - this.journaledCount - this.pendingJournalSlice.size();
+      if (unjournaled <= 0) {
+         return this.snapshotsValidated;
+      }
+      if (this.snapshotsValidated) {
+         return true;
+      }
+      int batch = PersistentRecoveryJournal.segmentBatchSize(this.journaledCount, unjournaled);
+      return unjournaled >= batch || !budget.hasRemaining();
    }
 
    public JournalPreparation prepareJournal(WorldTaskContext context) {
       if (this.transaction.expectedCount() == 0) {
          return JournalPreparation.READY;
+      }
+      if (this.pendingJournalSlice.isEmpty()) {
+         if (!this.hasUnjournaledSnapshots()) {
+            return JournalPreparation.READY;
+         }
+         if (!reserveJournalMemory()) {
+            this.memoryUnsafe = true;
+            fail(WorldOperationPhase.JOURNAL, "journal memory admission failed");
+            return JournalPreparation.FAILED;
+         }
+         int from = this.journaledCount;
+         int size = PersistentRecoveryJournal.segmentBatchSize(
+            from, this.transaction.expectedCount() - from
+         );
+         this.pendingJournalSlice = this.transaction.expectedRange(from, from + size);
       }
       if (!this.journalPreparation.started()) {
          this.metrics.phase(WorldOperationPhase.JOURNAL);
@@ -363,28 +406,78 @@ public final class PlacementTask {
          return JournalPreparation.FAILED;
       }
       RegistryAccess registryAccess = level.registryAccess();
-      JournalPreparation preparation = this.journalPreparation.poll(() -> beginJournal(context, registryAccess));
+      List<ReversibleBlockSnapshot> slice = this.pendingJournalSlice;
+      JournalPreparation preparation = this.journalPreparation.journal() == null
+         ? this.journalPreparation.poll(() -> beginJournal(context, registryAccess, slice))
+         : this.journalPreparation.pollAppend(() -> appendJournal(slice, registryAccess));
       if (preparation == JournalPreparation.FAILED) {
          fail(WorldOperationPhase.JOURNAL, this.journalPreparation.failureReason());
-      } else if (preparation == JournalPreparation.READY) {
-         this.metrics.journalReady();
+      } else if (preparation == JournalPreparation.READY && !slice.isEmpty()) {
+         if (this.journaledCount == 0) {
+            this.metrics.journalReady();
+         }
+         for (ReversibleBlockSnapshot snapshot : slice) {
+            this.writable.addLast(snapshot.pos());
+         }
+         this.journaledCount += slice.size();
+         this.pendingJournalSlice = List.of();
       }
       return preparation;
    }
 
    private Optional<PersistentRecoveryJournal> beginJournal(
       WorldTaskContext context,
-      RegistryAccess registryAccess
+      RegistryAccess registryAccess,
+      Collection<ReversibleBlockSnapshot> journalBefore
    ) {
-      var server = context.server();
-      UUID owner = context.owner();
-      Collection<ReversibleBlockSnapshot> journalBefore = this.transaction.expectedView();
       Collection<ReversibleBlockSnapshot> journalAfter = predictedPlacementAfter(
          registryAccess, journalBefore, this::stateAt, this.plan.conflictMode()
       );
       return PersistentRecoveryJournal.begin(
-         server, owner, this.plan.dimension(), journalBefore, journalAfter, this.operationId()
+         context.server(),
+         context.owner(),
+         this.plan.dimension(),
+         journalBefore,
+         journalAfter,
+         this.operationId()
       );
+   }
+
+   private boolean appendJournal(
+      Collection<ReversibleBlockSnapshot> journalBefore,
+      RegistryAccess registryAccess
+   ) {
+      PersistentRecoveryJournal journal = this.journalPreparation.journal();
+      if (journal == null) {
+         return false;
+      }
+      Collection<ReversibleBlockSnapshot> journalAfter = predictedPlacementAfter(
+         registryAccess, journalBefore, this::stateAt, this.plan.conflictMode()
+      );
+      return journal.appendSegment(journalBefore, journalAfter);
+   }
+
+   private boolean reserveJournalMemory() {
+      var journalAdmission = WorldOperationMemory.journalAdmission(this.total, this.blockEntityReserve);
+      this.memoryThrottled = journalAdmission.throttled();
+      return journalAdmission.allowed()
+         && this.memoryReservation != null
+         && this.memoryReservation.resize(journalAdmission.requestedBytes(), journalAdmission.usableBytes());
+   }
+
+   private boolean hasUnjournaledSnapshots() {
+      return this.transaction.expectedCount() > this.journaledCount + this.pendingJournalSlice.size();
+   }
+
+   public boolean snapshotsComplete() {
+      return this.snapshotsValidated;
+   }
+
+   public boolean readyToFinalize() {
+      return this.snapshotsValidated
+         && this.pendingJournalSlice.isEmpty()
+         && this.writable.isEmpty()
+         && this.journaledCount == this.transaction.expectedCount();
    }
 
    public boolean finalizeSnapshots(ServerLevel level, WorldTaskBudget budget) {
@@ -408,17 +501,25 @@ public final class PlacementTask {
 
    public JournalPreparation prepareCommit() {
       this.metrics.phase(WorldOperationPhase.COMMIT);
-      JournalPreparation preparation = this.transaction.prepareCommit(
-         this.plan.dimension(), this.journalPreparation.journal(), this::reserveCommitMemory
-      );
+      if (this.operationCommit == null) {
+         if (!reserveCommitMemory()) {
+            return JournalPreparation.PENDING;
+         }
+         this.operationCommit = WorldOperationCommit.begin(
+            this.plan.dimension(), this.transaction, this.journalPreparation.journal()
+         );
+      }
+      JournalPreparation preparation = this.operationCommit.poll();
       if (preparation == JournalPreparation.FAILED) {
-         fail(WorldOperationPhase.COMMIT, this.transaction.commitFailureReason());
+         fail(WorldOperationPhase.COMMIT, this.operationCommit.failureReason());
       }
       return preparation;
    }
 
    public Optional<WorldChangeBatch> preparedBatch() {
-      return this.transaction.preparedBatch(this.operationId());
+      return this.operationCommit == null
+         ? Optional.empty()
+         : this.operationCommit.batch().map(batch -> batch.withOperationId(this.operationId()));
    }
 
    public PersistentRecoveryJournal journal() {
@@ -438,7 +539,9 @@ public final class PlacementTask {
    }
 
    public void releaseAfterCancelledJournal(WorldTaskContext context) {
-      this.transaction.cancelCommit();
+      if (this.operationCommit != null) {
+         this.operationCommit.cancel();
+      }
       this.journalPreparation.releaseAfterCancellation(context, this.plan.dimension());
    }
 
@@ -471,8 +574,12 @@ public final class PlacementTask {
    /** Releases the task working-set budget after ownership transfers or completion. */
    public void releaseMemoryReservation() {
       if (this.memoryReservation != null) {
-         this.memoryReservation.close();
+         MemoryReservation reservation = this.memoryReservation;
          this.memoryReservation = null;
+         CompletableFuture<?> publicationCompletion = this.operationCommit == null
+            ? CompletableFuture.completedFuture(null)
+            : this.operationCommit.completion();
+         this.journalPreparation.releaseWhenIdle(reservation, publicationCompletion);
       }
    }
 
@@ -481,7 +588,7 @@ public final class PlacementTask {
       if (this.memoryReservation != null) {
          return true;
       }
-      if (this.transaction.commitStarted()) {
+      if (this.operationCommit != null) {
          return reserveCommitMemory();
       }
       MemoryAdmission admission;
@@ -493,9 +600,14 @@ public final class PlacementTask {
          admission = transactionAdmission();
       }
       this.memoryThrottled = admission.throttled();
+      if (!admission.allowed()) {
+         this.memoryUnsafe = true;
+         this.metrics.phase(WorldOperationPhase.MEMORY_ADMISSION);
+         return false;
+      }
       this.memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
       if (this.memoryReservation == null) {
-         this.memoryUnsafe = true;
+         this.memoryThrottled = true;
          this.metrics.phase(WorldOperationPhase.MEMORY_ADMISSION);
          return false;
       }
@@ -522,7 +634,8 @@ public final class PlacementTask {
     * their outcome is known.
     */
    public void releaseCommittedTransactionState() {
-      this.transaction.releaseCommitted();
+      this.transaction.releaseWriteState();
+      this.operationCommit = null;
       this.finalizationIterator = null;
    }
 
@@ -537,7 +650,8 @@ public final class PlacementTask {
       this.resolvedStates = Map.of();
       this.resolvedStatesPrepared = false;
       this.transaction.clearExpected();
-      this.blocks = Collections.emptyIterator();
+      this.writable.clear();
+      this.pendingJournalSlice = List.of();
       this.validationIterator = null;
    }
 
@@ -691,7 +805,10 @@ public final class PlacementTask {
    /** Stops task-owned work and transfers recovery storage once. */
    public WorldRecoverySnapshot stopAndTransferRecovery() {
       cancelForRecovery();
-      return this.transaction.transferRecoverySnapshot();
+      CompletableFuture<Void> ready = this.operationCommit == null
+         ? CompletableFuture.completedFuture(null)
+         : this.operationCommit.stopForRecovery();
+      return this.transaction.transferRecoverySnapshot(ready);
    }
 
    private void fail(WorldOperationPhase phase, String reason) {

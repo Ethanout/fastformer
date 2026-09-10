@@ -52,6 +52,13 @@ public final class ClientPayloadDispatcher {
       invokeStatic(PREVIEW_CLASS, "applyActivity", ActivityStatePayload.class, payload);
    }
 
+   public static void acknowledgePlacement(
+      io.github.fastformer.network.payload.placement.PlacementActionAckPayload payload
+   ) {
+      invokeStatic("io.github.fastformer.client.input.FastPlaceClientInput", "acknowledgePlacementRequest",
+         io.github.fastformer.network.payload.placement.PlacementActionAckPayload.class, payload);
+   }
+
    public static void applyWorkspaceResult(OperationWorkspaceResultPayload payload) {
       invokeStatic(OPERATION_CLASS, "applyWorkspaceResult", OperationWorkspaceResultPayload.class, payload);
    }

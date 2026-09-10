@@ -2,27 +2,23 @@ package io.github.fastformer.fastplace.world;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.world.level.Level;
 
 /**
- * Owns the mutable before/after staging and asynchronous commit for one world
- * operation. Target generation and task phase transitions remain task-owned.
+ * Owns conflict checks and mutable before/after staging for one world write.
+ * History publication and task phase transitions remain task-owned.
  */
 public final class WorldChangeTransaction {
    private final Long2ObjectLinkedOpenHashMap<ReversibleBlockSnapshot> expected = new Long2ObjectLinkedOpenHashMap<>();
    private ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>();
    private PackedBlockSnapshotMap after = new PackedBlockSnapshotMap();
-   private WorldOperationCommit commit;
    private long commitBlockEntityReserve = -1L;
 
    public void recordExpected(BlockPos position, ReversibleBlockSnapshot snapshot) {
@@ -53,6 +49,24 @@ public final class WorldChangeTransaction {
 
    public Collection<ReversibleBlockSnapshot> expectedView() {
       return Collections.unmodifiableCollection(this.expected.values());
+   }
+
+   public List<ReversibleBlockSnapshot> expectedRange(int fromInclusive, int toExclusive) {
+      if (fromInclusive < 0 || toExclusive < fromInclusive || toExclusive > this.expected.size()) {
+         throw new IllegalArgumentException("Invalid expected snapshot range");
+      }
+      List<ReversibleBlockSnapshot> range = new ArrayList<>(toExclusive - fromInclusive);
+      int index = 0;
+      for (ReversibleBlockSnapshot snapshot : this.expected.values()) {
+         if (index >= toExclusive) {
+            break;
+         }
+         if (index >= fromInclusive) {
+            range.add(snapshot);
+         }
+         index++;
+      }
+      return List.copyOf(range);
    }
 
    /**
@@ -132,40 +146,6 @@ public final class WorldChangeTransaction {
       return this.commitBlockEntityReserve;
    }
 
-   public JournalPreparation prepareCommit(
-      ResourceKey<Level> dimension,
-      PersistentRecoveryJournal journal,
-      BooleanSupplier reserveMemory
-   ) {
-      if (this.commit == null) {
-         if (reserveMemory == null || !reserveMemory.getAsBoolean()) {
-            return JournalPreparation.PENDING;
-         }
-         this.commit = WorldOperationCommit.begin(dimension, this.before, this.after, journal);
-      }
-      return this.commit.poll();
-   }
-
-   public String commitFailureReason() {
-      return this.commit == null ? "commit preparation did not start" : this.commit.failureReason();
-   }
-
-   public boolean commitStarted() {
-      return this.commit != null;
-   }
-
-   public Optional<WorldChangeBatch> preparedBatch(UUID operationId) {
-      return this.commit == null
-         ? Optional.empty()
-         : this.commit.batch().map(batch -> batch.withOperationId(operationId));
-   }
-
-   public void cancelCommit() {
-      if (this.commit != null) {
-         this.commit.cancel();
-      }
-   }
-
    Collection<ReversibleBlockSnapshot> beforeView() {
       return Collections.unmodifiableCollection(this.before);
    }
@@ -175,26 +155,23 @@ public final class WorldChangeTransaction {
    }
 
    /**
-    * Atomically transfers both recovery sides out of this transaction. A
-    * second call returns only the transaction's new empty containers.
+    * Atomically transfers both recovery sides out of this transaction. The
+    * supplied signal prevents recovery from reading them during publication.
+    * A second call returns only the transaction's new empty containers.
     */
-   public WorldRecoverySnapshot transferRecoverySnapshot() {
-      CompletableFuture<Void> ready = this.commit == null
-         ? CompletableFuture.completedFuture(null)
-         : this.commit.stopForRecovery();
-      WorldRecoverySnapshot transferred = new WorldRecoverySnapshot(this.before, this.after, ready);
+   public WorldRecoverySnapshot transferRecoverySnapshot(CompletableFuture<Void> ready) {
+      CompletableFuture<Void> recoveryReady = ready == null ? CompletableFuture.completedFuture(null) : ready;
+      WorldRecoverySnapshot transferred = new WorldRecoverySnapshot(this.before, this.after, recoveryReady);
       this.before = new ArrayDeque<>();
       this.after = new PackedBlockSnapshotMap();
-      this.commit = null;
       this.commitBlockEntityReserve = -1L;
       return transferred;
    }
 
-   public void releaseCommitted() {
+   public void releaseWriteState() {
       this.expected.clear();
       this.before.clear();
       this.after.clear();
-      this.commit = null;
       this.commitBlockEntityReserve = -1L;
    }
 }

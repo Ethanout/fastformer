@@ -150,29 +150,17 @@ final class SmartWoodFrameOrientation {
       if (edges.size() == 1) {
          return edges.getFirst().axis();
       }
-      double x = 0.0;
-      double y = 0.0;
-      double z = 0.0;
+      double longest = -1.0;
+      Direction.Axis selected = fallback;
       for (OrientedEdge edge : edges) {
-         x = Math.max(x, Math.abs(edge.direction().x));
-         y = Math.max(y, Math.abs(edge.direction().y));
-         z = Math.max(z, Math.abs(edge.direction().z));
-      }
-      double maximum = Math.max(x, Math.max(y, z));
-      if (maximum <= EPSILON) {
-         return fallback;
-      }
-      for (Direction.Axis axis : Direction.Axis.values()) {
-         double score = switch (axis) {
-            case X -> x;
-            case Y -> y;
-            case Z -> z;
-         };
-         if (score >= maximum - EPSILON) {
-            return axis;
+         double length = edge.edge().from().distSqr(edge.edge().to());
+         if (length > longest + EPSILON
+            || Math.abs(length - longest) <= EPSILON && edge.axis().ordinal() < selected.ordinal()) {
+            longest = length;
+            selected = edge.axis();
          }
       }
-      return fallback;
+      return longest <= EPSILON ? fallback : selected;
    }
 
    private static Direction.Axis axisForDirection(Vec3 direction, Direction.Axis fallback) {

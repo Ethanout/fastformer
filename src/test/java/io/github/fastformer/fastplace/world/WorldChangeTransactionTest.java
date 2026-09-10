@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
@@ -36,7 +36,7 @@ class WorldChangeTransactionTest {
       assertEquals(2, transaction.beforeCount());
       assertEquals(2, transaction.afterCount());
       assertEquals("final-first", marker(transaction.afterAt(first.pos())));
-      WorldRecoverySnapshot recovery = transaction.transferRecoverySnapshot();
+      WorldRecoverySnapshot recovery = transaction.transferRecoverySnapshot(null);
       assertEquals(second, recovery.before().getFirst());
       assertEquals(
          List.of(first.pos(), second.pos()),
@@ -48,9 +48,26 @@ class WorldChangeTransactionTest {
       );
       assertFalse(transaction.hasWrites());
       assertEquals(0, transaction.afterCount());
-      WorldRecoverySnapshot secondTransfer = transaction.transferRecoverySnapshot();
+      WorldRecoverySnapshot secondTransfer = transaction.transferRecoverySnapshot(null);
       assertFalse(secondTransfer.hasWrites());
       assertTrue(secondTransfer.after().isEmpty());
+   }
+
+   @Test
+   void expectedRangeCopiesInsertionOrderWithoutExposingLiveMutation() {
+      WorldChangeTransaction transaction = new WorldChangeTransaction();
+      ReversibleBlockSnapshot first = snapshot(new BlockPos(1, 2, 3), "first");
+      ReversibleBlockSnapshot second = snapshot(new BlockPos(4, 5, 6), "second");
+      ReversibleBlockSnapshot third = snapshot(new BlockPos(7, 8, 9), "third");
+      transaction.recordExpected(first.pos(), first);
+      transaction.recordExpected(second.pos(), second);
+      transaction.recordExpected(third.pos(), third);
+
+      List<ReversibleBlockSnapshot> range = transaction.expectedRange(1, 3);
+      transaction.recordExpected(new BlockPos(10, 11, 12), snapshot(new BlockPos(10, 11, 12), "fourth"));
+
+      assertEquals(List.of(second, third), range);
+      assertEquals(4, transaction.expectedCount());
    }
 
    @Test
@@ -110,53 +127,47 @@ class WorldChangeTransactionTest {
       }
 
       assertEquals(2, finalized);
-      assertTrue(transaction.transferRecoverySnapshot().after().values().stream()
+      assertTrue(transaction.transferRecoverySnapshot(null).after().values().stream()
          .allMatch(value -> marker(value).equals("finalized")));
    }
 
    @Test
-   void commitDoesNotStartUntilMemoryIsReserved() {
-      WorldChangeTransaction transaction = changedTransaction();
-      AtomicInteger attempts = new AtomicInteger();
-
-      assertEquals(JournalPreparation.PENDING, transaction.prepareCommit(
-         Level.OVERWORLD,
-         null,
-         () -> {
-            attempts.incrementAndGet();
-            return false;
-         }
-      ));
-
-      assertEquals(1, attempts.get());
-      assertFalse(transaction.commitStarted());
-   }
-
-   @Test
-   void preparedBatchKeepsOperationIdentityAndCommittedStateCanBeReleased() {
+   void commitIsReturnedToTheCallerAndWriteStateCanBeReleasedSeparately() {
       WorldChangeTransaction transaction = changedTransaction();
       UUID operationId = UUID.randomUUID();
+      WorldOperationCommit commit = WorldOperationCommit.begin(Level.OVERWORLD, transaction, null);
 
-      JournalPreparation result = await(() -> transaction.prepareCommit(Level.OVERWORLD, null, () -> true));
+      JournalPreparation result = await(commit::poll);
 
       assertEquals(JournalPreparation.READY, result);
-      WorldChangeBatch batch = transaction.preparedBatch(operationId).orElseThrow();
+      WorldChangeBatch batch = commit.batch().map(value -> value.withOperationId(operationId)).orElseThrow();
       assertEquals(operationId, batch.operationId());
       assertEquals(1, batch.size());
 
-      transaction.releaseCommitted();
+      transaction.releaseWriteState();
       assertFalse(transaction.hasWrites());
       assertEquals(0, transaction.expectedCount());
       assertEquals(0, transaction.afterCount());
-      assertFalse(transaction.commitStarted());
    }
 
    @Test
    void recoveryTransferIsImmediatelyReadyWithoutCommitWork() {
-      WorldRecoverySnapshot recovery = changedTransaction().transferRecoverySnapshot();
+      WorldRecoverySnapshot recovery = changedTransaction().transferRecoverySnapshot(null);
 
       assertTrue(recovery.ready());
       assertTrue(recovery.hasWrites());
+   }
+
+   @Test
+   void recoveryTransferUsesThePublicationCompletionSignalWithoutOwningPublication() {
+      WorldChangeTransaction transaction = changedTransaction();
+      CompletableFuture<Void> publicationStopped = new CompletableFuture<>();
+
+      WorldRecoverySnapshot recovery = transaction.transferRecoverySnapshot(publicationStopped);
+
+      assertFalse(recovery.ready());
+      publicationStopped.complete(null);
+      assertTrue(recovery.ready());
    }
 
    private static WorldChangeTransaction changedTransaction() {

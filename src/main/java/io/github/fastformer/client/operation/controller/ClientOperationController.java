@@ -618,15 +618,20 @@ public final class ClientOperationController {
             .prepareWorkspace(minecraft, plan).orElse(null);
          if (submission == null) return false;
          UUID transferId = submission.transferId();
+         if (!io.github.fastformer.client.input.FastPlaceClientInput.beginWorkspaceRequest(transferId)) {
+            return false;
+         }
          workspaceSubmissionPending = true;
          pendingWorkspaceTransferId = transferId;
          workspace().setLocked(true);
          submission.send();
          return true;
       } catch (IOException | RuntimeException exception) {
+         UUID failedTransferId = pendingWorkspaceTransferId;
          workspaceSubmissionPending = false;
          pendingWorkspaceTransferId = null;
          workspace().setLocked(false);
+         io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(failedTransferId);
          return false;
       }
    }
@@ -641,6 +646,7 @@ public final class ClientOperationController {
       workspace().setLocked(false);
       if (payload.accepted()) {
          clearWorkspace();
+         io.github.fastformer.client.input.FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
          return;
       }
       if (!payload.failedPartIds().isEmpty()) {
@@ -649,6 +655,7 @@ public final class ClientOperationController {
             workspace().toggleSelected(payload.failedPartIds().get(index));
          }
       }
+      io.github.fastformer.client.input.FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
    }
 
    public static void cancelTransformGesture(ClientOperationWorkspace.EditToken editToken) {
@@ -674,20 +681,19 @@ public final class ClientOperationController {
       return !submissionPending && (previousServerOperationActive || reconnectSnapshot);
    }
 
-   /**
-    * Clears connection-local interaction state without deleting the player's session box.
-    * The workspace and its history remain attached to the player's UUID for reconnects,
-    * respawns, and dimension changes.
-    */
+   /** Ends editable client state when the connection closes. */
    public static void onDisconnected() {
       ClientPlayerSession session = ClientSessionManager.instance().currentSession();
       ClientOperationWorkspace playerWorkspace = session == null ? FALLBACK_WORKSPACE : session.operationWorkspace();
-      // Keep the player's edit baseline and draft across reconnects, respawns,
-      // and dimension changes. Only the transport lock is connection-local.
-      playerWorkspace.setLocked(false);
+      if (session != null) {
+         session.endInteraction();
+      }
+      FALLBACK_WORKSPACE.clear();
+      FALLBACK_SELECTION_SESSION.clearDraft();
+      FALLBACK_SELECTION_SESSION.setAltHeld(false);
       workspaceSubmissionPending = false;
       pendingWorkspaceTransferId = null;
-      awaitingOperationSnapshot = !playerWorkspace.isEmpty();
+      awaitingOperationSnapshot = false;
       serverPreview = OperationPreviewPayload.inactive();
       lastServerPreviewRevision = -1L;
       SOURCE_MASK.clear();

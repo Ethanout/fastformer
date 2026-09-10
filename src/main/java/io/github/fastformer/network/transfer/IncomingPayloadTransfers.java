@@ -64,14 +64,22 @@ public final class IncomingPayloadTransfers {
    }
 
    /** Removes stalled transfers even when the client sends no further chunks. */
-   public void purgeExpired() {
-      purgeExpired(System.nanoTime());
+   public java.util.List<ExpiredTransfer> purgeExpired() {
+      return purgeExpired(System.nanoTime());
    }
 
-   void purgeExpired(long now) {
-      workspaceTransfers.entrySet().removeIf(entry -> entry.getValue().expired(now, TRANSFER_TIMEOUT_NANOS));
+   java.util.List<ExpiredTransfer> purgeExpired(long now) {
+      var expired = new java.util.ArrayList<ExpiredTransfer>();
+      workspaceTransfers.forEach((owner, transfer) -> {
+         if (transfer.expired(now, TRANSFER_TIMEOUT_NANOS) && workspaceTransfers.remove(owner, transfer)) {
+            expired.add(new ExpiredTransfer(owner, transfer.transferId()));
+         }
+      });
       shapeTransfers.entrySet().removeIf(entry -> entry.getValue().expired(now, TRANSFER_TIMEOUT_NANOS));
+      return java.util.List.copyOf(expired);
    }
+
+   public record ExpiredTransfer(UUID owner, UUID transferId) {}
 
    private static byte[] accept(
       Map<UUID, ChunkedPayloadTransfer> transfers,

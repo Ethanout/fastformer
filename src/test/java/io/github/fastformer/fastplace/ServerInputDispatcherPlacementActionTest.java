@@ -26,6 +26,14 @@ class ServerInputDispatcherPlacementActionTest {
    }
 
    @Test
+   void operationAndPlacementRequestsShareTheDuplicateGate() {
+      assertTrue(ServerInputDispatcher.acceptPlacementAction(owner, 12L));
+      assertFalse(ServerInputDispatcher.acceptPlacementAction(owner, 12L));
+      assertFalse(ServerInputDispatcher.acceptPlacementAction(owner, 11L));
+      assertTrue(ServerInputDispatcher.acceptPlacementAction(owner, 13L));
+   }
+
+   @Test
    void clearingAnOwnerAllowsAFreshConnectionSequence() {
       assertTrue(ServerInputDispatcher.acceptPlacementAction(owner, 8L));
       ServerInputDispatcher.clearPlacementActions(owner);

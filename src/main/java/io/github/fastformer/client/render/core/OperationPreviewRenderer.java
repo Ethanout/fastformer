@@ -203,14 +203,15 @@ final class OperationPreviewRenderer {
                selectionBounds.getZsize() * 0.5);
          poseStack.pushPose();
          poseStack.translate(-camera.x, -camera.y, -camera.z);
+         AABB outlineBounds = WorkspaceInteractionResolver.outlineBounds(part, bounds.aabb());
          Vec3 halfExtents = new Vec3(
-            bounds.width(AxisGizmo.Axis.X) * 0.5 + 0.018,
-            bounds.width(AxisGizmo.Axis.Y) * 0.5 + 0.018,
-            bounds.width(AxisGizmo.Axis.Z) * 0.5 + 0.018
+            outlineBounds.getXsize() * 0.5 + 0.018,
+            outlineBounds.getYsize() * 0.5 + 0.018,
+            outlineBounds.getZsize() * 0.5 + 0.018
          );
          if (selected) {
             renderFlowingDashedBox(
-               poseStack, buffers.getBuffer(RenderType.lines()), bounds.center(), halfExtents,
+               poseStack, buffers.getBuffer(RenderType.lines()), outlineBounds.getCenter(), halfExtents,
                pendingGridDashOffset() + part.id() * 0.31, hovered ? 0.48F : 0.38F
             );
             // Only locked parts keep a second frame for their immutable selection baseline.
