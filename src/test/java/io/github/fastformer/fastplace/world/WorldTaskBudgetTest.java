@@ -8,6 +8,17 @@ import org.junit.jupiter.api.Test;
 
 class WorldTaskBudgetTest {
    @Test
+   void exhaustedPreparationBudgetAllowsOnlyOneFirstWrite() {
+      WorldTaskBudget budget = WorldTaskBudget.testing(1, 1, 0L, () -> 0L);
+      assertEquals(true, budget.tryConsume());
+      assertEquals(false, budget.tryConsume());
+      assertEquals(true, budget.tryConsumeFirstWrite());
+      assertEquals(false, budget.tryConsumeFirstWrite());
+      assertEquals(false, budget.tryConsume());
+      assertEquals(2, budget.consumed());
+   }
+
+   @Test
    void slowCellsStillReceiveTheMinimumProgressGuarantee() {
       AtomicLong now = new AtomicLong();
       WorldTaskBudget budget = WorldTaskBudget.testing(4096, 64, 3_000_000L, now::get);

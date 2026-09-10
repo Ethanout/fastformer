@@ -89,7 +89,8 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    @Override
    public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
       this.metrics.phase(phaseMetric());
-      while (budget.tryConsume()) {
+      while (budget.tryConsume()
+         || (phase == Phase.WRITE && !writable.isEmpty() && !hasWrites() && budget.tryConsumeFirstWrite())) {
          if (!PersistentRecoveryJournal.writesAllowed()) {
             return OperationTaskResult.FAILED;
          }

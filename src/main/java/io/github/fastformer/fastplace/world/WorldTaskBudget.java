@@ -15,6 +15,7 @@ public final class WorldTaskBudget {
    private final long startedAt;
    private final LongSupplier nanoTime;
    private int consumed;
+   private boolean firstWriteAllowanceUsed;
 
    private WorldTaskBudget(int maxCells, int minCells, long targetNanos, LongSupplier nanoTime) {
       this.maxCells = Math.max(1, maxCells);
@@ -136,6 +137,16 @@ public final class WorldTaskBudget {
          return false;
       }
       return this.consumed < this.minCells || this.nanoTime.getAsLong() - this.startedAt < this.targetNanos;
+   }
+
+   /** Allows one already-journaled first write after preparation exhausts this budget. */
+   public boolean tryConsumeFirstWrite() {
+      if (this.firstWriteAllowanceUsed) {
+         return false;
+      }
+      this.firstWriteAllowanceUsed = true;
+      this.consumed++;
+      return true;
    }
 
    public int consumed() {

@@ -1,6 +1,8 @@
 package io.github.fastformer.fastplace.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.OperationConflictMode;
@@ -13,16 +15,21 @@ import io.github.fastformer.fastplace.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.MemoryAdmission;
 import io.github.fastformer.fastplace.world.MemoryAdmissionStatus;
 import io.github.fastformer.fastplace.world.MemoryReservation;
+import io.github.fastformer.fastplace.world.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
+import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldOperationMemory;
+import io.github.fastformer.fastplace.world.JournalPreparation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
@@ -112,6 +119,116 @@ class IncrementalMemoryContentionTest {
       assertEquals(OperationTaskResult.MEMORY_UNSAFE, operationResult(invoke(selection, "finishScan")));
    }
 
+   @Test
+   void placementCommitRetriesThenAdvancesAndReleasesReservation() throws Exception {
+      long baseline = MemoryReservation.reservedBytes();
+      PlacementTask task = placementTask();
+      assertTrue(task.prepare());
+      assertTrue(task.ensureMemoryReservation());
+      WorldChangeTransaction transaction = (WorldChangeTransaction)field(task, "transaction");
+      prepareChangedTransaction(transaction);
+
+      MemoryReservation blocker = fillReservationLimit(commitAdmission(transaction));
+      try {
+         assertEquals(JournalPreparation.PENDING, task.prepareCommit());
+         assertNull(field(task, "operationCommit"));
+
+         blocker.close();
+         assertEquals(JournalPreparation.READY, awaitPlacementCommit(task));
+         WorldOperationCommit commit = operationCommit(task);
+         assertNotNull(commit);
+         task.releaseMemoryReservation();
+         commit.completion().join();
+      } finally {
+         blocker.close();
+         task.releaseMemoryReservation();
+      }
+      assertNull(field(task, "memoryReservation"));
+      assertEquals(baseline, MemoryReservation.reservedBytes());
+   }
+
+   @Test
+   void workspaceCommitRetriesThenAdvancesAndReleasesReservation() throws Exception {
+      long baseline = MemoryReservation.reservedBytes();
+      ClientWorkspacePlacementTask task = workspaceTask();
+      setField(task, "desired", Collections.singletonMap(BlockPos.ZERO, null));
+      assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
+      prepareChangedTransaction(task.transaction());
+
+      MemoryReservation blocker = fillReservationLimit(commitAdmission(task.transaction()));
+      try {
+         assertEquals(OperationTaskResult.ACTIVE, invoke(task, "prepareCommit"));
+         assertNull(task.operationCommit());
+
+         blocker.close();
+         assertEquals(OperationTaskResult.COMPLETE, awaitOperationCommit(task, "prepareCommit"));
+         assertNotNull(task.operationCommit());
+         task.releaseMemoryReservation();
+         task.operationCommit().completion().join();
+      } finally {
+         blocker.close();
+         task.releaseMemoryReservation();
+      }
+      assertNull(field(task, "memoryReservation"));
+      assertEquals(baseline, MemoryReservation.reservedBytes());
+   }
+
+   @Test
+   void selectionCommitRetriesThenAdvancesAndReleasesReservation() throws Exception {
+      long baseline = MemoryReservation.reservedBytes();
+      SelectionOperationTask task = selectionTask();
+      snapshotList(task).add(snapshot(BlockPos.ZERO));
+      assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
+      prepareChangedTransaction(task.transaction());
+
+      MemoryReservation blocker = fillReservationLimit(commitAdmission(task.transaction()));
+      try {
+         assertEquals(JournalPreparation.PENDING, invoke(task, "prepareCommit"));
+         assertNull(task.operationCommit());
+
+         blocker.close();
+         assertEquals(JournalPreparation.READY, awaitJournalCommit(task, "prepareCommit"));
+         assertNotNull(task.operationCommit());
+         task.releaseMemoryReservation();
+         task.operationCommit().completion().join();
+      } finally {
+         blocker.close();
+         task.releaseMemoryReservation();
+      }
+      assertNull(field(task, "memoryReservation"));
+      assertEquals(baseline, MemoryReservation.reservedBytes());
+   }
+
+   @Test
+   void placementCommitHardAdmissionRejectsWithoutStartingCommit() throws Exception {
+      PlacementTask task = placementTask();
+      prepareHardRejectedTransaction((WorldChangeTransaction)field(task, "transaction"));
+
+      assertEquals(JournalPreparation.FAILED, task.prepareCommit());
+      assertNull(field(task, "operationCommit"));
+      assertNull(field(task, "memoryReservation"));
+   }
+
+   @Test
+   void workspaceCommitHardAdmissionRejectsWithoutStartingCommit() throws Exception {
+      ClientWorkspacePlacementTask task = workspaceTask();
+      prepareHardRejectedTransaction(task.transaction());
+
+      assertEquals(OperationTaskResult.MEMORY_UNSAFE, invoke(task, "prepareCommit"));
+      assertNull(task.operationCommit());
+      assertNull(field(task, "memoryReservation"));
+   }
+
+   @Test
+   void selectionCommitHardAdmissionRejectsWithoutStartingCommit() throws Exception {
+      SelectionOperationTask task = selectionTask();
+      prepareHardRejectedTransaction(task.transaction());
+
+      assertEquals(JournalPreparation.FAILED, invoke(task, "prepareCommit"));
+      assertNull(task.operationCommit());
+      assertNull(field(task, "memoryReservation"));
+   }
+
    private static MemoryReservation fillReservationLimit(MemoryAdmission target) {
       assertTrue(target.allowed());
       long remaining = target.usableBytes() - MemoryReservation.reservedBytes();
@@ -125,6 +242,56 @@ class IncrementalMemoryContentionTest {
          java.util.UUID.randomUUID(), new OperationWorkspacePlan(List.of()),
          PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
       );
+   }
+
+   private static PlacementTask placementTask() {
+      return PlacementTask.ready(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
+         null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+      ));
+   }
+
+   private static void prepareChangedTransaction(WorldChangeTransaction transaction) {
+      ReversibleBlockSnapshot before = snapshot(BlockPos.ZERO, "before");
+      ReversibleBlockSnapshot after = snapshot(BlockPos.ZERO, "after");
+      transaction.recordBefore(before);
+      transaction.recordAfter(BlockPos.ZERO, after);
+   }
+
+   private static void prepareHardRejectedTransaction(WorldChangeTransaction transaction) throws Exception {
+      prepareChangedTransaction(transaction);
+      setField(transaction, "commitBlockEntityReserve", Long.MAX_VALUE);
+   }
+
+   private static MemoryAdmission commitAdmission(WorldChangeTransaction transaction) {
+      return WorldOperationMemory.commitAdmission(
+         transaction.snapshotCount(), transaction.largestSideCount(), transaction.commitBlockEntityReserve()
+      );
+   }
+
+   private static JournalPreparation awaitPlacementCommit(PlacementTask task) {
+      task.prepareCommit();
+      try {
+         operationCommit(task).completion().join();
+      } catch (Exception exception) {
+         throw new IllegalStateException(exception);
+      }
+      return task.prepareCommit();
+   }
+
+   private static WorldOperationCommit operationCommit(Object task) throws Exception {
+      return (WorldOperationCommit)field(task, "operationCommit");
+   }
+
+   private static OperationTaskResult awaitOperationCommit(Object task, String method) throws Exception {
+      invoke(task, method);
+      ((WorldOperationCommit)field(task, "operationCommit")).completion().join();
+      return (OperationTaskResult)invoke(task, method);
+   }
+
+   private static JournalPreparation awaitJournalCommit(Object task, String method) throws Exception {
+      invoke(task, method);
+      ((WorldOperationCommit)field(task, "operationCommit")).completion().join();
+      return (JournalPreparation)invoke(task, method);
    }
 
    private static SelectionOperationTask selectionTask() {
@@ -142,6 +309,12 @@ class IncrementalMemoryContentionTest {
       return new ReversibleBlockSnapshot(
          position, null, null, null
       );
+   }
+
+   private static ReversibleBlockSnapshot snapshot(BlockPos position, String marker) {
+      CompoundTag tag = new CompoundTag();
+      tag.putString("marker", marker);
+      return new ReversibleBlockSnapshot(position, null, null, new BlockEntitySnapshot(tag));
    }
 
    @SuppressWarnings("unchecked")

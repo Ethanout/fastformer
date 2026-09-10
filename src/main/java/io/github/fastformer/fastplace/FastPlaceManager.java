@@ -893,8 +893,8 @@ public final class FastPlaceManager {
                long batchStartedAt = System.nanoTime();
                int batchStartProcessed = task.processed();
                while (PersistentRecoveryJournal.writesAllowed()
-                   && budget.tryConsume()
-                   && task.blocks().hasNext()) {
+                   && task.blocks().hasNext()
+                   && (budget.tryConsume() || (!task.hasWrites() && budget.tryConsumeFirstWrite()))) {
                    BlockPos pos = task.blocks().next();
                    task.consumed();
                    task.place(context, level, pos);

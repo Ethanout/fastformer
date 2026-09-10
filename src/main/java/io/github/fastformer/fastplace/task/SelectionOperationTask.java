@@ -24,6 +24,7 @@ import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.WorldWriteSideEffectGuard;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -68,7 +69,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
    private final Set<BlockPos> journaledPositions = new HashSet<>();
    private final Set<BlockPos> overlappingPlacementPositions = new HashSet<>();
    private boolean validateComplete;
-   private PlacementTarget pendingPlacementTarget;
+   private final ArrayDeque<PlacementTarget> pendingTargets = new ArrayDeque<>();
    private Phase phase = Phase.SCAN;
    private int x;
    private int y;
@@ -112,7 +113,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
    @Override
    public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
       this.metrics.phase(phaseMetric());
-      while (budget.tryConsume()) {
+      while (budget.tryConsume() || (firstWriteReady() && budget.tryConsumeFirstWrite())) {
          if (!PersistentRecoveryJournal.writesAllowed()) {
             failed = true;
             return OperationTaskResult.FAILED;
@@ -123,6 +124,19 @@ public final class SelectionOperationTask implements WorldOperationTask {
          }
       }
       return OperationTaskResult.ACTIVE;
+   }
+
+   private boolean firstWriteReady() {
+      if (hasWrites()) {
+         return false;
+      }
+      if (phase == Phase.PLACE) {
+         PlacementTarget target = pendingTargets.peekFirst();
+         return target != null && journaledPositions.contains(target.pos());
+      }
+      return phase == Phase.CLEAR && clearSourceIndex < source.size()
+         && journaledPositions.contains(source.get(clearSourceIndex).pos())
+         && !overlappingPlacementPositions.contains(source.get(clearSourceIndex).pos());
    }
 
    @Override
@@ -223,6 +237,10 @@ public final class SelectionOperationTask implements WorldOperationTask {
       if (currentReservation == MemoryReservationAttempt.RETRY) {
          return Optional.of(OperationTaskResult.ACTIVE);
       }
+      if (pendingTargets.size() >= PersistentRecoveryJournal.segmentCapacity(journaledCount)) {
+         phase = unjournaledCount() > 0 ? Phase.JOURNAL : Phase.PLACE;
+         return Optional.empty();
+      }
       ValidationStep validation = validateNext(level);
       if (validation == ValidationStep.ADVANCED) {
          if (unjournaledCount() >= PersistentRecoveryJournal.segmentCapacity(journaledCount)) {
@@ -250,7 +268,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
       if (unjournaledCount() > 0) {
          phase = Phase.JOURNAL;
       } else {
-         enterPlacePhase();
+         phase = Phase.PLACE;
       }
       return Optional.empty();
    }
@@ -265,22 +283,15 @@ public final class SelectionOperationTask implements WorldOperationTask {
       }
       if (clearsSource() && clearSourceIndex < source.size()) {
          phase = Phase.CLEAR;
-      } else if (!validateComplete) {
-         phase = Phase.VALIDATE;
       } else {
-         enterPlacePhase();
+         phase = Phase.PLACE;
       }
       return Optional.empty();
    }
 
    private Optional<OperationTaskResult> clearNext(ServerLevel level) {
       if (clearSourceIndex >= source.size()) {
-         clearSourceIndex = 0;
-         if (validateComplete) {
-            enterPlacePhase();
-         } else {
-            phase = Phase.VALIDATE;
-         }
+         phase = Phase.VALIDATE;
          return Optional.empty();
       }
       ReversibleBlockSnapshot sourceBlock = source.get(clearSourceIndex);
@@ -312,7 +323,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
       if (phase == Phase.JOURNAL || phase == Phase.VALIDATE) {
          return Optional.empty();
       }
-      phase = Phase.FINALIZE;
+      phase = validateComplete ? Phase.FINALIZE : Phase.VALIDATE;
       return Optional.empty();
    }
 
@@ -342,26 +353,17 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    private boolean placeNext(ServerLevel level) {
-      PlacementTarget target = nextBufferedPlacementTarget();
+      PlacementTarget target = pendingTargets.peekFirst();
       if (target == null) {
          return false;
       }
       if (!journaledPositions.contains(target.pos())) {
-         pendingPlacementTarget = target;
-         phase = unjournaledCount() > 0 || !validateComplete ? (validateComplete ? Phase.JOURNAL : Phase.VALIDATE) : Phase.JOURNAL;
+         phase = Phase.JOURNAL;
          return false;
       }
+      pendingTargets.removeFirst();
       place(level, target.pos(), target.source());
       return !failed;
-   }
-
-   private PlacementTarget nextBufferedPlacementTarget() {
-      if (pendingPlacementTarget != null) {
-         PlacementTarget target = pendingPlacementTarget;
-         pendingPlacementTarget = null;
-         return target;
-      }
-      return nextPlacementTarget();
    }
 
    private int unjournaledCount() {
@@ -397,6 +399,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
       }
       ReversibleBlockSnapshot snapshot = captured.orElseThrow();
       metrics.snapshotCaptured();
+      pendingTargets.addLast(target);
       if (transaction.recordExpectedIfAbsent(target.pos(), snapshot) == null) {
          blockEntityReserve = WorldOperationMemory.saturatingAdd(
             blockEntityReserve, WorldOperationMemory.snapshotNbtReserve(snapshot)
@@ -440,11 +443,6 @@ public final class SelectionOperationTask implements WorldOperationTask {
       repeatX = stackRegion.min().getX();
       repeatY = stackRegion.min().getY();
       repeatZ = stackRegion.min().getZ();
-   }
-
-   private void enterPlacePhase() {
-      resetPlacementCursor();
-      phase = Phase.PLACE;
    }
 
    private boolean advanceRepetition() {
@@ -745,7 +743,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
       pendingJournalSlice = List.of();
       journaledPositions.clear();
       overlappingPlacementPositions.clear();
-      pendingPlacementTarget = null;
+      pendingTargets.clear();
    }
 
    private MemoryReservationAttempt reserveCommitMemory() {
