@@ -130,7 +130,6 @@ import java.util.OptionalDouble;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -273,7 +272,8 @@ public class FastPlaceClientPreviewCore {
    private static BuildingPreviewKey cachedBuildingPreviewKey;
    private static Set<BlockPos> cachedBuildingPreviewBlocks = Set.of();
    private static Set<BlockPos> cachedBuildingFallbackBlocks = Set.of();
-   private static Future<BuildingBlockResult> cachedBuildingPreviewFuture;
+   private static final BuildingPreviewGenerationOwner BUILDING_PREVIEW_GENERATION =
+      new BuildingPreviewGenerationOwner();
    private static ProgressiveBlockGeneration cachedBuildingPreviewProgress;
    private static boolean cachedBuildingPreviewAtLimit;
    private static long cachedBuildingPreviewResultVersion;
@@ -2018,9 +2018,7 @@ public class FastPlaceClientPreviewCore {
             cachedBuildingPreviewProgress.cancel();
             cachedBuildingPreviewProgress = null;
          }
-         if (cachedBuildingPreviewFuture != null) {
-            cachedBuildingPreviewFuture.cancel(true);
-         }
+         BUILDING_PREVIEW_GENERATION.cancel();
          PREVIEW_GENERATION_EXECUTOR.getQueue().clear();
          FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
          PreviewAsyncPolicy.Workload workload = buildingPreviewWorkload(snapshot, key.points(), polygonHeightConfirmed);
@@ -2037,7 +2035,7 @@ public class FastPlaceClientPreviewCore {
                );
             }
             cachedBuildingPreviewResultVersion++;
-            cachedBuildingPreviewFuture = null;
+            BUILDING_PREVIEW_GENERATION.cancel();
          } else {
             cachedBuildingPreviewBlocks = Set.of();
             if ((workload == PreviewAsyncPolicy.Workload.PLANE || workload == PreviewAsyncPolicy.Workload.VOLUME)
@@ -2051,7 +2049,7 @@ public class FastPlaceClientPreviewCore {
                PreviewAsyncPolicy.estimateScanCells(key.points(), workload)
             );
             ProgressiveBlockGeneration progress = cachedBuildingPreviewProgress;
-            cachedBuildingPreviewFuture = PREVIEW_GENERATION_EXECUTOR.submit(
+            BUILDING_PREVIEW_GENERATION.replace(key, PREVIEW_GENERATION_EXECUTOR.submit(
                () -> {
                   Set<BlockPos> blocks = buildingPreviewBlocks(
                      snapshot, key.points(), polygonHeightConfirmed, modes, progress
@@ -2059,13 +2057,14 @@ public class FastPlaceClientPreviewCore {
                   progress.complete();
                   return new BuildingBlockResult(key, blocks);
                }
-            );
+            ));
          }
       }
-      if (cachedBuildingPreviewFuture != null && cachedBuildingPreviewFuture.isDone()) {
+      if (BUILDING_PREVIEW_GENERATION.completed()) {
          try {
-            BuildingBlockResult result = cachedBuildingPreviewFuture.get();
-            if (result.key().equals(cachedBuildingPreviewKey)) {
+            Optional<BuildingBlockResult> completed = BUILDING_PREVIEW_GENERATION.takeCompleted();
+            if (completed.isPresent() && completed.orElseThrow().key().equals(cachedBuildingPreviewKey)) {
+               BuildingBlockResult result = completed.orElseThrow();
                FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
                cachedBuildingPreviewBlocks = completedBuildingPreview(
                   snapshot, result.key().points(), polygonHeightConfirmed, modes, result.blocks()
@@ -2095,7 +2094,6 @@ public class FastPlaceClientPreviewCore {
                cachedBuildingPreviewResultVersion++;
             }
          } finally {
-            cachedBuildingPreviewFuture = null;
             cachedBuildingPreviewProgress = null;
          }
       } else if (cachedBuildingPreviewProgress != null) {
@@ -2205,10 +2203,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static void cancelBuildingPreviewGeneration() {
-      if (cachedBuildingPreviewFuture != null) {
-         cachedBuildingPreviewFuture.cancel(true);
-         cachedBuildingPreviewFuture = null;
-      }
+      BUILDING_PREVIEW_GENERATION.cancel();
       if (cachedBuildingPreviewProgress != null) {
          cachedBuildingPreviewProgress.cancel();
          cachedBuildingPreviewProgress = null;

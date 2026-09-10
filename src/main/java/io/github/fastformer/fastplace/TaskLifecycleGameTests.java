@@ -8,6 +8,8 @@ import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.OperationTaskResult;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
+import io.github.fastformer.fastplace.task.SelectionOperationTask;
+import io.github.fastformer.fastplace.task.WorldOperationTask;
 import io.github.fastformer.fastplace.world.JournalPreparation;
 import io.github.fastformer.fastplace.world.WorldHistoryManager;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
@@ -34,6 +36,96 @@ public final class TaskLifecycleGameTests {
    private static final int[] SIZES = {1, 16, 256};
 
    private TaskLifecycleGameTests() {}
+
+   @GameTest(template = "fastformergametests.empty", batch = "dimension_availability", timeoutTicks = 20000)
+   public static void partialTasksWaitForDimensionAndResume(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos origin = helper.absolutePos(new BlockPos(1, 2, 1));
+      int[] scenario = {0};
+      Object[] active = {null};
+      WorldTaskContext[] context = {null};
+      boolean[] waitingChecked = {false};
+      helper.succeedWhen(() -> {
+         if (active[0] == null) {
+            positions(origin, 16).forEach(pos -> level.setBlock(pos, Blocks.STONE.defaultBlockState(), 2));
+            context[0] = new WorldTaskContext(level.getServer(), UUID.randomUUID());
+            if (scenario[0] == 0) {
+               active[0] = placementTask(level, positions(origin, 16));
+            } else if (scenario[0] == 1) {
+               active[0] = workspaceTask(level, positions(origin, 16));
+            } else {
+               BlockPos source = origin.above(2);
+               positions(source, 16).forEach(pos -> level.setBlock(pos, Blocks.GOLD_BLOCK.defaultBlockState(), 2));
+               active[0] = new SelectionOperationTask(
+                  OperationSelectionVolume.cuboid(source, source.offset(15, 0, 0), source, source.offset(15, 0, 0)),
+                  OperationMode.MOVE, OperationConflictMode.REPLACE, true, new BlockPos(0, -2, 0),
+                  OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension());
+            }
+         }
+         UUID owner = context[0].owner();
+         if (!waitingChecked[0]) {
+            if (active[0] instanceof PlacementTask placement) {
+               advancePlacementToFirstWrite(helper, placement, context[0], level);
+               helper.assertTrue(placement.hasWrites(), "waiting for placement first write");
+               FastPlaceManager.addTaskForTest(owner, placement);
+            } else {
+               WorldOperationTask operation = (WorldOperationTask)active[0];
+               helper.assertTrue(operation.acquireLease(context[0]), "waiting for operation lease");
+               helper.assertTrue(operation.tick(context[0], level, oneCellBudget()) == OperationTaskResult.ACTIVE,
+                  "operation ended before dimension became unavailable");
+               helper.assertTrue(operation.hasWrites(), "waiting for operation first write");
+               OperationManager.addTaskForTest(owner, operation);
+            }
+            assertPartialWrite(helper, level, origin, 16);
+            serviceUnavailableDimension(active[0], owner);
+            helper.assertTrue(FastPlaceManager.taskActive(owner) || OperationManager.taskActive(owner),
+               "unavailable dimension discarded writer");
+            helper.assertTrue(!WorldHistoryManager.busy(owner), "unavailable dimension unexpectedly started recovery");
+            assertPartialWrite(helper, level, origin, 16);
+            helper.assertTrue(taskField(active[0], "memoryReservation") == null,
+               "unavailable dimension retained active working reservation");
+            helper.assertTrue(taskField(active[0], "journalPreparation") != null,
+               "unavailable dimension discarded journal ownership");
+            waitingChecked[0] = true;
+         }
+         if (active[0] instanceof PlacementTask) {
+            FastPlaceManager.tickWorld(level.getServer());
+         } else {
+            OperationManager.tickWorld(level.getServer());
+         }
+         helper.assertTrue(!FastPlaceManager.taskActive(owner) && !OperationManager.taskActive(owner),
+            "waiting for resumed writer");
+         helper.assertTrue(!WorldHistoryManager.busy(owner), "resumed writer failed into recovery");
+         assertBlockRange(helper, level, origin, 16, Blocks.GOLD_BLOCK);
+         helper.assertTrue(!io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
+            "resumed writer retained lease");
+         active[0] = null;
+         waitingChecked[0] = false;
+         scenario[0]++;
+         helper.assertTrue(scenario[0] == 3, "running next dimension availability scenario");
+      });
+   }
+
+   private static void serviceUnavailableDimension(Object task, UUID owner) {
+      try {
+         Class<?> manager = task instanceof PlacementTask ? FastPlaceManager.class : OperationManager.class;
+         var method = manager.getDeclaredMethod("tickTask", WorldTaskContext.class);
+         method.setAccessible(true);
+         method.invoke(null, new WorldTaskContext(null, owner));
+      } catch (ReflectiveOperationException exception) {
+         throw new IllegalStateException("Could not service unavailable dimension", exception);
+      }
+   }
+
+   private static Object taskField(Object task, String name) {
+      try {
+         var field = task.getClass().getDeclaredField(name);
+         field.setAccessible(true);
+         return field.get(task);
+      } catch (ReflectiveOperationException exception) {
+         throw new IllegalStateException("Could not inspect task ownership", exception);
+      }
+   }
 
    @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
    public static void unchangedPlacementCompletesWithoutRecovery(GameTestHelper helper) {
