@@ -70,6 +70,14 @@ runs {
     server {
         systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         argument '--nogui'
+        if (project.hasProperty('recoveryProcessTest')) {
+            def recoveryProcessPhase = project.property('recoveryProcessTest').toString()
+            if (!(recoveryProcessPhase in ['crash', 'verify'])) {
+                throw new GradleException("recoveryProcessTest must be 'crash' or 'verify'")
+            }
+            systemProperty 'fastformer.recoveryProcessTest', recoveryProcessPhase
+            workingDirectory project.layout.projectDirectory.dir('run/recoveryProcessTest')
+        }
     }
 
     // This run config launches GameTestServer and runs all registered gametests, then exits.
@@ -172,6 +180,10 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
 
+tasks.named('jar', Jar).configure {
+    exclude 'io/github/fastformer/fastplace/world/RecoveryProcessTests*.class'
+}
+
 // Gradle test workers cannot reliably load classes from this checkout's non-ASCII path.
 def asciiTestRoot = new File(
         System.getProperty('java.io.tmpdir'),
@@ -239,6 +251,9 @@ tasks.register('verifyModJar') {
         ]
         def jarFile = inputs.files.singleFile
         new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
+            if (zip.entries().toList().any { it.name.startsWith('io/github/fastformer/fastplace/world/RecoveryProcessTests') }) {
+                throw new GradleException('Production jar contains the process recovery test harness')
+            }
             requiredEntries.each { entry ->
                 if (zip.getEntry(entry) == null) {
                     throw new GradleException("Mod jar is missing required class: ${entry}")
