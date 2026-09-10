@@ -8,18 +8,18 @@ class ClientInputStateMachineTest {
    @Test
    void staleGestureIsRejectedAfterPlacementStarts() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.transition(ClientInputStateMachine.Phase.SELECTING);
+      state.observe(ClientInputStateMachine.State.SELECTING);
       long token = state.beginGesture();
       assertTrue(state.accepts(token));
 
-      state.transition(ClientInputStateMachine.Phase.PLACING);
+      state.observe(ClientInputStateMachine.State.PLACING);
       assertFalse(state.accepts(token));
    }
 
    @Test
    void aNewGestureInvalidatesThePreviousToken() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.transition(ClientInputStateMachine.Phase.ADJUSTING);
+      state.observe(ClientInputStateMachine.State.ADJUSTING);
       long oldToken = state.beginGesture();
       long newToken = state.beginGesture();
 
@@ -30,21 +30,21 @@ class ClientInputStateMachineTest {
    @Test
    void resetReturnsToIdleAndInvalidatesGesture() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.transition(ClientInputStateMachine.Phase.CONFIRMING);
+      state.observe(ClientInputStateMachine.State.SELECTING);
       long token = state.beginGesture();
       state.reset();
 
-      assertEquals(ClientInputStateMachine.Phase.IDLE, state.phase());
+      assertEquals(ClientInputStateMachine.State.IDLE, state.state());
       assertFalse(state.accepts(token));
    }
 
    @Test
    void changingInputPhaseInvalidatesGestureEvenWhenBothPhasesAcceptInput() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.transition(ClientInputStateMachine.Phase.SELECTING);
+      state.observe(ClientInputStateMachine.State.SELECTING);
       long token = state.beginGesture();
 
-      state.transition(ClientInputStateMachine.Phase.ADJUSTING);
+      state.observe(ClientInputStateMachine.State.ADJUSTING);
 
       assertFalse(state.accepts(token));
    }
@@ -52,53 +52,60 @@ class ClientInputStateMachineTest {
    @Test
    void cancellingPhaseRejectsAllInputUntilServerClearsTheSession() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.transition(ClientInputStateMachine.Phase.SELECTING);
+      state.observe(ClientInputStateMachine.State.SELECTING);
       long token = state.beginGesture();
 
-      state.transition(ClientInputStateMachine.Phase.CANCELLING);
+      assertTrue(state.cancel());
 
-      assertFalse(state.phase().acceptsInput());
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+         state.dispatch(ClientInputStateMachine.InputKind.POINTER));
       assertFalse(state.accepts(token));
    }
 
    @Test
    void taskPhasesRouteOnlyCancellation() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.transition(ClientInputStateMachine.Phase.PLACING);
+      state.observe(ClientInputStateMachine.State.PLACING);
 
-      assertFalse(state.accepts(ClientInputStateMachine.InputKind.POINTER));
-      assertFalse(state.accepts(ClientInputStateMachine.InputKind.INTERACTION));
-      assertFalse(state.accepts(ClientInputStateMachine.InputKind.SCROLL));
-      assertTrue(state.accepts(ClientInputStateMachine.InputKind.CANCEL));
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+         state.dispatch(ClientInputStateMachine.InputKind.POINTER));
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+         state.dispatch(ClientInputStateMachine.InputKind.INTERACTION));
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+         state.dispatch(ClientInputStateMachine.InputKind.SCROLL));
+      assertEquals(ClientInputStateMachine.Dispatch.CANCEL,
+         state.dispatch(ClientInputStateMachine.InputKind.CANCEL));
    }
 
    @Test
    void cancellingPhaseRejectsRepeatedCancellation() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.transition(ClientInputStateMachine.Phase.CANCELLING);
+      state.observe(ClientInputStateMachine.State.SELECTING);
+      assertTrue(state.cancel());
 
-      assertFalse(state.accepts(ClientInputStateMachine.InputKind.CANCEL));
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+         state.dispatch(ClientInputStateMachine.InputKind.CANCEL));
+      assertFalse(state.cancel());
    }
 
    @Test
-   void synchronizingAChangedPhaseInvalidatesOldGesture() {
+   void placingInvalidatesOldGesture() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.transition(ClientInputStateMachine.Phase.SELECTING);
+      state.observe(ClientInputStateMachine.State.SELECTING);
       long token = state.beginGesture();
 
-      state.synchronize(false, false, true, false, false);
+      state.observe(ClientInputStateMachine.State.PLACING);
 
-      assertEquals(ClientInputStateMachine.Phase.PLACING, state.phase());
+      assertEquals(ClientInputStateMachine.State.PLACING, state.state());
       assertFalse(state.accepts(token));
    }
 
    @Test
    void taskRouteIsTheOnlyOwnerOfPointerInputDuringPlacement() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.synchronize(false, false, true, false, false, false);
+      state.observe(ClientInputStateMachine.State.PLACING);
 
-      assertEquals(ClientInputStateMachine.Route.TASK, state.route());
-      assertEquals(ClientInputStateMachine.Dispatch.TASK,
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
          state.dispatch(ClientInputStateMachine.InputKind.POINTER));
       assertEquals(ClientInputStateMachine.Dispatch.CANCEL,
          state.dispatch(ClientInputStateMachine.InputKind.CANCEL));
@@ -108,15 +115,15 @@ class ClientInputStateMachineTest {
    void sessionRoutesAreMutuallyExclusive() {
       ClientInputStateMachine state = new ClientInputStateMachine();
 
-      state.synchronize(false, false, false, false, true, true);
+      state.observe(ClientInputStateMachine.State.BUILDING);
       assertEquals(ClientInputStateMachine.Dispatch.BUILDING,
          state.dispatch(ClientInputStateMachine.InputKind.INTERACTION));
 
-      state.synchronize(false, false, false, false, true, false);
+      state.observe(ClientInputStateMachine.State.GEOMETRY);
       assertEquals(ClientInputStateMachine.Dispatch.GEOMETRY,
          state.dispatch(ClientInputStateMachine.InputKind.INTERACTION));
 
-      state.synchronize(false, false, false, true, true, true);
+      state.observe(ClientInputStateMachine.State.SELECTING);
       assertEquals(ClientInputStateMachine.Dispatch.OPERATION,
          state.dispatch(ClientInputStateMachine.InputKind.POINTER));
    }
@@ -124,9 +131,9 @@ class ClientInputStateMachineTest {
    @Test
    void cancellingRouteRejectsRepeatedAndLateInput() {
       ClientInputStateMachine state = new ClientInputStateMachine();
-      state.synchronize(true, false, false, false, false, false);
+      state.observe(ClientInputStateMachine.State.SELECTING);
+      assertTrue(state.cancel());
 
-      assertEquals(ClientInputStateMachine.Route.TASK, state.route());
       assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
          state.dispatch(ClientInputStateMachine.InputKind.POINTER));
       assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,

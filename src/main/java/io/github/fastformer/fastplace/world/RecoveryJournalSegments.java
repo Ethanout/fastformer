@@ -26,6 +26,7 @@ final class RecoveryJournalSegments {
          for (Path entry : entries) {
             String name = entry.getFileName().toString();
             boolean allowed = name.equals("manifest.dat") || name.equals("seal.done")
+               || name.equals("correction.delta")
                || name.matches("segment-[0-9]{6}\\.dat")
                || (name.startsWith("segment-") && name.contains(".tmp-"));
             if (!allowed) {

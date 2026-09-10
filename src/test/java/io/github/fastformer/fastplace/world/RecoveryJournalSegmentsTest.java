@@ -89,6 +89,18 @@ class RecoveryJournalSegmentsTest {
    }
 
    @Test
+   void correctionDeltaIsAllowedBesideSegments() throws Exception {
+      UUID operation = UUID.randomUUID();
+      RecoveryJournalSegment.write(
+         this.temporaryDirectory.resolve("segment-000000.dat"), operation, 0, new CompoundTag()
+      );
+      Files.createFile(this.temporaryDirectory.resolve("correction.delta"));
+
+      var segments = RecoveryJournalSegments.readComplete(this.temporaryDirectory, operation, 1);
+      assertEquals(1, segments.size());
+   }
+
+   @Test
    void unknownDirectoryFileBlocksRecovery() throws Exception {
       UUID operation = UUID.randomUUID();
       RecoveryJournalSegment.write(

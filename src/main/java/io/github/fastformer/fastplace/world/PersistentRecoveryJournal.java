@@ -72,29 +72,47 @@ public final class PersistentRecoveryJournal {
    private static final Map<Path, ResourceKey<Level>> COMMITTED = new ConcurrentHashMap<>();
    private static final java.util.Set<Path> CLEANUP_PENDING = ConcurrentHashMap.newKeySet();
 
+   private static final int SEGMENTED_LIMIT = 65_536;
+   private static final String MANIFEST_FILE = "manifest.dat";
+   private static final String SEAL_FILE = "seal.done";
+   private static final String CORRECTION_FILE = "correction.delta";
+   private static final String FIRST_SEGMENT_FILE = "segment-000000.dat";
+
    private final Path file;
    private final ResourceKey<Level> dimension;
    private final UUID operationId;
    private final long preparedDecodedBytes;
+   private final boolean segmented;
    private boolean committed;
    private volatile boolean finalAfterPrepared;
    private volatile boolean correctionRequired;
 
    PersistentRecoveryJournal(Path file) {
-      this(file, null, null, MAX_DECOMPRESSED_BYTES);
+      this(file, null, null, MAX_DECOMPRESSED_BYTES, Files.isDirectory(file));
    }
 
    private PersistentRecoveryJournal(Path file, ResourceKey<Level> dimension) {
-      this(file, dimension, null, MAX_DECOMPRESSED_BYTES);
+      this(file, dimension, null, MAX_DECOMPRESSED_BYTES, Files.isDirectory(file));
    }
 
    private PersistentRecoveryJournal(
       Path file, ResourceKey<Level> dimension, UUID operationId, long preparedDecodedBytes
    ) {
+      this(file, dimension, operationId, preparedDecodedBytes, Files.isDirectory(file));
+   }
+
+   private PersistentRecoveryJournal(
+      Path file,
+      ResourceKey<Level> dimension,
+      UUID operationId,
+      long preparedDecodedBytes,
+      boolean segmented
+   ) {
       this.file = file;
       this.dimension = dimension;
       this.operationId = operationId;
       this.preparedDecodedBytes = Math.max(1L, Math.min(MAX_DECOMPRESSED_BYTES, preparedDecodedBytes));
+      this.segmented = segmented;
    }
 
    public UUID operationId() {
@@ -144,12 +162,13 @@ public final class PersistentRecoveryJournal {
          return Optional.empty();
       }
       long sequence = SEQUENCE.updateAndGet(previous -> Math.max(previous + 1L, System.currentTimeMillis() * 1000L));
-      Path file = directory.resolve(String.format("%020d-%s.dat", sequence, owner));
+      UUID resolvedOperation = operationId == null ? UUID.randomUUID() : operationId;
+      Path operationDirectory = directory.resolve(String.format("%020d-%s-%s", sequence, owner, resolvedOperation));
       try {
-         long preparedDecodedBytes = writePrepared(file, dimension, before, after, operationId);
-         return Optional.of(new PersistentRecoveryJournal(file, dimension, operationId, preparedDecodedBytes));
+         return Optional.of(writeSegmentedJournal(operationDirectory, owner, resolvedOperation, dimension, before, after));
       } catch (IOException | RuntimeException exception) {
          LOGGER.error("Could not create FastFormer recovery journal for {}", owner, exception);
+         deleteDirectoryQuietly(operationDirectory);
          return Optional.empty();
       }
    }
@@ -158,6 +177,9 @@ public final class PersistentRecoveryJournal {
    synchronized boolean complete() {
       if (this.committed) {
          return true;
+      }
+      if (this.segmented) {
+         return completeSegmented();
       }
       Path committed = committedPath(this.file);
       try {
@@ -191,6 +213,39 @@ public final class PersistentRecoveryJournal {
       return true;
    }
 
+   private boolean completeSegmented() {
+      Path seal = this.file.resolve(SEAL_FILE);
+      try {
+         if (Files.exists(seal)) {
+            markSegmentedCommitted();
+            return true;
+         }
+         if (!Files.isDirectory(this.file)) {
+            LOGGER.error("FastFormer segmented journal disappeared before seal: {}", this.file);
+            return false;
+         }
+         RecoveryJournalManifest.Manifest manifest = RecoveryJournalManifest.read(this.file.resolve(MANIFEST_FILE));
+         var segments = RecoveryJournalSegments.readUnsealed(
+            this.file, manifest.operationId(), manifest.segmentLimit()
+         );
+         RecoveryJournalSeal.write(
+            seal, manifest.operationId(), segments.size(), RecoveryJournalSegments.digest(segments)
+         );
+      } catch (IOException | RuntimeException exception) {
+         LOGGER.error("Could not seal FastFormer recovery journal {}", this.file, exception);
+         return false;
+      }
+      markSegmentedCommitted();
+      return true;
+   }
+
+   private void markSegmentedCommitted() {
+      this.committed = true;
+      if (this.dimension != null) {
+         COMMITTED.put(this.file, this.dimension);
+      }
+   }
+
    synchronized boolean completeFinalized() {
       if (!this.finalAfterPrepared) {
          LOGGER.error("Refusing to commit FastFormer journal before final after-state preparation: {}", this.file);
@@ -206,8 +261,12 @@ public final class PersistentRecoveryJournal {
    /** Removes a prepared journal for a task that was cancelled before any world write. */
    public synchronized boolean discardUnused() {
       try {
-         if (this.committed || Files.exists(committedPath(this.file))) {
+         if (this.committed || Files.exists(committedMarker(this.file))) {
             return false;
+         }
+         if (this.segmented) {
+            deleteDirectoryQuietly(this.file);
+            return !Files.exists(this.file);
          }
          Files.deleteIfExists(this.file);
          Files.deleteIfExists(correctionPath(this.file));
@@ -228,12 +287,16 @@ public final class PersistentRecoveryJournal {
          LOGGER.error("Could not durably save the world after FastFormer rollback: {}", this.file);
          return false;
       }
-      Path committed = committedPath(this.file);
+      Path committed = committedMarker(this.file);
       try {
-         Files.deleteIfExists(this.file);
-         Files.deleteIfExists(committed);
-         Files.deleteIfExists(correctionPath(this.file));
-         COMMITTED.remove(committed);
+         if (this.segmented) {
+            deleteDirectoryQuietly(this.file);
+         } else {
+            Files.deleteIfExists(this.file);
+            Files.deleteIfExists(committed);
+            Files.deleteIfExists(correctionPath(this.file));
+         }
+         COMMITTED.remove(this.segmented ? this.file : committed);
       } catch (IOException | RuntimeException exception) {
          LOGGER.error("Could not remove FastFormer journal after durable rollback: {}", this.file, exception);
          return false;
@@ -260,6 +323,11 @@ public final class PersistentRecoveryJournal {
             IOUtilities.waitUntilIOWorkerComplete();
             for (Path path : ready) {
                try {
+                  if (Files.isDirectory(path)) {
+                     deleteDirectoryQuietly(path);
+                     COMMITTED.remove(path, savedDimension);
+                     continue;
+                  }
                   if (Files.exists(preparedPath(path))) {
                      LOGGER.error("Refusing to delete committed journal because its prepared form also exists: {}", path);
                      continue;
@@ -292,7 +360,7 @@ public final class PersistentRecoveryJournal {
 
    void deleteOrphanCorrection() {
       try {
-         Path committed = committedPath(this.file);
+         Path committed = committedMarker(this.file);
          if (!Files.exists(this.file) && !Files.exists(committed)) {
             Files.deleteIfExists(correctionPath(this.file));
          }
@@ -657,6 +725,15 @@ public final class PersistentRecoveryJournal {
             for (int index = 0; index < journal.size(); index++) journal.pair(index);
             decoded.add(journal);
          }
+         DecodedCorrections corrections = sealed
+            ? decodeCorrections(
+               level,
+               directory.resolve(FIRST_SEGMENT_FILE),
+               directory.resolve(CORRECTION_FILE),
+               dimension
+            )
+            : null;
+         int correctionIndex = 0;
          int restored = 0;
          int preserved = 0;
          for (int segmentIndex = 0; segmentIndex < decoded.size(); segmentIndex++) {
@@ -664,6 +741,12 @@ public final class PersistentRecoveryJournal {
             for (int cell = 0; cell < journal.size(); cell++) {
                int index = sealed ? cell : journal.size() - 1 - cell;
                JournalPair pair = journal.pair(index);
+               if (corrections != null
+                  && correctionIndex < corrections.size()
+                  && corrections.position(correctionIndex) == pair.after().pos().asLong()) {
+                  pair = new JournalPair(pair.before(), corrections.snapshot(correctionIndex));
+                  correctionIndex++;
+               }
                var target = sealed ? pair.after() : pair.before();
                var source = sealed ? pair.before() : pair.after();
                StartupRecoveryAction action = startupRecoveryAction(
@@ -679,6 +762,9 @@ public final class PersistentRecoveryJournal {
                }
             }
          }
+         if (corrections != null && correctionIndex != corrections.size()) {
+            throw new IOException("Recovery correction positions are not aligned with the segmented journal");
+         }
          LOGGER.warn("{} {} positions from segmented journal {} (operation={}); preserved {} external changes",
             sealed ? "Replayed" : "Rolled back", restored, directory, manifest.operationId(), preserved);
          return true;
@@ -693,12 +779,13 @@ public final class PersistentRecoveryJournal {
    ) {
       Path correction = correctionPath(this.file);
       try {
-         if (!Files.exists(this.file) || Files.exists(committedPath(this.file))) {
+         if (!Files.exists(this.file) || Files.exists(committedMarker(this.file))) {
             return false;
          }
-         CompoundTag root = NbtIo.readCompressed(
-            this.file, NbtAccounter.create(correctionDecodeLimit(this.preparedDecodedBytes))
-         );
+         Path baseFile = this.segmented ? this.file.resolve(FIRST_SEGMENT_FILE) : this.file;
+         CompoundTag root = this.segmented
+            ? RecoveryJournalSegment.read(baseFile, this.operationId, 0)
+            : NbtIo.readCompressed(this.file, NbtAccounter.create(correctionDecodeLimit(this.preparedDecodedBytes)));
          validateHeader(root, this.dimension);
          PaletteLayout layout = correctionLayout(root, actualAfter);
          if (layout.positions().length == 0) {
@@ -713,7 +800,7 @@ public final class PersistentRecoveryJournal {
           if (this.operationId != null) {
              correctionRoot.putString("OperationId", this.operationId.toString());
           }
-         correctionRoot.putByteArray("BaseSha256", sha256(this.file));
+         correctionRoot.putByteArray("BaseSha256", sha256(baseFile));
          correctionRoot.putLongArray("Positions", layout.positions());
          putPalette(correctionRoot, "After", layout);
          correctionRoot = NbtUtils.addCurrentDataVersion(correctionRoot);
@@ -837,7 +924,15 @@ public final class PersistentRecoveryJournal {
       Path baseFile,
       ResourceKey<Level> expectedDimension
    ) throws IOException {
-      Path correction = correctionPath(baseFile);
+      return decodeCorrections(level, baseFile, correctionPath(baseFile), expectedDimension);
+   }
+
+   private static DecodedCorrections decodeCorrections(
+      ServerLevel level,
+      Path baseFile,
+      Path correction,
+      ResourceKey<Level> expectedDimension
+   ) throws IOException {
       if (!Files.exists(correction)) {
          return null;
       }
@@ -891,6 +986,54 @@ public final class PersistentRecoveryJournal {
          return UUID.fromString(encoded);
       } catch (IllegalArgumentException exception) {
          throw new IOException("Invalid journal operation ID", exception);
+      }
+   }
+
+   static PersistentRecoveryJournal writeSegmentedJournal(
+      Path operationDirectory,
+      UUID owner,
+      UUID operationId,
+      ResourceKey<Level> dimension,
+      Collection<ReversibleBlockSnapshot> before,
+      Collection<ReversibleBlockSnapshot> after
+   ) throws IOException {
+      if (operationDirectory == null || owner == null || operationId == null || dimension == null) {
+         throw new IllegalArgumentException("Invalid segmented recovery journal identity");
+      }
+      Files.createDirectories(operationDirectory);
+      RecoveryJournalManifest.write(
+         operationDirectory.resolve(MANIFEST_FILE),
+         operationId,
+         owner,
+         dimension.location().toString(),
+         SEGMENTED_LIMIT
+      );
+      CompoundTag payload = encodePrepared(dimension, before, after);
+      payload.putString("OperationId", operationId.toString());
+      if (payload.sizeInBytes() > MAX_DECOMPRESSED_BYTES) {
+         throw new IOException("Recovery journal exceeds the safe decoded-size limit");
+      }
+      RecoveryJournalSegment.write(operationDirectory.resolve(FIRST_SEGMENT_FILE), operationId, 0, payload);
+      return new PersistentRecoveryJournal(
+         operationDirectory, dimension, operationId, payload.sizeInBytes(), true
+      );
+   }
+
+   private static void deleteDirectoryQuietly(Path directory) {
+      if (directory == null || !Files.exists(directory)) {
+         return;
+      }
+      try {
+         if (Files.isDirectory(directory)) {
+            try (var children = Files.list(directory)) {
+               for (Path child : children.toList()) {
+                  Files.deleteIfExists(child);
+               }
+            }
+         }
+         Files.deleteIfExists(directory);
+      } catch (IOException | RuntimeException exception) {
+         LOGGER.warn("Could not delete FastFormer journal directory {}", directory, exception);
       }
    }
 
@@ -1146,12 +1289,19 @@ public final class PersistentRecoveryJournal {
       return file.resolveSibling(name.substring(0, name.length() - 4) + ".done");
    }
 
+   private static Path committedMarker(Path file) {
+      return Files.isDirectory(file) ? file.resolve(SEAL_FILE) : committedPath(file);
+   }
+
    private static Path preparedPath(Path file) {
       String name = file.getFileName().toString();
       return file.resolveSibling(name.substring(0, name.length() - 5) + ".dat");
    }
 
    private static Path correctionPath(Path file) {
+      if (Files.isDirectory(file)) {
+         return file.resolve(CORRECTION_FILE);
+      }
       String name = file.getFileName().toString();
       int extension = name.lastIndexOf('.');
       String stem = extension < 0 ? name : name.substring(0, extension);
@@ -1176,7 +1326,12 @@ public final class PersistentRecoveryJournal {
             // Only a prepared journal owns an unfinished operation. Committed
             // markers remain replayable until the next durable level save, but
             // recovery order already composes them with newer operations.
-            return name.endsWith(suffix + ".dat");
+            if (name.endsWith(suffix + ".dat")) {
+               return true;
+            }
+            return Files.isDirectory(path)
+               && name.contains(suffix + "-")
+               && !Files.exists(path.resolve(SEAL_FILE));
          });
       } catch (IOException | RuntimeException exception) {
          LOGGER.error("Could not check existing FastFormer journals for {}", owner, exception);

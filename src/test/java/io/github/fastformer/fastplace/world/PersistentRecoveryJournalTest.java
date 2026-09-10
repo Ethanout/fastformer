@@ -145,6 +145,52 @@ class PersistentRecoveryJournalTest {
    }
 
    @Test
+   void unusedSegmentedJournalIsDiscardedWithoutASeal() throws Exception {
+      UUID owner = UUID.randomUUID();
+      UUID operation = UUID.randomUUID();
+      Path directory = segmentedDirectory(owner, operation);
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(directory);
+
+      assertEquals(true, journal.discardUnused());
+      assertEquals(false, Files.exists(directory));
+   }
+
+   @Test
+   void segmentedJournalWritesSealOnFinalizedCommit() throws Exception {
+      UUID owner = UUID.randomUUID();
+      UUID operation = UUID.randomUUID();
+      Path directory = segmentedDirectory(owner, operation);
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(directory);
+
+      assertEquals(false, journal.completeFinalized());
+      assertEquals(true, journal.finalizeAfter(java.util.Map.of()).join());
+      assertEquals(true, journal.completeFinalized());
+      assertEquals(true, Files.exists(directory.resolve("seal.done")));
+      assertEquals(true, Files.exists(directory.resolve("manifest.dat")));
+      assertEquals(true, Files.exists(directory.resolve("segment-000000.dat")));
+   }
+
+   @Test
+   void unsealedSegmentedDirectoryBlocksANewOwnerJournal() throws Exception {
+      UUID owner = UUID.randomUUID();
+      segmentedDirectory(owner, UUID.randomUUID());
+
+      assertEquals(true, PersistentRecoveryJournal.hasOwnerJournal(this.temporaryDirectory, owner));
+   }
+
+   @Test
+   void sealedSegmentedDirectoryDoesNotBlockANewOwnerJournal() throws Exception {
+      UUID owner = UUID.randomUUID();
+      UUID operation = UUID.randomUUID();
+      Path directory = segmentedDirectory(owner, operation);
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(directory);
+      assertEquals(true, journal.finalizeAfter(java.util.Map.of()).join());
+      assertEquals(true, journal.completeFinalized());
+
+      assertEquals(false, PersistentRecoveryJournal.hasOwnerJournal(this.temporaryDirectory, owner));
+   }
+
+   @Test
    void unusedPreparedJournalIsDiscardedWithoutACommitMarker() throws IOException {
       Path prepared = this.temporaryDirectory.resolve("00000000000000000003-owner.dat");
       Path correction = this.temporaryDirectory.resolve("00000000000000000003-owner.delta");
@@ -249,6 +295,20 @@ class PersistentRecoveryJournalTest {
       try (var children = Files.list(this.temporaryDirectory)) {
          assertEquals(0L, children.filter(path -> path.getFileName().toString().contains(".tmp-")).count());
       }
+   }
+
+   private Path segmentedDirectory(UUID owner, UUID operation) throws Exception {
+      Path directory = this.temporaryDirectory.resolve(
+         String.format("00000000000000000009-%s-%s", owner, operation)
+      );
+      Files.createDirectories(directory);
+      RecoveryJournalManifest.write(
+         directory.resolve("manifest.dat"), operation, owner, "minecraft:overworld", 4
+      );
+      RecoveryJournalSegment.write(
+         directory.resolve("segment-000000.dat"), operation, 0, new CompoundTag()
+      );
+      return directory;
    }
 
    private static ReversibleBlockSnapshot snapshot(BlockPos pos, CompoundTag blockEntity) {
