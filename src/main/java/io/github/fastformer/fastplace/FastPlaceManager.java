@@ -922,6 +922,15 @@ public final class FastPlaceManager {
                   );
                   context.actionBar(failureStatus(task, context.owner()));
                } else if (task.readyToFinalize()) {
+                  if (!task.hasWrites()) {
+                     TASKS.remove(owner, task);
+                     task.releaseAfterCancelledJournal(context);
+                     task.releaseMemoryReservation();
+                     task.releaseCommittedTransactionState();
+                     task.markComplete();
+                     context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", 0));
+                     return;
+                  }
                   task.releaseGenerationState();
                   task.resizeMemoryReservationForTransaction();
                   if (!task.finalizeSnapshots(level, budget)) {

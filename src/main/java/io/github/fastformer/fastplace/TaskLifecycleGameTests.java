@@ -36,6 +36,23 @@ public final class TaskLifecycleGameTests {
    private TaskLifecycleGameTests() {}
 
    @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
+   public static void unchangedPlacementCompletesWithoutRecovery(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos position = helper.absolutePos(new BlockPos(1, 97, 1));
+      level.setBlock(position, Blocks.GOLD_BLOCK.defaultBlockState(), 2);
+      UUID owner = UUID.randomUUID();
+      PlacementTask task = placementTask(level, Set.of(position));
+      FastPlaceManager.addTaskForTest(owner, task);
+      helper.succeedWhen(() -> {
+         FastPlaceManager.tickWorld(level.getServer());
+         helper.assertTrue(!FastPlaceManager.taskActive(owner), "waiting for unchanged placement");
+         helper.assertTrue(!WorldHistoryManager.busy(owner), "unchanged placement created recovery");
+         helper.assertTrue(task.metricsSummary().contains("phase=COMPLETE"), "unchanged placement did not complete normally");
+         helper.assertTrue(level.getBlockState(position).is(Blocks.GOLD_BLOCK), "unchanged placement changed its target");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
    public static void placementCompletesAtRepresentativeSizes(GameTestHelper helper) {
       ServerLevel level = helper.getLevel();
       BlockPos origin = helper.absolutePos(new BlockPos(1, 33, 1));
