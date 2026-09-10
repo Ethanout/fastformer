@@ -253,6 +253,45 @@ public final class JournalRecoveryGameTests {
       }
    }
 
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   public static void finalCorrectionsCoverLaterSegments(GameTestHelper helper) throws Exception {
+      var level = helper.getLevel();
+      BlockPos first = helper.absolutePos(new BlockPos(1, 1, 1));
+      BlockPos second = helper.absolutePos(new BlockPos(2, 1, 1));
+      var beforeFirst = ReversibleBlockSnapshot.capture(level, first).orElseThrow();
+      var beforeSecond = ReversibleBlockSnapshot.capture(level, second).orElseThrow();
+      level.setBlock(first, Blocks.STONE.defaultBlockState(), 2);
+      level.setBlock(second, Blocks.STONE.defaultBlockState(), 2);
+      var predictedFirst = ReversibleBlockSnapshot.capture(level, first).orElseThrow();
+      var predictedSecond = ReversibleBlockSnapshot.capture(level, second).orElseThrow();
+      level.setBlock(first, Blocks.GOLD_BLOCK.defaultBlockState(), 2);
+      level.setBlock(second, Blocks.DIAMOND_BLOCK.defaultBlockState(), 2);
+      var actualFirst = ReversibleBlockSnapshot.capture(level, first).orElseThrow();
+      var actualSecond = ReversibleBlockSnapshot.capture(level, second).orElseThrow();
+      Path directory = Files.createTempDirectory("fastformer-final-segment-");
+      UUID operation = UUID.randomUUID();
+      try {
+         RecoveryJournalManifest.write(directory.resolve("manifest.dat"), operation, UUID.randomUUID(),
+            level.dimension().location().toString(), 2);
+         RecoveryJournalSegment.write(directory.resolve("segment-000000.dat"), operation, 0,
+            PersistentRecoveryJournal.encodePrepared(level.dimension(), List.of(beforeFirst), List.of(predictedFirst)));
+         var journal = new PersistentRecoveryJournal(directory, level.dimension());
+         helper.assertTrue(journal.appendSegment(List.of(beforeSecond), List.of(predictedSecond)), "append failed");
+         helper.assertTrue(journal.finalizeAfter(Map.of(first, actualFirst, second, actualSecond)).join(),
+            "finalization rejected the second segment");
+         var segments = RecoveryJournalSegments.inspectComplete(directory, operation, 2);
+         RecoveryJournalSeal.write(directory.resolve("seal.done"), operation, segments.count(), segments.digest());
+         beforeFirst.restore(level, 2);
+         beforeSecond.restore(level, 2);
+         helper.assertTrue(PersistentRecoveryJournal.recoverOne(level.getServer(), directory, true), "replay failed");
+         helper.assertTrue(actualFirst.matches(level, first), "first correction was lost");
+         helper.assertTrue(actualSecond.matches(level, second), "later-segment correction was lost");
+         helper.succeed();
+      } finally {
+         deleteJournalDirectory(directory);
+      }
+   }
+
    private static Path recoveryDirectory(GameTestHelper helper) {
       return helper.getLevel().getServer().getWorldPath(LevelResource.ROOT).resolve("fastformer-recovery");
    }

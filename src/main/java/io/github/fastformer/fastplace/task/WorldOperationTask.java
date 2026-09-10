@@ -34,6 +34,10 @@ public interface WorldOperationTask {
 
    WorldOperationCommit operationCommit();
 
+   default CompletableFuture<Void> journalCompletion() {
+      return CompletableFuture.completedFuture(null);
+   }
+
    default boolean hasWrites() {
       return transaction().hasWrites();
    }
@@ -43,7 +47,7 @@ public interface WorldOperationTask {
       cancelJournalPreparation();
       WorldOperationCommit commit = operationCommit();
       CompletableFuture<Void> ready = commit == null ? CompletableFuture.completedFuture(null) : commit.stopForRecovery();
-      return transaction().transferRecoverySnapshot(ready);
+      return transaction().transferRecoverySnapshot(CompletableFuture.allOf(ready, journalCompletion()));
    }
 
    ResourceKey<Level> dimension();
@@ -74,8 +78,8 @@ public interface WorldOperationTask {
    }
 
    /** Re-establishes a released working-set reservation after a world reload. */
-   default boolean ensureMemoryReservation() {
-      return true;
+   default MemoryReservationAttempt reserveWorkingSet() {
+      return MemoryReservationAttempt.ACQUIRED;
    }
 
    default void recordBatch(int cells, long elapsedNanos) {

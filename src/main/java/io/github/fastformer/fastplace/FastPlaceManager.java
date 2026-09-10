@@ -501,7 +501,7 @@ public final class FastPlaceManager {
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
                   return;
                }
-               TASKS.put(player.getUUID(), generationPlan.generateAsync(generationReservation.orElseThrow()));
+               enqueueTask(player, generationPlan.generateAsync(generationReservation.orElseThrow()));
                cancel(player);
                FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generating"));
             } else {
@@ -537,7 +537,7 @@ public final class FastPlaceManager {
                   cancel(player);
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
                 } else {
-                   TASKS.put(player.getUUID(), PlacementTask.ready(blocks, generationPlan.taskPlan()));
+                   enqueueTask(player, PlacementTask.ready(blocks, generationPlan.taskPlan()));
                    cancel(player);
                    FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_queued", blocks.size()));
                 }
@@ -582,8 +582,8 @@ public final class FastPlaceManager {
          return false;
       }
       FastPlaceSettings settings = FastPlaceSettings.load(player);
-      TASKS.put(
-         player.getUUID(),
+      enqueueTask(
+         player,
          PlacementTask.ready(best, taskPlan(player, settings, placeState.get(), null))
       );
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.point_plane_queued", best.size()));
@@ -634,7 +634,7 @@ public final class FastPlaceManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
          return false;
       }
-      TASKS.put(player.getUUID(), PlacementTask.ready(targets, taskPlan(player, settings, state, null)));
+      enqueueTask(player, PlacementTask.ready(targets, taskPlan(player, settings, state, null)));
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_queued", targets.size()));
       return true;
    }
@@ -684,7 +684,7 @@ public final class FastPlaceManager {
          LOGGER.error("FastFormer asynchronous placement generation could not be scheduled for {}", player.getUUID(), exception);
          return false;
       }
-      TASKS.put(player.getUUID(), PlacementTask.generatingResult(
+      enqueueTask(player, PlacementTask.generatingResult(
          future,
          taskPlan(player, settings, state, null),
          generationReservation.orElseThrow()
@@ -796,6 +796,20 @@ public final class FastPlaceManager {
       }
    }
 
+   private static void enqueueTask(ServerPlayer player, PlacementTask task) {
+      TASKS.put(player.getUUID(), task);
+      WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
+      context.withResume(() -> resumeTask(context, task)).enqueueResume();
+   }
+
+   private static void resumeTask(WorldTaskContext context, PlacementTask task) {
+      if (TASKS.get(context.owner()) == task
+         && PersistentRecoveryJournal.writesAllowed()
+         && !WorldHistoryManager.busy(context.owner())) {
+         tickTask(context);
+      }
+   }
+
    private static void tickTask(WorldTaskContext context) {
       UUID owner = context.owner();
       PlacementTask task = TASKS.get(owner);
@@ -862,7 +876,7 @@ public final class FastPlaceManager {
                   context.actionBar(FastPlaceMessages.text("fastformer.message.placement_snapshot_validation_failed"));
                } else {
                 ServerLevel level = context.level(task.dimension());
-               JournalPreparation journalPreparation = task.prepareJournal(context);
+               JournalPreparation journalPreparation = task.prepareJournal(context.withResume(() -> resumeTask(context, task)));
                if (journalPreparation == JournalPreparation.PENDING) {
                   context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_preparing"));
                   return;

@@ -8,11 +8,13 @@ class ClientInputStateMachineTest {
    @Test
    void invalidAcknowledgementCannotLoseThePendingRequest() {
       var state = new ClientInputStateMachine();
+      state.observe(ClientInputStateMachine.State.BUILDING);
       assertTrue(state.submit(42));
       assertThrows(NullPointerException.class, () -> state.acknowledge(42, null));
       state.acknowledge(42, ClientInputStateMachine.State.BUILDING);
       assertEquals(ClientInputStateMachine.State.BUILDING, state.state());
       var transfer = java.util.UUID.randomUUID();
+      state.observe(ClientInputStateMachine.State.ADJUSTING);
       assertTrue(state.submit(transfer));
       assertThrows(NullPointerException.class, () -> state.acknowledge(transfer, null));
       state.acknowledge(transfer, ClientInputStateMachine.State.ADJUSTING);
@@ -42,6 +44,24 @@ class ClientInputStateMachineTest {
    }
 
    @Test
+   void submissionStartsOnlyFromAConfirmedRequestOwningPhase() {
+      ClientInputStateMachine state = new ClientInputStateMachine();
+
+      assertFalse(state.submit(1L));
+      assertFalse(state.submit(java.util.UUID.randomUUID()));
+      state.observe(ClientInputStateMachine.State.GEOMETRY);
+      assertTrue(state.submit(2L));
+      state.acknowledge(2L, ClientInputStateMachine.State.GEOMETRY);
+      state.observe(ClientInputStateMachine.State.SELECTING);
+      assertFalse(state.submit(3L));
+
+      state.observe(ClientInputStateMachine.State.BUILDING);
+      assertTrue(state.submit(4L));
+      state.acknowledge(4L, ClientInputStateMachine.State.ADJUSTING);
+      assertTrue(state.submit(java.util.UUID.randomUUID()));
+   }
+
+   @Test
    void submissionBlocksLateEventsUntilMatchingAcknowledgement() {
       var state = new ClientInputStateMachine();
       state.observe(ClientInputStateMachine.State.BUILDING);
@@ -65,6 +85,7 @@ class ClientInputStateMachineTest {
    @Test
    void acknowledgementCannotUndoCancellationOrDisconnect() {
       var state = new ClientInputStateMachine();
+      state.observe(ClientInputStateMachine.State.BUILDING);
       assertTrue(state.submit(1));
       assertTrue(state.cancel());
       state.acknowledge(1, ClientInputStateMachine.State.PLACING);

@@ -81,11 +81,14 @@ class WorldJournalPreparationCancellationTest {
       assertEquals(JournalPreparation.PENDING, preparation.poll(Optional::empty));
 
       try {
+         CompletableFuture<Void> recoveryReady = preparation.completion();
          preparation.cancel();
          preparation.releaseWhenIdle(reservation);
 
+         assertFalse(recoveryReady.isDone());
          assertEquals(reserved, MemoryReservation.reservedBytes());
          queue.removeFirst().run();
+         assertTrue(recoveryReady.isDone());
          assertEquals(baseline, MemoryReservation.reservedBytes());
       } finally {
          reservation.close();
@@ -107,11 +110,14 @@ class WorldJournalPreparationCancellationTest {
       assertEquals(JournalPreparation.PENDING, preparation.pollAppend(() -> true));
 
       try {
+         CompletableFuture<Void> recoveryReady = preparation.completion();
          preparation.cancel();
          preparation.releaseWhenIdle(reservation);
 
+         assertFalse(recoveryReady.isDone());
          assertEquals(reserved, MemoryReservation.reservedBytes());
          queue.removeFirst().run();
+         assertTrue(recoveryReady.isDone());
          assertEquals(baseline, MemoryReservation.reservedBytes());
       } finally {
          reservation.close();

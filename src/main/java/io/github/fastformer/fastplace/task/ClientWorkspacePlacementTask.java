@@ -15,6 +15,7 @@ import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldJournalPreparation;
 import io.github.fastformer.fastplace.world.WorldBatchFeedback;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
+import io.github.fastformer.fastplace.world.MemoryAdmission;
 import io.github.fastformer.fastplace.world.MemoryReservation;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
@@ -94,13 +95,22 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
          }
          switch (phase) {
             case VALIDATE -> {
-               OperationTaskResult validation = captureNext(level);
-               if (validation != OperationTaskResult.ACTIVE) {
-                  return validation;
+               CaptureStep capture = captureNext(level);
+               if (capture == CaptureStep.RETRY) {
+                  return OperationTaskResult.ACTIVE;
+               }
+               if (capture != CaptureStep.ADVANCED) {
+                  return switch (capture) {
+                     case EMPTY -> OperationTaskResult.EMPTY;
+                     case EXCEEDED -> OperationTaskResult.EXCEEDED;
+                     case REJECTED -> OperationTaskResult.MEMORY_UNSAFE;
+                     case FAILED -> OperationTaskResult.FAILED;
+                     default -> throw new IllegalStateException("Unexpected workspace capture state " + capture);
+                  };
                }
                int unjournaled = transaction.expectedCount() - journaledCount - pendingJournalSlice.size();
                if (unjournaled > 0 && (captureComplete
-                  || unjournaled >= PersistentRecoveryJournal.segmentBatchSize(journaledCount, unjournaled))) {
+                  || unjournaled >= PersistentRecoveryJournal.segmentCapacity(journaledCount))) {
                   phase = Phase.JOURNAL;
                } else if (captureComplete && writable.isEmpty() && pendingJournalSlice.isEmpty()) {
                   phase = Phase.FINALIZE;
@@ -150,57 +160,57 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
                transaction.recordAfter(position, actual.orElseThrow());
             }
             case FINAL_JOURNAL -> {
-               JournalPreparation preparation = prepareCommit();
-               if (preparation == JournalPreparation.PENDING) {
-                  return OperationTaskResult.ACTIVE;
-               }
-               return preparation == JournalPreparation.READY
-                  ? OperationTaskResult.COMPLETE
-                  : OperationTaskResult.FAILED;
+               return prepareCommit();
             }
          }
       }
       return OperationTaskResult.ACTIVE;
    }
 
-   private OperationTaskResult captureNext(ServerLevel level) {
+   private CaptureStep captureNext(ServerLevel level) {
       if (desired.isEmpty() && !captureComplete) {
          OperationTaskResult composed = composeDesired(level);
          if (composed != OperationTaskResult.ACTIVE) {
-            return composed;
+            return switch (composed) {
+               case EMPTY -> CaptureStep.EMPTY;
+               case EXCEEDED -> CaptureStep.EXCEEDED;
+               default -> CaptureStep.FAILED;
+            };
          }
+      }
+      MemoryReservationAttempt currentReservation = reserveSnapshotMemory();
+      if (currentReservation == MemoryReservationAttempt.REJECTED) {
+         return CaptureStep.REJECTED;
+      }
+      if (currentReservation == MemoryReservationAttempt.RETRY) {
+         return CaptureStep.RETRY;
       }
       if (captureIterator != null && captureIterator.hasNext()) {
          Map.Entry<BlockPos, ClientBlockSnapshot> entry = captureIterator.next();
          if (!captureExpected(level, entry)) {
-            return OperationTaskResult.FAILED;
+            return CaptureStep.FAILED;
          }
-         var admission = WorldOperationMemory.snapshotAdmission(desired.size(), blockEntityReserve);
-         if (!admission.allowed()) {
-            return OperationTaskResult.MEMORY_UNSAFE;
+         MemoryReservationAttempt capturedReservation = reserveSnapshotMemory();
+         if (capturedReservation == MemoryReservationAttempt.REJECTED) {
+            return CaptureStep.REJECTED;
          }
-         memoryThrottled = admission.throttled();
-         if (memoryReservation == null) {
-            memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
-         } else if (!memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())) {
-            return OperationTaskResult.MEMORY_UNSAFE;
-         }
-         if (memoryReservation == null) {
-            return OperationTaskResult.MEMORY_UNSAFE;
+         if (capturedReservation == MemoryReservationAttempt.RETRY) {
+            return CaptureStep.RETRY;
          }
       }
       if (captureIterator == null || !captureIterator.hasNext()) {
          captureComplete = true;
          captureIterator = null;
          var journalAdmission = WorldOperationMemory.journalAdmission(desired.size(), blockEntityReserve);
-         memoryThrottled = journalAdmission.throttled();
-         if (!journalAdmission.allowed()
-            || memoryReservation == null
-            || !memoryReservation.resize(journalAdmission.requestedBytes(), journalAdmission.usableBytes())) {
-            return OperationTaskResult.MEMORY_UNSAFE;
+         MemoryReservationAttempt journalReservation = reserveMemory(journalAdmission);
+         if (journalReservation == MemoryReservationAttempt.REJECTED) {
+            return CaptureStep.REJECTED;
+         }
+         if (journalReservation == MemoryReservationAttempt.RETRY) {
+            return CaptureStep.RETRY;
          }
       }
-      return OperationTaskResult.ACTIVE;
+      return CaptureStep.ADVANCED;
    }
 
    private OperationTaskResult composeDesired(ServerLevel level) {
@@ -298,6 +308,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       metrics.writeAttempt(true);
       Optional<ReversibleBlockSnapshot> actual = ReversibleBlockSnapshot.capture(level, pos);
       if (actual.isEmpty()) {
+         transaction.recordAfter(pos, currentSnapshot(level, pos));
          return false;
       }
       transaction.recordAfter(pos, actual.orElseThrow());
@@ -328,7 +339,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       JournalPreparation preparation = journalPreparation.journal() == null
          ? journalPreparation.poll(() -> PersistentRecoveryJournal.begin(
             context.server(), context.owner(), dimension, slice, predictedFinalSnapshots(slice), operationId()
-         ))
+         ), context)
          : journalPreparation.pollAppend(() ->
             journalPreparation.journal().appendSegment(slice, predictedFinalSnapshots(slice))
          );
@@ -364,14 +375,29 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       });
    }
 
-   private JournalPreparation prepareCommit() {
+   private OperationTaskResult prepareCommit() {
       if (operationCommit == null) {
-         if (!reserveCommitMemory()) {
-            return JournalPreparation.PENDING;
+         MemoryReservationAttempt commitReservation = reserveCommitMemory();
+         if (commitReservation == MemoryReservationAttempt.RETRY) {
+            return OperationTaskResult.ACTIVE;
+         }
+         if (commitReservation == MemoryReservationAttempt.REJECTED) {
+            return OperationTaskResult.MEMORY_UNSAFE;
          }
          operationCommit = WorldOperationCommit.begin(dimension, transaction, journalPreparation.journal());
       }
-      return operationCommit.poll();
+      JournalPreparation preparation = operationCommit.poll();
+      if (preparation == JournalPreparation.PENDING) {
+         return OperationTaskResult.ACTIVE;
+      }
+      return preparation == JournalPreparation.READY
+         ? OperationTaskResult.COMPLETE
+         : OperationTaskResult.FAILED;
+   }
+
+   @Override
+   public CompletableFuture<Void> journalCompletion() {
+      return journalPreparation.completion();
    }
 
    private void releaseWriteStagingForCommit() {
@@ -382,19 +408,29 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       captureIterator = null;
    }
 
-   private boolean reserveCommitMemory() {
+   private MemoryReservationAttempt reserveCommitMemory() {
       var admission = WorldOperationMemory.commitAdmission(
          transaction.snapshotCount(), transaction.largestSideCount(), transaction.commitBlockEntityReserve()
       );
+      return reserveMemory(admission);
+   }
+
+   private MemoryReservationAttempt reserveSnapshotMemory() {
+      return reserveMemory(WorldOperationMemory.snapshotAdmission(desired.size(), blockEntityReserve));
+   }
+
+   private MemoryReservationAttempt reserveMemory(MemoryAdmission admission) {
       memoryThrottled = admission.throttled();
       if (!admission.allowed()) {
-         return false;
+         return MemoryReservationAttempt.REJECTED;
       }
       if (memoryReservation == null) {
          memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
-         return memoryReservation != null;
+         return memoryReservation == null ? MemoryReservationAttempt.RETRY : MemoryReservationAttempt.ACQUIRED;
       }
-      return memoryReservation.resize(admission.requestedBytes(), admission.usableBytes());
+      return memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())
+         ? MemoryReservationAttempt.ACQUIRED
+         : MemoryReservationAttempt.RETRY;
    }
 
    private static ClientBlockSnapshot clientSnapshot(ReversibleBlockSnapshot snapshot) {
@@ -500,12 +536,12 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    }
 
    @Override
-   public boolean ensureMemoryReservation() {
+   public MemoryReservationAttempt reserveWorkingSet() {
       if (memoryReservation != null) {
-         return true;
+         return MemoryReservationAttempt.ACQUIRED;
       }
       if (phase != Phase.FINAL_JOURNAL && desired.isEmpty()) {
-         return true;
+         return MemoryReservationAttempt.ACQUIRED;
       }
       var admission = phase == Phase.FINAL_JOURNAL
          ? WorldOperationMemory.commitAdmission(
@@ -514,13 +550,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
          : phase == Phase.JOURNAL
             ? WorldOperationMemory.journalAdmission(desired.size(), blockEntityReserve)
             : WorldOperationMemory.snapshotAdmission(desired.size(), blockEntityReserve);
-      if (!admission.allowed()) {
-         memoryThrottled = admission.throttled();
-         return false;
-      }
-      memoryThrottled = admission.throttled();
-      memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
-      return memoryReservation != null;
+      return reserveMemory(admission);
    }
 
    @Override
@@ -576,5 +606,14 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       WRITE,
       FINALIZE,
       FINAL_JOURNAL
+   }
+
+   private enum CaptureStep {
+      ADVANCED,
+      RETRY,
+      EMPTY,
+      EXCEEDED,
+      REJECTED,
+      FAILED
    }
 }

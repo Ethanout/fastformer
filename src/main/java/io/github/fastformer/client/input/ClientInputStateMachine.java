@@ -42,7 +42,7 @@ public final class ClientInputStateMachine {
    }
 
    public boolean submit(long requestId) {
-      if (requestId <= 0 || dispatch(InputKind.KEY) == Dispatch.BLOCKED) {
+      if (requestId <= 0 || !canSubmit()) {
          return false;
       }
       pendingRequest = requestId;
@@ -53,13 +53,17 @@ public final class ClientInputStateMachine {
 
    public boolean submit(java.util.UUID transferId) {
       Objects.requireNonNull(transferId, "transferId");
-      if (dispatch(InputKind.KEY) == Dispatch.BLOCKED) {
+      if (!canSubmit()) {
          return false;
       }
       pendingRequest = 0;
       pendingTransfer = transferId;
       transition(State.SUBMITTING);
       return true;
+   }
+
+   private boolean canSubmit() {
+      return state == State.BUILDING || state == State.GEOMETRY || state == State.ADJUSTING;
    }
 
    public void acknowledge(java.util.UUID transferId, State observed) {

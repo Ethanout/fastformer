@@ -4,6 +4,7 @@ import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.fastplace.task.MemoryReservationAttempt;
 import io.github.fastformer.fastplace.task.OperationTaskResult;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
@@ -378,8 +379,8 @@ public final class OperationManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_task_running"));
          return false;
       }
-      TASKS.put(
-         player.getUUID(),
+      enqueueTask(
+         player,
          new SelectionOperationTask(
             selection,
             session.mode(),
@@ -406,8 +407,8 @@ public final class OperationManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_task_running"));
          return false;
       }
-      TASKS.put(
-         player.getUUID(),
+      enqueueTask(
+         player,
          new ClientWorkspacePlacementTask(
             transferId,
             plan,
@@ -452,11 +453,12 @@ public final class OperationManager {
          context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
          return;
       }
-      if (!task.ensureMemoryReservation()) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+      var reservation = task.reserveWorkingSet();
+      if (reservation == MemoryReservationAttempt.RETRY) {
+         context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
          return;
       }
-      if (!task.acquireLease(context)) {
+      if (reservation == MemoryReservationAttempt.ACQUIRED && !task.acquireLease(context)) {
          context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
          return;
       }
@@ -464,8 +466,9 @@ public final class OperationManager {
       budget = WorldTaskBudget.forServerTick(
          task.memoryThrottled(), task.previousBatchCells(), task.previousBatchNanos()
       );
-      OperationTaskResult result = task.tick(
-         context,
+      OperationTaskResult result = reservation == MemoryReservationAttempt.REJECTED
+         ? OperationTaskResult.MEMORY_UNSAFE : task.tick(
+         context.withResume(() -> resumeTask(context, task)),
          level,
          budget
       );
@@ -544,6 +547,21 @@ public final class OperationManager {
          LOGGER.error("FastFormer operation task failed for {} and was transferred to recovery", owner, exception);
          LOGGER.error("FastFormer operation metrics: {}", task.metricsSummary());
          context.actionBar(operationFailureStatus(task, recoveryCreated));
+      }
+   }
+
+   private static void enqueueTask(ServerPlayer player, WorldOperationTask task) {
+      TASKS.put(player.getUUID(), task);
+      WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
+      context.withResume(() -> resumeTask(context, task)).enqueueResume();
+   }
+
+   private static void resumeTask(WorldTaskContext context, WorldOperationTask task) {
+      if (TASKS.get(context.owner()) == task
+         && PersistentRecoveryJournal.writesAllowed()
+         && !WorldHistoryManager.busy(context.owner())
+         && !FastPlaceManager.taskActive(context.owner())) {
+         tickTask(context);
       }
    }
 

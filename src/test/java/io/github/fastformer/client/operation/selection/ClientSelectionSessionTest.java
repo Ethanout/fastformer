@@ -1,6 +1,7 @@
 package io.github.fastformer.client.operation.selection;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.OperationSelectionMode;
@@ -54,5 +55,40 @@ class ClientSelectionSessionTest {
       assertEquals(first, session.draftAt(0));
       assertEquals(second, session.draftAt(1));
       assertEquals(List.of(new BlockPos(-1, 3, 3), new BlockPos(5, 9, 7)), session.selectionDraftPoints());
+   }
+
+   @Test
+   void removingDraftPointsRecomputesTheAuthoritativeBounds() {
+      ClientSelectionSession session = new ClientSelectionSession();
+      session.addDraftPoint(new BlockPos(2, 2, 2));
+      session.addDraftPoint(new BlockPos(8, 8, 8));
+      session.addDraftPoint(new BlockPos(-4, 10, 1));
+
+      assertEquals(new BlockPos(-4, 2, 1), session.draftMinPoint());
+      assertEquals(new BlockPos(8, 10, 8), session.draftMaxPoint());
+      assertEquals(new BlockPos(-4, 10, 1), session.removeLastDraftPoint());
+      assertEquals(new BlockPos(2, 2, 2), session.draftMinPoint());
+      assertEquals(new BlockPos(8, 8, 8), session.draftMaxPoint());
+
+      session.removeLastDraftPoint();
+      session.removeLastDraftPoint();
+      assertNull(session.draftMinPoint());
+      assertNull(session.draftMaxPoint());
+   }
+
+   @Test
+   void restoredDraftBoundsAreNormalizedWithoutChangingInputPoints() {
+      ClientSelectionSession session = new ClientSelectionSession();
+      BlockPos first = new BlockPos(3, 4, 5);
+      BlockPos second = new BlockPos(6, 7, 8);
+      session.addDraftPoint(first);
+      session.addDraftPoint(second);
+
+      session.restoreDraftBounds(new BlockPos(10, -2, 7), new BlockPos(-3, 12, 1));
+
+      assertEquals(first, session.draftAt(0));
+      assertEquals(second, session.draftAt(1));
+      assertEquals(new BlockPos(-3, -2, 1), session.draftMinPoint());
+      assertEquals(new BlockPos(10, 12, 7), session.draftMaxPoint());
    }
 }

@@ -313,6 +313,11 @@ public final class PlacementTask {
             : this.targets.iterator();
       }
       while (this.validationIterator.hasNext() && budget.tryConsume()) {
+         MemoryReservationAttempt existingReservation = reserveSnapshotMemory();
+         if (existingReservation != MemoryReservationAttempt.ACQUIRED) {
+            this.memoryUnsafe = existingReservation == MemoryReservationAttempt.REJECTED;
+            return this.memoryUnsafe;
+         }
          BlockPos pos = this.validationIterator.next();
          this.validationRemaining--;
          Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
@@ -327,21 +332,15 @@ public final class PlacementTask {
             this.blockEntityReserve,
             WorldOperationMemory.snapshotNbtReserve(captured)
          );
-         var admission = WorldOperationMemory.snapshotAdmission(this.total, this.blockEntityReserve);
-         this.memoryThrottled = admission.throttled();
-         if (!admission.allowed()) {
-            this.memoryUnsafe = true;
-            return true;
-         }
-         if (this.memoryReservation == null
-            || !this.memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())) {
-            this.memoryUnsafe = true;
-            return true;
-         }
          this.transaction.recordExpected(pos, captured);
+         MemoryReservationAttempt capturedReservation = reserveSnapshotMemory();
+         if (capturedReservation != MemoryReservationAttempt.ACQUIRED) {
+            this.memoryUnsafe = capturedReservation == MemoryReservationAttempt.REJECTED;
+            return this.memoryUnsafe;
+         }
          if (!this.journalPreparation.started()) {
             int unjournaled = this.transaction.expectedCount() - this.journaledCount;
-            if (unjournaled >= PersistentRecoveryJournal.segmentBatchSize(this.journaledCount, unjournaled)) {
+            if (unjournaled >= PersistentRecoveryJournal.segmentCapacity(this.journaledCount)) {
                break;
             }
          }
@@ -351,9 +350,10 @@ public final class PlacementTask {
          }
       }
       if (!this.validationIterator.hasNext()) {
-         if (!reserveJournalMemory()) {
-            this.memoryUnsafe = true;
-            return true;
+         MemoryReservationAttempt journalReservation = reserveJournalMemory();
+         if (journalReservation != MemoryReservationAttempt.ACQUIRED) {
+            this.memoryUnsafe = journalReservation == MemoryReservationAttempt.REJECTED;
+            return this.memoryUnsafe;
          }
          this.snapshotsValidated = true;
          // The validation map owns the snapshots from this point onward. A
@@ -374,7 +374,7 @@ public final class PlacementTask {
       if (this.snapshotsValidated) {
          return true;
       }
-      int batch = PersistentRecoveryJournal.segmentBatchSize(this.journaledCount, unjournaled);
+      int batch = PersistentRecoveryJournal.segmentCapacity(this.journaledCount);
       return unjournaled >= batch || !budget.hasRemaining();
    }
 
@@ -386,7 +386,11 @@ public final class PlacementTask {
          if (!this.hasUnjournaledSnapshots()) {
             return JournalPreparation.READY;
          }
-         if (!reserveJournalMemory()) {
+         MemoryReservationAttempt journalReservation = reserveJournalMemory();
+         if (journalReservation == MemoryReservationAttempt.RETRY) {
+            return JournalPreparation.PENDING;
+         }
+         if (journalReservation == MemoryReservationAttempt.REJECTED) {
             this.memoryUnsafe = true;
             fail(WorldOperationPhase.JOURNAL, "journal memory admission failed");
             return JournalPreparation.FAILED;
@@ -408,7 +412,7 @@ public final class PlacementTask {
       RegistryAccess registryAccess = level.registryAccess();
       List<ReversibleBlockSnapshot> slice = this.pendingJournalSlice;
       JournalPreparation preparation = this.journalPreparation.journal() == null
-         ? this.journalPreparation.poll(() -> beginJournal(context, registryAccess, slice))
+         ? this.journalPreparation.poll(() -> beginJournal(context, registryAccess, slice), context)
          : this.journalPreparation.pollAppend(() -> appendJournal(slice, registryAccess));
       if (preparation == JournalPreparation.FAILED) {
          fail(WorldOperationPhase.JOURNAL, this.journalPreparation.failureReason());
@@ -457,12 +461,24 @@ public final class PlacementTask {
       return journal.appendSegment(journalBefore, journalAfter);
    }
 
-   private boolean reserveJournalMemory() {
+   private MemoryReservationAttempt reserveSnapshotMemory() {
+      return reserveMemory(WorldOperationMemory.snapshotAdmission(this.total, this.blockEntityReserve));
+   }
+
+   private MemoryReservationAttempt reserveJournalMemory() {
       var journalAdmission = WorldOperationMemory.journalAdmission(this.total, this.blockEntityReserve);
-      this.memoryThrottled = journalAdmission.throttled();
-      return journalAdmission.allowed()
-         && this.memoryReservation != null
-         && this.memoryReservation.resize(journalAdmission.requestedBytes(), journalAdmission.usableBytes());
+      return reserveMemory(journalAdmission);
+   }
+
+   private MemoryReservationAttempt reserveMemory(MemoryAdmission admission) {
+      this.memoryThrottled = admission.throttled();
+      if (!admission.allowed()) {
+         return MemoryReservationAttempt.REJECTED;
+      }
+      boolean reserved = this.memoryReservation != null
+         ? this.memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())
+         : (this.memoryReservation = WorldOperationMemory.reserve(admission).orElse(null)) != null;
+      return reserved ? MemoryReservationAttempt.ACQUIRED : MemoryReservationAttempt.RETRY;
    }
 
    private boolean hasUnjournaledSnapshots() {
@@ -477,7 +493,7 @@ public final class PlacementTask {
       return this.snapshotsValidated
          && this.pendingJournalSlice.isEmpty()
          && this.writable.isEmpty()
-         && this.journaledCount == this.transaction.expectedCount();
+         && this.remaining == 0;
    }
 
    public boolean finalizeSnapshots(ServerLevel level, WorldTaskBudget budget) {
@@ -502,8 +518,14 @@ public final class PlacementTask {
    public JournalPreparation prepareCommit() {
       this.metrics.phase(WorldOperationPhase.COMMIT);
       if (this.operationCommit == null) {
-         if (!reserveCommitMemory()) {
+         MemoryReservationAttempt commitReservation = reserveCommitMemory();
+         if (commitReservation == MemoryReservationAttempt.RETRY) {
             return JournalPreparation.PENDING;
+         }
+         if (commitReservation == MemoryReservationAttempt.REJECTED) {
+            this.memoryUnsafe = true;
+            fail(WorldOperationPhase.COMMIT, "commit memory admission failed");
+            return JournalPreparation.FAILED;
          }
          this.operationCommit = WorldOperationCommit.begin(
             this.plan.dimension(), this.transaction, this.journalPreparation.journal()
@@ -586,7 +608,9 @@ public final class PlacementTask {
          return true;
       }
       if (this.operationCommit != null) {
-         return reserveCommitMemory();
+         MemoryReservationAttempt commitReservation = reserveCommitMemory();
+         this.memoryUnsafe = commitReservation == MemoryReservationAttempt.REJECTED;
+         return commitReservation == MemoryReservationAttempt.ACQUIRED;
       }
       MemoryAdmission admission;
       if (this.transaction.expectedCount() > 0) {
@@ -673,21 +697,13 @@ public final class PlacementTask {
       return WorldOperationMemory.transactionAdmission(this.transaction.snapshotCount(), this.blockEntityReserve);
    }
 
-   private boolean reserveCommitMemory() {
+   private MemoryReservationAttempt reserveCommitMemory() {
       MemoryAdmission admission = WorldOperationMemory.commitAdmission(
          this.transaction.snapshotCount(),
          this.transaction.largestSideCount(),
          this.transaction.commitBlockEntityReserve()
       );
-      this.memoryThrottled = admission.throttled();
-      if (!admission.allowed()) {
-         return false;
-      }
-      if (this.memoryReservation == null) {
-         this.memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
-         return this.memoryReservation != null;
-      }
-      return this.memoryReservation.resize(admission.requestedBytes(), admission.usableBytes());
+      return reserveMemory(admission);
    }
 
    public void consumed() {
@@ -811,7 +827,7 @@ public final class PlacementTask {
       CompletableFuture<Void> ready = this.operationCommit == null
          ? CompletableFuture.completedFuture(null)
          : this.operationCommit.stopForRecovery();
-      return this.transaction.transferRecoverySnapshot(ready);
+      return this.transaction.transferRecoverySnapshot(CompletableFuture.allOf(ready, this.journalPreparation.completion()));
    }
 
    private void fail(WorldOperationPhase phase, String reason) {

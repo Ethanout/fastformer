@@ -66,13 +66,15 @@ public final class SelectionOperationTask implements WorldOperationTask {
    private int journaledCount;
    private List<ReversibleBlockSnapshot> pendingJournalSlice = List.of();
    private final Set<BlockPos> journaledPositions = new HashSet<>();
+   private final Set<BlockPos> overlappingPlacementPositions = new HashSet<>();
    private boolean validateComplete;
    private PlacementTarget pendingPlacementTarget;
    private Phase phase = Phase.SCAN;
    private int x;
    private int y;
    private int z;
-   private int sourceIndex;
+   private int clearSourceIndex;
+   private int placementSourceIndex;
    private int repeatX;
    private int repeatY;
    private int repeatZ;
@@ -123,9 +125,15 @@ public final class SelectionOperationTask implements WorldOperationTask {
       return OperationTaskResult.ACTIVE;
    }
 
+   @Override
+   public CompletableFuture<Void> journalCompletion() {
+      return journalPreparation.completion();
+   }
+
    private Optional<OperationTaskResult> tickPhase(WorldTaskContext context, ServerLevel level) {
       return switch (phase) {
          case SCAN -> scanNext(level);
+         case SCAN_COMPLETE -> finishScan();
          case VALIDATE -> validatePhase(level);
          case JOURNAL -> prepareJournalPhase(context);
          case CLEAR -> clearNext(level);
@@ -136,6 +144,13 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    private Optional<OperationTaskResult> scanNext(ServerLevel level) {
+      MemoryReservationAttempt currentReservation = reserveMemory(source.size(), blockEntityReserve);
+      if (currentReservation == MemoryReservationAttempt.REJECTED) {
+         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+      }
+      if (currentReservation == MemoryReservationAttempt.RETRY) {
+         return Optional.of(OperationTaskResult.ACTIVE);
+      }
       BlockPos pos = cursorPos();
       BlockState state = level.getBlockState(pos);
       if (!state.isAir() && selection.intersects(new AABB(pos))) {
@@ -147,17 +162,34 @@ public final class SelectionOperationTask implements WorldOperationTask {
          ReversibleBlockSnapshot snapshot = captured.orElseThrow();
          metrics.snapshotCaptured();
          source.add(snapshot);
-         transaction.recordExpectedIfAbsent(pos, snapshot);
+         if (clearsSource()) {
+            transaction.recordExpectedIfAbsent(pos, snapshot);
+         }
          blockEntityReserve = WorldOperationMemory.saturatingAdd(
             blockEntityReserve, WorldOperationMemory.snapshotNbtReserve(snapshot)
          );
-         if (!reserveMemory(source.size(), blockEntityReserve)) {
+         MemoryReservationAttempt capturedReservation = reserveMemory(source.size(), blockEntityReserve);
+         if (!advanceCursor()) {
+            phase = Phase.SCAN_COMPLETE;
+         }
+         if (capturedReservation == MemoryReservationAttempt.REJECTED) {
             return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
          }
+         if (capturedReservation == MemoryReservationAttempt.RETRY) {
+            return Optional.of(OperationTaskResult.ACTIVE);
+         }
+      } else {
+         if (!advanceCursor()) {
+            phase = Phase.SCAN_COMPLETE;
+         }
       }
-      if (advanceCursor()) {
+      if (phase == Phase.SCAN) {
          return Optional.empty();
       }
+      return finishScan();
+   }
+
+   private Optional<OperationTaskResult> finishScan() {
       if (source.isEmpty()) {
          return Optional.of(OperationTaskResult.EMPTY);
       }
@@ -167,36 +199,58 @@ public final class SelectionOperationTask implements WorldOperationTask {
       }
       plannedBlocks = (long)source.size() * copies;
       metrics.targetCount((int)Math.min(Integer.MAX_VALUE, plannedBlocks));
-      if (!reserveMemory(plannedBlocks, blockEntityReserve) || !reserveJournalMemory()) {
+      MemoryReservationAttempt snapshotReservation = reserveMemory(plannedBlocks, blockEntityReserve);
+      MemoryReservationAttempt journalReservation = snapshotReservation == MemoryReservationAttempt.ACQUIRED
+         ? reserveJournalMemory()
+         : snapshotReservation;
+      if (journalReservation == MemoryReservationAttempt.REJECTED) {
          return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
       }
-      phase = Phase.JOURNAL;
+      if (journalReservation == MemoryReservationAttempt.RETRY) {
+         return Optional.of(OperationTaskResult.ACTIVE);
+      }
+      indexOverlappingPlacementPositions();
+      phase = clearsSource() ? Phase.JOURNAL : Phase.VALIDATE;
       resetPlacementCursor();
       return Optional.empty();
    }
 
    private Optional<OperationTaskResult> validatePhase(ServerLevel level) {
-      if (validateNext(level)) {
-         if (unjournaledCount() >= PersistentRecoveryJournal.segmentBatchSize(journaledCount, unjournaledCount())) {
+      MemoryReservationAttempt currentReservation = reserveMemory(plannedBlocks, blockEntityReserve);
+      if (currentReservation == MemoryReservationAttempt.REJECTED) {
+         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+      }
+      if (currentReservation == MemoryReservationAttempt.RETRY) {
+         return Optional.of(OperationTaskResult.ACTIVE);
+      }
+      ValidationStep validation = validateNext(level);
+      if (validation == ValidationStep.ADVANCED) {
+         if (unjournaledCount() >= PersistentRecoveryJournal.segmentCapacity(journaledCount)) {
             phase = Phase.JOURNAL;
          }
          return Optional.empty();
       }
-      if (memoryUnsafe) {
+      if (validation == ValidationStep.RETRY) {
+         return Optional.of(OperationTaskResult.ACTIVE);
+      }
+      if (validation == ValidationStep.REJECTED) {
          return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
       }
-      if (failed) {
+      if (validation == ValidationStep.FAILED) {
          return Optional.of(OperationTaskResult.FAILED);
       }
-      if (!reserveJournalMemory()) {
+      MemoryReservationAttempt journalReservation = reserveJournalMemory();
+      if (journalReservation == MemoryReservationAttempt.REJECTED) {
          return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+      }
+      if (journalReservation == MemoryReservationAttempt.RETRY) {
+         return Optional.of(OperationTaskResult.ACTIVE);
       }
       validateComplete = true;
       if (unjournaledCount() > 0) {
          phase = Phase.JOURNAL;
       } else {
-         phase = Phase.PLACE;
-         resetPlacementCursor();
+         enterPlacePhase();
       }
       return Optional.empty();
    }
@@ -209,31 +263,40 @@ public final class SelectionOperationTask implements WorldOperationTask {
       if (preparation == JournalPreparation.FAILED) {
          return Optional.of(OperationTaskResult.JOURNAL_FAILED);
       }
-      if (clearsSource() && sourceIndex < source.size()) {
+      if (clearsSource() && clearSourceIndex < source.size()) {
          phase = Phase.CLEAR;
       } else if (!validateComplete) {
          phase = Phase.VALIDATE;
       } else {
-         phase = Phase.PLACE;
+         enterPlacePhase();
       }
       return Optional.empty();
    }
 
    private Optional<OperationTaskResult> clearNext(ServerLevel level) {
-      if (sourceIndex >= source.size()) {
-         sourceIndex = 0;
-         phase = validateComplete ? Phase.PLACE : Phase.VALIDATE;
-         if (phase == Phase.PLACE) {
-            resetPlacementCursor();
+      if (clearSourceIndex >= source.size()) {
+         clearSourceIndex = 0;
+         if (validateComplete) {
+            enterPlacePhase();
+         } else {
+            phase = Phase.VALIDATE;
          }
          return Optional.empty();
       }
-      ReversibleBlockSnapshot sourceBlock = source.get(sourceIndex);
+      ReversibleBlockSnapshot sourceBlock = source.get(clearSourceIndex);
       if (!journaledPositions.contains(sourceBlock.pos())) {
          phase = Phase.JOURNAL;
          return Optional.empty();
       }
-      sourceIndex++;
+      clearSourceIndex++;
+      if (overlappingPlacementPositions.contains(sourceBlock.pos())) {
+         ReversibleBlockSnapshot expected = expectedCurrent(sourceBlock.pos());
+         if (expected == null || !expected.matches(level, sourceBlock.pos())) {
+            failed = true;
+            return Optional.of(OperationTaskResult.FAILED);
+         }
+         return Optional.empty();
+      }
       return setBlock(level, sourceBlock.pos(), Blocks.AIR.defaultBlockState())
          ? Optional.empty()
          : Optional.of(OperationTaskResult.FAILED);
@@ -269,6 +332,9 @@ public final class SelectionOperationTask implements WorldOperationTask {
       JournalPreparation finalJournal = prepareCommit();
       if (finalJournal == JournalPreparation.PENDING) {
          return Optional.of(OperationTaskResult.ACTIVE);
+      }
+      if (finalJournal == JournalPreparation.FAILED && memoryUnsafe) {
+         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
       }
       return Optional.of(finalJournal == JournalPreparation.READY
          ? OperationTaskResult.COMPLETE
@@ -319,15 +385,15 @@ public final class SelectionOperationTask implements WorldOperationTask {
       return true;
    }
 
-   private boolean validateNext(ServerLevel level) {
+   private ValidationStep validateNext(ServerLevel level) {
       PlacementTarget target = nextPlacementTarget();
       if (target == null) {
-         return false;
+         return ValidationStep.COMPLETE;
       }
       Optional<ReversibleBlockSnapshot> captured = ReversibleBlockSnapshot.capture(level, target.pos());
       if (captured.isEmpty()) {
          failed = true;
-         return false;
+         return ValidationStep.FAILED;
       }
       ReversibleBlockSnapshot snapshot = captured.orElseThrow();
       metrics.snapshotCaptured();
@@ -335,12 +401,15 @@ public final class SelectionOperationTask implements WorldOperationTask {
          blockEntityReserve = WorldOperationMemory.saturatingAdd(
             blockEntityReserve, WorldOperationMemory.snapshotNbtReserve(snapshot)
          );
-         if (!reserveMemory(plannedBlocks, blockEntityReserve)) {
-            memoryUnsafe = true;
-            return false;
+         MemoryReservationAttempt reservation = reserveMemory(plannedBlocks, blockEntityReserve);
+         if (reservation == MemoryReservationAttempt.RETRY) {
+            return ValidationStep.RETRY;
+         }
+         if (reservation == MemoryReservationAttempt.REJECTED) {
+            return ValidationStep.REJECTED;
          }
       }
-      return true;
+      return ValidationStep.ADVANCED;
    }
 
    private PlacementTarget nextPlacementTarget() {
@@ -352,13 +421,13 @@ public final class SelectionOperationTask implements WorldOperationTask {
             }
             continue;
          }
-         ReversibleBlockSnapshot sourceBlock = source.get(sourceIndex++);
+         ReversibleBlockSnapshot sourceBlock = source.get(placementSourceIndex++);
          BlockPos repetition = new BlockPos(repeatX, repeatY, repeatZ);
          BlockPos target = sourceBlock.pos().offset(
             OperationGeometry.stackDisplacement(bounds, repetition).offset(translation)
          );
-         if (sourceIndex >= source.size()) {
-            sourceIndex = 0;
+         if (placementSourceIndex >= source.size()) {
+            placementSourceIndex = 0;
             advanceRepetition();
          }
          return new PlacementTarget(target, sourceBlock);
@@ -367,10 +436,15 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    private void resetPlacementCursor() {
-      sourceIndex = 0;
+      placementSourceIndex = 0;
       repeatX = stackRegion.min().getX();
       repeatY = stackRegion.min().getY();
       repeatZ = stackRegion.min().getZ();
+   }
+
+   private void enterPlacePhase() {
+      resetPlacementCursor();
+      phase = Phase.PLACE;
    }
 
    private boolean advanceRepetition() {
@@ -398,24 +472,43 @@ public final class SelectionOperationTask implements WorldOperationTask {
       return skipOrigin() ? Math.max(0L, count - 1L) : count;
    }
 
+   private void indexOverlappingPlacementPositions() {
+      if (!clearsSource()) {
+         return;
+      }
+      for (BlockPos repetition : stackRegion.repetitions(maxPlacement)) {
+         if (skipOrigin() && repetition.equals(BlockPos.ZERO)) {
+            continue;
+         }
+         BlockPos displacement = OperationGeometry.stackDisplacement(bounds, repetition).offset(translation);
+         for (ReversibleBlockSnapshot sourceSnapshot : source) {
+            BlockPos target = sourceSnapshot.pos().offset(displacement);
+            if (transaction.expectedAt(target) != null) {
+               overlappingPlacementPositions.add(target);
+            }
+         }
+      }
+   }
+
    private void place(ServerLevel level, BlockPos pos, ReversibleBlockSnapshot sourceBlock) {
       if (!clearsSource()) {
-         ReversibleBlockSnapshot sourceExpected = transaction.expectedAt(sourceBlock.pos());
-         if (sourceExpected == null || !sourceExpected.matches(level, sourceBlock.pos())) {
+         ReversibleBlockSnapshot sourceExpected = expectedCurrent(sourceBlock.pos());
+         if (sourceExpected == null) {
+            sourceExpected = sourceBlock;
+         }
+         if (!sourceExpected.matches(level, sourceBlock.pos())) {
             failed = true;
             return;
          }
       }
       BlockState current = level.getBlockState(pos);
-      if (conflictMode == OperationConflictMode.KEEP_EXISTING && !current.canBeReplaced()) {
-         return;
-      }
-      ReversibleBlockSnapshot expectedSnapshot = transaction.expectedAt(pos);
+      ReversibleBlockSnapshot expectedSnapshot = expectedCurrent(pos);
       if (expectedSnapshot != null && !expectedSnapshot.matches(level, pos)) {
          failed = true;
          return;
       }
-      if (conflictMode != OperationConflictMode.REPLACE && !current.canBeReplaced()) {
+      boolean movingSource = overlappingPlacementPositions.contains(pos) && transaction.afterAt(pos) == null;
+      if (conflictMode != OperationConflictMode.REPLACE && !movingSource && !current.canBeReplaced()) {
          return;
       }
       ReversibleBlockSnapshot before = expectedSnapshot;
@@ -448,9 +541,14 @@ public final class SelectionOperationTask implements WorldOperationTask {
       }
    }
 
+   private ReversibleBlockSnapshot expectedCurrent(BlockPos pos) {
+      ReversibleBlockSnapshot written = transaction.afterAt(pos);
+      return written == null ? transaction.expectedAt(pos) : written;
+   }
+
    private boolean setBlock(ServerLevel level, BlockPos pos, BlockState state) {
       BlockState previous = level.getBlockState(pos);
-      ReversibleBlockSnapshot expectedSnapshot = transaction.expectedAt(pos);
+      ReversibleBlockSnapshot expectedSnapshot = expectedCurrent(pos);
       if (expectedSnapshot != null && !expectedSnapshot.matches(level, pos)) {
          failed = true;
          return false;
@@ -541,7 +639,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
    @Override
    public String phaseName() {
       return switch (phase) {
-         case SCAN -> "扫描";
+         case SCAN, SCAN_COMPLETE -> "扫描";
          case VALIDATE -> "验证快照";
          case JOURNAL -> "写入安全日志";
          case CLEAR -> "清空";
@@ -562,18 +660,13 @@ public final class SelectionOperationTask implements WorldOperationTask {
          pendingJournalSlice = transaction.expectedRange(from, from + size);
       }
       List<ReversibleBlockSnapshot> slice = pendingJournalSlice;
-      Optional<JournalSnapshots> snapshots = journalSnapshots(slice);
-      if (snapshots.isEmpty() || snapshots.orElseThrow().before().isEmpty()) {
-         return JournalPreparation.FAILED;
-      }
-      JournalSnapshots prepared = snapshots.orElseThrow();
       JournalPreparation preparation = journalPreparation.journal() == null
-         ? journalPreparation.poll(() -> PersistentRecoveryJournal.begin(
+         ? journalPreparation.poll(() -> journalSnapshots(slice).flatMap(prepared -> PersistentRecoveryJournal.begin(
             context.server(), context.owner(), dimension, prepared.before(), prepared.after(), operationId()
-         ))
-         : journalPreparation.pollAppend(() ->
-            journalPreparation.journal().appendSegment(prepared.before(), prepared.after())
-         );
+         )), context)
+         : journalPreparation.pollAppend(() -> journalSnapshots(slice)
+            .map(prepared -> journalPreparation.journal().appendSegment(prepared.before(), prepared.after()))
+            .orElse(false));
       if (preparation == JournalPreparation.READY) {
          metrics.journalReady();
          for (ReversibleBlockSnapshot snapshot : slice) {
@@ -586,28 +679,34 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    private Optional<JournalSnapshots> journalSnapshots(Collection<ReversibleBlockSnapshot> originals) {
+      java.util.Set<BlockPos> positions = new java.util.HashSet<>();
+      for (ReversibleBlockSnapshot original : originals) {
+         positions.add(original.pos());
+      }
       SelectionJournalPrediction prediction = new SelectionJournalPrediction(
          source, transaction::expectedAt, conflictMode
       );
       try {
-         predictClearedSource(prediction);
-         predictTargets(prediction);
+         predictClearedSource(prediction, positions);
+         predictTargets(prediction, positions);
       } catch (RuntimeException exception) {
          return Optional.empty();
       }
       return Optional.of(new JournalSnapshots(originals, prediction.snapshots(originals)));
    }
 
-   private void predictClearedSource(SelectionJournalPrediction prediction) {
+   private void predictClearedSource(SelectionJournalPrediction prediction, java.util.Set<BlockPos> positions) {
       if (!clearsSource()) {
          return;
       }
       for (ReversibleBlockSnapshot sourceSnapshot : source) {
-         prediction.clear(sourceSnapshot.pos());
+         if (positions.contains(sourceSnapshot.pos())) {
+            prediction.clear(sourceSnapshot.pos());
+         }
       }
    }
 
-   private void predictTargets(SelectionJournalPrediction prediction) {
+   private void predictTargets(SelectionJournalPrediction prediction, java.util.Set<BlockPos> positions) {
       for (BlockPos repetition : stackRegion.repetitions(maxPlacement)) {
          if (skipOrigin() && repetition.equals(BlockPos.ZERO)) {
             continue;
@@ -615,15 +714,23 @@ public final class SelectionOperationTask implements WorldOperationTask {
          BlockPos displacement = OperationGeometry.stackDisplacement(bounds, repetition).offset(translation);
          for (int sourceIndex = 0; sourceIndex < source.size(); sourceIndex++) {
             ReversibleBlockSnapshot sourceSnapshot = source.get(sourceIndex);
-            prediction.place(sourceSnapshot.pos().offset(displacement), sourceIndex);
+            BlockPos target = sourceSnapshot.pos().offset(displacement);
+            if (positions.contains(target)) {
+               prediction.place(target, sourceIndex);
+            }
          }
       }
    }
 
    private JournalPreparation prepareCommit() {
       if (operationCommit == null) {
-         if (!reserveCommitMemory()) {
+         MemoryReservationAttempt commitReservation = reserveCommitMemory();
+         if (commitReservation == MemoryReservationAttempt.RETRY) {
             return JournalPreparation.PENDING;
+         }
+         if (commitReservation == MemoryReservationAttempt.REJECTED) {
+            memoryUnsafe = true;
+            return JournalPreparation.FAILED;
          }
          operationCommit = WorldOperationCommit.begin(dimension, transaction, journalPreparation.journal());
       }
@@ -633,13 +740,15 @@ public final class SelectionOperationTask implements WorldOperationTask {
    private void releaseWriteStagingForCommit() {
       source.clear();
       transaction.clearExpected();
-      sourceIndex = 0;
+      clearSourceIndex = 0;
+      placementSourceIndex = 0;
       pendingJournalSlice = List.of();
       journaledPositions.clear();
+      overlappingPlacementPositions.clear();
       pendingPlacementTarget = null;
    }
 
-   private boolean reserveCommitMemory() {
+   private MemoryReservationAttempt reserveCommitMemory() {
       var admission = WorldOperationMemory.commitAdmission(
          transaction.snapshotCount(), transaction.largestSideCount(), transaction.commitBlockEntityReserve()
       );
@@ -719,18 +828,20 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    @Override
-   public boolean ensureMemoryReservation() {
+   public MemoryReservationAttempt reserveWorkingSet() {
       if (memoryReservation != null) {
-         return true;
+         return MemoryReservationAttempt.ACQUIRED;
       }
       long blocks = plannedBlocks > 0L ? plannedBlocks : source.size();
       if (blocks <= 0L) {
-         return true;
+         return MemoryReservationAttempt.ACQUIRED;
       }
       if (phase == Phase.FINAL_JOURNAL) {
          return reserveCommitMemory();
       }
-      return phase == Phase.JOURNAL ? reserveJournalMemory() : reserveMemory(blocks, blockEntityReserve);
+      return phase == Phase.JOURNAL
+         ? reserveJournalMemory()
+         : reserveMemory(blocks, blockEntityReserve);
    }
 
    @Override
@@ -768,31 +879,33 @@ public final class SelectionOperationTask implements WorldOperationTask {
       finalizationIterator = null;
    }
 
-   private boolean reserveMemory(long blocks, long additionalBytes) {
+   private MemoryReservationAttempt reserveMemory(long blocks, long additionalBytes) {
       var admission = WorldOperationMemory.snapshotAdmission(blocks, additionalBytes);
       return reserveMemory(admission);
    }
 
-   private boolean reserveJournalMemory() {
+   private MemoryReservationAttempt reserveJournalMemory() {
       long blocks = plannedBlocks > 0L ? plannedBlocks : source.size();
       return reserveMemory(WorldOperationMemory.journalAdmission(blocks, blockEntityReserve));
    }
 
-   private boolean reserveMemory(MemoryAdmission admission) {
+   private MemoryReservationAttempt reserveMemory(MemoryAdmission admission) {
       if (!admission.allowed()) {
-         return false;
+         return MemoryReservationAttempt.REJECTED;
       }
       memoryThrottled = admission.throttled();
       if (memoryReservation == null) {
          memoryReservation = WorldOperationMemory.reserve(admission).orElse(null);
-         return memoryReservation != null;
+         return memoryReservation == null ? MemoryReservationAttempt.RETRY : MemoryReservationAttempt.ACQUIRED;
       }
-      return memoryReservation.resize(admission.requestedBytes(), admission.usableBytes());
+      return memoryReservation.resize(admission.requestedBytes(), admission.usableBytes())
+         ? MemoryReservationAttempt.ACQUIRED
+         : MemoryReservationAttempt.RETRY;
    }
 
    private WorldOperationPhase phaseMetric() {
       return switch (phase) {
-         case SCAN -> WorldOperationPhase.GENERATION;
+         case SCAN, SCAN_COMPLETE -> WorldOperationPhase.GENERATION;
          case VALIDATE -> WorldOperationPhase.SNAPSHOT;
          case JOURNAL -> WorldOperationPhase.JOURNAL;
          case CLEAR, PLACE -> WorldOperationPhase.WRITE;
@@ -803,12 +916,21 @@ public final class SelectionOperationTask implements WorldOperationTask {
 
    private enum Phase {
       SCAN,
+      SCAN_COMPLETE,
       VALIDATE,
       JOURNAL,
       CLEAR,
       PLACE,
       FINALIZE,
       FINAL_JOURNAL
+   }
+
+   private enum ValidationStep {
+      ADVANCED,
+      COMPLETE,
+      RETRY,
+      REJECTED,
+      FAILED
    }
 
    private record PlacementTarget(BlockPos pos, ReversibleBlockSnapshot source) {

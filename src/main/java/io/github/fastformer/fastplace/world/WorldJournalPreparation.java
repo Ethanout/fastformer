@@ -25,6 +25,10 @@ public final class WorldJournalPreparation {
    }
 
    public JournalPreparation poll(Supplier<Optional<PersistentRecoveryJournal>> factory) {
+      return poll(factory, null);
+   }
+
+   public JournalPreparation poll(Supplier<Optional<PersistentRecoveryJournal>> factory, WorldTaskContext context) {
       if (this.cancelled) return JournalPreparation.FAILED;
       if (this.journal != null) return JournalPreparation.READY;
       if (this.future == null) {
@@ -33,6 +37,10 @@ public final class WorldJournalPreparation {
          // call returns. Consume that result now so the writer does not incur
          // an avoidable extra server tick before its first block.
          if (!this.future.isDone()) {
+            if (context != null) {
+               CompletableFuture<?> started = this.future;
+               context.resumeAfter(started, () -> !this.cancelled && this.future == started && this.journal == null);
+            }
             return JournalPreparation.PENDING;
          }
       }
@@ -95,6 +103,12 @@ public final class WorldJournalPreparation {
    public CompletableFuture<Optional<PersistentRecoveryJournal>> future() { return this.future; }
    public String failureReason() {
       return this.failureReason == null ? "journal preparation failed" : this.failureReason;
+   }
+
+   /** Recovery must wait until pending I/O can no longer append or create journal files. */
+   public CompletableFuture<Void> completion() {
+      CompletableFuture<?> pending = this.appendFuture != null ? this.appendFuture : this.future;
+      return pending == null ? CompletableFuture.completedFuture(null) : pending.handle((ignored, failure) -> null);
    }
 
    /** Releases a working-set reservation after the current journal I/O stops using it. */

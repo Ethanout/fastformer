@@ -1,6 +1,7 @@
 package io.github.fastformer.fastplace;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -22,6 +23,7 @@ import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.fastplace.world.WorldJournalPreparation;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Iterator;
@@ -77,6 +79,45 @@ class TaskRecoveryHandoffTest {
       );
 
       assertOperationTaskTransfersRecoveryOnce(task);
+   }
+
+   @Test
+   void allTaskTypesWaitForPendingAppendBeforeRecoveryReadsSnapshots() throws Exception {
+      PlacementTask placement = PlacementTask.ready(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
+         null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+      ));
+      ClientWorkspacePlacementTask workspace = new ClientWorkspacePlacementTask(
+         UUID.randomUUID(), new OperationWorkspacePlan(List.of()), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+      );
+      SelectionOperationTask selection = new SelectionOperationTask(
+         OperationSelectionVolume.cuboid(BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO),
+         OperationMode.MOVE, OperationConflictMode.REPLACE, true, BlockPos.ZERO.above(),
+         OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+      );
+      for (Object task : List.of(placement, workspace, selection)) {
+         var preparationField = task.getClass().getDeclaredField("journalPreparation");
+         preparationField.setAccessible(true);
+         WorldJournalPreparation preparation = (WorldJournalPreparation)preparationField.get(task);
+         CompletableFuture<Boolean> append = new CompletableFuture<>();
+         var appendField = WorldJournalPreparation.class.getDeclaredField("appendFuture");
+         appendField.setAccessible(true);
+         appendField.set(preparation, append);
+         var transactionField = task.getClass().getDeclaredField("transaction");
+         transactionField.setAccessible(true);
+         WorldChangeTransaction transaction = (WorldChangeTransaction)transactionField.get(task);
+         transaction.recordBefore(snapshot(BlockPos.ZERO, "before"));
+         transaction.recordAfter(BlockPos.ZERO, snapshot(BlockPos.ZERO, "after"));
+
+         WorldRecoverySnapshot recovery = task instanceof PlacementTask ordinary
+            ? ordinary.stopAndTransferRecovery() : ((WorldOperationTask)task).stopAndTransferRecovery();
+         assertFalse(recovery.ready(), task.getClass().getSimpleName());
+         assertTrue(recovery.hasWrites());
+         assertFalse(transaction.hasWrites());
+         append.complete(false);
+         assertTrue(recovery.ready());
+         assertEquals("before", marker(recovery.before().getFirst()));
+         assertEquals("after", marker(recovery.after().get(BlockPos.ZERO)));
+      }
    }
 
    @Test

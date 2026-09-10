@@ -132,8 +132,11 @@ public final class PersistentRecoveryJournal {
       if (remaining <= 0) {
          return 0;
       }
-      int cap = journaledCount <= 0 ? FIRST_SEGMENT_CELLS : NEXT_SEGMENT_CELLS;
-      return Math.min(remaining, cap);
+      return Math.min(remaining, segmentCapacity(journaledCount));
+   }
+
+   public static int segmentCapacity(int journaledCount) {
+      return journaledCount <= 0 ? FIRST_SEGMENT_CELLS : NEXT_SEGMENT_CELLS;
    }
 
    public UUID operationId() {
@@ -246,11 +249,11 @@ public final class PersistentRecoveryJournal {
             return false;
          }
          RecoveryJournalManifest.Manifest manifest = RecoveryJournalManifest.read(this.file.resolve(MANIFEST_FILE));
-         var segments = RecoveryJournalSegments.readUnsealed(
+         var segments = RecoveryJournalSegments.inspectUnsealed(
             this.file, manifest.operationId(), manifest.segmentLimit()
          );
          RecoveryJournalSeal.write(
-            seal, manifest.operationId(), segments.size(), RecoveryJournalSegments.digest(segments)
+            seal, manifest.operationId(), segments.count(), segments.digest()
          );
       } catch (IOException | RuntimeException exception) {
          LOGGER.error("Could not seal FastFormer recovery journal {}", this.file, exception);
@@ -828,11 +831,14 @@ public final class PersistentRecoveryJournal {
             return false;
          }
          Path baseFile = this.segmented ? this.file.resolve(FIRST_SEGMENT_FILE) : this.file;
-         CompoundTag root = this.segmented
-            ? RecoveryJournalSegment.read(baseFile, this.operationId, 0)
-            : NbtIo.readCompressed(this.file, NbtAccounter.create(correctionDecodeLimit(this.preparedDecodedBytes)));
-         validateHeader(root, this.dimension);
-         PaletteLayout layout = correctionLayout(root, actualAfter);
+         PaletteLayout layout;
+         if (this.segmented) {
+            layout = segmentedCorrectionLayout(actualAfter);
+         } else {
+            CompoundTag root = NbtIo.readCompressed(this.file, NbtAccounter.create(correctionDecodeLimit(this.preparedDecodedBytes)));
+            validateHeader(root, this.dimension);
+            layout = correctionLayout(root, actualAfter);
+         }
          if (layout.positions().length == 0) {
             Files.deleteIfExists(correction);
             this.correctionRequired = false;
@@ -863,6 +869,40 @@ public final class PersistentRecoveryJournal {
          LOGGER.error("Could not write final FastFormer recovery state for {} because the JVM heap was insufficient", this.file, error);
          return false;
       }
+   }
+
+   private PaletteLayout segmentedCorrectionLayout(Map<BlockPos, ReversibleBlockSnapshot> actualAfter) throws IOException {
+      var manifest = RecoveryJournalManifest.read(this.file.resolve(MANIFEST_FILE));
+      var segments = RecoveryJournalSegments.inspectUnsealed(this.file, this.operationId, manifest.segmentLimit());
+      List<ReversibleBlockSnapshot> corrections = new ArrayList<>();
+      var matched = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+      for (int segmentIndex = 0; segmentIndex < segments.count(); segmentIndex++) {
+         CompoundTag root = RecoveryJournalSegments.read(this.file, this.operationId, segmentIndex).payload();
+         validateHeader(root, this.dimension);
+         long[] positions = root.getLongArray("Positions");
+         List<EncodedSnapshotKey> palette = decodeEncodedPalette(root, "After");
+         int[] ids = paletteIds(root, "After", positions.length);
+         int uniformId = root.getInt("AfterUniformPaletteId");
+         for (int index = 0; index < positions.length; index++) {
+            EncodedSnapshotKey predicted = encodedSnapshot(palette, ids == null ? uniformId : ids[index]);
+            ReversibleBlockSnapshot actual = actualAfter.get(BlockPos.of(positions[index]));
+            if (actual == null) {
+               continue;
+            }
+            if (!matched.add(positions[index])) {
+               throw new IOException("Final recovery state has a duplicate journal position");
+            }
+            if (!encoded(actual).equals(predicted)) {
+               corrections.add(actual);
+            }
+         }
+      }
+      if (matched.size() != actualAfter.size()) {
+         throw new IOException("Final recovery state contains a position outside the segmented journal");
+      }
+      return corrections.isEmpty()
+         ? new PaletteLayout(new long[0], null, List.of())
+         : paletteLayout(corrections);
    }
 
    static PaletteLayout correctionLayout(

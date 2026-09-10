@@ -124,7 +124,12 @@ public final class ClientSelectionSession {
    }
 
    public BlockPos removeLastDraftPoint() {
-      return this.draftPoints.isEmpty() ? null : this.draftPoints.removeLast();
+      if (this.draftPoints.isEmpty()) {
+         return null;
+      }
+      BlockPos removed = this.draftPoints.removeLast();
+      refreshDraftBounds();
+      return removed;
    }
 
    public void clearDraft() {
@@ -154,8 +159,16 @@ public final class ClientSelectionSession {
 
    public void restoreDraftBounds(BlockPos min, BlockPos max) {
       if (min != null && max != null && this.draftPoints.size() >= 2) {
-         this.draftMinPoint = min.immutable();
-         this.draftMaxPoint = max.immutable();
+         this.draftMinPoint = new BlockPos(
+            Math.min(min.getX(), max.getX()),
+            Math.min(min.getY(), max.getY()),
+            Math.min(min.getZ(), max.getZ())
+         );
+         this.draftMaxPoint = new BlockPos(
+            Math.max(min.getX(), max.getX()),
+            Math.max(min.getY(), max.getY()),
+            Math.max(min.getZ(), max.getZ())
+         );
       }
    }
 

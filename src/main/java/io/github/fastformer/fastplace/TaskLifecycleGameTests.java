@@ -1,0 +1,227 @@
+package io.github.fastformer.fastplace;
+
+import io.github.fastformer.FastFormer;
+import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.fastplace.task.PlacementTask;
+import io.github.fastformer.fastplace.task.PlacementTaskPlan;
+import io.github.fastformer.fastplace.world.JournalPreparation;
+import io.github.fastformer.fastplace.world.WorldHistoryManager;
+import io.github.fastformer.fastplace.world.WorldTaskBudget;
+import io.github.fastformer.fastplace.world.WorldTaskContext;
+import java.lang.reflect.Constructor;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.LongSupplier;
+import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+@GameTestHolder(FastFormer.MOD_ID)
+@PrefixGameTestTemplate(false)
+public final class TaskLifecycleGameTests {
+   private static final int[] SIZES = {1, 16, 256};
+
+   private TaskLifecycleGameTests() {}
+
+   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
+   public static void placementCompletesAtRepresentativeSizes(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos origin = helper.absolutePos(new BlockPos(1, 33, 1));
+      int[] scenario = {0};
+      UUID[] owner = {null};
+      PlacementTask[] active = {null};
+      helper.succeedWhen(() -> {
+         int count = SIZES[scenario[0]];
+         if (owner[0] == null) {
+            clearRange(level, origin, count);
+            owner[0] = UUID.randomUUID();
+            active[0] = placementTask(level, positions(origin, count));
+            FastPlaceManager.addTaskForTest(owner[0], active[0]);
+         }
+         FastPlaceManager.tickWorld(level.getServer());
+         helper.assertTrue(!FastPlaceManager.taskActive(owner[0]), "waiting for placement size " + count + ": " + active[0].metricsSummary());
+         assertBlockRange(helper, level, origin, count, Blocks.GOLD_BLOCK);
+         clearRange(level, origin, count);
+         owner[0] = null;
+         scenario[0]++;
+         helper.assertTrue(scenario[0] == SIZES.length, "running next placement size");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
+   public static void workspaceCompletesAtRepresentativeSizes(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos origin = helper.absolutePos(new BlockPos(1, 49, 1));
+      int[] scenario = {0};
+      UUID[] owner = {null};
+      ClientWorkspacePlacementTask[] active = {null};
+      helper.succeedWhen(() -> {
+         int count = SIZES[scenario[0]];
+         if (owner[0] == null) {
+            clearRange(level, origin, count);
+            owner[0] = UUID.randomUUID();
+            active[0] = workspaceTask(level, positions(origin, count));
+            OperationManager.addTaskForTest(owner[0], active[0]);
+         }
+         OperationManager.tickWorld(level.getServer());
+         helper.assertTrue(!OperationManager.taskActive(owner[0]), "waiting for workspace size " + count + ": " + active[0].metricsSummary());
+         assertBlockRange(helper, level, origin, count, Blocks.GOLD_BLOCK);
+         clearRange(level, origin, count);
+         owner[0] = null;
+         scenario[0]++;
+         helper.assertTrue(scenario[0] == SIZES.length, "running next workspace size");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
+   public static void cancelledPlacementRestoresPartialWrite(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos origin = helper.absolutePos(new BlockPos(1, 65, 1));
+      Set<BlockPos> positions = positions(origin, 16);
+      positions.forEach(pos -> level.setBlock(pos, Blocks.STONE.defaultBlockState(), 2));
+      PlacementTask task = placementTask(level, positions);
+      WorldTaskContext context = new WorldTaskContext(level.getServer(), UUID.randomUUID());
+      boolean[] cancelled = {false};
+      helper.succeedWhen(() -> {
+         if (!cancelled[0]) {
+            advancePlacementToFirstWrite(helper, task, context, level);
+            helper.assertTrue(task.hasWrites(), "waiting for first placement write");
+            assertPartialWrite(helper, level, origin, 16);
+            helper.assertTrue(WorldHistoryManager.acceptStoppedTask(context, task).recoveryCreated(),
+               "partial placement did not create recovery");
+            cancelled[0] = true;
+         }
+         WorldHistoryManager.tickWorld(level.getServer());
+         helper.assertTrue(!WorldHistoryManager.busy(context.owner()), "waiting for placement recovery");
+         assertBlockRange(helper, level, origin, 16, Blocks.STONE);
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
+   public static void cancelledWorkspaceRestoresPartialWrite(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos origin = helper.absolutePos(new BlockPos(1, 81, 1));
+      Set<BlockPos> positions = positions(origin, 16);
+      positions.forEach(pos -> level.setBlock(pos, Blocks.STONE.defaultBlockState(), 2));
+      ClientWorkspacePlacementTask task = workspaceTask(level, positions);
+      WorldTaskContext context = new WorldTaskContext(level.getServer(), UUID.randomUUID());
+      boolean[] cancelled = {false};
+      helper.succeedWhen(() -> {
+         if (!cancelled[0]) {
+            helper.assertTrue(task.acquireLease(context), "waiting for workspace lease");
+            OperationTaskResult result = task.tick(context, level, oneCellBudget());
+            helper.assertTrue(result == OperationTaskResult.ACTIVE, "workspace ended before cancellation: " + result);
+            helper.assertTrue(task.hasWrites(), "waiting for first workspace write");
+            assertPartialWrite(helper, level, origin, 16);
+            helper.assertTrue(WorldHistoryManager.acceptStoppedTask(context, task).recoveryCreated(),
+               "partial workspace did not create recovery");
+            cancelled[0] = true;
+         }
+         WorldHistoryManager.tickWorld(level.getServer());
+         helper.assertTrue(!WorldHistoryManager.busy(context.owner()), "waiting for workspace recovery");
+         assertBlockRange(helper, level, origin, 16, Blocks.STONE);
+      });
+   }
+
+   private static void advancePlacementToFirstWrite(
+      GameTestHelper helper, PlacementTask task, WorldTaskContext context, ServerLevel level
+   ) {
+      helper.assertTrue(task.prepare(), "placement generation is not ready");
+      helper.assertTrue(task.ensureMemoryReservation(), "placement reservation unavailable");
+      helper.assertTrue(task.acquireLease(context), "placement lease unavailable");
+      if (!task.snapshotsComplete()) {
+         task.validateSnapshots(level, oneCellBudget());
+         return;
+      }
+      JournalPreparation journal = task.prepareJournal(context);
+      if (journal != JournalPreparation.READY || !task.blocks().hasNext()) {
+         return;
+      }
+      BlockPos position = task.blocks().next();
+      task.consumed();
+      task.place(context, level, position);
+   }
+
+   private static PlacementTask placementTask(ServerLevel level, Set<BlockPos> positions) {
+      return PlacementTask.ready(positions, new PlacementTaskPlan(
+         Blocks.GOLD_BLOCK.defaultBlockState(), null, OperationConflictMode.REPLACE,
+         PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension()
+      ));
+   }
+
+   private static ClientWorkspacePlacementTask workspaceTask(ServerLevel level, Set<BlockPos> positions) {
+      Map<BlockPos, ClientBlockSnapshot> blocks = new LinkedHashMap<>();
+      positions.forEach(pos -> blocks.put(
+         pos, new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)
+      ));
+      OperationWorkspacePlan.Part part = new OperationWorkspacePlan.Part(
+         1, ClientSelectionPart.Source.CLIPBOARD, blocks, WorkspaceTransform.IDENTITY, false
+      );
+      return new ClientWorkspacePlacementTask(
+         UUID.randomUUID(), new OperationWorkspacePlan(List.of(part)),
+         PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension()
+      );
+   }
+
+   private static Set<BlockPos> positions(BlockPos origin, int count) {
+      LinkedHashSet<BlockPos> positions = new LinkedHashSet<>();
+      for (int index = 0; index < count; index++) {
+         positions.add(origin.offset(index % 16, 0, index / 16));
+      }
+      return Set.copyOf(positions);
+   }
+
+   private static WorldTaskBudget oneCellBudget() {
+      try {
+         Constructor<WorldTaskBudget> constructor = WorldTaskBudget.class.getDeclaredConstructor(
+            int.class, int.class, long.class, LongSupplier.class
+         );
+         constructor.setAccessible(true);
+         return constructor.newInstance(1, 1, 0L, (LongSupplier)() -> 0L);
+      } catch (ReflectiveOperationException exception) {
+         throw new IllegalStateException("Could not create one-cell GameTest budget", exception);
+      }
+   }
+
+   private static void assertBlockRange(
+      GameTestHelper helper, ServerLevel level, BlockPos origin, int count, net.minecraft.world.level.block.Block block
+   ) {
+      for (int index = 0; index < count; index++) {
+         helper.assertTrue(level.getBlockState(origin.offset(index % 16, 0, index / 16)).is(block),
+            "unexpected block at index " + index);
+      }
+   }
+
+   private static void assertPartialWrite(GameTestHelper helper, ServerLevel level, BlockPos origin, int count) {
+      int gold = 0;
+      int stone = 0;
+      for (int index = 0; index < count; index++) {
+         if (level.getBlockState(origin.offset(index % 16, 0, index / 16)).is(Blocks.GOLD_BLOCK)) {
+            gold++;
+         } else if (level.getBlockState(origin.offset(index % 16, 0, index / 16)).is(Blocks.STONE)) {
+            stone++;
+         }
+      }
+      helper.assertTrue(gold == 1 && stone == count - 1,
+         "expected one partial write, found " + gold + " writes and " + stone + " original blocks");
+   }
+
+   private static void clearRange(ServerLevel level, BlockPos origin, int count) {
+      for (int index = 0; index < count; index++) {
+         level.setBlock(origin.offset(index % 16, 0, index / 16), Blocks.AIR.defaultBlockState(), 2);
+      }
+   }
+
+}
