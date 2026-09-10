@@ -7,6 +7,7 @@ public final class ClientInputStateMachine {
    private State state = State.IDLE;
    private long generation;
    private long gesture;
+   private int gestureButton = -1;
    private long pendingRequest;
    private java.util.UUID pendingTransfer;
 
@@ -98,6 +99,19 @@ public final class ClientInputStateMachine {
 
    public Dispatch dispatch(InputKind input) {
       Objects.requireNonNull(input, "input");
+      if (input == InputKind.CREATE_SELECTION) {
+         return switch (state) {
+            case SELECTING, ADJUSTING -> Dispatch.OPERATION;
+            default -> Dispatch.BLOCKED;
+         };
+      }
+      if (input == InputKind.PASTE_WORKSPACE) {
+         return switch (state) {
+            case IDLE -> Dispatch.VANILLA;
+            case SELECTING, ADJUSTING -> Dispatch.OPERATION;
+            default -> Dispatch.BLOCKED;
+         };
+      }
       if (input == InputKind.CANCEL) {
          return switch (state) {
             case BUILDING, GEOMETRY, SELECTING, ADJUSTING, SUBMITTING, PLACING -> Dispatch.CANCEL;
@@ -118,11 +132,25 @@ public final class ClientInputStateMachine {
    }
 
    public long beginGesture() {
+      return beginGesture(-1);
+   }
+
+   public long beginGesture(int button) {
       if (dispatch(InputKind.POINTER) == Dispatch.BLOCKED) {
          return 0L;
       }
       gesture = ++generation;
+      gestureButton = button;
       return gesture;
+   }
+
+   public boolean finishGesture(int button, long token) {
+      if (!accepts(token) || gestureButton != button) {
+         return false;
+      }
+      gesture = 0L;
+      gestureButton = -1;
+      return true;
    }
 
    public boolean accepts(long token) {
@@ -150,6 +178,7 @@ public final class ClientInputStateMachine {
    private void invalidateGesture() {
       generation++;
       gesture = 0L;
+      gestureButton = -1;
    }
 
    public enum State {
@@ -169,6 +198,8 @@ public final class ClientInputStateMachine {
       POINTER,
       INTERACTION,
       SCROLL,
+      CREATE_SELECTION,
+      PASTE_WORKSPACE,
       CANCEL
    }
 

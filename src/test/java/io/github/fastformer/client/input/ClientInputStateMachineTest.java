@@ -6,6 +6,50 @@ import org.junit.jupiter.api.Test;
 
 class ClientInputStateMachineTest {
    @Test
+   void selectionCreationAndPasteRespectTheOwningSession() {
+      var state = new ClientInputStateMachine();
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, state.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION));
+      assertEquals(ClientInputStateMachine.Dispatch.VANILLA, state.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE));
+      for (var phase : new ClientInputStateMachine.State[] {
+         ClientInputStateMachine.State.BUILDING, ClientInputStateMachine.State.GEOMETRY,
+         ClientInputStateMachine.State.PLACING, ClientInputStateMachine.State.RESTORING
+      }) {
+         state.observe(phase);
+         assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, state.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION));
+         assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, state.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE));
+      }
+      for (var phase : new ClientInputStateMachine.State[] {
+         ClientInputStateMachine.State.SELECTING, ClientInputStateMachine.State.ADJUSTING
+      }) {
+         state.observe(phase);
+         assertEquals(ClientInputStateMachine.Dispatch.OPERATION, state.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION));
+         assertEquals(ClientInputStateMachine.Dispatch.OPERATION, state.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE));
+      }
+      state.submit(1);
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, state.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION));
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, state.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE));
+      state.cancel();
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, state.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE));
+   }
+
+   @Test
+   void releaseFinishesOnlyItsOwningButtonAndCannotRepeat() {
+      var state = new ClientInputStateMachine();
+      state.observe(ClientInputStateMachine.State.SELECTING);
+      long left = state.beginGesture(0);
+      long right = state.beginGesture(1);
+      assertFalse(state.finishGesture(0, left));
+      assertFalse(state.finishGesture(0, right));
+      assertTrue(state.accepts(right));
+      assertTrue(state.finishGesture(1, right));
+      assertFalse(state.finishGesture(1, right));
+      assertFalse(state.accepts(right));
+      long current = state.beginGesture(1);
+      state.cancel();
+      assertFalse(state.finishGesture(1, current));
+   }
+
+   @Test
    void invalidAcknowledgementCannotLoseThePendingRequest() {
       var state = new ClientInputStateMachine();
       state.observe(ClientInputStateMachine.State.BUILDING);
