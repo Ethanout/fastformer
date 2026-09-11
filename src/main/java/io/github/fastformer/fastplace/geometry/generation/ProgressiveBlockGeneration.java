@@ -2,12 +2,12 @@ package io.github.fastformer.fastplace.geometry.generation;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import java.util.AbstractList;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -20,7 +20,7 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
    private final boolean publishBatches;
    private final AtomicLong scanned = new AtomicLong();
    private final AtomicLong generated = new AtomicLong();
-   private final ConcurrentLinkedQueue<SectionBatch> published = new ConcurrentLinkedQueue<>();
+   private final ArrayDeque<SectionBatch> published = new ArrayDeque<>();
    private final Map<Long, LongArrayList> pendingBySection = new HashMap<>();
    private int pendingCount;
    private volatile boolean complete;
@@ -95,7 +95,7 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
    }
 
    /** Drains whole sections up to the budget, allowing one section to ensure progress. */
-   public List<SectionBatch> drainPublished(long maxBlocks) {
+   public synchronized List<SectionBatch> drainPublished(long maxBlocks) {
       if (maxBlocks <= 0L) {
          throw new IllegalArgumentException("Preview drain budget must be positive");
       }
@@ -113,9 +113,7 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
          drained += batch.packedBlockCount();
       }
       if (!result.isEmpty()) {
-         synchronized (this) {
-            this.notifyAll();
-         }
+         this.notifyAll();
       }
       return List.copyOf(result);
    }
