@@ -3,7 +3,11 @@ package io.github.fastformer.client.render.geometry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import io.github.fastformer.fastplace.FaceMode;
+import io.github.fastformer.fastplace.PolygonVolumeShape;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.fastplace.geometry.GuideLine;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -32,5 +36,74 @@ class PreviewGeometrySupportTest {
       assertEquals(0.0, rotated.x, 1.0E-9);
       assertEquals(1.0, rotated.y, 1.0E-9);
       assertEquals(0.0, rotated.z, 1.0E-9);
+   }
+
+   @Test
+   void polygonOpenPathDoesNotAddClosingEdge() {
+      List<BlockPos> points = List.of(
+         new BlockPos(0, 0, 0), new BlockPos(4, 0, 0), new BlockPos(4, 0, 3)
+      );
+
+      List<GuideLine> edges = PreviewGeometrySupport.outlineGeometryEdges(
+         points, FaceMode.POLYGON, false, false, PolygonVolumeShape.EXTRUDE
+      );
+
+      assertEquals(List.of(line(points.get(0), points.get(1)), line(points.get(1), points.get(2))), edges);
+   }
+
+   @Test
+   void polygonClosedFaceConnectsLastBasePointToFirst() {
+      List<BlockPos> points = List.of(
+         new BlockPos(0, 0, 0), new BlockPos(4, 0, 0), new BlockPos(4, 0, 3)
+      );
+
+      List<GuideLine> edges = PreviewGeometrySupport.outlineGeometryEdges(
+         points, FaceMode.POLYGON, true, false, PolygonVolumeShape.EXTRUDE
+      );
+
+      assertEquals(List.of(
+         line(points.get(0), points.get(1)), line(points.get(1), points.get(2)), line(points.get(2), points.get(0))
+      ), edges);
+   }
+
+   @Test
+   void polygonExtrusionUsesLastPointOnlyAsHeightPoint() {
+      List<BlockPos> points = List.of(
+         new BlockPos(0, 0, 0),
+         new BlockPos(1_000_000, 0, 0),
+         new BlockPos(1_000_000, 0, 1_000_000),
+         new BlockPos(1_000_000, 2_000_000, 1_000_000)
+      );
+
+      List<GuideLine> edges = PreviewGeometrySupport.outlineGeometryEdges(
+         points, FaceMode.POLYGON, true, true, PolygonVolumeShape.EXTRUDE
+      );
+
+      assertEquals(9, edges.size());
+      assertEquals(line(points.get(2), points.get(0)), edges.get(6));
+      assertEquals(
+         new GuideLine(Vec3.atCenterOf(points.get(0)), Vec3.atCenterOf(points.get(0)).add(0, 2_000_000, 0)),
+         edges.get(2)
+      );
+   }
+
+   @Test
+   void polygonApexProjectsHeightOntoBaseNormal() {
+      List<BlockPos> points = List.of(
+         new BlockPos(0, 0, 0), new BlockPos(4, 0, 0), new BlockPos(4, 0, 3), new BlockPos(9, 5, 8)
+      );
+
+      List<GuideLine> edges = PreviewGeometrySupport.outlineGeometryEdges(
+         points, FaceMode.POLYGON, true, true, PolygonVolumeShape.APEX
+      );
+      Vec3 apex = new Vec3(19.0 / 6.0, 5.5, 1.5);
+
+      assertEquals(6, edges.size());
+      assertEquals(new GuideLine(Vec3.atCenterOf(points.get(0)), apex), edges.get(3));
+      assertEquals(new GuideLine(Vec3.atCenterOf(points.get(2)), apex), edges.get(5));
+   }
+
+   private static GuideLine line(BlockPos from, BlockPos to) {
+      return new GuideLine(Vec3.atCenterOf(from), Vec3.atCenterOf(to));
    }
 }

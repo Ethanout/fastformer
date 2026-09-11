@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render.geometry;
 
 import io.github.fastformer.fastplace.FaceMode;
+import io.github.fastformer.fastplace.PolygonVolumeShape;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
@@ -39,8 +40,24 @@ public final class PreviewGeometrySupport {
    }
 
    public static List<GuideLine> outlineGeometryEdges(List<BlockPos> points, FaceMode faceMode) {
-      if (points == null || points.size() < 2 || faceMode == FaceMode.POLYGON) {
+      if (faceMode == FaceMode.POLYGON) {
          return List.of();
+      }
+      return outlineGeometryEdges(points, faceMode, true, false, PolygonVolumeShape.EXTRUDE);
+   }
+
+   public static List<GuideLine> outlineGeometryEdges(
+      List<BlockPos> points,
+      FaceMode faceMode,
+      boolean polygonClosed,
+      boolean polygonHeightConfirmed,
+      PolygonVolumeShape polygonVolumeShape
+   ) {
+      if (points == null || points.size() < 2) {
+         return List.of();
+      }
+      if (faceMode == FaceMode.POLYGON) {
+         return polygonEdges(points, polygonClosed, polygonHeightConfirmed, polygonVolumeShape);
       }
       if (points.size() == 2) {
          return List.of(new GuideLine(Vec3.atCenterOf(points.getFirst()), Vec3.atCenterOf(points.getLast())));
@@ -56,6 +73,40 @@ public final class PreviewGeometrySupport {
       Vec3 extrusion = Vec3.atCenterOf(points.get(3)).subtract(anchor);
       if (extrusion.lengthSqr() < 1.0E-7) {
          return closedEdges(base);
+      }
+      return new SelectionPrism(base, extrusion).edges();
+   }
+
+   private static List<GuideLine> polygonEdges(
+      List<BlockPos> points,
+      boolean polygonClosed,
+      boolean polygonHeightConfirmed,
+      PolygonVolumeShape polygonVolumeShape
+   ) {
+      if (!polygonClosed) {
+         return pathEdges(points.stream().map(Vec3::atCenterOf).toList());
+      }
+      int basePointCount = polygonHeightConfirmed ? points.size() - 1 : points.size();
+      if (basePointCount < 3) {
+         return pathEdges(points.stream().map(Vec3::atCenterOf).toList());
+      }
+      List<Vec3> base = points.subList(0, basePointCount).stream().map(Vec3::atCenterOf).toList();
+      if (!polygonHeightConfirmed) {
+         return closedEdges(base);
+      }
+
+      Vec3 anchor = base.get(Math.min(2, base.size() - 1));
+      Vec3 extrusion = Vec3.atCenterOf(points.getLast()).subtract(anchor);
+      if (polygonVolumeShape == PolygonVolumeShape.APEX) {
+         Vec3 center = base.stream().reduce(Vec3.ZERO, Vec3::add).scale(1.0 / base.size());
+         Vec3 normal = PlanarFaceGeometry.normal(base);
+         Vec3 apex = center.add(normal.scale(extrusion.dot(normal)));
+         ArrayList<GuideLine> edges = new ArrayList<>(base.size() * 2);
+         edges.addAll(closedEdges(base));
+         for (Vec3 vertex : base) {
+            edges.add(new GuideLine(vertex, apex));
+         }
+         return List.copyOf(edges);
       }
       return new SelectionPrism(base, extrusion).edges();
    }
@@ -96,6 +147,14 @@ public final class PreviewGeometrySupport {
       ArrayList<GuideLine> edges = new ArrayList<>(vertices.size());
       for (int index = 0; index < vertices.size(); index++) {
          edges.add(new GuideLine(vertices.get(index), vertices.get((index + 1) % vertices.size())));
+      }
+      return List.copyOf(edges);
+   }
+
+   private static List<GuideLine> pathEdges(List<Vec3> vertices) {
+      ArrayList<GuideLine> edges = new ArrayList<>(Math.max(0, vertices.size() - 1));
+      for (int index = 1; index < vertices.size(); index++) {
+         edges.add(new GuideLine(vertices.get(index - 1), vertices.get(index)));
       }
       return List.copyOf(edges);
    }

@@ -1781,10 +1781,12 @@ public class FastPlaceClientPreviewCore {
             boolean pendingLightweight = PreviewAsyncPolicy.useOutlineOnly(previewPoints,
                buildingPreviewWorkload(snapshot, previewPoints, polygonHeightConfirmed));
             List<GuideLine> confirmedOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE || confirmedLightweight
-               ? PreviewGeometrySupport.outlineGeometryEdges(snapshot.points(), buildingModes.faceMode())
+               ? PreviewGeometrySupport.outlineGeometryEdges(snapshot.points(), buildingModes.faceMode(),
+                  snapshot.polygonClosed(), snapshot.polygonHeightConfirmed(), snapshot.polygonVolumeShape())
                : List.of();
             List<GuideLine> pendingOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE || pendingLightweight
-               ? PreviewGeometrySupport.outlineGeometryEdges(previewPoints, buildingModes.faceMode())
+               ? PreviewGeometrySupport.outlineGeometryEdges(previewPoints, buildingModes.faceMode(),
+                  snapshot.polygonClosed(), polygonHeightConfirmed, snapshot.polygonVolumeShape())
                : List.of();
             if (pendingOutlineEdges.equals(confirmedOutlineEdges)) {
                pendingOutlineEdges = List.of();
