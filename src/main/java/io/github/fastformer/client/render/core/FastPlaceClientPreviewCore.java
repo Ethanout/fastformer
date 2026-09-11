@@ -59,6 +59,7 @@ import io.github.fastformer.client.render.interaction.OperationPointerTarget;
 import io.github.fastformer.client.render.state.ClientPreviewState;
 import io.github.fastformer.client.render.model.*;
 import io.github.fastformer.client.render.cache.BuildingShellCache;
+import io.github.fastformer.client.render.cache.BuildingShellEdgeBuffer;
 import io.github.fastformer.client.render.cache.BuildingShellBlocksCache;
 import io.github.fastformer.client.render.cache.GhostMeshCache;
 import io.github.fastformer.client.render.cache.PendingGhostBufferCache;
@@ -234,6 +235,8 @@ public class FastPlaceClientPreviewCore {
       blocks -> GhostMeshBuilder.build(blocks, false, true, true)
    );
    private static final BuildingShellCache CONFIRMED_BUILDING_SHELL_CACHE = new BuildingShellCache(false);
+   private static final BuildingShellEdgeBuffer CONFIRMED_SHELL_EDGES = new BuildingShellEdgeBuffer();
+   private static final BuildingShellEdgeBuffer PENDING_SHELL_EDGES = new BuildingShellEdgeBuffer();
    private static final BuildingShellBlocksCache BUILDING_SHELL_BLOCKS_CACHE = new BuildingShellBlocksCache();
    private static final BuildingShellCache PENDING_BUILDING_SHELL_CACHE = new BuildingShellCache(true);
    private static final ThreadPoolExecutor PREVIEW_MESH_EXECUTOR = new ThreadPoolExecutor(
@@ -3086,6 +3089,8 @@ public class FastPlaceClientPreviewCore {
       CONFIRMED_GHOST_CACHE.clear();
       CONFIRMED_OUTLINE_CACHE.clear();
       CONFIRMED_BUILDING_SHELL_CACHE.clear();
+      CONFIRMED_SHELL_EDGES.clear();
+      PENDING_SHELL_EDGES.clear();
       BUILDING_SHELL_BLOCKS_CACHE.clear();
       PENDING_BUILDING_SHELL_CACHE.clear();
       PENDING_GHOST_CACHE.clear();
@@ -3150,21 +3155,15 @@ public class FastPlaceClientPreviewCore {
       buffers.endBatch(GHOST_FACES);
 
       if (!cleanOutlineEdges) {
-         ShapeShellRenderer.renderEdges(
-            poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, confirmed.edges(), 0.16F * worldPreviewOpacity
-         );
-         ShapeShellRenderer.renderEdges(
-            poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, pending.edges(), 0.12F * worldPreviewOpacity
-         );
          buffers.endBatch(PENDING_XRAY_LINES);
-
-         ShapeShellRenderer.renderEdges(
-            poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, confirmed.edges(), 0.92F * worldPreviewOpacity
-         );
-         ShapeShellRenderer.renderEdges(
-            poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, pending.edges(), 0.82F * worldPreviewOpacity
-         );
          buffers.endBatch(GHOST_OUTLINE_LINES);
+         CONFIRMED_SHELL_EDGES.draw(poseStack, camera, confirmed.edges(), PENDING_XRAY_LINES, 0.16F * worldPreviewOpacity);
+         PENDING_SHELL_EDGES.draw(poseStack, camera, pending.edges(), PENDING_XRAY_LINES, 0.12F * worldPreviewOpacity);
+         CONFIRMED_SHELL_EDGES.draw(poseStack, camera, confirmed.edges(), GHOST_OUTLINE_LINES, 0.92F * worldPreviewOpacity);
+         PENDING_SHELL_EDGES.draw(poseStack, camera, pending.edges(), GHOST_OUTLINE_LINES, 0.82F * worldPreviewOpacity);
+      } else {
+         CONFIRMED_SHELL_EDGES.clear();
+         PENDING_SHELL_EDGES.clear();
       }
    }
 
