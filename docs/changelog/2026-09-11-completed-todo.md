@@ -348,6 +348,8 @@ GPT-5.6-sol low 完成几何辅助方法与四项测试，主代理核对生成�
 
 `check` 通过。
 
+随后已通过 `deployTo233` 部署，源包与目标包 SHA-256 均为 `55F53E17D596C34F9C761CA72C70D8006EAEB87F8D35CFF3E9C2EE69F8266B6F`。
+
 
 - [x] 墙体和复合形状的延迟生成使用确认时冻结的点位、挤出和形状参数；`DeferredGeometryBuildTest` 覆盖两类工作流。
 
