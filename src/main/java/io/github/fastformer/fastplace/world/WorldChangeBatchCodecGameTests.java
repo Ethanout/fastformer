@@ -1,7 +1,12 @@
 package io.github.fastformer.fastplace.world;
 
 import io.github.fastformer.FastFormer;
+import io.github.fastformer.fastplace.history.HistoryStore;
+import io.github.fastformer.fastplace.history.WorldHistoryBatchCodec;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +107,59 @@ public final class WorldChangeBatchCodecGameTests {
       duplicateLayout.putLongArray("Positions", new long[]{pos.asLong()});
       expectDecodeFailure(helper, duplicateLayout, "ambiguous position layout");
       helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100)
+   public static void diskPayloadRoundTripAndBudgets(GameTestHelper helper) throws Exception {
+      BlockPos pos = new BlockPos(3, 10, 5);
+      CompoundTag entity = new CompoundTag();
+      entity.putString("CustomName", "saved-block-entity");
+      WorldChangeBatch original = batch(helper,
+         List.of(snapshot(pos, Blocks.CHEST.defaultBlockState(), Fluids.EMPTY.defaultFluidState(), entity)),
+         Map.of(pos, snapshot(pos, Blocks.WATER.defaultBlockState(), Fluids.WATER.getSource(false), null))
+      ).withOperationId(UUID.randomUUID());
+      byte[] payload = WorldHistoryBatchCodec.encode(original, 1024 * 1024);
+      helper.assertTrue(Arrays.equals(payload, WorldHistoryBatchCodec.encode(original, payload.length)),
+         "exact encoding budget should succeed");
+      expectIoFailure(helper, () -> WorldHistoryBatchCodec.encode(original, payload.length - 1),
+         "encoded size limit");
+      expectIoFailure(helper, () -> WorldHistoryBatchCodec.decode(helper.getLevel().registryAccess(), payload, 1),
+         "NBT allocation limit");
+      expectIoFailure(helper, () -> WorldHistoryBatchCodec.decode(helper.getLevel().registryAccess(),
+         Arrays.copyOf(payload, payload.length + 1), 1024 * 1024), "trailing bytes");
+      expectIoFailure(helper, () -> WorldHistoryBatchCodec.decode(helper.getLevel().registryAccess(),
+         Arrays.copyOf(payload, payload.length - 1), 1024 * 1024), "truncated NBT");
+
+      Path root = Files.createTempDirectory("fastformer-history-codec-");
+      UUID owner = UUID.randomUUID();
+      try {
+         new HistoryStore(root, Runnable::run, 1, 1024 * 1024, 2 * 1024 * 1024).save(owner, payload).join();
+         HistoryStore reopened = new HistoryStore(root, Runnable::run, 1, 1024 * 1024, 2 * 1024 * 1024);
+         byte[] loaded = reopened.load(owner).join().orElseThrow();
+         WorldChangeBatch decoded = WorldHistoryBatchCodec.decode(helper.getLevel().registryAccess(), loaded, 1024 * 1024);
+         assertEquivalent(helper, original, decoded);
+         helper.assertTrue(original.operationId().equals(decoded.operationId()), "disk lost operation ID");
+         helper.assertTrue(reopened.load(UUID.randomUUID()).join().isEmpty(), "owner histories were not isolated");
+      } finally {
+         Files.deleteIfExists(root.resolve(owner.toString()).resolve("history.dat"));
+         Files.deleteIfExists(root.resolve(owner.toString()));
+         Files.deleteIfExists(root);
+      }
+      helper.succeed();
+   }
+
+   private static void expectIoFailure(GameTestHelper helper, IoAction action, String name) throws Exception {
+      try {
+         action.run();
+         helper.assertTrue(false, "accepted invalid disk payload: " + name);
+      } catch (IOException expected) {
+         // Expected storage boundary failure.
+      }
+   }
+
+   @FunctionalInterface
+   private interface IoAction {
+      void run() throws Exception;
    }
 
    private static WorldChangeBatch batch(
