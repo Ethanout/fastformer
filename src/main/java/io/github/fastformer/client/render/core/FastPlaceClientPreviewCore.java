@@ -1776,10 +1776,14 @@ public class FastPlaceClientPreviewCore {
             Map<BlockPos, BlockState> previewStateOverrides = previewEffectStates(
                previewEffect, snapshot, previewPoints, polygonHeightConfirmed, buildingModes, layers.allBlocks()
             );
-            List<GuideLine> confirmedOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE
+            boolean confirmedLightweight = PreviewAsyncPolicy.useOutlineOnly(snapshot.points(),
+               buildingPreviewWorkload(snapshot, snapshot.points(), snapshot.polygonHeightConfirmed()));
+            boolean pendingLightweight = PreviewAsyncPolicy.useOutlineOnly(previewPoints,
+               buildingPreviewWorkload(snapshot, previewPoints, polygonHeightConfirmed));
+            List<GuideLine> confirmedOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE || confirmedLightweight
                ? PreviewGeometrySupport.outlineGeometryEdges(snapshot.points(), buildingModes.faceMode())
                : List.of();
-            List<GuideLine> pendingOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE
+            List<GuideLine> pendingOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE || pendingLightweight
                ? PreviewGeometrySupport.outlineGeometryEdges(previewPoints, buildingModes.faceMode())
                : List.of();
             if (pendingOutlineEdges.equals(confirmedOutlineEdges)) {
@@ -2161,8 +2165,10 @@ public class FastPlaceClientPreviewCore {
    ) {
       cachedBuildingPreviewAtLimit = true;
       if (cachedBuildingPreviewProgress != null) {
-         cachedBuildingPreviewProgress.drainPublished();
+         cachedBuildingPreviewProgress.cancel();
+         cachedBuildingPreviewProgress = null;
       }
+      BUILDING_PREVIEW_GENERATION.cancel();
       Set<BlockPos> fallback = cachedBuildingFallbackBlocks;
       if (fallback.isEmpty()) {
          fallback = buildingPreviewLimitFallbackSafely(
