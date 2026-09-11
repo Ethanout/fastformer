@@ -80,17 +80,27 @@ public final class PendingPreviewGrid {
 
    private static List<Segment> mergeCollinear(Set<Segment> edges) {
       Map<Line, List<Interval>> lines = new HashMap<>();
+      int checked = 0;
       for (Segment edge : edges) {
+         if ((checked++ & 255) == 0 && Thread.currentThread().isInterrupted()) {
+            throw new CancellationException("Superseded preview mesh");
+         }
          Line line = Line.of(edge);
          lines.computeIfAbsent(line, ignored -> new ArrayList<>()).add(line.interval(edge));
       }
       ArrayList<Segment> merged = new ArrayList<>();
       for (Map.Entry<Line, List<Interval>> entry : lines.entrySet()) {
+         if ((checked++ & 255) == 0 && Thread.currentThread().isInterrupted()) {
+            throw new CancellationException("Superseded preview mesh");
+         }
          List<Interval> intervals = entry.getValue();
          intervals.sort(Comparator.comparingInt(Interval::start));
          int start = intervals.getFirst().start();
          int end = intervals.getFirst().end();
          for (int index = 1; index < intervals.size(); index++) {
+            if ((checked++ & 255) == 0 && Thread.currentThread().isInterrupted()) {
+               throw new CancellationException("Superseded preview mesh");
+            }
             Interval next = intervals.get(index);
             if (next.start() <= end) {
                end = Math.max(end, next.end());

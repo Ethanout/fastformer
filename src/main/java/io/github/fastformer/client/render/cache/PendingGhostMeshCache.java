@@ -39,6 +39,7 @@ public final class PendingGhostMeshCache {
          if (PreviewAsyncPolicy.meshSynchronously(this.blocks.size())) {
             this.mesh = this.builder.apply(this.blocks);
          } else {
+            this.mesh = PendingGhostMesh.empty();
             long requestedVersion = this.version;
             Set<BlockPos> blocksSnapshot = this.blocks;
             this.future = this.executor.submit(
@@ -89,8 +90,12 @@ public final class PendingGhostMeshCache {
 
    private void cancelFuture() {
       if (this.future != null) {
-         this.future.cancel(true);
+         Future<PendingMeshResult> cancelled = this.future;
          this.future = null;
+         cancelled.cancel(true);
+         if (cancelled instanceof Runnable task) {
+            this.executor.remove(task);
+         }
       }
    }
 }
