@@ -160,6 +160,7 @@ public final class WorldHistoryManager {
    }
 
    private static void addBatch(WorldTaskContext context, WorldChangeBatch batch) {
+      if (batch.operationId() == null) batch = batch.withOperationId(UUID.randomUUID());
       OwnerState owner = ownerState(context.owner());
       History history = owner.history();
       history.undo.addFirst(batch);
@@ -171,6 +172,7 @@ public final class WorldHistoryManager {
       } else {
          trimSafely(player, history);
       }
+      scheduleNewBatch(context.server(), context.owner(), owner, batch, history);
    }
 
    public static boolean requestUndo(ServerPlayer player, int count) {
@@ -604,6 +606,7 @@ public final class WorldHistoryManager {
       History history = owner.history;
       if (history != null) {
          trim(limit, history);
+         scheduleIndex(player.getServer(), id, owner, history);
       }
    }
 
@@ -630,6 +633,7 @@ public final class WorldHistoryManager {
       }
       HistoryTask task = ownerState.active;
       if (task == null) {
+         retryPersistence(context, ownerState);
          ServerPlayer player = context.onlinePlayer();
          return player != null && runDeferredUndo(player);
       }
@@ -1005,6 +1009,56 @@ public final class WorldHistoryManager {
       }
    }
 
+   private static void scheduleNewBatch(
+      MinecraftServer server, UUID ownerId, OwnerState owner, WorldChangeBatch batch, History history
+   ) {
+      trackPersistence(server, ownerId, owner, WorldHistoryPersistence.publishNewBatch(
+         server, ownerId, batch, operationIds(history.undo), operationIds(history.redo)
+      ));
+   }
+
+   private static void scheduleIndex(MinecraftServer server, UUID ownerId, OwnerState owner, History history) {
+      trackPersistence(server, ownerId, owner, WorldHistoryPersistence.publishIndex(
+         server, ownerId, operationIds(history.undo), operationIds(history.redo)
+      ));
+   }
+
+   private static void retryPersistence(WorldTaskContext context, OwnerState owner) {
+      if (!owner.persistenceDirty || owner.pendingPersistence > 0 || owner.history == null || context.server() == null) return;
+      if (owner.persistenceRetryTicks > 0) {
+         owner.persistenceRetryTicks--;
+         return;
+      }
+      owner.persistenceDirty = false;
+      History history = owner.history;
+      trackPersistence(context.server(), context.owner(), owner, WorldHistoryPersistence.publishSnapshot(
+         context.server(), context.owner(), java.util.List.copyOf(history.undo), java.util.List.copyOf(history.redo)
+      ));
+   }
+
+   private static void trackPersistence(
+      MinecraftServer server, UUID ownerId, OwnerState owner, CompletableFuture<Void> persistence
+   ) {
+      if (server == null) return;
+      owner.pendingPersistence++;
+      persistence.whenComplete((ignored, failure) -> server.execute(() -> {
+         OwnerState current = OWNERS.get(ownerId);
+         if (current != owner) return;
+         current.pendingPersistence = Math.max(0, current.pendingPersistence - 1);
+         current.persistenceDirty = failure != null;
+         if (failure != null) current.persistenceRetryTicks = 100;
+      }));
+   }
+
+   static boolean persistenceFailedForTest(UUID ownerId) {
+      OwnerState owner = OWNERS.get(ownerId);
+      return owner != null && owner.persistenceDirty && owner.pendingPersistence == 0;
+   }
+
+   private static java.util.List<UUID> operationIds(ArrayDeque<WorldChangeBatch> batches) {
+      return batches.stream().map(WorldChangeBatch::operationId).toList();
+   }
+
    private static OwnerState ownerState(UUID owner) {
       return OWNERS.computeIfAbsent(owner, ignored -> new OwnerState());
    }
@@ -1049,6 +1103,9 @@ public final class WorldHistoryManager {
       private int deferredUndo;
       private int historyLimit = DEFAULT_LIMIT;
       private boolean detached;
+      private int pendingPersistence;
+      private boolean persistenceDirty;
+      private int persistenceRetryTicks;
 
       private long historyBytes() {
          return history == null ? 0L : saturatedAdd(history.undoBytes, history.redoBytes);
@@ -1074,7 +1131,8 @@ public final class WorldHistoryManager {
             || pendingTask != null
             || !pendingCaptures.isEmpty()
             || pendingRecord != null
-            || deferredUndo > 0;
+            || deferredUndo > 0
+            || persistenceDirty;
       }
    }
 
@@ -1538,6 +1596,7 @@ public final class WorldHistoryManager {
          } else {
             trimSafely(player, this.history);
          }
+         scheduleIndex(context.server(), context.owner(), ownerState(context.owner()), this.history);
       }
 
       private JournalPreparation prepareJournal(WorldTaskContext context) {
