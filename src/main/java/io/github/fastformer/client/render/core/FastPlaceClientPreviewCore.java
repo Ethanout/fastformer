@@ -2486,6 +2486,12 @@ public class FastPlaceClientPreviewCore {
    static List<ControlPoint> operationControlPoints(
       OperationPreviewPayload snapshot, BlockPos candidate, boolean edgeInsertionHovered
    ) {
+      // Cuboid points are editing metadata only. The selection bounds are the
+      // sole rendered authority, so drawing point1/point2 would create a
+      // second frame and make an adjusted cuboid appear to have two sizes.
+      if (snapshot.operationSelectionMode() == OperationSelectionMode.CUBOID) {
+         return List.of();
+      }
       List<BlockPos> points = snapshot.points();
       ArrayList<ControlPoint> result = new ArrayList<>(points.size() + (candidate == null ? 0 : 1));
       int pointIndex = 0;
