@@ -1,5 +1,11 @@
 # 2026-09-11 已完成 TODO
 
+## 历史配额服务器配置
+
+使用 NeoForge SERVER 配置注册 `fastformer-server.toml`，`history.playerDiskMiB` 默认 1024，`history.totalDiskMiB` 默认 8192。实际后台存储读取这些配置；调整后需重启，不因降低上限直接删除旧文件。用法见 `docs/history-storage.md`。
+
+`check` 与 40 项 GameTest 通过，检查了实际启动生成的 TOML 文件及默认值。保留期限、全局历史缓存预算、磁盘加载和重启恢复仍未完成。
+
 ## 单玩家历史磁盘配额
 
 实际后台存储增加单玩家 1 GiB 上限，服务器总量仍为 8 GiB。该玩家目录中的批次、索引和其他现存文件计入占用；索引替换按净增长检查，超限时不替换旧索引。缩小索引仍可执行，便于后续清理。

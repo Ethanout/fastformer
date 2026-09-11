@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.history.HistoryBatchStore;
 import io.github.fastformer.fastplace.history.HistoryOrderIndex;
 import io.github.fastformer.fastplace.history.WorldHistoryBatchCodec;
+import io.github.fastformer.fastplace.history.HistoryStorageConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -21,8 +22,6 @@ final class WorldHistoryPersistence {
    private static final Logger LOGGER = LogUtils.getLogger();
    private static final int FORMAT_VERSION = 1;
    private static final int MAX_BATCH_BYTES = 256 * 1024 * 1024;
-   private static final long MAX_STORE_BYTES = 8L * 1024L * 1024L * 1024L;
-   private static final long MAX_OWNER_STORE_BYTES = 1024L * 1024L * 1024L;
    private static final long MAX_QUEUE_BYTES = MAX_BATCH_BYTES + 20L;
    private static final int MAX_QUEUE_OPERATIONS = 512;
    private static final long MAX_PENDING_ENCODE_BYTES = 512L * 1024L * 1024L;
@@ -185,11 +184,11 @@ final class WorldHistoryPersistence {
          executor(),
          FORMAT_VERSION,
          MAX_BATCH_BYTES,
-         MAX_STORE_BYTES,
+         HistoryStorageConfig.totalDiskBytes(),
          MAX_QUEUE_BYTES,
          MAX_QUEUE_OPERATIONS,
          MAX_INDEX_ENTRIES,
-         MAX_OWNER_STORE_BYTES
+         HistoryStorageConfig.ownerDiskBytes()
       ));
    }
 
