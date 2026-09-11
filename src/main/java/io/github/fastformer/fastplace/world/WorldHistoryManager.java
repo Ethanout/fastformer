@@ -179,6 +179,10 @@ public final class WorldHistoryManager {
       return request(player, true, count);
    }
 
+   public static void resumeDiskCleanup(MinecraftServer server) {
+      WorldHistoryPersistence.resumeCleanup(server);
+   }
+
    public static boolean requestRedo(ServerPlayer player, int count) {
       return request(player, false, count);
    }

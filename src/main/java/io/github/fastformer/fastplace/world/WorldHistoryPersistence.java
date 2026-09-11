@@ -46,6 +46,17 @@ final class WorldHistoryPersistence {
    private WorldHistoryPersistence() {
    }
 
+   static void resumeCleanup(MinecraftServer server) {
+      store(server).resumeRetiredCleanup().whenComplete((summary, failure) -> {
+         if (failure != null) {
+            LOGGER.error("Could not scan pending history cleanup", failure);
+         } else if (summary.owners() > 0) {
+            LOGGER.info("History cleanup scanned {} owners, removed {} batches, failed for {} owners",
+               summary.owners(), summary.deletedBatches(), summary.failedOwners());
+         }
+      });
+   }
+
    static CompletableFuture<Void> publishNewBatch(
       MinecraftServer server,
       UUID owner,

@@ -160,7 +160,10 @@ public final class HistoryBatchStore {
    public CompletableFuture<Integer> cleanupUnreferencedBatches(UUID ownerId, Set<UUID> retiredBatches) {
       Objects.requireNonNull(ownerId, "ownerId");
       Set<UUID> candidates = Set.copyOf(retiredBatches);
-      return enqueueRead(() -> {
+      return enqueueRead(() -> cleanupRetired(ownerId, candidates));
+   }
+
+   private int cleanupRetired(UUID ownerId, Set<UUID> candidates) {
          Set<UUID> pending = pendingRetirements.computeIfAbsent(ownerId, ignored -> new HashSet<>());
          pending.addAll(readRetirements(ownerId));
          pending.addAll(candidates);
@@ -176,8 +179,41 @@ public final class HistoryBatchStore {
          }
          pendingRetirements.remove(ownerId);
          return deleted;
+   }
+
+   public CompletableFuture<CleanupSummary> resumeRetiredCleanup() {
+      return enqueueRead(() -> {
+         int owners = 0;
+         int deleted = 0;
+         int failed = 0;
+         if (!Files.isDirectory(root)) return new CleanupSummary(0, 0, 0);
+         try (var directories = Files.newDirectoryStream(root)) {
+            for (Path directory : directories) {
+               if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) continue;
+               UUID owner;
+               try {
+                  owner = UUID.fromString(directory.getFileName().toString());
+                  if (!owner.toString().equals(directory.getFileName().toString())) continue;
+               } catch (IllegalArgumentException ignored) {
+                  continue;
+               }
+               if (!Files.exists(directory.resolve(RETIRED_FILE))) continue;
+               owners++;
+               try {
+                  deleted += cleanupRetired(owner, Set.of());
+               } catch (UncheckedIOException failure) {
+                  failed++;
+                  com.mojang.logging.LogUtils.getLogger().warn("Could not resume history cleanup for {}", owner, failure);
+               }
+            }
+         } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+         }
+         return new CleanupSummary(owners, deleted, failed);
       });
    }
+
+   public record CleanupSummary(int owners, int deletedBatches, int failedOwners) {}
 
    /** Persists cleanup intent before an ordering index can stop referencing the batches. */
    public CompletableFuture<Void> stageRetirements(UUID ownerId, Set<UUID> retiredBatches) {

@@ -14,6 +14,29 @@ class HistoryBatchStoreTest {
    @TempDir Path root;
 
    @Test
+   void startupScanCleansOfflineOwnersAndPreservesDamagedOwner() throws Exception {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      UUID validOwner = UUID.randomUUID();
+      UUID damagedOwner = UUID.randomUUID();
+      UUID validBatch = UUID.randomUUID();
+      UUID damagedBatch = UUID.randomUUID();
+      for (var entry : java.util.Map.of(validOwner, validBatch, damagedOwner, damagedBatch).entrySet()) {
+         store.publishBatch(entry.getKey(), entry.getValue(), new byte[]{1}).join();
+         store.publishIndex(entry.getKey(), new HistoryOrderIndex(List.of(), List.of())).join();
+         store.stageRetirements(entry.getKey(), java.util.Set.of(entry.getValue())).join();
+      }
+      java.nio.file.Files.write(root.resolve(damagedOwner.toString()).resolve("index.dat"), new byte[]{0});
+      HistoryBatchStore reopened = store(Runnable::run, 1024);
+      var summary = reopened.resumeRetiredCleanup().join();
+      assertEquals(2, summary.owners());
+      assertEquals(1, summary.deletedBatches());
+      assertEquals(1, summary.failedOwners());
+      assertTrue(reopened.loadBatch(validOwner, validBatch).join().isEmpty());
+      assertTrue(reopened.loadBatch(damagedOwner, damagedBatch).join().isPresent());
+      assertTrue(java.nio.file.Files.exists(root.resolve(damagedOwner.toString()).resolve("retired.dat")));
+   }
+
+   @Test
    void cleanupIntentSurvivesReopeningAfterIndexReplacement() {
       HistoryBatchStore store = store(Runnable::run, 1024);
       UUID owner = UUID.randomUUID();

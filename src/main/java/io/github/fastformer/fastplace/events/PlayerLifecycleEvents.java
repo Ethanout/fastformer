@@ -81,6 +81,7 @@ public final class PlayerLifecycleEvents {
       if (PersistentRecoveryJournal.awaitIoIdle()) {
          PersistentRecoveryJournal.recoverAll(event.getServer());
       }
+      WorldHistoryManager.resumeDiskCleanup(event.getServer());
    }
 
    private static void onServerStopping(ServerStoppingEvent event) {
