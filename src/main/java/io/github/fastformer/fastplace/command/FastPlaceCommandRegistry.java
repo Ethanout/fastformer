@@ -15,6 +15,7 @@ import io.github.fastformer.network.payload.settings.OpenSettingsPayload;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -55,6 +56,7 @@ public final class FastPlaceCommandRegistry {
             .then(maxPlacementCommand())
             .then(undoHistoryLimitCommand())
             .then(sessionUndoHistoryLimitCommand())
+            .then(historyCleanupCommand())
             .then(middleConfirmCommand())
             .then(settingsCommand())
             .then(toggleCommand())
@@ -319,6 +321,16 @@ public final class FastPlaceCommandRegistry {
             );
             return 1;
          }));
+   }
+
+   private static LiteralArgumentBuilder<CommandSourceStack> historyCleanupCommand() {
+      return Commands.literal("history_cleanup")
+         .requires(source -> source.hasPermission(2))
+         .executes(context -> {
+            WorldHistoryManager.resumeDiskCleanup(context.getSource().getServer());
+            context.getSource().sendSuccess(() -> Component.literal("FastFormer history cleanup started."), true);
+            return 1;
+         });
    }
 
    private static LiteralArgumentBuilder<CommandSourceStack> middleConfirmCommand() {

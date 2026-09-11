@@ -342,6 +342,12 @@ GPT-5.6-sol low 完成几何辅助方法与四项测试，主代理核对生成�
 
 `deployTo233` 已通过并部署当前构建。源 JAR 与 `.233` 目标 JAR 的 SHA-256 均为 `AE92359325B1AA06403BFD9E0D0E44B90A30CB7F0F799ABF0F1EC7A991952964`。部署包含外壳缓存分帧推进、稳定快照快速路径和失败阶段锁存；不代表客户端实机验收完成。
 
+## 历史清理管理员入口
+
+新增权限等级 2 的 `fastformer history_cleanup`（`ff history_cleanup`）命令，触发已有的持久化候选扫描和安全清理流程。命令不会删除仍被 durable undo/redo 索引引用的批次；历史保留期限和磁盘故障验收仍未完成。
+
+`check` 通过。
+
 
 - [x] 墙体和复合形状的延迟生成使用确认时冻结的点位、挤出和形状参数；`DeferredGeometryBuildTest` 覆盖两类工作流。
 
