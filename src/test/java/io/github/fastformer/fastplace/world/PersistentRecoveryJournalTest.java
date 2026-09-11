@@ -264,6 +264,23 @@ class PersistentRecoveryJournalTest {
    }
 
    @Test
+   void sealedSegmentedDirectoryWithMissingSegmentIsRejected() throws Exception {
+      UUID owner = UUID.randomUUID();
+      UUID operation = UUID.randomUUID();
+      Path directory = segmentedDirectory(owner, operation);
+      RecoveryJournalSegments.CompoundSegment segment = RecoveryJournalSegments.read(
+         directory, operation, 0
+      );
+      RecoveryJournalSeal.write(
+         directory.resolve("seal.done"), operation, 1,
+         RecoveryJournalSegments.digest(List.of(segment))
+      );
+      Files.delete(directory.resolve("segment-000000.dat"));
+
+      assertEquals(false, PersistentRecoveryJournal.validateSegmentDirectories(List.of(directory)));
+   }
+
+   @Test
    void unusedPreparedJournalIsDiscardedWithoutACommitMarker() throws IOException {
       Path prepared = this.temporaryDirectory.resolve("00000000000000000003-owner.dat");
       Path correction = this.temporaryDirectory.resolve("00000000000000000003-owner.delta");
