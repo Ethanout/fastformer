@@ -98,6 +98,7 @@ public final class PlacementTask {
    private boolean failed;
    private boolean recoveryTaskCreated;
    private String failureReason;
+   private WorldOperationPhase failurePhase;
    private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
    private Iterator<BlockPos> finalizationIterator;
 
@@ -863,7 +864,7 @@ public final class PlacementTask {
    }
 
    public WorldOperationPhase failurePhase() {
-      return this.metrics.phase();
+      return this.failurePhase == null ? this.metrics.phase() : this.failurePhase;
    }
 
    public UUID operationId() {
@@ -894,6 +895,7 @@ public final class PlacementTask {
    private void fail(WorldOperationPhase phase, String reason) {
       this.failed = true;
       this.failureReason = reason;
+      this.failurePhase = phase;
       this.metrics.phase(phase);
    }
 

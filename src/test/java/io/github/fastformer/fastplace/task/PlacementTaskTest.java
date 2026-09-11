@@ -226,6 +226,27 @@ class PlacementTaskTest {
    }
 
    @Test
+   void failurePhaseRemainsStableAfterLaterLifecycleUpdates() {
+      PlacementTask task = PlacementTask.ready(
+         Set.of(BlockPos.ZERO),
+         new PlacementTaskPlan(
+            null,
+            ignored -> { throw new IllegalStateException("resolver failed"); },
+            OperationConflictMode.REPLACE,
+            PlacementUpdateMode.CLIENT_ONLY,
+            100,
+            Level.OVERWORLD
+         )
+      );
+
+      assertTrue(task.prepare());
+      assertTrue(task.failed());
+      task.markWorldUnloaded();
+
+      assertEquals(WorldOperationPhase.GENERATION, task.failurePhase());
+   }
+
+   @Test
    void stateResolverOutOfMemoryIsReleasedAndReportedAsGenerationFailure() {
       long baseline = MemoryReservation.reservedBytes();
       MemoryReservation reservation = WorldOperationMemory.reserveGeneration(1L, 0L).orElseThrow();
