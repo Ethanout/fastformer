@@ -25,14 +25,16 @@ Set-Content -LiteralPath (Join-Path $runDirectory 'server.properties') -Encoding
 Push-Location $projectRoot
 try {
     $gradleRecoveryDirectory = $runDirectory
-    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon runServer `
+    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon `
+        -x cacheVersionExecutableClient1.21.1 runServer `
         "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" -PrecoveryProcessTest=crash
     $crashExit = $LASTEXITCODE
     if ($crashExit -eq 0 -or -not (Test-Path -LiteralPath $crashMarker)) {
         throw "Crash phase did not reach the durable partial-write boundary (exit=$crashExit)."
     }
 
-    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon runServer `
+    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon `
+        -x cacheVersionExecutableClient1.21.1 runServer `
         "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" -PrecoveryProcessTest=verify
     if ($LASTEXITCODE -ne 0) {
         throw "Verify server failed to exit normally (exit=$LASTEXITCODE)."
