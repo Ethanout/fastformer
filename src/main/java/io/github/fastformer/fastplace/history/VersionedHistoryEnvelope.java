@@ -16,6 +16,39 @@ public final class VersionedHistoryEnvelope {
 
    private VersionedHistoryEnvelope() {}
 
+   static byte[] header(int version, byte[] payload) {
+      if (version < 1 || payload == null || payload.length > MAX_PAYLOAD) {
+         throw new IllegalArgumentException("Invalid history envelope");
+      }
+      CRC32 crc = new CRC32();
+      crc.update(payload);
+      return java.nio.ByteBuffer.allocate(20)
+         .putInt(MAGIC).putInt(version).putInt(payload.length).putLong(crc.getValue()).array();
+   }
+
+   static byte[] read(java.io.DataInputStream input, int expectedVersion, long maxPayloadBytes) throws IOException {
+      if (expectedVersion < 1 || maxPayloadBytes < 0) throw new IllegalArgumentException("Invalid history read budget");
+      try {
+         if (input.readInt() != MAGIC) throw new IOException("Unknown history envelope");
+         int version = input.readInt();
+         int length = input.readInt();
+         long checksum = input.readLong();
+         if (version != expectedVersion) throw new IOException("Unsupported history version: " + version);
+         if (length < 0 || length > Math.min(MAX_PAYLOAD, maxPayloadBytes)) {
+            throw new IOException("Invalid history payload length");
+         }
+         byte[] payload = new byte[length];
+         input.readFully(payload);
+         if (input.read() != -1) throw new IOException("Trailing history envelope data");
+         CRC32 crc = new CRC32();
+         crc.update(payload);
+         if (crc.getValue() != checksum) throw new IOException("History payload checksum mismatch");
+         return payload;
+      } catch (EOFException failure) {
+         throw new IOException("Truncated history envelope", failure);
+      }
+   }
+
    public static byte[] encode(int version, byte[] payload) {
       if (version < 1 || payload == null || payload.length > MAX_PAYLOAD) {
          throw new IllegalArgumentException("Invalid history envelope");

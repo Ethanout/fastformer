@@ -22,24 +22,23 @@ public final class HistoryEnvelopeFile {
          if (size < headerBytes || size > maximumBytes) {
             throw new IOException("History file size is outside its allowed range");
          }
-         ByteBuffer buffer = ByteBuffer.allocate(Math.toIntExact(size));
-         while (buffer.hasRemaining()) {
-            if (channel.read(buffer) < 0) throw new IOException("Truncated history file");
-         }
-         if (channel.read(ByteBuffer.allocate(1)) != -1) throw new IOException("History file grew during reading");
-         return VersionedHistoryEnvelope.decode(buffer.array(), version).payload();
+         return VersionedHistoryEnvelope.read(
+            new java.io.DataInputStream(java.nio.channels.Channels.newInputStream(channel)), version,
+            Math.min(maxPayloadBytes, size - headerBytes));
       }
    }
 
    public static void write(Path target, int version, byte[] payload) throws IOException {
-      byte[] encoded = VersionedHistoryEnvelope.encode(version, payload);
+      byte[] header = VersionedHistoryEnvelope.header(version, payload);
       Path absolute = target.toAbsolutePath();
       Files.createDirectories(absolute.getParent());
       Path temporary = Files.createTempFile(absolute.getParent(), ".history-", ".tmp");
       try {
          try (FileChannel channel = FileChannel.open(temporary, StandardOpenOption.WRITE)) {
-            ByteBuffer buffer = ByteBuffer.wrap(encoded);
-            while (buffer.hasRemaining()) channel.write(buffer);
+            ByteBuffer headerBuffer = ByteBuffer.wrap(header);
+            while (headerBuffer.hasRemaining()) channel.write(headerBuffer);
+            ByteBuffer payloadBuffer = ByteBuffer.wrap(payload);
+            while (payloadBuffer.hasRemaining()) channel.write(payloadBuffer);
             channel.force(true);
          }
          // Fail rather than silently falling back to a non-atomic replacement.

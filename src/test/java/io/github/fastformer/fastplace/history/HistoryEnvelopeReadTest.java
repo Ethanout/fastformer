@@ -16,6 +16,7 @@ class HistoryEnvelopeReadTest {
    void enforcesCallerBudgetAndVerifiesChecksum() throws Exception {
       Path file = root.resolve("history.dat");
       HistoryEnvelopeFile.write(file, 1, new byte[]{1, 2, 3});
+      assertArrayEquals(VersionedHistoryEnvelope.encode(1, new byte[]{1, 2, 3}), Files.readAllBytes(file));
       assertArrayEquals(new byte[]{1, 2, 3}, HistoryEnvelopeFile.read(file, 1, 3));
       assertThrows(IOException.class, () -> HistoryEnvelopeFile.read(file, 1, 2));
       byte[] corrupt = Files.readAllBytes(file);
