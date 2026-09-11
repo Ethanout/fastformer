@@ -64,7 +64,11 @@ final class WorldHistoryPersistence {
    }
 
    static void resumeCleanup(MinecraftServer server) {
-      store(server).resumeRetiredCleanup().whenComplete((summary, failure) -> {
+      store(server).resumeRetiredCleanup().thenCompose(summary -> {
+         int days = HistoryStorageConfig.retentionDays();
+         return days <= 0 ? CompletableFuture.completedFuture(summary)
+            : store(server).cleanupExpiredAll(java.time.Instant.now().minus(java.time.Duration.ofDays(days)));
+      }).whenComplete((summary, failure) -> {
          if (failure != null) {
             LOGGER.error("Could not scan pending history cleanup", failure);
          } else if (summary.owners() > 0) {

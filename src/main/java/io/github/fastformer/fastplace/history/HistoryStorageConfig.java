@@ -7,6 +7,7 @@ public final class HistoryStorageConfig {
    public static final ModConfigSpec SPEC;
    private static final ModConfigSpec.IntValue OWNER_DISK_MIB;
    private static final ModConfigSpec.IntValue TOTAL_DISK_MIB;
+   private static final ModConfigSpec.IntValue RETENTION_DAYS;
 
    static {
       ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -15,6 +16,8 @@ public final class HistoryStorageConfig {
          .worldRestart().defineInRange("playerDiskMiB", 1024, 1, 1048576);
       TOTAL_DISK_MIB = builder.comment("Disk limit for all player histories in this world, in MiB. Restart the server after changes.")
          .worldRestart().defineInRange("totalDiskMiB", 8192, 1, 1048576);
+      RETENTION_DAYS = builder.comment("Delete unreferenced history batches older than this many days during startup cleanup; 0 disables expiry.")
+         .worldRestart().defineInRange("retentionDays", 0, 0, 36500);
       builder.pop();
       SPEC = builder.build();
    }
@@ -28,5 +31,9 @@ public final class HistoryStorageConfig {
 
    public static long totalDiskBytes() {
       return TOTAL_DISK_MIB.get().longValue() * 1024L * 1024L;
+   }
+
+   public static int retentionDays() {
+      return RETENTION_DAYS.get();
    }
 }
