@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.List;
+import java.util.Map;
+import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 class WorldOperationCommitTest {
@@ -59,6 +62,27 @@ class WorldOperationCommitTest {
       commit.cancel();
 
       assertTrue(commit.batch().isEmpty());
+   }
+
+   @Test
+   void stopForRecoveryCancelsPendingHistoryPublication() {
+      BlockPos position = new BlockPos(2, 3, 4);
+      ReversibleBlockSnapshot before = snapshot(position);
+      ReversibleBlockSnapshot after = snapshot(position);
+      WorldOperationCommit commit = WorldOperationCommit.begin(
+         net.minecraft.world.level.Level.OVERWORLD,
+         List.of(before), Map.of(position, after), null
+      );
+
+      commit.stopForRecovery().join();
+
+      assertTrue(commit.batch().isEmpty());
+   }
+
+   private static ReversibleBlockSnapshot snapshot(BlockPos position) {
+      return new ReversibleBlockSnapshot(
+         position, null, null, null
+      );
    }
 
 }
