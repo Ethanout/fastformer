@@ -45,12 +45,10 @@ public final class BuildingShellCache {
          return this.mesh;
       }
 
-      this.state = state;
-      this.blocks = Set.copyOf(blocks);
-      this.stateOverrides = Map.copyOf(stateOverrides);
-      this.shapeEnvironment = Set.copyOf(shapeEnvironment);
-      this.specialStyles = Map.copyOf(specialStyles);
-      this.playerShift = playerShift;
+      Set<net.minecraft.core.BlockPos> nextBlocks = Set.copyOf(blocks);
+      Map<net.minecraft.core.BlockPos, BlockState> nextOverrides = Map.copyOf(stateOverrides);
+      Set<net.minecraft.core.BlockPos> nextEnvironment = Set.copyOf(shapeEnvironment);
+      Map<net.minecraft.core.BlockPos, BuildingSpecialBlock> nextStyles = Map.copyOf(specialStyles);
 
       ArrayList<ShapeShellMesh.Part> parts = new ArrayList<>(blocks.size());
       for (net.minecraft.core.BlockPos pos : blocks) {
@@ -73,7 +71,14 @@ public final class BuildingShellCache {
             : ShapeShellMesh.Color.BLACK;
          parts.add(new ShapeShellMesh.Part(boxes, faceColor, outlineColor, true));
       }
-      this.mesh = ShapeShellMesh.build(parts);
+      ShapeShellMesh.Mesh nextMesh = ShapeShellMesh.build(parts);
+      this.state = state;
+      this.blocks = nextBlocks;
+      this.stateOverrides = nextOverrides;
+      this.shapeEnvironment = nextEnvironment;
+      this.specialStyles = nextStyles;
+      this.playerShift = playerShift;
+      this.mesh = nextMesh;
       return this.mesh;
    }
 
