@@ -105,3 +105,6 @@
 
 
 - [x] 为离线历史 owner 增加全局内存防护：总历史缓存预算 1GiB，最多保留 128 个空闲离线 owner；仅淘汰无活动任务、恢复任务和待处理记录的 owner。新增生命周期测试验证忙碌恢复不会被清理。`check` 通过。
+
+
+- [x] 增加 `WorldHistoryOwnerLifecycleTest`，验证多 UUID 离线历史受全局预算和 owner 数量限制，活动恢复 owner 不会被淘汰。磁盘历史加载与格式兼容仍待实现。
