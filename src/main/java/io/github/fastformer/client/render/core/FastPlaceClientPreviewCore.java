@@ -1825,6 +1825,8 @@ public class FastPlaceClientPreviewCore {
                shellBlocks.allBlocks(),
                specialBlockStyles,
                buildingModes,
+               confirmedLightweight,
+               pendingLightweight,
                !confirmedOutlineEdges.isEmpty() || !pendingOutlineEdges.isEmpty()
             );
             if (!confirmedOutlineEdges.isEmpty() || !pendingOutlineEdges.isEmpty()) {
@@ -3167,16 +3169,29 @@ public class FastPlaceClientPreviewCore {
       Set<BlockPos> shapeEnvironment,
       Map<BlockPos, BuildingSpecialBlock> specialStyles,
       FastPlaceGeometry.Modes modes,
+      boolean confirmedLightweight,
+      boolean pendingLightweight,
       boolean cleanOutlineEdges
    ) {
+      if (confirmedLightweight) {
+         CONFIRMED_BUILDING_SHELL_CACHE.clear();
+         CONFIRMED_SHELL_EDGES.clear();
+      }
+      if (pendingLightweight) {
+         PENDING_BUILDING_SHELL_CACHE.clear();
+         PENDING_SHELL_EDGES.clear();
+      }
+      if (confirmedLightweight && pendingLightweight) {
+         return;
+      }
       BlockGetter previewLevel = state == null
          ? player.level()
          : PreviewBlockOcclusion.level(shapeEnvironment, state, stateOverrides);
       net.minecraft.world.phys.shapes.CollisionContext collision = net.minecraft.world.phys.shapes.CollisionContext.of(player);
-      ShapeShellMesh.Mesh confirmed = CONFIRMED_BUILDING_SHELL_CACHE.mesh(
+      ShapeShellMesh.Mesh confirmed = confirmedLightweight ? ShapeShellMesh.Mesh.empty() : CONFIRMED_BUILDING_SHELL_CACHE.mesh(
          previewLevel, state, stateOverrides, collision, confirmedBlocks, shapeEnvironment, specialStyles, player.isShiftKeyDown()
       );
-      ShapeShellMesh.Mesh pending = PENDING_BUILDING_SHELL_CACHE.mesh(
+      ShapeShellMesh.Mesh pending = pendingLightweight ? ShapeShellMesh.Mesh.empty() : PENDING_BUILDING_SHELL_CACHE.mesh(
          previewLevel, state, stateOverrides, collision, pendingBlocks, shapeEnvironment, Map.of(), player.isShiftKeyDown()
       );
 
