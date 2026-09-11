@@ -180,7 +180,7 @@ public final class WorldHistoryManager {
    }
 
    public static void resumeDiskCleanup(MinecraftServer server) {
-      WorldHistoryPersistence.resumeCleanup(server);
+      WorldHistoryPersistence.resumeCleanup(server, java.util.Set.copyOf(OWNERS.keySet()));
    }
 
    public static void awaitDiskWritesOnShutdown(MinecraftServer server) {

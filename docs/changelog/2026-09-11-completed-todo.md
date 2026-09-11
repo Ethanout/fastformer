@@ -342,17 +342,17 @@ GPT-5.6-sol low 完成几何辅助方法与四项测试，主代理核对生成�
 
 补充生成 Future 异常的 `PlacementTask` 回归用例：异常会锁存 `GENERATION` 阶段、保留 `CompletionException` 根因，并释放生成阶段的内存预约。恢复完整的 Minecraft 客户端缓存后，定向 `PlacementTaskTest` 已通过。该用例属于自动化失败矩阵的一项证据，不能替代真实客户端和服务器生命周期验收。
 
-修复历史索引保存失败在关服路径传播为服务器 tick 异常的问题。失败记录继续保留在内存并按退避重试，完整 41 项 GameTest 已通过。
+历史索引保存失败不会从关服事件回调传播为服务器 tick 异常，完整 41 项 GameTest 曾通过。后续审查确认该路径会隐藏最终快照失败，且关服后没有下一 tick。关服持久化仍未完成，当前 TODO 保留该工作。
 
-增加历史保留期限清理接口：只删除早于截止时间且未被 durable undo/redo 索引引用的批次；损坏或缺失索引会拒绝清理并保留数据。`HistoryBatchStoreTest` 定向测试通过。
+早期保留期限接口试图清理未被 durable undo/redo 索引引用的批次。后续审查发现缺失索引时仍会删除文件，也无法让索引中的旧历史过期。下方“保留期限索引同步”记录替代该结论。
 
 历史存储新增 `cleanupExpiredAll`，在后台队列中扫描合法 owner 目录并汇总清理结果；单个 owner 的损坏索引只计入失败，不阻断其他 owner。完整 `check` 通过。
 
-新增世界级 `history.retentionDays` 配置（默认 0 表示禁用）。现有启动清理入口会在后台队列中按配置执行过期批次清理，不阻塞服务器 tick。
+新增世界级 `history.retentionDays` 配置（默认 0 表示禁用）。现有启动清理入口会在历史 I/O 队列中执行过期扫描。服务器 tick 不同步等待扫描，但磁盘 I/O 竞争仍需实机测量。
 
 补充多 owner 保留期限清理测试：损坏 owner 的索引不会阻断其他 owner 的过期批次清理，定向测试通过。
 
-修复待确认预览更新时清空共享线程池队列的问题。现在只取消当前预览的 Future，不会误删其他预览任务；`check` 通过。
+移除了待确认预览更新时的队列清空，并改为只取消当前 Future，`check` 通过。后续审查确认该执行器当前不共享，同时发现已取消的排队任务仍留在队列中。该预览竞态仍在当前 TODO 中。
 
 ## TODO 整理
 
@@ -368,11 +368,19 @@ GPT-5.6-sol low 完成几何辅助方法与四项测试，主代理核对生成�
 
 ## 历史清理管理员入口
 
-新增权限等级 2 的 `fastformer history_cleanup`（`ff history_cleanup`）命令，触发已有的持久化候选扫描和安全清理流程。命令不会删除仍被 durable undo/redo 索引引用的批次；历史保留期限和磁盘故障验收仍未完成。
+新增权限等级 2 的 `fastformer history_cleanup`（`ff history_cleanup`）命令，触发持久化候选扫描。后续的保留期限扫描会更新 durable undo/redo 索引，并跳过当前由内存管理器持有的 owner。磁盘故障验收仍未完成。
 
 `check` 通过。
 
 随后已通过 `deployTo233` 部署，源包与目标包 SHA-256 均为 `55F53E17D596C34F9C761CA72C70D8006EAEB87F8D35CFF3E9C2EE69F8266B6F`。
+
+## 保留期限索引同步
+
+过期清理只处理有效 durable 索引中的历史。它先写入 `retired.dat`，再原子更新 undo/redo 索引，最后删除退休批次。缺失或损坏索引时保留全部批次。未进入索引的待发布批次也保留。
+
+全 owner 扫描只接受规范小写 UUID 目录。管理员在线清理会跳过当前由内存管理器持有的 owner。容量扫描允许文件在目录枚举后被其他任务删除，但其他 I/O 错误仍会失败。
+
+`HistoryBatchStoreTest`、完整 `check` 和 41 项 GameTest 通过。测试覆盖索引同步、缺失或损坏索引、待发布批次、损坏 owner 隔离、非规范 UUID、活动 owner、两阶段统计和容量扫描文件消失。真实进程中断、磁盘满、版本兼容和扫描 I/O 竞争仍在当前 TODO 中。
 
 ## GameTest 生命周期回归
 

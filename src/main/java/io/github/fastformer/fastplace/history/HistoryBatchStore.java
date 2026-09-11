@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -128,12 +129,7 @@ public final class HistoryBatchStore {
       byte[] payload = HistoryOrderIndex.encode(ownedIndex);
       return enqueue(payload.length + ENVELOPE_BYTES, () -> {
          try {
-            requireUniqueIds(ownedIndex);
-            requirePublishedBatches(ownerId, ownedIndex);
-            Path target = indexFile(ownerId);
-            long previousBytes = Files.isRegularFile(target) ? Files.size(target) : 0L;
-            requireCapacity(ownerId, payload.length + ENVELOPE_BYTES - previousBytes);
-            HistoryEnvelopeFile.write(target, formatVersion, payload);
+            publishIndexNow(ownerId, ownedIndex, payload);
          } catch (IOException ex) {
             throw new UncheckedIOException(ex);
          }
@@ -165,17 +161,23 @@ public final class HistoryBatchStore {
       return enqueueRead(() -> cleanupRetired(ownerId, candidates));
    }
 
-   /** Removes unreferenced batch files older than {@code cutoff}. Referenced
-    * batches are always retained, even when they exceed the retention age. */
+   /** Removes indexed history older than {@code cutoff}, updating the durable
+    * order before deleting its batch files. Unindexed batches are retained. */
    public CompletableFuture<Integer> cleanupExpiredBatches(UUID ownerId, Instant cutoff) {
       Objects.requireNonNull(ownerId, "ownerId");
       Objects.requireNonNull(cutoff, "cutoff");
       return enqueueRead(() -> cleanupExpired(ownerId, cutoff));
    }
 
-   /** Scans owner directories and removes only expired, unreferenced batches. */
+   /** Scans canonical owner directories and removes expired indexed history. */
    public CompletableFuture<CleanupSummary> cleanupExpiredAll(Instant cutoff) {
+      return cleanupExpiredAll(cutoff, Set.of());
+   }
+
+   /** Scans canonical, inactive owner directories and removes expired indexed history. */
+   public CompletableFuture<CleanupSummary> cleanupExpiredAll(Instant cutoff, Set<UUID> activeOwners) {
       Objects.requireNonNull(cutoff, "cutoff");
+      Set<UUID> excluded = Set.copyOf(activeOwners);
       return enqueueRead(() -> {
          int owners = 0, deleted = 0, failed = 0;
          if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) return new CleanupSummary(0, 0, 0);
@@ -183,8 +185,13 @@ public final class HistoryBatchStore {
             for (Path directory : directories) {
                if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) continue;
                UUID owner;
-               try { owner = UUID.fromString(directory.getFileName().toString()); }
+               String directoryName = directory.getFileName().toString();
+               try {
+                  owner = UUID.fromString(directoryName);
+                  if (!owner.toString().equals(directoryName)) continue;
+               }
                catch (IllegalArgumentException ignored) { continue; }
+               if (excluded.contains(owner)) continue;
                owners++;
                try { deleted += cleanupExpired(owner, cutoff); }
                catch (RuntimeException failure) { failed++; }
@@ -195,32 +202,30 @@ public final class HistoryBatchStore {
    }
 
    private int cleanupExpired(UUID ownerId, Instant cutoff) {
-      Path indexPath = indexFile(ownerId);
-      Path batches = ownerDirectory(ownerId).resolve("batches");
       try {
-         Set<UUID> referenced = new HashSet<>();
-         if (Files.isRegularFile(indexPath, LinkOption.NOFOLLOW_LINKS)) {
-            byte[] payload = HistoryEnvelopeFile.read(indexPath, formatVersion,
-               HistoryOrderIndex.maximumEncodedBytes(maxIndexEntries));
-            HistoryOrderIndex index = HistoryOrderIndex.decode(payload, maxIndexEntries);
-            requireUniqueIds(index);
-            requirePublishedBatches(ownerId, index);
-            referenced.addAll(index.undo());
-            referenced.addAll(index.redo());
-         }
-         if (!Files.isDirectory(batches, LinkOption.NOFOLLOW_LINKS)) return 0;
-         int deleted = 0;
-         try (Stream<Path> paths = Files.list(batches)) {
-            for (Path path : paths.toList()) {
-               Optional<UUID> id = batchIdFromFile(path);
-               if (id.isEmpty() || referenced.contains(id.get())) continue;
-               FileTime modified = Files.getLastModifiedTime(path, LinkOption.NOFOLLOW_LINKS);
-               if (modified.toInstant().isBefore(cutoff) && Files.deleteIfExists(path)) deleted++;
-            }
-         }
-         return deleted;
+         HistoryOrderIndex current = readRequiredIndex(ownerId);
+         Set<UUID> expired = new HashSet<>();
+         collectExpired(ownerId, current.undo(), cutoff, expired);
+         collectExpired(ownerId, current.redo(), cutoff, expired);
+         if (expired.isEmpty()) return 0;
+
+         HistoryOrderIndex retained = new HistoryOrderIndex(
+            current.undo().stream().filter(id -> !expired.contains(id)).toList(),
+            current.redo().stream().filter(id -> !expired.contains(id)).toList()
+         );
+         stageRetirementsNow(ownerId, expired);
+         publishIndexNow(ownerId, retained, HistoryOrderIndex.encode(retained));
+         return cleanupRetired(ownerId, Set.of());
       } catch (IOException failure) {
          throw new UncheckedIOException(failure);
+      }
+   }
+
+   private void collectExpired(UUID ownerId, java.util.List<UUID> batchIds, Instant cutoff, Set<UUID> expired)
+         throws IOException {
+      for (UUID batchId : batchIds) {
+         FileTime modified = Files.getLastModifiedTime(batchFile(ownerId, batchId), LinkOption.NOFOLLOW_LINKS);
+         if (modified.toInstant().isBefore(cutoff)) expired.add(batchId);
       }
    }
 
@@ -274,28 +279,45 @@ public final class HistoryBatchStore {
       });
    }
 
-   public record CleanupSummary(int owners, int deletedBatches, int failedOwners) {}
+   public record CleanupSummary(int owners, int deletedBatches, int failedOwners) {
+      public CleanupSummary plus(CleanupSummary other) {
+         Objects.requireNonNull(other, "other");
+         return new CleanupSummary(
+            Math.addExact(owners, other.owners),
+            Math.addExact(deletedBatches, other.deletedBatches),
+            Math.addExact(failedOwners, other.failedOwners)
+         );
+      }
+   }
 
    /** Persists cleanup intent before an ordering index can stop referencing the batches. */
    public CompletableFuture<Void> stageRetirements(UUID ownerId, Set<UUID> retiredBatches) {
       Objects.requireNonNull(ownerId, "ownerId");
       Set<UUID> supplied = Set.copyOf(retiredBatches);
       return enqueueRead(() -> {
-         Set<UUID> combined = new HashSet<>(readRetirements(ownerId));
-         combined.addAll(supplied);
-         if (combined.isEmpty()) return null;
-         if (combined.size() > maxIndexEntries) throw new UncheckedIOException(new IOException("History cleanup index exceeds its entry quota"));
-         byte[] payload = HistoryOrderIndex.encode(new HistoryOrderIndex(combined.stream().sorted().toList(), java.util.List.of()));
-         Path target = ownerDirectory(ownerId).resolve(RETIRED_FILE);
-         try {
-            long previousBytes = Files.isRegularFile(target) ? Files.size(target) : 0L;
-            requireCapacity(ownerId, payload.length + ENVELOPE_BYTES - previousBytes);
-            HistoryEnvelopeFile.write(target, formatVersion, payload);
-            return null;
-         } catch (IOException failure) {
-            throw new UncheckedIOException(failure);
-         }
+         stageRetirementsNow(ownerId, supplied);
+         return null;
       });
+   }
+
+   private void stageRetirementsNow(UUID ownerId, Set<UUID> supplied) {
+      Set<UUID> combined = new HashSet<>(readRetirements(ownerId));
+      combined.addAll(supplied);
+      if (combined.isEmpty()) return;
+      if (combined.size() > maxIndexEntries) {
+         throw new UncheckedIOException(new IOException("History cleanup index exceeds its entry quota"));
+      }
+      byte[] payload = HistoryOrderIndex.encode(
+         new HistoryOrderIndex(combined.stream().sorted().toList(), java.util.List.of())
+      );
+      Path target = ownerDirectory(ownerId).resolve(RETIRED_FILE);
+      try {
+         long previousBytes = Files.isRegularFile(target) ? Files.size(target) : 0L;
+         requireCapacity(ownerId, payload.length + ENVELOPE_BYTES - previousBytes);
+         HistoryEnvelopeFile.write(target, formatVersion, payload);
+      } catch (IOException failure) {
+         throw new UncheckedIOException(failure);
+      }
    }
 
    private Set<UUID> readRetirements(UUID ownerId) {
@@ -313,19 +335,8 @@ public final class HistoryBatchStore {
    }
 
    private int cleanupUnreferenced(UUID ownerId, Set<UUID> candidates) {
-      Path indexPath = indexFile(ownerId);
       try {
-         if (!Files.isRegularFile(indexPath, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IOException("Cannot clean history batches without a durable index");
-         }
-         long maximumBytes = HistoryOrderIndex.maximumEncodedBytes(maxIndexEntries);
-         if (Files.size(indexPath) > maximumBytes + ENVELOPE_BYTES) {
-            throw new IOException("History index exceeds its entry quota");
-         }
-         byte[] payload = HistoryEnvelopeFile.read(indexPath, formatVersion, maximumBytes);
-         HistoryOrderIndex index = HistoryOrderIndex.decode(payload, maxIndexEntries);
-         requireUniqueIds(index);
-         requirePublishedBatches(ownerId, index);
+         HistoryOrderIndex index = readRequiredIndex(ownerId);
 
          Set<UUID> referenced = new HashSet<>(index.undo());
          referenced.addAll(index.redo());
@@ -345,6 +356,31 @@ public final class HistoryBatchStore {
       } catch (IOException ex) {
          throw new UncheckedIOException(ex);
       }
+   }
+
+   private HistoryOrderIndex readRequiredIndex(UUID ownerId) throws IOException {
+      Path indexPath = indexFile(ownerId);
+      if (!Files.isRegularFile(indexPath, LinkOption.NOFOLLOW_LINKS)) {
+         throw new IOException("Cannot clean history batches without a durable index");
+      }
+      long maximumBytes = HistoryOrderIndex.maximumEncodedBytes(maxIndexEntries);
+      if (Files.size(indexPath) > maximumBytes + ENVELOPE_BYTES) {
+         throw new IOException("History index exceeds its entry quota");
+      }
+      byte[] payload = HistoryEnvelopeFile.read(indexPath, formatVersion, maximumBytes);
+      HistoryOrderIndex index = HistoryOrderIndex.decode(payload, maxIndexEntries);
+      requireUniqueIds(index);
+      requirePublishedBatches(ownerId, index);
+      return index;
+   }
+
+   private void publishIndexNow(UUID ownerId, HistoryOrderIndex index, byte[] payload) throws IOException {
+      requireUniqueIds(index);
+      requirePublishedBatches(ownerId, index);
+      Path target = indexFile(ownerId);
+      long previousBytes = Files.isRegularFile(target) ? Files.size(target) : 0L;
+      requireCapacity(ownerId, payload.length + ENVELOPE_BYTES - previousBytes);
+      HistoryEnvelopeFile.write(target, formatVersion, payload);
    }
 
    private synchronized CompletableFuture<Void> enqueue(long bytes, Runnable operation) {
@@ -443,10 +479,20 @@ public final class HistoryBatchStore {
       long used = 0L;
       if (Files.isDirectory(directory)) {
          try (Stream<Path> paths = Files.walk(directory, depth)) {
-            for (Path path : paths.filter(Files::isRegularFile).toList()) used = Math.addExact(used, Files.size(path));
+            for (Path path : paths.filter(Files::isRegularFile).toList()) {
+               used = Math.addExact(used, existingFileSize(path));
+            }
          }
       }
       return used;
+   }
+
+   static long existingFileSize(Path path) throws IOException {
+      try {
+         return Files.size(path);
+      } catch (NoSuchFileException ignored) {
+         return 0L;
+      }
    }
 
    private Path batchFile(UUID ownerId, UUID batchId) {

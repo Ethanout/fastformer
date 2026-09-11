@@ -7,6 +7,7 @@ import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.Test;
@@ -16,20 +17,48 @@ class HistoryBatchStoreTest {
    @TempDir Path root;
 
    @Test
-   void cleanupExpiredBatchesDeletesOnlyOldUnreferencedFiles() throws Exception {
+   void cleanupExpiredBatchesUpdatesIndexBeforeDeletingOldHistory() throws Exception {
+      HistoryBatchStore store = new HistoryBatchStore(root, Runnable::run, 1, 32, 4096, 4096, 8, 8);
+      UUID owner = UUID.randomUUID();
+      UUID expiredUndo = UUID.randomUUID();
+      UUID currentUndo = UUID.randomUUID();
+      UUID expiredRedo = UUID.randomUUID();
+      UUID pendingPublication = UUID.randomUUID();
+      store.publishBatch(owner, expiredUndo, new byte[]{1}).join();
+      store.publishBatch(owner, currentUndo, new byte[]{2}).join();
+      store.publishBatch(owner, expiredRedo, new byte[]{3}).join();
+      store.publishBatch(owner, pendingPublication, new byte[]{4}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(
+         List.of(currentUndo, expiredUndo), List.of(expiredRedo)
+      )).join();
+      Instant cutoff = Instant.now().minusSeconds(5);
+      Path batches = root.resolve(owner.toString()).resolve("batches");
+      for (UUID expired : List.of(expiredUndo, expiredRedo, pendingPublication)) {
+         java.nio.file.Files.setLastModifiedTime(
+            batches.resolve(expired + ".dat"), FileTime.from(cutoff.minusSeconds(10))
+         );
+      }
+      assertEquals(2, store.cleanupExpiredBatches(owner, cutoff).join());
+
+      assertEquals(new HistoryOrderIndex(List.of(currentUndo), List.of()), store.loadIndex(owner).join().orElseThrow());
+      assertTrue(store.loadBatch(owner, expiredUndo).join().isEmpty());
+      assertTrue(store.loadBatch(owner, expiredRedo).join().isEmpty());
+      assertTrue(store.loadBatch(owner, currentUndo).join().isPresent());
+      assertTrue(store.loadBatch(owner, pendingPublication).join().isPresent());
+   }
+
+   @Test
+   void cleanupExpiredBatchesRequiresAValidIndexAndPreservesData() throws Exception {
       HistoryBatchStore store = store(Runnable::run, 1024);
       UUID owner = UUID.randomUUID();
-      UUID expired = UUID.randomUUID();
-      UUID referenced = UUID.randomUUID();
-      store.publishBatch(owner, expired, new byte[]{1}).join();
-      store.publishBatch(owner, referenced, new byte[]{2}).join();
-      store.publishIndex(owner, new HistoryOrderIndex(List.of(referenced), List.of())).join();
-      Instant cutoff = Instant.now().plusSeconds(1);
-      Path expiredPath = root.resolve(owner.toString()).resolve("batches").resolve(expired + ".dat");
-      java.nio.file.Files.setLastModifiedTime(expiredPath, FileTime.from(cutoff.minusSeconds(10)));
-      assertEquals(1, store.cleanupExpiredBatches(owner, cutoff).join());
-      assertTrue(store.loadBatch(owner, expired).join().isEmpty());
-      assertTrue(store.loadBatch(owner, referenced).join().isPresent());
+      UUID batch = UUID.randomUUID();
+      store.publishBatch(owner, batch, new byte[]{1}).join();
+      assertThrows(CompletionException.class, () -> store.cleanupExpiredBatches(owner, Instant.now()).join());
+      assertTrue(store.loadBatch(owner, batch).join().isPresent());
+
+      java.nio.file.Files.write(root.resolve(owner.toString()).resolve("index.dat"), new byte[]{1, 2, 3});
+      assertThrows(CompletionException.class, () -> store.cleanupExpiredBatches(owner, Instant.now()).join());
+      assertTrue(store.loadBatch(owner, batch).join().isPresent());
    }
 
    @Test
@@ -37,16 +66,58 @@ class HistoryBatchStoreTest {
       HistoryBatchStore store = store(Runnable::run, 4096);
       UUID valid = UUID.randomUUID();
       UUID damaged = UUID.randomUUID();
-      UUID batch = UUID.randomUUID();
-      store.publishBatch(valid, batch, new byte[]{1}).join();
-      java.nio.file.Files.setLastModifiedTime(root.resolve(valid.toString()).resolve("batches").resolve(batch + ".dat"),
+      UUID validBatch = UUID.randomUUID();
+      UUID damagedBatch = UUID.randomUUID();
+      store.publishBatch(valid, validBatch, new byte[]{1}).join();
+      store.publishIndex(valid, new HistoryOrderIndex(List.of(validBatch), List.of())).join();
+      store.publishBatch(damaged, damagedBatch, new byte[]{2}).join();
+      store.publishIndex(damaged, new HistoryOrderIndex(List.of(damagedBatch), List.of())).join();
+      java.nio.file.Files.setLastModifiedTime(root.resolve(valid.toString()).resolve("batches").resolve(validBatch + ".dat"),
          FileTime.from(Instant.now().minusSeconds(60)));
-      java.nio.file.Files.createDirectories(root.resolve(damaged.toString()));
       java.nio.file.Files.write(root.resolve(damaged.toString()).resolve("index.dat"), new byte[]{1, 2, 3});
       HistoryBatchStore.CleanupSummary summary = store.cleanupExpiredAll(Instant.now()).join();
       assertEquals(2, summary.owners());
       assertEquals(1, summary.deletedBatches());
       assertEquals(1, summary.failedOwners());
+      assertTrue(store.loadBatch(valid, validBatch).join().isEmpty());
+      assertTrue(store.loadBatch(damaged, damagedBatch).join().isPresent());
+   }
+
+   @Test
+   void cleanupExpiredAllIgnoresNonCanonicalUuidDirectories() throws Exception {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      java.nio.file.Files.createDirectories(root.resolve("00000000-0000-0000-0000-00000000000A"));
+
+      HistoryBatchStore.CleanupSummary summary = store.cleanupExpiredAll(Instant.now()).join();
+
+      assertEquals(new HistoryBatchStore.CleanupSummary(0, 0, 0), summary);
+   }
+
+   @Test
+   void cleanupExpiredAllPreservesActiveOwnerHistory() throws Exception {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      UUID owner = UUID.randomUUID();
+      UUID batch = UUID.randomUUID();
+      store.publishBatch(owner, batch, new byte[]{1}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(batch), List.of())).join();
+      java.nio.file.Files.setLastModifiedTime(
+         root.resolve(owner.toString()).resolve("batches").resolve(batch + ".dat"),
+         FileTime.from(Instant.now().minusSeconds(60))
+      );
+
+      HistoryBatchStore.CleanupSummary summary = store.cleanupExpiredAll(Instant.now(), Set.of(owner)).join();
+
+      assertEquals(new HistoryBatchStore.CleanupSummary(0, 0, 0), summary);
+      assertTrue(store.loadBatch(owner, batch).join().isPresent());
+      assertEquals(new HistoryOrderIndex(List.of(batch), List.of()), store.loadIndex(owner).join().orElseThrow());
+   }
+
+   @Test
+   void cleanupSummaryCombinesBothCleanupPhases() {
+      var retired = new HistoryBatchStore.CleanupSummary(2, 3, 1);
+      var expired = new HistoryBatchStore.CleanupSummary(4, 5, 2);
+
+      assertEquals(new HistoryBatchStore.CleanupSummary(6, 8, 3), retired.plus(expired));
    }
 
    @Test
@@ -287,6 +358,13 @@ class HistoryBatchStoreTest {
       java.nio.file.Files.write(index, new byte[]{1, 2, 3});
       assertThrows(CompletionException.class, () -> store.cleanupUnreferencedBatches(owner, java.util.Set.of(batch)).join());
       assertTrue(store.loadBatch(owner, batch).join().isPresent());
+   }
+
+   @Test
+   void capacityScanIgnoresAFileRemovedAfterDirectoryEnumeration() throws Exception {
+      Path removed = root.resolve("removed.dat");
+
+      assertEquals(0L, HistoryBatchStore.existingFileSize(removed));
    }
 
    @Test
