@@ -1946,6 +1946,13 @@ public class FastPlaceClientPreviewCore {
          cachedConfirmedBuildingBias = effectiveBias;
          FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
          try {
+            if (PreviewAsyncPolicy.useOutlineOnly(snapshot.points(),
+               buildingPreviewWorkload(snapshot, snapshot.points(), snapshot.polygonHeightConfirmed()))) {
+               cachedConfirmedBuildingBlocks = buildingPreviewLimitFallbackSafely(
+                  snapshot, snapshot.points(), snapshot.polygonHeightConfirmed(), modes
+               );
+               return cachedConfirmedBuildingBlocks;
+            }
             Set<BlockPos> generated = buildingPreviewBlocks(
                snapshot,
                snapshot.points(),
@@ -1987,12 +1994,19 @@ public class FastPlaceClientPreviewCore {
       FastPlaceGeometry.Modes modes,
       ProgressiveBlockGeneration progress
    ) {
+      return buildingPreviewBlocks(snapshot, points, polygonHeightConfirmed, modes, progress, FastPlaceGeometry.PREVIEW_MAX_BLOCKS);
+   }
+
+   private static Set<BlockPos> buildingPreviewBlocks(
+      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed,
+      FastPlaceGeometry.Modes modes, ProgressiveBlockGeneration progress, int blockLimit
+   ) {
       return snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()
          ? WallGenerator.generate(
             points,
             false,
             BlockPos.ZERO,
-            FastPlaceGeometry.PREVIEW_MAX_BLOCKS,
+            blockLimit,
             progress == null ? io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver.NONE : progress
          )
          : FastPlaceGeometry.blocks(
@@ -2000,7 +2014,7 @@ public class FastPlaceClientPreviewCore {
             modes,
             polygonHeightConfirmed,
             snapshot.polygonVolumeShape(),
-            FastPlaceGeometry.PREVIEW_MAX_BLOCKS,
+            blockLimit,
             progress == null ? io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver.NONE : progress
           );
    }
@@ -2027,7 +2041,11 @@ public class FastPlaceClientPreviewCore {
          PREVIEW_GENERATION_EXECUTOR.getQueue().clear();
          FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
          PreviewAsyncPolicy.Workload workload = buildingPreviewWorkload(snapshot, key.points(), polygonHeightConfirmed);
-         if (PreviewAsyncPolicy.generateSynchronously(key.points(), workload)) {
+         if (PreviewAsyncPolicy.useOutlineOnly(key.points(), workload)) {
+            cachedBuildingPreviewBlocks = buildingPreviewLimitFallbackSafely(
+               snapshot, key.points(), polygonHeightConfirmed, modes
+            );
+         } else if (PreviewAsyncPolicy.generateSynchronously(key.points(), workload)) {
             try {
                Set<BlockPos> generated = buildingPreviewBlocks(snapshot, key.points(), polygonHeightConfirmed, modes);
                cachedBuildingPreviewBlocks = completedBuildingPreview(
@@ -2169,7 +2187,9 @@ public class FastPlaceClientPreviewCore {
             snapshot,
             points,
             polygonHeightConfirmed,
-            modes.withFillMode(FillMode.OUTLINE)
+            modes.withFillMode(FillMode.OUTLINE),
+            null,
+            PreviewAsyncPolicy.OUTLINE_BLOCK_LIMIT
          );
          if (!GenerationLimitExceeded.is(outline)) {
             return outline;

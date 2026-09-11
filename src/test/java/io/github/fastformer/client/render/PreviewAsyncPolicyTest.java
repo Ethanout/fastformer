@@ -8,6 +8,18 @@ import org.junit.jupiter.api.Test;
 
 class PreviewAsyncPolicyTest {
    @Test
+   void fullPreviewStopsAtTheScanLimitForBothPlanesAndVolumes() {
+      assertEquals(false, PreviewAsyncPolicy.useOutlineOnly(
+         List.of(BlockPos.ZERO, new BlockPos(999, 0, 99)), PreviewAsyncPolicy.Workload.PLANE));
+      assertEquals(true, PreviewAsyncPolicy.useOutlineOnly(
+         List.of(BlockPos.ZERO, new BlockPos(1000, 0, 99)), PreviewAsyncPolicy.Workload.PLANE));
+      assertEquals(true, PreviewAsyncPolicy.useOutlineOnly(
+         List.of(BlockPos.ZERO, new BlockPos(99, 99, 99)), PreviewAsyncPolicy.Workload.VOLUME));
+      assertEquals(false, PreviewAsyncPolicy.useOutlineOnly(
+         List.of(BlockPos.ZERO, new BlockPos(3, 3, 3)), PreviewAsyncPolicy.Workload.VOLUME));
+   }
+
+   @Test
    void ordinaryPlaneRemainsImmediate() {
       List<BlockPos> points = List.of(BlockPos.ZERO, new BlockPos(99, 0, 0), new BlockPos(99, 0, 99));
 
