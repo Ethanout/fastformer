@@ -178,6 +178,28 @@ class WorldHistoryOwnerLifecycleTest {
       assertEquals(2, WorldHistoryManager.takeDeferredUndo(owner));
    }
 
+   @Test
+   void detachedIdleOwnersAreBoundedWithoutDroppingBusyRecovery() {
+      UUID busyOwner = UUID.randomUUID();
+      BlockPos pos = new BlockPos(20, 21, 22);
+      assertTrue(WorldHistoryManager.startRollback(
+         new WorldTaskContext(null, busyOwner), DIMENSION,
+         new ArrayDeque<>(List.of(snapshot(pos, "before"))),
+         Map.of(pos, snapshot(pos, "after")), null
+      ));
+      WorldHistoryManager.detachOwner(busyOwner);
+
+      for (int i = 0; i < WorldHistoryManager.MAX_IDLE_OWNERS + 20; i++) {
+         UUID owner = UUID.randomUUID();
+         WorldHistoryManager.deferUndoAfterRecovery(owner, 1);
+         WorldHistoryManager.takeDeferredUndo(owner);
+         WorldHistoryManager.detachOwner(owner);
+      }
+
+      assertTrue(WorldHistoryManager.ownerCountForTest() <= WorldHistoryManager.MAX_IDLE_OWNERS + 1);
+      assertTrue(WorldHistoryManager.busy(busyOwner));
+   }
+
    private static ReversibleBlockSnapshot snapshot(BlockPos pos, String marker) {
       CompoundTag tag = new CompoundTag();
       tag.putString("marker", marker);

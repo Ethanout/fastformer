@@ -12,7 +12,7 @@ import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.task.WorldOperationTask;
 import java.util.ArrayDeque;
 import java.util.BitSet;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,7 +38,10 @@ public final class WorldHistoryManager {
    public static final int MAX_LIMIT = 800;
    /** A second budget prevents 800 large batches from retaining unbounded NBT. */
    private static final long MAX_BYTES_PER_PLAYER = 256L * 1024L * 1024L;
-   private static final Map<UUID, OwnerState> OWNERS = new HashMap<>();
+   /** Global guard against many disconnected players retaining large histories. */
+   static final long MAX_BYTES_GLOBAL = 1024L * 1024L * 1024L;
+   static final int MAX_IDLE_OWNERS = 128;
+   private static final Map<UUID, OwnerState> OWNERS = new LinkedHashMap<>();
 
    private WorldHistoryManager() {
    }
@@ -624,6 +627,8 @@ public final class WorldHistoryManager {
       // Completed history and deferred undo work belong to the owner UUID for
       // the lifetime of this server instance. Reconnect timing must not drop
       // an undo that was accepted while a recovery task was still running.
+      owner.detached = true;
+      pruneDetachedOwners();
    }
 
    /** Clears all in-memory state when a server instance is stopping. */
@@ -675,6 +680,9 @@ public final class WorldHistoryManager {
       attachPending(context);
       UUID owner = context.owner();
       OwnerState ownerState = ownerState(owner);
+      if (context.onlinePlayer() != null) {
+         ownerState.detached = false;
+      }
       HistoryTask task = ownerState.active;
       if (task == null) {
          ServerPlayer player = context.onlinePlayer();
@@ -1067,6 +1075,29 @@ public final class WorldHistoryManager {
       return OWNERS.computeIfAbsent(owner, ignored -> new OwnerState());
    }
 
+   static int ownerCountForTest() {
+      return OWNERS.size();
+   }
+
+   private static void pruneDetachedOwners() {
+      long total = 0L;
+      for (OwnerState state : OWNERS.values()) {
+         total = saturatedAdd(total, state.historyBytes());
+      }
+      if (OWNERS.size() <= MAX_IDLE_OWNERS && total <= MAX_BYTES_GLOBAL) return;
+      var iterator = OWNERS.entrySet().iterator();
+      while (iterator.hasNext() && (OWNERS.size() > MAX_IDLE_OWNERS || total > MAX_BYTES_GLOBAL)) {
+         OwnerState state = iterator.next().getValue();
+         if (!state.detached || state.busy()) continue;
+         total -= state.historyBytes();
+         iterator.remove();
+      }
+   }
+
+   private static long saturatedAdd(long left, long right) {
+      return right > Long.MAX_VALUE - left ? Long.MAX_VALUE : left + right;
+   }
+
    private static int boundedLimit(int limit) {
       return Math.clamp(limit, 1, MAX_LIMIT);
    }
@@ -1082,6 +1113,11 @@ public final class WorldHistoryManager {
       private int deferredUndo;
       private int historyLimit = DEFAULT_LIMIT;
       private boolean recoveryPaused;
+      private boolean detached;
+
+      private long historyBytes() {
+         return history == null ? 0L : saturatedAdd(history.undoBytes, history.redoBytes);
+      }
 
       private History history() {
          if (history == null) {
