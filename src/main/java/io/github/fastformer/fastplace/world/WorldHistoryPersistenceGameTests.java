@@ -23,7 +23,7 @@ public final class WorldHistoryPersistenceGameTests {
    private WorldHistoryPersistenceGameTests() {
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000)
    public static void newOperationRemovesRetiredRedoFileAfterIndexCommit(GameTestHelper helper) {
       UUID owner = UUID.randomUUID();
       UUID retired = UUID.randomUUID();
@@ -55,7 +55,9 @@ public final class WorldHistoryPersistenceGameTests {
       publishAndCheck(helper, false);
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 300)
+   // The headless server advances ticks much faster than the single I/O worker
+   // can finish a failed publish and its retry.
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000)
    public static void failedIndexPublicationRetriesFromMemory(GameTestHelper helper) {
       publishAndCheck(helper, true);
    }

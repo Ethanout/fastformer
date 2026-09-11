@@ -479,8 +479,14 @@ public final class HistoryBatchStore {
       long used = 0L;
       if (Files.isDirectory(directory)) {
          try (Stream<Path> paths = Files.walk(directory, depth)) {
-            for (Path path : paths.filter(Files::isRegularFile).toList()) {
-               used = Math.addExact(used, existingFileSize(path));
+            try {
+               for (Path path : paths.filter(Files::isRegularFile).toList()) {
+                  used = Math.addExact(used, existingFileSize(path));
+               }
+            } catch (UncheckedIOException failure) {
+               if (!(failure.getCause() instanceof NoSuchFileException)) {
+                  throw failure;
+               }
             }
          }
       }
