@@ -23,6 +23,7 @@ public final class HistoryStore {
    private final long maxTotalStoredBytes;
    private final Object fileLock = new Object();
    private CompletableFuture<Void> pending = CompletableFuture.completedFuture(null);
+   private long queuedBytes;
 
    public HistoryStore(
          Path root,
@@ -47,10 +48,29 @@ public final class HistoryStore {
       if (payload.length > maxOwnerPayloadBytes) {
          return CompletableFuture.failedFuture(new IOException("Player history exceeds its disk quota"));
       }
-      byte[] ownedPayload = payload.clone();
-      CompletableFuture<Void> result = pending.thenRunAsync(() -> write(ownerId, ownedPayload), executor);
-      pending = result.handle((ignored, failure) -> null);
-      return result;
+      long bytes = payload.length + ENVELOPE_BYTES;
+      long queueLimit = Math.min(maxTotalStoredBytes, 64L * 1024L * 1024L);
+      if (bytes > queueLimit - queuedBytes) {
+         return CompletableFuture.failedFuture(new IOException("History save queue is full; retry after pending writes finish"));
+      }
+      queuedBytes += bytes;
+      try {
+         byte[] ownedPayload = payload.clone();
+         CompletableFuture<Void> result = pending.thenRunAsync(() -> write(ownerId, ownedPayload), executor);
+         pending = result.handle((ignored, failure) -> {
+            releaseQueuedBytes(bytes);
+            return null;
+         });
+         // Caller cancellation must not cancel queued I/O or release its memory accounting.
+         return result.copy();
+      } catch (RuntimeException | Error failure) {
+         queuedBytes -= bytes;
+         throw failure;
+      }
+   }
+
+   private synchronized void releaseQueuedBytes(long bytes) {
+      queuedBytes -= bytes;
    }
 
    public synchronized CompletableFuture<Optional<byte[]>> load(UUID ownerId) {
