@@ -169,12 +169,21 @@ public final class FastPlaceClientInput {
       boolean ctrlKey = event.getKey() == 341 || event.getKey() == 345;
       boolean controlDown = physicalCtrlDown(minecraft, false);
       boolean cancelKey = event.getAction() == 1 && event.getKey() == 81;
+      if (event.getAction() == 1 && event.getKey() == 257
+         && ClientOperationController.reconnectRestorePending()
+         && minecraft.player != null && minecraft.screen == null) {
+         ClientOperationController.confirmReconnectRestore();
+         return;
+      }
       if (cancelKey
          && minecraft.player != null
          && minecraft.screen == null
          && minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())
-         && INPUT_STATE.cancel()) {
+         && NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
+         boolean pendingRestore = ClientOperationController.reconnectRestorePending();
+         boolean cancelled = INPUT_STATE.cancel();
+         if (pendingRestore) ClientOperationController.dismissReconnectRestore();
+         if (!cancelled) return;
          cancelOperationGesture(minecraft);
          ClientOperationController.clearWorkspace();
          PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);

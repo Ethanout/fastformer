@@ -7,6 +7,7 @@
   "fastformer.message.command_unavailable": "FastFormer commands require creative mode and the feature enabled",
   "fastformer.message.cancelled": "Cancelled",
   "fastformer.message.quit": "FastFormer: quit",
+  "fastformer.message.reconnect_restore_prompt": "Previous session found: Enter to restore, Q to discard",
   "fastformer.message.rollback_step": "Rolled back one step",
   "fastformer.message.closed": "Closed shape with %s points",
   "fastformer.message.closed_points": "Closed shape with %s points",

@@ -54,6 +54,7 @@ public final class ClientOperationController {
    /** A reconnect snapshot may describe a server task that continues running,
     * but it must not recreate client-owned draft/workspace state. */
    private static boolean suppressNextServerPreviewHydration;
+   private static OperationPreviewPayload pendingReconnectPreview;
    private static UUID pendingWorkspaceTransferId;
    private static OperationPreviewPayload serverPreview = OperationPreviewPayload.inactive();
    private static long lastServerPreviewRevision = -1L;
@@ -156,6 +157,7 @@ public final class ClientOperationController {
       lastServerPreviewRevision = payload.operationRevision();
       if (shouldSuppressServerPreviewHydration(suppressNextServerPreviewHydration, payload.active())) {
          suppressNextServerPreviewHydration = false;
+         pendingReconnectPreview = payload;
          serverPreview = OperationPreviewPayload.inactive();
          refreshInteractionState();
          return true;
@@ -208,6 +210,22 @@ public final class ClientOperationController {
       refreshInteractionState();
       refreshSourceMask();
       return true;
+   }
+
+   public static boolean reconnectRestorePending() {
+      return pendingReconnectPreview != null;
+   }
+
+   /** Applies only the server's immutable selection snapshot after explicit user confirmation. */
+   public static boolean confirmReconnectRestore() {
+      OperationPreviewPayload pending = pendingReconnectPreview;
+      if (pending == null) return false;
+      pendingReconnectPreview = null;
+      return synchronize(pending);
+   }
+
+   public static void dismissReconnectRestore() {
+      pendingReconnectPreview = null;
    }
 
    public static boolean copySelected() {
@@ -706,6 +724,7 @@ public final class ClientOperationController {
       pendingWorkspaceTransferId = null;
       awaitingOperationSnapshot = false;
       suppressNextServerPreviewHydration = true;
+      pendingReconnectPreview = null;
       serverPreview = OperationPreviewPayload.inactive();
       lastServerPreviewRevision = -1L;
       SOURCE_MASK.clear();

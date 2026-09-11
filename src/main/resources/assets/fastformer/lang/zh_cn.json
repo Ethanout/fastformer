@@ -7,6 +7,7 @@
   "fastformer.message.command_unavailable": "几何手命令需要创造模式且功能开启",
   "fastformer.message.cancelled": "已取消",
   "fastformer.message.quit": "几何手：已退出",
+  "fastformer.message.reconnect_restore_prompt": "发现上次会话：按 Enter 恢复，按 Q 放弃",
   "fastformer.message.rollback_step": "已回退上一步",
   "fastformer.message.closed": "已闭合形状，共 %s 个点",
   "fastformer.message.closed_points": "已闭合形状，共 %s 个点",

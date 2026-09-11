@@ -990,7 +990,8 @@ public class FastPlaceClientPreviewCore {
       Minecraft minecraft = Minecraft.getInstance();
       GuiGraphics graphics = event.getGuiGraphics();
       BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
-      if (!(snapshot.enabled() || PREVIEW_STATE.geometry().active() || PREVIEW_STATE.operation().active() || PREVIEW_STATE.activity().task() || QuickReplaceMode.active())) {
+      boolean reconnectRestorePending = ClientOperationController.reconnectRestorePending();
+      if (!(reconnectRestorePending || snapshot.enabled() || PREVIEW_STATE.geometry().active() || PREVIEW_STATE.operation().active() || PREVIEW_STATE.activity().task() || QuickReplaceMode.active())) {
          restoreVanillaCrosshairIfNeeded(graphics);
          smoothReticleFrame = false;
          return;
@@ -1024,6 +1025,10 @@ public class FastPlaceClientPreviewCore {
             task.append(Component.literal(" ").append(Component.translatable(hintKey)).withStyle(ChatFormatting.GRAY));
          }
          graphics.drawString(minecraft.font, task, 8, 20, -1, true);
+      }
+      if (reconnectRestorePending) {
+         graphics.drawString(minecraft.font,
+            Component.translatable("fastformer.message.reconnect_restore_prompt"), 8, 32, 0xFFFFD166, true);
       }
 
       GeometryPreviewPlan geometryPlan = null;
