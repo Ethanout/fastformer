@@ -3,6 +3,8 @@ package io.github.fastformer.fastplace.history;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.UUID;
@@ -12,6 +14,23 @@ import org.junit.jupiter.api.io.TempDir;
 
 class HistoryBatchStoreTest {
    @TempDir Path root;
+
+   @Test
+   void cleanupExpiredBatchesDeletesOnlyOldUnreferencedFiles() throws Exception {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      UUID owner = UUID.randomUUID();
+      UUID expired = UUID.randomUUID();
+      UUID referenced = UUID.randomUUID();
+      store.publishBatch(owner, expired, new byte[]{1}).join();
+      store.publishBatch(owner, referenced, new byte[]{2}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(referenced), List.of())).join();
+      Instant cutoff = Instant.now().plusSeconds(1);
+      Path expiredPath = root.resolve(owner.toString()).resolve("batches").resolve(expired + ".dat");
+      java.nio.file.Files.setLastModifiedTime(expiredPath, FileTime.from(cutoff.minusSeconds(10)));
+      assertEquals(1, store.cleanupExpiredBatches(owner, cutoff).join());
+      assertTrue(store.loadBatch(owner, expired).join().isEmpty());
+      assertTrue(store.loadBatch(owner, referenced).join().isPresent());
+   }
 
    @Test
    void startupScanCleansOfflineOwnersAndPreservesDamagedOwner() throws Exception {

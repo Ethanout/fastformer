@@ -5,6 +5,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
@@ -161,6 +163,44 @@ public final class HistoryBatchStore {
       Objects.requireNonNull(ownerId, "ownerId");
       Set<UUID> candidates = Set.copyOf(retiredBatches);
       return enqueueRead(() -> cleanupRetired(ownerId, candidates));
+   }
+
+   /** Removes unreferenced batch files older than {@code cutoff}. Referenced
+    * batches are always retained, even when they exceed the retention age. */
+   public CompletableFuture<Integer> cleanupExpiredBatches(UUID ownerId, Instant cutoff) {
+      Objects.requireNonNull(ownerId, "ownerId");
+      Objects.requireNonNull(cutoff, "cutoff");
+      return enqueueRead(() -> cleanupExpired(ownerId, cutoff));
+   }
+
+   private int cleanupExpired(UUID ownerId, Instant cutoff) {
+      Path indexPath = indexFile(ownerId);
+      Path batches = ownerDirectory(ownerId).resolve("batches");
+      try {
+         Set<UUID> referenced = new HashSet<>();
+         if (Files.isRegularFile(indexPath, LinkOption.NOFOLLOW_LINKS)) {
+            byte[] payload = HistoryEnvelopeFile.read(indexPath, formatVersion,
+               HistoryOrderIndex.maximumEncodedBytes(maxIndexEntries));
+            HistoryOrderIndex index = HistoryOrderIndex.decode(payload, maxIndexEntries);
+            requireUniqueIds(index);
+            requirePublishedBatches(ownerId, index);
+            referenced.addAll(index.undo());
+            referenced.addAll(index.redo());
+         }
+         if (!Files.isDirectory(batches, LinkOption.NOFOLLOW_LINKS)) return 0;
+         int deleted = 0;
+         try (Stream<Path> paths = Files.list(batches)) {
+            for (Path path : paths.toList()) {
+               Optional<UUID> id = batchIdFromFile(path);
+               if (id.isEmpty() || referenced.contains(id.get())) continue;
+               FileTime modified = Files.getLastModifiedTime(path, LinkOption.NOFOLLOW_LINKS);
+               if (modified.toInstant().isBefore(cutoff) && Files.deleteIfExists(path)) deleted++;
+            }
+         }
+         return deleted;
+      } catch (IOException failure) {
+         throw new UncheckedIOException(failure);
+      }
    }
 
    private int cleanupRetired(UUID ownerId, Set<UUID> candidates) {
