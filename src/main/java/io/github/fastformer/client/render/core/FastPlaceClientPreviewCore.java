@@ -327,6 +327,15 @@ public class FastPlaceClientPreviewCore {
       cancelBuildingPreviewGeneration();
       cachedBuildingRenderKey = null;
       cachedBuildingRenderLayers = BuildingRenderLayers.empty();
+      clearBuildingShellCaches();
+   }
+
+   private static void clearBuildingShellCaches() {
+      CONFIRMED_BUILDING_SHELL_CACHE.clear();
+      PENDING_BUILDING_SHELL_CACHE.clear();
+      BUILDING_SHELL_BLOCKS_CACHE.clear();
+      CONFIRMED_SHELL_EDGES.clear();
+      PENDING_SHELL_EDGES.clear();
    }
 
    public static void applyOperation(OperationPreviewPayload payload) {
@@ -3116,11 +3125,7 @@ public class FastPlaceClientPreviewCore {
       cachedGeometryRenderLayers = GeometryRenderLayers.empty();
       CONFIRMED_GHOST_CACHE.clear();
       CONFIRMED_OUTLINE_CACHE.clear();
-      CONFIRMED_BUILDING_SHELL_CACHE.clear();
-      CONFIRMED_SHELL_EDGES.clear();
-      PENDING_SHELL_EDGES.clear();
-      BUILDING_SHELL_BLOCKS_CACHE.clear();
-      PENDING_BUILDING_SHELL_CACHE.clear();
+      clearBuildingShellCaches();
       PENDING_GHOST_CACHE.clear();
       PENDING_GHOST_BUFFER_CACHE.clear();
       SmoothReticlePostEffect.reset();
