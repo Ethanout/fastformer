@@ -20,58 +20,15 @@ public final class ShapeShellMesh {
    }
 
    public static Mesh build(List<Part> parts) {
-      if (parts.isEmpty()) {
-         return Mesh.empty();
+      Builder builder = builder(parts);
+      while (!builder.complete()) {
+         builder.step(Integer.MAX_VALUE);
       }
-      Map<Plane, List<RawFace>> planes = new HashMap<>();
-      for (Part part : parts) {
-         for (AABB box : part.boxes()) {
-            addBoxFaces(planes, box, part);
-         }
-      }
+      return builder.mesh();
+   }
 
-      ArrayList<Face> faces = new ArrayList<>();
-      for (Map.Entry<Plane, List<RawFace>> entry : planes.entrySet()) {
-         splitVisibleFaces(entry.getKey(), entry.getValue(), faces);
-      }
-
-      Set<PlaneEdge> coplanarBoundary = new HashSet<>();
-      for (Face face : faces) {
-         if (!face.outline()) {
-            continue;
-         }
-         for (Edge edge : face.edges()) {
-            PlaneEdge planeEdge = new PlaneEdge(face.plane(), edge, face.outlineColor());
-            if (!coplanarBoundary.add(planeEdge)) {
-               coplanarBoundary.remove(planeEdge);
-            }
-         }
-      }
-
-      Map<StyledLine, List<Interval>> lines = new HashMap<>();
-      for (PlaneEdge planeEdge : coplanarBoundary) {
-         StyledLine line = StyledLine.of(planeEdge.edge(), planeEdge.color());
-         lines.computeIfAbsent(line, ignored -> new ArrayList<>()).add(line.interval(planeEdge.edge()));
-      }
-      ArrayList<StyledEdge> edges = new ArrayList<>();
-      for (Map.Entry<StyledLine, List<Interval>> entry : lines.entrySet()) {
-         List<Interval> intervals = entry.getValue();
-         intervals.sort(Comparator.comparingLong(Interval::start));
-         long start = intervals.getFirst().start();
-         long end = intervals.getFirst().end();
-         for (int index = 1; index < intervals.size(); index++) {
-            Interval next = intervals.get(index);
-            if (next.start() <= end) {
-               end = Math.max(end, next.end());
-            } else {
-               edges.add(entry.getKey().edge(start, end));
-               start = next.start();
-               end = next.end();
-            }
-         }
-         edges.add(entry.getKey().edge(start, end));
-      }
-      return new Mesh(List.copyOf(faces), List.copyOf(edges));
+   public static Builder builder(List<Part> parts) {
+      return new Builder(parts);
    }
 
    private static void addBoxFaces(Map<Plane, List<RawFace>> planes, AABB box, Part part) {
@@ -105,49 +62,6 @@ public final class ShapeShellMesh {
       );
    }
 
-   private static void splitVisibleFaces(Plane plane, List<RawFace> rawFaces, List<Face> output) {
-      TreeSet<Long> uCoordinates = new TreeSet<>();
-      TreeSet<Long> vCoordinates = new TreeSet<>();
-      for (RawFace face : rawFaces) {
-         uCoordinates.add(face.u0());
-         uCoordinates.add(face.u1());
-         vCoordinates.add(face.v0());
-         vCoordinates.add(face.v1());
-      }
-      List<Long> us = List.copyOf(uCoordinates);
-      List<Long> vs = List.copyOf(vCoordinates);
-      Map<Long, Integer> uIndices = indices(us);
-      Map<Long, Integer> vIndices = indices(vs);
-      HashMap<Cell, RawFace> parity = new HashMap<>();
-      for (RawFace face : rawFaces) {
-         int u0 = uIndices.get(face.u0());
-         int u1 = uIndices.get(face.u1());
-         int v0 = vIndices.get(face.v0());
-         int v1 = vIndices.get(face.v1());
-         for (int u = u0; u < u1; u++) {
-            for (int v = v0; v < v1; v++) {
-               Cell cell = new Cell(u, v);
-               if (parity.containsKey(cell)) {
-                  parity.remove(cell);
-               } else {
-                  parity.put(cell, face);
-               }
-            }
-         }
-      }
-      parity.forEach((cell, source) -> output.add(new Face(
-         source.direction(),
-         plane,
-         us.get(cell.u()),
-         us.get(cell.u() + 1),
-         vs.get(cell.v()),
-         vs.get(cell.v() + 1),
-         source.faceColor(),
-         source.outlineColor(),
-         source.outline()
-      )));
-   }
-
    private static Map<Long, Integer> indices(List<Long> coordinates) {
       HashMap<Long, Integer> result = new HashMap<>();
       for (int index = 0; index < coordinates.size(); index++) {
@@ -162,6 +76,260 @@ public final class ShapeShellMesh {
 
    private static double d(long value) {
       return value / SCALE;
+   }
+
+   /** Incrementally builds a mesh. Sorting and final immutable copies are not budgeted. */
+   public static final class Builder {
+      private final List<Part> parts;
+      private final Map<Plane, List<RawFace>> planes = new HashMap<>();
+      private final ArrayList<Face> faces = new ArrayList<>();
+      private final Set<PlaneEdge> coplanarBoundary = new HashSet<>();
+      private final Map<StyledLine, List<Interval>> lines = new HashMap<>();
+      private final ArrayList<StyledEdge> edges = new ArrayList<>();
+      private Stage stage = Stage.BOXES;
+      private int partIndex;
+      private int boxIndex;
+      private java.util.Iterator<Map.Entry<Plane, List<RawFace>>> planeIterator;
+      private Map.Entry<Plane, List<RawFace>> planeEntry;
+      private List<Long> us;
+      private List<Long> vs;
+      private Map<Long, Integer> uIndices;
+      private Map<Long, Integer> vIndices;
+      private HashMap<Cell, RawFace> parity;
+      private TreeSet<Long> uCoordinates;
+      private TreeSet<Long> vCoordinates;
+      private int coordinateFaceIndex;
+      private int rawFaceIndex;
+      private int cellU;
+      private int cellV;
+      private java.util.Iterator<Map.Entry<Cell, RawFace>> visibleCellIterator;
+      private int faceIndex;
+      private int faceEdgeIndex;
+      private List<Edge> faceEdges = List.of();
+      private java.util.Iterator<PlaneEdge> boundaryIterator;
+      private java.util.Iterator<Map.Entry<StyledLine, List<Interval>>> lineIterator;
+      private Map.Entry<StyledLine, List<Interval>> lineEntry;
+      private int intervalIndex;
+      private long intervalStart;
+      private long intervalEnd;
+      private Mesh mesh;
+
+      private Builder(List<Part> parts) {
+         this.parts = List.copyOf(parts);
+      }
+
+      /** Advances at most {@code workUnits} loop items and reports completion. */
+      public boolean step(int workUnits) {
+         if (workUnits <= 0) {
+            throw new IllegalArgumentException("workUnits must be positive");
+         }
+         int remaining = workUnits;
+         while (this.stage != Stage.COMPLETE && remaining > 0) {
+            remaining -= switch (this.stage) {
+               case BOXES -> this.addNextBox();
+               case PLANE_COORDINATES -> this.collectNextPlaneCoordinates();
+               case CELLS -> this.toggleNextCell();
+               case VISIBLE_FACES -> this.addNextVisibleFace();
+               case FACE_EDGES -> this.toggleNextFaceEdge();
+               case GROUP_LINES -> this.groupNextBoundaryEdge();
+               case MERGE_LINES -> this.mergeNextInterval();
+               case COMPLETE -> 0;
+            };
+         }
+         return this.complete();
+      }
+
+      public boolean complete() {
+         return this.stage == Stage.COMPLETE;
+      }
+
+      public Mesh mesh() {
+         if (!this.complete()) {
+            throw new IllegalStateException("mesh is not complete");
+         }
+         return this.mesh;
+      }
+
+      private int addNextBox() {
+         if (this.partIndex < this.parts.size()) {
+            Part part = this.parts.get(this.partIndex);
+            if (this.boxIndex < part.boxes().size()) {
+               addBoxFaces(this.planes, part.boxes().get(this.boxIndex++), part);
+               return 1;
+            }
+            this.partIndex++;
+            this.boxIndex = 0;
+            return 1;
+         }
+         this.planeIterator = this.planes.entrySet().iterator();
+         this.startNextPlane();
+         return 0;
+      }
+
+      private int toggleNextCell() {
+         if (this.rawFaceIndex >= this.planeEntry.getValue().size()) {
+            this.visibleCellIterator = this.parity.entrySet().iterator();
+            this.stage = Stage.VISIBLE_FACES;
+            return 0;
+         }
+         RawFace source = this.planeEntry.getValue().get(this.rawFaceIndex);
+         if (this.uIndices.get(source.u0()).equals(this.uIndices.get(source.u1()))
+            || this.vIndices.get(source.v0()).equals(this.vIndices.get(source.v1()))) {
+            this.rawFaceIndex++;
+            this.initializeCellCursor();
+            return 1;
+         }
+         Cell cell = new Cell(this.cellU, this.cellV);
+         if (this.parity.containsKey(cell)) {
+            this.parity.remove(cell);
+         } else {
+            this.parity.put(cell, source);
+         }
+         this.cellV++;
+         if (this.cellV >= this.vIndices.get(source.v1())) {
+            this.cellU++;
+            this.cellV = this.vIndices.get(source.v0());
+            if (this.cellU >= this.uIndices.get(source.u1())) {
+               this.rawFaceIndex++;
+               this.initializeCellCursor();
+            }
+         }
+         return 1;
+      }
+
+      private int collectNextPlaneCoordinates() {
+         if (this.coordinateFaceIndex < this.planeEntry.getValue().size()) {
+            RawFace face = this.planeEntry.getValue().get(this.coordinateFaceIndex++);
+            this.uCoordinates.add(face.u0());
+            this.uCoordinates.add(face.u1());
+            this.vCoordinates.add(face.v0());
+            this.vCoordinates.add(face.v1());
+            return 1;
+         }
+         this.us = List.copyOf(this.uCoordinates);
+         this.vs = List.copyOf(this.vCoordinates);
+         this.uIndices = indices(this.us);
+         this.vIndices = indices(this.vs);
+         this.parity = new HashMap<>();
+         this.rawFaceIndex = 0;
+         this.initializeCellCursor();
+         this.stage = Stage.CELLS;
+         return 0;
+      }
+
+      private int addNextVisibleFace() {
+         if (this.visibleCellIterator.hasNext()) {
+            Map.Entry<Cell, RawFace> entry = this.visibleCellIterator.next();
+            Cell cell = entry.getKey();
+            RawFace source = entry.getValue();
+            this.faces.add(new Face(source.direction(), this.planeEntry.getKey(),
+               this.us.get(cell.u()), this.us.get(cell.u() + 1), this.vs.get(cell.v()), this.vs.get(cell.v() + 1),
+               source.faceColor(), source.outlineColor(), source.outline()));
+            return 1;
+         }
+         this.startNextPlane();
+         return 0;
+      }
+
+      private void startNextPlane() {
+         if (!this.planeIterator.hasNext()) {
+            this.stage = Stage.FACE_EDGES;
+            return;
+         }
+         this.planeEntry = this.planeIterator.next();
+         this.uCoordinates = new TreeSet<>();
+         this.vCoordinates = new TreeSet<>();
+         this.coordinateFaceIndex = 0;
+         this.stage = Stage.PLANE_COORDINATES;
+      }
+
+      private void initializeCellCursor() {
+         if (this.rawFaceIndex < this.planeEntry.getValue().size()) {
+            RawFace face = this.planeEntry.getValue().get(this.rawFaceIndex);
+            this.cellU = this.uIndices.get(face.u0());
+            this.cellV = this.vIndices.get(face.v0());
+         }
+      }
+
+      private int toggleNextFaceEdge() {
+         if (this.faceIndex < this.faces.size()) {
+            Face face = this.faces.get(this.faceIndex);
+            if (!face.outline()) {
+               this.faceIndex++;
+               return 1;
+            }
+            if (this.faceEdges.isEmpty()) {
+               this.faceEdges = face.edges();
+            }
+            PlaneEdge edge = new PlaneEdge(face.plane(), this.faceEdges.get(this.faceEdgeIndex++), face.outlineColor());
+            if (!this.coplanarBoundary.add(edge)) {
+               this.coplanarBoundary.remove(edge);
+            }
+            if (this.faceEdgeIndex == this.faceEdges.size()) {
+               this.faceIndex++;
+               this.faceEdgeIndex = 0;
+               this.faceEdges = List.of();
+            }
+            return 1;
+         }
+         this.boundaryIterator = this.coplanarBoundary.iterator();
+         this.stage = Stage.GROUP_LINES;
+         return 0;
+      }
+
+      private int groupNextBoundaryEdge() {
+         if (this.boundaryIterator.hasNext()) {
+            PlaneEdge planeEdge = this.boundaryIterator.next();
+            StyledLine line = StyledLine.of(planeEdge.edge(), planeEdge.color());
+            this.lines.computeIfAbsent(line, ignored -> new ArrayList<>()).add(line.interval(planeEdge.edge()));
+            return 1;
+         }
+         this.lineIterator = this.lines.entrySet().iterator();
+         this.stage = Stage.MERGE_LINES;
+         return 0;
+      }
+
+      private int mergeNextInterval() {
+         if (this.lineEntry == null) {
+            if (!this.lineIterator.hasNext()) {
+               this.mesh = new Mesh(this.faces, this.edges);
+               this.stage = Stage.COMPLETE;
+               return 0;
+            }
+            this.lineEntry = this.lineIterator.next();
+            List<Interval> intervals = this.lineEntry.getValue();
+            intervals.sort(Comparator.comparingLong(Interval::start));
+            this.intervalStart = intervals.getFirst().start();
+            this.intervalEnd = intervals.getFirst().end();
+            this.intervalIndex = 1;
+         }
+         List<Interval> intervals = this.lineEntry.getValue();
+         if (this.intervalIndex < intervals.size()) {
+            Interval next = intervals.get(this.intervalIndex++);
+            if (next.start() <= this.intervalEnd) {
+               this.intervalEnd = Math.max(this.intervalEnd, next.end());
+            } else {
+               this.edges.add(this.lineEntry.getKey().edge(this.intervalStart, this.intervalEnd));
+               this.intervalStart = next.start();
+               this.intervalEnd = next.end();
+            }
+            return 1;
+         }
+         this.edges.add(this.lineEntry.getKey().edge(this.intervalStart, this.intervalEnd));
+         this.lineEntry = null;
+         return 1;
+      }
+
+      private enum Stage {
+         BOXES,
+         PLANE_COORDINATES,
+         CELLS,
+         VISIBLE_FACES,
+         FACE_EDGES,
+         GROUP_LINES,
+         MERGE_LINES,
+         COMPLETE
+      }
    }
 
    public record Color(float red, float green, float blue) {
