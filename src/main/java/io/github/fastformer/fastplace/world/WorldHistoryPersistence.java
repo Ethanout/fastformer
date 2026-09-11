@@ -57,7 +57,7 @@ final class WorldHistoryPersistence {
       HistoryOrderIndex index = new HistoryOrderIndex(undo, redo);
       CompletableFuture<Void> result = enqueue(server, owner, batch.estimatedBytes(), () ->
          store(server).publishBatch(owner, batch.operationId(), encode(batch))
-            .thenCompose(ignored -> store(server).publishIndex(owner, index))
+            .thenCompose(ignored -> replaceIndex(server, owner, index))
       );
       result.whenComplete((ignored, failure) -> reportFailure(owner, batch.operationId(), failure));
       return result;
@@ -66,7 +66,7 @@ final class WorldHistoryPersistence {
    static CompletableFuture<Void> publishIndex(MinecraftServer server, UUID owner, List<UUID> undo, List<UUID> redo) {
       if (server == null || owner == null) return CompletableFuture.completedFuture(null);
       HistoryOrderIndex index = new HistoryOrderIndex(undo, redo);
-      CompletableFuture<Void> result = enqueue(server, owner, 0L, () -> store(server).publishIndex(owner, index));
+      CompletableFuture<Void> result = enqueue(server, owner, 0L, () -> replaceIndex(server, owner, index));
       result.whenComplete((ignored, failure) -> reportFailure(owner, null, failure));
       return result;
    }
@@ -83,7 +83,7 @@ final class WorldHistoryPersistence {
          CompletableFuture<Void> batches = CompletableFuture.completedFuture(null);
          for (WorldChangeBatch batch : ownedUndo) batches = ensureBatch(server, owner, batch, batches);
          for (WorldChangeBatch batch : ownedRedo) batches = ensureBatch(server, owner, batch, batches);
-         return batches.thenCompose(ignored -> store(server).publishIndex(owner, index));
+         return batches.thenCompose(ignored -> replaceIndex(server, owner, index));
       });
       result.whenComplete((ignored, failure) -> reportFailure(owner, null, failure));
       return result;
@@ -153,6 +153,23 @@ final class WorldHistoryPersistence {
 
    private static List<UUID> operationIds(List<WorldChangeBatch> batches) {
       return batches.stream().map(WorldChangeBatch::operationId).toList();
+   }
+
+   private static CompletableFuture<Void> replaceIndex(MinecraftServer server, UUID owner, HistoryOrderIndex next) {
+      HistoryBatchStore storage = store(server);
+      return storage.loadIndex(owner).thenCompose(previous -> {
+         java.util.Set<UUID> retired = new java.util.HashSet<>();
+         previous.ifPresent(index -> {
+            retired.addAll(index.undo());
+            retired.addAll(index.redo());
+         });
+         retired.removeAll(next.undo());
+         retired.removeAll(next.redo());
+         return storage.publishIndex(owner, next).thenCompose(ignored -> {
+            if (retired.isEmpty()) return CompletableFuture.completedFuture(null);
+            return storage.cleanupUnreferencedBatches(owner, retired).thenApply(deleted -> null);
+         });
+      });
    }
 
    private static long estimatedBytes(List<WorldChangeBatch> batches) {

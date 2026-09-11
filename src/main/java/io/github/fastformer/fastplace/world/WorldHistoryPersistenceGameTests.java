@@ -24,6 +24,33 @@ public final class WorldHistoryPersistenceGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   public static void newOperationRemovesRetiredRedoFileAfterIndexCommit(GameTestHelper helper) {
+      UUID owner = UUID.randomUUID();
+      UUID retired = UUID.randomUUID();
+      UUID current = UUID.randomUUID();
+      BlockPos pos = new BlockPos(5, 20, 3);
+      var before = new ReversibleBlockSnapshot(pos, Blocks.STONE.defaultBlockState(), Fluids.EMPTY.defaultFluidState(), null);
+      var after = new ReversibleBlockSnapshot(pos, Blocks.GOLD_BLOCK.defaultBlockState(), Fluids.EMPTY.defaultFluidState(), null);
+      var batch = WorldChangeBatch.capturePairsByPos(helper.getLevel().dimension(), List.of(before),
+         new HashMap<>(Map.of(pos, after))).orElseThrow();
+      var server = helper.getLevel().getServer();
+      var published = WorldHistoryPersistence.publishNewBatch(server, owner, batch.withOperationId(retired),
+         List.of(retired), List.of())
+         .thenCompose(ignored -> WorldHistoryPersistence.publishIndex(server, owner, List.of(), List.of(retired)))
+         .thenCompose(ignored -> WorldHistoryPersistence.publishNewBatch(server, owner, batch.withOperationId(current),
+            List.of(current), List.of()));
+      var ownerRoot = server.getWorldPath(LevelResource.ROOT).resolve("fastformer-history").resolve(owner.toString());
+      helper.succeedWhen(() -> {
+         helper.assertTrue(published.isDone(), "history publication is still pending");
+         published.join();
+         helper.assertTrue(!java.nio.file.Files.exists(ownerRoot.resolve("batches").resolve(retired + ".dat")),
+            "retired redo batch still occupies disk");
+         helper.assertTrue(java.nio.file.Files.isRegularFile(ownerRoot.resolve("batches").resolve(current + ".dat")),
+            "cleanup removed current undo batch");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
    public static void completedManagerBatchReachesDisk(GameTestHelper helper) {
       publishAndCheck(helper, false);
    }
