@@ -155,6 +155,32 @@ class PlacementTaskTest {
    }
 
    @Test
+   void exceptionalGenerationReleasesItsReservationAndReportsGenerationFailure() {
+      long baseline = MemoryReservation.reservedBytes();
+      MemoryReservation reservation = WorldOperationMemory.reserveGeneration(1L, 0L).orElseThrow();
+      CompletableFuture<BlockGenerationResult> worker = new CompletableFuture<>();
+      PlacementTask task = PlacementTask.generatingResult(
+         worker,
+         new PlacementTaskPlan(
+            null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 100, Level.OVERWORLD
+         ),
+         reservation
+      );
+
+      try {
+         worker.completeExceptionally(new IllegalStateException("simulated generation failure"));
+
+         assertTrue(task.prepare());
+         assertTrue(task.failed());
+         assertEquals(WorldOperationPhase.GENERATION, task.failurePhase());
+         assertEquals("generation future: CompletionException", task.failureReason());
+         assertEquals(baseline, MemoryReservation.reservedBytes());
+      } finally {
+         reservation.close();
+      }
+   }
+
+   @Test
    void readyTaskCanReacquireItsReservationAfterWorldUnload() {
       long baseline = MemoryReservation.reservedBytes();
       PlacementTask task = PlacementTask.ready(
