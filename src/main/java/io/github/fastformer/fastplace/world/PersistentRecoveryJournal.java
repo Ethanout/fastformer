@@ -90,6 +90,8 @@ public final class PersistentRecoveryJournal {
    private boolean committed;
    private volatile boolean finalAfterPrepared;
    private volatile boolean correctionRequired;
+   private List<ReversibleBlockSnapshot> cachedPredictedAfter = List.of();
+   private boolean predictedAfterCacheComplete;
 
    PersistentRecoveryJournal(Path file) {
       this(file, null, null, MAX_DECOMPRESSED_BYTES, Files.isDirectory(file));
@@ -375,11 +377,68 @@ public final class PersistentRecoveryJournal {
       Map<BlockPos, ReversibleBlockSnapshot> actualAfter
    ) {
       if (actualAfter == null || actualAfter.isEmpty()) {
+         this.clearPredictedAfterCache();
          this.finalAfterPrepared = true;
          this.correctionRequired = false;
          return CompletableFuture.completedFuture(true);
       }
+      if (this.matchesCachedPredictedAfter(actualAfter)
+         && Files.exists(this.file)
+         && !Files.exists(committedMarker(this.file))
+         && !Files.exists(correctionPath(this.file))) {
+         this.clearPredictedAfterCache();
+         this.finalAfterPrepared = true;
+         this.correctionRequired = false;
+         return CompletableFuture.completedFuture(true);
+      }
+      this.clearPredictedAfterCache();
       return CompletableFuture.supplyAsync(() -> this.writeCorrections(actualAfter), IO_EXECUTOR);
+   }
+
+   private boolean matchesCachedPredictedAfter(Map<BlockPos, ReversibleBlockSnapshot> actualAfter) {
+      if (!this.predictedAfterCacheComplete) {
+         return false;
+      }
+      int matched = 0;
+      for (ReversibleBlockSnapshot predicted : this.cachedPredictedAfter) {
+         ReversibleBlockSnapshot actual = actualAfter.get(predicted.pos());
+         if (actual == null) {
+            continue;
+         }
+         matched++;
+         if (!predicted.sameContents(actual)) {
+            return false;
+         }
+      }
+      return matched == actualAfter.size();
+   }
+
+   void rememberInitialPredictedAfter(List<ReversibleBlockSnapshot> predictedAfter) {
+      this.cachedPredictedAfter = predictedAfter;
+      this.predictedAfterCacheComplete = true;
+   }
+
+   void rememberAppendedPredictedAfter(List<ReversibleBlockSnapshot> predictedAfter) {
+      if (!this.predictedAfterCacheComplete
+         || this.cachedPredictedAfter.size() + predictedAfter.size() > FIRST_SEGMENT_CELLS) {
+         this.clearPredictedAfterCache();
+         return;
+      }
+      List<ReversibleBlockSnapshot> combined = new ArrayList<>(
+         this.cachedPredictedAfter.size() + predictedAfter.size()
+      );
+      combined.addAll(this.cachedPredictedAfter);
+      combined.addAll(predictedAfter);
+      this.cachedPredictedAfter = List.copyOf(combined);
+   }
+
+   private void clearPredictedAfterCache() {
+      this.cachedPredictedAfter = List.of();
+      this.predictedAfterCacheComplete = false;
+   }
+
+   int cachedPredictedAfterCount() {
+      return this.predictedAfterCacheComplete ? this.cachedPredictedAfter.size() : 0;
    }
 
    void deleteOrphanCorrection() {
@@ -1093,15 +1152,22 @@ public final class PersistentRecoveryJournal {
          dimension.location().toString(),
          SEGMENTED_LIMIT
       );
-      CompoundTag payload = encodePrepared(dimension, before, after);
+      boolean canRetainPrediction = after.size() <= FIRST_SEGMENT_CELLS;
+      List<ReversibleBlockSnapshot> cachedAfter = canRetainPrediction ? List.copyOf(after) : List.of();
+      Collection<ReversibleBlockSnapshot> encodedAfter = canRetainPrediction ? cachedAfter : after;
+      CompoundTag payload = encodePrepared(dimension, before, encodedAfter);
       payload.putString("OperationId", operationId.toString());
       if (payload.sizeInBytes() > MAX_DECOMPRESSED_BYTES) {
          throw new IOException("Recovery journal exceeds the safe decoded-size limit");
       }
       RecoveryJournalSegment.write(segmentPath(operationDirectory, 0), operationId, 0, payload);
-      return new PersistentRecoveryJournal(
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(
          operationDirectory, dimension, operationId, payload.sizeInBytes(), true
       );
+      if (canRetainPrediction) {
+         journal.rememberInitialPredictedAfter(cachedAfter);
+      }
+      return journal;
    }
 
    public synchronized boolean appendSegment(
@@ -1112,12 +1178,21 @@ public final class PersistentRecoveryJournal {
          return false;
       }
       try {
-         CompoundTag payload = encodePrepared(this.dimension, before, after);
+         boolean canRetainPrediction = this.predictedAfterCacheComplete
+            && this.cachedPredictedAfter.size() + after.size() <= FIRST_SEGMENT_CELLS;
+         List<ReversibleBlockSnapshot> cachedAfter = canRetainPrediction ? List.copyOf(after) : List.of();
+         Collection<ReversibleBlockSnapshot> encodedAfter = canRetainPrediction ? cachedAfter : after;
+         CompoundTag payload = encodePrepared(this.dimension, before, encodedAfter);
          payload.putString("OperationId", this.operationId.toString());
          if (payload.sizeInBytes() > MAX_DECOMPRESSED_BYTES) {
             throw new IOException("Recovery journal exceeds the safe decoded-size limit");
          }
          appendPayload(payload);
+         if (canRetainPrediction) {
+            this.rememberAppendedPredictedAfter(cachedAfter);
+         } else {
+            this.clearPredictedAfterCache();
+         }
          return true;
       } catch (IOException | RuntimeException exception) {
          LOGGER.error("Could not append FastFormer recovery segment for {}", this.file, exception);

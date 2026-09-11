@@ -4,7 +4,9 @@ package io.github.fastformer.fastplace.world;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
@@ -198,6 +200,50 @@ class PersistentRecoveryJournalTest {
    }
 
    @Test
+   void smallMatchingFinalStatesSkipCorrectionFileReading() throws Exception {
+      for (int size : List.of(1, 3, 16)) {
+         Path prepared = this.temporaryDirectory.resolve("matching-" + size + ".dat");
+         Files.writeString(prepared, "not a compressed journal");
+         List<ReversibleBlockSnapshot> after = snapshots(size, "predicted");
+         PersistentRecoveryJournal journal = new PersistentRecoveryJournal(prepared);
+         journal.rememberInitialPredictedAfter(after);
+
+         assertEquals(size, journal.cachedPredictedAfterCount());
+         assertEquals(true, journal.finalizeAfter(byPosition(after)).join());
+         assertEquals(0, journal.cachedPredictedAfterCount());
+         assertEquals(false, Files.exists(this.temporaryDirectory.resolve("matching-" + size + ".delta")));
+      }
+   }
+
+   @Test
+   void changedFinalStateFallsBackToJournalReading() throws Exception {
+      Path prepared = this.temporaryDirectory.resolve("changed-final-state.dat");
+      Files.writeString(prepared, "not a compressed journal");
+      List<ReversibleBlockSnapshot> predicted = snapshots(3, "predicted");
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(prepared);
+      journal.rememberInitialPredictedAfter(predicted);
+      Map<BlockPos, ReversibleBlockSnapshot> actual = byPosition(predicted);
+      BlockPos changed = new BlockPos(1, 64, 0);
+      actual.put(changed, snapshot(changed, marker("changed")));
+
+      assertEquals(false, journal.finalizeAfter(actual).join());
+
+      assertEquals(0, journal.cachedPredictedAfterCount());
+   }
+
+   @Test
+   void predictionCacheIsReleasedWhenJournalExceedsFirstSegment() throws Exception {
+      PersistentRecoveryJournal journal = new PersistentRecoveryJournal(
+         this.temporaryDirectory.resolve("large-operation.dat")
+      );
+      journal.rememberInitialPredictedAfter(snapshots(256, "predicted"));
+
+      assertEquals(256, journal.cachedPredictedAfterCount());
+      journal.rememberAppendedPredictedAfter(List.of(snapshot(new BlockPos(256, 64, 0), marker("predicted"))));
+      assertEquals(0, journal.cachedPredictedAfterCount());
+   }
+
+   @Test
    void unsealedSegmentedDirectoryBlocksANewOwnerJournal() throws Exception {
       UUID owner = UUID.randomUUID();
       segmentedDirectory(owner, UUID.randomUUID());
@@ -345,6 +391,28 @@ class PersistentRecoveryJournalTest {
          null,
          blockEntity == null ? null : new BlockEntitySnapshot(blockEntity)
       );
+   }
+
+   private static List<ReversibleBlockSnapshot> snapshots(int count, String value) {
+      return java.util.stream.IntStream.range(0, count)
+         .mapToObj(index -> snapshot(new BlockPos(index, 64, 0), marker(value)))
+         .toList();
+   }
+
+   private static CompoundTag marker(String value) {
+      CompoundTag marker = new CompoundTag();
+      marker.putString("marker", value);
+      return marker;
+   }
+
+   private static Map<BlockPos, ReversibleBlockSnapshot> byPosition(
+      List<ReversibleBlockSnapshot> snapshots
+   ) {
+      Map<BlockPos, ReversibleBlockSnapshot> result = new LinkedHashMap<>();
+      for (ReversibleBlockSnapshot snapshot : snapshots) {
+         result.put(snapshot.pos(), snapshot);
+      }
+      return result;
    }
 
 }
