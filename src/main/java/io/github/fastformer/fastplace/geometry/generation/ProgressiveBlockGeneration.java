@@ -133,25 +133,27 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
    }
 
    private void publishPending() {
-      if (this.pendingCount == 0) {
-         return;
-      }
-      while (this.published.size() >= MAX_PUBLISHED_BATCHES) {
+      while (!this.pendingBySection.isEmpty()) {
+         while (this.published.size() >= MAX_PUBLISHED_BATCHES) {
+            this.checkCancelled();
+            try {
+               this.wait(50L);
+            } catch (InterruptedException exception) {
+               Thread.currentThread().interrupt();
+               throw new CancellationException("FastFormer block generation interrupted while waiting for consumers");
+            }
+         }
+
          this.checkCancelled();
-         try {
-            this.wait(50L);
-         } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new CancellationException("FastFormer block generation interrupted while waiting for consumers");
+         if (this.pendingBySection.isEmpty()) {
+            return;
          }
+         Map.Entry<Long, LongArrayList> entry = this.pendingBySection.entrySet().iterator().next();
+         LongArrayList packedBlocks = entry.getValue();
+         this.pendingBySection.remove(entry.getKey());
+         this.pendingCount -= packedBlocks.size();
+         this.published.add(new SectionBatch(entry.getKey(), packedBlocks.toLongArray()));
       }
-      for (Map.Entry<Long, LongArrayList> entry : this.pendingBySection.entrySet()) {
-         if (!entry.getValue().isEmpty()) {
-            this.published.add(new SectionBatch(entry.getKey(), entry.getValue().toLongArray()));
-         }
-      }
-      this.pendingBySection.clear();
-      this.pendingCount = 0;
    }
 
    private static long saturatedAdd(long left, long right) {

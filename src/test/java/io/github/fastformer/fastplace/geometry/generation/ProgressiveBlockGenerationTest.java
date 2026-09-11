@@ -12,6 +12,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -114,10 +115,37 @@ class ProgressiveBlockGenerationTest {
    }
 
    @Test
+   void sparsePublicationNeverExceedsTheBatchWatermarkAndReleaseUnblocksTheProducer() throws Exception {
+      ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(4096L);
+      CompletableFuture<Void> producer = CompletableFuture.runAsync(() -> {
+         for (int index = 0; index < 4096; index++) {
+            progress.onGenerated(new BlockPos(index * 16, 0, 0));
+         }
+         progress.complete();
+      });
+
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5L);
+      while (progress.snapshot().generated() < 4096L && System.nanoTime() < deadline) {
+         Thread.yield();
+      }
+      assertEquals(4096L, progress.snapshot().generated(), "producer did not reach the publication watermark");
+      assertThrows(TimeoutException.class, () -> producer.get(100L, TimeUnit.MILLISECONDS));
+
+      List<ProgressiveBlockGeneration.SectionBatch> queued = progress.drainPublished();
+      assertEquals(64, queued.size());
+      assertTrue(queued.stream().allMatch(batch -> batch.packedBlockCount() == 1L));
+
+      progress.releasePublished();
+      producer.get(5L, TimeUnit.SECONDS);
+      assertTrue(progress.drainPublished().isEmpty());
+      assertTrue(progress.snapshot().complete());
+   }
+
+   @Test
    void releasePublishedDropsQueuedProgressAfterFinalTargetsAreOwned() {
       ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(5000L);
       for (int index = 0; index < 4096; index++) {
-         progress.onGenerated(new BlockPos(index, 0, 0));
+         progress.onGenerated(new BlockPos(index & 15, index >> 8, index >> 4 & 15));
       }
       progress.releasePublished();
 
