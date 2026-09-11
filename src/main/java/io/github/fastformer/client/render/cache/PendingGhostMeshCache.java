@@ -36,7 +36,6 @@ public final class PendingGhostMeshCache {
          this.blocks = Set.copyOf(requestedBlocks);
          this.version++;
          cancelFuture();
-         this.executor.getQueue().clear();
          if (PreviewAsyncPolicy.meshSynchronously(this.blocks.size())) {
             this.mesh = this.builder.apply(this.blocks);
          } else {
@@ -59,7 +58,6 @@ public final class PendingGhostMeshCache {
       this.mesh = PendingGhostMesh.empty();
       this.version++;
       cancelFuture();
-      this.executor.getQueue().clear();
    }
 
    public void clear() {
