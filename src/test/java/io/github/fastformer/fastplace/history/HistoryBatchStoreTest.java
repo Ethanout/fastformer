@@ -14,6 +14,37 @@ class HistoryBatchStoreTest {
    @TempDir Path root;
 
    @Test
+   void cleanupIntentSurvivesReopeningAfterIndexReplacement() {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      UUID owner = UUID.randomUUID();
+      UUID old = UUID.randomUUID();
+      UUID current = UUID.randomUUID();
+      store.publishBatch(owner, old, new byte[]{1}).join();
+      store.publishBatch(owner, current, new byte[]{2}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(old), List.of())).join();
+      store.stageRetirements(owner, java.util.Set.of(old)).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(current), List.of())).join();
+      HistoryBatchStore reopened = store(Runnable::run, 1024);
+      assertEquals(1, reopened.cleanupUnreferencedBatches(owner, java.util.Set.of()).join());
+      assertTrue(reopened.loadBatch(owner, old).join().isEmpty());
+      assertTrue(reopened.loadBatch(owner, current).join().isPresent());
+      assertFalse(java.nio.file.Files.exists(root.resolve(owner.toString()).resolve("retired.dat")));
+   }
+
+   @Test
+   void stagedCleanupBeforeIndexReplacementCannotDeleteReferencedHistory() {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      UUID owner = UUID.randomUUID();
+      UUID batch = UUID.randomUUID();
+      store.publishBatch(owner, batch, new byte[]{1}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(batch), List.of())).join();
+      store.stageRetirements(owner, java.util.Set.of(batch)).join();
+      HistoryBatchStore reopened = store(Runnable::run, 1024);
+      assertEquals(0, reopened.cleanupUnreferencedBatches(owner, java.util.Set.of()).join());
+      assertTrue(reopened.loadBatch(owner, batch).join().isPresent());
+   }
+
+   @Test
    void failedCleanupRetainsCandidatesForAnEmptyRetry() throws Exception {
       HistoryBatchStore store = store(Runnable::run, 1024);
       UUID owner = UUID.randomUUID();

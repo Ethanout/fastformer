@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 public final class HistoryBatchStore {
    private static final long ENVELOPE_BYTES = Integer.BYTES * 3L + Long.BYTES;
    private static final String INDEX_FILE = "index.dat";
+   private static final String RETIRED_FILE = "retired.dat";
 
    private final Path root;
    private final Executor executor;
@@ -161,15 +162,57 @@ public final class HistoryBatchStore {
       Set<UUID> candidates = Set.copyOf(retiredBatches);
       return enqueueRead(() -> {
          Set<UUID> pending = pendingRetirements.computeIfAbsent(ownerId, ignored -> new HashSet<>());
+         pending.addAll(readRetirements(ownerId));
          pending.addAll(candidates);
          if (pending.isEmpty()) {
             pendingRetirements.remove(ownerId);
             return 0;
          }
          int deleted = cleanupUnreferenced(ownerId, pending);
+         try {
+            Files.deleteIfExists(ownerDirectory(ownerId).resolve(RETIRED_FILE));
+         } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+         }
          pendingRetirements.remove(ownerId);
          return deleted;
       });
+   }
+
+   /** Persists cleanup intent before an ordering index can stop referencing the batches. */
+   public CompletableFuture<Void> stageRetirements(UUID ownerId, Set<UUID> retiredBatches) {
+      Objects.requireNonNull(ownerId, "ownerId");
+      Set<UUID> supplied = Set.copyOf(retiredBatches);
+      return enqueueRead(() -> {
+         Set<UUID> combined = new HashSet<>(readRetirements(ownerId));
+         combined.addAll(supplied);
+         if (combined.isEmpty()) return null;
+         if (combined.size() > maxIndexEntries) throw new UncheckedIOException(new IOException("History cleanup index exceeds its entry quota"));
+         byte[] payload = HistoryOrderIndex.encode(new HistoryOrderIndex(combined.stream().sorted().toList(), java.util.List.of()));
+         Path target = ownerDirectory(ownerId).resolve(RETIRED_FILE);
+         try {
+            long previousBytes = Files.isRegularFile(target) ? Files.size(target) : 0L;
+            requireCapacity(ownerId, payload.length + ENVELOPE_BYTES - previousBytes);
+            HistoryEnvelopeFile.write(target, formatVersion, payload);
+            return null;
+         } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+         }
+      });
+   }
+
+   private Set<UUID> readRetirements(UUID ownerId) {
+      Path path = ownerDirectory(ownerId).resolve(RETIRED_FILE);
+      if (!Files.exists(path)) return Set.of();
+      try {
+         var index = HistoryOrderIndex.decode(HistoryEnvelopeFile.read(path, formatVersion,
+            HistoryOrderIndex.maximumEncodedBytes(maxIndexEntries)), maxIndexEntries);
+         if (!index.redo().isEmpty()) throw new IOException("Invalid history cleanup index");
+         requireUniqueIds(index);
+         return Set.copyOf(index.undo());
+      } catch (IOException failure) {
+         throw new UncheckedIOException(failure);
+      }
    }
 
    private int cleanupUnreferenced(UUID ownerId, Set<UUID> candidates) {
