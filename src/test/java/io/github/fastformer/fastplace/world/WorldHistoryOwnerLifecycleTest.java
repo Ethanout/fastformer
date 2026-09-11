@@ -179,6 +179,22 @@ class WorldHistoryOwnerLifecycleTest {
    }
 
    @Test
+   void ownerPressureCannotDiscardTheOnlyCopyOfCompletedHistory() {
+      UUID first = null;
+      BlockPos pos = BlockPos.ZERO;
+      WorldChangeBatch batch = WorldChangeBatch.fromPairsForTest(
+         DIMENSION, List.of(snapshot(pos, "before")), Map.of(pos, snapshot(pos, "after"))
+      ).orElseThrow();
+      for (int i = 0; i < WorldHistoryManager.MAX_IDLE_OWNERS + 2; i++) {
+         UUID owner = UUID.randomUUID();
+         if (first == null) first = owner;
+         WorldHistoryManager.addBatchForTest(owner, batch);
+         WorldHistoryManager.detachOwner(owner);
+      }
+      assertEquals(1, WorldHistoryManager.undoSizeForTest(first));
+   }
+
+   @Test
    void detachedIdleOwnersAreBoundedWithoutDroppingBusyRecovery() {
       UUID busyOwner = UUID.randomUUID();
       BlockPos pos = new BlockPos(20, 21, 22);

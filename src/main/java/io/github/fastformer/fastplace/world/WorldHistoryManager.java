@@ -1089,6 +1089,9 @@ public final class WorldHistoryManager {
       while (iterator.hasNext() && (OWNERS.size() > MAX_IDLE_OWNERS || total > MAX_BYTES_GLOBAL)) {
          OwnerState state = iterator.next().getValue();
          if (!state.detached || state.busy()) continue;
+         // Until disk-backed history is attached, these stacks are the only
+         // undo/redo copy. Only empty owners can be evicted safely.
+         if (state.history != null && (!state.history.undo.isEmpty() || !state.history.redo.isEmpty())) continue;
          total -= state.historyBytes();
          iterator.remove();
       }
