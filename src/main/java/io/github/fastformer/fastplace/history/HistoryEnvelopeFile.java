@@ -12,6 +12,12 @@ import java.nio.file.StandardOpenOption;
 public final class HistoryEnvelopeFile {
    private HistoryEnvelopeFile() {}
 
+   public static void verify(Path source, int version, long maxPayloadBytes) throws IOException {
+      try (java.io.DataInputStream input = new java.io.DataInputStream(Files.newInputStream(source))) {
+         VersionedHistoryEnvelope.verify(input, version, maxPayloadBytes);
+      }
+   }
+
    /** Reads the opened file within the supplied limit, including if its size changes. */
    public static byte[] read(Path source, int version, long maxPayloadBytes) throws IOException {
       if (maxPayloadBytes < 0) throw new IllegalArgumentException("Invalid history payload budget");

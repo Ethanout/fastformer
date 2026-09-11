@@ -89,6 +89,20 @@ public final class HistoryBatchStore {
       });
    }
 
+   /** Checks a stored batch with a small streaming buffer, without loading its payload. */
+   public CompletableFuture<Boolean> verifyBatch(UUID ownerId, UUID batchId) {
+      Path target = batchFile(ownerId, batchId);
+      return enqueueRead(() -> {
+         if (!Files.isRegularFile(target)) return false;
+         try {
+            HistoryEnvelopeFile.verify(target, formatVersion, maxBatchPayloadBytes);
+            return true;
+         } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+         }
+      });
+   }
+
    public CompletableFuture<Void> publishIndex(UUID ownerId, HistoryOrderIndex index) {
       Objects.requireNonNull(ownerId, "ownerId");
       Objects.requireNonNull(index, "index");

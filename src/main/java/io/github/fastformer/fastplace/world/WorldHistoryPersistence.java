@@ -144,8 +144,8 @@ final class WorldHistoryPersistence {
    private static CompletableFuture<Void> ensureBatch(
       MinecraftServer server, UUID owner, WorldChangeBatch batch, CompletableFuture<Void> previous
    ) {
-      return previous.thenCompose(ignored -> store(server).loadBatch(owner, batch.operationId()).thenCompose(existing ->
-         existing.isPresent()
+      return previous.thenCompose(ignored -> store(server).verifyBatch(owner, batch.operationId()).thenCompose(existing ->
+         existing
             ? CompletableFuture.completedFuture(null)
             : store(server).publishBatch(owner, batch.operationId(), encode(batch))
       ));
