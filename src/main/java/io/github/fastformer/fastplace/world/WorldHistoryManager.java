@@ -197,7 +197,11 @@ public final class WorldHistoryManager {
          saves.add(WorldHistoryPersistence.publishSnapshot(server, entry.getKey(),
             java.util.List.copyOf(owner.history.undo), java.util.List.copyOf(owner.history.redo)));
       }
-      return CompletableFuture.allOf(saves.toArray(CompletableFuture[]::new));
+      // A failed attempt is retained in the owner and retried on the next
+      // server tick; shutdown must still complete without propagating a stale
+      // filesystem exception into the server tick loop.
+      return CompletableFuture.allOf(saves.toArray(CompletableFuture[]::new))
+         .handle((ignored, failure) -> null);
    }
 
    public static boolean requestRedo(ServerPlayer player, int count) {
@@ -1067,7 +1071,9 @@ public final class WorldHistoryManager {
          current.pendingPersistence = Math.max(0, current.pendingPersistence - 1);
          boolean previouslyFailed = current.persistenceDirty;
          current.persistenceDirty = failure != null;
-         if (failure != null) current.persistenceRetryTicks = 100;
+         // Retry soon after the storage fault clears. History remains in memory
+         // while the bounded backoff prevents a busy retry loop.
+         if (failure != null) current.persistenceRetryTicks = 20;
          if (previouslyFailed != current.persistenceDirty) {
             ServerPlayer player = server.getPlayerList().getPlayer(ownerId);
             if (player != null) {
