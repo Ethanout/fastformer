@@ -2101,7 +2101,7 @@ public class FastPlaceClientPreviewCore {
          if (cachedBuildingPreviewAtLimit || progress.generated() >= FastPlaceGeometry.PREVIEW_MAX_BLOCKS) {
             holdBuildingPreviewAtFallback(snapshot, key.points(), polygonHeightConfirmed);
          } else {
-            List<ProgressiveBlockGeneration.SectionBatch> batches = cachedBuildingPreviewProgress.drainPublished();
+            List<ProgressiveBlockGeneration.SectionBatch> batches = cachedBuildingPreviewProgress.drainPublished(4096L);
             long published = 0L;
             for (ProgressiveBlockGeneration.SectionBatch batch : batches) {
                published += batch.blocks().size();

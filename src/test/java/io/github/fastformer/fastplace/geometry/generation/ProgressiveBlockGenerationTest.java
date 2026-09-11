@@ -19,6 +19,28 @@ import org.junit.jupiter.api.Test;
 
 class ProgressiveBlockGenerationTest {
    @Test
+   void boundedDrainRetainsRemainingSectionsWithoutLosingTargets() {
+      ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(48L);
+      Set<BlockPos> expected = new HashSet<>();
+      for (int x = 0; x < 48; x++) {
+         BlockPos position = new BlockPos(x, 0, 0);
+         expected.add(position);
+         progress.onGenerated(position);
+      }
+      progress.complete();
+
+      Set<BlockPos> actual = new HashSet<>();
+      for (int frame = 0; frame < 3; frame++) {
+         List<ProgressiveBlockGeneration.SectionBatch> batches = progress.drainPublished(16L);
+         assertEquals(16L, batches.stream().mapToLong(ProgressiveBlockGeneration.SectionBatch::packedBlockCount).sum());
+         batches.forEach(batch -> actual.addAll(batch.blocks()));
+      }
+      assertEquals(expected, actual);
+      assertTrue(progress.drainPublished().isEmpty());
+      assertThrows(IllegalArgumentException.class, () -> progress.drainPublished(0L));
+   }
+
+   @Test
    void publishesTheSameFinalTargetsGroupedBySection() {
       List<Vec3> base = List.of(
          new Vec3(0.5, 0.5, 0.5),

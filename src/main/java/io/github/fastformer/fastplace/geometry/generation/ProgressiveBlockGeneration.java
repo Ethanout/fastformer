@@ -91,9 +91,26 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
    }
 
    public List<SectionBatch> drainPublished() {
+      return this.drainPublished(Long.MAX_VALUE);
+   }
+
+   /** Drains whole sections up to the budget, allowing one section to ensure progress. */
+   public List<SectionBatch> drainPublished(long maxBlocks) {
+      if (maxBlocks <= 0L) {
+         throw new IllegalArgumentException("Preview drain budget must be positive");
+      }
       ArrayList<SectionBatch> result = new ArrayList<>();
-      for (SectionBatch batch; (batch = this.published.poll()) != null;) {
+      long drained = 0L;
+      for (SectionBatch batch; drained < maxBlocks && (batch = this.published.peek()) != null;) {
+         if (!result.isEmpty() && batch.packedBlockCount() > maxBlocks - drained) {
+            break;
+         }
+         batch = this.published.poll();
+         if (batch == null) {
+            break;
+         }
          result.add(batch);
+         drained += batch.packedBlockCount();
       }
       if (!result.isEmpty()) {
          synchronized (this) {
