@@ -346,6 +346,8 @@ GPT-5.6-sol low 完成几何辅助方法与四项测试，主代理核对生成�
 
 增加历史保留期限清理接口：只删除早于截止时间且未被 durable undo/redo 索引引用的批次；损坏或缺失索引会拒绝清理并保留数据。`HistoryBatchStoreTest` 定向测试通过。
 
+历史存储新增 `cleanupExpiredAll`，在后台队列中扫描合法 owner 目录并汇总清理结果；单个 owner 的损坏索引只计入失败，不阻断其他 owner。完整 `check` 通过。
+
 修复待确认预览更新时清空共享线程池队列的问题。现在只取消当前预览的 Future，不会误删其他预览任务；`check` 通过。
 
 ## TODO 整理
