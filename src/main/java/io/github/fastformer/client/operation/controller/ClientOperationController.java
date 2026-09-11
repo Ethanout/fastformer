@@ -68,7 +68,7 @@ public final class ClientOperationController {
 
    public static ClientOperationWorkspace workspace() {
       Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.player == null) {
+      if (minecraft == null || minecraft.player == null) {
          return FALLBACK_WORKSPACE;
       }
       ClientOperationWorkspace workspace = ClientSessionManager.instance()
@@ -79,7 +79,7 @@ public final class ClientOperationController {
 
    private static ClientSelectionSession selectionSession() {
       Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.player == null) {
+      if (minecraft == null || minecraft.player == null) {
          ClientPlayerSession current = ClientSessionManager.instance().currentSession();
          return current == null ? FALLBACK_SELECTION_SESSION : current.selectionSession();
       }
@@ -763,7 +763,7 @@ public final class ClientOperationController {
 
    private static Map<BlockPos, ClientBlockSnapshot> capture(OperationSelectionVolume selection) {
       Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.level == null) {
+      if (minecraft == null || minecraft.level == null) {
          return Map.of();
       }
       AABB bounds = selection.bounds();
@@ -819,7 +819,7 @@ public final class ClientOperationController {
       OperationSelectionVolume selection, java.util.Set<BlockPos> alreadyCaptured
    ) {
       Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.level == null) {
+      if (minecraft == null || minecraft.level == null) {
          return Map.of();
       }
       AABB bounds = selection.bounds();
