@@ -106,6 +106,46 @@ class HistoryBatchStoreTest {
    }
 
    @Test
+   void explicitCleanupKeepsUndoRedoAndOtherFiles() throws Exception {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      UUID owner = UUID.randomUUID();
+      UUID undo = UUID.randomUUID();
+      UUID redo = UUID.randomUUID();
+      UUID unused = UUID.randomUUID();
+      store.publishBatch(owner, undo, new byte[]{1}).join();
+      store.publishBatch(owner, redo, new byte[]{2}).join();
+      store.publishBatch(owner, unused, new byte[]{3}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(undo), List.of(redo))).join();
+      Path batches = root.resolve(owner.toString()).resolve("batches");
+      Path unrelated = batches.resolve("notes.dat");
+      java.nio.file.Files.writeString(unrelated, "keep");
+
+      UUID pending = UUID.randomUUID();
+      store.publishBatch(owner, pending, new byte[]{4}).join();
+      assertEquals(1, store.cleanupUnreferencedBatches(owner, java.util.Set.of(unused, undo, redo)).join());
+      assertTrue(store.loadBatch(owner, pending).join().isPresent());
+      assertArrayEquals(new byte[]{1}, store.loadBatch(owner, undo).join().orElseThrow());
+      assertArrayEquals(new byte[]{2}, store.loadBatch(owner, redo).join().orElseThrow());
+      assertTrue(store.loadBatch(owner, unused).join().isEmpty());
+      assertTrue(java.nio.file.Files.isRegularFile(unrelated));
+   }
+
+   @Test
+   void missingOrDamagedIndexRefusesCleanupAndPreservesBatches() throws Exception {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      UUID owner = UUID.randomUUID();
+      UUID batch = UUID.randomUUID();
+      store.publishBatch(owner, batch, new byte[]{1}).join();
+      assertThrows(CompletionException.class, () -> store.cleanupUnreferencedBatches(owner, java.util.Set.of(batch)).join());
+      assertTrue(store.loadBatch(owner, batch).join().isPresent());
+
+      Path index = root.resolve(owner.toString()).resolve("index.dat");
+      java.nio.file.Files.write(index, new byte[]{1, 2, 3});
+      assertThrows(CompletionException.class, () -> store.cleanupUnreferencedBatches(owner, java.util.Set.of(batch)).join());
+      assertTrue(store.loadBatch(owner, batch).join().isPresent());
+   }
+
+   @Test
    void cancelledCallerRetainsQueueCapacityUntilWriteFinishes() {
       ArrayDeque<Runnable> jobs = new ArrayDeque<>();
       HistoryBatchStore store = store(jobs::addLast, 21);

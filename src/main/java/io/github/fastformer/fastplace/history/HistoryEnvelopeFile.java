@@ -12,6 +12,25 @@ import java.nio.file.StandardOpenOption;
 public final class HistoryEnvelopeFile {
    private HistoryEnvelopeFile() {}
 
+   /** Reads the opened file within the supplied limit, including if its size changes. */
+   public static byte[] read(Path source, int version, long maxPayloadBytes) throws IOException {
+      if (maxPayloadBytes < 0) throw new IllegalArgumentException("Invalid history payload budget");
+      long headerBytes = Integer.BYTES * 3L + Long.BYTES;
+      long maximumBytes = Math.min(maxPayloadBytes, VersionedHistoryEnvelope.MAX_PAYLOAD) + headerBytes;
+      try (FileChannel channel = FileChannel.open(source, StandardOpenOption.READ)) {
+         long size = channel.size();
+         if (size < headerBytes || size > maximumBytes) {
+            throw new IOException("History file size is outside its allowed range");
+         }
+         ByteBuffer buffer = ByteBuffer.allocate(Math.toIntExact(size));
+         while (buffer.hasRemaining()) {
+            if (channel.read(buffer) < 0) throw new IOException("Truncated history file");
+         }
+         if (channel.read(ByteBuffer.allocate(1)) != -1) throw new IOException("History file grew during reading");
+         return VersionedHistoryEnvelope.decode(buffer.array(), version).payload();
+      }
+   }
+
    public static void write(Path target, int version, byte[] payload) throws IOException {
       byte[] encoded = VersionedHistoryEnvelope.encode(version, payload);
       Path absolute = target.toAbsolutePath();

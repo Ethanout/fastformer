@@ -108,7 +108,7 @@ public final class HistoryStore {
             if (Files.size(target) > maximumFileBytes) {
                throw new IOException("Player history exceeds its disk quota");
             }
-            return Optional.of(VersionedHistoryEnvelope.decode(Files.readAllBytes(target), formatVersion).payload());
+            return Optional.of(HistoryEnvelopeFile.read(target, formatVersion, maxOwnerPayloadBytes));
          } catch (IOException ex) {
             throw new UncheckedIOException(ex);
          } catch (ArithmeticException ex) {

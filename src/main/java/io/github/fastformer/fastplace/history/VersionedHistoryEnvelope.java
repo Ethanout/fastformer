@@ -12,7 +12,7 @@ import java.util.zip.CRC32;
 /** Small, registry-independent envelope for persisted history payloads. */
 public final class VersionedHistoryEnvelope {
    private static final int MAGIC = 0x46464831; // FFH1
-   private static final int MAX_PAYLOAD = 256 * 1024 * 1024;
+   static final int MAX_PAYLOAD = 256 * 1024 * 1024;
 
    private VersionedHistoryEnvelope() {}
 

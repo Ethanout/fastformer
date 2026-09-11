@@ -3,6 +3,7 @@ package io.github.fastformer.fastplace.history;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Objects;
@@ -81,7 +82,7 @@ public final class HistoryBatchStore {
             if (Files.size(target) > Math.addExact(maxBatchPayloadBytes, ENVELOPE_BYTES)) {
                throw new IOException("History batch exceeds its disk quota");
             }
-            return Optional.of(VersionedHistoryEnvelope.decode(Files.readAllBytes(target), formatVersion).payload());
+            return Optional.of(HistoryEnvelopeFile.read(target, formatVersion, maxBatchPayloadBytes));
          } catch (IOException ex) {
             throw new UncheckedIOException(ex);
          }
@@ -116,7 +117,7 @@ public final class HistoryBatchStore {
          try {
             long maximumBytes = HistoryOrderIndex.maximumEncodedBytes(maxIndexEntries);
             if (Files.size(target) > maximumBytes + ENVELOPE_BYTES) throw new IOException("History index exceeds its entry quota");
-            byte[] payload = VersionedHistoryEnvelope.decode(Files.readAllBytes(target), formatVersion).payload();
+            byte[] payload = HistoryEnvelopeFile.read(target, formatVersion, maximumBytes);
             HistoryOrderIndex index = HistoryOrderIndex.decode(payload, maxIndexEntries);
             requireUniqueIds(index);
             requirePublishedBatches(ownerId, index);
@@ -125,6 +126,48 @@ public final class HistoryBatchStore {
             throw new UncheckedIOException(ex);
          }
       });
+   }
+
+   /** Removes only caller-retired batches absent from the durable index; pending publications are not candidates. */
+   public CompletableFuture<Integer> cleanupUnreferencedBatches(UUID ownerId, Set<UUID> retiredBatches) {
+      Objects.requireNonNull(ownerId, "ownerId");
+      Set<UUID> candidates = Set.copyOf(retiredBatches);
+      return enqueueRead(() -> cleanupUnreferenced(ownerId, candidates));
+   }
+
+   private int cleanupUnreferenced(UUID ownerId, Set<UUID> candidates) {
+      Path indexPath = indexFile(ownerId);
+      try {
+         if (!Files.isRegularFile(indexPath, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Cannot clean history batches without a durable index");
+         }
+         long maximumBytes = HistoryOrderIndex.maximumEncodedBytes(maxIndexEntries);
+         if (Files.size(indexPath) > maximumBytes + ENVELOPE_BYTES) {
+            throw new IOException("History index exceeds its entry quota");
+         }
+         byte[] payload = HistoryEnvelopeFile.read(indexPath, formatVersion, maximumBytes);
+         HistoryOrderIndex index = HistoryOrderIndex.decode(payload, maxIndexEntries);
+         requireUniqueIds(index);
+         requirePublishedBatches(ownerId, index);
+
+         Set<UUID> referenced = new HashSet<>(index.undo());
+         referenced.addAll(index.redo());
+         Path batches = ownerDirectory(ownerId).resolve("batches");
+         if (!Files.isDirectory(batches, LinkOption.NOFOLLOW_LINKS)) return 0;
+         int deleted = 0;
+         try (Stream<Path> paths = Files.list(batches)) {
+            for (Path path : paths.toList()) {
+               Optional<UUID> batchId = batchIdFromFile(path);
+               if (batchId.isPresent() && candidates.contains(batchId.get()) && !referenced.contains(batchId.get())) {
+                  Files.delete(path);
+                  deleted++;
+               }
+            }
+         }
+         return deleted;
+      } catch (IOException ex) {
+         throw new UncheckedIOException(ex);
+      }
    }
 
    private synchronized CompletableFuture<Void> enqueue(long bytes, Runnable operation) {
@@ -235,6 +278,19 @@ public final class HistoryBatchStore {
 
    private Path ownerDirectory(UUID ownerId) {
       return root.resolve(ownerId.toString());
+   }
+
+   private static Optional<UUID> batchIdFromFile(Path path) {
+      if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return Optional.empty();
+      String name = path.getFileName().toString();
+      if (!name.endsWith(".dat")) return Optional.empty();
+      String candidate = name.substring(0, name.length() - ".dat".length());
+      try {
+         UUID id = UUID.fromString(candidate);
+         return (id + ".dat").equals(name) ? Optional.of(id) : Optional.empty();
+      } catch (IllegalArgumentException ignored) {
+         return Optional.empty();
+      }
    }
 
    private static <T> CompletableFuture<T> failed(String message) {
