@@ -33,6 +33,23 @@ class HistoryBatchStoreTest {
    }
 
    @Test
+   void cleanupExpiredAllContinuesWhenOneOwnerIndexIsDamaged() throws Exception {
+      HistoryBatchStore store = store(Runnable::run, 4096);
+      UUID valid = UUID.randomUUID();
+      UUID damaged = UUID.randomUUID();
+      UUID batch = UUID.randomUUID();
+      store.publishBatch(valid, batch, new byte[]{1}).join();
+      java.nio.file.Files.setLastModifiedTime(root.resolve(valid.toString()).resolve("batches").resolve(batch + ".dat"),
+         FileTime.from(Instant.now().minusSeconds(60)));
+      java.nio.file.Files.createDirectories(root.resolve(damaged.toString()));
+      java.nio.file.Files.write(root.resolve(damaged.toString()).resolve("index.dat"), new byte[]{1, 2, 3});
+      HistoryBatchStore.CleanupSummary summary = store.cleanupExpiredAll(Instant.now()).join();
+      assertEquals(2, summary.owners());
+      assertEquals(1, summary.deletedBatches());
+      assertEquals(1, summary.failedOwners());
+   }
+
+   @Test
    void startupScanCleansOfflineOwnersAndPreservesDamagedOwner() throws Exception {
       HistoryBatchStore store = store(Runnable::run, 1024);
       UUID validOwner = UUID.randomUUID();
