@@ -71,8 +71,7 @@ public final class ClientOperationController {
          return FALLBACK_WORKSPACE;
       }
       ClientOperationWorkspace workspace = ClientSessionManager.instance()
-         .forPlayer(minecraft.player.getUUID())
-         .operationWorkspace();
+         .forCurrent(minecraft).operationWorkspace();
       workspace.setChangeListener(ClientOperationController::refreshInteractionState);
       return workspace;
    }
@@ -83,9 +82,7 @@ public final class ClientOperationController {
          ClientPlayerSession current = ClientSessionManager.instance().currentSession();
          return current == null ? FALLBACK_SELECTION_SESSION : current.selectionSession();
       }
-      return ClientSessionManager.instance()
-         .forPlayer(minecraft.player.getUUID())
-         .selectionSession();
+      return ClientSessionManager.instance().forCurrent(minecraft).selectionSession();
    }
 
    public static SourceBlockRenderMask sourceMask() {

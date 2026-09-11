@@ -44,6 +44,20 @@ class ClientPlayerSessionTest {
    }
 
    @Test
+   void managerIsolatesSessionBoxesByConnectionAndDimension() {
+      UUID playerId = UUID.randomUUID();
+
+      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientPlayerSession overworld = manager.forScope(playerId, "server-a", "minecraft:overworld");
+      ClientPlayerSession nether = manager.forScope(playerId, "server-a", "minecraft:the_nether");
+      ClientPlayerSession otherServer = manager.forScope(playerId, "server-b", "minecraft:overworld");
+
+      org.junit.jupiter.api.Assertions.assertNotSame(overworld, nether);
+      org.junit.jupiter.api.Assertions.assertNotSame(overworld, otherServer);
+      org.junit.jupiter.api.Assertions.assertNotSame(nether, otherServer);
+   }
+
+   @Test
    void playerSessionOwnsStableWorkspaceAndSelectionFields() {
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       var workspace = session.operationWorkspace();

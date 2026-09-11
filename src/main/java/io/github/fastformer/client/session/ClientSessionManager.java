@@ -9,8 +9,9 @@ import net.minecraft.client.Minecraft;
 public final class ClientSessionManager {
    private static final ClientSessionManager INSTANCE = new ClientSessionManager();
 
-   private final Map<UUID, ClientPlayerSession> playerSessions = new HashMap<>();
+   private final Map<SessionKey, ClientPlayerSession> playerSessions = new HashMap<>();
    private ClientPlayerSession current;
+   private SessionKey currentKey;
 
    private ClientSessionManager() {
    }
@@ -24,12 +25,24 @@ public final class ClientSessionManager {
       return current;
    }
 
+   public ClientPlayerSession forCurrent(Minecraft minecraft) {
+      observePlayer(minecraft);
+      return current;
+   }
+
    /** Returns the persistent session box for a player identity. */
    public ClientPlayerSession forPlayer(UUID playerId) {
       if (playerId == null) {
          throw new IllegalArgumentException("playerId must not be null");
       }
-      return playerSessions.computeIfAbsent(playerId, ClientPlayerSession::new);
+      return playerSessions.computeIfAbsent(new SessionKey("legacy", "", playerId), key -> new ClientPlayerSession(playerId));
+   }
+
+   /** Returns the session isolated to one connection, player, and dimension. */
+   public ClientPlayerSession forScope(UUID playerId, String connection, String dimension) {
+      if (playerId == null) throw new IllegalArgumentException("playerId must not be null");
+      SessionKey key = new SessionKey(connection, dimension, playerId);
+      return playerSessions.computeIfAbsent(key, ignored -> new ClientPlayerSession(playerId));
    }
 
    /** Records the current player identity without coupling the session box to LocalPlayer lifetime. */
@@ -37,6 +50,21 @@ public final class ClientSessionManager {
       if (minecraft == null || minecraft.player == null || minecraft.getConnection() == null) {
          return;
       }
-      current = forPlayer(minecraft.player.getUUID());
+      String connection = connectionIdentity(minecraft);
+      String dimension = minecraft.level == null ? "" : minecraft.level.dimension().location().toString();
+      currentKey = new SessionKey(connection, dimension, minecraft.player.getUUID());
+      current = playerSessions.computeIfAbsent(currentKey,
+         ignored -> new ClientPlayerSession(minecraft.player.getUUID()));
+   }
+
+   private static String connectionIdentity(Minecraft minecraft) {
+      return "connection:" + System.identityHashCode(minecraft.getConnection());
+   }
+
+   private record SessionKey(String connection, String dimension, UUID playerId) {
+      private SessionKey {
+         connection = connection == null ? "" : connection;
+         dimension = dimension == null ? "" : dimension;
+      }
    }
 }
