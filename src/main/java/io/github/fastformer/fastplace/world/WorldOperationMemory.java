@@ -201,6 +201,12 @@ public final class WorldOperationMemory {
          ? MemoryAdmissionStatus.ALLOWED
          : requested <= softUsable ? MemoryAdmissionStatus.SOFT_PRESSURE : MemoryAdmissionStatus.HARD_REJECTED;
       long reservationLimit = status == MemoryAdmissionStatus.SOFT_PRESSURE ? softUsable : hardUsable;
+      if (status == MemoryAdmissionStatus.HARD_REJECTED) {
+         com.mojang.logging.LogUtils.getLogger().warn(
+            "FastFormer memory admission rejected: requestedBytes={}, maxHeapBytes={}, usedHeapBytes={}, availableBytes={}, softReserveBytes={}, reservedBytes={}",
+            requested, maxMemory, used, available, softReserve, MemoryReservation.reservedBytes()
+         );
+      }
       return new MemoryAdmission(status, requested, reservationLimit);
    }
 
