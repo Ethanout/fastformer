@@ -173,6 +173,27 @@ public final class HistoryBatchStore {
       return enqueueRead(() -> cleanupExpired(ownerId, cutoff));
    }
 
+   /** Scans owner directories and removes only expired, unreferenced batches. */
+   public CompletableFuture<CleanupSummary> cleanupExpiredAll(Instant cutoff) {
+      Objects.requireNonNull(cutoff, "cutoff");
+      return enqueueRead(() -> {
+         int owners = 0, deleted = 0, failed = 0;
+         if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) return new CleanupSummary(0, 0, 0);
+         try (var directories = Files.newDirectoryStream(root)) {
+            for (Path directory : directories) {
+               if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) continue;
+               UUID owner;
+               try { owner = UUID.fromString(directory.getFileName().toString()); }
+               catch (IllegalArgumentException ignored) { continue; }
+               owners++;
+               try { deleted += cleanupExpired(owner, cutoff); }
+               catch (RuntimeException failure) { failed++; }
+            }
+         } catch (IOException failure) { throw new UncheckedIOException(failure); }
+         return new CleanupSummary(owners, deleted, failed);
+      });
+   }
+
    private int cleanupExpired(UUID ownerId, Instant cutoff) {
       Path indexPath = indexFile(ownerId);
       Path batches = ownerDirectory(ownerId).resolve("batches");
