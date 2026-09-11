@@ -51,6 +51,9 @@ public final class ClientOperationController {
    private static boolean clipboardLoaded;
    private static boolean workspaceSubmissionPending;
    private static boolean awaitingOperationSnapshot;
+   /** A reconnect snapshot may describe a server task that continues running,
+    * but it must not recreate client-owned draft/workspace state. */
+   private static boolean suppressNextServerPreviewHydration;
    private static UUID pendingWorkspaceTransferId;
    private static OperationPreviewPayload serverPreview = OperationPreviewPayload.inactive();
    private static long lastServerPreviewRevision = -1L;
@@ -154,6 +157,13 @@ public final class ClientOperationController {
       boolean reconnectSnapshot = awaitingOperationSnapshot;
       awaitingOperationSnapshot = false;
       lastServerPreviewRevision = payload.operationRevision();
+      if (shouldSuppressServerPreviewHydration(suppressNextServerPreviewHydration, payload.active())) {
+         suppressNextServerPreviewHydration = false;
+         serverPreview = OperationPreviewPayload.inactive();
+         refreshInteractionState();
+         return true;
+      }
+      suppressNextServerPreviewHydration = false;
       serverPreview = payload;
       if (!payload.active()) {
          if (shouldClearWorkspaceAfterSnapshot(
@@ -681,6 +691,10 @@ public final class ClientOperationController {
       return !submissionPending && (previousServerOperationActive || reconnectSnapshot);
    }
 
+   static boolean shouldSuppressServerPreviewHydration(boolean reconnectBoundary, boolean active) {
+      return reconnectBoundary && active;
+   }
+
    /** Ends editable client state when the connection closes. */
    public static void onDisconnected() {
       ClientPlayerSession session = ClientSessionManager.instance().currentSession();
@@ -694,6 +708,7 @@ public final class ClientOperationController {
       workspaceSubmissionPending = false;
       pendingWorkspaceTransferId = null;
       awaitingOperationSnapshot = false;
+      suppressNextServerPreviewHydration = true;
       serverPreview = OperationPreviewPayload.inactive();
       lastServerPreviewRevision = -1L;
       SOURCE_MASK.clear();

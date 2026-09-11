@@ -25,4 +25,11 @@ class ClientOperationControllerTest {
    void ordinaryInactiveSnapshotDoesNotClearLocalWorkspace() {
       assertFalse(ClientOperationController.shouldClearWorkspaceAfterSnapshot(false, false, false));
    }
+
+   @Test
+   void reconnectActiveSnapshotDoesNotHydrateClientWorkspace() {
+      assertTrue(ClientOperationController.shouldSuppressServerPreviewHydration(true, true));
+      assertFalse(ClientOperationController.shouldSuppressServerPreviewHydration(false, true));
+      assertFalse(ClientOperationController.shouldSuppressServerPreviewHydration(true, false));
+   }
 }
