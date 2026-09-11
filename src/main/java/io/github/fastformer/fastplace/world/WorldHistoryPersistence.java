@@ -166,7 +166,6 @@ final class WorldHistoryPersistence {
          retired.removeAll(next.undo());
          retired.removeAll(next.redo());
          return storage.publishIndex(owner, next).thenCompose(ignored -> {
-            if (retired.isEmpty()) return CompletableFuture.completedFuture(null);
             return storage.cleanupUnreferencedBatches(owner, retired).thenApply(deleted -> null);
          });
       });

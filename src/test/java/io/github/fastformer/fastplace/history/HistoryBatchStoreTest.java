@@ -14,6 +14,28 @@ class HistoryBatchStoreTest {
    @TempDir Path root;
 
    @Test
+   void failedCleanupRetainsCandidatesForAnEmptyRetry() throws Exception {
+      HistoryBatchStore store = store(Runnable::run, 1024);
+      UUID owner = UUID.randomUUID();
+      UUID retired = UUID.randomUUID();
+      UUID current = UUID.randomUUID();
+      store.publishBatch(owner, retired, new byte[]{1}).join();
+      store.publishBatch(owner, current, new byte[]{2}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(current), List.of())).join();
+      Path index = root.resolve(owner.toString()).resolve("index.dat");
+      byte[] validIndex = java.nio.file.Files.readAllBytes(index);
+      java.nio.file.Files.write(index, new byte[]{0});
+      assertThrows(CompletionException.class,
+         () -> store.cleanupUnreferencedBatches(owner, java.util.Set.of(retired)).join());
+      assertTrue(store.loadBatch(owner, retired).join().isPresent());
+      java.nio.file.Files.write(index, validIndex);
+      assertEquals(1, store.cleanupUnreferencedBatches(owner, java.util.Set.of()).join());
+      assertTrue(store.loadBatch(owner, retired).join().isEmpty());
+      assertTrue(store.loadBatch(owner, current).join().isPresent());
+      assertEquals(0, store.cleanupUnreferencedBatches(owner, java.util.Set.of()).join());
+   }
+
+   @Test
    void ownerQuotaIncludesIndexesAndDoesNotBlockAnotherOwner() {
       HistoryBatchStore store = new HistoryBatchStore(root, Runnable::run, 1, 32, 4096, 1024, 8, 2, 65);
       UUID owner = UUID.randomUUID();

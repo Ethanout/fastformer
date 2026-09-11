@@ -33,6 +33,8 @@ public final class HistoryBatchStore {
    private CompletableFuture<Void> tail = CompletableFuture.completedFuture(null);
    private long queuedBytes;
    private int queuedOperations;
+   // Only the serialized I/O queue reads and changes these retry candidates.
+   private final java.util.Map<UUID, Set<UUID>> pendingRetirements = new java.util.HashMap<>();
 
    public HistoryBatchStore(
          Path root,
@@ -157,7 +159,17 @@ public final class HistoryBatchStore {
    public CompletableFuture<Integer> cleanupUnreferencedBatches(UUID ownerId, Set<UUID> retiredBatches) {
       Objects.requireNonNull(ownerId, "ownerId");
       Set<UUID> candidates = Set.copyOf(retiredBatches);
-      return enqueueRead(() -> cleanupUnreferenced(ownerId, candidates));
+      return enqueueRead(() -> {
+         Set<UUID> pending = pendingRetirements.computeIfAbsent(ownerId, ignored -> new HashSet<>());
+         pending.addAll(candidates);
+         if (pending.isEmpty()) {
+            pendingRetirements.remove(ownerId);
+            return 0;
+         }
+         int deleted = cleanupUnreferenced(ownerId, pending);
+         pendingRetirements.remove(ownerId);
+         return deleted;
+      });
    }
 
    private int cleanupUnreferenced(UUID ownerId, Set<UUID> candidates) {
