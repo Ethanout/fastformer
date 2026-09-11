@@ -11,6 +11,22 @@ class HistoryStoreOrderingTest {
    @TempDir Path root;
 
    @Test
+   void failedWriteReleasesQueueAndAllowsRetry() throws Exception {
+      ArrayDeque<Runnable> jobs = new ArrayDeque<>();
+      HistoryStore store = new HistoryStore(root, jobs::addLast, 1, 80, 100);
+      UUID owner = UUID.randomUUID();
+      Path blockedDirectory = root.resolve(owner.toString());
+      java.nio.file.Files.writeString(blockedDirectory, "not a directory");
+      var failed = store.save(owner, new byte[80]);
+      while (!jobs.isEmpty()) jobs.removeFirst().run();
+      assertTrue(failed.isCompletedExceptionally());
+      java.nio.file.Files.delete(blockedDirectory);
+      var retry = store.save(owner, new byte[80]);
+      while (!jobs.isEmpty()) jobs.removeFirst().run();
+      retry.join();
+   }
+
+   @Test
    void cancelledCallerCannotReleaseQueuedPayloadBeforeWriteFinishes() {
       ArrayDeque<Runnable> jobs = new ArrayDeque<>();
       HistoryStore store = new HistoryStore(root, jobs::addLast, 1, 80, 100);

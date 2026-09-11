@@ -77,7 +77,7 @@ public final class HistoryStore {
       Objects.requireNonNull(ownerId, "ownerId");
       CompletableFuture<Optional<byte[]>> result = pending.thenApplyAsync(ignored -> read(ownerId), executor);
       pending = result.handle((ignored, failure) -> null);
-      return result;
+      return result.copy();
    }
 
    private void write(UUID ownerId, byte[] payload) {
