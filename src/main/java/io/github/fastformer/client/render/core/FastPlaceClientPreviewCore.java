@@ -59,6 +59,7 @@ import io.github.fastformer.client.render.interaction.OperationPointerTarget;
 import io.github.fastformer.client.render.state.ClientPreviewState;
 import io.github.fastformer.client.render.model.*;
 import io.github.fastformer.client.render.cache.BuildingShellCache;
+import io.github.fastformer.client.render.cache.BuildingShellBlocksCache;
 import io.github.fastformer.client.render.cache.GhostMeshCache;
 import io.github.fastformer.client.render.cache.PendingGhostBufferCache;
 import io.github.fastformer.client.render.cache.PendingGhostMeshCache;
@@ -233,6 +234,7 @@ public class FastPlaceClientPreviewCore {
       blocks -> GhostMeshBuilder.build(blocks, false, true, true)
    );
    private static final BuildingShellCache CONFIRMED_BUILDING_SHELL_CACHE = new BuildingShellCache(false);
+   private static final BuildingShellBlocksCache BUILDING_SHELL_BLOCKS_CACHE = new BuildingShellBlocksCache();
    private static final BuildingShellCache PENDING_BUILDING_SHELL_CACHE = new BuildingShellCache(true);
    private static final ThreadPoolExecutor PREVIEW_MESH_EXECUTOR = new ThreadPoolExecutor(
       1,
@@ -1780,19 +1782,19 @@ public class FastPlaceClientPreviewCore {
             if (pendingOutlineEdges.equals(confirmedOutlineEdges)) {
                pendingOutlineEdges = List.of();
             }
-            HashSet<BlockPos> confirmedPreviewBlocks = new HashSet<>(layers.confirmedRenderBlocks());
+            HashSet<BlockPos> confirmedMarkers = new HashSet<>();
             specialBlockStyles.forEach((pos, special) -> {
                if (special.confirmed()) {
-                  confirmedPreviewBlocks.add(pos);
+                  confirmedMarkers.add(pos);
                }
             });
-            HashSet<BlockPos> pendingPreviewBlocks = new HashSet<>(layers.pendingRenderBlocks());
+            HashSet<BlockPos> pendingMarkers = new HashSet<>();
             for (ControlPoint point : buildingPoints) {
                if (!point.confirmed()) {
-                  pendingPreviewBlocks.add(BlockPos.containing(point.center()));
+                  pendingMarkers.add(BlockPos.containing(point.center()));
                }
             }
-            Set<BlockPos> shapeEnvironment = PreviewGeometrySupport.unionBlocks(confirmedPreviewBlocks, pendingPreviewBlocks);
+            BuildingRenderLayers shellBlocks = BUILDING_SHELL_BLOCKS_CACHE.resolve(layers, confirmedMarkers, pendingMarkers);
             renderBuildingShells(
                player,
                poseStack,
@@ -1800,9 +1802,9 @@ public class FastPlaceClientPreviewCore {
                camera,
                previewState,
                previewStateOverrides,
-               confirmedPreviewBlocks,
-               pendingPreviewBlocks,
-               shapeEnvironment,
+               shellBlocks.confirmedRenderBlocks(),
+               shellBlocks.pendingRenderBlocks(),
+               shellBlocks.allBlocks(),
                specialBlockStyles,
                buildingModes,
                !confirmedOutlineEdges.isEmpty() || !pendingOutlineEdges.isEmpty()
@@ -1817,7 +1819,7 @@ public class FastPlaceClientPreviewCore {
                );
             }
             renderBuildingFallbackPoints(
-               poseStack, buffers, camera, buildingPoints, shapeEnvironment
+               poseStack, buffers, camera, buildingPoints, shellBlocks.allBlocks()
             );
             renderBuildingGuidePlaneGrid(poseStack, buffers.getBuffer(RenderType.lines()), camera, planes);
             renderBuildingGuideLines(poseStack, buffers.getBuffer(RenderType.lines()), camera, lines);
@@ -3084,6 +3086,7 @@ public class FastPlaceClientPreviewCore {
       CONFIRMED_GHOST_CACHE.clear();
       CONFIRMED_OUTLINE_CACHE.clear();
       CONFIRMED_BUILDING_SHELL_CACHE.clear();
+      BUILDING_SHELL_BLOCKS_CACHE.clear();
       PENDING_BUILDING_SHELL_CACHE.clear();
       PENDING_GHOST_CACHE.clear();
       PENDING_GHOST_BUFFER_CACHE.clear();
