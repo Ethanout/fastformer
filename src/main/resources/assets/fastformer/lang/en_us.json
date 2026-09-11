@@ -200,7 +200,7 @@
   "fastformer.message.operation_complete": "Operation: complete",
   "fastformer.message.operation_empty": "Operation: no blocks in selection",
   "fastformer.message.operation_too_large_run": "Operation: execution exceeds limit",
-  "fastformer.message.operation_memory_unsafe": "The JVM does not have enough free memory to record this operation safely; reduce its size or allocate more memory",
+  "fastformer.message.operation_memory_unsafe": "There is not enough memory to run this operation safely, so it was cancelled; reduce its size or allocate more memory to Minecraft",
   "fastformer.message.operation_phase": "Operation: %s",
   "fastformer.message.operation_wait_task": "Operation: wait for current task",
   "fastformer.message.operation_no_undo": "Operation: no undo record",

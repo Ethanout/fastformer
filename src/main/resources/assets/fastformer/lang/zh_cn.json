@@ -200,7 +200,7 @@
   "fastformer.message.operation_complete": "操作状态：执行完成",
   "fastformer.message.operation_empty": "操作状态：选区中没有方块",
   "fastformer.message.operation_too_large_run": "操作状态：执行量超过上限",
-  "fastformer.message.operation_memory_unsafe": "可用 JVM 内存不足以安全记录该操作；请缩小结构或增加内存",
+  "fastformer.message.operation_memory_unsafe": "电脑可用内存不够，操作已取消；请缩小结构或给 Minecraft 分配更多内存",
   "fastformer.message.operation_phase": "操作状态：%s中",
   "fastformer.message.operation_wait_task": "操作状态：请等待当前任务结束",
   "fastformer.message.operation_no_undo": "操作状态：没有可撤销的执行记录",
