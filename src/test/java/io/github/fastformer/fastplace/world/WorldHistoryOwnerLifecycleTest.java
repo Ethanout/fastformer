@@ -4,7 +4,6 @@ package io.github.fastformer.fastplace.world;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
@@ -105,7 +104,7 @@ class WorldHistoryOwnerLifecycleTest {
    }
 
    @Test
-   void queuedRecoveryRemainsPausedUntilExplicitResume() {
+   void queuedRecoveryDispatchesAutomaticallyAndCannotBePaused() {
       UUID owner = UUID.randomUUID();
       BlockPos pos = new BlockPos(10, 11, 12);
       CompletableFuture<Void> readyForRecovery = new CompletableFuture<>();
@@ -121,22 +120,19 @@ class WorldHistoryOwnerLifecycleTest {
             new WorldTaskContext(null, owner), DIMENSION, recovery, null, () -> {}, () -> {}
          )
       );
-      assertTrue(WorldHistoryManager.cancel(owner));
-      assertTrue(WorldHistoryManager.cancel(owner));
+      assertFalse(WorldHistoryManager.cancel(owner));
+      assertFalse(WorldHistoryManager.cancel(owner));
       readyForRecovery.complete(null);
 
       WorldHistoryManager.detachOwner(owner);
       WorldHistoryManager.tickWorld(null);
 
-      assertEquals(1, WorldHistoryManager.recoveryCaptureCountForTest(owner));
-      assertNull(WorldHistoryManager.activeRecoveryBatchForTest(owner));
-      assertTrue(WorldHistoryManager.resumeRecovery(owner));
-      WorldHistoryManager.tickWorld(null);
+      assertEquals(0, WorldHistoryManager.recoveryCaptureCountForTest(owner));
       assertNotNull(WorldHistoryManager.activeRecoveryBatchForTest(owner));
    }
 
    @Test
-   void pausedActiveRecoverySurvivesOwnerDetach() {
+   void activeRecoveryIgnoresCancelAndSurvivesOwnerDetach() {
       UUID owner = UUID.randomUUID();
       BlockPos pos = new BlockPos(13, 14, 15);
       ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>(List.of(snapshot(pos, "before")));
@@ -145,17 +141,16 @@ class WorldHistoryOwnerLifecycleTest {
       assertTrue(WorldHistoryManager.startRollback(
          new WorldTaskContext(null, owner), DIMENSION, before, after, null
       ));
-      assertTrue(WorldHistoryManager.cancel(owner));
+      assertFalse(WorldHistoryManager.cancel(owner));
+      assertFalse(WorldHistoryManager.cancel(owner));
       WorldHistoryManager.tickWorld(null);
-      assertNull(WorldHistoryManager.activeRecoveryBatchForTest(owner));
+      assertNotNull(WorldHistoryManager.activeRecoveryBatchForTest(owner));
 
       WorldHistoryManager.detachOwner(owner);
       WorldHistoryManager.tickWorld(null);
 
-      assertNull(WorldHistoryManager.activeRecoveryBatchForTest(owner));
-      assertTrue(WorldHistoryManager.busy(owner));
-      assertTrue(WorldHistoryManager.resumeRecovery(owner));
       assertNotNull(WorldHistoryManager.activeRecoveryBatchForTest(owner));
+      assertTrue(WorldHistoryManager.busy(owner));
    }
 
    @Test

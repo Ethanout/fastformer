@@ -204,16 +204,6 @@ public final class WorldHistoryManager {
       UUID id = player.getUUID();
       OwnerState owner = ownerState(id);
       int requested = Math.clamp(count, 1, MAX_LIMIT);
-      if (undo
-         && !FastPlaceManager.active(player)
-         && !OperationManager.active(player)
-         && !GeometryManager.active(player)
-         && !FastPlaceManager.taskActive(player)
-         && !OperationManager.taskActive(player)
-         && resumeRecovery(player)) {
-         deferUndoAfterRecovery(player, remainingAfterUncommittedUndo(requested));
-         return true;
-      }
       if (busy(player)
          || FastPlaceManager.taskActive(player)
          || OperationManager.taskActive(player)
@@ -544,16 +534,9 @@ public final class WorldHistoryManager {
       return busy(player);
    }
 
-   /** Cancels a recovery/undo task when the user explicitly quits it. */
+   /** Cancels an ordinary undo/redo task. Recovery is never user-paused. */
    public static boolean cancel(ServerPlayer player) {
-      UUID id = player.getUUID();
-      OwnerState owner = ownerState(id);
-      boolean queued = owner.active == null && owner.pendingTask == null;
-      boolean cancelled = cancel(id);
-      if (queued && cancelled) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.restore_paused"));
-      }
-      return cancelled;
+      return cancel(player.getUUID());
    }
 
    static boolean cancel(UUID id) {
@@ -563,50 +546,12 @@ public final class WorldHistoryManager {
          task = owner.pendingTask;
       }
       if (task == null) {
-         // A recovery with no loaded dimension cannot be safely discarded:
-         // it may represent blocks already removed from the world. Keep the
-         // queue paused until the player (or the dimension) is available.
-         boolean recoveryPending = owner.pendingRecovery != null || !owner.pendingCaptures.isEmpty();
-         if (recoveryPending) {
-            owner.recoveryPaused = true;
-         }
-         return recoveryPending;
-      }
-      task.requestManualPause();
-      return true;
-   }
-
-   public static boolean resumeRecovery(ServerPlayer player) {
-      if (!resumeRecovery(player.getUUID())) {
          return false;
       }
-      FastPlaceMessages.actionBar(
-         player,
-         FastPlaceMessages.text(
-            ownerState(player.getUUID()).active == null
-               ? "fastformer.message.task_recovery_blocked"
-               : "fastformer.message.restore_cancelled_task"
-         )
-      );
-      return true;
-   }
-
-   static boolean resumeRecovery(UUID id) {
-      OwnerState owner = ownerState(id);
-      if (owner.active != null) {
+      if (task.recovery) {
          return false;
       }
-      PendingRecovery pending = owner.pendingRecovery;
-      owner.pendingRecovery = null;
-      if (pending != null) {
-         owner.recoveryPaused = false;
-         owner.active = HistoryTask.recovery(pending.batch(), pending.journal());
-         return true;
-      }
-      if (!owner.recoveryPaused || owner.pendingCaptures.isEmpty()) {
-         return false;
-      }
-      owner.recoveryPaused = false;
+      task.requestCancel();
       return true;
    }
 
@@ -733,13 +678,9 @@ public final class WorldHistoryManager {
          ownerState.active = null;
          RecoveryRetentionAction retention = recoveryRetentionAction(
             task.recovery && task.retainRecovery(),
-            task.batch() != null,
-            task.manualPauseRequested()
+            task.batch() != null
          );
-         if (retention == RecoveryRetentionAction.PAUSE_FOR_USER) {
-            ownerState.pendingRecovery = new PendingRecovery(task.batch(), task.journal());
-            ownerState.recoveryPaused = true;
-         } else if (retention == RecoveryRetentionAction.RETRY_AUTOMATICALLY) {
+         if (retention == RecoveryRetentionAction.RETRY_AUTOMATICALLY) {
             ownerState.active = HistoryTask.recovery(task.batch(), task.journal());
          }
          History history = ownerState.history;
@@ -785,7 +726,6 @@ public final class WorldHistoryManager {
       OwnerState owner = ownerState(id);
       if (owner.active != null
          || owner.pendingTask != null
-         || owner.pendingRecovery != null
          || !owner.pendingCaptures.isEmpty()
          || owner.pendingRecord != null) {
          return 0;
@@ -799,9 +739,6 @@ public final class WorldHistoryManager {
       UUID id = context.owner();
       OwnerState owner = ownerState(id);
       if (owner.active != null) {
-         return;
-      }
-      if (owner.recoveryPaused) {
          return;
       }
       HistoryTask pendingTask = owner.pendingTask;
@@ -1013,9 +950,6 @@ public final class WorldHistoryManager {
       }
    }
 
-   private record PendingRecovery(WorldChangeBatch batch, PersistentRecoveryJournal journal) {
-   }
-
    private record PendingRecord(
       ResourceKey<Level> dimension,
       ArrayDeque<ReversibleBlockSnapshot> changes,
@@ -1110,12 +1044,10 @@ public final class WorldHistoryManager {
       private History history;
       private HistoryTask active;
       private HistoryTask pendingTask;
-      private PendingRecovery pendingRecovery;
       private final ArrayDeque<RecoveryCapture> pendingCaptures = new ArrayDeque<>();
       private PendingRecord pendingRecord;
       private int deferredUndo;
       private int historyLimit = DEFAULT_LIMIT;
-      private boolean recoveryPaused;
       private boolean detached;
 
       private long historyBytes() {
@@ -1132,7 +1064,6 @@ public final class WorldHistoryManager {
       private boolean busy() {
          return active != null
             || pendingTask != null
-            || pendingRecovery != null
             || !pendingCaptures.isEmpty()
             || pendingRecord != null
             || deferredUndo > 0;
@@ -1141,7 +1072,7 @@ public final class WorldHistoryManager {
       private boolean needsTick() {
          return active != null
             || pendingTask != null
-            || (!recoveryPaused && !pendingCaptures.isEmpty())
+            || !pendingCaptures.isEmpty()
             || pendingRecord != null
             || deferredUndo > 0;
       }
@@ -1172,7 +1103,6 @@ public final class WorldHistoryManager {
       private Phase phase = Phase.CHECK;
       private BitSet applied;
       private boolean cancelRequested;
-      private boolean manualPauseRequested;
       private boolean dimensionNoticeSent;
       private boolean retainRecovery;
       private int skippedConflicts;
@@ -1288,9 +1218,7 @@ public final class WorldHistoryManager {
                   this.releaseAfterCancelledJournal(context);
                }
                context.actionBar(FastPlaceMessages.text(
-                  this.manualPauseRequested
-                     ? "fastformer.message.restore_paused"
-                     : "fastformer.message.restore_failed_retry"
+                  "fastformer.message.restore_failed_retry"
                ));
                return true;
             }
@@ -1346,9 +1274,7 @@ public final class WorldHistoryManager {
                      FastPlaceMessages.text(
                         this.recovery
                            ? "fastformer.message.restore_complete"
-                           : this.manualPauseRequested
-                              ? "fastformer.message.restore_paused"
-                              : "fastformer.message.history_conflict"
+                           : "fastformer.message.history_conflict"
                      )
                   );
                }
@@ -1561,9 +1487,7 @@ public final class WorldHistoryManager {
                this.retainRecovery = this.recovery;
                context.actionBar(
                   FastPlaceMessages.text(
-                     this.manualPauseRequested
-                        ? "fastformer.message.restore_paused"
-                        : "fastformer.message.history_conflict"
+                     "fastformer.message.history_conflict"
                   )
                );
                return true;
@@ -1713,15 +1637,6 @@ public final class WorldHistoryManager {
          }
       }
 
-      private void requestManualPause() {
-         this.manualPauseRequested = true;
-         this.requestCancel();
-      }
-
-      private boolean manualPauseRequested() {
-         return this.manualPauseRequested;
-      }
-
       private void blockApplyFailure(int failedIndex, boolean duringRollback) {
          this.blockedApplyIndex = failedIndex;
          this.blockedDuringRollback = duringRollback;
@@ -1858,15 +1773,12 @@ public final class WorldHistoryManager {
 
    static RecoveryRetentionAction recoveryRetentionAction(
       boolean retainRecovery,
-      boolean hasBatch,
-      boolean manualPauseRequested
+      boolean hasBatch
    ) {
       if (!retainRecovery || !hasBatch) {
          return RecoveryRetentionAction.NONE;
       }
-      return manualPauseRequested
-         ? RecoveryRetentionAction.PAUSE_FOR_USER
-         : RecoveryRetentionAction.RETRY_AUTOMATICALLY;
+      return RecoveryRetentionAction.RETRY_AUTOMATICALLY;
    }
 
    static RecoveryCellAction recoveryCellAction(boolean recovery, int match) {
@@ -1888,7 +1800,6 @@ public final class WorldHistoryManager {
 
    enum RecoveryRetentionAction {
       NONE,
-      RETRY_AUTOMATICALLY,
-      PAUSE_FOR_USER
+      RETRY_AUTOMATICALLY
    }
 }

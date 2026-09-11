@@ -69,22 +69,18 @@ class WorldHistoryRecoveryPolicyTest {
    }
 
    @Test
-   void retainedRecoveryRetriesAutomaticallyUnlessTheUserPausedIt() {
+   void retainedRecoveryAlwaysRetriesAutomatically() {
       assertEquals(
          WorldHistoryManager.RecoveryRetentionAction.RETRY_AUTOMATICALLY,
-         WorldHistoryManager.recoveryRetentionAction(true, true, false)
-      );
-      assertEquals(
-         WorldHistoryManager.RecoveryRetentionAction.PAUSE_FOR_USER,
-         WorldHistoryManager.recoveryRetentionAction(true, true, true)
+         WorldHistoryManager.recoveryRetentionAction(true, true)
       );
       assertEquals(
          WorldHistoryManager.RecoveryRetentionAction.NONE,
-         WorldHistoryManager.recoveryRetentionAction(false, true, false)
+         WorldHistoryManager.recoveryRetentionAction(false, true)
       );
       assertEquals(
          WorldHistoryManager.RecoveryRetentionAction.NONE,
-         WorldHistoryManager.recoveryRetentionAction(true, false, false)
+         WorldHistoryManager.recoveryRetentionAction(true, false)
       );
    }
 }
