@@ -340,7 +340,7 @@ GPT-5.6-sol low 完成几何辅助方法与四项测试，主代理核对生成�
 
 ## 失败矩阵补充
 
-补充生成 Future 异常的 `PlacementTask` 回归用例：异常会锁存 `GENERATION` 阶段、保留 `CompletionException` 根因，并释放生成阶段的内存预约。该用例属于自动化失败矩阵的一项证据，不能替代真实客户端和服务器生命周期验收。
+补充生成 Future 异常的 `PlacementTask` 回归用例：异常会锁存 `GENERATION` 阶段、保留 `CompletionException` 根因，并释放生成阶段的内存预约。恢复完整的 Minecraft 客户端缓存后，定向 `PlacementTaskTest` 已通过。该用例属于自动化失败矩阵的一项证据，不能替代真实客户端和服务器生命周期验收。
 
 ## TODO 整理
 
