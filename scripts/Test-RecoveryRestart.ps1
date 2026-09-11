@@ -1,8 +1,14 @@
-param()
+param(
+    [string] $RunDirectory = ''
+)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$runDirectory = Join-Path $projectRoot 'run/recoveryProcessTest'
+$runDirectory = if ([string]::IsNullOrWhiteSpace($RunDirectory)) {
+    Join-Path $projectRoot 'run/recoveryProcessTest'
+} else {
+    [IO.Path]::GetFullPath((Join-Path $projectRoot $RunDirectory))
+}
 $resultFile = Join-Path $runDirectory 'recovery-process-result.txt'
 $crashMarker = Join-Path $runDirectory 'recovery-process-crash.txt'
 
@@ -18,13 +24,16 @@ Set-Content -LiteralPath (Join-Path $runDirectory 'server.properties') -Encoding
 
 Push-Location $projectRoot
 try {
-    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon runServer -PrecoveryProcessTest=crash
+    $gradleRecoveryDirectory = $runDirectory
+    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon runServer `
+        "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" -PrecoveryProcessTest=crash
     $crashExit = $LASTEXITCODE
     if ($crashExit -eq 0 -or -not (Test-Path -LiteralPath $crashMarker)) {
         throw "Crash phase did not reach the durable partial-write boundary (exit=$crashExit)."
     }
 
-    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon runServer -PrecoveryProcessTest=verify
+    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon runServer `
+        "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" -PrecoveryProcessTest=verify
     if ($LASTEXITCODE -ne 0) {
         throw "Verify server failed to exit normally (exit=$LASTEXITCODE)."
     }

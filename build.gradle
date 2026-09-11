@@ -76,7 +76,11 @@ runs {
                 throw new GradleException("recoveryProcessTest must be 'crash' or 'verify'")
             }
             systemProperty 'fastformer.recoveryProcessTest', recoveryProcessPhase
-            workingDirectory project.layout.projectDirectory.dir('run/recoveryProcessTest')
+            def recoveryDirectory = project.findProperty('recoveryProcessDirectory')
+            def recoveryWorkingDirectory = recoveryDirectory == null
+                    ? project.layout.projectDirectory.dir('run/recoveryProcessTest')
+                    : project.file(recoveryDirectory.toString())
+            workingDirectory recoveryWorkingDirectory
         }
     }
 
