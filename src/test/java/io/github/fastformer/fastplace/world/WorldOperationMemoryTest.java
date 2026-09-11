@@ -2,11 +2,48 @@ package io.github.fastformer.fastplace.world;
 
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 class WorldOperationMemoryTest {
+   @Test
+   void smallStructuresWaitDuringTransientHeapPressure() {
+      long max = 4L * 1024L * 1024L * 1024L;
+      long total = max;
+      long free = 32L * 1024L * 1024L;
+
+      for (long blocks : new long[]{1L, 3L, 16L}) {
+         MemoryAdmission admission = WorldOperationMemory.snapshotAdmission(blocks, 0L, max, total, free);
+
+         assertEquals(MemoryAdmissionStatus.SOFT_PRESSURE, admission.status());
+         assertTrue(admission.allowed());
+         assertTrue(admission.throttled());
+         assertFalse(admission.fitsCurrentHeap());
+         assertFalse(WorldOperationMemory.reserve(admission).isPresent());
+      }
+
+      MemoryAdmission afterCollection = WorldOperationMemory.snapshotAdmission(
+         16L, 0L, max, total, max / 2L
+      );
+      assertEquals(MemoryAdmissionStatus.ALLOWED, afterCollection.status());
+      assertTrue(afterCollection.fitsCurrentHeap());
+   }
+
+   @Test
+   void requestThatCannotFitWithHardReserveIsPermanentlyRejected() {
+      long max = 1024L * 1024L * 1024L;
+      long hardReserve = 256L * 1024L * 1024L;
+
+      MemoryAdmission admission = WorldOperationMemory.historyAdmission(
+         max - hardReserve + 1L, max, 0L, max
+      );
+
+      assertEquals(MemoryAdmissionStatus.HARD_REJECTED, admission.status());
+      assertFalse(admission.allowed());
+   }
+
    @Test
    void generationAdmissionDoesNotChargeFutureSnapshotPhase() {
       MemoryAdmission admission = WorldOperationMemory.admission(

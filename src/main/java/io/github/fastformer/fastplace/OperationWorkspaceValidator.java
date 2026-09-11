@@ -56,7 +56,7 @@ public final class OperationWorkspaceValidator {
             }
          }
       }
-      if (!WorldOperationMemory.snapshotAdmission(planned, 0L).allowed()) {
+      if (!WorldOperationMemory.snapshotAdmission(planned, 0L).fitsCurrentHeap()) {
          return Result.failed(List.of());
       }
 

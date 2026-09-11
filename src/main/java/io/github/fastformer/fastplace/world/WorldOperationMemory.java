@@ -197,9 +197,14 @@ public final class WorldOperationMemory {
       long softReserve = Math.max(64L * 1024L * 1024L, hardReserve / 2L);
       long hardUsable = Math.max(0L, available - hardReserve);
       long softUsable = Math.max(0L, available - softReserve);
-      MemoryAdmissionStatus status = requested <= hardUsable
-         ? MemoryAdmissionStatus.ALLOWED
-         : requested <= softUsable ? MemoryAdmissionStatus.SOFT_PRESSURE : MemoryAdmissionStatus.HARD_REJECTED;
+      long maximumSafeRequest = Math.max(0L, maxMemory - hardReserve);
+      // Live heap occupancy can fall after a GC. Treat it as temporary pressure
+      // so task owners keep the request queued and retry its reservation. A
+      // request is permanently unsafe only when it cannot fit even on an empty
+      // heap while retaining the hard reserve.
+      MemoryAdmissionStatus status = requested > maximumSafeRequest
+         ? MemoryAdmissionStatus.HARD_REJECTED
+         : requested <= hardUsable ? MemoryAdmissionStatus.ALLOWED : MemoryAdmissionStatus.SOFT_PRESSURE;
       long reservationLimit = status == MemoryAdmissionStatus.SOFT_PRESSURE ? softUsable : hardUsable;
       if (status == MemoryAdmissionStatus.HARD_REJECTED) {
          com.mojang.logging.LogUtils.getLogger().warn(

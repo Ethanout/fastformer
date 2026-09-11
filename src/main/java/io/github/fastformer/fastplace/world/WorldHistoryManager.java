@@ -456,7 +456,7 @@ public final class WorldHistoryManager {
       if (changes.isEmpty()) {
          return resolveAlreadyRestored(context, dimension, changes, safeAfter, journal);
       }
-      if (!WorldOperationMemory.snapshotAdmission(changes.size(), 0L).allowed()) {
+      if (!WorldOperationMemory.snapshotAdmission(changes.size(), 0L).fitsCurrentHeap()) {
          enqueueCapture(context.owner(), recoveryCapture(dimension, changes, safeAfter, journal));
          context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
          return true;
@@ -778,7 +778,7 @@ public final class WorldHistoryManager {
          if (!capture.readyForRecovery().isDone()) {
             return;
          }
-         if (!WorldOperationMemory.snapshotAdmission(capture.changes().size(), 0L).allowed()) {
+         if (!WorldOperationMemory.snapshotAdmission(capture.changes().size(), 0L).fitsCurrentHeap()) {
             return;
          }
          Optional<WorldChangeBatch> batch = materializeRecovery(context.server(), capture);
@@ -806,7 +806,7 @@ public final class WorldHistoryManager {
       PendingRecord pendingRecord = owner.pendingRecord;
       owner.pendingRecord = null;
       if (pendingRecord != null) {
-         if (!WorldOperationMemory.snapshotAdmission(pendingRecord.changes().size(), 0L).allowed()) {
+         if (!WorldOperationMemory.snapshotAdmission(pendingRecord.changes().size(), 0L).fitsCurrentHeap()) {
             owner.pendingRecord = pendingRecord;
             return;
          }

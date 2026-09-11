@@ -13,4 +13,9 @@ public record MemoryAdmission(
    public boolean throttled() {
       return this.status == MemoryAdmissionStatus.SOFT_PRESSURE;
    }
+
+   /** For synchronous callers that cannot queue a reservation retry. */
+   public boolean fitsCurrentHeap() {
+      return allowed() && requestedBytes <= usableBytes;
+   }
 }
