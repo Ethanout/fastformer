@@ -22,6 +22,7 @@ public final class HistoryStore {
    private final long maxOwnerPayloadBytes;
    private final long maxTotalStoredBytes;
    private final Object fileLock = new Object();
+   private CompletableFuture<Void> pending = CompletableFuture.completedFuture(null);
 
    public HistoryStore(
          Path root,
@@ -40,19 +41,23 @@ public final class HistoryStore {
       this.maxTotalStoredBytes = maxTotalStoredBytes;
    }
 
-   public CompletableFuture<Void> save(UUID ownerId, byte[] payload) {
+   public synchronized CompletableFuture<Void> save(UUID ownerId, byte[] payload) {
       Objects.requireNonNull(ownerId, "ownerId");
       Objects.requireNonNull(payload, "payload");
-      byte[] ownedPayload = payload.clone();
-      if (ownedPayload.length > maxOwnerPayloadBytes) {
+      if (payload.length > maxOwnerPayloadBytes) {
          return CompletableFuture.failedFuture(new IOException("Player history exceeds its disk quota"));
       }
-      return CompletableFuture.runAsync(() -> write(ownerId, ownedPayload), executor);
+      byte[] ownedPayload = payload.clone();
+      CompletableFuture<Void> result = pending.thenRunAsync(() -> write(ownerId, ownedPayload), executor);
+      pending = result.handle((ignored, failure) -> null);
+      return result;
    }
 
-   public CompletableFuture<Optional<byte[]>> load(UUID ownerId) {
+   public synchronized CompletableFuture<Optional<byte[]>> load(UUID ownerId) {
       Objects.requireNonNull(ownerId, "ownerId");
-      return CompletableFuture.supplyAsync(() -> read(ownerId), executor);
+      CompletableFuture<Optional<byte[]>> result = pending.thenApplyAsync(ignored -> read(ownerId), executor);
+      pending = result.handle((ignored, failure) -> null);
+      return result;
    }
 
    private void write(UUID ownerId, byte[] payload) {
