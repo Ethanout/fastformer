@@ -1029,7 +1029,6 @@ public final class WorldHistoryManager {
          owner.persistenceRetryTicks--;
          return;
       }
-      owner.persistenceDirty = false;
       History history = owner.history;
       trackPersistence(context.server(), context.owner(), owner, WorldHistoryPersistence.publishSnapshot(
          context.server(), context.owner(), java.util.List.copyOf(history.undo), java.util.List.copyOf(history.redo)
@@ -1045,8 +1044,17 @@ public final class WorldHistoryManager {
          OwnerState current = OWNERS.get(ownerId);
          if (current != owner) return;
          current.pendingPersistence = Math.max(0, current.pendingPersistence - 1);
+         boolean previouslyFailed = current.persistenceDirty;
          current.persistenceDirty = failure != null;
          if (failure != null) current.persistenceRetryTicks = 100;
+         if (previouslyFailed != current.persistenceDirty) {
+            ServerPlayer player = server.getPlayerList().getPlayer(ownerId);
+            if (player != null) {
+               FastPlaceMessages.chat(player, FastPlaceMessages.text(current.persistenceDirty
+                  ? "fastformer.message.history_save_retry"
+                  : "fastformer.message.history_save_recovered"));
+            }
+         }
       }));
    }
 

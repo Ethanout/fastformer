@@ -108,6 +108,8 @@
   "fastformer.message.restore_failed_retry": "恢复暂时失败；将自动重试",
   "fastformer.message.restore_paused": "恢复已暂停；使用撤销命令可重新开始",
   "fastformer.message.history_wait_task": "请等待当前世界操作或恢复任务结束",
+  "fastformer.message.history_save_retry": "世界修改已保留，但操作历史暂未保存到磁盘。将自动重试。",
+  "fastformer.message.history_save_recovered": "操作历史已保存到磁盘。",
   "fastformer.message.history_no_undo": "没有可撤销的世界操作",
   "fastformer.message.history_no_redo": "没有可重做的世界操作",
   "fastformer.message.history_start_undo": "开始撤销世界操作（%s 批）",

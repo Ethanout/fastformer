@@ -108,6 +108,8 @@
   "fastformer.message.restore_failed_retry": "Restore failed temporarily; retrying automatically",
   "fastformer.message.restore_paused": "Restore paused; use the undo command to retry",
   "fastformer.message.history_wait_task": "Wait for the current world operation or restore task",
+  "fastformer.message.history_save_retry": "World changes remain, but operation history could not be saved to disk. Retrying automatically.",
+  "fastformer.message.history_save_recovered": "Operation history was saved to disk.",
   "fastformer.message.history_no_undo": "No world operations to undo",
   "fastformer.message.history_no_redo": "No world operations to redo",
   "fastformer.message.history_start_undo": "Undoing world operations (%s batches)",
