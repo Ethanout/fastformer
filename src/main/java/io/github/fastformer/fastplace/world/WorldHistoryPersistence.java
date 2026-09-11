@@ -22,6 +22,7 @@ final class WorldHistoryPersistence {
    private static final int FORMAT_VERSION = 1;
    private static final int MAX_BATCH_BYTES = 256 * 1024 * 1024;
    private static final long MAX_STORE_BYTES = 8L * 1024L * 1024L * 1024L;
+   private static final long MAX_OWNER_STORE_BYTES = 1024L * 1024L * 1024L;
    private static final long MAX_QUEUE_BYTES = MAX_BATCH_BYTES + 20L;
    private static final int MAX_QUEUE_OPERATIONS = 512;
    private static final long MAX_PENDING_ENCODE_BYTES = 512L * 1024L * 1024L;
@@ -187,7 +188,8 @@ final class WorldHistoryPersistence {
          MAX_STORE_BYTES,
          MAX_QUEUE_BYTES,
          MAX_QUEUE_OPERATIONS,
-         MAX_INDEX_ENTRIES
+         MAX_INDEX_ENTRIES,
+         MAX_OWNER_STORE_BYTES
       ));
    }
 

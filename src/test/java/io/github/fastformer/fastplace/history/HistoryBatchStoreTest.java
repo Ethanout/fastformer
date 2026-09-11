@@ -14,6 +14,38 @@ class HistoryBatchStoreTest {
    @TempDir Path root;
 
    @Test
+   void ownerQuotaIncludesIndexesAndDoesNotBlockAnotherOwner() {
+      HistoryBatchStore store = new HistoryBatchStore(root, Runnable::run, 1, 32, 4096, 1024, 8, 2, 65);
+      UUID owner = UUID.randomUUID();
+      UUID batch = UUID.randomUUID();
+      store.publishBatch(owner, batch, new byte[]{1}).join(); // 21 bytes.
+      HistoryOrderIndex index = new HistoryOrderIndex(List.of(batch), List.of());
+      store.publishIndex(owner, index).join(); // 44 bytes: exactly 65 combined.
+      assertThrows(CompletionException.class,
+         () -> store.publishBatch(owner, UUID.randomUUID(), new byte[]{2}).join());
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(), List.of(batch))).join();
+      assertEquals(List.of(batch), store.loadIndex(owner).join().orElseThrow().redo());
+      UUID other = UUID.randomUUID();
+      store.publishBatch(other, UUID.randomUUID(), new byte[]{3}).join();
+      assertArrayEquals(new byte[]{1}, store.loadBatch(owner, batch).join().orElseThrow());
+   }
+
+   @Test
+   void rejectedIndexGrowthKeepsThePreviousOrder() {
+      HistoryBatchStore store = new HistoryBatchStore(root, Runnable::run, 1, 32, 4096, 1024, 8, 2, 90);
+      UUID owner = UUID.randomUUID();
+      UUID first = UUID.randomUUID();
+      UUID second = UUID.randomUUID();
+      store.publishBatch(owner, first, new byte[]{1}).join();
+      HistoryOrderIndex original = new HistoryOrderIndex(List.of(first), List.of());
+      store.publishIndex(owner, original).join();
+      store.publishBatch(owner, second, new byte[]{2}).join(); // 86 bytes before index growth.
+      assertThrows(CompletionException.class,
+         () -> store.publishIndex(owner, new HistoryOrderIndex(List.of(second, first), List.of())).join());
+      assertEquals(original, store.loadIndex(owner).join().orElseThrow());
+   }
+
+   @Test
    void publishesImmutableBatchesBeforeTheirIndex() {
       HistoryBatchStore store = store(Runnable::run, 1024);
       UUID owner = UUID.randomUUID();

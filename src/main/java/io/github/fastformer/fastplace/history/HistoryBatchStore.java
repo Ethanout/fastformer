@@ -26,6 +26,7 @@ public final class HistoryBatchStore {
    private final int formatVersion;
    private final long maxBatchPayloadBytes;
    private final long maxTotalStoredBytes;
+   private final long maxOwnerStoredBytes;
    private final long maxQueuedBytes;
    private final int maxQueuedOperations;
    private final int maxIndexEntries;
@@ -42,15 +43,25 @@ public final class HistoryBatchStore {
          long maxQueuedBytes,
          int maxQueuedOperations,
          int maxIndexEntries) {
+      this(root, executor, formatVersion, maxBatchPayloadBytes, maxTotalStoredBytes,
+         maxQueuedBytes, maxQueuedOperations, maxIndexEntries, maxTotalStoredBytes);
+   }
+
+   public HistoryBatchStore(
+         Path root, Executor executor, int formatVersion, long maxBatchPayloadBytes,
+         long maxTotalStoredBytes, long maxQueuedBytes, int maxQueuedOperations,
+         int maxIndexEntries, long maxOwnerStoredBytes) {
       this.root = Objects.requireNonNull(root, "root").toAbsolutePath().normalize();
       this.executor = Objects.requireNonNull(executor, "executor");
       if (formatVersion < 1 || maxBatchPayloadBytes < 0 || maxTotalStoredBytes < ENVELOPE_BYTES
-            || maxQueuedBytes < 0 || maxQueuedOperations < 1 || maxIndexEntries < 0) {
+            || maxQueuedBytes < 0 || maxQueuedOperations < 1 || maxIndexEntries < 0
+            || maxOwnerStoredBytes < ENVELOPE_BYTES) {
          throw new IllegalArgumentException("Invalid history batch store configuration");
       }
       this.formatVersion = formatVersion;
       this.maxBatchPayloadBytes = maxBatchPayloadBytes;
       this.maxTotalStoredBytes = maxTotalStoredBytes;
+      this.maxOwnerStoredBytes = maxOwnerStoredBytes;
       this.maxQueuedBytes = maxQueuedBytes;
       this.maxQueuedOperations = maxQueuedOperations;
       this.maxIndexEntries = maxIndexEntries;
@@ -66,7 +77,7 @@ public final class HistoryBatchStore {
          Path target = batchFile(ownerId, batchId);
          try {
             if (Files.exists(target)) throw new IOException("History batch is already published: " + batchId);
-            requireTotalCapacity(payloadLength + ENVELOPE_BYTES);
+            requireCapacity(ownerId, payloadLength + ENVELOPE_BYTES);
             HistoryEnvelopeFile.write(target, formatVersion, ownedPayload);
          } catch (IOException ex) {
             throw new UncheckedIOException(ex);
@@ -116,7 +127,7 @@ public final class HistoryBatchStore {
             requirePublishedBatches(ownerId, ownedIndex);
             Path target = indexFile(ownerId);
             long previousBytes = Files.isRegularFile(target) ? Files.size(target) : 0L;
-            requireTotalCapacity(payload.length + ENVELOPE_BYTES - previousBytes);
+            requireCapacity(ownerId, payload.length + ENVELOPE_BYTES - previousBytes);
             HistoryEnvelopeFile.write(target, formatVersion, payload);
          } catch (IOException ex) {
             throw new UncheckedIOException(ex);
@@ -266,17 +277,24 @@ public final class HistoryBatchStore {
       for (UUID id : index.redo()) if (!ids.add(id)) throw new IOException("Duplicate history batch in index: " + id);
    }
 
-   private void requireTotalCapacity(long additionalBytes) throws IOException {
+   private void requireCapacity(UUID ownerId, long additionalBytes) throws IOException {
       if (additionalBytes <= 0) return;
+      if (Math.addExact(storedBytes(ownerDirectory(ownerId), 3), additionalBytes) > maxOwnerStoredBytes) {
+         throw new IOException("Player history exceeds its total disk quota");
+      }
+      if (Math.addExact(storedBytes(root, 4), additionalBytes) > maxTotalStoredBytes) {
+         throw new IOException("History storage exceeds its global disk quota");
+      }
+   }
+
+   private static long storedBytes(Path directory, int depth) throws IOException {
       long used = 0L;
-      if (Files.isDirectory(root)) {
-         try (Stream<Path> paths = Files.walk(root, 4)) {
+      if (Files.isDirectory(directory)) {
+         try (Stream<Path> paths = Files.walk(directory, depth)) {
             for (Path path : paths.filter(Files::isRegularFile).toList()) used = Math.addExact(used, Files.size(path));
          }
       }
-      if (Math.addExact(used, additionalBytes) > maxTotalStoredBytes) {
-         throw new IOException("History storage exceeds its global disk quota");
-      }
+      return used;
    }
 
    private Path batchFile(UUID ownerId, UUID batchId) {
