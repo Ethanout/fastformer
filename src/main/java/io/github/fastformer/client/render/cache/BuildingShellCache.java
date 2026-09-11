@@ -37,23 +37,37 @@ public final class BuildingShellCache {
       Map<net.minecraft.core.BlockPos, BuildingSpecialBlock> specialStyles,
       boolean playerShift
    ) {
-      if (this.state == state
-         && this.blocks.equals(blocks)
-         && this.stateOverrides.equals(stateOverrides)
-         && this.shapeEnvironment.equals(shapeEnvironment)
-         && this.specialStyles.equals(specialStyles)
-         && this.playerShift == playerShift) {
-         return this.mesh;
-      }
-
       Set<net.minecraft.core.BlockPos> nextBlocks = Set.copyOf(blocks);
       Map<net.minecraft.core.BlockPos, BlockState> nextOverrides = Map.copyOf(stateOverrides);
       Set<net.minecraft.core.BlockPos> nextEnvironment = Set.copyOf(shapeEnvironment);
       Map<net.minecraft.core.BlockPos, BuildingSpecialBlock> nextStyles = Map.copyOf(specialStyles);
 
-      ArrayList<ShapeShellMesh.Part> parts = new ArrayList<>(blocks.size());
-      for (net.minecraft.core.BlockPos pos : blocks) {
-         BlockState stateAt = stateOverrides.getOrDefault(pos, state);
+      boolean sameInput = this.state == state
+         && this.blocks.equals(nextBlocks)
+         && this.stateOverrides.equals(nextOverrides)
+         && this.shapeEnvironment.equals(nextEnvironment)
+         && this.specialStyles.equals(nextStyles)
+         && this.playerShift == playerShift;
+      if (sameInput) {
+         if (this.building == null) {
+            return this.mesh;
+         }
+         if (!this.building.step(4096)) {
+            return this.mesh;
+         }
+         ShapeShellMesh.Mesh completed = this.building.mesh();
+         this.mesh = completed;
+         this.building = null;
+         return completed;
+      }
+
+      // A changed snapshot invalidates any partially built mesh. It must never
+      // publish a result derived from the previous input.
+      this.building = null;
+
+      ArrayList<ShapeShellMesh.Part> parts = new ArrayList<>(nextBlocks.size());
+      for (net.minecraft.core.BlockPos pos : nextBlocks) {
+         BlockState stateAt = nextOverrides.getOrDefault(pos, state);
          List<AABB> boxes = stateAt == null
             ? List.of(new AABB(pos))
             : stateAt.getShape(previewLevel, pos, collision).toAabbs().stream()
@@ -63,7 +77,7 @@ public final class BuildingShellCache {
             continue;
          }
 
-         BuildingSpecialBlock special = this.pending ? null : specialStyles.get(pos);
+         BuildingSpecialBlock special = this.pending ? null : nextStyles.get(pos);
          ShapeShellMesh.Color faceColor = special == null
             ? ShapeShellMesh.Color.WHITE
             : new ShapeShellMesh.Color(special.style().red(), special.style().green(), special.style().blue());
@@ -72,18 +86,6 @@ public final class BuildingShellCache {
             : ShapeShellMesh.Color.BLACK;
          parts.add(new ShapeShellMesh.Part(boxes, faceColor, outlineColor, true));
       }
-      if (this.building != null && this.state == state && this.blocks.equals(nextBlocks)
-         && this.stateOverrides.equals(nextOverrides) && this.shapeEnvironment.equals(nextEnvironment)
-         && this.specialStyles.equals(nextStyles) && this.playerShift == playerShift) {
-         if (!this.building.step(4096)) return this.mesh;
-         ShapeShellMesh.Mesh completed = this.building.mesh();
-         this.mesh = completed;
-         this.building = null;
-         return completed;
-      }
-      if (this.building == null && this.state == state && this.blocks.equals(nextBlocks) && this.stateOverrides.equals(nextOverrides)
-         && this.shapeEnvironment.equals(nextEnvironment) && this.specialStyles.equals(nextStyles)
-         && this.playerShift == playerShift) return this.mesh;
       ShapeShellMesh.Builder nextBuilder = ShapeShellMesh.builder(parts);
       if (!nextBuilder.step(4096)) {
          this.building = nextBuilder;
