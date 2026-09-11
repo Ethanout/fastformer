@@ -37,6 +37,17 @@ public final class BuildingShellCache {
       Map<net.minecraft.core.BlockPos, BuildingSpecialBlock> specialStyles,
       boolean playerShift
    ) {
+      // The preview core normally reuses immutable collections between frames.
+      // Keep the hot path allocation-free when those identities are unchanged.
+      if (this.state == state
+         && this.blocks == blocks
+         && this.stateOverrides == stateOverrides
+         && this.shapeEnvironment == shapeEnvironment
+         && this.specialStyles == specialStyles
+         && this.playerShift == playerShift) {
+         return advanceBuilding();
+      }
+
       Set<net.minecraft.core.BlockPos> nextBlocks = Set.copyOf(blocks);
       Map<net.minecraft.core.BlockPos, BlockState> nextOverrides = Map.copyOf(stateOverrides);
       Set<net.minecraft.core.BlockPos> nextEnvironment = Set.copyOf(shapeEnvironment);
@@ -49,16 +60,7 @@ public final class BuildingShellCache {
          && this.specialStyles.equals(nextStyles)
          && this.playerShift == playerShift;
       if (sameInput) {
-         if (this.building == null) {
-            return this.mesh;
-         }
-         if (!this.building.step(4096)) {
-            return this.mesh;
-         }
-         ShapeShellMesh.Mesh completed = this.building.mesh();
-         this.mesh = completed;
-         this.building = null;
-         return completed;
+         return advanceBuilding();
       }
 
       // A changed snapshot invalidates any partially built mesh. It must never
@@ -107,6 +109,19 @@ public final class BuildingShellCache {
       this.mesh = nextMesh;
       this.building = null;
       return this.mesh;
+   }
+
+   private ShapeShellMesh.Mesh advanceBuilding() {
+      if (this.building == null) {
+         return this.mesh;
+      }
+      if (!this.building.step(4096)) {
+         return this.mesh;
+      }
+      ShapeShellMesh.Mesh completed = this.building.mesh();
+      this.mesh = completed;
+      this.building = null;
+      return completed;
    }
 
    public void clear() {
