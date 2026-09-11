@@ -26,6 +26,17 @@ final class WorldHistoryPersistence {
    private static final int MAX_QUEUE_OPERATIONS = 512;
    private static final long MAX_PENDING_ENCODE_BYTES = 512L * 1024L * 1024L;
    private static final int MAX_PENDING_OPERATIONS = 512;
+   // Completed history must not queue behind or ahead of the first journal write.
+   private static final java.util.concurrent.Executor IO_EXECUTOR = new java.util.concurrent.ThreadPoolExecutor(
+      1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
+      new java.util.concurrent.ArrayBlockingQueue<>(MAX_PENDING_OPERATIONS),
+      runnable -> {
+         Thread thread = new Thread(runnable, "FastFormer-history-io");
+         thread.setDaemon(true);
+         return thread;
+      },
+      new java.util.concurrent.ThreadPoolExecutor.AbortPolicy()
+   );
    private static final int MAX_INDEX_ENTRIES = WorldHistoryManager.MAX_LIMIT * 2;
    private static final Map<MinecraftServer, HistoryBatchStore> STORES = new WeakHashMap<>();
    private static final Map<MinecraftServer, Map<UUID, CompletableFuture<Void>>> OWNER_CHAINS = new WeakHashMap<>();
@@ -98,7 +109,7 @@ final class WorldHistoryPersistence {
       CompletableFuture<Void> previous = chains.getOrDefault(owner, CompletableFuture.completedFuture(null));
       try {
          CompletableFuture<T> result = previous.handle((ignored, failure) -> null)
-            .thenComposeAsync(ignored -> operation.get(), PersistentRecoveryJournal.executor());
+            .thenComposeAsync(ignored -> operation.get(), executor());
          CompletableFuture<Void> next = result.handle((ignored, failure) -> null);
          chains.put(owner, next);
          result.whenComplete((ignored, failure) -> complete(server, owner, next, retainedBytes));
@@ -153,7 +164,7 @@ final class WorldHistoryPersistence {
    private static synchronized HistoryBatchStore store(MinecraftServer server) {
       return STORES.computeIfAbsent(server, current -> new HistoryBatchStore(
          historyRoot(current),
-         PersistentRecoveryJournal.executor(),
+         executor(),
          FORMAT_VERSION,
          MAX_BATCH_BYTES,
          MAX_STORE_BYTES,
@@ -165,6 +176,10 @@ final class WorldHistoryPersistence {
 
    private static Path historyRoot(MinecraftServer server) {
       return server.getWorldPath(LevelResource.ROOT).resolve("fastformer-history");
+   }
+
+   static java.util.concurrent.Executor executor() {
+      return IO_EXECUTOR;
    }
 
    private static void reportFailure(UUID owner, UUID batch, Throwable failure) {
