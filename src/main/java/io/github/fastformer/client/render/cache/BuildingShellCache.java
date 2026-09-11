@@ -21,6 +21,7 @@ public final class BuildingShellCache {
    private Map<net.minecraft.core.BlockPos, BuildingSpecialBlock> specialStyles = Map.of();
    private boolean playerShift;
    private ShapeShellMesh.Mesh mesh = ShapeShellMesh.Mesh.empty();
+   private ShapeShellMesh.Builder building;
 
    public BuildingShellCache(boolean pending) {
       this.pending = pending;
@@ -71,7 +72,30 @@ public final class BuildingShellCache {
             : ShapeShellMesh.Color.BLACK;
          parts.add(new ShapeShellMesh.Part(boxes, faceColor, outlineColor, true));
       }
-      ShapeShellMesh.Mesh nextMesh = ShapeShellMesh.build(parts);
+      if (this.building != null && this.state == state && this.blocks.equals(nextBlocks)
+         && this.stateOverrides.equals(nextOverrides) && this.shapeEnvironment.equals(nextEnvironment)
+         && this.specialStyles.equals(nextStyles) && this.playerShift == playerShift) {
+         if (!this.building.step(4096)) return this.mesh;
+         ShapeShellMesh.Mesh completed = this.building.mesh();
+         this.mesh = completed;
+         this.building = null;
+         return completed;
+      }
+      if (this.building == null && this.state == state && this.blocks.equals(nextBlocks) && this.stateOverrides.equals(nextOverrides)
+         && this.shapeEnvironment.equals(nextEnvironment) && this.specialStyles.equals(nextStyles)
+         && this.playerShift == playerShift) return this.mesh;
+      ShapeShellMesh.Builder nextBuilder = ShapeShellMesh.builder(parts);
+      if (!nextBuilder.step(4096)) {
+         this.building = nextBuilder;
+         this.state = state;
+         this.blocks = nextBlocks;
+         this.stateOverrides = nextOverrides;
+         this.shapeEnvironment = nextEnvironment;
+         this.specialStyles = nextStyles;
+         this.playerShift = playerShift;
+         return this.mesh;
+      }
+      ShapeShellMesh.Mesh nextMesh = nextBuilder.mesh();
       this.state = state;
       this.blocks = nextBlocks;
       this.stateOverrides = nextOverrides;
@@ -79,6 +103,7 @@ public final class BuildingShellCache {
       this.specialStyles = nextStyles;
       this.playerShift = playerShift;
       this.mesh = nextMesh;
+      this.building = null;
       return this.mesh;
    }
 
@@ -90,5 +115,6 @@ public final class BuildingShellCache {
       this.specialStyles = Map.of();
       this.playerShift = false;
       this.mesh = ShapeShellMesh.Mesh.empty();
+      this.building = null;
    }
 }
