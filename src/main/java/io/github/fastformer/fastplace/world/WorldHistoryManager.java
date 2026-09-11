@@ -184,8 +184,7 @@ public final class WorldHistoryManager {
    }
 
    public static void awaitDiskWritesOnShutdown(MinecraftServer server) {
-      saveDirtyHistoriesOnShutdown(server);
-      WorldHistoryPersistence.awaitShutdown(server);
+      WorldHistoryPersistence.awaitShutdown(server, saveDirtyHistoriesOnShutdown(server));
    }
 
    static CompletableFuture<Void> saveDirtyHistoriesOnShutdown(MinecraftServer server) {
@@ -197,11 +196,7 @@ public final class WorldHistoryManager {
          saves.add(WorldHistoryPersistence.publishSnapshot(server, entry.getKey(),
             java.util.List.copyOf(owner.history.undo), java.util.List.copyOf(owner.history.redo)));
       }
-      // A failed attempt is retained in the owner and retried on the next
-      // server tick; shutdown must still complete without propagating a stale
-      // filesystem exception into the server tick loop.
-      return CompletableFuture.allOf(saves.toArray(CompletableFuture[]::new))
-         .handle((ignored, failure) -> null);
+      return CompletableFuture.allOf(saves.toArray(CompletableFuture[]::new));
    }
 
    public static boolean requestRedo(ServerPlayer player, int count) {
@@ -1073,7 +1068,7 @@ public final class WorldHistoryManager {
          current.persistenceDirty = failure != null;
          // Retry soon after the storage fault clears. History remains in memory
          // while the bounded backoff prevents a busy retry loop.
-         if (failure != null) current.persistenceRetryTicks = 20;
+         if (failure != null) current.persistenceRetryTicks = 100;
          if (previouslyFailed != current.persistenceDirty) {
             ServerPlayer player = server.getPlayerList().getPlayer(ownerId);
             if (player != null) {

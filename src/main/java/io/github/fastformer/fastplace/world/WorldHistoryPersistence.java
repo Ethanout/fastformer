@@ -52,9 +52,10 @@ final class WorldHistoryPersistence {
       return CompletableFuture.allOf(chains.values().toArray(CompletableFuture[]::new));
    }
 
-   static void awaitShutdown(MinecraftServer server) {
+   static void awaitShutdown(MinecraftServer server, CompletableFuture<Void> finalSnapshots) {
       try {
-         pendingWrites(server).get(30, java.util.concurrent.TimeUnit.SECONDS);
+         CompletableFuture.allOf(finalSnapshots, pendingWrites(server))
+            .get(30, java.util.concurrent.TimeUnit.SECONDS);
       } catch (InterruptedException failure) {
          Thread.currentThread().interrupt();
          LOGGER.error("Server shutdown was interrupted while waiting for history writes", failure);

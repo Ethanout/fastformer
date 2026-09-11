@@ -103,11 +103,19 @@ public final class WorldHistoryPersistenceGameTests {
          releaseIo.complete(null);
       }
       boolean[] failureObserved = {false};
-      var shutdownSave = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<Void>>();
+      var failedShutdownSave = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<Void>>();
       helper.succeedWhen(() -> {
          if (failFirstWrite && !failureObserved[0]) {
             helper.assertTrue(WorldHistoryManager.persistenceFailedForTest(owner), "waiting for index write failure");
             helper.assertTrue(WorldHistoryManager.undoSizeForTest(owner) == 1, "failed save lost in-memory history");
+            if (shutdownRetry && failedShutdownSave.get() == null) {
+               failedShutdownSave.set(WorldHistoryManager.saveDirtyHistoriesOnShutdown(helper.getLevel().getServer()));
+            }
+            if (shutdownRetry) {
+               helper.assertTrue(failedShutdownSave.get().isDone(), "failed shutdown save is pending");
+               helper.assertTrue(failedShutdownSave.get().isCompletedExceptionally(),
+                  "failed shutdown save hid its filesystem error");
+            }
             try {
                java.nio.file.Files.delete(indexPath.resolve("blocked"));
                java.nio.file.Files.delete(indexPath);
@@ -116,12 +124,11 @@ public final class WorldHistoryPersistenceGameTests {
             }
             failureObserved[0] = true;
             if (shutdownRetry) {
-               shutdownSave.set(WorldHistoryManager.saveDirtyHistoriesOnShutdown(helper.getLevel().getServer()));
+               WorldHistoryManager.awaitDiskWritesOnShutdown(helper.getLevel().getServer());
+               WorldHistoryManager.clearServer();
+               helper.assertTrue(WorldHistoryManager.undoSizeForTest(owner) == 0,
+                  "shutdown did not release in-memory history");
             }
-         }
-         if (shutdownRetry) {
-            helper.assertTrue(shutdownSave.get().isDone(), "shutdown save is pending");
-            shutdownSave.get().join();
          }
          HistoryBatchStore reopened = new HistoryBatchStore(root, Runnable::run, 1,
             256L * 1024 * 1024, 8L * 1024 * 1024 * 1024, 1024, 4, 1024);
