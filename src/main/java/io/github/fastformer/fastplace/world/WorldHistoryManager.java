@@ -184,7 +184,20 @@ public final class WorldHistoryManager {
    }
 
    public static void awaitDiskWritesOnShutdown(MinecraftServer server) {
+      saveDirtyHistoriesOnShutdown(server);
       WorldHistoryPersistence.awaitShutdown(server);
+   }
+
+   static CompletableFuture<Void> saveDirtyHistoriesOnShutdown(MinecraftServer server) {
+      java.util.List<CompletableFuture<Void>> saves = new java.util.ArrayList<>();
+      for (var entry : OWNERS.entrySet()) {
+         OwnerState owner = entry.getValue();
+         if (owner.history == null || (!owner.persistenceDirty && owner.pendingPersistence == 0)) continue;
+         // Capture before clearServer releases the only in-memory undo/redo stacks.
+         saves.add(WorldHistoryPersistence.publishSnapshot(server, entry.getKey(),
+            java.util.List.copyOf(owner.history.undo), java.util.List.copyOf(owner.history.redo)));
+      }
+      return CompletableFuture.allOf(saves.toArray(CompletableFuture[]::new));
    }
 
    public static boolean requestRedo(ServerPlayer player, int count) {

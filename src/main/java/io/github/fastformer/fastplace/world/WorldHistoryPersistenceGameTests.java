@@ -60,7 +60,17 @@ public final class WorldHistoryPersistenceGameTests {
       publishAndCheck(helper, true);
    }
 
+   // The headless server runs uncapped ticks; leave time for real filesystem completion.
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000, batch = "history_shutdown")
+   public static void shutdownResubmitsFailedHistoryBeforeClearingIt(GameTestHelper helper) {
+      publishAndCheck(helper, true, true);
+   }
+
    private static void publishAndCheck(GameTestHelper helper, boolean failFirstWrite) {
+      publishAndCheck(helper, failFirstWrite, false);
+   }
+
+   private static void publishAndCheck(GameTestHelper helper, boolean failFirstWrite, boolean shutdownRetry) {
       UUID owner = UUID.randomUUID();
       UUID operation = UUID.randomUUID();
       BlockPos pos = new BlockPos(5, 20, 3);
@@ -93,6 +103,7 @@ public final class WorldHistoryPersistenceGameTests {
          releaseIo.complete(null);
       }
       boolean[] failureObserved = {false};
+      var shutdownSave = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<Void>>();
       helper.succeedWhen(() -> {
          if (failFirstWrite && !failureObserved[0]) {
             helper.assertTrue(WorldHistoryManager.persistenceFailedForTest(owner), "waiting for index write failure");
@@ -104,6 +115,13 @@ public final class WorldHistoryPersistenceGameTests {
                throw new AssertionError("cannot release history write failure", failure);
             }
             failureObserved[0] = true;
+            if (shutdownRetry) {
+               shutdownSave.set(WorldHistoryManager.saveDirtyHistoriesOnShutdown(helper.getLevel().getServer()));
+            }
+         }
+         if (shutdownRetry) {
+            helper.assertTrue(shutdownSave.get().isDone(), "shutdown save is pending");
+            shutdownSave.get().join();
          }
          HistoryBatchStore reopened = new HistoryBatchStore(root, Runnable::run, 1,
             256L * 1024 * 1024, 8L * 1024 * 1024 * 1024, 1024, 4, 1024);
