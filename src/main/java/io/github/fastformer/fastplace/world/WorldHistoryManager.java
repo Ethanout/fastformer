@@ -183,6 +183,10 @@ public final class WorldHistoryManager {
       WorldHistoryPersistence.resumeCleanup(server);
    }
 
+   public static void awaitDiskWritesOnShutdown(MinecraftServer server) {
+      WorldHistoryPersistence.awaitShutdown(server);
+   }
+
    public static boolean requestRedo(ServerPlayer player, int count) {
       return request(player, false, count);
    }

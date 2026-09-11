@@ -46,6 +46,23 @@ final class WorldHistoryPersistence {
    private WorldHistoryPersistence() {
    }
 
+   static synchronized CompletableFuture<Void> pendingWrites(MinecraftServer server) {
+      Map<UUID, CompletableFuture<Void>> chains = OWNER_CHAINS.get(server);
+      if (chains == null) return CompletableFuture.completedFuture(null);
+      return CompletableFuture.allOf(chains.values().toArray(CompletableFuture[]::new));
+   }
+
+   static void awaitShutdown(MinecraftServer server) {
+      try {
+         pendingWrites(server).get(30, java.util.concurrent.TimeUnit.SECONDS);
+      } catch (InterruptedException failure) {
+         Thread.currentThread().interrupt();
+         LOGGER.error("Server shutdown was interrupted while waiting for history writes", failure);
+      } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException failure) {
+         LOGGER.error("History writes did not finish before the shutdown deadline", failure);
+      }
+   }
+
    static void resumeCleanup(MinecraftServer server) {
       store(server).resumeRetiredCleanup().whenComplete((summary, failure) -> {
          if (failure != null) {

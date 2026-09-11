@@ -80,9 +80,18 @@ public final class WorldHistoryPersistenceGameTests {
             throw new AssertionError("cannot prepare history write failure", failure);
          }
       }
-      helper.assertTrue(WorldHistoryManager.commitPreparedOperation(
-         new WorldTaskContext(helper.getLevel().getServer(), owner), Optional.of(batch), null),
-         "completed history was not accepted");
+      var releaseIo = new java.util.concurrent.CompletableFuture<Void>();
+      java.util.concurrent.CompletableFuture.runAsync(releaseIo::join, WorldHistoryPersistence.executor());
+      java.util.concurrent.CompletableFuture<Void> shutdownBarrier;
+      try {
+         helper.assertTrue(WorldHistoryManager.commitPreparedOperation(
+            new WorldTaskContext(helper.getLevel().getServer(), owner), Optional.of(batch), null),
+            "completed history was not accepted");
+         shutdownBarrier = WorldHistoryPersistence.pendingWrites(helper.getLevel().getServer());
+         helper.assertTrue(!shutdownBarrier.isDone(), "shutdown barrier ignored queued history writes");
+      } finally {
+         releaseIo.complete(null);
+      }
       boolean[] failureObserved = {false};
       helper.succeedWhen(() -> {
          if (failFirstWrite && !failureObserved[0]) {
@@ -100,6 +109,7 @@ public final class WorldHistoryPersistenceGameTests {
             256L * 1024 * 1024, 8L * 1024 * 1024 * 1024, 1024, 4, 1024);
          var order = reopened.loadIndex(owner).join();
          helper.assertTrue(order.isPresent(), "background history publication is still pending");
+         helper.assertTrue(shutdownBarrier.isDone(), "shutdown barrier is still waiting for the publication chain");
          helper.assertTrue(order.orElseThrow().undo().equals(List.of(operation)), "saved undo order differs");
          helper.assertTrue(order.orElseThrow().redo().isEmpty(), "new operation retained redo history");
          try {

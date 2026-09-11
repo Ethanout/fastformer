@@ -91,6 +91,7 @@ public final class PlayerLifecycleEvents {
       FastPlaceManager.clearServer();
       WorldHistoryManager.clearServer();
       PersistentRecoveryJournal.awaitIoIdle();
+      WorldHistoryManager.awaitDiskWritesOnShutdown(event.getServer());
       FastPlaceNetwork.clearServer();
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());
