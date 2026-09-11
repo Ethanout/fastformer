@@ -480,7 +480,7 @@ public final class WorldChangeBatch {
       }
       root.putInt("Size", size());
       if (this.positions != null) {
-         root.putLongArray("Positions", this.positions);
+         root.putLongArray("Positions", this.positions.clone());
       } else {
          CompoundTag dense = new CompoundTag();
          dense.putInt("MinX", this.denseMinX);
@@ -604,7 +604,7 @@ public final class WorldChangeBatch {
       if (ids == null) {
          root.putInt(name + "UniformId", uniformId);
       } else {
-         root.putIntArray(name + "Ids", ids);
+         root.putIntArray(name + "Ids", ids.clone());
       }
    }
 
@@ -642,7 +642,7 @@ public final class WorldChangeBatch {
          throw new IOException("World change batch must contain exactly one position layout");
       }
       if (sparse) {
-         long[] positions = root.getLongArray("Positions");
+         long[] positions = root.getLongArray("Positions").clone();
          if (positions.length != size) {
             throw new IOException("World change batch position count does not match size");
          }
@@ -765,7 +765,7 @@ public final class WorldChangeBatch {
          validatePaletteId(uniform, paletteSize, name);
          return new IdLayout(null, uniform);
       }
-      int[] ids = root.getIntArray(name + "Ids");
+      int[] ids = root.getIntArray(name + "Ids").clone();
       if (ids.length != size) {
          throw new IOException("World change batch " + name + " ID count does not match size");
       }

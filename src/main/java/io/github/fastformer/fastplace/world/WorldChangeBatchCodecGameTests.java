@@ -62,6 +62,16 @@ public final class WorldChangeBatchCodecGameTests {
       WorldChangeBatch decodedSparse = WorldChangeBatch.decode(helper.getLevel().registryAccess(), sparse.encode());
       assertEquivalent(helper, sparse, decodedSparse);
       helper.assertTrue(decodedSparse.encode().contains("Positions"), "sparse layout was not preserved");
+      CompoundTag mutable = sparse.encode();
+      WorldChangeBatch isolated = WorldChangeBatch.decode(helper.getLevel().registryAccess(), mutable);
+      mutable.getLongArray("Positions")[0] = BlockPos.ZERO.asLong();
+      for (String key : List.of("BeforeBlockIds", "AfterBlockIds", "BeforeFluidIds", "AfterFluidIds")) {
+         if (mutable.contains(key, Tag.TAG_INT_ARRAY)) {
+            mutable.getIntArray(key)[0] = 999;
+         }
+      }
+      assertEquivalent(helper, decodedSparse, sparse);
+      assertEquivalent(helper, decodedSparse, isolated);
       helper.succeed();
    }
 
