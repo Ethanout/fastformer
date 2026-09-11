@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Test;
 
 class PreviewAsyncPolicyTest {
    @Test
+   void shellBecomesLightweightBeforeLargeSynchronousMeshWork() {
+      assertEquals(false, PreviewAsyncPolicy.useLightweightShell(16_000));
+      assertEquals(true, PreviewAsyncPolicy.useLightweightShell(16_001));
+   }
+   @Test
    void fullPreviewStopsAtTheScanLimitForBothPlanesAndVolumes() {
       assertEquals(false, PreviewAsyncPolicy.useOutlineOnly(
          List.of(BlockPos.ZERO, new BlockPos(999, 0, 99)), PreviewAsyncPolicy.Workload.PLANE));

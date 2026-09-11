@@ -1789,6 +1789,8 @@ public class FastPlaceClientPreviewCore {
                buildingPreviewWorkload(snapshot, snapshot.points(), snapshot.polygonHeightConfirmed()));
             boolean pendingLightweight = PreviewAsyncPolicy.useOutlineOnly(previewPoints,
                buildingPreviewWorkload(snapshot, previewPoints, polygonHeightConfirmed));
+            confirmedLightweight |= PreviewAsyncPolicy.useLightweightShell(layers.confirmedRenderBlocks().size());
+            pendingLightweight |= PreviewAsyncPolicy.useLightweightShell(layers.pendingRenderBlocks().size());
             List<GuideLine> confirmedOutlineEdges = buildingModes.fillMode() == FillMode.OUTLINE || confirmedLightweight
                ? PreviewGeometrySupport.outlineGeometryEdges(snapshot.points(), buildingModes.faceMode(),
                   snapshot.polygonClosed(), snapshot.polygonHeightConfirmed(), snapshot.polygonVolumeShape())

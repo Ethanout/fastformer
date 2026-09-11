@@ -12,6 +12,7 @@ public final class PreviewAsyncPolicy {
    public static final int SYNCHRONOUS_GRID_LIMIT = 16_000;
    public static final long FULL_PREVIEW_SCAN_LIMIT = 100_000L;
    public static final int OUTLINE_BLOCK_LIMIT = 4096;
+   public static final int SHELL_SYNC_BLOCK_LIMIT = 16_000;
 
    private PreviewAsyncPolicy() {
    }
@@ -26,6 +27,10 @@ public final class PreviewAsyncPolicy {
 
    public static boolean useOutlineOnly(List<BlockPos> points, Workload workload) {
       return estimateScanCells(points, workload) > FULL_PREVIEW_SCAN_LIMIT;
+   }
+
+   public static boolean useLightweightShell(int blockCount) {
+      return blockCount > SHELL_SYNC_BLOCK_LIMIT;
    }
 
    public static long estimateScanCells(List<BlockPos> points, Workload workload) {
