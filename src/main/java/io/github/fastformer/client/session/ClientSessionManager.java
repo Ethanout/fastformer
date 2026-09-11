@@ -45,6 +45,17 @@ public final class ClientSessionManager {
       return playerSessions.computeIfAbsent(key, ignored -> new ClientPlayerSession(playerId));
    }
 
+   ClientPlayerSession activateScope(UUID playerId, String connection, String dimension) {
+      SessionKey nextKey = new SessionKey(connection, dimension, playerId);
+      if (currentKey != null && !currentKey.equals(nextKey)
+         && currentKey.connection().equals(nextKey.connection())
+         && currentKey.playerId().equals(nextKey.playerId()) && current != null) {
+         current.endInteraction();
+      }
+      currentKey = nextKey;
+      return current = playerSessions.computeIfAbsent(nextKey, ignored -> new ClientPlayerSession(playerId));
+   }
+
    /** Records the current player identity without coupling the session box to LocalPlayer lifetime. */
    public void observePlayer(Minecraft minecraft) {
       if (minecraft == null || minecraft.player == null || minecraft.getConnection() == null) {
@@ -52,9 +63,7 @@ public final class ClientSessionManager {
       }
       String connection = connectionIdentity(minecraft);
       String dimension = minecraft.level == null ? "" : minecraft.level.dimension().location().toString();
-      currentKey = new SessionKey(connection, dimension, minecraft.player.getUUID());
-      current = playerSessions.computeIfAbsent(currentKey,
-         ignored -> new ClientPlayerSession(minecraft.player.getUUID()));
+      activateScope(minecraft.player.getUUID(), connection, dimension);
    }
 
    private static String connectionIdentity(Minecraft minecraft) {

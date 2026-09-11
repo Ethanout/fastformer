@@ -48,10 +48,13 @@ class ClientPlayerSessionTest {
       UUID playerId = UUID.randomUUID();
 
       ClientSessionManager manager = ClientSessionManager.instance();
+      manager.activateScope(playerId, "server-a", "minecraft:overworld").selectionSession()
+         .addDraftPoint(new net.minecraft.core.BlockPos(1, 2, 3));
       ClientPlayerSession overworld = manager.forScope(playerId, "server-a", "minecraft:overworld");
-      ClientPlayerSession nether = manager.forScope(playerId, "server-a", "minecraft:the_nether");
+      ClientPlayerSession nether = manager.activateScope(playerId, "server-a", "minecraft:the_nether");
       ClientPlayerSession otherServer = manager.forScope(playerId, "server-b", "minecraft:overworld");
 
+      org.junit.jupiter.api.Assertions.assertFalse(overworld.selectionSession().hasDraft());
       org.junit.jupiter.api.Assertions.assertNotSame(overworld, nether);
       org.junit.jupiter.api.Assertions.assertNotSame(overworld, otherServer);
       org.junit.jupiter.api.Assertions.assertNotSame(nether, otherServer);
