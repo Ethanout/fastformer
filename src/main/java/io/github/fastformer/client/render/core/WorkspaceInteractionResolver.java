@@ -76,6 +76,9 @@ final class WorkspaceInteractionResolver {
       List<ClientSelectionPart> parts = workspace.parts();
       pruneCache(parts);
       for (ClientSelectionPart part : parts) {
+         if (part.editability() == ClientSelectionPart.Editability.LOCKED) {
+            continue;
+         }
          Map<BlockPos, ClientBlockSnapshot> resolved = resolvePartBlocks(part);
          if (resolved.isEmpty()) {
             continue;
@@ -90,8 +93,11 @@ final class WorkspaceInteractionResolver {
             targets.add(new OperationInteractionIntent.Gizmo(part.id(), false, gizmo, hit));
          }
       }
-      if (workspace.selectedIds().size() > 1) {
-         OccupiedBlockBounds group = workspace.selectedParts().stream()
+      List<ClientSelectionPart> editableSelectedParts = workspace.selectedParts().stream()
+         .filter(part -> part.editability() == ClientSelectionPart.Editability.FREE)
+         .toList();
+      if (editableSelectedParts.size() > 1) {
+         OccupiedBlockBounds group = editableSelectedParts.stream()
             .map(WorkspaceInteractionResolver::resolvePartBlocks)
             .filter(values -> !values.isEmpty())
             .map(values -> OccupiedBlockBounds.from(values.keySet()).orElseThrow())
@@ -100,7 +106,7 @@ final class WorkspaceInteractionResolver {
          if (group != null) {
             Vec3 center = group.center();
             GizmoViewScale scale = GizmoViewScale.fromDistance(context.camera().distanceTo(center));
-            boolean includesPrism = workspace.selectedParts().stream()
+            boolean includesPrism = editableSelectedParts.stream()
                .anyMatch(part -> part.selection() != null && part.selection().prism() != null);
             AxisGizmo gizmo = (includesPrism
                ? AxisGizmo.inFrame(
@@ -146,6 +152,9 @@ final class WorkspaceInteractionResolver {
       List<ClientSelectionPart> parts = ClientOperationController.workspace().parts();
       pruneCache(parts);
       for (ClientSelectionPart part : parts) {
+         if (part.editability() == ClientSelectionPart.Editability.LOCKED) {
+            continue;
+         }
          Map<BlockPos, ClientBlockSnapshot> resolved = resolvePartBlocks(part);
          if (resolved.isEmpty()) {
             continue;

@@ -187,6 +187,7 @@ final class OperationPreviewRenderer {
          }
          boolean selected = workspace.selectedIds().contains(part.id());
          boolean hovered = part.id() == hoveredPartId;
+         boolean editable = part.editability() == ClientSelectionPart.Editability.FREE;
          OccupiedBlockBounds bounds = OccupiedBlockBounds.from(resolved.keySet()).orElseThrow();
          Map<BlockPos, io.github.fastformer.client.operation.model.ClientBlockSnapshot> baseResolved =
             WorkspaceInteractionResolver.resolveBasePart(part);
@@ -209,7 +210,7 @@ final class OperationPreviewRenderer {
             outlineBounds.getYsize() * 0.5 + 0.018,
             outlineBounds.getZsize() * 0.5 + 0.018
          );
-         if (selected) {
+         if (selected && editable) {
             renderFlowingDashedBox(
                poseStack, buffers.getBuffer(RenderType.lines()), outlineBounds.getCenter(), halfExtents,
                pendingGridDashOffset() + part.id() * 0.31, hovered ? 0.48F : 0.38F
@@ -226,7 +227,7 @@ final class OperationPreviewRenderer {
                   -pendingGridDashOffset() + part.id() * 0.31, hovered ? 1.0F : 0.94F
                );
             }
-         } else {
+         } else if (editable) {
             LevelRenderer.renderLineBox(
                poseStack,
                buffers.getBuffer(RenderType.lines()),
@@ -238,9 +239,11 @@ final class OperationPreviewRenderer {
             );
          }
          poseStack.popPose();
-         WorkspacePreviewRenderer.renderPartLabel(
-            poseStack, buffers, minecraft, camera, bounds.center(), part.id(), selected, hovered, controlPreview, pulse
-         );
+         if (editable) {
+            WorkspacePreviewRenderer.renderPartLabel(
+               poseStack, buffers, minecraft, camera, bounds.center(), part.id(), selected, hovered, controlPreview, pulse
+            );
+         }
 
          boolean adjusted = part.transformed();
          if (!part.pendingDelete()) {
@@ -288,6 +291,9 @@ final class OperationPreviewRenderer {
          }
 
          Vec3 center = bounds.center();
+         if (!editable) {
+            continue;
+         }
          GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
          AxisGizmo gizmo = WorkspaceInteractionResolver.partGizmo(part, center, scale)
             .withTextComponent(GizmoTextComponent.pointLevel());
@@ -314,8 +320,11 @@ final class OperationPreviewRenderer {
          }
       }
 
-      if (workspace.selectedIds().size() > 1) {
-         OccupiedBlockBounds group = workspace.selectedParts().stream()
+      List<ClientSelectionPart> editableSelectedParts = workspace.selectedParts().stream()
+         .filter(part -> part.editability() == ClientSelectionPart.Editability.FREE)
+         .toList();
+      if (editableSelectedParts.size() > 1) {
+         OccupiedBlockBounds group = editableSelectedParts.stream()
             .map(WorkspaceInteractionResolver::resolvePartBlocks)
             .filter(values -> !values.isEmpty())
             .map(values -> OccupiedBlockBounds.from(values.keySet()).orElseThrow())
@@ -351,7 +360,7 @@ final class OperationPreviewRenderer {
             );
             poseStack.popPose();
             GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
-            boolean includesPrism = workspace.selectedParts().stream()
+            boolean includesPrism = editableSelectedParts.stream()
                .anyMatch(part -> part.selection() != null && part.selection().prism() != null);
             AxisGizmo common = (includesPrism
                ? AxisGizmo.inFrame(
