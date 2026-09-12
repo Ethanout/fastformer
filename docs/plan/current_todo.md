@@ -24,6 +24,10 @@
 - [ ] **BUG-07 锁定选区的面仍有推拉悬浮响应。** 选区锁定后，面不得产生 hover、高亮、推拉预览或可开始拖拽的反馈。检查命中解析、悬浮渲染和手势开始是否使用同一个锁定判断，覆盖锁定前后、切换选中部件和多选区。
 - [ ] **BUG-08 `point1/point2` 泄漏到渲染和判定。** `point1/point2` 只允许在左键/右键操作时参与重算 `min/max`；除该重算入口外，不得作为渲染、命中、拖拽、预览或提交判定的输入。以 `min/max` 和部件模型为唯一派生数据源，清点并移除直接读取点字段的路径，覆盖移动、旋转、缩放、取消和重连恢复。
 
+- [ ] **BUG-09 形状分块传输超时静默丢失。** 严重度：中（当前生产发送入口未确认，先按静态线索处理）。`IncomingPayloadTransfers.purgeExpired(long)` 对 workspace 超时会返回 `ExpiredTransfer`，但对 shape 超时只从 map 删除；`FastPlaceNetwork.tick()` 只为返回列表发送 `accepted=false` 的回执。因此一旦 shape 上传路径启用，客户端可能一直等不到失败回执，无法区分超时与仍在传输。复现条件：发送 `ShapePlacementPayload` 的非完整分块并等待 30 秒以上，检查服务端是否清理、客户端是否收到失败结果。影响范围：shape 放置的传输状态、提交等待和重试提示。证据：`src/main/java/io/github/fastformer/network/transfer/IncomingPayloadTransfers.java:71-79`、`src/main/java/io/github/fastformer/network/FastPlaceNetwork.java:528-533`；现有 `IncomingPayloadTransfersTest` 只覆盖 workspace 超时（`src/test/java/io/github/fastformer/network/transfer/IncomingPayloadTransfersTest.java:56-72`）。验收要求：shape 超时必须生成与 workspace 等价的失败事件或明确的 shape 错误回调，重复清理幂等，客户端回到可重试状态。验证缺口：截至 2026-09-13 未在生产代码找到 `ShapePlacementPayload` 的发送端或消费入口，需先确认该路径可达，再做实机/网络测试。
+
+- [ ] **BUG-10 工作区提交无客户端超时。** 严重度：低至中（体验与恢复风险，非断线永久锁死结论）。`ClientOperationController.submitWorkspace()` 在发送成功后设置 `workspaceSubmissionPending=true`、保存 transfer ID 并锁定工作区；只有匹配的 `OperationWorkspaceResultPayload` 或发送异常才解锁（`src/main/java/io/github/fastformer/client/operation/controller/ClientOperationController.java:632-666`、`669-695`）。连接保持但服务端任务长期停留在世界未加载、内存等待、写入日志等待或异常无回执时，客户端没有 deadline、重试或取消提示，会一直处于 `SUBMITTING`/locked。断线清理会调用 `onDisconnected()` 并解除锁定，因此不能记录为“断线后永久锁死”。复现条件：保持连接，阻断或延迟服务端回执，观察提交状态是否无限等待。验收要求：增加可配置/有界超时或明确的取消恢复路径，迟到回执不能重置新提交；超时后保留工作区数据并给出可重试原因。验证缺口：需要客户端与服务器联合测试，分别覆盖正常慢任务、无回执、断线重连和迟到回执。
+
 ## 交互审计线索（尚非实机结论）
 
 - BUG-02 排查依据：2026-09-13 搜索 `src/main`，`sourceMask()` 仅有声明，`SOURCE_MASK` 只有更新和清理，未找到世界渲染读取遮罩的调用点。`FastPlaceClientPreviewCore.onRenderLevelStage()` 只在 `AFTER_PARTICLES` 绘制叠加层；现有事件入口没有在世界方块阶段前过滤源方块。优先核对隐藏机制是否真正接入；遮罩集合存在不代表源方块已被隐藏。
@@ -94,6 +98,7 @@
 - [ ] 内存仅缓存近期历史，按总字节预算淘汰最久未使用的缓存；旧历史按需异步、有界加载，避免一次解码全部历史。加载期间显示明确状态，不阻塞服务端 tick；重新检查维度、权限和当前世界冲突后才允许撤回/重做。
   - 2026-09-13 静态进展：`WorldHistoryManager.trim()` 使用饱和加法计算 undo/redo 总字节，避免 long 溢出绕过 256 MiB 淘汰预算（提交 `b1892d6`）。异步加载、实机内存上限和重载验收仍待完成。
 - [ ] 明确历史存储与故障恢复日志的生命周期边界，优先复用已有编码和分段能力，避免重复保留完整数据。活动任务、pendingRecord、pendingCaptures 及待恢复数据不能因缓存淘汰而丢弃，必须先完成安全持久化或恢复交接。
+  - 2026-09-13 静态进展：`WorldHistoryManager` 将内存异常后的待记录从单槽 `pendingRecord` 改为 FIFO `pendingRecords`，避免连续记录覆盖导致历史丢失；`./gradlew test` 与 `git diff --check` 通过。磁盘故障和真实进程中断验收仍待完成。
 - [ ] 核验历史存储在现有配额下的磁盘满、文件损坏、版本不兼容和保存失败处理：保留可恢复数据并显示准确原因，不把存储失败误报为 JVM 内存不足。覆盖退休意图、索引替换和批次删除边界的真实进程中断，并测量后台扫描的 I/O 竞争。保留期限、索引同步和活动 owner 保护已完成，记录见更新日志。
 - [ ] 补充自动化覆盖：多 UUID 上下线后内存有界、超大单条历史、缓存淘汰再加载、undo/redo 顺序、新操作清空 redo、断电式中断各保存阶段、磁盘满/损坏、版本不兼容，以及活动恢复不被淘汰。
 - [ ] 实机比较小结构首次落块、近期撤回和磁盘历史撤回的延迟；在重连及服务器重启后核验历史和方块实体完整性，确认后台落盘不会造成明显卡顿。

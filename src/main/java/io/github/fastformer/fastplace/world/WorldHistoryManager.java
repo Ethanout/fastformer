@@ -58,7 +58,7 @@ public final class WorldHistoryManager {
       try {
          captured = WorldChangeBatch.capture(level, changes);
       } catch (RuntimeException | OutOfMemoryError exception) {
-         ownerState(player.getUUID()).pendingRecord = pendingRecord(level.dimension(), changes, Map.of());
+         ownerState(player.getUUID()).pendingRecords.addLast(pendingRecord(level.dimension(), changes, Map.of()));
          return true;
       }
       if (captured.isEmpty()) {
@@ -100,7 +100,7 @@ public final class WorldHistoryManager {
          return true;
       }
       if (!completeAfter(changes, safeAfter) || (level != null && !allBefore(level, changes))) {
-         ownerState(player.getUUID()).pendingRecord = pendingRecord(dimension, changes, safeAfter);
+         ownerState(player.getUUID()).pendingRecords.addLast(pendingRecord(dimension, changes, safeAfter));
          return true;
       }
       return false;
@@ -751,7 +751,7 @@ public final class WorldHistoryManager {
       if (owner.active != null
          || owner.pendingTask != null
          || !owner.pendingCaptures.isEmpty()
-         || owner.pendingRecord != null) {
+         || !owner.pendingRecords.isEmpty()) {
          return 0;
       }
       int count = owner.deferredUndo;
@@ -802,23 +802,23 @@ public final class WorldHistoryManager {
             context.actionBar(FastPlaceMessages.text("fastformer.message.restore_complete"));
          }
       }
-      PendingRecord pendingRecord = owner.pendingRecord;
-      owner.pendingRecord = null;
+      PendingRecord pendingRecord = owner.pendingRecords.peekFirst();
       if (pendingRecord != null) {
          if (!WorldOperationMemory.snapshotAdmission(pendingRecord.changes().size(), 0L).fitsCurrentHeap()) {
-            owner.pendingRecord = pendingRecord;
             return;
          }
          Optional<WorldChangeBatch> batch = materializeRecord(context.server(), pendingRecord);
          if (batch.isPresent()) {
+            owner.pendingRecords.removeFirst();
             addBatch(context, batch.orElseThrow());
          } else if (context.level(pendingRecord.dimension()) == null) {
-            owner.pendingRecord = pendingRecord;
+            return;
          } else {
             ServerLevel level = context.level(pendingRecord.dimension());
             if (!allBefore(level, pendingRecord.changes())) {
-               owner.pendingRecord = pendingRecord;
+               return;
             }
+            owner.pendingRecords.removeFirst();
          }
       }
    }
@@ -1131,7 +1131,8 @@ public final class WorldHistoryManager {
       private HistoryTask active;
       private HistoryTask pendingTask;
       private final ArrayDeque<RecoveryCapture> pendingCaptures = new ArrayDeque<>();
-      private PendingRecord pendingRecord;
+      /** Records deferred after a memory failure; preserve arrival order. */
+      private final ArrayDeque<PendingRecord> pendingRecords = new ArrayDeque<>();
       private int deferredUndo;
       private int historyLimit = DEFAULT_LIMIT;
       private boolean detached;
@@ -1154,7 +1155,7 @@ public final class WorldHistoryManager {
          return active != null
             || pendingTask != null
             || !pendingCaptures.isEmpty()
-            || pendingRecord != null
+            || !pendingRecords.isEmpty()
             || deferredUndo > 0;
       }
 
@@ -1162,7 +1163,7 @@ public final class WorldHistoryManager {
          return active != null
             || pendingTask != null
             || !pendingCaptures.isEmpty()
-            || pendingRecord != null
+            || !pendingRecords.isEmpty()
             || deferredUndo > 0
             || persistenceDirty;
       }
