@@ -284,11 +284,15 @@ public final class FastPlaceClientInput {
                      showOperationFeedback(minecraft, "fastformer.message.operation_submit_failed");
                   }
                } else if (ClientOperationController.operationAdjustmentStarted()) {
-                  ClientPlacementRouter.applyOperation(minecraft, physicalCtrlDown(minecraft, false));
+                  if (!ClientPlacementRouter.applyOperation(minecraft, physicalCtrlDown(minecraft, false))) {
+                     showOperationFeedback(minecraft, "fastformer.message.operation_apply_failed");
+                  }
                }
                return;
             }
-            ClientPlacementRouter.confirm(minecraft);
+            if (!ClientPlacementRouter.confirm(minecraft)) {
+               showOperationFeedback(minecraft, "fastformer.message.placement_confirm_failed");
+            }
          }
       }
    }
