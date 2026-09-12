@@ -972,6 +972,7 @@ public final class FastPlaceManager {
                      task.releaseMemoryReservation();
                      task.releaseCommittedTransactionState();
                      task.markComplete();
+                     LOGGER.info("FastFormer placement operation {} finished: {}", task.operationId(), task.metricsSummary());
                      context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
                   }
                } else if (!task.snapshotsComplete()) {
