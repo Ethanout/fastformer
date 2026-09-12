@@ -51,6 +51,9 @@ public final class ClientOperationController {
    private static OperationClipboard clipboard;
    private static boolean clipboardLoaded;
    private static boolean workspaceSubmissionPending;
+   /** Bounds a connection that never returns a workspace result. */
+   private static final int WORKSPACE_SUBMISSION_TIMEOUT_TICKS = 20 * 30;
+   private static int workspaceSubmissionWaitTicks;
    /** Ticks an unanswered connection boundary waits before it is dropped. */
    private static final int RECONNECT_BOUNDARY_IDLE_TICKS = 40;
    /** A reconnect snapshot may describe a server task that continues running,
@@ -653,6 +656,7 @@ public final class ClientOperationController {
          }
          workspaceSubmissionPending = true;
          pendingWorkspaceTransferId = transferId;
+         workspaceSubmissionWaitTicks = 0;
          workspace().setLocked(true);
          submission.send();
          return true;
@@ -660,6 +664,7 @@ public final class ClientOperationController {
          UUID failedTransferId = pendingWorkspaceTransferId;
          workspaceSubmissionPending = false;
          pendingWorkspaceTransferId = null;
+         workspaceSubmissionWaitTicks = 0;
          workspace().setLocked(false);
          io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(failedTransferId);
          return false;
@@ -673,6 +678,7 @@ public final class ClientOperationController {
       }
       workspaceSubmissionPending = false;
       pendingWorkspaceTransferId = null;
+      workspaceSubmissionWaitTicks = 0;
       workspace().setLocked(false);
       if (payload.accepted()) {
          clearWorkspace();
@@ -707,6 +713,7 @@ public final class ClientOperationController {
       refreshInteractionState();
       workspaceSubmissionPending = false;
       pendingWorkspaceTransferId = null;
+      workspaceSubmissionWaitTicks = 0;
    }
 
    static boolean shouldClearWorkspaceAfterSnapshot(
@@ -728,6 +735,7 @@ public final class ClientOperationController {
       FALLBACK_SELECTION_SESSION.setAltHeld(false);
       workspaceSubmissionPending = false;
       pendingWorkspaceTransferId = null;
+      workspaceSubmissionWaitTicks = 0;
       reconnectBoundaryArmed = true;
       reconnectBoundarySawSnapshot = false;
       reconnectBoundaryIdleTicks = 0;
@@ -740,6 +748,22 @@ public final class ClientOperationController {
 
    /** Ends a reconnect boundary once the snapshot that followed it has settled. */
    public static void onClientTick() {
+      if (workspaceSubmissionPending && ++workspaceSubmissionWaitTicks >= WORKSPACE_SUBMISSION_TIMEOUT_TICKS) {
+         UUID expiredTransferId = pendingWorkspaceTransferId;
+         workspaceSubmissionPending = false;
+         pendingWorkspaceTransferId = null;
+         workspaceSubmissionWaitTicks = 0;
+         workspace().setLocked(false);
+         // Keep the draft available for retry. A late result cannot affect a
+         // later submission because its transfer id is no longer current.
+         io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(expiredTransferId);
+         Minecraft minecraft = Minecraft.getInstance();
+         if (minecraft.player != null) {
+            minecraft.player.displayClientMessage(
+               Component.translatable("fastformer.message.operation_submit_timeout"), true
+            );
+         }
+      }
       if (!reconnectBoundaryArmed) {
          return;
       }

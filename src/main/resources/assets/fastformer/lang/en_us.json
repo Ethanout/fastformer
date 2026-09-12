@@ -188,6 +188,8 @@
   "fastformer.message.operation_paste_failed": "Paste failed: the clipboard is invalid or cannot be pasted here",
   "fastformer.message.operation_submit_failed": "Submit failed: the operation did not start; check the selection and try again",
   "fastformer.message.operation_submit_rejected": "Submit rejected: some blocks conflicted; the workspace is kept for editing and retry",
+  "fastformer.message.operation_submit_timeout": "Submit timed out: the workspace is kept for editing; check the server and retry",
+  "fastformer.message.operation_submit_pending": "A workspace submission is still running; wait for a result or timeout",
   "fastformer.message.operation_apply_failed": "Operation failed to start; check the selection and try again",
   "fastformer.message.placement_confirm_failed": "Placement confirmation failed; check the target and try again",
   "fastformer.message.operation_point1": "Operation: point 1 set",

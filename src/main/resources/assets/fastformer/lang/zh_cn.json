@@ -188,6 +188,8 @@
   "fastformer.message.operation_paste_failed": "粘贴失败：剪贴板内容无效或当前无法粘贴",
   "fastformer.message.operation_submit_failed": "提交失败：当前操作未开始，请检查选区后重试",
   "fastformer.message.operation_submit_rejected": "提交未通过：部分方块发生冲突，选区已保留，可修改后重试",
+  "fastformer.message.operation_submit_timeout": "提交等待超时：工作区已保留，请检查服务器后重试",
+  "fastformer.message.operation_submit_pending": "工作区仍在提交中：请等待结果或超时后再操作",
   "fastformer.message.operation_apply_failed": "操作未能开始：请检查选区后重试",
   "fastformer.message.placement_confirm_failed": "放置确认失败：请检查目标后重试",
   "fastformer.message.operation_point1": "操作状态：已设置点 1",

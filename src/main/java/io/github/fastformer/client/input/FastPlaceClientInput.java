@@ -183,6 +183,10 @@ public final class FastPlaceClientInput {
          && minecraft.screen == null
          && minecraft.getConnection() != null
          && NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
+         if (ClientOperationController.workspaceSubmissionPending()) {
+            showOperationFeedback(minecraft, "fastformer.message.operation_submit_pending");
+            return;
+         }
          boolean pendingRestore = ClientOperationController.reconnectRestorePending();
          boolean pendingPreviewRestore = FastPlaceClientPreview.reconnectPreviewRestorePending();
          boolean cancelled = INPUT_STATE.cancel();
