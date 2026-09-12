@@ -2080,7 +2080,6 @@ public class FastPlaceClientPreviewCore {
             cachedBuildingPreviewProgress = null;
          }
          BUILDING_PREVIEW_GENERATION.cancel();
-         PREVIEW_GENERATION_EXECUTOR.getQueue().clear();
          FastPlaceGeometry.Modes modes = effectiveBuildingModes(snapshot);
          PreviewAsyncPolicy.Workload workload = buildingPreviewWorkload(snapshot, key.points(), polygonHeightConfirmed);
          if (PreviewAsyncPolicy.useOutlineOnly(key.points(), workload)) {
@@ -2278,7 +2277,6 @@ public class FastPlaceClientPreviewCore {
          cachedBuildingPreviewProgress = null;
       }
       cachedBuildingPreviewAtLimit = false;
-      PREVIEW_GENERATION_EXECUTOR.getQueue().clear();
       cachedBuildingFallbackBlocks = Set.of();
    }
 
