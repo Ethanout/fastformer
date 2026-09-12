@@ -184,6 +184,8 @@
   "fastformer.operation.selection_create_hint": "左键/右键创建新选区",
   "fastformer.message.workspace_pasted": "已粘贴为独立子选区",
   "fastformer.message.workspace_no_anchor": "视线没有可用的粘贴落点",
+  "fastformer.message.operation_copy_failed": "复制失败：当前没有可复制的工作区内容",
+  "fastformer.message.operation_paste_failed": "粘贴失败：剪贴板内容无效或当前无法粘贴",
   "fastformer.message.operation_point1": "操作状态：已设置点 1",
   "fastformer.message.operation_point2": "操作状态：已设置点 2",
   "fastformer.message.operation_selection_point": "选区控制点：%s/%s",

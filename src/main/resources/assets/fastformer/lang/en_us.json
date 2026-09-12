@@ -184,6 +184,8 @@
   "fastformer.operation.selection_create_hint": "Left/right click to create selection",
   "fastformer.message.workspace_pasted": "Pasted as an independent child selection",
   "fastformer.message.workspace_no_anchor": "No valid paste anchor under the crosshair",
+  "fastformer.message.operation_copy_failed": "Copy failed: there is no workspace content to copy",
+  "fastformer.message.operation_paste_failed": "Paste failed: the clipboard is invalid or cannot be pasted here",
   "fastformer.message.operation_point1": "Operation: point 1 set",
   "fastformer.message.operation_point2": "Operation: point 2 set",
   "fastformer.message.operation_selection_point": "Selection control point: %s/%s",
