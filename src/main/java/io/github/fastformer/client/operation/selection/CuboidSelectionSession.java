@@ -49,12 +49,12 @@ public final class CuboidSelectionSession {
       int minX = this.minPoint.getX(), minY = this.minPoint.getY(), minZ = this.minPoint.getZ();
       int maxX = this.maxPoint.getX(), maxY = this.maxPoint.getY(), maxZ = this.maxPoint.getZ();
       switch (face) {
-         case X_POSITIVE -> maxX = Math.max(minX, maxX + amount);
-         case X_NEGATIVE -> minX = Math.min(maxX, minX - amount);
-         case Y_POSITIVE -> maxY = Math.max(minY, maxY + amount);
-         case Y_NEGATIVE -> minY = Math.min(maxY, minY - amount);
-         case Z_POSITIVE -> maxZ = Math.max(minZ, maxZ + amount);
-         case Z_NEGATIVE -> minZ = Math.min(maxZ, minZ - amount);
+         case X_POSITIVE -> maxX = Math.max(minX, addClamped(maxX, amount));
+         case X_NEGATIVE -> minX = Math.min(maxX, addClamped(minX, -((long) amount)));
+         case Y_POSITIVE -> maxY = Math.max(minY, addClamped(maxY, amount));
+         case Y_NEGATIVE -> minY = Math.min(maxY, addClamped(minY, -((long) amount)));
+         case Z_POSITIVE -> maxZ = Math.max(minZ, addClamped(maxZ, amount));
+         case Z_NEGATIVE -> minZ = Math.min(maxZ, addClamped(minZ, -((long) amount)));
       }
       BlockPos nextMin = new BlockPos(minX, minY, minZ);
       BlockPos nextMax = new BlockPos(maxX, maxY, maxZ);
@@ -113,5 +113,11 @@ public final class CuboidSelectionSession {
          Math.max(this.point1.getY(), this.point2.getY()),
          Math.max(this.point1.getZ(), this.point2.getZ())
       );
+   }
+
+   private static int addClamped(int value, long delta) {
+      long result = (long) value + delta;
+      return result > Integer.MAX_VALUE ? Integer.MAX_VALUE
+         : result < Integer.MIN_VALUE ? Integer.MIN_VALUE : (int) result;
    }
 }

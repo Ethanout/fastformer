@@ -39,4 +39,19 @@ class CuboidSelectionSessionTest {
       assertEquals(new BlockPos(-1, 3, 3), session.minPoint());
       assertEquals(new BlockPos(5, 9, 7), session.maxPoint());
    }
+
+   @Test
+   void pushPullClampsAtIntegerCoordinateLimits() {
+      CuboidSelectionSession upper = new CuboidSelectionSession(
+         new BlockPos(Integer.MAX_VALUE - 2, 0, 0), new BlockPos(Integer.MAX_VALUE - 1, 0, 0));
+      assertTrue(upper.pushPull(CuboidSelectionSession.Face.X_POSITIVE, Integer.MAX_VALUE));
+      assertEquals(Integer.MAX_VALUE, upper.maxPoint().getX());
+      assertEquals(Integer.MAX_VALUE - 2, upper.minPoint().getX());
+
+      CuboidSelectionSession lower = new CuboidSelectionSession(
+         new BlockPos(Integer.MIN_VALUE + 1, 0, 0), new BlockPos(Integer.MIN_VALUE + 2, 0, 0));
+      assertTrue(lower.pushPull(CuboidSelectionSession.Face.X_NEGATIVE, Integer.MAX_VALUE));
+      assertEquals(Integer.MIN_VALUE, lower.minPoint().getX());
+      assertEquals(Integer.MIN_VALUE + 2, lower.maxPoint().getX());
+   }
 }
