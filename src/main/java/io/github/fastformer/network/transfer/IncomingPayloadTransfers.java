@@ -72,14 +72,22 @@ public final class IncomingPayloadTransfers {
       var expired = new java.util.ArrayList<ExpiredTransfer>();
       workspaceTransfers.forEach((owner, transfer) -> {
          if (transfer.expired(now, TRANSFER_TIMEOUT_NANOS) && workspaceTransfers.remove(owner, transfer)) {
-            expired.add(new ExpiredTransfer(owner, transfer.transferId()));
+            expired.add(new ExpiredTransfer(owner, transfer.transferId(), false));
          }
       });
-      shapeTransfers.entrySet().removeIf(entry -> entry.getValue().expired(now, TRANSFER_TIMEOUT_NANOS));
+      shapeTransfers.forEach((owner, transfer) -> {
+         if (transfer.expired(now, TRANSFER_TIMEOUT_NANOS) && shapeTransfers.remove(owner, transfer)) {
+            expired.add(new ExpiredTransfer(owner, transfer.transferId(), true));
+         }
+      });
       return java.util.List.copyOf(expired);
    }
 
-   public record ExpiredTransfer(UUID owner, UUID transferId) {}
+   public record ExpiredTransfer(UUID owner, UUID transferId, boolean shape) {
+      public ExpiredTransfer(UUID owner, UUID transferId) {
+         this(owner, transferId, false);
+      }
+   }
 
    private static byte[] accept(
       Map<UUID, ChunkedPayloadTransfer> transfers,

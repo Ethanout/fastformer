@@ -71,4 +71,19 @@ class IncomingPayloadTransfersTest {
          owner, new OperationWorkspaceApplyPayload(transferId, 1, 2, new byte[] {2})
       ));
    }
+
+   @Test
+   void purgesStalledShapeTransfersWithAFailureEvent() throws IOException {
+      IncomingPayloadTransfers transfers = new IncomingPayloadTransfers();
+      UUID owner = UUID.randomUUID();
+      UUID transferId = UUID.randomUUID();
+      assertNull(transfers.acceptShape(
+         owner, new ShapePlacementPayload(transferId, 0, 2, new byte[] {1})
+      ));
+
+      org.junit.jupiter.api.Assertions.assertEquals(
+         java.util.List.of(new IncomingPayloadTransfers.ExpiredTransfer(owner, transferId, true)),
+         transfers.purgeExpired(Long.MAX_VALUE)
+      );
+   }
 }
