@@ -186,6 +186,8 @@
   "fastformer.message.workspace_no_anchor": "No valid paste anchor under the crosshair",
   "fastformer.message.operation_copy_failed": "Copy failed: there is no workspace content to copy",
   "fastformer.message.operation_paste_failed": "Paste failed: the clipboard is invalid or cannot be pasted here",
+  "fastformer.message.operation_submit_failed": "Submit failed: the operation did not start; check the selection and try again",
+  "fastformer.message.operation_submit_rejected": "Submit rejected: some blocks conflicted; the workspace is kept for editing and retry",
   "fastformer.message.operation_point1": "Operation: point 1 set",
   "fastformer.message.operation_point2": "Operation: point 2 set",
   "fastformer.message.operation_selection_point": "Selection control point: %s/%s",

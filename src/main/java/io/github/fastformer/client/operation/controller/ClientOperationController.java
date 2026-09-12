@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -683,6 +684,12 @@ public final class ClientOperationController {
          for (int index = 1; index < payload.failedPartIds().size(); index++) {
             workspace().toggleSelected(payload.failedPartIds().get(index));
          }
+      }
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft.player != null) {
+         minecraft.player.displayClientMessage(
+            Component.translatable("fastformer.message.operation_submit_rejected"), true
+         );
       }
       io.github.fastformer.client.input.FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
    }

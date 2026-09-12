@@ -186,6 +186,8 @@
   "fastformer.message.workspace_no_anchor": "视线没有可用的粘贴落点",
   "fastformer.message.operation_copy_failed": "复制失败：当前没有可复制的工作区内容",
   "fastformer.message.operation_paste_failed": "粘贴失败：剪贴板内容无效或当前无法粘贴",
+  "fastformer.message.operation_submit_failed": "提交失败：当前操作未开始，请检查选区后重试",
+  "fastformer.message.operation_submit_rejected": "提交未通过：部分方块发生冲突，选区已保留，可修改后重试",
   "fastformer.message.operation_point1": "操作状态：已设置点 1",
   "fastformer.message.operation_point2": "操作状态：已设置点 2",
   "fastformer.message.operation_selection_point": "选区控制点：%s/%s",

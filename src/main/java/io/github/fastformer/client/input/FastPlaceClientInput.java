@@ -280,7 +280,9 @@ public final class FastPlaceClientInput {
             }
             if (operationSession) {
                if (ClientOperationController.active()) {
-                  ClientOperationController.submitWorkspace(minecraft);
+                  if (!ClientOperationController.submitWorkspace(minecraft)) {
+                     showOperationFeedback(minecraft, "fastformer.message.operation_submit_failed");
+                  }
                } else if (ClientOperationController.operationAdjustmentStarted()) {
                   ClientPlacementRouter.applyOperation(minecraft, physicalCtrlDown(minecraft, false));
                }
