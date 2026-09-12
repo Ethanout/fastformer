@@ -259,7 +259,8 @@ final class OperationPreviewRenderer {
             );
          }
 
-         if (hoveredFace != null && hoveredFace.partId() == part.id()) {
+         if (hoveredFace != null && hoveredFace.partId() == part.id()
+            && part.editability() == ClientSelectionPart.Editability.FREE) {
             OperationSelectionVolume faceVolume = new OperationSelectionVolume(
                OperationSelectionMode.CUBOID, hoveredFace.bounds(), null, List.of(), 0, null, null
             );

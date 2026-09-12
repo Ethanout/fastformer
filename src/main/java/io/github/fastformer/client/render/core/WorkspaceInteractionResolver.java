@@ -174,7 +174,7 @@ final class WorkspaceInteractionResolver {
       int draggedPartId = FastPlaceClientInput.workspaceFaceDragPartId();
       if (dragged != null && draggedPartId > 0) {
          ClientSelectionPart part = ClientOperationController.workspace().part(draggedPartId).orElse(null);
-         if (part != null) {
+         if (part != null && part.editability() == ClientSelectionPart.Editability.FREE) {
             AABB bounds = selectionBounds(part);
             if (bounds != null) {
                return Optional.of(new OperationInteractionIntent.Face(draggedPartId, bounds, dragged, true));
@@ -191,6 +191,9 @@ final class WorkspaceInteractionResolver {
       }
       OperationInteractionIntent.Face best = null;
       for (ClientSelectionPart part : ClientOperationController.workspace().parts()) {
+         if (part.editability() == ClientSelectionPart.Editability.LOCKED) {
+            continue;
+         }
          AABB bounds = selectionBounds(part);
          if (bounds == null) {
             continue;
