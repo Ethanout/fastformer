@@ -2,10 +2,12 @@ package io.github.fastformer.client.render.state;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.FastPlaceActivity;
+import io.github.fastformer.fastplace.GeometryMode;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
 import io.github.fastformer.network.payload.preview.ActivityStatePayload;
@@ -13,7 +15,10 @@ import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
 import io.github.fastformer.network.payload.preview.BuildingPreviewEffectPayload;
 import io.github.fastformer.network.payload.preview.BuildingPreviewEffectSnapshot;
 import io.github.fastformer.network.payload.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewSession;
 import io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload;
+import java.util.List;
+import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 class ClientPreviewStateTest {
@@ -140,5 +145,201 @@ class ClientPreviewStateTest {
       state.applyBuildingEffect(new BuildingPreviewEffectPayload(1L, new BuildingPreviewEffectSnapshot(null)));
 
       assertEquals(3L, state.buildingVersion());
+   }
+
+   @Test
+   void reconnectBuildingPreviewStaysHiddenUntilConfirmed() {
+      ClientPreviewState state = new ClientPreviewState();
+      state.resetConnection();
+      state.beginReconnectRestore();
+      var session = activeBuildingSession(11L);
+      var parameters = new BuildingPreviewParametersPayload(11L, BuildingPreviewPayload.inactive().parameters());
+      var effect = new BuildingPreviewEffectPayload(11L, new BuildingPreviewEffectSnapshot(null));
+      var activity = new ActivityStatePayload(FastPlaceActivity.BUILDING_SESSION);
+
+      assertTrue(state.holdReconnectBuildingSession(session));
+      assertTrue(state.holdReconnectBuildingParameters(parameters));
+      assertTrue(state.holdReconnectBuildingEffect(effect));
+      state.applyActivity(activity);
+      assertFalse(state.building().active());
+      assertEquals(FastPlaceActivity.BUILDING_SESSION, state.activity());
+
+      ClientPreviewState.HeldReconnectPreviews held = state.takeHeldReconnectPreviews();
+      assertFalse(state.reconnectRestorePending());
+      assertEquals(session, held.buildingSession());
+      assertEquals(parameters, held.buildingParameters());
+      assertEquals(effect, held.buildingEffect());
+
+      state.applyBuildingSession(held.buildingSession());
+      state.applyBuildingParameters(held.buildingParameters());
+      state.applyBuildingEffect(held.buildingEffect());
+      assertTrue(state.building().active());
+   }
+
+   @Test
+   void dismissingReconnectRestoreDropsHeldPreviewParts() {
+      ClientPreviewState state = new ClientPreviewState();
+      state.resetConnection();
+      state.beginReconnectRestore();
+      assertTrue(state.holdReconnectBuildingSession(activeBuildingSession(5L)));
+
+      state.dismissReconnectRestore();
+
+      assertFalse(state.reconnectRestorePending());
+      assertNull(state.takeHeldReconnectPreviews());
+      assertFalse(state.building().active());
+   }
+
+   @Test
+   void newConnectionScopeDropsHeldPreviewsAndStillWaitsForTheNextSnapshot() {
+      ClientPreviewState state = new ClientPreviewState();
+      state.beginReconnectRestore();
+      assertTrue(state.holdReconnectBuildingSession(activeBuildingSession(12L)));
+      assertTrue(state.reconnectRestorePending());
+
+      state.resetConnection();
+
+      assertFalse(state.reconnectRestorePending());
+      assertNull(state.takeHeldReconnectPreviews());
+      assertFalse(state.building().active());
+
+      assertTrue(state.holdReconnectBuildingSession(activeBuildingSession(13L)));
+      assertTrue(state.reconnectRestorePending());
+      assertFalse(state.building().active());
+   }
+
+   @Test
+   void newConnectionScopeArmsTheConfirmGateForAVisiblePreview() {
+      ClientPreviewState state = new ClientPreviewState();
+      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      state.applyBuildingSession(activeBuildingSession(20L));
+      state.applyBuildingParameters(new BuildingPreviewParametersPayload(20L, inactive.parameters()));
+      state.applyBuildingEffect(new BuildingPreviewEffectPayload(20L, new BuildingPreviewEffectSnapshot(null)));
+      assertTrue(state.building().active());
+
+      state.resetConnection();
+
+      assertFalse(state.building().active());
+      assertTrue(state.holdReconnectBuildingSession(activeBuildingSession(21L)));
+      assertTrue(state.reconnectRestorePending());
+      assertFalse(state.building().active());
+   }
+
+   @Test
+   void leadingInactiveSnapshotKeepsWaitingForTheReconnectSnapshot() {
+      ClientPreviewState state = new ClientPreviewState();
+      state.resetConnection();
+      state.beginReconnectRestore();
+
+      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      assertFalse(state.holdReconnectBuildingSession(new BuildingPreviewSessionPayload(4L, inactive.session())));
+      assertFalse(state.reconnectRestorePending());
+
+      assertTrue(state.holdReconnectBuildingSession(activeBuildingSession(5L)));
+      assertTrue(state.reconnectRestorePending());
+      assertFalse(state.building().active());
+   }
+
+   @Test
+   void settledBoundaryLetsALaterRevisionApplyImmediately() {
+      ClientPreviewState state = new ClientPreviewState();
+      state.resetConnection();
+      state.beginReconnectRestore();
+      assertTrue(state.holdReconnectBuildingSession(activeBuildingSession(9L)));
+
+      state.tickReconnectBoundary();
+      state.tickReconnectBoundary();
+
+      assertFalse(state.holdReconnectBuildingSession(activeBuildingSession(10L)));
+      assertFalse(state.reconnectRestorePending());
+   }
+
+   @Test
+   void unansweredBoundaryStopsHoldingLaterPreviews() {
+      ClientPreviewState state = new ClientPreviewState();
+      state.resetConnection();
+      state.beginReconnectRestore();
+
+      for (int tick = 0; tick < 200; tick++) {
+         state.tickReconnectBoundary();
+      }
+
+      assertFalse(state.holdReconnectBuildingSession(activeBuildingSession(3L)));
+      assertFalse(state.reconnectRestorePending());
+   }
+
+   @Test
+   void reconnectGeometryPreviewStaysHiddenUntilConfirmed() {
+      ClientPreviewState state = new ClientPreviewState();
+      state.resetConnection();
+      state.beginReconnectRestore();
+
+      assertTrue(state.holdReconnectGeometry(activeGeometry()));
+      assertFalse(state.geometry().active());
+
+      ClientPreviewState.HeldReconnectPreviews held = state.takeHeldReconnectPreviews();
+      state.applyGeometry(held.geometry());
+
+      assertTrue(state.geometry().active());
+   }
+
+   @Test
+   void ordinaryPreviewIsAppliedWhileNoReconnectRestoreIsPending() {
+      ClientPreviewState state = new ClientPreviewState();
+      state.resetConnection();
+
+      assertFalse(state.holdReconnectBuildingSession(activeBuildingSession(6L)));
+      assertFalse(state.holdReconnectGeometry(activeGeometry()));
+   }
+
+   private static BuildingPreviewSessionPayload activeBuildingSession(long revision) {
+      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      return new BuildingPreviewSessionPayload(
+         revision,
+         new BuildingPreviewSession(
+            true,
+            inactive.session().middleConfirmEnabled(),
+            true,
+            false,
+            false,
+            false,
+            inactive.session().polygonVolumeShape(),
+            List.of(BlockPos.ZERO),
+            BlockPos.ZERO,
+            inactive.session().placementContext()
+         )
+      );
+   }
+
+   private static GeometryPreviewPayload activeGeometry() {
+      GeometryPreviewPayload inactive = GeometryPreviewPayload.inactive();
+      return new GeometryPreviewPayload(
+         true,
+         GeometryMode.WALL,
+         List.of(new BlockPos(1, 64, 1), new BlockPos(2, 64, 2)),
+         null,
+         null,
+         false,
+         false,
+         BlockPos.ZERO,
+         inactive.polyhedronShapeVariant(),
+         inactive.coneShapeVariant(),
+         inactive.compoundShapeVariant(),
+         inactive.polyhedronSizeMode(),
+         inactive.fillMode(),
+         inactive.conePlaneMode(),
+         inactive.coneRadius(),
+         inactive.coneScaleX(),
+         inactive.coneScaleZ(),
+         inactive.coneTopScaleOffset(),
+         inactive.coneTopOffset(),
+         inactive.coneRotationRadians(),
+         inactive.coneGizmoLocal(),
+         inactive.rotation(),
+         inactive.polyhedronLocalScale(),
+         inactive.polyhedronWorldScale(),
+         inactive.polyhedronGizmoLocal(),
+         inactive.selectedPointIndex()
+      );
    }
 }

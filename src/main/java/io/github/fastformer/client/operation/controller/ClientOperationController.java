@@ -50,10 +50,13 @@ public final class ClientOperationController {
    private static OperationClipboard clipboard;
    private static boolean clipboardLoaded;
    private static boolean workspaceSubmissionPending;
-   private static boolean awaitingOperationSnapshot;
+   /** Ticks an unanswered connection boundary waits before it is dropped. */
+   private static final int RECONNECT_BOUNDARY_IDLE_TICKS = 40;
    /** A reconnect snapshot may describe a server task that continues running,
     * but it must not recreate client-owned draft/workspace state. */
-   private static boolean suppressNextServerPreviewHydration;
+   private static boolean reconnectBoundaryArmed;
+   private static boolean reconnectBoundarySawSnapshot;
+   private static int reconnectBoundaryIdleTicks;
    private static OperationPreviewPayload pendingReconnectPreview;
    private static UUID pendingWorkspaceTransferId;
    private static OperationPreviewPayload serverPreview = OperationPreviewPayload.inactive();
@@ -151,22 +154,29 @@ public final class ClientOperationController {
       if (payload.operationRevision() < lastServerPreviewRevision) {
          return false;
       }
-      boolean previousServerOperationActive = serverPreview.active();
-      boolean reconnectSnapshot = awaitingOperationSnapshot;
-      awaitingOperationSnapshot = false;
-      lastServerPreviewRevision = payload.operationRevision();
-      if (shouldSuppressServerPreviewHydration(suppressNextServerPreviewHydration, payload.active())) {
-         suppressNextServerPreviewHydration = false;
-         pendingReconnectPreview = payload;
-         serverPreview = OperationPreviewPayload.inactive();
-         refreshInteractionState();
-         return true;
+      if (reconnectBoundaryArmed) {
+         reconnectBoundarySawSnapshot = true;
+         if (payload.active()) {
+            reconnectBoundaryArmed = false;
+            reconnectBoundarySawSnapshot = false;
+            reconnectBoundaryIdleTicks = 0;
+            pendingReconnectPreview = payload;
+            serverPreview = OperationPreviewPayload.inactive();
+            refreshInteractionState();
+            return false;
+         }
+      } else if (pendingReconnectPreview != null
+         && payload.operationRevision() != pendingReconnectPreview.operationRevision()) {
+         // A later revision proves the player is already working with the live
+         // operation, so the snapshot waiting for confirmation is stale.
+         pendingReconnectPreview = null;
       }
-      suppressNextServerPreviewHydration = false;
+      boolean previousServerOperationActive = serverPreview.active();
+      lastServerPreviewRevision = payload.operationRevision();
       serverPreview = payload;
       if (!payload.active()) {
          if (shouldClearWorkspaceAfterSnapshot(
-            previousServerOperationActive, reconnectSnapshot, workspaceSubmissionPending
+            previousServerOperationActive, workspaceSubmissionPending
          )) {
             clearWorkspace();
          }
@@ -700,14 +710,9 @@ public final class ClientOperationController {
 
    static boolean shouldClearWorkspaceAfterSnapshot(
       boolean previousServerOperationActive,
-      boolean reconnectSnapshot,
       boolean submissionPending
    ) {
-      return !submissionPending && (previousServerOperationActive || reconnectSnapshot);
-   }
-
-   static boolean shouldSuppressServerPreviewHydration(boolean reconnectBoundary, boolean active) {
-      return reconnectBoundary && active;
+      return !submissionPending && previousServerOperationActive;
    }
 
    /** Ends editable client state when the connection closes. */
@@ -722,13 +727,31 @@ public final class ClientOperationController {
       FALLBACK_SELECTION_SESSION.setAltHeld(false);
       workspaceSubmissionPending = false;
       pendingWorkspaceTransferId = null;
-      awaitingOperationSnapshot = false;
-      suppressNextServerPreviewHydration = true;
+      reconnectBoundaryArmed = true;
+      reconnectBoundarySawSnapshot = false;
+      reconnectBoundaryIdleTicks = 0;
       pendingReconnectPreview = null;
       serverPreview = OperationPreviewPayload.inactive();
       lastServerPreviewRevision = -1L;
       SOURCE_MASK.clear();
       refreshInteractionState(playerWorkspace);
+   }
+
+   /** Ends a reconnect boundary once the snapshot that followed it has settled. */
+   public static void onClientTick() {
+      if (!reconnectBoundaryArmed) {
+         return;
+      }
+      if (reconnectBoundarySawSnapshot) {
+         reconnectBoundaryArmed = false;
+         reconnectBoundarySawSnapshot = false;
+         reconnectBoundaryIdleTicks = 0;
+         return;
+      }
+      if (++reconnectBoundaryIdleTicks >= RECONNECT_BOUNDARY_IDLE_TICKS) {
+         reconnectBoundaryArmed = false;
+         reconnectBoundaryIdleTicks = 0;
+      }
    }
 
    public static boolean workspaceSubmissionPending() {

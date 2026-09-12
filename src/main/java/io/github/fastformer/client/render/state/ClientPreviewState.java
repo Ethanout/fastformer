@@ -25,6 +25,17 @@ public final class ClientPreviewState {
    private long buildingSessionRevision;
    private long buildingParametersRevision;
    private long buildingEffectRevision;
+   /** Ticks an unanswered connection boundary waits before it is dropped. */
+   private static final int RECONNECT_BOUNDARY_IDLE_TICKS = 40;
+   private boolean reconnectRestoreArmed;
+   private boolean reconnectRestorePending;
+   private boolean reconnectBoundarySawSnapshot;
+   private int reconnectBoundaryIdleTicks;
+   private long reconnectRestoreRevision = Long.MIN_VALUE;
+   private BuildingPreviewSessionPayload heldReconnectBuildingSession;
+   private BuildingPreviewParametersPayload heldReconnectBuildingParameters;
+   private BuildingPreviewEffectPayload heldReconnectBuildingEffect;
+   private GeometryPreviewPayload heldReconnectGeometry;
 
    public BuildingPreviewPayload building() {
       return building;
@@ -81,7 +92,15 @@ public final class ClientPreviewState {
       return rebuildBuilding();
    }
 
+   /**
+    * Ends the previews of one connection or level. A preview that was visible, and a
+    * question that still waits for the player, both arm the confirm gate again, so the
+    * next replayed snapshot never becomes visible on its own.
+    */
    public void resetConnection() {
+      if (building.active() || geometry.active() || reconnectRestorePending) {
+         beginReconnectRestore();
+      }
       buildingSessionRevision = 0L;
       buildingParametersRevision = 0L;
       buildingEffectRevision = 0L;
@@ -89,6 +108,160 @@ public final class ClientPreviewState {
       applyOperation(OperationPreviewPayload.inactive());
       applyGeometry(GeometryPreviewPayload.inactive());
       applyActivity(new ActivityStatePayload(FastPlaceActivity.NONE));
+      // A new connection or level cannot answer the question of the old one.
+      clearPendingReconnectRestore();
+   }
+
+   /**
+    * Marks the connection boundary that may restore a server preview session.
+    * The replayed active snapshot stays hidden until the player confirms it.
+    */
+   public void beginReconnectRestore() {
+      reconnectRestoreArmed = true;
+      reconnectRestorePending = false;
+      reconnectBoundarySawSnapshot = false;
+      reconnectBoundaryIdleTicks = 0;
+      reconnectRestoreRevision = Long.MIN_VALUE;
+      clearHeldReconnectPreviews();
+   }
+
+   public boolean reconnectRestorePending() {
+      return reconnectRestorePending;
+   }
+
+   /**
+    * Ends the boundary once the snapshot round that followed it has been received.
+    * A snapshot already waiting for the player's answer stays held.
+    */
+   public void tickReconnectBoundary() {
+      if (!reconnectRestoreArmed) {
+         return;
+      }
+      if (reconnectBoundarySawSnapshot) {
+         reconnectRestoreArmed = false;
+         reconnectBoundarySawSnapshot = false;
+         reconnectBoundaryIdleTicks = 0;
+         return;
+      }
+      if (++reconnectBoundaryIdleTicks >= RECONNECT_BOUNDARY_IDLE_TICKS) {
+         reconnectRestoreArmed = false;
+         reconnectBoundaryIdleTicks = 0;
+      }
+   }
+
+   /** Returns true when a replayed preview part must wait for the player's confirmation. */
+   public boolean holdReconnectBuildingSession(BuildingPreviewSessionPayload payload) {
+      payload = Objects.requireNonNull(payload, "payload");
+      if (reconnectRestorePending) {
+         if (payload.revision() != reconnectRestoreRevision) {
+            dismissReconnectRestore();
+            return false;
+         }
+         heldReconnectBuildingSession = payload;
+         return true;
+      }
+      if (!reconnectRestoreArmed) {
+         return false;
+      }
+      reconnectBoundarySawSnapshot = true;
+      if (!payload.value().active()) {
+         return false;
+      }
+      reconnectRestorePending = true;
+      reconnectRestoreRevision = payload.revision();
+      heldReconnectBuildingSession = payload;
+      return true;
+   }
+
+   public boolean holdReconnectBuildingParameters(BuildingPreviewParametersPayload payload) {
+      payload = Objects.requireNonNull(payload, "payload");
+      if (!reconnectRestorePending) {
+         return false;
+      }
+      if (payload.revision() != reconnectRestoreRevision) {
+         dismissReconnectRestore();
+         return false;
+      }
+      heldReconnectBuildingParameters = payload;
+      return true;
+   }
+
+   public boolean holdReconnectBuildingEffect(BuildingPreviewEffectPayload payload) {
+      payload = Objects.requireNonNull(payload, "payload");
+      if (!reconnectRestorePending) {
+         return false;
+      }
+      if (payload.revision() != reconnectRestoreRevision) {
+         dismissReconnectRestore();
+         return false;
+      }
+      heldReconnectBuildingEffect = payload;
+      return true;
+   }
+
+   public boolean holdReconnectGeometry(GeometryPreviewPayload payload) {
+      payload = Objects.requireNonNull(payload, "payload");
+      if (reconnectRestorePending) {
+         if (heldReconnectGeometry != null) {
+            dismissReconnectRestore();
+            return false;
+         }
+         heldReconnectGeometry = payload;
+         return true;
+      }
+      if (!reconnectRestoreArmed) {
+         return false;
+      }
+      reconnectBoundarySawSnapshot = true;
+      if (!payload.active()) {
+         return false;
+      }
+      reconnectRestorePending = true;
+      heldReconnectGeometry = payload;
+      return true;
+   }
+
+   /** Hands the held reconnect previews to the caller and ends the pending restore. */
+   public HeldReconnectPreviews takeHeldReconnectPreviews() {
+      if (!reconnectRestorePending) {
+         return null;
+      }
+      HeldReconnectPreviews held = new HeldReconnectPreviews(
+         heldReconnectBuildingSession,
+         heldReconnectBuildingParameters,
+         heldReconnectBuildingEffect,
+         heldReconnectGeometry
+      );
+      dismissReconnectRestore();
+      return held;
+   }
+
+   public void dismissReconnectRestore() {
+      reconnectRestoreArmed = false;
+      reconnectRestorePending = false;
+      reconnectBoundarySawSnapshot = false;
+      reconnectBoundaryIdleTicks = 0;
+      reconnectRestoreRevision = Long.MIN_VALUE;
+      clearHeldReconnectPreviews();
+   }
+
+   /**
+    * Drops the held previews and their confirmation question. The boundary stays
+    * armed, so the new level can ask again with its own snapshot.
+    */
+   private void clearPendingReconnectRestore() {
+      reconnectRestorePending = false;
+      reconnectBoundarySawSnapshot = false;
+      reconnectBoundaryIdleTicks = 0;
+      reconnectRestoreRevision = Long.MIN_VALUE;
+      clearHeldReconnectPreviews();
+   }
+
+   private void clearHeldReconnectPreviews() {
+      heldReconnectBuildingSession = null;
+      heldReconnectBuildingParameters = null;
+      heldReconnectBuildingEffect = null;
+      heldReconnectGeometry = null;
    }
 
    public boolean applyBuildingParameters(BuildingPreviewParametersPayload payload) {
@@ -164,5 +337,14 @@ public final class ClientPreviewState {
    public void applyActivity(ActivityStatePayload payload) {
       activity = Objects.requireNonNull(payload, "payload").activity();
       revision++;
+   }
+
+   /** Server preview parts replayed at a reconnect boundary, in publication order. */
+   public record HeldReconnectPreviews(
+      BuildingPreviewSessionPayload buildingSession,
+      BuildingPreviewParametersPayload buildingParameters,
+      BuildingPreviewEffectPayload buildingEffect,
+      GeometryPreviewPayload geometry
+   ) {
    }
 }

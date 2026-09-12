@@ -3123,9 +3123,6 @@ public class FastPlaceClientPreviewCore {
       FastPlaceClientInput.endWorldSession();
       // A replayed preview session must be confirmed before it becomes visible again.
       // A connection that replays nothing active cancels the pending restore instead.
-      if (PREVIEW_STATE.building().active() || PREVIEW_STATE.geometry().active()) {
-         PREVIEW_STATE.beginReconnectRestore();
-      }
       PREVIEW_STATE.resetConnection();
       ClientOperationController.onDisconnected();
       WorkspaceInteractionResolver.clearCache();
