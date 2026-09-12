@@ -354,9 +354,7 @@ public final class ClientOperationController {
          if (mouseButton != 1) {
             if (mouseButton == 2) {
                selectionSession().addDraftPoint(point);
-               boolean result = selectionSession().prismBaseCount() > 0
-                  && selectionSession().draftSize() > selectionSession().prismBaseCount()
-                  ? finishDraft(selectionSession().prismBaseCount()) : true; refreshInteractionState(); return result;
+               boolean result = finishPrismDraftIfReady(); refreshInteractionState(); return result;
             }
             return false;
          }
@@ -367,9 +365,7 @@ public final class ClientOperationController {
             refreshInteractionState(); return true;
          }
          selectionSession().addDraftPoint(point);
-         boolean result = selectionSession().prismBaseCount() > 0
-            && selectionSession().draftSize() > selectionSession().prismBaseCount()
-            ? finishDraft(selectionSession().prismBaseCount()) : true; refreshInteractionState(); return result;
+         boolean result = finishPrismDraftIfReady(); refreshInteractionState(); return result;
       }
       return false;
    }
@@ -405,9 +401,7 @@ public final class ClientOperationController {
             handled = true;
          } else {
             selectionSession().addDraftPoint(point);
-            handled = selectionSession().prismBaseCount() > 0
-               && selectionSession().draftSize() > selectionSession().prismBaseCount()
-               ? finishDraft(selectionSession().prismBaseCount()) : true;
+            handled = finishPrismDraftIfReady();
          }
       } else if (mouseButton == 0) {
          selectionSession().clearDraft();
@@ -904,6 +898,14 @@ public final class ClientOperationController {
          refreshSourceMask();
       }
       return added;
+   }
+
+   private static boolean finishPrismDraftIfReady() {
+      int prismBaseCount = selectionSession().prismBaseCount();
+      return prismBaseCount > 0
+         && selectionSession().draftSize() > prismBaseCount
+         ? finishDraft(prismBaseCount)
+         : true;
    }
 
    private static DraftSnapshot draftSnapshot() {
