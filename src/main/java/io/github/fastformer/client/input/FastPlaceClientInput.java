@@ -56,6 +56,7 @@ import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
@@ -203,12 +204,16 @@ public final class FastPlaceClientInput {
             return;
          }
          if (controlDown && event.getKey() == 67 && ClientOperationController.active()) {
-            ClientOperationController.copySelected();
+            if (!ClientOperationController.copySelected()) {
+               showOperationFeedback(minecraft, "fastformer.message.operation_copy_failed");
+            }
             return;
          }
          if (controlDown && event.getKey() == 86
             && INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE) != ClientInputStateMachine.Dispatch.BLOCKED) {
-            ClientOperationController.paste(minecraft);
+            if (!ClientOperationController.paste(minecraft)) {
+               showOperationFeedback(minecraft, "fastformer.message.operation_paste_failed");
+            }
             return;
          }
          if (controlDown && event.getKey() == 65 && ClientOperationController.active()) {
@@ -283,6 +288,12 @@ public final class FastPlaceClientInput {
             }
             ClientPlacementRouter.confirm(minecraft);
          }
+      }
+   }
+
+   private static void showOperationFeedback(Minecraft minecraft, String key) {
+      if (minecraft.player != null) {
+         minecraft.player.displayClientMessage(Component.translatable(key), true);
       }
    }
 
