@@ -51,6 +51,10 @@ final class SelectionJournalPrediction {
       }
       if (this.conflictMode == OperationConflictMode.KEEP_EXISTING
          && !currentState(currentSourceIndex, original).canBeReplaced()) {
+         long sourcePosition = this.sources.get(sourceIndex).pos().asLong();
+         if (this.sourceIndexByPosition.get(sourcePosition) == CLEARED) {
+            this.sourceIndexByPosition.put(sourcePosition, sourceIndex);
+         }
          return;
       }
       this.sourceIndexByPosition.put(position.asLong(), sourceIndex);

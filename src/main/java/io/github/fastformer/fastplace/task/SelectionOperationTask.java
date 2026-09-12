@@ -507,6 +507,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
       }
       boolean movingSource = overlappingPlacementPositions.contains(pos) && transaction.afterAt(pos) == null;
       if (conflictMode != OperationConflictMode.REPLACE && !movingSource && !current.canBeReplaced()) {
+         restoreSkippedSource(level, sourceBlock);
          return;
       }
       ReversibleBlockSnapshot before = expectedSnapshot;
@@ -602,6 +603,25 @@ public final class SelectionOperationTask implements WorldOperationTask {
          ReversibleBlockSnapshot.refreshTaskOwnedNeighbors(level, pos, transaction);
       }
       failed = true;
+   }
+
+   private void restoreSkippedSource(ServerLevel level, ReversibleBlockSnapshot sourceBlock) {
+      if (!clearsSource() || overlappingPlacementPositions.contains(sourceBlock.pos())) {
+         return;
+      }
+      ReversibleBlockSnapshot cleared = transaction.afterAt(sourceBlock.pos());
+      if (cleared == null || !cleared.state().isAir()) {
+         return;
+      }
+      if (!cleared.matches(level, sourceBlock.pos())) {
+         failed = true;
+         return;
+      }
+      if (!sourceBlock.placeAt(level, sourceBlock.pos(), updateMode.flags())) {
+         failed = true;
+         return;
+      }
+      transaction.recordAfter(sourceBlock.pos(), sourceBlock);
    }
 
    private static ReversibleBlockSnapshot currentSnapshot(ServerLevel level, BlockPos pos) {
