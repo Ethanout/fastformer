@@ -299,18 +299,27 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static void applyBuildingSession(BuildingPreviewSessionPayload payload) {
+      if (PREVIEW_STATE.holdReconnectBuildingSession(payload)) {
+         return;
+      }
       if (PREVIEW_STATE.applyBuildingSession(payload)) {
          resetBuildingPreviewCaches();
       }
    }
 
    public static void applyBuildingParameters(BuildingPreviewParametersPayload payload) {
+      if (PREVIEW_STATE.holdReconnectBuildingParameters(payload)) {
+         return;
+      }
       if (PREVIEW_STATE.applyBuildingParameters(payload)) {
          resetBuildingPreviewCaches();
       }
    }
 
    public static void applyBuildingEffect(BuildingPreviewEffectPayload payload) {
+      if (PREVIEW_STATE.holdReconnectBuildingEffect(payload)) {
+         return;
+      }
       if (PREVIEW_STATE.applyBuildingEffect(payload)) {
          resetBuildingPreviewCaches();
       }
@@ -345,6 +354,9 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static void applyGeometry(GeometryPreviewPayload payload) {
+      if (PREVIEW_STATE.holdReconnectGeometry(payload)) {
+         return;
+      }
       if (!continuesGeometryTransform(PREVIEW_STATE.geometry(), payload)) {
          geometryTransformBaseline = null;
       }
@@ -357,6 +369,11 @@ public class FastPlaceClientPreviewCore {
 
    public static void applyActivity(ActivityStatePayload payload) {
       PREVIEW_STATE.applyActivity(payload);
+   }
+
+   /** Ends a reconnect boundary once the snapshot that followed it has settled. */
+   public static void onClientTick() {
+      PREVIEW_STATE.tickReconnectBoundary();
    }
 
    /** Changes whenever a server preview or activity snapshot is applied. */
@@ -990,7 +1007,8 @@ public class FastPlaceClientPreviewCore {
       Minecraft minecraft = Minecraft.getInstance();
       GuiGraphics graphics = event.getGuiGraphics();
       BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
-      boolean reconnectRestorePending = ClientOperationController.reconnectRestorePending();
+      boolean reconnectRestorePending = ClientOperationController.reconnectRestorePending()
+         || reconnectPreviewRestorePending();
       if (!(reconnectRestorePending || snapshot.enabled() || PREVIEW_STATE.geometry().active() || PREVIEW_STATE.operation().active() || PREVIEW_STATE.activity().task() || QuickReplaceMode.active())) {
          restoreVanillaCrosshairIfNeeded(graphics);
          smoothReticleFrame = false;
@@ -3103,6 +3121,11 @@ public class FastPlaceClientPreviewCore {
 
    private static void endWorldSession() {
       FastPlaceClientInput.endWorldSession();
+      // A replayed preview session must be confirmed before it becomes visible again.
+      // A connection that replays nothing active cancels the pending restore instead.
+      if (PREVIEW_STATE.building().active() || PREVIEW_STATE.geometry().active()) {
+         PREVIEW_STATE.beginReconnectRestore();
+      }
       PREVIEW_STATE.resetConnection();
       ClientOperationController.onDisconnected();
       WorkspaceInteractionResolver.clearCache();
@@ -3139,6 +3162,27 @@ public class FastPlaceClientPreviewCore {
       PENDING_GHOST_BUFFER_CACHE.clear();
       SmoothReticlePostEffect.reset();
       smoothReticleFrame = false;
+   }
+
+   public static boolean reconnectPreviewRestorePending() {
+      return PREVIEW_STATE.reconnectRestorePending();
+   }
+
+   /** Applies the server previews held at the reconnect boundary after the player confirms. */
+   public static boolean confirmReconnectPreviewRestore() {
+      ClientPreviewState.HeldReconnectPreviews held = PREVIEW_STATE.takeHeldReconnectPreviews();
+      if (held == null) {
+         return false;
+      }
+      if (held.buildingSession() != null) applyBuildingSession(held.buildingSession());
+      if (held.buildingParameters() != null) applyBuildingParameters(held.buildingParameters());
+      if (held.buildingEffect() != null) applyBuildingEffect(held.buildingEffect());
+      if (held.geometry() != null) applyGeometry(held.geometry());
+      return true;
+   }
+
+   public static void dismissReconnectPreviewRestore() {
+      PREVIEW_STATE.dismissReconnectRestore();
    }
 
    private static BlockHitResult raycastBlocks(LocalPlayer player) {

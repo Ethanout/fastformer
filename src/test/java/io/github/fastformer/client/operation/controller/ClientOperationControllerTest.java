@@ -14,30 +14,18 @@ import org.junit.jupiter.api.Test;
 
 class ClientOperationControllerTest {
    @Test
-   void inactiveSnapshotClearsWorkspaceRetainedAcrossReconnect() {
-      assertTrue(ClientOperationController.shouldClearWorkspaceAfterSnapshot(false, true, false));
-   }
-
-   @Test
    void inactiveSnapshotPreservesWorkspaceWhileSubmissionIsPending() {
-      assertFalse(ClientOperationController.shouldClearWorkspaceAfterSnapshot(false, true, true));
+      assertFalse(ClientOperationController.shouldClearWorkspaceAfterSnapshot(false, true));
    }
 
    @Test
    void inactiveSnapshotClearsWorkspaceAfterActiveServerOperationEnds() {
-      assertTrue(ClientOperationController.shouldClearWorkspaceAfterSnapshot(true, false, false));
+      assertTrue(ClientOperationController.shouldClearWorkspaceAfterSnapshot(true, false));
    }
 
    @Test
    void ordinaryInactiveSnapshotDoesNotClearLocalWorkspace() {
-      assertFalse(ClientOperationController.shouldClearWorkspaceAfterSnapshot(false, false, false));
-   }
-
-   @Test
-   void reconnectActiveSnapshotDoesNotHydrateClientWorkspace() {
-      assertTrue(ClientOperationController.shouldSuppressServerPreviewHydration(true, true));
-      assertFalse(ClientOperationController.shouldSuppressServerPreviewHydration(false, true));
-      assertFalse(ClientOperationController.shouldSuppressServerPreviewHydration(true, false));
+      assertFalse(ClientOperationController.shouldClearWorkspaceAfterSnapshot(false, false));
    }
 
    @Test
@@ -45,7 +33,7 @@ class ClientOperationControllerTest {
       OperationPreviewPayload payload = reconnectPayload(17L);
       ClientOperationController.onDisconnected();
 
-      assertTrue(ClientOperationController.synchronize(payload));
+      assertFalse(ClientOperationController.synchronize(payload));
       assertTrue(ClientOperationController.reconnectRestorePending());
       assertTrue(ClientOperationController.workspace().isEmpty());
 
@@ -57,10 +45,57 @@ class ClientOperationControllerTest {
    }
 
    @Test
+   void leadingInactiveSnapshotKeepsWaitingForTheReconnectSession() {
+      ClientOperationController.onDisconnected();
+
+      assertTrue(ClientOperationController.synchronize(OperationPreviewPayload.inactive(4L)));
+      assertFalse(ClientOperationController.reconnectRestorePending());
+      assertTrue(ClientOperationController.workspace().isEmpty());
+
+      assertFalse(ClientOperationController.synchronize(reconnectPayload(5L)));
+      assertTrue(ClientOperationController.reconnectRestorePending());
+      assertTrue(ClientOperationController.workspace().isEmpty());
+
+      assertTrue(ClientOperationController.confirmReconnectRestore());
+      assertFalse(ClientOperationController.reconnectRestorePending());
+      assertFalse(ClientOperationController.workspace().isEmpty());
+
+      ClientOperationController.onDisconnected();
+   }
+
+   @Test
+   void settledBoundaryAppliesLaterRevisionsWithoutRestoring() {
+      ClientOperationController.onDisconnected();
+      assertFalse(ClientOperationController.synchronize(reconnectPayload(7L)));
+
+      ClientOperationController.onClientTick();
+      ClientOperationController.onClientTick();
+
+      assertTrue(ClientOperationController.synchronize(reconnectPayload(8L)));
+      assertFalse(ClientOperationController.reconnectRestorePending());
+
+      ClientOperationController.onDisconnected();
+   }
+
+   @Test
+   void unansweredBoundaryStopsHoldingLaterSnapshots() {
+      ClientOperationController.onDisconnected();
+
+      for (int tick = 0; tick < 200; tick++) {
+         ClientOperationController.onClientTick();
+      }
+
+      assertTrue(ClientOperationController.synchronize(reconnectPayload(9L)));
+      assertFalse(ClientOperationController.reconnectRestorePending());
+
+      ClientOperationController.onDisconnected();
+   }
+
+   @Test
    void dismissingReconnectSnapshotPreventsLaterRestore() {
       ClientOperationController.onDisconnected();
 
-      assertTrue(ClientOperationController.synchronize(reconnectPayload(23L)));
+      assertFalse(ClientOperationController.synchronize(reconnectPayload(23L)));
       assertTrue(ClientOperationController.reconnectRestorePending());
       ClientOperationController.dismissReconnectRestore();
 

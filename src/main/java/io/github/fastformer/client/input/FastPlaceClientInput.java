@@ -170,9 +170,11 @@ public final class FastPlaceClientInput {
       boolean controlDown = physicalCtrlDown(minecraft, false);
       boolean cancelKey = event.getAction() == 1 && event.getKey() == 81;
       if (event.getAction() == 1 && event.getKey() == 257
-         && ClientOperationController.reconnectRestorePending()
+         && (ClientOperationController.reconnectRestorePending()
+            || FastPlaceClientPreview.reconnectPreviewRestorePending())
          && minecraft.player != null && minecraft.screen == null) {
          ClientOperationController.confirmReconnectRestore();
+         FastPlaceClientPreview.confirmReconnectPreviewRestore();
          return;
       }
       if (cancelKey
@@ -181,8 +183,10 @@ public final class FastPlaceClientInput {
          && minecraft.getConnection() != null
          && NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
          boolean pendingRestore = ClientOperationController.reconnectRestorePending();
+         boolean pendingPreviewRestore = FastPlaceClientPreview.reconnectPreviewRestorePending();
          boolean cancelled = INPUT_STATE.cancel();
          if (pendingRestore) ClientOperationController.dismissReconnectRestore();
+         if (pendingPreviewRestore) FastPlaceClientPreview.dismissReconnectPreviewRestore();
          if (!cancelled) return;
          cancelOperationGesture(minecraft);
          ClientOperationController.clearWorkspace();
@@ -1027,9 +1031,11 @@ public final class FastPlaceClientInput {
          geometryClickCapturedButton = -1;
          UNDO_PRESS.cancel();
          undoPressCaptured = false;
-         cancelPointerGesture();
-         return;
+        cancelPointerGesture();
+        return;
       }
+      ClientOperationController.onClientTick();
+      FastPlaceClientPreview.onClientTick();
       synchronizeInputState();
       if (INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.KEY)
          != ClientInputStateMachine.Dispatch.BLOCKED) {
