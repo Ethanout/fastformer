@@ -1017,7 +1017,9 @@ public final class WorldHistoryManager {
       // budget it is kept; otherwise evict the oldest batch from whichever
       // stack currently contributes more bytes. The budget covers both undo
       // and redo so an undo/redo cycle cannot silently retain ~512 MiB.
-      while (history.undoBytes + history.redoBytes > MAX_BYTES_PER_PLAYER
+      // Use saturating arithmetic so a corrupted or adversarially large
+      // estimate cannot wrap the total below the byte-budget threshold.
+      while (saturatedAdd(history.undoBytes, history.redoBytes) > MAX_BYTES_PER_PLAYER
          && (history.undo.size() > 1 || history.redo.size() > 1)) {
          if (history.redo.isEmpty() || (history.undoBytes >= history.redoBytes && history.undo.size() > 1)) {
             WorldChangeBatch removed = history.undo.removeLast();
