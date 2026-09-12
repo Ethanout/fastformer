@@ -50,7 +50,9 @@ public final class WorldHistoryPersistenceGameTests {
       });
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   // The test asserts the real asynchronous publication barrier.  The
+   // uncapped GameTest server can advance far faster than the disk worker.
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000)
    public static void completedManagerBatchReachesDisk(GameTestHelper helper) {
       publishAndCheck(helper, false);
    }
