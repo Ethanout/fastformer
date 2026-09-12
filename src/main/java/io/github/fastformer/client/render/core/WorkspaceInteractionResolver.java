@@ -160,7 +160,7 @@ final class WorkspaceInteractionResolver {
             continue;
          }
          OccupiedBlockBounds occupied = OccupiedBlockBounds.from(resolved.keySet()).orElseThrow();
-         AABB bounds = occupied.aabb();
+         AABB bounds = outlineBounds(part, occupied.aabb());
          OperationGeometry.RayHit hit = OperationGeometry.raycast(bounds.inflate(0.015), context.eye(), context.view(), REACH);
          boolean frameHit = hit != null && (context.control() || nearEdge(hit.point(), bounds));
          Vec3 label = occupied.center().add(0.0, 0.22, 0.0);

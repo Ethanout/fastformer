@@ -189,19 +189,6 @@ final class OperationPreviewRenderer {
          boolean hovered = part.id() == hoveredPartId;
          boolean editable = part.editability() == ClientSelectionPart.Editability.FREE;
          OccupiedBlockBounds bounds = OccupiedBlockBounds.from(resolved.keySet()).orElseThrow();
-         Map<BlockPos, io.github.fastformer.client.operation.model.ClientBlockSnapshot> baseResolved =
-            WorkspaceInteractionResolver.resolveBasePart(part);
-         OccupiedBlockBounds baseBounds = baseResolved.isEmpty() ? bounds
-            : OccupiedBlockBounds.from(baseResolved.keySet()).orElseThrow();
-         AABB selectionBounds = WorkspaceInteractionResolver.selectionBounds(part);
-         Vec3 selectedLineCenter = selectionBounds == null ? baseBounds.center() : selectionBounds.getCenter();
-         Vec3 selectedLineHalfExtents = selectionBounds == null
-            ? new Vec3(baseBounds.width(AxisGizmo.Axis.X) * 0.5,
-               baseBounds.width(AxisGizmo.Axis.Y) * 0.5,
-               baseBounds.width(AxisGizmo.Axis.Z) * 0.5)
-            : new Vec3(selectionBounds.getXsize() * 0.5,
-               selectionBounds.getYsize() * 0.5,
-               selectionBounds.getZsize() * 0.5);
          poseStack.pushPose();
          poseStack.translate(-camera.x, -camera.y, -camera.z);
          AABB outlineBounds = WorkspaceInteractionResolver.outlineBounds(part, bounds.aabb());
@@ -215,18 +202,6 @@ final class OperationPreviewRenderer {
                poseStack, buffers.getBuffer(RenderType.lines()), outlineBounds.getCenter(), halfExtents,
                pendingGridDashOffset() + part.id() * 0.31, hovered ? 0.48F : 0.38F
             );
-            // Only locked parts keep a second frame for their immutable selection baseline.
-            boolean distinctCommonFrame = selectedLineCenter.distanceToSqr(bounds.center()) > 1.0E-8
-               || Math.abs(selectedLineHalfExtents.x - halfExtents.x) > 1.0E-8
-               || Math.abs(selectedLineHalfExtents.y - halfExtents.y) > 1.0E-8
-               || Math.abs(selectedLineHalfExtents.z - halfExtents.z) > 1.0E-8;
-            if (part.editability() == ClientSelectionPart.Editability.LOCKED && distinctCommonFrame) {
-               renderFlowingDashedBox(
-                  poseStack, buffers.getBuffer(RenderType.lines()), selectedLineCenter,
-                  selectedLineHalfExtents, camera,
-                  -pendingGridDashOffset() + part.id() * 0.31, hovered ? 1.0F : 0.94F
-               );
-            }
          } else if (editable) {
             LevelRenderer.renderLineBox(
                poseStack,
