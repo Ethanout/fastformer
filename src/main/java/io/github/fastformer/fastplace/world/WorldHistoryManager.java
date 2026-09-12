@@ -711,7 +711,7 @@ public final class WorldHistoryManager {
          if (history != null) {
             ServerPlayer player = context.onlinePlayer();
             if (player == null) {
-               trim(DEFAULT_LIMIT, history);
+               trim(ownerState.historyLimit, history);
             } else {
                trimSafely(player, history);
             }
