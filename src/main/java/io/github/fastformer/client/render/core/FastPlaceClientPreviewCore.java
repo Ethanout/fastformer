@@ -3246,12 +3246,16 @@ public class FastPlaceClientPreviewCore {
          previewLevel, state, stateOverrides, collision, pendingBlocks, shapeEnvironment, Map.of(), player.isShiftKeyDown()
       );
 
-      ShapeShellRenderer.renderFaces(
-         poseStack, buffers.getBuffer(GHOST_FACES), camera, confirmed.faces(), 0.80F * worldPreviewOpacity
-      );
-      float pendingFaceAlpha = (0.30F + 0.20F * ghostBreathPulse()) * worldPreviewOpacity;
-      ShapeShellRenderer.renderFaces(poseStack, buffers.getBuffer(GHOST_FACES), camera, pending.faces(), pendingFaceAlpha);
-      buffers.endBatch(GHOST_FACES);
+      if (modes.fillMode() != FillMode.OUTLINE) {
+         ShapeShellRenderer.renderFaces(
+            poseStack, buffers.getBuffer(GHOST_FACES), camera, confirmed.faces(), 0.80F * worldPreviewOpacity
+         );
+         float pendingFaceAlpha = (0.30F + 0.20F * ghostBreathPulse()) * worldPreviewOpacity;
+         ShapeShellRenderer.renderFaces(
+            poseStack, buffers.getBuffer(GHOST_FACES), camera, pending.faces(), pendingFaceAlpha
+         );
+         buffers.endBatch(GHOST_FACES);
+      }
 
       if (!cleanOutlineEdges) {
          buffers.endBatch(PENDING_XRAY_LINES);
