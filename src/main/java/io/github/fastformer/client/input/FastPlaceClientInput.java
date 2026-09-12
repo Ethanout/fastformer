@@ -698,25 +698,7 @@ public final class FastPlaceClientInput {
                return;
             }
             OperationInputSemantics.LeftAction operationLeft = leftDecision.action();
-            OperationInteractionIntent.Gizmo workspaceGizmoHit =
-               pointerIntent instanceof OperationInteractionIntent.Gizmo gizmo ? gizmo : null;
-            OperationInteractionIntent.Face workspaceFaceHit =
-               pointerIntent instanceof OperationInteractionIntent.Face face ? face : null;
-            int workspacePartHit = pointerIntent instanceof OperationInteractionIntent.Part part ? part.partId() : 0;
-            if (workspaceGizmoHit != null) {
-               beginWorkspaceGizmoDrag(minecraft, workspaceGizmoHit, 0);
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (workspaceFaceHit != null) {
-               selectOrBeginWorkspaceFace(minecraft, workspaceFaceHit, 0, -1);
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (workspacePartHit > 0) {
-               if (physicalCtrlDown(minecraft, false)) {
-                  ClientOperationController.workspace().toggleSelected(workspacePartHit);
-               } else {
-                  ClientOperationController.workspace().selectOnly(workspacePartHit);
-               }
+            if (handleWorkspacePointerClick(minecraft, pointerIntent, 0, -1)) {
                operationClickCapturedButton = 0;
                consumed = true;
             } else if (ClientOperationController.active()
@@ -866,25 +848,7 @@ public final class FastPlaceClientInput {
       } else if (event.getButton() == 1 && operationSession) {
          boolean consumed = false;
          if (event.getAction() == 1) {
-            OperationInteractionIntent.Gizmo workspaceGizmoHit =
-               pointerIntent instanceof OperationInteractionIntent.Gizmo gizmo ? gizmo : null;
-            OperationInteractionIntent.Face workspaceFaceHit =
-               pointerIntent instanceof OperationInteractionIntent.Face face ? face : null;
-            int workspacePartHit = pointerIntent instanceof OperationInteractionIntent.Part part ? part.partId() : 0;
-            if (workspaceGizmoHit != null) {
-               beginWorkspaceGizmoDrag(minecraft, workspaceGizmoHit, 1);
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (workspaceFaceHit != null) {
-               selectOrBeginWorkspaceFace(minecraft, workspaceFaceHit, 1, 1);
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (workspacePartHit > 0) {
-               if (physicalCtrlDown(minecraft, false)) {
-                  ClientOperationController.workspace().toggleSelected(workspacePartHit);
-               } else {
-                  ClientOperationController.workspace().selectOnly(workspacePartHit);
-               }
+            if (handleWorkspacePointerClick(minecraft, pointerIntent, 1, 1)) {
                operationClickCapturedButton = 1;
                consumed = true;
             } else if (ClientOperationController.active()
@@ -1323,6 +1287,29 @@ public final class FastPlaceClientInput {
       );
       pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       return true;
+   }
+
+   /** Handles the shared workspace hit targets for either mouse button. */
+   private static boolean handleWorkspacePointerClick(
+      Minecraft minecraft, OperationInteractionIntent pointerIntent, int mouseButton, int shortPressSteps
+   ) {
+      if (pointerIntent instanceof OperationInteractionIntent.Gizmo gizmo) {
+         beginWorkspaceGizmoDrag(minecraft, gizmo, mouseButton);
+         return true;
+      }
+      if (pointerIntent instanceof OperationInteractionIntent.Face face) {
+         selectOrBeginWorkspaceFace(minecraft, face, mouseButton, shortPressSteps);
+         return true;
+      }
+      if (pointerIntent instanceof OperationInteractionIntent.Part part && part.partId() > 0) {
+         if (physicalCtrlDown(minecraft, false)) {
+            ClientOperationController.workspace().toggleSelected(part.partId());
+         } else {
+            ClientOperationController.workspace().selectOnly(part.partId());
+         }
+         return true;
+      }
+      return false;
    }
 
    private static boolean beginWorkspaceGizmoDrag(
