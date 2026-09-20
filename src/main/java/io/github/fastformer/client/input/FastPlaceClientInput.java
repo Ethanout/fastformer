@@ -1465,8 +1465,7 @@ public final class FastPlaceClientInput {
       if (!activeSession()) {
          cancelWorkspaceEditIfPresent();
          inputSession().operationDrag = null;
-         inputSession().operationPointDrag = null;
-         OperationPointInputController.resetOperationPointClicks(inputSession());
+         OperationPointInputController.cancel(inputSession());
          inputSession().undoPress.cancel();
          inputSession().undoPressCaptured = false;
          inputSession().geometryClickCapturedButton = -1;
@@ -1491,7 +1490,7 @@ public final class FastPlaceClientInput {
          FastPlaceClientPreview.operationActive()
       ));
       if (dragPlan.clearOperationDrag()) inputSession().operationDrag = null;
-      if (dragPlan.clearOperationPointDrag()) inputSession().operationPointDrag = null;
+      if (dragPlan.clearOperationPointDrag()) OperationPointInputController.cancel(inputSession());
       if (dragPlan.exclusiveOwner() == DragAdvanceSemantics.Owner.WORKSPACE_FACE) {
          SelectionGestureController.updateFace(inputSession(), minecraft);
          return;
@@ -1504,7 +1503,7 @@ public final class FastPlaceClientInput {
       if (dragPlan.advanceOperationPoint()) OperationPointInputController.updateOperationPointDrag(minecraft, inputSession());
       if (dragPlan.clearInactiveOperationDrags()) {
          inputSession().operationDrag = null;
-         inputSession().operationPointDrag = null;
+         OperationPointInputController.cancel(inputSession());
          return;
       }
       if (!dragPlan.advanceOperationDrag()) return;
@@ -2109,7 +2108,7 @@ public final class FastPlaceClientInput {
    private static void cancelOperationGesture(Minecraft minecraft) {
       SelectionGestureController.cancelActive(inputSession());
       inputSession().operationDrag = null;
-      inputSession().operationPointDrag = null;
+      OperationPointInputController.cancel(inputSession());
       inputSession().operationClickCapturedButton = -1;
       inputSession().geometryGizmoDrag = null;
       inputSession().geometryClickCapturedButton = -1;

@@ -113,6 +113,12 @@ final class OperationPointInputController {
       return finished;
    }
 
+   static void cancel(ClientInputSession session) {
+      OperationPointDrag drag = session.operationPointDrag;
+      if (drag != null) clearCapture(session, drag);
+      resetOperationPointClicks(session);
+   }
+
    private static boolean acceptsCapture(ClientInputSession session, OperationPointDrag drag) {
       if (drag == null) return false;
       if (session.pointerGesture.owns(drag.captureToken(), PointerGestureState.Kind.OPERATION_POINT)

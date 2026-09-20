@@ -9,6 +9,36 @@ import org.junit.jupiter.api.Test;
 
 class OperationPointInputControllerTest {
    @Test
+   void cancelReleasesOwnedCaptureAndClickHistoryOnlyOnce() {
+      var session = capture();
+      session.lastOperationPointLeftClickAt = 100L;
+      session.lastOperationPointLeftClickIndex = 2;
+      session.lastOperationPointRightClickAt = 200L;
+      session.lastOperationPointRightClickIndex = 3;
+      OperationPointInputController.cancel(session);
+      OperationPointInputController.cancel(session);
+      assertNull(session.operationPointDrag);
+      assertEquals(0L, session.pointerGestureToken);
+      assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
+      assertEquals(0L, session.lastOperationPointLeftClickAt);
+      assertEquals(-1, session.lastOperationPointLeftClickIndex);
+      assertEquals(0L, session.lastOperationPointRightClickAt);
+      assertEquals(-1, session.lastOperationPointRightClickIndex);
+      assertNull(OperationPointInputController.finishOperationPointDrag(null, session));
+   }
+
+   @Test
+   void cancelStaleDragPreservesReplacementCapture() {
+      var session = capture();
+      long next = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
+      session.pointerGestureToken = next;
+      OperationPointInputController.cancel(session);
+      assertNull(session.operationPointDrag);
+      assertEquals(next, session.pointerGestureToken);
+      assertTrue(session.pointerGesture.owns(next, PointerGestureState.Kind.OPERATION_POINT));
+   }
+
+   @Test
    void lateUpdateKeepsNewCaptureEvenWhenItHasSameKind() {
       var session = capture();
       long next = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
