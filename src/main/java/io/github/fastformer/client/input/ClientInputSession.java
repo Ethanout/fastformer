@@ -18,6 +18,7 @@ public final class ClientInputSession {
       record Scroll(ScrollInputSnapshot value) implements PhysicalEvent { }
       record SelectionPointer(SelectionPointerEvent value) implements PhysicalEvent { }
       record RemotePoint(RemoteSelectionPointRequest value) implements PhysicalEvent { }
+      record PointerRelease(PointerReleaseSnapshot value) implements PhysicalEvent { }
    }
    private final ClientTickMailbox<PhysicalEvent> physicalEvents =
       new ClientTickMailbox<>(this::releaseQueuedEvent);
@@ -171,9 +172,22 @@ public final class ClientInputSession {
       });
    }
 
+   void postPointerRelease(PointerReleaseSnapshot event) {
+      this.physicalEvents.post(new PhysicalEvent.PointerRelease(java.util.Objects.requireNonNull(event)));
+   }
+
    void drainPhysicalEvents(BooleanSupplier contextActive,
       Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
       Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints) {
+      drainPhysicalEvents(contextActive, keys, scrolls, selectionPointer, remotePoints, event -> {
+         throw new IllegalStateException("A pointer release consumer is required");
+      });
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive,
+      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
+      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
+      Consumer<PointerReleaseSnapshot> pointerReleases) {
       this.physicalEvents.drain(event -> {
          releaseQueuedEvent(event);
          if (!contextActive.getAsBoolean()) {
@@ -185,6 +199,7 @@ public final class ClientInputSession {
             case PhysicalEvent.Scroll scroll -> scrolls.accept(scroll.value());
             case PhysicalEvent.SelectionPointer click -> selectionPointer.accept(click.value());
             case PhysicalEvent.RemotePoint point -> remotePoints.accept(point.value());
+            case PhysicalEvent.PointerRelease release -> pointerReleases.accept(release.value());
          }
       });
    }

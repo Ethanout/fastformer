@@ -754,6 +754,10 @@ public final class FastPlaceClientInput {
          event.setCanceled(true);
          return;
       }
+      if (queuePointerRelease(event.getAction(), event.getButton(), occurredAtNanos)) {
+         event.setCanceled(true);
+         return;
+      }
       // During migration, synchronous mouse paths cannot overtake queued physical input.
       if (!drainPhysicalInput(minecraft)) return;
       if (event.getAction() == MouseButtonInputSemantics.PRESS) inputSession().selectionPointer.clear();
@@ -1061,6 +1065,18 @@ public final class FastPlaceClientInput {
       }
    }
 
+   private static boolean queuePointerRelease(int action, int button, long occurredAtNanos) {
+      if (action != MouseButtonInputSemantics.RELEASE) return false;
+      var session = inputSession();
+      var target = mouseReleaseTarget(action, button);
+      if (target == MouseDragReleaseSemantics.Target.NONE || !session.routing.accepts(session.clickGestureToken)) {
+         return false;
+      }
+      session.postPointerRelease(new PointerReleaseSnapshot(button, occurredAtNanos,
+         session.clickGestureToken, session.pointerGestureToken, target));
+      return true;
+   }
+
    private static boolean queueSelectionPointer(Minecraft minecraft, int action, int button, long occurredAtNanos) {
       var session = inputSession();
       if (action == MouseButtonInputSemantics.RELEASE) {
@@ -1191,7 +1207,10 @@ public final class FastPlaceClientInput {
                handleRemoteSelectionPoint(request,
                   payload -> PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]));
             }
-         });
+         }, release -> release.dispatch(dispatchSession,
+            mouseReleaseTarget(MouseButtonInputSemantics.RELEASE, release.button()),
+            () -> finishMouseRelease(minecraft, MouseButtonInputSemantics.RELEASE,
+               release.button(), release.occurredAtNanos())));
       return contextActive.getAsBoolean();
    }
 
