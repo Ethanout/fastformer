@@ -1508,39 +1508,15 @@ public final class FastPlaceClientInput {
    }
 
    private static boolean sendOperationEdgeInsertion(Minecraft minecraft) {
-      if (FastPlaceClientPreview.operationPrismEdgeInsertion() == null
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationInsertPointPayload.TYPE.id())) {
-         return false;
-      }
-      PacketDistributor.sendToServer(OperationInsertPointPayload.INSTANCE, new CustomPacketPayload[0]);
-      return true;
+      return OperationPointCommandDispatcher.insertEdge(minecraft);
    }
 
    private static boolean sendNextOperationPrismPoint(Minecraft minecraft) {
-      if (!ClientOperationController.operationPrism()
-         || FastPlaceClientPreview.operationCandidatePoint() == null
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) {
-         return false;
-      }
-      OperationPointPayload.Role role = FastPlaceClientPreview.operationNeedsFirst()
-         ? OperationPointPayload.Role.FIRST
-         : FastPlaceClientPreview.operationNeedsSecond()
-         ? OperationPointPayload.Role.SECOND
-         : OperationPointPayload.Role.EXTRA;
-      queueRemoteSelectionPoint(role);
-      return true;
+      return OperationPointCommandDispatcher.queueNext(inputSession(), minecraft);
    }
 
    private static boolean sendOperationPointSelection(Minecraft minecraft) {
-      if (!ClientOperationController.operationPrism()) {
-         return false;
-      }
-      int index = FastPlaceClientPreview.operationPointUnderCrosshairIndex();
-      if (index < 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationSelectPointPayload.TYPE.id())) {
-         return false;
-      }
-      PacketDistributor.sendToServer(new OperationSelectPointPayload(index), new CustomPacketPayload[0]);
-      return true;
+      return OperationPointCommandDispatcher.select(minecraft);
    }
 
    private static boolean beginOperationFaceAdjustment(Minecraft minecraft, int steps, int mouseButton) {
