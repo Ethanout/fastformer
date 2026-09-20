@@ -1,6 +1,5 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.interaction.InteractionPressBinding;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
@@ -21,14 +20,11 @@ import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.session.ClientSessionManager;
 import io.github.fastformer.client.ui.GeometryRadialScreen;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.transform.RepeatDragQuantizer;
 import io.github.fastformer.network.payload.geometry.CycleStageModePayload;
 import io.github.fastformer.network.payload.geometry.ClosePathPayload;
 import io.github.fastformer.network.payload.settings.ModifierStatePayload;
 import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
-import io.github.fastformer.network.payload.geometry.GeometryPointPayload;
 import io.github.fastformer.network.payload.operation.OperationExtendPayload;
 import io.github.fastformer.network.payload.operation.OperationTransformPayload;
 import io.github.fastformer.network.payload.placement.QuitFastPlacePayload;
@@ -43,13 +39,8 @@ import io.github.fastformer.network.payload.world.WorldRedoPayload;
 import io.github.fastformer.network.payload.world.WorldUndoPayload;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionHit;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.PointerGesture;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
-import java.util.List;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.PlaceableItems;
 import io.github.fastformer.fastplace.OperationPointDragConstraint;
@@ -710,7 +701,7 @@ public final class FastPlaceClientInput {
          if (InteractionContext.nearVanillaBlock(minecraft)) {
             return;
          }
-         if (handleGeometryRightClick(minecraft, occurredAtNanos)) {
+         if (GeometryInputController.handleGeometryRightClick(minecraft, inputSession(), occurredAtNanos)) {
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
@@ -731,12 +722,12 @@ public final class FastPlaceClientInput {
                event.setCanceled(true);
                return;
             }
-            if (inputSession().geometryGizmoDrag == null && beginGeometryGizmoDrag(minecraft, 0)) {
+            if (inputSession().geometryGizmoDrag == null && GeometryInputController.beginGeometryGizmoDrag(minecraft, inputSession(), 0)) {
                event.setSwingHand(false);
                event.setCanceled(true);
                return;
             }
-            if (beginGeometryInteraction(minecraft, 0)) {
+            if (GeometryInputController.beginGeometryInteraction(minecraft, inputSession(), 0)) {
                event.setSwingHand(false);
                event.setCanceled(true);
                return;
@@ -933,7 +924,7 @@ public final class FastPlaceClientInput {
                }
                case GEOMETRY_CAPTURE, GEOMETRY_GIZMO_CAPTURE -> true;
                case GEOMETRY_INTERACTION -> {
-                  boolean handled = beginGeometryGizmoDrag(minecraft, 0) || beginGeometryInteraction(minecraft, 0);
+                  boolean handled = GeometryInputController.beginGeometryGizmoDrag(minecraft, inputSession(), 0) || GeometryInputController.beginGeometryInteraction(minecraft, inputSession(), 0);
                   if (handled) {
                      inputSession().undoPress.cancel();
                      inputSession().undoPressCaptured = false;
@@ -956,7 +947,7 @@ public final class FastPlaceClientInput {
             );
             if (target == MousePressRoutingSemantics.RightTarget.YIELD_TO_VANILLA) return;
             consumed = target == MousePressRoutingSemantics.RightTarget.GEOMETRY_CAPTURE
-               || target == MousePressRoutingSemantics.RightTarget.GEOMETRY_INTERACTION && handleGeometryRightClick(minecraft, occurredAtNanos);
+               || target == MousePressRoutingSemantics.RightTarget.GEOMETRY_INTERACTION && GeometryInputController.handleGeometryRightClick(minecraft, inputSession(), occurredAtNanos);
          } else if (event.getAction() == 0
             && inputSession().geometryClickCapturedButton == 1) {
             inputSession().geometryClickCapturedButton = -1;
@@ -1908,121 +1899,6 @@ public final class FastPlaceClientInput {
          return true;
       }
       return false;
-   }
-
-   private static boolean beginGeometryGizmoDrag(Minecraft minecraft, int mouseButton) {
-      if (!FastPlaceClientPreview.geometryAllows(GeometryAction.GIZMO_DRAG)
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id())) {
-         return false;
-      }
-      AxisGizmo.Hit hit = FastPlaceClientPreview.geometryGizmoHit();
-      if (hit == null) {
-         return false;
-      }
-      AxisGizmo.Handle handle = hit.handle();
-      AxisGizmo gizmo = FastPlaceClientPreview.geometryGizmo();
-      if (gizmo == null) {
-         return false;
-      }
-      double baseValue = FastPlaceClientPreview.geometryGizmoValue(handle.axis(), handle.operation());
-      if (handle.drawsRing()) {
-         Vec3 radial = hit.point().subtract(gizmo.center());
-         if (radial.lengthSqr() < 1.0E-7) {
-            return false;
-         }
-          inputSession().geometryGizmoDrag = new GeometryGizmoDrag(
-             handle.operation(),
-            handle.axis(),
-             hit.point(),
-             gizmo.axisVector(handle.axis()),
-             0,
-             baseValue,
-             gizmo.center(),
-            radial.normalize(),
-            GizmoDragCalculator.rotationTangent(gizmo.axisVector(handle.axis()), radial.normalize()),
-              handle.direction(),
-              mouseButton
-           );
-           inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
-           FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
-          return true;
-      }
-      if (!handle.drawsEndpoint()) {
-         return false;
-      }
-      Vec3 axis = gizmo.axisVector(handle.axis());
-      if (handle.operation() == AxisGizmo.Operation.SCALE && handle.direction() == AxisGizmo.Direction.NEGATIVE) {
-         axis = axis.scale(-1.0);
-      }
-      inputSession().geometryGizmoDrag = new GeometryGizmoDrag(
-         handle.operation(), handle.axis(), hit.point(), axis, 0, baseValue, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO,
-         handle.direction(), mouseButton
-      );
-      inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
-      FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
-      return true;
-   }
-
-   private static boolean beginGeometryInteraction(Minecraft minecraft, int mouseButton) {
-      if (!FastPlaceClientPreview.geometryActive()
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())) {
-         return false;
-      }
-
-      PointerGesture gesture = mouseButton == 0 ? PointerGesture.LEFT_CLICK : PointerGesture.RIGHT_CLICK;
-      GeometryInteractionHit hit = FastPlaceClientPreview.geometryInteractionHit();
-      GeometryInteractionAction action = hit == null ? null : hit.target().action(gesture);
-      if (action != null) {
-         sendGeometryInteraction(hit.target(), action, gesture, mouseButton);
-         return true;
-      }
-      if (FastPlaceClientPreview.geometryPointSelected()) {
-         sendGeometryClearSelection(gesture, mouseButton);
-         return true;
-      }
-      return false;
-   }
-
-   private static void sendGeometryInteraction(
-      GeometryInteractionTarget target,
-      GeometryInteractionAction action,
-      PointerGesture gesture,
-      int mouseButton
-   ) {
-      PacketDistributor.sendToServer(
-         new GeometryInteractionPayload(target.type(), target.index(), action, gesture),
-         new CustomPacketPayload[0]
-      );
-      inputSession().geometryClickCapturedButton = mouseButton;
-   }
-
-   private static void sendGeometryClearSelection(PointerGesture gesture, int mouseButton) {
-      PacketDistributor.sendToServer(
-         GeometryInteractionPayload.clearSelection(gesture),
-         new CustomPacketPayload[0]
-      );
-      inputSession().geometryClickCapturedButton = mouseButton;
-   }
-
-   private static boolean sendGeometryPointInput(Minecraft minecraft, int mouseButton) {
-      if (!(minecraft.hitResult instanceof BlockHitResult)
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryPointPayload.TYPE.id())) {
-         return false;
-      }
-      PacketDistributor.sendToServer(GeometryPointPayload.INSTANCE, new CustomPacketPayload[0]);
-      inputSession().geometryClickCapturedButton = mouseButton;
-      return true;
-   }
-
-   private static boolean handleGeometryRightClick(Minecraft minecraft, long occurredAtNanos) {
-      if (inputSession().geometryClickCapturedButton == 1) {
-         return true;
-      }
-      return inputSession().geometryGizmoDrag != null
-         || beginGeometryGizmoDrag(minecraft, 1)
-         || beginGeometryInteraction(minecraft, 1)
-         || PathCloseInputDispatcher.press(minecraft, inputSession(), true, occurredAtNanos)
-         || sendGeometryPointInput(minecraft, 1);
    }
 
    private static void resetOperationPointClicks() {
