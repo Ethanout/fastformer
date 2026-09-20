@@ -3,8 +3,12 @@ package io.github.fastformer.fastplace.geometry;
 import java.util.Collection;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.network.chat.Component;
 
 public record GeometryInteractionHit(GeometryInteractionTarget target, double rayDistance, Vec3 point) {
+   public Component hoverText() {
+      return this.target.requireHoverText();
+   }
    private static final double EPSILON = 1.0E-7;
 
    public static GeometryInteractionHit from(Vec3 eye, Vec3 view, double reach, GeometryInteractionTarget target) {

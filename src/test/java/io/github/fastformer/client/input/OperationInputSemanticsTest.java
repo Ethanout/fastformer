@@ -3,7 +3,7 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.input.OperationInputSemantics;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import org.junit.jupiter.api.Test;
 
 class OperationInputSemanticsTest {
@@ -55,7 +55,7 @@ class OperationInputSemanticsTest {
    void oneSnapshotResolvesActionAndVanillaOwnershipTogether() {
       OperationInputSemantics.LeftDecision decision = OperationInputSemantics.decideLeftPress(
          new OperationInputSemantics.LeftPressSnapshot(
-            OperationSelectionMode.PRISM, true, false, true, true, false, true
+            OperationSelectionMode.PRISM, true, false, true, true, false, true, false
          )
       );
 
@@ -67,11 +67,23 @@ class OperationInputSemanticsTest {
    void nearBlockWithoutAnOverrideKeepsTheWholePressVanilla() {
       OperationInputSemantics.LeftDecision decision = OperationInputSemantics.decideLeftPress(
          new OperationInputSemantics.LeftPressSnapshot(
-            OperationSelectionMode.PRISM, false, false, false, true, false, false
+            OperationSelectionMode.PRISM, false, false, false, true, false, false, false
          )
       );
 
       assertEquals(OperationInputSemantics.LeftAction.SELECTION_UNDO, decision.action());
       assertEquals(true, decision.yieldToVanilla());
+   }
+
+   @Test
+   void activeWorkspaceKeepsLeftPressDuringAClientWorldUpdate() {
+      OperationInputSemantics.LeftDecision decision = OperationInputSemantics.decideLeftPress(
+         new OperationInputSemantics.LeftPressSnapshot(
+            OperationSelectionMode.CUBOID, true, true, false, true, false, false, true
+         )
+      );
+
+      assertEquals(OperationInputSemantics.LeftAction.ADJUSTMENT_UNDO, decision.action());
+      assertEquals(false, decision.yieldToVanilla());
    }
 }

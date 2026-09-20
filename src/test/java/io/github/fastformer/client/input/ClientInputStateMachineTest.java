@@ -6,6 +6,83 @@ import org.junit.jupiter.api.Test;
 
 class ClientInputStateMachineTest {
    @Test
+   void everyStateAndInputKindMatchesTheDispatchPolicy() {
+      ClientInputStateMachine.Dispatch B = ClientInputStateMachine.Dispatch.BLOCKED;
+      ClientInputStateMachine.Dispatch C = ClientInputStateMachine.Dispatch.CANCEL;
+      ClientInputStateMachine.Dispatch V = ClientInputStateMachine.Dispatch.VANILLA;
+      ClientInputStateMachine.Dispatch F = ClientInputStateMachine.Dispatch.BUILDING;
+      ClientInputStateMachine.Dispatch G = ClientInputStateMachine.Dispatch.GEOMETRY;
+      ClientInputStateMachine.Dispatch O = ClientInputStateMachine.Dispatch.OPERATION;
+      ClientInputStateMachine.Dispatch[][] expected = {
+         {V, B, V, V, V, B, V, B},
+         {F, F, F, F, F, B, B, C},
+         {G, G, G, G, G, B, B, C},
+         {O, B, O, O, O, O, O, C},
+         {O, O, O, O, O, O, O, C},
+         {B, B, B, B, B, B, B, C},
+         {B, B, B, B, B, B, B, C},
+         {B, B, B, B, B, B, B, B},
+         {B, B, B, B, B, B, B, B}
+      };
+
+      ClientInputStateMachine.State[] states = ClientInputStateMachine.State.values();
+      ClientInputStateMachine.InputKind[] inputs = ClientInputStateMachine.InputKind.values();
+      assertEquals(states.length, expected.length);
+      for (int stateIndex = 0; stateIndex < states.length; stateIndex++) {
+         assertEquals(inputs.length, expected[stateIndex].length);
+         ClientInputStateMachine machine = machineIn(states[stateIndex]);
+         for (int inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
+            assertEquals(
+               expected[stateIndex][inputIndex],
+               machine.dispatch(inputs[inputIndex]),
+               states[stateIndex] + " x " + inputs[inputIndex]
+            );
+         }
+      }
+   }
+
+   @Test
+   void blockedEventsDoNotChangeStateGenerationOrGesture() {
+      for (ClientInputStateMachine.State state : ClientInputStateMachine.State.values()) {
+         ClientInputStateMachine machine = machineIn(state);
+         long gesture = machine.beginGesture(1);
+         long generation = machine.generation();
+         ClientInputStateMachine.State before = machine.state();
+         for (ClientInputStateMachine.InputKind input : ClientInputStateMachine.InputKind.values()) {
+            if (machine.dispatch(input) != ClientInputStateMachine.Dispatch.BLOCKED) {
+               continue;
+            }
+            assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, machine.dispatch(input));
+            assertEquals(before, machine.state(), state + " x " + input);
+            assertEquals(generation, machine.generation(), state + " x " + input);
+            assertEquals(gesture != 0L, machine.accepts(gesture), state + " x " + input);
+         }
+      }
+   }
+
+   @Test
+   void blockedEventsDoNotReleaseThePendingRequestOwner() {
+      ClientInputStateMachine placement = new ClientInputStateMachine();
+      placement.observe(ClientInputStateMachine.State.BUILDING);
+      assertTrue(placement.submit(42L));
+      assertBlockedInputsArePure(placement);
+      assertTrue(placement.completeSubmission(
+         42L, ClientInputStateMachine.SubmissionEvent.SUCCEEDED, ClientInputStateMachine.State.BUILDING
+      ));
+      assertEquals(ClientInputStateMachine.State.BUILDING, placement.state());
+
+      ClientInputStateMachine workspace = new ClientInputStateMachine();
+      java.util.UUID transferId = java.util.UUID.randomUUID();
+      workspace.observe(ClientInputStateMachine.State.ADJUSTING);
+      assertTrue(workspace.submit(transferId));
+      assertBlockedInputsArePure(workspace);
+      assertTrue(workspace.completeSubmission(
+         transferId, ClientInputStateMachine.SubmissionEvent.SUCCEEDED, ClientInputStateMachine.State.ADJUSTING
+      ));
+      assertEquals(ClientInputStateMachine.State.ADJUSTING, workspace.state());
+   }
+
+   @Test
    void selectionCreationAndPasteRespectTheOwningSession() {
       var state = new ClientInputStateMachine();
       assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, state.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION));
@@ -33,6 +110,47 @@ class ClientInputStateMachineTest {
    }
 
    @Test
+   void submitEventIsAcceptedOnlyByInteractiveSessionPhases() {
+      var state = new ClientInputStateMachine();
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+         state.dispatch(ClientInputStateMachine.InputKind.SUBMIT));
+      for (var phase : new ClientInputStateMachine.State[] {
+         ClientInputStateMachine.State.BUILDING,
+         ClientInputStateMachine.State.GEOMETRY,
+         ClientInputStateMachine.State.ADJUSTING
+      }) {
+         state.observe(phase);
+         assertNotEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+            state.dispatch(ClientInputStateMachine.InputKind.SUBMIT));
+      }
+      state.observe(ClientInputStateMachine.State.SELECTING);
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+         state.dispatch(ClientInputStateMachine.InputKind.SUBMIT));
+      for (var phase : new ClientInputStateMachine.State[] {
+         ClientInputStateMachine.State.IDLE,
+         ClientInputStateMachine.State.PLACING,
+         ClientInputStateMachine.State.SUBMITTING,
+         ClientInputStateMachine.State.CANCELLING,
+         ClientInputStateMachine.State.RESTORING
+      }) {
+         state.reset();
+         if (phase != ClientInputStateMachine.State.IDLE) {
+            if (phase == ClientInputStateMachine.State.SUBMITTING) {
+               state.observe(ClientInputStateMachine.State.BUILDING);
+               state.submit(1L);
+            } else if (phase == ClientInputStateMachine.State.CANCELLING) {
+               state.observe(ClientInputStateMachine.State.BUILDING);
+               state.cancel();
+            } else {
+               state.observe(phase);
+            }
+         }
+         assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
+            state.dispatch(ClientInputStateMachine.InputKind.SUBMIT));
+      }
+   }
+
+   @Test
    void releaseFinishesOnlyItsOwningButtonAndCannotRepeat() {
       var state = new ClientInputStateMachine();
       state.observe(ClientInputStateMachine.State.SELECTING);
@@ -54,14 +172,20 @@ class ClientInputStateMachineTest {
       var state = new ClientInputStateMachine();
       state.observe(ClientInputStateMachine.State.BUILDING);
       assertTrue(state.submit(42));
-      assertThrows(NullPointerException.class, () -> state.acknowledge(42, null));
-      state.acknowledge(42, ClientInputStateMachine.State.BUILDING);
+      assertThrows(NullPointerException.class, () -> state.completeSubmission(
+         42, ClientInputStateMachine.SubmissionEvent.SUCCEEDED, null
+      ));
+      state.completeSubmission(42, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.BUILDING);
       assertEquals(ClientInputStateMachine.State.BUILDING, state.state());
       var transfer = java.util.UUID.randomUUID();
       state.observe(ClientInputStateMachine.State.ADJUSTING);
       assertTrue(state.submit(transfer));
-      assertThrows(NullPointerException.class, () -> state.acknowledge(transfer, null));
-      state.acknowledge(transfer, ClientInputStateMachine.State.ADJUSTING);
+      assertThrows(NullPointerException.class, () -> state.completeSubmission(
+         transfer, ClientInputStateMachine.SubmissionEvent.SUCCEEDED, null
+      ));
+      state.completeSubmission(transfer, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.ADJUSTING);
       assertEquals(ClientInputStateMachine.State.ADJUSTING, state.state());
    }
 
@@ -71,19 +195,24 @@ class ClientInputStateMachineTest {
       var transfer = java.util.UUID.randomUUID();
       state.observe(ClientInputStateMachine.State.ADJUSTING);
       assertTrue(state.submit(transfer));
-      state.acknowledge(0L, ClientInputStateMachine.State.IDLE);
-      state.acknowledge(java.util.UUID.randomUUID(), ClientInputStateMachine.State.IDLE);
+      assertFalse(state.completeSubmission(0L, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.IDLE));
+      assertFalse(state.completeSubmission(java.util.UUID.randomUUID(), ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.IDLE));
       state.observe(ClientInputStateMachine.State.ADJUSTING);
       assertEquals(ClientInputStateMachine.State.SUBMITTING, state.state());
       assertFalse(state.submit(java.util.UUID.randomUUID()));
-      state.acknowledge(transfer, ClientInputStateMachine.State.ADJUSTING);
+      assertTrue(state.completeSubmission(transfer, ClientInputStateMachine.SubmissionEvent.FAILED,
+         ClientInputStateMachine.State.ADJUSTING));
       assertEquals(ClientInputStateMachine.State.ADJUSTING, state.state());
       assertTrue(state.submit(transfer));
       assertTrue(state.cancel());
-      state.acknowledge(transfer, ClientInputStateMachine.State.IDLE);
+      assertFalse(state.completeSubmission(transfer, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.IDLE));
       assertEquals(ClientInputStateMachine.State.CANCELLING, state.state());
       state.reset();
-      state.acknowledge(transfer, ClientInputStateMachine.State.ADJUSTING);
+      assertFalse(state.completeSubmission(transfer, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.ADJUSTING));
       assertEquals(ClientInputStateMachine.State.IDLE, state.state());
    }
 
@@ -95,13 +224,15 @@ class ClientInputStateMachineTest {
       assertFalse(state.submit(java.util.UUID.randomUUID()));
       state.observe(ClientInputStateMachine.State.GEOMETRY);
       assertTrue(state.submit(2L));
-      state.acknowledge(2L, ClientInputStateMachine.State.GEOMETRY);
+      assertTrue(state.completeSubmission(2L, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.GEOMETRY));
       state.observe(ClientInputStateMachine.State.SELECTING);
       assertFalse(state.submit(3L));
 
       state.observe(ClientInputStateMachine.State.BUILDING);
       assertTrue(state.submit(4L));
-      state.acknowledge(4L, ClientInputStateMachine.State.ADJUSTING);
+      assertTrue(state.completeSubmission(4L, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.ADJUSTING));
       assertTrue(state.submit(java.util.UUID.randomUUID()));
    }
 
@@ -116,13 +247,16 @@ class ClientInputStateMachineTest {
       state.observe(ClientInputStateMachine.State.IDLE);
       assertEquals(ClientInputStateMachine.State.SUBMITTING, state.state());
       assertFalse(state.submit(13));
-      state.acknowledge(11, ClientInputStateMachine.State.IDLE);
+      assertFalse(state.completeSubmission(11, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.IDLE));
       assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
          state.dispatch(ClientInputStateMachine.InputKind.INTERACTION));
-      state.acknowledge(12, ClientInputStateMachine.State.BUILDING);
+      assertTrue(state.completeSubmission(12, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.BUILDING));
       assertEquals(ClientInputStateMachine.State.BUILDING, state.state());
       assertTrue(state.submit(13));
-      state.acknowledge(13, ClientInputStateMachine.State.PLACING);
+      assertTrue(state.completeSubmission(13, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.PLACING));
       assertEquals(ClientInputStateMachine.State.PLACING, state.state());
    }
 
@@ -132,10 +266,12 @@ class ClientInputStateMachineTest {
       state.observe(ClientInputStateMachine.State.BUILDING);
       assertTrue(state.submit(1));
       assertTrue(state.cancel());
-      state.acknowledge(1, ClientInputStateMachine.State.PLACING);
+      assertFalse(state.completeSubmission(1, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.PLACING));
       assertEquals(ClientInputStateMachine.State.CANCELLING, state.state());
       state.reset();
-      state.acknowledge(1, ClientInputStateMachine.State.PLACING);
+      assertFalse(state.completeSubmission(1, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
+         ClientInputStateMachine.State.PLACING));
       assertEquals(ClientInputStateMachine.State.IDLE, state.state());
    }
 
@@ -145,11 +281,39 @@ class ClientInputStateMachineTest {
       state.observe(ClientInputStateMachine.State.BUILDING);
       assertTrue(state.submit(41L));
 
-      state.abortSubmission(40L, ClientInputStateMachine.State.BUILDING);
+      assertFalse(state.completeSubmission(40L, ClientInputStateMachine.SubmissionEvent.EXPIRED,
+         ClientInputStateMachine.State.BUILDING));
       assertEquals(ClientInputStateMachine.State.SUBMITTING, state.state());
 
-      state.abortSubmission(41L, ClientInputStateMachine.State.BUILDING);
+      assertTrue(state.completeSubmission(41L, ClientInputStateMachine.SubmissionEvent.EXPIRED,
+         ClientInputStateMachine.State.BUILDING));
       assertEquals(ClientInputStateMachine.State.BUILDING, state.state());
+   }
+
+   @Test
+   void failedSubmissionReturnsToItsOwningPhaseDespiteAStaleSnapshot() {
+      ClientInputStateMachine placement = new ClientInputStateMachine();
+      placement.observe(ClientInputStateMachine.State.GEOMETRY);
+      assertTrue(placement.submit(41L));
+
+      assertTrue(placement.completeSubmission(
+         41L,
+         ClientInputStateMachine.SubmissionEvent.FAILED,
+         ClientInputStateMachine.State.IDLE
+      ));
+      assertEquals(ClientInputStateMachine.State.GEOMETRY, placement.state());
+
+      ClientInputStateMachine workspace = new ClientInputStateMachine();
+      java.util.UUID transfer = java.util.UUID.randomUUID();
+      workspace.observe(ClientInputStateMachine.State.ADJUSTING);
+      assertTrue(workspace.submit(transfer));
+
+      assertTrue(workspace.completeSubmission(
+         transfer,
+         ClientInputStateMachine.SubmissionEvent.EXPIRED,
+         ClientInputStateMachine.State.SUBMITTING
+      ));
+      assertEquals(ClientInputStateMachine.State.ADJUSTING, workspace.state());
    }
 
    @Test
@@ -348,5 +512,35 @@ class ClientInputStateMachineTest {
          state.dispatch(ClientInputStateMachine.InputKind.POINTER));
       assertEquals(ClientInputStateMachine.Dispatch.BLOCKED,
          state.dispatch(ClientInputStateMachine.InputKind.CANCEL));
+   }
+
+   private static ClientInputStateMachine machineIn(ClientInputStateMachine.State state) {
+      ClientInputStateMachine machine = new ClientInputStateMachine();
+      switch (state) {
+         case IDLE -> { }
+         case SUBMITTING -> {
+            machine.observe(ClientInputStateMachine.State.BUILDING);
+            assertTrue(machine.submit(1L));
+         }
+         case CANCELLING -> {
+            machine.observe(ClientInputStateMachine.State.BUILDING);
+            assertTrue(machine.cancel());
+         }
+         default -> machine.observe(state);
+      }
+      assertEquals(state, machine.state());
+      return machine;
+   }
+
+   private static void assertBlockedInputsArePure(ClientInputStateMachine machine) {
+      long generation = machine.generation();
+      for (ClientInputStateMachine.InputKind input : ClientInputStateMachine.InputKind.values()) {
+         if (input == ClientInputStateMachine.InputKind.CANCEL) {
+            continue;
+         }
+         assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, machine.dispatch(input));
+         assertEquals(ClientInputStateMachine.State.SUBMITTING, machine.state());
+         assertEquals(generation, machine.generation());
+      }
    }
 }

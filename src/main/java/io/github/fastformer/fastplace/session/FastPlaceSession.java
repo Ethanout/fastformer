@@ -1,5 +1,9 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+
 import io.github.fastformer.fastplace.*;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
@@ -97,6 +101,9 @@ public final class FastPlaceSession implements SessionLifecycle {
    }
 
    public void adjustFreeScrollOffset(Vec3 view, int steps) {
+      if (steps == 0) {
+         return;
+      }
       Vec3 dominant = dominantAxis(view);
       int signedStep = Integer.signum(steps);
       BlockPos offset = this.freeScrollOffset.get();
@@ -125,11 +132,27 @@ public final class FastPlaceSession implements SessionLifecycle {
       this.freeScrollOffset.set(clampOffset(offset));
    }
 
+   public List<BlockPos> submissionPoints(LineMode lineMode) {
+      List<BlockPos> submitted = new ArrayList<>(this.points);
+      if (this.stage() == FastPlaceStage.LINE && lineMode == LineMode.FREE_SCROLL) {
+         BlockPos candidate = this.points.getFirst().offset(this.freeScrollOffset());
+         if (!candidate.equals(this.points.getFirst())) {
+            submitted.add(candidate);
+         }
+      }
+      return List.copyOf(submitted);
+   }
+
    public void setModifierHeld(boolean modifierHeld) {
       this.modifierHeld = modifierHeld;
    }
 
    public void onModeChanged() {
+      this.onModeChanged(null);
+   }
+
+   /** Clears the old mode state, then optionally seeds a new free-scroll candidate. */
+   public void onModeChanged(BlockPos freeScrollCandidateOffset) {
       this.polygonClosed = false;
       this.polygonHeightConfirmed = false;
       this.polygonVolumeShape = PolygonVolumeShape.EXTRUDE;
@@ -137,6 +160,9 @@ public final class FastPlaceSession implements SessionLifecycle {
       this.faceBaseOffset.reset(SessionValue.ResetOn.MODE_CHANGE);
       this.volumeBaseOffset.reset(SessionValue.ResetOn.MODE_CHANGE);
       this.freeScrollOffset.reset(SessionValue.ResetOn.MODE_CHANGE);
+      if (freeScrollCandidateOffset != null) {
+         this.setFreeScrollOffset(freeScrollCandidateOffset);
+      }
    }
 
    public void adjustFaceBaseOffset(Vec3 axis, int steps) {
@@ -202,19 +228,21 @@ public final class FastPlaceSession implements SessionLifecycle {
 
    @Override
    public boolean undoStep() {
-      if (this.polygonClosed) {
-         if (this.polygonHeightConfirmed) {
-            this.polygonHeightConfirmed = false;
-            this.points.removeLast();
-            return true;
-         }
-         this.polygonClosed = false;
-         return true;
-      }
       if (this.points.isEmpty()) {
          return false;
       }
+      if (this.polygonClosed) {
+         if (this.polygonHeightConfirmed) {
+            this.polygonHeightConfirmed = false;
+         } else {
+            this.polygonClosed = false;
+         }
+      }
       this.points.removeLast();
+      if (!this.points.contains(this.perpendicularAnchor)) {
+         this.perpendicularAnchor = null;
+      }
+      this.onStageChanged();
       if (this.points.size() < 3) {
          this.faceTieBias = LineTieBias.DEFAULT;
       }
@@ -248,4 +276,5 @@ public final class FastPlaceSession implements SessionLifecycle {
       this.volumeBaseOffset.reset(SessionValue.ResetOn.DESTROY);
       this.freeScrollOffset.reset(SessionValue.ResetOn.DESTROY);
    }
+
 }

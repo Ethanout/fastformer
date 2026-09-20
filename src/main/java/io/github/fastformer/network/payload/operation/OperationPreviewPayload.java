@@ -1,8 +1,8 @@
 package io.github.fastformer.network.payload.operation;
 
-import io.github.fastformer.fastplace.OperationMode;
-import io.github.fastformer.fastplace.OperationSelectionMode;
-import io.github.fastformer.fastplace.OperationStageMode;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationStageMode;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -35,7 +35,8 @@ public record OperationPreviewPayload(
    boolean adjustmentStarted,
    boolean copy,
    boolean ctrlHeld,
-   long revision
+   long revision,
+   OperationCallbackScope callbackScope
 ) implements CustomPacketPayload {
    private static final int MAX_PREVIEW_POINTS = 1024;
    public static final Type<OperationPreviewPayload> TYPE = new Type<>(
@@ -46,6 +47,9 @@ public record OperationPreviewPayload(
 
    public OperationPreviewPayload {
       points = List.copyOf(points);
+      if (callbackScope == null) {
+         throw new IllegalArgumentException("Operation callback scope is required");
+      }
    }
 
    private OperationPreviewPayload(FriendlyByteBuf buffer) {
@@ -56,7 +60,8 @@ public record OperationPreviewPayload(
          buffer.readEnum(OperationSelectionMode.class), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(),
          buffer.readEnum(OperationMode.class), buffer.readEnum(OperationStageMode.class),
          buffer.readBlockPos(), buffer.readBlockPos(), buffer.readBlockPos(), readVec3(buffer),
-         buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarLong()
+         buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarLong(),
+         OperationCallbackScope.STREAM_CODEC.decode(buffer)
       );
    }
 
@@ -89,7 +94,7 @@ public record OperationPreviewPayload(
          true, true, hasFirst, hasSecond, points,
          selectionMin, selectionMax, minOffset, maxOffset, selectionMode,
          prismBasePointCount, selectedPointIndex, hullInflation, mode, stageMode, translation,
-         stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld, revision
+         stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld, revision, unscopedCallbackScope()
       );
    }
 
@@ -116,7 +121,15 @@ public record OperationPreviewPayload(
          false, false, false, false, List.of(), null, null, BlockPos.ZERO, BlockPos.ZERO,
          OperationSelectionMode.CUBOID, 0, -1, 0, OperationMode.MOVE,
          OperationStageMode.TRANSFORM, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO,
-         Vec3.ZERO, false, false, false, revision
+         Vec3.ZERO, false, false, false, revision, unscopedCallbackScope()
+      );
+   }
+
+   public OperationPreviewPayload withCallbackScope(OperationCallbackScope callbackScope) {
+      return new OperationPreviewPayload(
+         enabled, active, hasFirst, hasSecond, points, selectionMin, selectionMax, minOffset, maxOffset,
+         selectionMode, prismBasePointCount, selectedPointIndex, hullInflation, mode, stageMode, translation,
+         stackMin, stackMax, rotation, adjustmentStarted, copy, ctrlHeld, revision, callbackScope
       );
    }
 
@@ -174,6 +187,13 @@ public record OperationPreviewPayload(
       buffer.writeBoolean(this.copy);
       buffer.writeBoolean(this.ctrlHeld);
       buffer.writeVarLong(this.revision);
+      OperationCallbackScope.STREAM_CODEC.encode(buffer, this.callbackScope);
+   }
+
+   private static OperationCallbackScope unscopedCallbackScope() {
+      return new OperationCallbackScope(
+         new java.util.UUID(0L, 0L), ResourceLocation.fromNamespaceAndPath("fastformer", "unscoped"), new java.util.UUID(0L, 0L)
+      );
    }
 
    @Override

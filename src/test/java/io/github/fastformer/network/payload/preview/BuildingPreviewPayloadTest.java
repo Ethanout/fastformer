@@ -2,21 +2,24 @@ package io.github.fastformer.network.payload.preview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.FaceMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.FaceRasterizationMode;
 import io.github.fastformer.fastplace.FillMode;
-import io.github.fastformer.fastplace.LineMode;
-import io.github.fastformer.fastplace.PointMode;
-import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.RaycastPlacement;
-import io.github.fastformer.fastplace.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import io.netty.buffer.Unpooled;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -84,9 +87,12 @@ class BuildingPreviewPayloadTest {
    @Test
    void splitPreviewPayloadsPreserveRevisionAndValues() {
       BuildingPreviewPayload source = BuildingPreviewPayload.inactive();
-      BuildingPreviewSessionPayload session = new BuildingPreviewSessionPayload(12L, source.session());
-      BuildingPreviewParametersPayload parameters = new BuildingPreviewParametersPayload(12L, source.parameters());
-      BuildingPreviewEffectPayload effect = new BuildingPreviewEffectPayload(12L, source.effect());
+      OperationCallbackScope scope = new OperationCallbackScope(
+         UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID()
+      );
+      BuildingPreviewSessionPayload session = new BuildingPreviewSessionPayload(12L, source.session(), scope);
+      BuildingPreviewParametersPayload parameters = new BuildingPreviewParametersPayload(12L, source.parameters(), scope);
+      BuildingPreviewEffectPayload effect = new BuildingPreviewEffectPayload(12L, source.effect(), scope);
 
       FriendlyByteBuf sessionBuffer = new FriendlyByteBuf(Unpooled.buffer());
       BuildingPreviewSessionPayload.STREAM_CODEC.encode(sessionBuffer, session);
@@ -101,7 +107,10 @@ class BuildingPreviewPayloadTest {
 
       assertEquals(12L, decodedSession.revision());
       assertEquals(session.value(), decodedSession.value());
+      assertEquals(scope, decodedSession.callbackScope());
       assertEquals(parameters.value(), decodedParameters.value());
+      assertEquals(scope, decodedParameters.callbackScope());
       assertEquals(effect.value(), decodedEffect.value());
+      assertEquals(scope, decodedEffect.callbackScope());
    }
 }

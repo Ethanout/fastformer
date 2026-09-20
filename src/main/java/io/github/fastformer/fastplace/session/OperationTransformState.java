@@ -1,8 +1,8 @@
 package io.github.fastformer.fastplace.session;
 
-import io.github.fastformer.fastplace.OperationMode;
-import io.github.fastformer.fastplace.OperationStackRegion;
-import io.github.fastformer.fastplace.OperationStageMode;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.fastplace.selection.OperationStageMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render.cache;
 
 import io.github.fastformer.client.render.model.BuildingRenderLayers;
+import io.github.fastformer.fastplace.geometry.BlockPositionSets;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -27,8 +28,8 @@ public final class BuildingShellBlocksCache {
       environment.addAll(pending);
       BuildingRenderLayers next = new BuildingRenderLayers(confirmed, pending, environment);
       this.layers = layers;
-      this.confirmedMarkers = Set.copyOf(confirmedMarkers);
-      this.pendingMarkers = Set.copyOf(pendingMarkers);
+      this.confirmedMarkers = BlockPositionSets.copyOf(confirmedMarkers);
+      this.pendingMarkers = BlockPositionSets.copyOf(pendingMarkers);
       this.result = next;
       return next;
    }

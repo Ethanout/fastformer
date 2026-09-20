@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.fastplace.PlacementUpdateMode;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,102 @@ class WorldHistoryOwnerLifecycleTest {
    @AfterEach
    void clearHistory() {
       WorldHistoryManager.clearServer();
+      PersistentRecoveryJournal.resetWriteGateForTest();
+   }
+
+   @Test
+   void closedWriteGateDiscardsPendingAndCompletedPagesBeforeTheyCanResume() throws Exception {
+      for (boolean activeTask : List.of(false, true)) {
+         for (boolean completedPage : List.of(false, true)) {
+            UUID ownerId = UUID.randomUUID();
+            WorldChangeBatch older = batch(BlockPos.ZERO, UUID.randomUUID());
+            var ownerMethod = WorldHistoryManager.class.getDeclaredMethod("ownerState", UUID.class);
+            ownerMethod.setAccessible(true);
+            Object owner = ownerMethod.invoke(null, ownerId);
+            HistoryMemoryCache history = new HistoryMemoryCache();
+            var historyField = owner.getClass().getDeclaredField("history");
+            historyField.setAccessible(true);
+            historyField.set(owner, history);
+            HistoryTaskScheduler scheduler = new HistoryTaskScheduler();
+            var plan = HistoryPageLoadPlan.create(true, 2, List.of(), 200,
+               HistoryOrderCatalog.merge(List.of(), List.of(), List.of(older.operationId()), List.of())).orElseThrow();
+            CompletableFuture<List<WorldChangeBatch>> load = new CompletableFuture<>();
+            scheduler.startPageLoad(plan, load);
+            var schedulerField = owner.getClass().getDeclaredField("scheduler");
+            schedulerField.setAccessible(true);
+            schedulerField.set(owner, scheduler);
+            if (activeTask) {
+               var activeField = owner.getClass().getDeclaredField("active");
+               activeField.setAccessible(true);
+               var constructor = activeField.getType().getDeclaredConstructor(
+                  HistoryMemoryCache.class, boolean.class, int.class, PlacementUpdateMode.class
+               );
+               constructor.setAccessible(true);
+               activeField.set(owner, constructor.newInstance(history, true, 2, PlacementUpdateMode.NORMAL));
+            }
+            if (completedPage) {
+               load.complete(List.of(older));
+            }
+            PersistentRecoveryJournal.blockNewWrites();
+
+            WorldHistoryManager.tickWorld(null);
+
+            assertFalse(WorldHistoryManager.busy(ownerId), "closed gate retained a page request");
+            assertEquals(0, WorldHistoryManager.undoSizeForTest(ownerId), "cancelled page entered the cache");
+            assertFalse(load.complete(List.of(older)), "late completion survived cancellation");
+            PersistentRecoveryJournal.resetWriteGateForTest();
+            WorldHistoryManager.tickWorld(null);
+            assertFalse(WorldHistoryManager.busy(ownerId));
+            assertTrue(scheduler.takeCompletedPageLoad().isEmpty());
+         }
+      }
+   }
+
+   @Test
+   void cancelAcceptsAnInitialPageLoadWithoutAnActiveWorldTask() throws Exception {
+      UUID ownerId = UUID.randomUUID();
+      UUID operation = UUID.randomUUID();
+      var ownerMethod = WorldHistoryManager.class.getDeclaredMethod("ownerState", UUID.class);
+      ownerMethod.setAccessible(true);
+      Object owner = ownerMethod.invoke(null, ownerId);
+      HistoryTaskScheduler scheduler = new HistoryTaskScheduler();
+      var plan = HistoryPageLoadPlan.create(true, 2, List.of(), 200,
+         HistoryOrderCatalog.merge(List.of(), List.of(), List.of(operation), List.of())).orElseThrow();
+      CompletableFuture<List<WorldChangeBatch>> load = new CompletableFuture<>();
+      scheduler.startPageLoad(plan, load);
+      var schedulerField = owner.getClass().getDeclaredField("scheduler");
+      schedulerField.setAccessible(true);
+      schedulerField.set(owner, scheduler);
+      assertTrue(WorldHistoryManager.busy(ownerId));
+      assertTrue(WorldHistoryManager.cancel(ownerId));
+      assertFalse(WorldHistoryManager.busy(ownerId));
+      assertTrue(load.isCancelled());
+      assertTrue(scheduler.takeCompletedPageLoad().isEmpty());
+   }
+
+   @Test
+   void failedSnapshotWithAnAllocatedCacheStaysBlockedUntilSuccessfulRetry() throws Exception {
+      UUID ownerId = UUID.randomUUID();
+      var ownerMethod = WorldHistoryManager.class.getDeclaredMethod("ownerState", UUID.class);
+      ownerMethod.setAccessible(true);
+      Object owner = ownerMethod.invoke(null, ownerId);
+      var historyField = owner.getClass().getDeclaredField("history");
+      historyField.setAccessible(true);
+      historyField.set(owner, new HistoryMemoryCache());
+      var loadField = owner.getClass().getDeclaredField("historyLoad");
+      loadField.setAccessible(true);
+      loadField.set(owner, CompletableFuture.failedFuture(new IllegalStateException("snapshot unavailable")));
+      var attach = WorldHistoryManager.class.getDeclaredMethod("attachLoadedHistory", WorldTaskContext.class);
+      attach.setAccessible(true);
+      attach.invoke(null, new WorldTaskContext(null, ownerId));
+      assertTrue(WorldHistoryManager.busy(ownerId));
+
+      loadField.set(owner, CompletableFuture.completedFuture(new WorldHistoryPersistence.LoadedHistory(
+         List.of(), List.of(), List.of(), List.of()
+      )));
+      assertTrue(WorldHistoryManager.busy(ownerId));
+      attach.invoke(null, new WorldTaskContext(null, ownerId));
+      assertFalse(WorldHistoryManager.busy(ownerId));
    }
 
    @Test
@@ -48,6 +145,19 @@ class WorldHistoryOwnerLifecycleTest {
       WorldHistoryManager.detachOwner(owner);
 
       assertEquals(1, WorldHistoryManager.undoSizeForTest(owner));
+   }
+
+   @Test
+   void loadedHistoryAppendsOlderUniqueBatchesWithoutReplacingNewMemoryHistory() {
+      WorldChangeBatch newest = batch(new BlockPos(1, 2, 3), UUID.randomUUID());
+      WorldChangeBatch duplicate = batch(new BlockPos(4, 5, 6), newest.operationId());
+      WorldChangeBatch older = batch(new BlockPos(7, 8, 9), UUID.randomUUID());
+      ArrayDeque<WorldChangeBatch> target = new ArrayDeque<>(List.of(newest));
+
+      WorldHistoryManager.mergeLoaded(target, List.of(duplicate, older));
+
+      assertEquals(List.of(newest.operationId(), older.operationId()),
+         target.stream().map(WorldChangeBatch::operationId).toList());
    }
 
    @Test
@@ -72,7 +182,7 @@ class WorldHistoryOwnerLifecycleTest {
       Object server = new Object();
       UUID owner = UUID.randomUUID();
       try {
-         assertEquals(true, WorldWriteCoordinator.tryAcquire(server, DIMENSION, owner));
+         assertNotNull(WorldWriteCoordinator.acquire(server, DIMENSION, owner));
 
          WorldHistoryManager.releaseResolvedLease(server, DIMENSION, owner);
 
@@ -211,10 +321,71 @@ class WorldHistoryOwnerLifecycleTest {
       assertTrue(WorldHistoryManager.busy(busyOwner));
    }
 
+   @Test
+   void ownerPressureKeepsAllPendingRecoveryAndPersistenceState() {
+      UUID pendingCapture = UUID.randomUUID();
+      UUID pendingRecord = UUID.randomUUID();
+      UUID pendingWrite = UUID.randomUUID();
+      UUID failedWrite = UUID.randomUUID();
+      UUID durableCommit = UUID.randomUUID();
+      BlockPos pos = new BlockPos(23, 24, 25);
+      CompletableFuture<Void> recoveryReady = new CompletableFuture<>();
+
+      WorldHistoryManager.acceptTransferredRecovery(
+         new WorldTaskContext(null, pendingCapture), DIMENSION,
+         new WorldRecoverySnapshot(
+            new ArrayDeque<>(List.of(snapshot(pos, "before"))),
+            Map.of(pos, snapshot(pos, "after")),
+            recoveryReady
+         ),
+         null,
+         () -> {},
+         () -> {}
+      );
+      WorldHistoryManager.enqueuePendingRecordForTest(
+         pendingRecord,
+         DIMENSION,
+         new ArrayDeque<>(List.of(snapshot(pos, "before"))),
+         Map.of(pos, snapshot(pos, "after"))
+      );
+      WorldHistoryManager.setPersistenceRetentionForTest(pendingWrite, 1, false, false);
+      WorldHistoryManager.setPersistenceRetentionForTest(failedWrite, 0, true, false);
+      WorldHistoryManager.setPersistenceRetentionForTest(durableCommit, 0, false, true);
+
+      List<UUID> protectedOwners = List.of(
+         pendingCapture, pendingRecord, pendingWrite, failedWrite, durableCommit
+      );
+      protectedOwners.forEach(WorldHistoryManager::detachOwner);
+      createDetachedIdleOwnerPressure();
+
+      protectedOwners.forEach(owner -> assertTrue(
+         WorldHistoryManager.ownerPresentForTest(owner),
+         () -> "owner pressure removed pending state for " + owner
+      ));
+      assertEquals(1, WorldHistoryManager.recoveryCaptureCountForTest(pendingCapture));
+   }
+
+   private static void createDetachedIdleOwnerPressure() {
+      for (int i = 0; i < WorldHistoryManager.MAX_IDLE_OWNERS + 20; i++) {
+         UUID owner = UUID.randomUUID();
+         WorldHistoryManager.deferUndoAfterRecovery(owner, 1);
+         WorldHistoryManager.takeDeferredUndo(owner);
+         WorldHistoryManager.detachOwner(owner);
+      }
+   }
+
    private static ReversibleBlockSnapshot snapshot(BlockPos pos, String marker) {
       CompoundTag tag = new CompoundTag();
       tag.putString("marker", marker);
       return new ReversibleBlockSnapshot(pos, null, null, new BlockEntitySnapshot(tag));
+   }
+
+   private static WorldChangeBatch batch(BlockPos pos, UUID operationId) {
+      return WorldChangeBatch.fromPairsForTest(
+         DIMENSION,
+         List.of(snapshot(pos, "before")),
+         Map.of(pos, snapshot(pos, "after"))
+      ).orElseThrow().withOperationId(operationId);
    }
 
 }

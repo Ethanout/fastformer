@@ -1,13 +1,20 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.client.operation.preview.Composition;
+import io.github.fastformer.client.operation.preview.CompositionBudget;
 import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
 import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.fastplace.geometry.WorkspaceGeometryBudget;
+import io.github.fastformer.fastplace.geometry.WorkspaceGeometryCost;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -32,7 +39,7 @@ public final class OperationWorkspaceValidator {
       parts.sort(Comparator.comparingInt(OperationWorkspacePlan.Part::id));
       Set<Integer> ids = new HashSet<>();
       long supplied = 0L;
-      long planned = 0L;
+      List<WorkspaceGeometryCost.Cost> costs = new ArrayList<>();
       for (OperationWorkspacePlan.Part part : parts) {
          if (part == null || part.id() < 1 || part.id() > ClientOperationWorkspace.MAX_PARTS
             || !ids.add(part.id()) || part.source() == null || !validTransform(part.transform()) || part.blocks().isEmpty()
@@ -40,23 +47,20 @@ public final class OperationWorkspaceValidator {
             return Result.failed(List.of());
          }
          if (!part.pendingDelete()) {
-            long cells = part.transform().repeats().cellCount();
-            io.github.fastformer.client.operation.selection.OccupiedBlockBounds bounds =
-               io.github.fastformer.client.operation.selection.OccupiedBlockBounds.from(part.blocks().keySet()).orElseThrow();
-            long scaledX = Math.max(1L, Math.round(bounds.width(io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.X) * part.transform().scale().x));
-            long scaledY = Math.max(1L, Math.round(bounds.width(io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.Y) * part.transform().scale().y));
-            long scaledZ = Math.max(1L, Math.round(bounds.width(io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.Z) * part.transform().scale().z));
-            long scaledVolume = saturatingMultiply(saturatingMultiply(scaledX, scaledY), scaledZ);
-            if (cells <= 0L || scaledVolume > (long)maxBlocks / cells) {
+            WorkspaceGeometryCost.Cost cost = WorkspaceGeometryCost.of(part.blocks().keySet(), part.transform());
+            if (cost == null) {
                return Result.failed(List.of());
             }
-            planned += scaledVolume * cells;
-            if (planned > maxBlocks) {
-               return Result.failed(List.of());
-            }
+            costs.add(cost);
          }
       }
-      if (!WorldOperationMemory.snapshotAdmission(planned, 0L).fitsCurrentHeap()) {
+      // The cap rule lives in WorkspaceGeometryBudget so that the render path, this validator
+      // and their tests all spend the same number.
+      WorkspaceGeometryBudget.Assessment budget = WorkspaceGeometryBudget.assess(maxBlocks, costs);
+      if (!budget.fits()) {
+         return Result.failed(List.of());
+      }
+      if (!WorldOperationMemory.snapshotAdmission(budget.plannedUpperBound(), 0L).fitsCurrentHeap()) {
          return Result.failed(List.of());
       }
 
@@ -71,9 +75,13 @@ public final class OperationWorkspaceValidator {
          if (part.pendingDelete()) {
             continue;
          }
-         Map<BlockPos, ClientBlockSnapshot> resolved = WorkspacePreviewComposer.resolveValues(
-            part.blocks(), part.transform()
+         Composition<ClientBlockSnapshot> composition = WorkspacePreviewComposer.composeSnapshots(
+            part.blocks(), part.transform(), CompositionBudget.server(maxBlocks)
          );
+         if (!(composition instanceof Composition.Composed<ClientBlockSnapshot> composed)) {
+            return Result.failed(List.of());
+         }
+         Map<BlockPos, ClientBlockSnapshot> resolved = composed.values();
          for (Map.Entry<BlockPos, ClientBlockSnapshot> entry : resolved.entrySet()) {
             if (!entry.getValue().state().isAir()) {
                writes.put(entry.getKey().immutable(), entry.getValue());
@@ -83,7 +91,7 @@ public final class OperationWorkspaceValidator {
             return Result.failed(List.of());
          }
       }
-      return new Result(true, List.of(), Set.copyOf(clears), Map.copyOf(writes));
+      return new Result(true, List.of(), clears, writes);
    }
 
    static boolean validTransform(WorkspaceTransform transform) {
@@ -101,12 +109,14 @@ public final class OperationWorkspaceValidator {
       }
       BlockPos min = transform.repeats().min();
       BlockPos max = transform.repeats().max();
-      if (Math.abs(min.getX()) > OperationStackRegion.ENDPOINT_LIMIT
-         || Math.abs(min.getY()) > OperationStackRegion.ENDPOINT_LIMIT
-         || Math.abs(min.getZ()) > OperationStackRegion.ENDPOINT_LIMIT
-         || Math.abs(max.getX()) > OperationStackRegion.ENDPOINT_LIMIT
-         || Math.abs(max.getY()) > OperationStackRegion.ENDPOINT_LIMIT
-         || Math.abs(max.getZ()) > OperationStackRegion.ENDPOINT_LIMIT) {
+      // Widen before the absolute value. Math.abs(int) returns Integer.MIN_VALUE unchanged,
+      // and that negative value passes a greater-than comparison and bypasses the limit.
+      if (Math.abs((long)min.getX()) > OperationStackRegion.ENDPOINT_LIMIT
+         || Math.abs((long)min.getY()) > OperationStackRegion.ENDPOINT_LIMIT
+         || Math.abs((long)min.getZ()) > OperationStackRegion.ENDPOINT_LIMIT
+         || Math.abs((long)max.getX()) > OperationStackRegion.ENDPOINT_LIMIT
+         || Math.abs((long)max.getY()) > OperationStackRegion.ENDPOINT_LIMIT
+         || Math.abs((long)max.getZ()) > OperationStackRegion.ENDPOINT_LIMIT) {
          return false;
       }
       BlockPos stride = transform.repeatStride();
@@ -117,10 +127,6 @@ public final class OperationWorkspaceValidator {
 
    private static boolean finite(net.minecraft.world.phys.Vec3 value) {
       return Double.isFinite(value.x) && Double.isFinite(value.y) && Double.isFinite(value.z);
-   }
-
-   private static long saturatingMultiply(long left, long right) {
-      return left != 0L && right > Long.MAX_VALUE / left ? Long.MAX_VALUE : left * right;
    }
 
    @FunctionalInterface
@@ -136,8 +142,10 @@ public final class OperationWorkspaceValidator {
    ) {
       public Result {
          invalidPartIds = List.copyOf(invalidPartIds);
-         clears = Set.copyOf(clears);
-         writes = Map.copyOf(writes);
+         // The task needs a stable write order.  Map.copyOf is explicitly not
+         // ordered, which could write a plant before the block that supports it.
+         clears = Collections.unmodifiableSet(new LinkedHashSet<>(clears));
+         writes = Collections.unmodifiableMap(new LinkedHashMap<>(writes));
       }
 
       static Result failed(List<Integer> invalidPartIds) {

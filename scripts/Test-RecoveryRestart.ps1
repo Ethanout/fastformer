@@ -1,5 +1,7 @@
 param(
-    [string] $RunDirectory = ''
+    [string] $RunDirectory = '',
+    [ValidateSet('FirstWrite', 'BeforeHistoryBatch', 'AfterHistoryBatch', 'SealedHistory', 'PublishedHistory', 'MultipleHistory', 'MixedHistory')]
+    [string] $Scenario = 'FirstWrite'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +13,22 @@ $runDirectory = if ([string]::IsNullOrWhiteSpace($RunDirectory)) {
 }
 $resultFile = Join-Path $runDirectory 'recovery-process-result.txt'
 $crashMarker = Join-Path $runDirectory 'recovery-process-crash.txt'
+$crashPhase = switch ($Scenario) {
+    'SealedHistory' { 'crash-history' }
+    'PublishedHistory' { 'crash-index' }
+    'BeforeHistoryBatch' { 'crash-before-batch' }
+    'AfterHistoryBatch' { 'crash-after-batch' }
+    'MultipleHistory' { 'crash-multiple-history' }
+    'MixedHistory' { 'crash-mixed-history' }
+    default { 'crash' }
+}
+$verifyPhase = switch ($Scenario) {
+    'FirstWrite' { 'verify' }
+    'BeforeHistoryBatch' { 'verify-unsealed-history' }
+    'AfterHistoryBatch' { 'verify-unsealed-history' }
+    'MultipleHistory' { 'verify-multiple-history' }
+    default { 'verify-history' }
+}
 
 if (Test-Path -LiteralPath $runDirectory) {
     throw "Isolated test directory already exists. Preserve or move it before retrying: $runDirectory"
@@ -27,15 +45,15 @@ try {
     $gradleRecoveryDirectory = $runDirectory
     & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon `
         -x cacheVersionExecutableClient1.21.1 runServer `
-        "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" -PrecoveryProcessTest=crash
+        "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" "-PrecoveryProcessTest=$crashPhase"
     $crashExit = $LASTEXITCODE
     if ($crashExit -eq 0 -or -not (Test-Path -LiteralPath $crashMarker)) {
-        throw "Crash phase did not reach the durable partial-write boundary (exit=$crashExit)."
+        throw "Crash phase did not reach the $Scenario boundary (exit=$crashExit)."
     }
 
     & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon `
         -x cacheVersionExecutableClient1.21.1 runServer `
-        "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" -PrecoveryProcessTest=verify
+        "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" "-PrecoveryProcessTest=$verifyPhase"
     if ($LASTEXITCODE -ne 0) {
         throw "Verify server failed to exit normally (exit=$LASTEXITCODE)."
     }

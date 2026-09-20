@@ -1,5 +1,11 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+
+import io.github.fastformer.fastplace.selection.OperationMode;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;

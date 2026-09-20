@@ -1,5 +1,14 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+
+import io.github.fastformer.fastplace.selection.OperationStageMode;
+
+import io.github.fastformer.fastplace.selection.OperationMode;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionStage;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;
@@ -15,6 +24,20 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 class OperationSelectionSessionTest {
+   @Test
+   void cuboidMiddleCannotSetAPointBeforeFirstPoint() {
+      OperationSession session = new OperationSession(OperationSelectionMode.CUBOID);
+      assertFalse(session.addSelectionPoint(BlockPos.ZERO));
+      assertTrue(session.points().isEmpty());
+      session.setSecond(new BlockPos(2, 2, 2));
+      assertFalse(session.addSelectionPoint(new BlockPos(3, 3, 3)));
+      assertFalse(session.hasFirst());
+      session = new OperationSession(OperationSelectionMode.CUBOID);
+      session.setFirst(BlockPos.ZERO);
+      assertTrue(session.addSelectionPoint(new BlockPos(4, 4, 4)));
+      assertTrue(session.selectionReady());
+   }
+
    @Test
    void singleBlockBoundsRejectInversionAndPreserveHistoryOnEveryFace() {
       for (int axis = 0; axis < 3; axis++) {

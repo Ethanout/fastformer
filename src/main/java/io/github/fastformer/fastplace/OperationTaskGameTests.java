@@ -1,5 +1,12 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+
+import io.github.fastformer.fastplace.selection.OperationMode;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.task.OperationTaskResult;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
@@ -21,7 +28,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class OperationTaskGameTests {
    private OperationTaskGameTests() {}
 
-   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
+   // The headless GameTest server advances ticks much faster than the journal
+   // executor can compress the final history batch.
+   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 100000)
    public static void selectionCopyCommitsAcrossSegmentBoundaries(GameTestHelper helper) {
       var level = helper.getLevel();
       int[] sizes = {1, 16, 256, 512};
@@ -71,7 +80,7 @@ public final class OperationTaskGameTests {
       });
    }
 
-   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
+   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 100000)
    public static void selectionMovePreservesOverlappingTargets(GameTestHelper helper) {
       var level = helper.getLevel();
       BlockPos origin = helper.absolutePos(new BlockPos(1, 17, 1));

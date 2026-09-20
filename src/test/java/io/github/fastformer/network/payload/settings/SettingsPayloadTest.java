@@ -7,7 +7,6 @@ import io.netty.buffer.Unpooled;
 import io.github.fastformer.fastplace.FaceRasterizationMode;
 import io.github.fastformer.fastplace.OperationConflictMode;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
-import io.github.fastformer.fastplace.RaycastPlacement;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import java.util.List;
@@ -15,13 +14,22 @@ import org.junit.jupiter.api.Test;
 
 class SettingsPayloadTest {
    @Test
+   void missingPlacementUpdateModeKeepsTheSafeDefault() {
+      OpenSettingsPayload payload = new OpenSettingsPayload(
+         true, FaceRasterizationMode.POINT_SWEEP, OperationConflictMode.REPLACE,
+         null, List.of(), true, false, 200, 100
+      );
+      assertEquals(PlacementUpdateMode.CLIENT_ONLY, payload.placementUpdateMode());
+   }
+
+   @Test
    void settingsPayloadsRoundTripTheirToggleValue() {
       FriendlyByteBuf openBuffer = new FriendlyByteBuf(Unpooled.buffer());
       ResourceLocation woodFrame = ResourceLocation.fromNamespaceAndPath("fastformer", "wood_frame");
       OpenSettingsPayload.STREAM_CODEC.encode(
          openBuffer,
          new OpenSettingsPayload(
-            false, FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL, RaycastPlacement.SURFACE,
+            false, FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
             OperationConflictMode.KEEP_EXISTING, PlacementUpdateMode.CLIENT_ONLY,
             List.of(woodFrame), true, false, 300, 120
          )
@@ -29,7 +37,6 @@ class SettingsPayloadTest {
       OpenSettingsPayload open = OpenSettingsPayload.STREAM_CODEC.decode(openBuffer);
       assertEquals(false, open.middleConfirmEnabled());
       assertEquals(FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL, open.faceRasterizationMode());
-      assertEquals(RaycastPlacement.SURFACE, open.raycastPlacement());
       assertEquals(OperationConflictMode.KEEP_EXISTING, open.placementConflictMode());
       assertEquals(PlacementUpdateMode.CLIENT_ONLY, open.placementUpdateMode());
       assertEquals(List.of(woodFrame), open.enabledPlacementEffects());

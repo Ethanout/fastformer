@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.placement.plan;
 
 import io.github.fastformer.fastplace.FastPlaceGeometry;
-import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;

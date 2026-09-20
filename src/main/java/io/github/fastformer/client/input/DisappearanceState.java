@@ -10,19 +10,36 @@ public final class DisappearanceState {
    private int count;
    private int previousCount;
    private boolean disappeared;
+   private Object target;
+   private int dwellTicks;
+   private boolean accelerated;
 
    public DisappearanceState(int capacity) {
       this.capacity = Math.max(1, capacity);
    }
 
    public void tick(boolean eligible, boolean condition) {
+      tick(eligible, condition, null);
+   }
+
+   /** Advances visibility and accelerates only while the same target remains under the crosshair. */
+   public void tick(boolean eligible, boolean condition, Object currentTarget) {
       previousCount = count;
-      if (!eligible) {
-         count = Math.max(0, count - 1);
-      } else if (condition) {
-         count = Math.min(capacity, count + 1);
+      if (currentTarget == null || !currentTarget.equals(target)) {
+         target = currentTarget;
+         dwellTicks = 0;
+         accelerated = false;
       } else {
-         count = Math.max(0, count - 1);
+         dwellTicks++;
+         accelerated = dwellTicks >= 2;
+      }
+      int rate = accelerated ? 3 : 1;
+      if (!eligible) {
+         count = Math.max(0, count - rate);
+      } else if (condition) {
+         count = Math.min(capacity, count + rate);
+      } else {
+         count = Math.max(0, count - rate);
       }
       if (count == capacity) {
          disappeared = true;
@@ -50,9 +67,16 @@ public final class DisappearanceState {
       count = 0;
       previousCount = 0;
       disappeared = false;
+      target = null;
+      dwellTicks = 0;
+      accelerated = false;
    }
 
    public int count() {
       return count;
+   }
+
+   public boolean accelerated() {
+      return accelerated;
    }
 }

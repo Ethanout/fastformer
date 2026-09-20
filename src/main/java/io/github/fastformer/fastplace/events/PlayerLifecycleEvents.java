@@ -8,6 +8,7 @@ import io.github.fastformer.fastplace.world.WorldHistoryManager;
 import io.github.fastformer.fastplace.world.WorldTaskFeature;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.network.sync.PlayerPreviewSync;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
@@ -47,9 +48,12 @@ public final class PlayerLifecycleEvents {
 
    private static void onPlayerChangedDimension(PlayerChangedDimensionEvent event) {
       if (event.getEntity() instanceof ServerPlayer player) {
-         // Selection coordinates and placement tasks are dimension-local. End
-         // the old session instead of carrying it across coordinate scaling.
-         FastPlaceManager.quit(player);
+         // A dimension change is an environment change, not a user quit. The
+         // selection and every world task stay alive: the task keeps its save,
+         // its original dimension and its operation id. Only the binding to the
+         // old environment ends, so old coordinates are never used in the new
+         // dimension.
+         FastPlaceManager.handleDimensionChange(player, event.getFrom(), event.getTo());
       }
    }
 
@@ -57,6 +61,7 @@ public final class PlayerLifecycleEvents {
       if (!(event.getEntity() instanceof ServerPlayer player)) {
          return;
       }
+      PlayerPreviewSync.beginClientSession(player);
       FastPlaceNetwork.syncSettings(player);
       // Reattach UUID-owned workflows after a reconnect or player replacement.
       FastPlaceManager.syncCurrentPreview(player);
@@ -93,6 +98,9 @@ public final class PlayerLifecycleEvents {
       WorldHistoryManager.awaitDiskWritesOnShutdown(event.getServer());
       WorldHistoryManager.clearServer();
       FastPlaceNetwork.clearServer();
+      // The ledger belongs to one server instance. A different save must never answer
+      // with a result that belongs to this one.
+      io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.clearServer(event.getServer());
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());
    }
@@ -101,6 +109,7 @@ public final class PlayerLifecycleEvents {
       FastPlaceManager.clearServer();
       WorldHistoryManager.clearServer();
       FastPlaceNetwork.clearServer();
+      io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.clearServer(event.getServer());
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());
    }

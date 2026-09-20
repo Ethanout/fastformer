@@ -1,12 +1,11 @@
 package io.github.fastformer.client.operation.preview;
 
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.client.operation.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.OperationStackRegion;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -74,6 +73,8 @@ class WorkspacePreviewComposerTest {
       SourceBlockRenderMask mask = new SourceBlockRenderMask();
       mask.replace(java.util.Set.of(BlockPos.ZERO, new BlockPos(1, 0, 0)));
       assertTrue(mask.contains(BlockPos.ZERO));
+      assertTrue(mask.shouldSkipWorldRender(BlockPos.ZERO));
+      assertTrue(!mask.shouldSkipWorldRender(null));
 
       mask.clear();
 

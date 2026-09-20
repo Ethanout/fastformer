@@ -1,6 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 
 public record ControlPoint(
@@ -71,6 +72,20 @@ public record ControlPoint(
 
    public BlockPos pos() {
       return BlockPos.containing(this.center);
+   }
+
+   public Component hoverText() {
+      String key = switch (this.role) {
+         case PRIMARY -> "fastformer.operation.control_point.primary";
+         case SECONDARY -> "fastformer.operation.control_point.secondary";
+         case CENTER, BASE_CENTER, DERIVED_CENTER -> "fastformer.operation.control_point.center";
+         case RADIUS -> "fastformer.operation.control_point.radius";
+         case DIAMETER_A, DIAMETER_B -> "fastformer.operation.control_point.diameter";
+         case BASE_FACE -> "fastformer.operation.control_point.base_face";
+         case HEIGHT -> "fastformer.operation.control_point.height";
+         case GIZMO_HANDLE -> "fastformer.operation.control_point.handle";
+      };
+      return Component.translatable(key);
    }
 
    public boolean confirmed() {

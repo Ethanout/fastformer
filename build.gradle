@@ -72,8 +72,10 @@ runs {
         argument '--nogui'
         if (project.hasProperty('recoveryProcessTest')) {
             def recoveryProcessPhase = project.property('recoveryProcessTest').toString()
-            if (!(recoveryProcessPhase in ['crash', 'verify'])) {
-                throw new GradleException("recoveryProcessTest must be 'crash' or 'verify'")
+            if (!(recoveryProcessPhase in ['crash', 'verify', 'crash-history', 'crash-index',
+                    'crash-before-batch', 'crash-after-batch', 'crash-multiple-history',
+                    'verify-multiple-history', 'crash-mixed-history', 'verify-unsealed-history', 'verify-history'])) {
+                throw new GradleException("Unknown recoveryProcessTest phase: ${recoveryProcessPhase}")
             }
             systemProperty 'fastformer.recoveryProcessTest', recoveryProcessPhase
             def recoveryDirectory = project.findProperty('recoveryProcessDirectory')
@@ -200,6 +202,10 @@ def asciiMinecraftClasses = new File(asciiTestRoot, 'minecraft')
 tasks.register('prepareAsciiTestRuntime', Sync) {
     dependsOn tasks.named('testClasses')
     into asciiTestRoot
+    // Runtime logs belong to the test worker, not to the synchronized classpath.
+    preserve {
+        include 'work/**'
+    }
     from(sourceSets.main.output) {
         into 'main'
     }

@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.model;
 
-import io.github.fastformer.fastplace.OperationStackRegion;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

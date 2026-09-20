@@ -150,10 +150,15 @@ public final class WorldJournalPreparation {
       });
    }
 
-   public void releaseAfterCancellation(WorldTaskContext context, ResourceKey<Level> dimension) {
+   /**
+    * Releases the lease that started this preparation after the cancelled
+    * journal I/O can no longer append.
+    *
+    * <p>The lease object carries the transaction identity. A lease of {@code
+    * null} means the caller never held one, so there is nothing to release.</p>
+    */
+   public void releaseAfterCancellation(WorldWriteCoordinator.Lease lease) {
       cancel();
-      WorldWriteCoordinator.releaseAfterUnusedJournal(
-         context.server(), dimension, context.owner(), this.journal, this.future
-      );
+      WorldWriteCoordinator.releaseAfterUnusedJournal(lease, this.journal, this.future);
    }
 }

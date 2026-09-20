@@ -19,6 +19,8 @@
 - `point1` 和 `point2` 只记录最近设置的点。扩展不能修改它们。
 - CUBOID 用左键设第一点，右键或中键设第二点。PRISM 用右键加点，靠近首点时右键闭合，左键删除最后一个草稿点。
 - Alt CUBOID 的中键规则是第一点、第二点、`expandTo(point)`。Alt 路径不让旧选区、部件选择、原版放置或快速起形抢占。
+- 2026-09-19 用户确认例外：Alt + 左键／右键直接命中 Gizmo 时，变换命中的旧部件或公共选择集，不新建草稿。松开 Alt 不改变已开始拖动的归属，其他 Alt 点击继续编辑新草稿。
+- 2026-09-19 用户确认：已有选区的普通中键，只要输入归属选区就拦截原版选取方块。没有变化、没有落点或编辑校验失败也不让行；有效编辑仍按范围扩展规则执行。
 
 ## 工作区操作
 
@@ -45,4 +47,6 @@
 
 服务端 `OperationSession.selectionConfirmed` 表示进入选区后的变换阶段。`OperationTransformState.adjustmentStarted` 表示变换编辑已经开始。
 
-客户端收到 ready 预览后创建工作区部件。网络 payload 的 `operationSelectionConfirmed()` 是旧名称的兼容访问器，实际返回 `adjustmentStarted`。它不是独立的 Enter 事件，也不是第三个状态。输入和渲染通过这个访问器限制点编辑和变换交互。
+2026-09-19 用户确认的 D3 规则替换“ready 后成为部件”的旧规则。收到 ready、设点、修改范围或按 Enter 都不使选区成为操作部件。只有变换后的完整方块集合不同于固定原集合时，选区才成为部件。恢复原集合后恢复选区身份、编辑能力与显示。比较包括世界位置、方块状态和方块实体数据，hash 相同时仍核对完整集合。
+
+网络 payload 的 `operationSelectionConfirmed()` 是旧名称的兼容访问器，实际返回 `adjustmentStarted`。它不是独立的 Enter 事件，也不能作为选区与部件身份的依据。迁移中的输入和渲染入口必须区分这个兼容字段与 D3 身份。规则来源见 `../pseudocode/sessions/10-选区.md`。

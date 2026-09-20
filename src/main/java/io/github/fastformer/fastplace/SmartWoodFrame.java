@@ -1,5 +1,8 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
 import java.util.AbstractMap;

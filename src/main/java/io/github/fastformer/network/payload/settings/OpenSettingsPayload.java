@@ -3,7 +3,6 @@ package io.github.fastformer.network.payload.settings;
 import io.github.fastformer.fastplace.FaceRasterizationMode;
 import io.github.fastformer.fastplace.OperationConflictMode;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
-import io.github.fastformer.fastplace.RaycastPlacement;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -14,7 +13,6 @@ import java.util.List;
 public record OpenSettingsPayload(
    boolean middleConfirmEnabled,
    FaceRasterizationMode faceRasterizationMode,
-   RaycastPlacement raycastPlacement,
    OperationConflictMode placementConflictMode,
    PlacementUpdateMode placementUpdateMode,
    List<ResourceLocation> enabledPlacementEffects,
@@ -30,7 +28,7 @@ public record OpenSettingsPayload(
 
    private OpenSettingsPayload(FriendlyByteBuf buffer) {
       this(
-         buffer.readBoolean(), buffer.readEnum(FaceRasterizationMode.class), buffer.readEnum(RaycastPlacement.class),
+         buffer.readBoolean(), buffer.readEnum(FaceRasterizationMode.class),
          buffer.readEnum(OperationConflictMode.class), buffer.readEnum(PlacementUpdateMode.class),
          readEffectIds(buffer), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt()
       );
@@ -40,30 +38,28 @@ public record OpenSettingsPayload(
       faceRasterizationMode = faceRasterizationMode == null
          ? FaceRasterizationMode.POINT_SWEEP
          : faceRasterizationMode;
-      raycastPlacement = raycastPlacement == null ? RaycastPlacement.EMBEDDED : raycastPlacement;
       placementConflictMode = placementConflictMode == null ? OperationConflictMode.REPLACE : placementConflictMode;
-      placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.NORMAL : placementUpdateMode;
+      placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.CLIENT_ONLY : placementUpdateMode;
       enabledPlacementEffects = enabledPlacementEffects == null ? List.of() : List.copyOf(enabledPlacementEffects);
       worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
       sessionUndoHistoryLimit = Math.clamp((long)sessionUndoHistoryLimit, 1, 800);
    }
 
    public OpenSettingsPayload(boolean middleConfirmEnabled) {
-      this(middleConfirmEnabled, FaceRasterizationMode.POINT_SWEEP, RaycastPlacement.EMBEDDED,
-         OperationConflictMode.REPLACE, PlacementUpdateMode.NORMAL, List.of(), true, false, 200, 100);
+      this(middleConfirmEnabled, FaceRasterizationMode.POINT_SWEEP,
+         OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, List.of(), true, false, 200, 100);
    }
 
    public OpenSettingsPayload(
       boolean middleConfirmEnabled,
       FaceRasterizationMode faceRasterizationMode,
-      RaycastPlacement raycastPlacement,
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
       int worldUndoHistoryLimit,
       int sessionUndoHistoryLimit
    ) {
       this(
-         middleConfirmEnabled, faceRasterizationMode, raycastPlacement, placementConflictMode,
+         middleConfirmEnabled, faceRasterizationMode, placementConflictMode,
          placementUpdateMode, List.of(), true, false, worldUndoHistoryLimit, sessionUndoHistoryLimit
       );
    }
@@ -71,7 +67,6 @@ public record OpenSettingsPayload(
    private void write(FriendlyByteBuf buffer) {
       buffer.writeBoolean(this.middleConfirmEnabled);
       buffer.writeEnum(this.faceRasterizationMode);
-      buffer.writeEnum(this.raycastPlacement);
       buffer.writeEnum(this.placementConflictMode);
       buffer.writeEnum(this.placementUpdateMode);
       buffer.writeVarInt(this.enabledPlacementEffects.size());

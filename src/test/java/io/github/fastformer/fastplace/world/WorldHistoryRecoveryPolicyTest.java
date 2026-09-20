@@ -1,53 +1,78 @@
 package io.github.fastformer.fastplace.world;
 
 
+import io.github.fastformer.fastplace.PlacementUpdateMode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
 class WorldHistoryRecoveryPolicyTest {
    @Test
-   void recoveryRestoresOwnedCellsAndAcceptsAlreadyRestoredCells() {
+   void userHistoryUsesTheRequestedUpdateMode() {
       assertEquals(
-         WorldHistoryManager.RecoveryCellAction.RESTORE,
-         WorldHistoryManager.recoveryCellAction(true, 1)
+         PlacementUpdateMode.NORMAL,
+         HistoryRecoveryPolicy.effectiveUpdateMode(PlacementUpdateMode.NORMAL, false)
       );
       assertEquals(
-         WorldHistoryManager.RecoveryCellAction.ALREADY_RESTORED,
-         WorldHistoryManager.recoveryCellAction(true, 2)
+         PlacementUpdateMode.CLIENT_ONLY,
+         HistoryRecoveryPolicy.effectiveUpdateMode(PlacementUpdateMode.CLIENT_ONLY, false)
+      );
+   }
+
+   @Test
+   void recoveryAlwaysSuppressesNeighborUpdates() {
+      assertEquals(
+         PlacementUpdateMode.CLIENT_ONLY,
+         HistoryRecoveryPolicy.effectiveUpdateMode(PlacementUpdateMode.NORMAL, true)
+      );
+      assertEquals(
+         PlacementUpdateMode.CLIENT_ONLY,
+         HistoryRecoveryPolicy.effectiveUpdateMode(null, false)
+      );
+   }
+
+   @Test
+   void recoveryRestoresOwnedCellsAndAcceptsAlreadyRestoredCells() {
+      assertEquals(
+         HistoryRecoveryPolicy.CellAction.RESTORE,
+         HistoryRecoveryPolicy.cellAction(true, 1)
+      );
+      assertEquals(
+         HistoryRecoveryPolicy.CellAction.ALREADY_RESTORED,
+         HistoryRecoveryPolicy.cellAction(true, 2)
       );
    }
 
    @Test
    void recoveryPreservesExternalWritesInsteadOfStrandingTheWholeBatch() {
       assertEquals(
-         WorldHistoryManager.RecoveryCellAction.PRESERVE_EXTERNAL,
-         WorldHistoryManager.recoveryCellAction(true, 0)
+         HistoryRecoveryPolicy.CellAction.PRESERVE_EXTERNAL,
+         HistoryRecoveryPolicy.cellAction(true, 0)
       );
    }
 
    @Test
    void userUndoStillRequiresAnAtomicConflictFreeBatch() {
       assertEquals(
-         WorldHistoryManager.RecoveryCellAction.FAIL_ATOMIC_BATCH,
-         WorldHistoryManager.recoveryCellAction(false, 0)
+         HistoryRecoveryPolicy.CellAction.FAIL_ATOMIC_BATCH,
+         HistoryRecoveryPolicy.cellAction(false, 0)
       );
    }
 
    @Test
    void rollbackRestoresACompleteOperationTarget() {
-      assertEquals(true, WorldHistoryManager.rollbackOwnsPartial(false, false, true));
+      assertEquals(true, HistoryRecoveryPolicy.ownsPartialRollback(false, false, true));
    }
 
    @Test
    void rollbackRestoresAnApplyFailureThatStillMatchesItsCapturedFingerprint() {
-      assertEquals(true, WorldHistoryManager.rollbackOwnsPartial(true, true, false));
+      assertEquals(true, HistoryRecoveryPolicy.ownsPartialRollback(true, true, false));
    }
 
    @Test
    void rollbackPreservesAChangedCellThatMatchesNeitherOwnedState() {
-      assertEquals(false, WorldHistoryManager.rollbackOwnsPartial(true, false, false));
-      assertEquals(false, WorldHistoryManager.rollbackOwnsPartial(false, true, false));
+      assertEquals(false, HistoryRecoveryPolicy.ownsPartialRollback(true, false, false));
+      assertEquals(false, HistoryRecoveryPolicy.ownsPartialRollback(false, true, false));
    }
 
    @Test
@@ -62,25 +87,25 @@ class WorldHistoryRecoveryPolicyTest {
 
    @Test
    void cancellationCannotDiscardJournalForAnUnidentifiedPartialApply() {
-      assertEquals(true, WorldHistoryManager.cancellationCanFinishImmediately(true, false, false, false));
-      assertEquals(false, WorldHistoryManager.cancellationCanFinishImmediately(true, false, false, true));
-      assertEquals(false, WorldHistoryManager.cancellationCanFinishImmediately(true, true, false, false));
-      assertEquals(false, WorldHistoryManager.cancellationCanFinishImmediately(true, false, true, false));
+      assertEquals(true, HistoryRecoveryPolicy.canFinishCancellation(true, false, false, false));
+      assertEquals(false, HistoryRecoveryPolicy.canFinishCancellation(true, false, false, true));
+      assertEquals(false, HistoryRecoveryPolicy.canFinishCancellation(true, true, false, false));
+      assertEquals(false, HistoryRecoveryPolicy.canFinishCancellation(true, false, true, false));
    }
 
    @Test
    void retainedRecoveryAlwaysRetriesAutomatically() {
       assertEquals(
-         WorldHistoryManager.RecoveryRetentionAction.RETRY_AUTOMATICALLY,
-         WorldHistoryManager.recoveryRetentionAction(true, true)
+         HistoryRecoveryPolicy.RetentionAction.RETRY_AUTOMATICALLY,
+         HistoryRecoveryPolicy.retentionAction(true, true)
       );
       assertEquals(
-         WorldHistoryManager.RecoveryRetentionAction.NONE,
-         WorldHistoryManager.recoveryRetentionAction(false, true)
+         HistoryRecoveryPolicy.RetentionAction.NONE,
+         HistoryRecoveryPolicy.retentionAction(false, true)
       );
       assertEquals(
-         WorldHistoryManager.RecoveryRetentionAction.NONE,
-         WorldHistoryManager.recoveryRetentionAction(true, false)
+         HistoryRecoveryPolicy.RetentionAction.NONE,
+         HistoryRecoveryPolicy.retentionAction(true, false)
       );
    }
 }

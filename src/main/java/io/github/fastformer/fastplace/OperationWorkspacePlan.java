@@ -5,7 +5,7 @@ import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.model.WorkspaceTransform;
-import java.util.LinkedHashMap;
+import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -24,11 +24,7 @@ public record OperationWorkspacePlan(List<Part> parts) {
       boolean pendingDelete
    ) {
       public Part {
-         LinkedHashMap<BlockPos, ClientBlockSnapshot> copy = new LinkedHashMap<>();
-         if (blocks != null) {
-            blocks.forEach((pos, snapshot) -> copy.put(pos.immutable(), snapshot));
-         }
-         blocks = Map.copyOf(copy);
+         blocks = blocks == null ? Map.of() : BlockPositionMaps.copyOf(blocks);
       }
 
       public Part withTransform(WorkspaceTransform value) {

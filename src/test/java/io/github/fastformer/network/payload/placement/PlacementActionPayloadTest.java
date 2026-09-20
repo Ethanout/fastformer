@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.netty.buffer.Unpooled;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import net.minecraft.network.FriendlyByteBuf;
 import org.junit.jupiter.api.Test;
 
@@ -49,5 +50,19 @@ class PlacementActionPayloadTest {
          IllegalArgumentException.class,
          () -> new PlacementActionPayload(PlacementActionPayload.Action.CONFIRM, -1L)
       );
+   }
+
+   @Test
+   void startPlacementPayloadCarriesRaycastPlacement() {
+      FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+      StartPlacementPayload.STREAM_CODEC.encode(
+         buffer, StartPlacementPayload.forPlacement(RaycastPlacement.EMBEDDED)
+      );
+
+      assertEquals(
+         RaycastPlacement.EMBEDDED,
+         StartPlacementPayload.STREAM_CODEC.decode(buffer).placement()
+      );
+      assertEquals(RaycastPlacement.SURFACE, StartPlacementPayload.forPlacement(null).placement());
    }
 }

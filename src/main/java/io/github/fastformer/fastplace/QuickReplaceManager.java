@@ -2,11 +2,8 @@ package io.github.fastformer.fastplace;
 
 import io.github.fastformer.fastplace.world.*;
 
-import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,20 +14,15 @@ import net.minecraft.world.phys.HitResult;
 
 /** Authoritative Axiom-style replacement using the held block's placement state. */
 public final class QuickReplaceManager {
-   private static final Map<UUID, Long> LAST_REPLACE_TICK = new ConcurrentHashMap<>();
-
    private QuickReplaceManager() {
    }
 
    public static boolean replaceCrosshair(ServerPlayer player) {
-      if (player == null || WorldHistoryManager.busy(player) || !ServerInputDispatcher.canOperate(player)
-         || FastPlaceManager.active(player) || OperationManager.active(player) || GeometryManager.active(player)
-         || !PlaceableItems.isPlaceable(player.getMainHandItem())) {
+      if (!admitted(player)) {
          return false;
       }
       ServerLevel level = player.serverLevel();
-      long gameTick = level.getGameTime();
-      if (LAST_REPLACE_TICK.put(player.getUUID(), gameTick) == gameTick) {
+      if (!QuickReplaceDedupe.accept(player.getUUID(), level.getGameTime())) {
          return false;
       }
       BlockHitResult hit = ServerInputDispatcher.raycastBlocks(player, ServerInputDispatcher.EXTENDED_REACH);
@@ -46,31 +38,38 @@ public final class QuickReplaceManager {
       }
       BlockState beforeState = level.getBlockState(pos);
       BlockState afterState = copySharedProperties(beforeState, placement.orElseThrow());
-      if (beforeState.equals(afterState) || !WorldWriteCoordinator.tryAcquire(player.getServer(), level.dimension(), player.getUUID())) {
+      if (beforeState.equals(afterState)) {
          return false;
       }
-      try {
-         Optional<ReversibleBlockSnapshot> before = ReversibleBlockSnapshot.capture(level, pos);
-         if (before.isEmpty() || !WorldWriteSideEffectGuard.setBlock(
-            level, pos, afterState, FastPlaceSettings.load(player).placementUpdateMode().flags()
-         )) {
-            return false;
-         }
-         Optional<ReversibleBlockSnapshot> after = ReversibleBlockSnapshot.capture(level, pos);
-         if (after.isEmpty()) {
-            before.orElseThrow().restore(level, PlacementUpdateMode.CLIENT_ONLY.flags());
-            return false;
-         }
-         ArrayDeque<ReversibleBlockSnapshot> changes = new ArrayDeque<>();
-         changes.addFirst(before.orElseThrow());
-         if (!WorldHistoryManager.record(player, level, changes, Map.of(pos, after.orElseThrow()))) {
-            before.orElseThrow().restore(level, PlacementUpdateMode.CLIENT_ONLY.flags());
-            return false;
-         }
-         return true;
-      } finally {
-         WorldWriteCoordinator.release(player.getServer(), level.dimension(), player.getUUID());
-      }
+      // A short transaction checks its own recovery result and keeps the lease
+      // when a restore does not complete. Only "no change applies here" leaves
+      // the world untouched and unreported.
+      ShortWriteTransaction.Outcome outcome = ShortWriteTransaction.apply(
+         player,
+         level,
+         Map.of(pos, afterState),
+         FastPlaceSettings.load(player).placementUpdateMode().flags(),
+         PlacementUpdateMode.CLIENT_ONLY.flags()
+      );
+      ShortWriteTransaction.report(outcome, player);
+      return outcome == ShortWriteTransaction.Outcome.APPLIED;
+   }
+
+   /**
+    * A world write may only start when no history, recovery, task or editing
+    * session owns this player. The task checks match {@link BlockTinker} so a
+    * short operation cannot start while a queued task still holds the lease.
+    */
+   private static boolean admitted(ServerPlayer player) {
+      return player != null
+         && !WorldHistoryManager.busy(player)
+         && ServerInputDispatcher.canOperate(player)
+         && !FastPlaceManager.active(player)
+         && !OperationManager.active(player)
+         && !GeometryManager.active(player)
+         && !FastPlaceManager.taskActive(player)
+         && !OperationManager.taskActive(player)
+         && PlaceableItems.isPlaceable(player.getMainHandItem());
    }
 
    static BlockState copySharedProperties(BlockState source, BlockState target) {

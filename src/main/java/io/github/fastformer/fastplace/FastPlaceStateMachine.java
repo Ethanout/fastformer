@@ -1,5 +1,12 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
+import io.github.fastformer.fastplace.quickshape.FastPlaceMode;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
+
 import io.github.fastformer.fastplace.world.*;
 
 import java.util.HashMap;

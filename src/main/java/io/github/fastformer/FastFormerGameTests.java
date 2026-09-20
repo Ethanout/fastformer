@@ -1,5 +1,12 @@
 package io.github.fastformer;
 
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
 import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
@@ -95,11 +102,11 @@ public final class FastFormerGameTests {
    @GameTest(template = "empty", timeoutTicks = 20)
    public static void woodFrameEffectAppliesLogStatesDuringLineAndFaceStages(GameTestHelper helper) {
       var modes = new io.github.fastformer.fastplace.FastPlaceGeometry.Modes(
-         io.github.fastformer.fastplace.PointMode.RAYCAST,
-         io.github.fastformer.fastplace.RaycastPlacement.EMBEDDED,
-         io.github.fastformer.fastplace.LineMode.AXIS,
-         io.github.fastformer.fastplace.FaceMode.COORDINATE_PLANE,
-         io.github.fastformer.fastplace.VolumeMode.FREE,
+         io.github.fastformer.fastplace.quickshape.PointMode.RAYCAST,
+         io.github.fastformer.fastplace.quickshape.RaycastPlacement.EMBEDDED,
+         io.github.fastformer.fastplace.quickshape.LineMode.AXIS,
+         io.github.fastformer.fastplace.quickshape.FaceMode.COORDINATE_PLANE,
+         io.github.fastformer.fastplace.quickshape.VolumeMode.FREE,
          io.github.fastformer.fastplace.FillMode.OUTLINE, 0.0, false
       );
       var effect = new io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect();
@@ -110,11 +117,11 @@ public final class FastFormerGameTests {
          var context = new io.github.fastformer.fastplace.placement.effect.PlacementEffectContext(
             null, net.minecraft.world.item.ItemStack.EMPTY, Blocks.OAK_LOG.defaultBlockState(),
             net.minecraft.core.Direction.Axis.Y, points, modes, false,
-            io.github.fastformer.fastplace.PolygonVolumeShape.EXTRUDE, null
+            io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE, null
          );
          helper.assertTrue(effect.matches(context), "wood effect rejected line or face stage");
          var targets = io.github.fastformer.fastplace.FastPlaceGeometry.blocks(
-            points, modes, false, io.github.fastformer.fastplace.PolygonVolumeShape.EXTRUDE, 1000
+            points, modes, false, io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE, 1000
          );
          var states = effect.resolve(context).stateOverrides().apply(targets);
          var axis = net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS;
@@ -167,13 +174,76 @@ public final class FastFormerGameTests {
       helper.succeed();
    }
 
+   @GameTest(template = "empty", timeoutTicks = 20)
+   public static void emptyHandRayKeepsReplaceableBlocks(GameTestHelper helper) {
+      BlockPos support = helper.absolutePos(new BlockPos(1, 1, 1));
+      BlockPos grass = support.above();
+      var level = helper.getLevel();
+      var source = net.minecraft.world.entity.EntityType.ARMOR_STAND.create(level);
+      level.setBlock(support, Blocks.STONE.defaultBlockState(), 2);
+      level.setBlock(grass, Blocks.SHORT_GRASS.defaultBlockState(), 2);
+
+      var hit = io.github.fastformer.fastplace.LongRangeBlockRaycast.clip(
+         level,
+         source,
+         net.minecraft.world.phys.Vec3.atCenterOf(grass).add(0, 3, 0),
+         new net.minecraft.world.phys.Vec3(0, -1, 0)
+      ).hit();
+
+      helper.assertTrue(hit.getBlockPos().equals(grass), "empty-hand selection skipped short grass");
+      helper.succeed();
+   }
+
    public static void register(RegisterGameTestsEvent event) {
       event.register(FastFormerGameTests.class);
       event.register(io.github.fastformer.fastplace.world.JournalRecoveryGameTests.class);
+      event.register(io.github.fastformer.fastplace.TaskCommitFailureGameTests.class);
    }
 
    @GameTest(template = "empty", timeoutTicks = 20)
    public static void modLoads(GameTestHelper helper) {
+      helper.succeed();
+   }
+
+   @GameTest(template = "empty", timeoutTicks = 20)
+   public static void previewOcclusionUsesPreviewAndWorldBlockShapes(GameTestHelper helper) {
+      BlockPos preview = helper.absolutePos(new BlockPos(1, 2, 1));
+      BlockPos neighbor = preview.east();
+      var level = helper.getLevel();
+      var stone = Blocks.STONE.defaultBlockState();
+      level.setBlock(neighbor, stone, 2);
+      var unified = io.github.fastformer.client.render.PreviewBlockOcclusion.level(
+         level, Map.of(preview, stone)
+      );
+
+      helper.assertTrue(unified.getBlockState(preview).is(Blocks.STONE), "preview state was not retained");
+      helper.assertTrue(unified.getBlockState(neighbor).is(Blocks.STONE), "world neighbor became air");
+      helper.assertTrue(
+         !net.minecraft.world.level.block.Block.shouldRenderFace(
+            stone, unified, preview, net.minecraft.core.Direction.EAST, neighbor
+         ),
+         "full shared face was not culled"
+      );
+
+      level.setBlock(neighbor, Blocks.STONE_SLAB.defaultBlockState(), 2);
+      helper.assertTrue(
+         net.minecraft.world.level.block.Block.shouldRenderFace(
+            stone, unified, preview, net.minecraft.core.Direction.EAST, neighbor
+         ),
+         "partial world neighbor hid the exposed preview face"
+      );
+
+      var glass = Blocks.GLASS.defaultBlockState();
+      level.setBlock(neighbor, glass, 2);
+      var glassPreview = io.github.fastformer.client.render.PreviewBlockOcclusion.level(
+         level, Map.of(preview, glass)
+      );
+      helper.assertTrue(
+         !net.minecraft.world.level.block.Block.shouldRenderFace(
+            glass, glassPreview, preview, net.minecraft.core.Direction.EAST, neighbor
+         ),
+         "matching transparent shared face was not culled"
+      );
       helper.succeed();
    }
 

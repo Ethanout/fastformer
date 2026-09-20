@@ -41,4 +41,12 @@ class ControlPointComponentTest {
       assertTrue(closeable.feedback().changesOnHover());
       assertFalse(ordinary.feedback().changesOnHover());
    }
+
+   @Test
+   void everyControlPointRoleProvidesHoverText() {
+      for (ControlPointRole role : ControlPointRole.values()) {
+         ControlPoint point = ControlPoint.precise(Vec3.ZERO, role);
+         assertTrue(point.hoverText() != null);
+      }
+   }
 }

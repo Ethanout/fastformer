@@ -40,13 +40,18 @@ public final class OperationClipboardStore {
    }
 
    public static Optional<CompoundTag> load(Path file) {
-      if (file == null || Files.notExists(file)) {
-         return Optional.empty();
-      }
       try {
-         return Optional.of(NbtIo.readCompressed(file, NbtAccounter.create(MAX_DECODE_BYTES)));
+         return loadStrict(file);
       } catch (IOException | RuntimeException exception) {
          return Optional.empty();
       }
+   }
+
+   /** Reads compressed NBT while preserving the reason that a durable file is unavailable. */
+   public static Optional<CompoundTag> loadStrict(Path file) throws IOException {
+      if (file == null || Files.notExists(file)) {
+         return Optional.empty();
+      }
+      return Optional.ofNullable(NbtIo.readCompressed(file, NbtAccounter.create(MAX_DECODE_BYTES)));
    }
 }

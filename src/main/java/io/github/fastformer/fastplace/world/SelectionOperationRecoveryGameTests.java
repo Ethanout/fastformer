@@ -2,10 +2,10 @@ package io.github.fastformer.fastplace.world;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.OperationConflictMode;
-import io.github.fastformer.fastplace.OperationMode;
-import io.github.fastformer.fastplace.OperationSelectionMode;
-import io.github.fastformer.fastplace.OperationSelectionVolume;
-import io.github.fastformer.fastplace.OperationStackRegion;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
 import io.github.fastformer.fastplace.task.OperationTaskResult;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;

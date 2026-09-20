@@ -1,5 +1,14 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
+import io.github.fastformer.fastplace.quickshape.FastPlaceMode;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;
@@ -11,6 +20,7 @@ import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
 import io.github.fastformer.fastplace.placement.plan.PlacementGenerationPlan;
+import io.github.fastformer.fastplace.placement.plan.PlacementBlockEstimate;
 import io.github.fastformer.network.FastPlaceNetwork;
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -45,7 +55,21 @@ public final class FastPlaceManager {
    private static final long SYNCHRONOUS_PLACEMENT_LIMIT = 262_144L;
    private static final Map<UUID, FastPlaceSession> SESSIONS = new HashMap<>();
    private static final Map<UUID, PlacementTask> TASKS = new HashMap<>();
+   /**
+    * Recovery snapshots already extracted from a task and not yet accepted.
+    *
+    * <p>The extraction moves the before/after record out of the task. The record therefore
+    * lives here until the recovery path accepts it, so a failed acceptance can retry
+    * without extracting a second, empty snapshot.
+    */
+   private static final Map<UUID, WorldRecoverySnapshot> HANDOVERS = new HashMap<>();
    private static final Map<UUID, Boolean> MODIFIER_HELD = new HashMap<>();
+   /**
+    * Sessions of dimensions that the player left. A dimension change keeps this
+    * selection: only the binding to the old environment ends, so the points of
+    * one dimension are never reused with the coordinates of another.
+    */
+   private static final DimensionSessionStore<FastPlaceSession> PARKED_SESSIONS = new DimensionSessionStore<>();
 
    private FastPlaceManager() {
    }
@@ -102,30 +126,34 @@ public final class FastPlaceManager {
          && (session == null || session.points().isEmpty());
       if (selectingRaycastPoint) {
          return modes.withRaycastPlacement(
-            session != null && session.modifierHeld() ? RaycastPlacement.EMBEDDED : modes.raycastPlacement()
+            session != null && session.modifierHeld() ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE
          );
       }
       if (session != null && session.stage() == FastPlaceStage.LINE && settings.lineMode() == LineMode.RAYCAST) {
          return modes.withRaycastPlacement(
-            session.modifierHeld() ? RaycastPlacement.EMBEDDED : modes.raycastPlacement()
+            session.modifierHeld() ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE
          );
       }
       return modes;
    }
 
    public static void addPoint(ServerPlayer player, BlockHitResult hit) {
-      addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit);
+      addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit, modifierHeld(player));
    }
 
    public static void addPoint(ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock) {
-      addPoint(player, hitBlock, surfaceBlock, null);
+      addPoint(player, hitBlock, surfaceBlock, null, modifierHeld(player));
+   }
+
+   public static void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean modifierHeld) {
+      MODIFIER_HELD.put(player.getUUID(), modifierHeld);
+      addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit, modifierHeld);
    }
 
    private static void addPoint(
-      ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit
+      ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld
    ) {
       FastPlaceSession session = SESSIONS.computeIfAbsent(player.getUUID(), ignored -> new FastPlaceSession());
-      boolean modifierHeld = modifierHeld(player);
       session.setModifierHeld(modifierHeld);
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int previousPointCount = session.points().size();
@@ -237,11 +265,18 @@ public final class FastPlaceManager {
    }
 
    static TaskCancellationResult cancelTask(WorldTaskContext context) {
-      PlacementTask task = TASKS.remove(context.owner());
+      PlacementTask task = TASKS.get(context.owner());
       if (task == null) {
          return TaskCancellationResult.NOT_ACTIVE;
       }
-      return WorldHistoryManager.acceptStoppedTask(context, task);
+      // Accept first, then drop the queue slot. A refused or failed handover keeps both
+      // the task and the extracted snapshot, so the only record of a partial write stays.
+      TaskCancellationResult result = transferToRecovery(context, task);
+      if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE
+         || result == TaskCancellationResult.ROLLBACK_STARTED) {
+         TASKS.remove(context.owner(), task);
+      }
+      return result;
    }
 
    static void addTaskForTest(UUID owner, PlacementTask task) {
@@ -281,13 +316,13 @@ public final class FastPlaceManager {
          return;
       }
       FastPlaceStage stage = session == null ? FastPlaceStage.POINT : effectiveStage(session, settings);
+      BlockPos freeScrollCandidateOffset = null;
       if (session != null && stage == FastPlaceStage.LINE && lineCandidate != null) {
-         BlockPos offset = lineCandidate.subtract(session.points().getFirst());
-         session.setFreeScrollOffset(offset);
+         freeScrollCandidateOffset = lineCandidate.subtract(session.points().getFirst());
       }
-      settings.cycleMode(player, stage);
+      FastPlaceMode nextMode = settings.cycleMode(player, stage);
       if (session != null) {
-         session.onModeChanged();
+         session.onModeChanged(nextMode == LineMode.FREE_SCROLL ? freeScrollCandidateOffset : null);
          FastPlaceNetwork.syncPreview(player, session);
       } else {
          FastPlaceNetwork.syncSettings(player);
@@ -298,12 +333,6 @@ public final class FastPlaceManager {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       settings.cycleFillMode(player);
       syncCurrentPreview(player);
-   }
-
-   public static void cycleRaycastPlacement(ServerPlayer player) {
-      FastPlaceSettings settings = FastPlaceSettings.load(player);
-      settings.cycleRaycastPlacement(player);
-      session(player).ifPresentOrElse(session -> FastPlaceNetwork.syncPreview(player, session), () -> FastPlaceNetwork.syncSettings(player));
    }
 
    public static void adjustFreeScrollOffset(ServerPlayer player, int steps) {
@@ -460,21 +489,28 @@ public final class FastPlaceManager {
             FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
             return;
          }
+         FastPlaceSettings settings = FastPlaceSettings.load(player);
+         List<BlockPos> points = session.submissionPoints(settings.lineMode());
+         if (points.isEmpty()) {
+            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
+            FastPlaceNetwork.syncPreview(player, session);
+            return;
+         }
          Optional<BlockState> placeState = PlaceableItems.placementState(
             player.getMainHandItem(), player, session.placementContext()
          );
          if (placeState.isPresent()) {
-            FastPlaceSettings settings = FastPlaceSettings.load(player);
             int maxPlacement = settings.maxPlacement();
-            List<BlockPos> points = List.copyOf(session.points());
             boolean polygonHeightConfirmed = session.polygonHeightConfirmed();
             PolygonVolumeShape polygonVolumeShape = session.polygonVolumeShape();
             FastPlaceGeometry.Modes modes = settings.modes().withFaceTieBias(effectiveFaceTieBias(session, settings));
             BlockState state = placeState.get();
             ResolvedPlacementEffect effect = PlacementEffectResolver.resolve(
-               player, settings, session, state, modes
+               player, settings, session, state, modes, points
             ).orElse(null);
-            long estimatedPlacement = estimatedBlocks(points);
+            long estimatedPlacement = PlacementBlockEstimate.upperBound(
+               points, modes, polygonHeightConfirmed, polygonVolumeShape, maxPlacement
+            );
             PlacementGenerationPlan generationPlan = new PlacementGenerationPlan(
                points,
                modes,
@@ -488,6 +524,17 @@ public final class FastPlaceManager {
                generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()
             );
             if (!generationAdmission.allowed()) {
+               LOGGER.warn(
+                  "FastFormer placement generation rejected: stage={}, fillMode={}, pointCount={}, baseEstimate={}, targetEstimate={}, additionalSets={}, requestedBytes={}, usableBytes={}",
+                  FastPlaceGeometry.effectiveStage(points, modes.faceMode(), session.polygonClosed()),
+                  modes.fillMode(),
+                  points.size(),
+                  generationPlan.estimatedBlocks(),
+                  generationPlan.estimatedTargetBlocks(),
+                  generationPlan.additionalGeneratedBlockSets(),
+                  generationAdmission.requestedBytes(),
+                  generationAdmission.usableBytes()
+               );
                cancel(player);
                FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
                return;
@@ -730,6 +777,8 @@ public final class FastPlaceManager {
    public static boolean remove(ServerPlayer player) {
       SESSIONS.remove(player.getUUID());
       MODIFIER_HELD.remove(player.getUUID());
+      PARKED_SESSIONS.forget(player.getUUID());
+      QuickReplaceDedupe.forget(player.getUUID());
       OperationManager.remove(player);
       GeometryManager.remove(player);
       WorldHistoryManager.remove(player);
@@ -765,6 +814,7 @@ public final class FastPlaceManager {
       }
       UUID owner = player.getUUID();
       MODIFIER_HELD.remove(owner);
+      QuickReplaceDedupe.forget(owner);
       // Modifier state belongs to the old connection, unlike the workflow
       // points and shape data that remain owned by the player UUID.
       FastPlaceSession session = SESSIONS.get(owner);
@@ -774,6 +824,69 @@ public final class FastPlaceManager {
       FastPlaceNetwork.forgetActivity(player);
    }
 
+   /**
+    * Handles a dimension change without cancelling any world task.
+    *
+    * <p>A running or committed task keeps the save, its original dimension and
+    * its own operation id, so it continues to run in the world it started in.
+    * Only the old environment binding ends: the editing session of the source
+    * dimension moves aside, and the session of the target dimension becomes
+    * active. Points that belong to one dimension are never offered to another.</p>
+    */
+   public static void handleDimensionChange(ServerPlayer player, ResourceKey<Level> from, ResourceKey<Level> to) {
+      if (player == null) {
+         return;
+      }
+      UUID owner = player.getUUID();
+      MODIFIER_HELD.remove(owner);
+      parkDimensionSession(owner, from);
+      OperationManager.parkDimensionSession(owner, from);
+      GeometryManager.parkDimensionSession(owner, from);
+      ServerInputDispatcher.clearPlacementActions(owner);
+      restoreDimensionSession(owner, to);
+      OperationManager.restoreDimensionSession(owner, to);
+      GeometryManager.restoreDimensionSession(owner, to);
+      FastPlaceNetwork.forgetActivity(player);
+      syncCurrentPreview(player);
+   }
+
+   static void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+      if (owner == null || dimension == null) {
+         return;
+      }
+      PARKED_SESSIONS.park(owner, dimension, SESSIONS.remove(owner));
+   }
+
+   static void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+      if (owner == null || dimension == null) {
+         return;
+      }
+      FastPlaceSession session = PARKED_SESSIONS.take(owner, dimension);
+      if (session == null) {
+         return;
+      }
+      if (SESSIONS.putIfAbsent(owner, session) != null) {
+         PARKED_SESSIONS.park(owner, dimension, session);
+      }
+   }
+
+   static void putSessionForTest(UUID owner, FastPlaceSession session) {
+      SESSIONS.put(owner, session);
+   }
+
+   static boolean activeSessionForTest(UUID owner) {
+      return SESSIONS.containsKey(owner);
+   }
+
+   static boolean parkedSessionForTest(UUID owner, ResourceKey<Level> dimension) {
+      return PARKED_SESSIONS.peek(owner, dimension) != null;
+   }
+
+   static List<BlockPos> sessionPointsForTest(UUID owner) {
+      FastPlaceSession session = SESSIONS.get(owner);
+      return session == null ? List.of() : session.points();
+   }
+
    /** Drops server-bound sessions/tasks before a world instance is replaced. */
    public static void clearServer() {
       for (PlacementTask task : TASKS.values()) {
@@ -781,17 +894,91 @@ public final class FastPlaceManager {
          task.releaseMemoryReservation();
       }
       TASKS.clear();
+      HANDOVERS.clear();
       SESSIONS.clear();
       MODIFIER_HELD.clear();
+      PARKED_SESSIONS.clear();
+      QuickReplaceDedupe.clearAll();
       OperationManager.clearServer();
       GeometryManager.clearServer();
       ServerInputDispatcher.clearAllPlacementActions();
+   }
+
+   /**
+    * Hands every write-blocked placement task to the recovery path.
+    *
+    * <p>The scheduler calls this instead of {@link #tickWorld} while the global write gate
+    * is closed. A placement task has no gate check inside its own tick, so it cannot end
+    * by itself. The queue slot leaves only after the recovery path accepts the snapshot.
+    */
+   public static void handOverBlockedTasks(net.minecraft.server.MinecraftServer server) {
+      for (UUID owner : List.copyOf(TASKS.keySet())) {
+         handOverBlockedTask(new WorldTaskContext(server, owner));
+      }
+   }
+
+   private static void handOverBlockedTask(WorldTaskContext context) {
+      PlacementTask task = TASKS.get(context.owner());
+      if (task == null) {
+         return;
+      }
+      TaskCancellationResult handover = transferToRecovery(context, task);
+      if (handover == TaskCancellationResult.CANCELLED_BEFORE_WRITE
+         || handover == TaskCancellationResult.ROLLBACK_STARTED) {
+         TASKS.remove(context.owner(), task);
+         context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
+         return;
+      }
+      context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
+   }
+
+   /**
+    * Moves one task into the recovery path, or keeps both the task and the extracted
+    * snapshot when the recovery path does not accept them.
+    *
+    * <p>The snapshot is extracted once. A retry reuses the held snapshot, because the
+    * extraction already removed the before/after record from the task.
+    */
+   private static TaskCancellationResult transferToRecovery(WorldTaskContext context, PlacementTask task) {
+      UUID owner = context.owner();
+      try {
+         WorldRecoverySnapshot held = HANDOVERS.get(owner);
+         if (held == null) {
+            held = task.stopAndTransferRecovery();
+            HANDOVERS.put(owner, held);
+         }
+         TaskCancellationResult result = WorldHistoryManager.acceptTransferredRecovery(
+            context,
+            task.dimension(),
+            held,
+            task.journal(),
+            () -> task.releaseAfterCancelledJournal(context),
+            task::releaseMemoryReservation
+         );
+         if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE
+            || result == TaskCancellationResult.ROLLBACK_STARTED) {
+            HANDOVERS.remove(owner);
+         }
+         return result;
+      } catch (RuntimeException | OutOfMemoryError failure) {
+         // The acceptance boundary accepts a snapshot only by returning a handled result,
+         // and the boundary performs no throwing work after a transfer. An exception
+         // therefore means "not accepted": keep the task and the extracted snapshot.
+         LOGGER.error("FastFormer kept a blocked placement task of {} with its recovery snapshot",
+            owner, failure);
+         return TaskCancellationResult.RECOVERY_BLOCKED;
+      }
    }
 
    public static void tickWorld(net.minecraft.server.MinecraftServer server) {
       for (UUID owner : List.copyOf(TASKS.keySet())) {
          if (!PersistentRecoveryJournal.writesAllowed()) {
             break;
+         }
+         if (HANDOVERS.containsKey(owner)) {
+            // A pending handover holds the only record of this task's writes. Ticking the
+            // task would empty that record, so the handover owns the owner until it ends.
+            continue;
          }
          if (WorldHistoryManager.busy(owner)) {
             continue;
@@ -801,6 +988,8 @@ public final class FastPlaceManager {
    }
 
    private static void enqueueTask(ServerPlayer player, PlacementTask task) {
+      // A new task cannot own a snapshot extracted from an earlier one.
+      HANDOVERS.remove(player.getUUID());
       TASKS.put(player.getUUID(), task);
       WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
       context.withResume(() -> resumeTask(context, task)).enqueueResume();
@@ -808,6 +997,7 @@ public final class FastPlaceManager {
 
    private static void resumeTask(WorldTaskContext context, PlacementTask task) {
       if (TASKS.get(context.owner()) == task
+         && !HANDOVERS.containsKey(context.owner())
          && PersistentRecoveryJournal.writesAllowed()
          && !WorldHistoryManager.busy(context.owner())) {
          tickTask(context);
@@ -962,18 +1152,27 @@ public final class FastPlaceManager {
                       TASKS.remove(owner, task);
                       settleFailedTask(context, task);
                      context.actionBar(failureStatus(task, context.owner()));
-                   } else if (!WorldHistoryManager.commitPreparedOperation(context, task.preparedBatch(), task.journal())) {
+                   } else {
+                      JournalPreparation historyCommit = WorldHistoryManager.pollPreparedOperation(
+                         context, task.preparedBatch(), task.journal()
+                      );
+                      if (historyCommit == JournalPreparation.PENDING) {
+                         context.actionBar(FastPlaceMessages.text("fastformer.message.history_saving"));
+                         return;
+                      }
+                      if (historyCommit == JournalPreparation.FAILED) {
                       TASKS.remove(owner, task);
                       settleFailedTask(context, task);
                       context.actionBar(failureStatus(task, context.owner()));
-                  } else {
-                     TASKS.remove(owner, task);
-                     task.releaseLease(context);
-                     task.releaseMemoryReservation();
-                     task.releaseCommittedTransactionState();
-                     task.markComplete();
-                     LOGGER.info("FastFormer placement operation {} finished: {}", task.operationId(), task.metricsSummary());
-                     context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
+                      } else {
+                         TASKS.remove(owner, task);
+                         task.releaseLease(context);
+                         task.releaseMemoryReservation();
+                         task.releaseCommittedTransactionState();
+                         task.markComplete();
+                         LOGGER.info("FastFormer placement operation {} finished: {}", task.operationId(), task.metricsSummary());
+                         context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
+                      }
                   }
                } else if (!task.snapshotsComplete()) {
                   context.actionBar(FastPlaceMessages.text("fastformer.message.placement_validating", task.validationRemaining()));
@@ -1107,20 +1306,6 @@ public final class FastPlaceManager {
 
          inventory.setChanged();
          player.containerMenu.broadcastChanges();
-      }
-   }
-
-   private static long estimatedBlocks(List<BlockPos> points) {
-      if (points.isEmpty()) {
-         return 0L;
-      } else {
-         int minX = points.stream().mapToInt(Vec3i::getX).min().orElse(0);
-         int minY = points.stream().mapToInt(Vec3i::getY).min().orElse(0);
-         int minZ = points.stream().mapToInt(Vec3i::getZ).min().orElse(0);
-         int maxX = points.stream().mapToInt(Vec3i::getX).max().orElse(0);
-         int maxY = points.stream().mapToInt(Vec3i::getY).max().orElse(0);
-         int maxZ = points.stream().mapToInt(Vec3i::getZ).max().orElse(0);
-         return (long)(maxX - minX + 1) * (long)(maxY - minY + 1) * (long)(maxZ - minZ + 1);
       }
    }
 

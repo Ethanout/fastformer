@@ -3,6 +3,7 @@ package io.github.fastformer.fastplace.geometry;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.network.chat.Component;
 
 public record AxisGizmo(
    Vec3 center,
@@ -24,11 +25,11 @@ public record AxisGizmo(
    }
 
    public AxisGizmo(Vec3 center, double axisLength, double handleRadius) {
-      this(center, axisLength, handleRadius, TransformFrame.world(center), defaultHandles(), GizmoTextComponent.none());
+      this(center, axisLength, handleRadius, TransformFrame.world(center), defaultHandles(), GizmoTextComponent.pointLevel());
    }
 
    public AxisGizmo(Vec3 center, double axisLength, double handleRadius, TransformFrame frame, List<Handle> handles) {
-      this(center, axisLength, handleRadius, frame, handles, GizmoTextComponent.none());
+      this(center, axisLength, handleRadius, frame, handles, GizmoTextComponent.pointLevel());
    }
 
    public static AxisGizmo world(Vec3 center, double axisLength, double handleRadius) {
@@ -327,6 +328,17 @@ public record AxisGizmo(
 
       public Handle withHoverFeedback(HoverFeedback feedback) {
          return new Handle(this.operation, this.axis, this.direction, this.role, feedback, this.hovered, this.active);
+      }
+
+      /** Canonical label for every axis handle, including scale/repeat controls. */
+      public Component hoverText() {
+         return Component.translatable(
+            switch (this.operation) {
+               case MOVE -> "fastformer.hud.transform.position";
+               case SCALE -> "fastformer.hud.transform.scale";
+               case ROTATE -> "fastformer.hud.transform.rotation";
+            }
+         );
       }
 
       public boolean drawsEndpoint() {

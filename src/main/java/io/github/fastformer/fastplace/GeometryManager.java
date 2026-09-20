@@ -25,6 +25,8 @@ import net.minecraft.world.level.block.state.BlockState;
 
 public final class GeometryManager {
    private static final Map<UUID, GeometrySession> SESSIONS = new HashMap<>();
+   /** Geometry sessions kept for the dimension the player left. */
+   private static final DimensionSessionStore<GeometrySession> PARKED_SESSIONS = new DimensionSessionStore<>();
 
    private GeometryManager() {
    }
@@ -357,11 +359,38 @@ public final class GeometryManager {
 
    public static void remove(ServerPlayer player) {
       SESSIONS.remove(player.getUUID());
+      PARKED_SESSIONS.forget(player.getUUID());
    }
 
    /** Drops server-bound geometry sessions before a world instance is replaced. */
    public static void clearServer() {
       SESSIONS.clear();
+      PARKED_SESSIONS.clear();
+   }
+
+   /**
+    * Moves the geometry session of a dimension aside. A shape is dimension-bound
+    * because its points are absolute world coordinates.
+    */
+   static void parkDimensionSession(UUID owner, net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension) {
+      if (owner == null || dimension == null) {
+         return;
+      }
+      PARKED_SESSIONS.park(owner, dimension, SESSIONS.remove(owner));
+   }
+
+   /** Restores the geometry session that belongs to the target dimension. */
+   static void restoreDimensionSession(UUID owner, net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension) {
+      if (owner == null || dimension == null) {
+         return;
+      }
+      GeometrySession session = PARKED_SESSIONS.take(owner, dimension);
+      if (session == null) {
+         return;
+      }
+      if (SESSIONS.putIfAbsent(owner, session) != null) {
+         PARKED_SESSIONS.park(owner, dimension, session);
+      }
    }
 
    private static Component fillBlockedMessage(GeometrySession session, ServerPlayer player) {

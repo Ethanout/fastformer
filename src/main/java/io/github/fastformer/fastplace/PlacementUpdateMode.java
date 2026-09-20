@@ -3,8 +3,18 @@ package io.github.fastformer.fastplace;
 import io.github.fastformer.fastplace.world.*;
 
 public enum PlacementUpdateMode implements TranslatableText {
-   NORMAL(3, "fastformer.placement.update.normal"),
-   CLIENT_ONLY(2 | 16 | 32, "fastformer.placement.update.client_only");
+   NORMAL(UpdateFlag.NEIGHBORS | UpdateFlag.CLIENTS, "fastformer.placement.update.normal"),
+   CLIENT_ONLY(UpdateFlag.CLIENTS | UpdateFlag.KNOWN_SHAPE | UpdateFlag.SUPPRESS_DROPS, "fastformer.placement.update.client_only");
+
+   private static final class UpdateFlag {
+      private static final int NEIGHBORS = 1;
+      private static final int CLIENTS = 2;
+      private static final int KNOWN_SHAPE = 16;
+      private static final int SUPPRESS_DROPS = 32;
+
+      private UpdateFlag() {
+      }
+   }
 
    private final int flags;
    private final String translationKey;
@@ -16,6 +26,11 @@ public enum PlacementUpdateMode implements TranslatableText {
 
    public int flags() {
       return this.flags;
+   }
+
+   /** True when this mode does not propagate writes to neighbouring blocks. */
+   public boolean suppressesNeighborUpdates() {
+      return (this.flags & UpdateFlag.NEIGHBORS) == 0 && (this.flags & UpdateFlag.KNOWN_SHAPE) != 0;
    }
 
    @Override

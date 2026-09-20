@@ -9,8 +9,8 @@ import org.junit.jupiter.api.Test;
 class PreviewAsyncPolicyTest {
    @Test
    void shellBecomesLightweightBeforeLargeSynchronousMeshWork() {
-      assertEquals(false, PreviewAsyncPolicy.useLightweightShell(16_000));
-      assertEquals(true, PreviewAsyncPolicy.useLightweightShell(16_001));
+      assertEquals(false, PreviewAsyncPolicy.useLightweightShell(100_000));
+      assertEquals(true, PreviewAsyncPolicy.useLightweightShell(100_001));
    }
    @Test
    void fullPreviewStopsAtTheScanLimitForBothPlanesAndVolumes() {
@@ -22,6 +22,15 @@ class PreviewAsyncPolicyTest {
          List.of(BlockPos.ZERO, new BlockPos(99, 99, 99)), PreviewAsyncPolicy.Workload.VOLUME));
       assertEquals(false, PreviewAsyncPolicy.useOutlineOnly(
          List.of(BlockPos.ZERO, new BlockPos(3, 3, 3)), PreviewAsyncPolicy.Workload.VOLUME));
+   }
+
+   @Test
+   void oversizedPreviewSkipsSolidGenerationBeforeBlocksAreMaterialized() {
+      List<BlockPos> oversizedPlane = List.of(BlockPos.ZERO, new BlockPos(1000, 0, 99));
+
+      assertEquals(false, PreviewAsyncPolicy.shouldRenderSolidFallback(
+         oversizedPlane, PreviewAsyncPolicy.Workload.PLANE
+      ));
    }
 
    @Test

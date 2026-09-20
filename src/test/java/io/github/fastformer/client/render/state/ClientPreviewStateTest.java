@@ -76,6 +76,36 @@ class ClientPreviewStateTest {
    }
 
    @Test
+   void ignoresLateGeometryPreviewRevisions() {
+      ClientPreviewState state = new ClientPreviewState();
+      GeometryPreviewPayload latest = activeGeometry().withRevision(3L);
+
+      assertTrue(state.applyGeometry(latest));
+      long stateRevision = state.revision();
+      long geometryVersion = state.geometryVersion();
+
+      assertFalse(state.applyGeometry(GeometryPreviewPayload.inactive().withRevision(2L)));
+      assertFalse(state.applyGeometry(latest));
+      assertSame(latest, state.geometry());
+      assertEquals(stateRevision, state.revision());
+      assertEquals(geometryVersion, state.geometryVersion());
+   }
+
+   @Test
+   void ignoresLateActivityRevisions() {
+      ClientPreviewState state = new ClientPreviewState();
+      ActivityStatePayload latest = new ActivityStatePayload(3L, FastPlaceActivity.GEOMETRY_SESSION);
+
+      assertTrue(state.applyActivity(latest));
+      long stateRevision = state.revision();
+
+      assertFalse(state.applyActivity(new ActivityStatePayload(2L, FastPlaceActivity.NONE)));
+      assertFalse(state.applyActivity(latest));
+      assertEquals(FastPlaceActivity.GEOMETRY_SESSION, state.activity());
+      assertEquals(stateRevision, state.revision());
+   }
+
+   @Test
    void waitsForAllSplitPreviewPartsBeforePublishingARevision() {
       ClientPreviewState state = new ClientPreviewState();
       BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
@@ -155,7 +185,7 @@ class ClientPreviewStateTest {
       var session = activeBuildingSession(11L);
       var parameters = new BuildingPreviewParametersPayload(11L, BuildingPreviewPayload.inactive().parameters());
       var effect = new BuildingPreviewEffectPayload(11L, new BuildingPreviewEffectSnapshot(null));
-      var activity = new ActivityStatePayload(FastPlaceActivity.BUILDING_SESSION);
+      var activity = new ActivityStatePayload(1L, FastPlaceActivity.BUILDING_SESSION);
 
       assertTrue(state.holdReconnectBuildingSession(session));
       assertTrue(state.holdReconnectBuildingParameters(parameters));
@@ -340,6 +370,6 @@ class ClientPreviewStateTest {
          inactive.polyhedronWorldScale(),
          inactive.polyhedronGizmoLocal(),
          inactive.selectedPointIndex()
-      );
+      ).withRevision(1L);
    }
 }

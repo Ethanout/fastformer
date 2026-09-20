@@ -1,5 +1,11 @@
 package io.github.fastformer.fastplace.command;
 
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+
 import io.github.fastformer.fastplace.world.*;
 
 import com.mojang.brigadier.CommandDispatcher;
@@ -379,7 +385,6 @@ public final class FastPlaceCommandRegistry {
             new OpenSettingsPayload(
                settings.middleConfirmEnabled(),
                settings.faceRasterizationMode(),
-               settings.raycastPlacement(),
                settings.placementConflictMode(),
                settings.placementUpdateMode(),
                settings.enabledPlacementEffects().stream().sorted().toList(),
@@ -422,7 +427,7 @@ public final class FastPlaceCommandRegistry {
                return 0;
             }
             if (!FastPlaceManager.setFaceAngle(player, Math.toDegrees(Math.atan2(y, x)))) {
-               FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.face_mode_angle_unavailable"));
+               FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.face_angle_unavailable"));
                return 0;
             }
             return 1;
@@ -866,7 +871,7 @@ public final class FastPlaceCommandRegistry {
          return 0;
       }
       if (!FastPlaceManager.setFaceAngle(player, degrees)) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.face_mode_angle_unavailable"));
+         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.face_angle_unavailable"));
          return 0;
       }
       return 1;

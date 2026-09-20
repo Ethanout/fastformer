@@ -1,12 +1,12 @@
 package io.github.fastformer.network.payload.preview;
 
-import io.github.fastformer.fastplace.FaceMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.FaceRasterizationMode;
 import io.github.fastformer.fastplace.FillMode;
-import io.github.fastformer.fastplace.LineMode;
-import io.github.fastformer.fastplace.PointMode;
-import io.github.fastformer.fastplace.RaycastPlacement;
-import io.github.fastformer.fastplace.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import net.minecraft.core.BlockPos;

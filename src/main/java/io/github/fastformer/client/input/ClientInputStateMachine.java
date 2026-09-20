@@ -8,8 +8,8 @@ public final class ClientInputStateMachine {
    private long generation;
    private long gesture;
    private int gestureButton = -1;
-   private long pendingRequest;
-   private java.util.UUID pendingTransfer;
+   private State submissionOrigin;
+   private final ClientRequestTracker requests = new ClientRequestTracker();
 
    public State state() {
       return state;
@@ -21,110 +21,50 @@ public final class ClientInputStateMachine {
 
    /** Cancel stays in effect until the session and its recovery task end. */
    public void observe(State observed) {
-      Objects.requireNonNull(observed, "observed");
-      if (observed == State.CANCELLING || observed == State.SUBMITTING) {
-         throw new IllegalArgumentException("Use cancel() to request cancellation");
-      }
-      if (state == State.SUBMITTING) {
-         return;
-      }
-      if (state == State.CANCELLING && observed != State.IDLE) {
-         return;
-      }
-      transition(observed);
+      onEvent(new ClientSemanticEvent.Observe(observed));
    }
 
    public boolean cancel() {
-      if (dispatch(InputKind.CANCEL) != Dispatch.CANCEL) {
-         return false;
-      }
-      transition(State.CANCELLING);
-      return true;
+      return onEvent(ClientSemanticEvent.Cancel.INSTANCE) instanceof InteractionTransition.Switch;
    }
 
    public boolean submit(long requestId) {
-      if (requestId <= 0 || !canSubmit()) {
-         return false;
-      }
-      pendingRequest = requestId;
-      pendingTransfer = null;
-      transition(State.SUBMITTING);
-      return true;
+      return onEvent(new ClientSemanticEvent.Submit.Placement(requestId)) instanceof InteractionTransition.Switch;
    }
 
    public boolean submit(java.util.UUID transferId) {
-      Objects.requireNonNull(transferId, "transferId");
-      if (!canSubmit()) {
-         return false;
+      return onEvent(new ClientSemanticEvent.Submit.Workspace(transferId)) instanceof InteractionTransition.Switch;
+   }
+
+   public boolean completeSubmission(java.util.UUID transferId, SubmissionEvent event, State observed) {
+      Objects.requireNonNull(event, "event");
+      return transferId != null && onEvent(new ClientSemanticEvent.SubmissionCompleted(
+         new ClientSemanticEvent.Submit.Workspace(transferId), event, observed
+      )) instanceof InteractionTransition.Switch;
+   }
+
+   public boolean completeSubmission(long requestId, SubmissionEvent event, State observed) {
+      return onEvent(new ClientSemanticEvent.SubmissionCompleted(
+         new ClientSemanticEvent.Submit.Placement(requestId), event, observed
+      )) instanceof InteractionTransition.Switch;
+   }
+
+   /** Returns a decision without changing state, gestures, or request ownership. */
+   public InteractionTransition inspect(ClientSemanticEvent event) {
+      return this.state.onEvent(Objects.requireNonNull(event, "event"), this.requests.current(), this.submissionOrigin);
+   }
+
+   /** The client owner calls this once for each delivered event. */
+   public InteractionTransition onEvent(ClientSemanticEvent event) {
+      InteractionTransition result = inspect(event);
+      if (result instanceof InteractionTransition.Switch change) {
+         apply(change);
       }
-      pendingRequest = 0;
-      pendingTransfer = transferId;
-      transition(State.SUBMITTING);
-      return true;
-   }
-
-   private boolean canSubmit() {
-      return state == State.BUILDING || state == State.GEOMETRY || state == State.ADJUSTING;
-   }
-
-   public void acknowledge(java.util.UUID transferId, State observed) {
-      if (state == State.SUBMITTING && transferId != null && transferId.equals(pendingTransfer)) {
-         Objects.requireNonNull(observed, "observed");
-         if (observed == State.SUBMITTING || observed == State.CANCELLING) {
-            throw new IllegalArgumentException("Acknowledgement requires a server state");
-         }
-         pendingTransfer = null;
-         transition(Objects.requireNonNull(observed, "observed"));
-      }
-   }
-
-   public void acknowledge(long requestId, State observed) {
-      if (state == State.SUBMITTING && requestId > 0 && pendingRequest == requestId) {
-         Objects.requireNonNull(observed, "observed");
-         if (observed == State.SUBMITTING || observed == State.CANCELLING) {
-            throw new IllegalArgumentException("Acknowledgement requires a server state");
-         }
-         pendingRequest = 0;
-         transition(Objects.requireNonNull(observed, "observed"));
-      }
-   }
-
-   public void abortSubmission(long requestId, State observed) {
-      acknowledge(requestId, observed);
-   }
-
-   public void abortSubmission(java.util.UUID transferId, State observed) {
-      acknowledge(transferId, observed);
+      return result;
    }
 
    public Dispatch dispatch(InputKind input) {
-      Objects.requireNonNull(input, "input");
-      if (input == InputKind.CREATE_SELECTION) {
-         return switch (state) {
-            case SELECTING, ADJUSTING -> Dispatch.OPERATION;
-            default -> Dispatch.BLOCKED;
-         };
-      }
-      if (input == InputKind.PASTE_WORKSPACE) {
-         return switch (state) {
-            case IDLE -> Dispatch.VANILLA;
-            case SELECTING, ADJUSTING -> Dispatch.OPERATION;
-            default -> Dispatch.BLOCKED;
-         };
-      }
-      if (input == InputKind.CANCEL) {
-         return switch (state) {
-            case BUILDING, GEOMETRY, SELECTING, ADJUSTING, SUBMITTING, PLACING -> Dispatch.CANCEL;
-            case IDLE, RESTORING, CANCELLING -> Dispatch.BLOCKED;
-         };
-      }
-      return switch (state) {
-         case IDLE -> Dispatch.VANILLA;
-         case BUILDING -> Dispatch.BUILDING;
-         case GEOMETRY -> Dispatch.GEOMETRY;
-         case SELECTING, ADJUSTING -> Dispatch.OPERATION;
-         case SUBMITTING, PLACING, RESTORING, CANCELLING -> Dispatch.BLOCKED;
-      };
+      return state.dispatch(Objects.requireNonNull(input, "input"));
    }
 
    public boolean routesToVanilla(InputKind input) {
@@ -158,21 +98,14 @@ public final class ClientInputStateMachine {
    }
 
    public void reset() {
-      state = State.IDLE;
-      pendingRequest = 0;
-      pendingTransfer = null;
-      invalidateGesture();
+      onEvent(ClientSemanticEvent.Reset.INSTANCE);
    }
 
-   private void transition(State next) {
-      if (next != state) {
-         state = next;
-         if (next != State.SUBMITTING) {
-            pendingRequest = 0;
-            pendingTransfer = null;
-         }
-         invalidateGesture();
-      }
+   private void apply(InteractionTransition.Switch change) {
+      State previous = this.state;
+      previous.exit(this, change.cause());
+      this.state = change.target();
+      this.state.enter(this, previous, change);
    }
 
    private void invalidateGesture() {
@@ -182,25 +115,152 @@ public final class ClientInputStateMachine {
    }
 
    public enum State {
-      IDLE,
-      BUILDING,
-      GEOMETRY,
-      SELECTING,
-      ADJUSTING,
-      SUBMITTING,
-      PLACING,
-      RESTORING,
-      CANCELLING
+      IDLE(Dispatch.VANILLA, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.VANILLA, Dispatch.BLOCKED, false, true),
+      BUILDING(Dispatch.BUILDING, Dispatch.BUILDING, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, true, true),
+      GEOMETRY(Dispatch.GEOMETRY, Dispatch.GEOMETRY, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, true, true),
+      SELECTING(Dispatch.OPERATION, Dispatch.BLOCKED, Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.CANCEL, false, true),
+      ADJUSTING(Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.CANCEL, true, true),
+      SUBMITTING(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, false, false),
+      PLACING(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, false, true),
+      RESTORING(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, true),
+      CANCELLING(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, false);
+
+      private final Dispatch regular;
+      private final Dispatch submit;
+      private final Dispatch createSelection;
+      private final Dispatch pasteWorkspace;
+      private final Dispatch cancel;
+      private final boolean canSubmit;
+      private final boolean serverObservable;
+
+      State(
+         Dispatch regular,
+         Dispatch submit,
+         Dispatch createSelection,
+         Dispatch pasteWorkspace,
+         Dispatch cancel,
+         boolean canSubmit,
+         boolean serverObservable
+      ) {
+         this.regular = regular;
+         this.submit = submit;
+         this.createSelection = createSelection;
+         this.pasteWorkspace = pasteWorkspace;
+         this.cancel = cancel;
+         this.canSubmit = canSubmit;
+         this.serverObservable = serverObservable;
+      }
+
+      InteractionTransition onEvent(
+         ClientSemanticEvent event, ClientSemanticEvent.Submit activeRequest, State submissionOrigin
+      ) {
+         return switch (event) {
+            case ClientSemanticEvent.Observe observation ->
+               observation.state() == this || !acceptsObservation(observation.state())
+                  ? InteractionTransition.Stay.INSTANCE
+                  : new InteractionTransition.Switch(observation.state(), InteractionTransition.Cause.OBSERVATION);
+            case ClientSemanticEvent.Cancel ignored -> this.cancel == Dispatch.CANCEL
+               ? new InteractionTransition.Switch(CANCELLING, InteractionTransition.Cause.CANCEL)
+               : new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
+            case ClientSemanticEvent.Reset ignored ->
+               new InteractionTransition.Switch(IDLE, InteractionTransition.Cause.RESET);
+            case ClientSemanticEvent.Submit request -> submitTransition(request, activeRequest);
+            case ClientSemanticEvent.SubmissionCompleted completion ->
+               completionTransition(completion, activeRequest, submissionOrigin);
+         };
+      }
+
+      private InteractionTransition submitTransition(
+         ClientSemanticEvent.Submit request, ClientSemanticEvent.Submit activeRequest
+      ) {
+         if (!this.canSubmit) {
+            return new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
+         }
+         if (activeRequest != null) {
+            return new InteractionTransition.Rejected(InteractionTransition.Rejection.REQUEST_ACTIVE);
+         }
+         if (!ClientRequestTracker.valid(request)) {
+            return new InteractionTransition.Rejected(InteractionTransition.Rejection.INVALID_REQUEST);
+         }
+         return new InteractionTransition.Switch(SUBMITTING, InteractionTransition.Cause.SUBMIT, request);
+      }
+
+      private InteractionTransition completionTransition(
+         ClientSemanticEvent.SubmissionCompleted completion,
+         ClientSemanticEvent.Submit activeRequest,
+         State submissionOrigin
+      ) {
+         if (this != SUBMITTING || !completion.request().equals(activeRequest)) {
+            return new InteractionTransition.Rejected(InteractionTransition.Rejection.STALE_REQUEST);
+         }
+         State next = Objects.requireNonNull(submissionOrigin, "submissionOrigin")
+            .completeSubmission(completion.outcome(), completion.observed());
+         return new InteractionTransition.Switch(next, InteractionTransition.Cause.SUBMISSION_COMPLETED);
+      }
+
+      private void exit(ClientInputStateMachine owner, InteractionTransition.Cause reason) {
+         owner.invalidateGesture();
+         owner.requests.clear();
+         owner.submissionOrigin = null;
+      }
+
+      private void enter(ClientInputStateMachine owner, State previous, InteractionTransition.Switch change) {
+         if (this == SUBMITTING) {
+            // The decision validates the request before exit releases the previous phase.
+            owner.requests.begin(change.submission());
+            owner.submissionOrigin = previous;
+         }
+      }
+
+      Dispatch dispatch(InputKind input) {
+         return switch (input) {
+            case KEY, POINTER, INTERACTION, SCROLL -> regular;
+            case SUBMIT -> submit;
+            case CREATE_SELECTION -> createSelection;
+            case PASTE_WORKSPACE -> pasteWorkspace;
+            case CANCEL -> cancel;
+         };
+      }
+
+      boolean serverObservable() {
+         return serverObservable;
+      }
+
+      boolean acceptsObservation(State observed) {
+         if (this == SUBMITTING) {
+            return false;
+         }
+         return this != CANCELLING || observed == IDLE;
+      }
+
+      State completeSubmission(SubmissionEvent event, State observed) {
+         Objects.requireNonNull(event, "event");
+         if (event != SubmissionEvent.SUCCEEDED) {
+            return this;
+         }
+         Objects.requireNonNull(observed, "observed");
+         if (!observed.serverObservable()) {
+            throw new IllegalArgumentException("Successful submission requires an observed server state");
+         }
+         return observed;
+      }
    }
 
    public enum InputKind {
       KEY,
+      SUBMIT,
       POINTER,
       INTERACTION,
       SCROLL,
       CREATE_SELECTION,
       PASTE_WORKSPACE,
       CANCEL
+   }
+
+   public enum SubmissionEvent {
+      SUCCEEDED,
+      FAILED,
+      EXPIRED
    }
 
    public enum Dispatch {

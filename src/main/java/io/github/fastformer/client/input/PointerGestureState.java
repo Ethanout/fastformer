@@ -20,11 +20,12 @@ public final class PointerGestureState {
    }
 
    public boolean owns(long token, Kind expected) {
-      return token != 0L && token == this.activeToken && expected == this.kind;
+      return expected != null && expected != Kind.NONE
+         && token != 0L && token == this.activeToken && expected == this.kind;
    }
 
    public boolean active(Kind expected) {
-      return expected != null && expected == this.kind;
+      return expected != null && expected != Kind.NONE && expected == this.kind;
    }
 
    public void finish(long token) {
@@ -35,7 +36,7 @@ public final class PointerGestureState {
    }
 
    public void cancel() {
-      this.activeToken = ++this.nextToken;
+      this.activeToken = 0L;
       this.kind = Kind.NONE;
    }
 

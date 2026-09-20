@@ -11,6 +11,7 @@ import io.github.fastformer.fastplace.session.FastPlaceSession;
 import io.github.fastformer.fastplace.session.GeometrySession;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
+import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
 import io.github.fastformer.network.payload.preview.ActivityStatePayload;
 import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
@@ -28,8 +29,11 @@ import net.neoforged.neoforge.network.PacketDistributor;
 /** Sends authoritative server snapshots to the current client connection. */
 public final class PlayerPreviewSync {
    private static final Map<UUID, FastPlaceActivity> LAST_ACTIVITY = new ConcurrentHashMap<>();
+   private static final Map<UUID, UUID> CLIENT_CALLBACK_SESSIONS = new ConcurrentHashMap<>();
    private static final Map<UUID, Long> OPERATION_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
    private static final Map<UUID, Long> BUILDING_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
+   private static final Map<UUID, Long> GEOMETRY_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
+   private static final Map<UUID, Long> ACTIVITY_REVISIONS = new ConcurrentHashMap<>();
 
    private PlayerPreviewSync() {
    }
@@ -60,6 +64,21 @@ public final class PlayerPreviewSync {
       );
       sendPreview(player, payload);
       syncActivity(player);
+   }
+
+   /** Starts a distinct callback scope for a newly connected client. */
+   public static void beginClientSession(ServerPlayer player) {
+      if (player != null) {
+         CLIENT_CALLBACK_SESSIONS.put(player.getUUID(), UUID.randomUUID());
+      }
+   }
+
+   public static OperationCallbackScope callbackScope(ServerPlayer player) {
+      if (player == null) {
+         throw new IllegalArgumentException("Operation callback player is required");
+      }
+      UUID sessionId = CLIENT_CALLBACK_SESSIONS.computeIfAbsent(player.getUUID(), ignored -> UUID.randomUUID());
+      return new OperationCallbackScope(player.getUUID(), player.level().dimension().location(), sessionId);
    }
 
    public static void syncOperation(ServerPlayer player, OperationSession session) {
@@ -149,7 +168,11 @@ public final class PlayerPreviewSync {
          return;
       }
       if (player.connection.hasChannel(ActivityStatePayload.TYPE)) {
-         PacketDistributor.sendToPlayer(player, new ActivityStatePayload(activity), new CustomPacketPayload[0]);
+         PacketDistributor.sendToPlayer(
+            player,
+            new ActivityStatePayload(nextActivityRevision(player), activity, callbackScope(player)),
+            new CustomPacketPayload[0]
+         );
       }
    }
 
@@ -158,14 +181,20 @@ public final class PlayerPreviewSync {
          return;
       }
       LAST_ACTIVITY.remove(player.getUUID());
+      CLIENT_CALLBACK_SESSIONS.remove(player.getUUID());
       BUILDING_PREVIEW_REVISIONS.remove(player.getUUID());
       OPERATION_PREVIEW_REVISIONS.remove(player.getUUID());
+      GEOMETRY_PREVIEW_REVISIONS.remove(player.getUUID());
+      ACTIVITY_REVISIONS.remove(player.getUUID());
    }
 
    public static void clearServer() {
       LAST_ACTIVITY.clear();
+      CLIENT_CALLBACK_SESSIONS.clear();
       OPERATION_PREVIEW_REVISIONS.clear();
       BUILDING_PREVIEW_REVISIONS.clear();
+      GEOMETRY_PREVIEW_REVISIONS.clear();
+      ACTIVITY_REVISIONS.clear();
    }
 
    private static long nextOperationPreviewRevision(ServerPlayer player) {
@@ -173,6 +202,20 @@ public final class PlayerPreviewSync {
          return 0L;
       }
       return OPERATION_PREVIEW_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
+   }
+
+   private static long nextGeometryPreviewRevision(ServerPlayer player) {
+      if (player == null) {
+         return 0L;
+      }
+      return GEOMETRY_PREVIEW_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
+   }
+
+   private static long nextActivityRevision(ServerPlayer player) {
+      if (player == null) {
+         return 0L;
+      }
+      return ACTIVITY_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
    }
 
    private static long nextBuildingPreviewRevision(ServerPlayer player) {
@@ -209,21 +252,23 @@ public final class PlayerPreviewSync {
       if (player.connection.hasChannel(BuildingPreviewSessionPayload.TYPE)) {
          PacketDistributor.sendToPlayer(
             player,
-            new BuildingPreviewSessionPayload(revision, payload.session()),
+            new BuildingPreviewSessionPayload(revision, payload.session(), callbackScope(player)),
             new CustomPacketPayload[0]
          );
       }
       if (player.connection.hasChannel(BuildingPreviewParametersPayload.TYPE)) {
          PacketDistributor.sendToPlayer(
             player,
-            new BuildingPreviewParametersPayload(revision, payload.parameters()),
+            new BuildingPreviewParametersPayload(revision, payload.parameters(), callbackScope(player)),
             new CustomPacketPayload[0]
          );
       }
       if (player.connection.hasChannel(BuildingPreviewEffectPayload.TYPE)) {
          PacketDistributor.sendToPlayer(
             player,
-            new BuildingPreviewEffectPayload(revision, new BuildingPreviewEffectSnapshot(payload.activePlacementEffect())),
+            new BuildingPreviewEffectPayload(
+               revision, new BuildingPreviewEffectSnapshot(payload.activePlacementEffect()), callbackScope(player)
+            ),
             new CustomPacketPayload[0]
          );
       }
@@ -231,13 +276,21 @@ public final class PlayerPreviewSync {
 
    private static void sendOperationPreview(ServerPlayer player, OperationPreviewPayload payload) {
       if (player.connection.hasChannel(OperationPreviewPayload.TYPE)) {
-         PacketDistributor.sendToPlayer(player, payload, new CustomPacketPayload[0]);
+         PacketDistributor.sendToPlayer(
+            player,
+            payload.withCallbackScope(callbackScope(player)),
+            new CustomPacketPayload[0]
+         );
       }
    }
 
    private static void sendGeometry(ServerPlayer player, GeometryPreviewPayload payload) {
       if (player.connection.hasChannel(GeometryPreviewPayload.TYPE)) {
-         PacketDistributor.sendToPlayer(player, payload, new CustomPacketPayload[0]);
+         PacketDistributor.sendToPlayer(
+            player,
+            payload.withRevision(nextGeometryPreviewRevision(player)).withCallbackScope(callbackScope(player)),
+            new CustomPacketPayload[0]
+         );
       }
    }
 }

@@ -5,17 +5,20 @@ import io.github.fastformer.client.input.InteractionContext;
 import io.github.fastformer.client.input.InteractionIntentProvider;
 import io.github.fastformer.client.input.InteractionIntentResolver;
 import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.interaction.InteractionGeometry;
+import io.github.fastformer.client.interaction.SelectionInteractionScene;
+import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
+import io.github.fastformer.client.interaction.InteractionComponents;
+import io.github.fastformer.client.interaction.InteractionVisibility;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
-import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
-import io.github.fastformer.client.render.GizmoViewScale;
+import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.fastplace.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.TransformFrame;
+import io.github.fastformer.client.interaction.PartFrameInteraction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
@@ -32,7 +35,6 @@ import net.minecraft.world.phys.HitResult.Type;
 /** Resolves operation pointer targets against the persistent client workspace. */
 final class WorkspaceInteractionResolver {
    private static final double REACH = LongRangeBlockRaycast.MAX_REACH;
-   private static final double EDGE_THRESHOLD = 0.12;
    private static final IdentityHashMap<ClientSelectionPart, Map<BlockPos, ClientBlockSnapshot>> RESOLVED_CACHE =
       new IdentityHashMap<>();
    private static long resolvedCacheRevision = Long.MIN_VALUE;
@@ -68,55 +70,57 @@ final class WorkspaceInteractionResolver {
    }
 
    private static Optional<OperationInteractionIntent> resolveGizmo(InteractionContext context) {
-      if (!ClientOperationController.active() || context.alternative()) {
+      if (!ClientOperationController.active() || ClientOperationController.workspace().locked()) {
          return Optional.empty();
       }
       List<OperationInteractionIntent.Gizmo> targets = new ArrayList<>();
-      var workspace = ClientOperationController.workspace();
-      List<ClientSelectionPart> parts = workspace.parts();
-      pruneCache(parts);
-      for (ClientSelectionPart part : parts) {
-         if (part.editability() == ClientSelectionPart.Editability.LOCKED) {
+      var scene = ClientOperationController.interactionScene();
+      for (var object : scene.parts().values()) {
+         ClientSelectionPart part = object.source();
+         if (!InteractionVisibility.isVisible(object.gizmo(),
+            ClientOperationController.workspace().selectedIds().contains(part.id()))) {
             continue;
          }
-         Map<BlockPos, ClientBlockSnapshot> resolved = resolvePartBlocks(part);
-         if (resolved.isEmpty()) {
+         AABB interactionBounds = object.bounds();
+         if (interactionBounds == null) {
             continue;
          }
-         Vec3 center = OccupiedBlockBounds.from(resolved.keySet()).orElseThrow().center();
+         Vec3 center = interactionBounds.getCenter();
          GizmoViewScale scale = GizmoViewScale.fromDistance(context.camera().distanceTo(center));
-         AxisGizmo gizmo = partGizmo(part, center, scale).withTextComponent(
-            io.github.fastformer.fastplace.geometry.GizmoTextComponent.pointLevel()
-         );
-         AxisGizmo.Hit hit = gizmo.hitTest(context.eye(), context.view(), REACH);
+         List<AxisGizmo> gizmos = SelectionGizmoInteraction.resolvePart(object.gizmo(), scale).gizmos();
+         List<AxisGizmo.Hit> hits = new ArrayList<>(gizmos.size());
+         List<AxisGizmo> hitGizmos = new ArrayList<>(gizmos.size());
+         for (AxisGizmo candidate : gizmos) {
+            AxisGizmo.Hit candidateHit = candidate.hitTest(context.eye(), context.view(), REACH);
+            if (candidateHit != null) {
+               hits.add(candidateHit);
+               hitGizmos.add(candidate);
+            }
+         }
+         AxisGizmo.Hit hit = AxisGizmo.preferHit(hits);
          if (hit != null) {
-            targets.add(new OperationInteractionIntent.Gizmo(part.id(), false, gizmo, hit));
+            for (int index = 0; index < hits.size(); index++) {
+               if (hits.get(index) != hit) {
+                  continue;
+               }
+               AxisGizmo hitGizmo = hitGizmos.get(index);
+               targets.add(new OperationInteractionIntent.Gizmo(
+                  part.id(),
+                  false,
+                  hitGizmo,
+                  hit
+               ));
+               break;
+            }
          }
       }
-      List<ClientSelectionPart> editableSelectedParts = workspace.selectedParts().stream()
-         .filter(part -> part.editability() == ClientSelectionPart.Editability.FREE)
-         .toList();
-      if (editableSelectedParts.size() > 1) {
-         OccupiedBlockBounds group = editableSelectedParts.stream()
-            .map(WorkspaceInteractionResolver::resolvePartBlocks)
-            .filter(values -> !values.isEmpty())
-            .map(values -> OccupiedBlockBounds.from(values.keySet()).orElseThrow())
-            .reduce(OccupiedBlockBounds::union)
-            .orElse(null);
-         if (group != null) {
-            Vec3 center = group.center();
+      var groupObject = scene.groupGizmo();
+      if (groupObject != null) {
+         AABB groupAabb = groupObject.require(InteractionComponents.WORLD_BOUNDS);
+         if (groupAabb != null) {
+            Vec3 center = groupAabb.getCenter();
             GizmoViewScale scale = GizmoViewScale.fromDistance(context.camera().distanceTo(center));
-            boolean includesPrism = editableSelectedParts.stream()
-               .anyMatch(part -> part.selection() != null && part.selection().prism() != null);
-            AxisGizmo gizmo = (includesPrism
-               ? AxisGizmo.inFrame(
-                  TransformFrame.world(center), scale.axisLength() * 1.12, scale.handleRadius() * 1.12,
-                  AxisGizmo.Operation.MOVE, AxisGizmo.Operation.ROTATE
-               )
-               : AxisGizmo.inFrame(
-                  TransformFrame.world(center), scale.axisLength() * 1.12, scale.handleRadius() * 1.12,
-                  AxisGizmo.Operation.MOVE, AxisGizmo.Operation.SCALE, AxisGizmo.Operation.ROTATE
-               )).withTextComponent(io.github.fastformer.fastplace.geometry.GizmoTextComponent.pointLevel());
+            AxisGizmo gizmo = SelectionGizmoInteraction.resolveGroup(groupObject, scale);
             AxisGizmo.Hit hit = gizmo.hitTest(context.eye(), context.view(), REACH);
             if (hit != null) {
                targets.add(new OperationInteractionIntent.Gizmo(0, true, gizmo, hit));
@@ -130,52 +134,48 @@ final class WorkspaceInteractionResolver {
          .map(OperationInteractionIntent.class::cast);
    }
 
-   static AxisGizmo partGizmo(ClientSelectionPart part, Vec3 center, GizmoViewScale scale) {
-      return part.orientedCuboid()
-         ? AxisGizmo.inFrame(
-            TransformFrame.world(center), scale.axisLength(), scale.handleRadius(),
-            AxisGizmo.Operation.MOVE, AxisGizmo.Operation.ROTATE
-         )
-         : AxisGizmo.inFrame(
-            TransformFrame.world(center), scale.axisLength(), scale.handleRadius(),
-            AxisGizmo.Operation.MOVE, AxisGizmo.Operation.SCALE, AxisGizmo.Operation.ROTATE
-         );
-   }
-
    private static Optional<OperationInteractionIntent> resolvePart(InteractionContext context) {
       if (!ClientOperationController.active() || context.alternative()
          || InteractionContext.directlyNearVanillaBlock(context.minecraft())) {
          return Optional.empty();
       }
+      var workspace = ClientOperationController.workspace();
+      Set<BlockPos> failedTargets = ClientOperationController.failedWorkspaceTargets();
+      return resolvePartTarget(
+         ClientOperationController.interactionScene(), context.eye(), context.view(), context.control(),
+         failedTargets, workspace.locked()
+      ).map(OperationInteractionIntent.class::cast);
+   }
+
+   static Optional<OperationInteractionIntent.Part> resolvePartTarget(
+      SelectionInteractionScene scene, Vec3 eye, Vec3 view, boolean control,
+      Set<BlockPos> failedTargets, boolean workspaceLocked
+   ) {
+      if (workspaceLocked || scene.parts().isEmpty()) {
+         return Optional.empty();
+      }
       int bestId = 0;
+      OperationInteractionIntent.PartSurface bestSurface = OperationInteractionIntent.PartSurface.LABEL;
       double bestDistance = Double.POSITIVE_INFINITY;
-      List<ClientSelectionPart> parts = ClientOperationController.workspace().parts();
-      pruneCache(parts);
-      for (ClientSelectionPart part : parts) {
-         if (part.editability() == ClientSelectionPart.Editability.LOCKED) {
+      for (var object : scene.parts().values()) {
+         ClientSelectionPart part = object.source();
+         AABB bounds = object.bounds();
+         if (!WorkspacePartInteractionCapabilities.canSelect(part, bounds)) {
             continue;
          }
-         Map<BlockPos, ClientBlockSnapshot> resolved = resolvePartBlocks(part);
-         if (resolved.isEmpty()) {
-            continue;
-         }
-         OccupiedBlockBounds occupied = OccupiedBlockBounds.from(resolved.keySet()).orElseThrow();
-         AABB bounds = outlineBounds(part, occupied.aabb());
-         OperationGeometry.RayHit hit = OperationGeometry.raycast(bounds.inflate(0.015), context.eye(), context.view(), REACH);
-         boolean frameHit = hit != null && (context.control() || nearEdge(hit.point(), bounds));
-         Vec3 label = occupied.center().add(0.0, 0.22, 0.0);
-         double labelRayDistance = Math.max(0.0, label.subtract(context.eye()).dot(context.view()));
-         double labelDistance = context.eye().add(context.view().scale(labelRayDistance)).distanceTo(label);
-         boolean labelHit = labelRayDistance <= REACH && labelDistance <= 0.22;
-         double distance = labelHit ? labelRayDistance : frameHit ? hit.distance() : Double.POSITIVE_INFINITY;
+         OperationGeometry.RayHit hit = PartFrameInteraction.hit(object.frame(), eye, view, REACH, control);
+         boolean frameHit = hit != null
+            && !hitsFailedTarget(hit, failedTargets);
+         var labelDistance = InteractionGeometry.hitDistance(object.label(), eye, view, REACH);
+         double distance = labelDistance.isPresent() ? labelDistance.getAsDouble()
+            : frameHit ? hit.distance() : Double.POSITIVE_INFINITY;
          if (distance < bestDistance) {
             bestDistance = distance;
             bestId = part.id();
+            bestSurface = labelDistance.isPresent() ? OperationInteractionIntent.PartSurface.LABEL : OperationInteractionIntent.PartSurface.FRAME;
          }
       }
-      return bestId == 0
-         ? Optional.empty()
-         : Optional.of(new OperationInteractionIntent.Part(bestId, bestDistance));
+      return bestId == 0 ? Optional.empty() : Optional.of(new OperationInteractionIntent.Part(bestId, bestDistance, bestSurface));
    }
 
    private static Optional<OperationInteractionIntent> resolveDraggedFace(InteractionContext context) {
@@ -183,8 +183,8 @@ final class WorkspaceInteractionResolver {
       int draggedPartId = FastPlaceClientInput.workspaceFaceDragPartId();
       if (dragged != null && draggedPartId > 0) {
          ClientSelectionPart part = ClientOperationController.workspace().part(draggedPartId).orElse(null);
-         if (part != null && part.editability() == ClientSelectionPart.Editability.FREE) {
-            AABB bounds = selectionBounds(part);
+         if (WorkspacePartInteractionCapabilities.canEditSource(part)) {
+            AABB bounds = ClientOperationController.interactionScene().bounds(part.id());
             if (bounds != null) {
                return Optional.of(new OperationInteractionIntent.Face(draggedPartId, bounds, dragged, true));
             }
@@ -199,16 +199,18 @@ final class WorkspaceInteractionResolver {
          return Optional.empty();
       }
       OperationInteractionIntent.Face best = null;
+      Set<BlockPos> failedTargets = ClientOperationController.failedWorkspaceTargets();
       for (ClientSelectionPart part : ClientOperationController.workspace().parts()) {
-         if (part.editability() == ClientSelectionPart.Editability.LOCKED) {
+         if (!WorkspacePartInteractionCapabilities.canEditSource(part)) {
             continue;
          }
-         AABB bounds = selectionBounds(part);
+         AABB bounds = ClientOperationController.interactionScene().bounds(part.id());
          if (bounds == null) {
             continue;
          }
          OperationGeometry.RayHit hit = OperationGeometry.raycast(bounds.inflate(0.012), context.eye(), context.view(), REACH);
-         if (hit != null && (best == null || hit.distance() < best.hit().distance())) {
+         if (hit != null && !hitsFailedTarget(hit, failedTargets)
+            && (best == null || hit.distance() < best.hit().distance())) {
             best = new OperationInteractionIntent.Face(
                part.id(), bounds, hit, ClientOperationController.canAdjustAabbFace(part)
             );
@@ -231,7 +233,7 @@ final class WorkspaceInteractionResolver {
          BlockHitResult hit = LongRangeBlockRaycast.clip(
             context.minecraft().level, context.player(), context.eye(), context.view()
          ).hit();
-         point = hit.getType() == Type.BLOCK ? hit.getBlockPos() : null;
+         point = selectionCreationPoint(hit);
       } else {
          if (context.nearVanillaBlock()
             || !FastPlaceClientPreviewCore.operationActive()
@@ -248,27 +250,10 @@ final class WorkspaceInteractionResolver {
          : Optional.of(new OperationInteractionIntent.CreateSelection(point));
    }
 
-   static AABB outlineBounds(ClientSelectionPart part, AABB occupiedBounds) {
-      if (part.editability() == ClientSelectionPart.Editability.FREE) {
-         AABB selection = selectionBounds(part);
-         if (selection != null) {
-            return selection;
-         }
-      }
-      return occupiedBounds;
-   }
-
-   static AABB selectionBounds(ClientSelectionPart part) {
-      if (part == null) {
-         return null;
-      }
-      if (part.selection() != null && part.axisAlignedCuboid() && part.transform().rotation().equals(Vec3.ZERO)) {
-         Vec3 translation = part.transform().translation();
-         return part.selection().bounds().move(translation.x, translation.y, translation.z);
-      }
-      Map<BlockPos, ClientBlockSnapshot> resolved = resolveBasePart(part);
-      OccupiedBlockBounds occupied = OccupiedBlockBounds.from(resolved.keySet()).orElse(null);
-      return occupied == null ? null : occupied.aabb();
+   static BlockPos selectionCreationPoint(BlockHitResult hit) {
+      return hit != null && hit.getType() == Type.BLOCK
+         ? hit.getBlockPos().relative(hit.getDirection())
+         : null;
    }
 
    static Map<BlockPos, ClientBlockSnapshot> resolvePartBlocks(ClientSelectionPart part) {
@@ -280,14 +265,28 @@ final class WorkspaceInteractionResolver {
       return RESOLVED_CACHE.computeIfAbsent(part, WorkspacePreviewComposer::resolveForRendering);
    }
 
-   static Map<BlockPos, ClientBlockSnapshot> resolveBasePart(ClientSelectionPart part) {
-      if (part.transform().repeats().equals(io.github.fastformer.fastplace.OperationStackRegion.origin())) {
-         return resolvePartBlocks(part);
+   /** Resolves the portion still visible after a rejected workspace submission. */
+   static Map<BlockPos, ClientBlockSnapshot> resolveVisiblePartBlocks(ClientSelectionPart part) {
+      Map<BlockPos, ClientBlockSnapshot> resolved = resolvePartBlocks(part);
+      Set<BlockPos> failed = ClientOperationController.failedWorkspaceTargets();
+      return withoutFailedTargets(resolved, failed);
+   }
+
+   static <T> Map<BlockPos, T> withoutFailedTargets(Map<BlockPos, T> blocks, Set<BlockPos> failed) {
+      if (blocks == null || blocks.isEmpty() || failed == null || failed.isEmpty()) {
+         return blocks == null ? Map.of() : blocks;
       }
-      WorkspaceTransform transform = part.transform().withoutRepeats();
-      return WorkspacePreviewComposer.canResolveForRendering(part.blocks(), transform)
-         ? WorkspacePreviewComposer.resolveValues(part.blocks(), transform)
-         : Map.of();
+      java.util.LinkedHashMap<BlockPos, T> visible = new java.util.LinkedHashMap<>(blocks);
+      visible.keySet().removeAll(failed);
+      return Map.copyOf(visible);
+   }
+
+   static boolean hitsFailedTarget(OperationGeometry.RayHit hit, Set<BlockPos> failedTargets) {
+      if (hit == null || failedTargets == null || failedTargets.isEmpty()) {
+         return false;
+      }
+      Vec3 inside = hit.point().subtract(hit.normal().scale(0.02));
+      return failedTargets.contains(BlockPos.containing(inside));
    }
 
    static void pruneCache(List<ClientSelectionPart> currentParts) {
@@ -296,17 +295,4 @@ final class WorkspaceInteractionResolver {
       RESOLVED_CACHE.keySet().removeIf(part -> !live.contains(part));
    }
 
-   private static boolean nearEdge(Vec3 point, AABB bounds) {
-      int boundaryAxes = 0;
-      if (Math.min(Math.abs(point.x - bounds.minX), Math.abs(point.x - bounds.maxX)) <= EDGE_THRESHOLD) {
-         boundaryAxes++;
-      }
-      if (Math.min(Math.abs(point.y - bounds.minY), Math.abs(point.y - bounds.maxY)) <= EDGE_THRESHOLD) {
-         boundaryAxes++;
-      }
-      if (Math.min(Math.abs(point.z - bounds.minZ), Math.abs(point.z - bounds.maxZ)) <= EDGE_THRESHOLD) {
-         boundaryAxes++;
-      }
-      return boundaryAxes >= 2;
-   }
 }

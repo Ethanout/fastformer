@@ -8,6 +8,7 @@ import io.github.fastformer.fastplace.history.HistoryStorageConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
@@ -25,8 +26,10 @@ final class WorldHistoryPersistence {
    private static final long MAX_QUEUE_BYTES = MAX_BATCH_BYTES + 20L;
    private static final int MAX_QUEUE_OPERATIONS = 512;
    private static final long MAX_PENDING_ENCODE_BYTES = 512L * 1024L * 1024L;
+   private static final long MAX_DECODED_BATCH_BYTES = 512L * 1024L * 1024L;
    private static final int MAX_PENDING_OPERATIONS = 512;
-   // Completed history must not queue behind or ahead of the first journal write.
+   // The store serializes file operations. This executor keeps those operations
+   // off the server thread while the coordinator preserves publication order.
    private static final java.util.concurrent.Executor IO_EXECUTOR = new java.util.concurrent.ThreadPoolExecutor(
       1, 1, 0L, java.util.concurrent.TimeUnit.MILLISECONDS,
       new java.util.concurrent.ArrayBlockingQueue<>(MAX_PENDING_OPERATIONS),
@@ -110,11 +113,22 @@ final class WorldHistoryPersistence {
    static CompletableFuture<Void> publishSnapshot(
       MinecraftServer server, UUID owner, List<WorldChangeBatch> undo, List<WorldChangeBatch> redo
    ) {
+      return publishSnapshot(server, owner, undo, redo, operationIds(undo), operationIds(redo));
+   }
+
+   static CompletableFuture<Void> publishSnapshot(
+      MinecraftServer server,
+      UUID owner,
+      List<WorldChangeBatch> undo,
+      List<WorldChangeBatch> redo,
+      List<UUID> undoOrder,
+      List<UUID> redoOrder
+   ) {
       if (server == null || owner == null) return CompletableFuture.completedFuture(null);
       List<WorldChangeBatch> ownedUndo = List.copyOf(undo);
       List<WorldChangeBatch> ownedRedo = List.copyOf(redo);
       long retainedBytes = Math.addExact(estimatedBytes(ownedUndo), estimatedBytes(ownedRedo));
-      HistoryOrderIndex index = new HistoryOrderIndex(operationIds(ownedUndo), operationIds(ownedRedo));
+      HistoryOrderIndex index = new HistoryOrderIndex(undoOrder, redoOrder);
       CompletableFuture<Void> result = enqueue(server, owner, retainedBytes, () -> {
          CompletableFuture<Void> batches = CompletableFuture.completedFuture(null);
          for (WorldChangeBatch batch : ownedUndo) batches = ensureBatch(server, owner, batch, batches);
@@ -123,6 +137,159 @@ final class WorldHistoryPersistence {
       });
       result.whenComplete((ignored, failure) -> reportFailure(owner, null, failure));
       return result;
+   }
+
+   static CompletableFuture<Void> publishBatchOnly(
+      MinecraftServer server, UUID owner, WorldChangeBatch batch
+   ) {
+      if (server == null || owner == null || batch == null) return CompletableFuture.completedFuture(null);
+      CompletableFuture<Void> result = enqueue(server, owner, batch.estimatedBytes(), () ->
+         store(server).publishBatch(owner, batch.operationId(), encode(batch))
+      );
+      result.whenComplete((ignored, failure) -> reportFailure(owner, batch.operationId(), failure));
+      return result;
+   }
+
+   static CompletableFuture<Void> reconcileCommittedJournal(MinecraftServer server, Path journalDirectory) {
+      RecoveryJournalManifest.Manifest manifest;
+      try {
+         manifest = RecoveryJournalManifest.read(journalDirectory.resolve("manifest.dat"));
+      } catch (IOException failure) {
+         return CompletableFuture.failedFuture(failure);
+      }
+      UUID owner = manifest.owner();
+      UUID operation = manifest.operationId();
+      return enqueue(server, owner, 0L, () -> {
+         HistoryBatchStore storage = store(server);
+         return storage.verifyBatch(owner, operation).thenCompose(published -> {
+            if (!published) {
+               return CompletableFuture.failedFuture(new IOException(
+                  "Committed journal has no published history batch: " + operation
+               ));
+            }
+            return storage.loadIndex(owner).thenCompose(existing -> {
+               HistoryOrderIndex previous = existing.orElse(new HistoryOrderIndex(List.of(), List.of()));
+               if (previous.undo().contains(operation) || previous.redo().contains(operation)) {
+                  return CompletableFuture.completedFuture(null);
+               }
+               ArrayList<UUID> undo = new ArrayList<>(Math.min(MAX_INDEX_ENTRIES, previous.undo().size() + 1));
+               undo.add(operation);
+               for (UUID id : previous.undo()) {
+                  if (undo.size() >= MAX_INDEX_ENTRIES) break;
+                  undo.add(id);
+               }
+               return storage.publishIndex(owner, new HistoryOrderIndex(undo, List.of()));
+            });
+         });
+      });
+   }
+
+   static CompletableFuture<LoadedHistory> loadSnapshot(
+      MinecraftServer server, UUID owner, int maxEntriesPerStack, long maxRetainedBytes
+   ) {
+      if (server == null || owner == null || maxEntriesPerStack < 1 || maxRetainedBytes < 1L) {
+         return CompletableFuture.completedFuture(LoadedHistory.empty());
+      }
+      var registries = server.registryAccess();
+      return enqueueValue(server, owner, 0L, () -> {
+         HistoryBatchStore storage = store(server);
+         return storage.loadIndex(owner).thenCompose(optional -> {
+            if (optional.isEmpty()) return CompletableFuture.completedFuture(LoadedHistory.empty());
+            HistoryOrderIndex index = optional.orElseThrow();
+            LoadAccumulator accumulator = new LoadAccumulator(maxRetainedBytes);
+            return loadBatches(storage, owner, index.undo(), maxEntriesPerStack, registries, accumulator)
+               .thenCompose(undo -> loadBatches(
+                  storage, owner, index.redo(), maxEntriesPerStack, registries, accumulator
+               ).thenApply(redo -> new LoadedHistory(undo, redo, index.undo(), index.redo())));
+         });
+      });
+   }
+
+   static CompletableFuture<List<WorldChangeBatch>> loadPage(
+      MinecraftServer server,
+      UUID owner,
+      List<UUID> ids,
+      int maxEntries,
+      long maxRetainedBytes
+   ) {
+      if (server == null || owner == null || ids == null || ids.isEmpty()
+         || maxEntries < 1 || maxRetainedBytes < 1L) {
+         return CompletableFuture.completedFuture(List.of());
+      }
+      List<UUID> ownedIds = List.copyOf(ids);
+      var registries = server.registryAccess();
+      return enqueueValue(server, owner, 0L, () -> loadBatches(
+         store(server), owner, ownedIds, maxEntries, registries,
+         new LoadAccumulator(maxRetainedBytes)
+      ));
+   }
+
+   private static CompletableFuture<List<WorldChangeBatch>> loadBatches(
+      HistoryBatchStore storage,
+      UUID owner,
+      List<UUID> ids,
+      int maxEntries,
+      net.minecraft.core.HolderLookup.Provider registries,
+      LoadAccumulator accumulator
+   ) {
+      CompletableFuture<ArrayList<WorldChangeBatch>> chain = CompletableFuture.completedFuture(new ArrayList<>());
+      for (UUID id : ids) {
+         chain = chain.thenCompose(loaded -> {
+            if (loaded.size() >= maxEntries || accumulator.full) {
+               return CompletableFuture.completedFuture(loaded);
+            }
+            return storage.loadBatch(owner, id).thenApply(payload -> {
+               if (payload.isEmpty()) {
+                  throw new java.util.concurrent.CompletionException(
+                     new IOException("History index references a missing batch: " + id)
+                  );
+               }
+               WorldChangeBatch batch;
+               try {
+                  batch = WorldHistoryBatchCodec.decode(registries, payload.orElseThrow(), MAX_DECODED_BATCH_BYTES);
+               } catch (IOException failure) {
+                  throw new java.util.concurrent.CompletionException(failure);
+               }
+               long bytes = batch.estimatedBytes();
+               if (!loaded.isEmpty() && bytes > accumulator.remainingBytes) {
+                  accumulator.full = true;
+                  return loaded;
+               }
+               loaded.add(batch);
+               accumulator.remainingBytes = Math.max(0L, accumulator.remainingBytes - bytes);
+               accumulator.full = accumulator.remainingBytes == 0L;
+               return loaded;
+            });
+         });
+      }
+      return chain.thenApply(List::copyOf);
+   }
+
+   record LoadedHistory(
+      List<WorldChangeBatch> undo,
+      List<WorldChangeBatch> redo,
+      List<UUID> undoOrder,
+      List<UUID> redoOrder
+   ) {
+      LoadedHistory {
+         undo = List.copyOf(undo);
+         redo = List.copyOf(redo);
+         undoOrder = List.copyOf(undoOrder);
+         redoOrder = List.copyOf(redoOrder);
+      }
+
+      static LoadedHistory empty() {
+         return new LoadedHistory(List.of(), List.of(), List.of(), List.of());
+      }
+   }
+
+   private static final class LoadAccumulator {
+      private long remainingBytes;
+      private boolean full;
+
+      private LoadAccumulator(long remainingBytes) {
+         this.remainingBytes = remainingBytes;
+      }
    }
 
    private static synchronized CompletableFuture<Void> enqueue(

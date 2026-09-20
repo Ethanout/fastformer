@@ -2,6 +2,7 @@ package io.github.fastformer.fastplace.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.OperationConflictMode;
@@ -10,6 +11,7 @@ import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.world.MemoryReservation;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldOperationMemory;
+import java.lang.reflect.Field;
 import java.util.Set;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -114,6 +116,7 @@ class PlacementTaskTest {
          task.cancel();
 
          assertFalse(worker.isCancelled());
+         assertNull(generationFuture(task));
          assertEquals(reserved, MemoryReservation.reservedBytes());
          finish.countDown();
          worker.join();
@@ -125,6 +128,36 @@ class PlacementTaskTest {
       } finally {
          finish.countDown();
          worker.join();
+         reservation.close();
+      }
+   }
+
+   @Test
+   void cancelledGenerationDisownsLateFailureWithoutReleasingItsBudgetEarly() throws Exception {
+      long baseline = MemoryReservation.reservedBytes();
+      MemoryReservation reservation = WorldOperationMemory.reserveGeneration(1L, 0L).orElseThrow();
+      CompletableFuture<BlockGenerationResult> worker = new CompletableFuture<>();
+      PlacementTask task = PlacementTask.generatingResult(
+         worker,
+         new PlacementTaskPlan(
+            null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 100, Level.OVERWORLD
+         ),
+         reservation
+      );
+
+      try {
+         task.cancelForRecovery();
+
+         assertNull(generationFuture(task));
+         assertFalse(task.failed());
+         assertTrue(MemoryReservation.reservedBytes() > baseline);
+
+         worker.completeExceptionally(new IllegalStateException("late generation failure"));
+         awaitReservationRelease(baseline);
+
+         assertFalse(task.failed());
+      } finally {
+         worker.complete(BlockGenerationResult.fromLegacy(Set.of()));
          reservation.close();
       }
    }
@@ -293,5 +326,19 @@ class PlacementTaskTest {
       assertTrue(task.failed());
       assertEquals("state resolution: OutOfMemoryError", task.failureReason());
       assertEquals(baseline, MemoryReservation.reservedBytes());
+   }
+
+   private static Object generationFuture(PlacementTask task) throws ReflectiveOperationException {
+      Field field = PlacementTask.class.getDeclaredField("future");
+      field.setAccessible(true);
+      return field.get(task);
+   }
+
+   private static void awaitReservationRelease(long expected) throws InterruptedException {
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+      while (MemoryReservation.reservedBytes() != expected && System.nanoTime() < deadline) {
+         Thread.onSpinWait();
+      }
+      assertEquals(expected, MemoryReservation.reservedBytes());
    }
 }

@@ -58,6 +58,21 @@ public final class IncomingPayloadTransfers {
       }
    }
 
+   public void forgetWorkspace(UUID owner, UUID transferId) {
+      forgetMatching(workspaceTransfers, owner, transferId);
+   }
+
+   public void forgetShape(UUID owner, UUID transferId) {
+      forgetMatching(shapeTransfers, owner, transferId);
+   }
+
+   private static void forgetMatching(Map<UUID, ChunkedPayloadTransfer> transfers, UUID owner, UUID transferId) {
+      if (owner != null && transferId != null) {
+         transfers.computeIfPresent(owner, (key, transfer) ->
+            transfer.transferId().equals(transferId) ? null : transfer);
+      }
+   }
+
    public void clear() {
       workspaceTransfers.clear();
       shapeTransfers.clear();

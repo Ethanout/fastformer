@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.network.payload.placement.PlacementActionAckPayload;
 import io.netty.buffer.Unpooled;
+import java.util.UUID;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;
 
 class OperationApplyPayloadTest {
@@ -17,7 +19,10 @@ class OperationApplyPayloadTest {
             OperationApplyPayload.STREAM_CODEC.encode(buffer, request);
             var decoded = OperationApplyPayload.STREAM_CODEC.decode(buffer);
             assertEquals(request, decoded);
-            var acknowledgement = new PlacementActionAckPayload(decoded.requestId());
+            OperationCallbackScope scope = new OperationCallbackScope(
+               UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID()
+            );
+            var acknowledgement = new PlacementActionAckPayload(decoded.requestId(), scope);
             PlacementActionAckPayload.STREAM_CODEC.encode(buffer, acknowledgement);
             assertEquals(acknowledgement, PlacementActionAckPayload.STREAM_CODEC.decode(buffer));
             assertEquals(0, buffer.readableBytes());

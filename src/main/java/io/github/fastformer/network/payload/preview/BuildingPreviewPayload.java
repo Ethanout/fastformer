@@ -2,17 +2,17 @@ package io.github.fastformer.network.payload.preview;
 
 import io.github.fastformer.fastplace.FastPlaceSettings;
 import io.github.fastformer.fastplace.FaceRasterizationMode;
-import io.github.fastformer.fastplace.FaceMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.FastPlaceGeometry;
 import io.github.fastformer.fastplace.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
-import io.github.fastformer.fastplace.LineMode;
-import io.github.fastformer.fastplace.PointMode;
-import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.RaycastPlacement;
-import io.github.fastformer.fastplace.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -189,7 +189,7 @@ public record BuildingPreviewPayload(
          BlockPos.ZERO,
          settings.angleDegrees(),
          settings.pointMode(),
-         settings.raycastPlacement(),
+         RaycastPlacement.SURFACE,
          settings.lineMode(),
          settings.faceMode(),
          settings.volumeMode(),
@@ -218,7 +218,7 @@ public record BuildingPreviewPayload(
          BlockPos.ZERO,
          0.0,
          PointMode.RAYCAST,
-          RaycastPlacement.EMBEDDED,
+          RaycastPlacement.SURFACE,
          LineMode.AXIS,
          FaceMode.POLYGON,
          VolumeMode.PERPENDICULAR_TO_FACE,

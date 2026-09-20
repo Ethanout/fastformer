@@ -5,8 +5,8 @@ import io.github.fastformer.client.operation.model.WorkspaceTransform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.OperationSelectionMode;
-import io.github.fastformer.fastplace.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.Map;
 import net.minecraft.world.phys.AABB;

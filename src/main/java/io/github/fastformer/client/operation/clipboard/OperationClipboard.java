@@ -1,15 +1,15 @@
 package io.github.fastformer.client.operation.clipboard;
 
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.operation.workspace.ClipboardPreparation;
+import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
 import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
-import java.util.LinkedHashMap;
+import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import net.minecraft.core.BlockPos;
 
 /** Persistent resolved contents copied from the current client preview. */
@@ -23,12 +23,15 @@ public record OperationClipboard(List<Part> parts) {
       }
    }
 
-   public static Optional<OperationClipboard> fromWorkspace(ClientOperationWorkspace workspace) {
-      List<Part> copied = workspace.selectedParts().stream()
-         .map(part -> new Part(part.id(), WorkspacePreviewComposer.resolve(part)))
-         .filter(part -> !part.blocks().isEmpty())
-         .toList();
-      return copied.isEmpty() ? Optional.empty() : Optional.of(new OperationClipboard(copied));
+   public static ClipboardCopy fromWorkspace(ClientOperationWorkspace workspace) {
+      ClipboardPreparation preparation = WorkspaceContentPreparer.clipboardParts(workspace.selectedParts());
+      if (preparation instanceof ClipboardPreparation.Copied copied) {
+         return new ClipboardCopy.Copied(new OperationClipboard(copied.parts()));
+      }
+      if (preparation instanceof ClipboardPreparation.TooLarge tooLarge) {
+         return new ClipboardCopy.TooLarge(tooLarge.limit(), tooLarge.cap(), tooLarge.reached());
+      }
+      return new ClipboardCopy.Empty();
    }
 
    public OccupiedBlockBounds bounds() {
@@ -41,8 +44,8 @@ public record OperationClipboard(List<Part> parts) {
    public List<ClientSelectionPart> instantiate() {
       return this.parts.stream().map(part -> {
          OccupiedBlockBounds bounds = OccupiedBlockBounds.from(part.blocks.keySet()).orElseThrow();
-         var selection = io.github.fastformer.fastplace.OperationSelectionVolume.create(
-            io.github.fastformer.fastplace.OperationSelectionMode.CUBOID,
+         var selection = io.github.fastformer.fastplace.selection.OperationSelectionVolume.create(
+            io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID,
             List.of(bounds.min(), bounds.max()),
             BlockPos.ZERO,
             BlockPos.ZERO,
@@ -64,9 +67,7 @@ public record OperationClipboard(List<Part> parts) {
          if (blocks == null || blocks.isEmpty()) {
             throw new IllegalArgumentException("Clipboard part is empty");
          }
-         LinkedHashMap<BlockPos, ClientBlockSnapshot> copy = new LinkedHashMap<>();
-         blocks.forEach((pos, snapshot) -> copy.put(pos.immutable(), snapshot));
-         blocks = Map.copyOf(copy);
+         blocks = BlockPositionMaps.copyOf(blocks);
       }
    }
 }

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render.cache;
 
 import io.github.fastformer.client.render.model.GhostMesh;
+import io.github.fastformer.fastplace.geometry.BlockPositionSets;
 import java.util.Set;
 import java.util.function.Function;
 import net.minecraft.core.BlockPos;
@@ -17,8 +18,10 @@ public final class GhostMeshCache {
 
    public GhostMesh mesh(Set<BlockPos> blocks) {
       if (!this.blocks.equals(blocks)) {
-         this.blocks = Set.copyOf(blocks);
-         this.mesh = generator.apply(this.blocks);
+         Set<BlockPos> nextBlocks = BlockPositionSets.copyOf(blocks);
+         GhostMesh nextMesh = java.util.Objects.requireNonNull(generator.apply(nextBlocks), "mesh");
+         this.blocks = nextBlocks;
+         this.mesh = nextMesh;
       }
       return this.mesh;
    }

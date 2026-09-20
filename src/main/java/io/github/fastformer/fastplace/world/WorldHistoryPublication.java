@@ -19,13 +19,16 @@ import net.minecraft.world.level.Level;
 public final class WorldHistoryPublication {
    private final CompletableFuture<Optional<WorldChangeBatch>> future;
    private final AtomicBoolean cancelled;
+   private final AtomicBoolean prepared;
 
    private WorldHistoryPublication(
       CompletableFuture<Optional<WorldChangeBatch>> future,
-      AtomicBoolean cancelled
+      AtomicBoolean cancelled,
+      AtomicBoolean prepared
    ) {
       this.future = future;
       this.cancelled = cancelled;
+      this.prepared = prepared;
    }
 
    public static WorldHistoryPublication afterJournal(
@@ -36,6 +39,7 @@ public final class WorldHistoryPublication {
       BooleanSupplier cancelled
    ) {
       AtomicBoolean cancelledState = new AtomicBoolean();
+      AtomicBoolean prepared = new AtomicBoolean();
       BooleanSupplier cancellation = cancelled == null ? () -> false : cancelled;
       CompletableFuture<Optional<WorldChangeBatch>> future = journalReady.thenApplyAsync(
          ready -> {
@@ -43,11 +47,15 @@ public final class WorldHistoryPublication {
                return Optional.empty();
             }
             Optional<WorldChangeBatch> batch = WorldChangeBatch.capturePairsByPos(dimension, before, after);
-            return cancellation.getAsBoolean() || cancelledState.get() ? Optional.empty() : batch;
+            if (cancellation.getAsBoolean() || cancelledState.get()) {
+               return Optional.empty();
+            }
+            prepared.set(true);
+            return batch;
          },
          PersistentRecoveryJournal.executor()
       );
-      return new WorldHistoryPublication(future, cancelledState);
+      return new WorldHistoryPublication(future, cancelledState, prepared);
    }
 
    public JournalPreparation poll() {
@@ -55,7 +63,9 @@ public final class WorldHistoryPublication {
          return JournalPreparation.PENDING;
       }
       try {
-         return this.future.join().isPresent() ? JournalPreparation.READY : JournalPreparation.FAILED;
+         this.future.join();
+         return this.prepared.get() && !this.cancelled.get()
+            ? JournalPreparation.READY : JournalPreparation.FAILED;
       } catch (RuntimeException exception) {
          return JournalPreparation.FAILED;
       }

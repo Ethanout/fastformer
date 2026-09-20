@@ -5,10 +5,23 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Set;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.core.Direction;
 import org.junit.jupiter.api.Test;
 
 class ShapeShellMeshTest {
+
+   @Test
+   void hiddenFacesAreNotEmitted() {
+      ShapeShellMesh.Part part = new ShapeShellMesh.Part(
+         List.of(new AABB(0, 0, 0, 1, 1, 1)), ShapeShellMesh.Color.WHITE,
+         ShapeShellMesh.Color.BLACK, true, Set.of(Direction.EAST, Direction.UP)
+      );
+      ShapeShellMesh.Mesh mesh = ShapeShellMesh.build(List.of(part));
+      assertEquals(4, mesh.faces().size());
+      assertTrue(mesh.faces().stream().noneMatch(face -> face.direction() == Direction.EAST || face.direction() == Direction.UP));
+   }
    private static final ShapeShellMesh.Part CUBE = new ShapeShellMesh.Part(
       List.of(new AABB(0, 0, 0, 1, 1, 1)),
       ShapeShellMesh.Color.WHITE,
@@ -38,6 +51,30 @@ class ShapeShellMeshTest {
       assertEquals(10, mesh.faces().size());
       assertEquals(12, mesh.edges().size());
       assertTrue(mesh.edges().stream().anyMatch(edge -> edge.from().x == 0.0 && edge.to().x == 2.0));
+   }
+
+   @Test
+   void adjacentIndependentCullGroupsKeepBothContactFaces() {
+      ShapeShellMesh.Part first = new ShapeShellMesh.Part(
+         List.of(new AABB(0, 0, 0, 1, 1, 1)),
+         ShapeShellMesh.Color.WHITE,
+         ShapeShellMesh.Color.BLACK,
+         true,
+         Set.of(),
+         1L
+      );
+      ShapeShellMesh.Part second = new ShapeShellMesh.Part(
+         List.of(new AABB(1, 0, 0, 2, 1, 1)),
+         new ShapeShellMesh.Color(1.0F, 0.78F, 0.12F),
+         ShapeShellMesh.Color.BLACK,
+         true,
+         Set.of(),
+         2L
+      );
+
+      ShapeShellMesh.Mesh mesh = ShapeShellMesh.build(List.of(first, second));
+
+      assertEquals(12, mesh.faces().size());
    }
 
    @Test

@@ -6,15 +6,20 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.neoforged.neoforge.client.RenderTypeHelper;
+import net.minecraft.util.RandomSource;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.world.phys.AABB;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.client.interaction.InteractionObject;
+import io.github.fastformer.client.interaction.PartLabelInteraction;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 
 /** Renders client workspace blocks and the small labels attached to them. */
@@ -30,10 +35,24 @@ public final class WorkspacePreviewRenderer {
       Map<BlockPos, ClientBlockSnapshot> blocks, float red, float green, float blue,
       float alpha, float worldOpacity
    ) {
+      renderBlocks(poseStack, buffers, minecraft, camera, blocks, blocks, red, green, blue, alpha, worldOpacity);
+   }
+
+   public static void renderBlocks(
+      PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
+      Map<BlockPos, ClientBlockSnapshot> blocks,
+      Map<BlockPos, ClientBlockSnapshot> occlusionBlocks,
+      float red, float green, float blue, float alpha, float worldOpacity
+   ) {
       com.mojang.blaze3d.systems.RenderSystem.enableBlend();
       com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
       com.mojang.blaze3d.systems.RenderSystem.setShaderColor(red, green, blue, alpha * worldOpacity);
       try {
+         Map<BlockPos, net.minecraft.world.level.block.state.BlockState> states = new java.util.HashMap<>();
+         occlusionBlocks.forEach((pos, snapshot) -> states.put(pos, snapshot.state()));
+         net.minecraft.world.level.BlockAndTintGetter previewLevel = minecraft.level == null
+            ? null : PreviewBlockOcclusion.level(minecraft.level, states);
+         BlockRenderDispatcher renderer = minecraft.getBlockRenderer();
          for (var entry : blocks.entrySet()) {
             poseStack.pushPose();
             poseStack.translate(
@@ -41,10 +60,15 @@ public final class WorkspacePreviewRenderer {
                entry.getKey().getY() - camera.y,
                entry.getKey().getZ() - camera.z
             );
-            minecraft.getBlockRenderer().renderSingleBlock(
-               entry.getValue().state(), poseStack, buffers,
-               LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY
-            );
+            net.minecraft.world.level.block.state.BlockState state = entry.getValue().state();
+            RenderType chunkType = ItemBlockRenderTypes.getRenderType(state, false);
+            RenderType entityType = RenderTypeHelper.getEntityRenderType(chunkType, false);
+            if (previewLevel != null) {
+               renderer.renderBatched(
+                  state, entry.getKey(), previewLevel, poseStack, buffers.getBuffer(entityType), true,
+                  RandomSource.create(entry.getKey().asLong())
+               );
+            }
             poseStack.popPose();
          }
       } finally {
@@ -56,22 +80,22 @@ public final class WorkspacePreviewRenderer {
 
    public static void renderPartLabel(
       PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
-      Vec3 center, int id, boolean selected, boolean hovered, boolean controlPreview, float pulse
+      InteractionObject object, PartLabelInteraction.Context context
    ) {
-      String text = hovered && controlPreview
-         ? "#" + id + (selected ? "  Ctrl · 取消选择" : "  Ctrl · 追加选择")
-         : hovered ? "#" + id + " part" : selected ? "#" + id + " selected" : "#" + id;
+      var label = PartLabelInteraction.present(object, context);
+      Vec3 anchor = label.anchor();
+      Component text = label.text();
+      var appearance = label.appearance();
       poseStack.pushPose();
-      float emphasis = hovered ? 1.28F + pulse * 0.08F : selected ? 1.14F : 1.0F;
-      poseStack.translate(center.x - camera.x, center.y - camera.y + 0.22 + (hovered ? pulse * 0.05F : 0.0F), center.z - camera.z);
+      poseStack.translate(anchor.x - camera.x, anchor.y - camera.y, anchor.z - camera.z);
       poseStack.mulPose(minecraft.gameRenderer.getMainCamera().rotation());
-      poseStack.scale(-0.025F * emphasis, -0.025F * emphasis, 0.025F * emphasis);
+      poseStack.scale(-appearance.scale(), -appearance.scale(), appearance.scale());
       float x = -minecraft.font.width(text) * 0.5F;
       minecraft.font.drawInBatch(
          text, x, -minecraft.font.lineHeight * 0.5F,
-         hovered ? 0xFF83F5FF : selected ? 0xFFFFD66B : 0xFFB9D7E8,
+         appearance.textColor(),
          false, poseStack.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
-         hovered ? 0xC0004050 : selected ? 0xA0603D00 : 0x50000000, 0x00F000F0
+         appearance.backgroundColor(), 0x00F000F0
       );
       poseStack.popPose();
    }

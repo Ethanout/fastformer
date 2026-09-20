@@ -1,6 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -12,6 +13,22 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class GeometryInteractionTargetTest {
+
+   @Test
+   void everyBuiltInTargetProvidesHoverText() {
+      assertInstanceOf(net.minecraft.network.chat.Component.class,
+         GeometryInteractionTarget.controlPoint(0, new Vec3(0.5, 1.5, 2.5)).requireHoverText());
+      assertInstanceOf(net.minecraft.network.chat.Component.class,
+         GeometryInteractionTarget.closePath(0, new Vec3(0.5, 1.5, 2.5)).requireHoverText());
+   }
+
+   @Test
+   void hitDelegatesHoverTextToResolvedTarget() {
+      GeometryInteractionTarget target = GeometryInteractionTarget.controlPoint(0, new Vec3(0.5, 0.5, 0.5));
+      GeometryInteractionHit hit = GeometryInteractionHit.from(
+         new Vec3(0.5, 0.5, -2.0), new Vec3(0.0, 0.0, 1.0), 8.0, target);
+      assertInstanceOf(net.minecraft.network.chat.Component.class, hit.hoverText());
+   }
    @Test
    void selectControlPointBindsOnlySingleClicksAndDoesNotMutateSource() {
       PointerInteraction source = PointerInteraction.empty();

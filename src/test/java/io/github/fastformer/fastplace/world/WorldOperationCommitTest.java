@@ -13,6 +13,28 @@ import org.junit.jupiter.api.Test;
 
 class WorldOperationCommitTest {
    @Test
+   void unchangedFinalStateCompletesWithoutAnUndoEntry() {
+      BlockPos position = new BlockPos(2, 3, 4);
+      ReversibleBlockSnapshot state = snapshot(position);
+      WorldOperationCommit commit = WorldOperationCommit.begin(
+         net.minecraft.world.level.Level.OVERWORLD, List.of(state), Map.of(position, state), null
+      );
+      commit.completion().join();
+      org.junit.jupiter.api.Assertions.assertEquals(JournalPreparation.READY, commit.poll());
+      assertTrue(commit.batch().isEmpty());
+   }
+
+   @Test
+   void cancelledEmptyCommitDoesNotBecomeSuccessful() {
+      WorldOperationCommit commit = WorldOperationCommit.begin(
+         net.minecraft.world.level.Level.OVERWORLD, List.of(), Map.of(), null
+      );
+      commit.completion().join();
+      commit.cancel();
+      org.junit.jupiter.api.Assertions.assertEquals(JournalPreparation.FAILED, commit.poll());
+   }
+
+   @Test
    void batchCompressionWaitsForJournalCorrection() {
       CompletableFuture<Boolean> journal = new CompletableFuture<>();
       AtomicBoolean batchStarted = new AtomicBoolean();

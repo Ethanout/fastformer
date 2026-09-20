@@ -6,6 +6,7 @@ import io.github.fastformer.fastplace.FillMode;
 import io.github.fastformer.fastplace.PolyhedronSizeMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.ControlPointRole;
+import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -16,6 +17,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 
 public record GeometryPreviewPayload(
+   long revision,
    boolean active,
    GeometryMode mode,
    List<BlockPos> points,
@@ -41,7 +43,8 @@ public record GeometryPreviewPayload(
    Vec3 polyhedronLocalScale,
    Vec3 polyhedronWorldScale,
    boolean polyhedronGizmoLocal,
-   int selectedPointIndex
+   int selectedPointIndex,
+   OperationCallbackScope callbackScope
 )
    implements CustomPacketPayload {
    private static final int MAX_PREVIEW_POINTS = 1024;
@@ -51,6 +54,7 @@ public record GeometryPreviewPayload(
    );
 
    public GeometryPreviewPayload {
+      revision = Math.max(0L, revision);
       points = List.copyOf(points);
       pointLocations = pointLocations == null
          ? points.stream().map(Vec3::atCenterOf).toList()
@@ -78,10 +82,74 @@ public record GeometryPreviewPayload(
       polyhedronLocalScale = normalizedScale(polyhedronLocalScale);
       polyhedronWorldScale = normalizedScale(polyhedronWorldScale);
       selectedPointIndex = selectedPointIndex >= 0 && selectedPointIndex < points.size() ? selectedPointIndex : -1;
+      if (callbackScope == null) {
+         throw new IllegalArgumentException("Geometry callback scope is required");
+      }
+   }
+
+   public GeometryPreviewPayload(
+      boolean active,
+      GeometryMode mode,
+      List<BlockPos> points,
+      List<Vec3> pointLocations,
+      List<ControlPointRole> pointRoles,
+      boolean closed,
+      boolean ctrlHeld,
+      BlockPos extrusion,
+      int polyhedronShapeVariant,
+      int coneShapeVariant,
+      int compoundShapeVariant,
+      PolyhedronSizeMode polyhedronSizeMode,
+      FillMode fillMode,
+      ConePlaneMode conePlaneMode,
+      double coneRadius,
+      double coneScaleX,
+      double coneScaleZ,
+      double coneTopScaleOffset,
+      Vec3 coneTopOffset,
+      double coneRotationRadians,
+      boolean coneGizmoLocal,
+      double[] rotation,
+      Vec3 polyhedronLocalScale,
+      Vec3 polyhedronWorldScale,
+      boolean polyhedronGizmoLocal,
+      int selectedPointIndex
+   ) {
+      this(
+         0L,
+         active,
+         mode,
+         points,
+         pointLocations,
+         pointRoles,
+         closed,
+         ctrlHeld,
+         extrusion,
+         polyhedronShapeVariant,
+         coneShapeVariant,
+         compoundShapeVariant,
+         polyhedronSizeMode,
+         fillMode,
+         conePlaneMode,
+         coneRadius,
+         coneScaleX,
+         coneScaleZ,
+         coneTopScaleOffset,
+         coneTopOffset,
+         coneRotationRadians,
+         coneGizmoLocal,
+         rotation,
+         polyhedronLocalScale,
+         polyhedronWorldScale,
+         polyhedronGizmoLocal,
+         selectedPointIndex,
+         OperationCallbackScope.unscoped()
+      );
    }
 
    private GeometryPreviewPayload(FriendlyByteBuf buffer) {
       this(
+         buffer.readVarLong(),
          buffer.readBoolean(),
          buffer.readEnum(GeometryMode.class),
          readPoints(buffer),
@@ -107,11 +175,13 @@ public record GeometryPreviewPayload(
          readVec3(buffer),
          readVec3(buffer),
          buffer.readBoolean(),
-         buffer.readVarInt()
+         buffer.readVarInt(),
+         OperationCallbackScope.STREAM_CODEC.decode(buffer)
       );
    }
 
    private void write(FriendlyByteBuf buffer) {
+      buffer.writeVarLong(this.revision);
       buffer.writeBoolean(this.active);
       buffer.writeEnum(this.mode);
       buffer.writeCollection(this.points, (writeBuffer, point) -> writeBuffer.writeBlockPos(point));
@@ -140,6 +210,7 @@ public record GeometryPreviewPayload(
       writeVec3(buffer, this.polyhedronWorldScale);
       buffer.writeBoolean(this.polyhedronGizmoLocal);
       buffer.writeVarInt(this.selectedPointIndex);
+      OperationCallbackScope.STREAM_CODEC.encode(buffer, this.callbackScope);
    }
 
    public static GeometryPreviewPayload inactive() {
@@ -170,6 +241,72 @@ public record GeometryPreviewPayload(
          new Vec3(1.0, 1.0, 1.0),
          false,
          -1
+      );
+   }
+
+   public GeometryPreviewPayload withRevision(long revision) {
+      return new GeometryPreviewPayload(
+         revision,
+         this.active,
+         this.mode,
+         this.points,
+         this.pointLocations,
+         this.pointRoles,
+         this.closed,
+         this.ctrlHeld,
+         this.extrusion,
+         this.polyhedronShapeVariant,
+         this.coneShapeVariant,
+         this.compoundShapeVariant,
+         this.polyhedronSizeMode,
+         this.fillMode,
+         this.conePlaneMode,
+         this.coneRadius,
+         this.coneScaleX,
+         this.coneScaleZ,
+         this.coneTopScaleOffset,
+         this.coneTopOffset,
+         this.coneRotationRadians,
+         this.coneGizmoLocal,
+         this.rotation,
+         this.polyhedronLocalScale,
+         this.polyhedronWorldScale,
+         this.polyhedronGizmoLocal,
+         this.selectedPointIndex,
+         this.callbackScope
+      );
+   }
+
+   public GeometryPreviewPayload withCallbackScope(OperationCallbackScope callbackScope) {
+      return new GeometryPreviewPayload(
+         this.revision,
+         this.active,
+         this.mode,
+         this.points,
+         this.pointLocations,
+         this.pointRoles,
+         this.closed,
+         this.ctrlHeld,
+         this.extrusion,
+         this.polyhedronShapeVariant,
+         this.coneShapeVariant,
+         this.compoundShapeVariant,
+         this.polyhedronSizeMode,
+         this.fillMode,
+         this.conePlaneMode,
+         this.coneRadius,
+         this.coneScaleX,
+         this.coneScaleZ,
+         this.coneTopScaleOffset,
+         this.coneTopOffset,
+         this.coneRotationRadians,
+         this.coneGizmoLocal,
+         this.rotation,
+         this.polyhedronLocalScale,
+         this.polyhedronWorldScale,
+         this.polyhedronGizmoLocal,
+         this.selectedPointIndex,
+         callbackScope
       );
    }
 

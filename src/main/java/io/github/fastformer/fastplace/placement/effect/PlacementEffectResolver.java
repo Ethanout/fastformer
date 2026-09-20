@@ -5,6 +5,8 @@ import io.github.fastformer.fastplace.FastPlaceSettings;
 import io.github.fastformer.fastplace.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.session.FastPlaceSession;
 import java.util.Optional;
+import java.util.List;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.state.BlockState;
@@ -21,6 +23,17 @@ public final class PlacementEffectResolver {
       BlockState prototype,
       FastPlaceGeometry.Modes modes
    ) {
+      return resolve(player, settings, session, prototype, modes, session.points());
+   }
+
+   public static Optional<ResolvedPlacementEffect> resolve(
+      Player player,
+      FastPlaceSettings settings,
+      FastPlaceSession session,
+      BlockState prototype,
+      FastPlaceGeometry.Modes modes,
+      List<BlockPos> points
+   ) {
       PlacementContextSnapshot placementContext = session.placementContext();
       Direction.Axis baseAxis = placementContext == null
          ? Direction.Axis.Y
@@ -32,7 +45,7 @@ public final class PlacementEffectResolver {
             player.getMainHandItem(),
             prototype,
             baseAxis,
-            session.points(),
+            points,
             modes,
             session.polygonHeightConfirmed(),
             session.polygonVolumeShape(),

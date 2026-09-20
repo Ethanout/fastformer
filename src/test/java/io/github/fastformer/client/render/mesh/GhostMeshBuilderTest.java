@@ -15,4 +15,15 @@ class GhostMeshBuilderTest {
       assertEquals(6, mesh.faces().size());
       assertEquals(12, mesh.edges().size());
    }
+
+   @Test
+   void adjacentConfirmedAndPendingVoxelsCullTheirSharedFaceWhenComposed() {
+      GhostMesh mesh = GhostMeshBuilder.build(
+         Set.of(BlockPos.ZERO, new BlockPos(1, 0, 0)), true, true, true
+      );
+
+      // The two layers are composed before meshing, so the shared plane is
+      // absent and the remaining coplanar faces merge into a box shell.
+      assertEquals(6, mesh.faces().size());
+   }
 }

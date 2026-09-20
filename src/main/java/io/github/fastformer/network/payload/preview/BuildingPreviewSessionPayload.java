@@ -1,6 +1,7 @@
 package io.github.fastformer.network.payload.preview;
 
-import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -9,7 +10,9 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
 /** Wire payload for the mutable interaction session portion of a building preview. */
-public record BuildingPreviewSessionPayload(long revision, BuildingPreviewSession value) implements CustomPacketPayload {
+public record BuildingPreviewSessionPayload(
+   long revision, BuildingPreviewSession value, OperationCallbackScope callbackScope
+) implements CustomPacketPayload {
    public static final Type<BuildingPreviewSessionPayload> TYPE = new Type<>(
       ResourceLocation.fromNamespaceAndPath("fastformer", "building_preview_session")
    );
@@ -19,12 +22,19 @@ public record BuildingPreviewSessionPayload(long revision, BuildingPreviewSessio
    );
 
    public BuildingPreviewSessionPayload(BuildingPreviewSession value) {
-      this(0L, value);
+      this(0L, value, OperationCallbackScope.unscoped());
    }
 
    public BuildingPreviewSessionPayload(long revision, BuildingPreviewSession value) {
-      this.revision = Math.max(0L, revision);
-      this.value = value == null ? inactive() : value;
+      this(revision, value, OperationCallbackScope.unscoped());
+   }
+
+   public BuildingPreviewSessionPayload {
+      revision = Math.max(0L, revision);
+      value = value == null ? inactive() : value;
+      if (callbackScope == null) {
+         throw new IllegalArgumentException("Building callback scope is required");
+      }
    }
 
    public BuildingPreviewSessionPayload(
@@ -42,7 +52,7 @@ public record BuildingPreviewSessionPayload(long revision, BuildingPreviewSessio
       this(0L, new BuildingPreviewSession(
          enabled, middleConfirmEnabled, active, ctrlHeld, polygonClosed,
          polygonHeightConfirmed, polygonVolumeShape, points, freeScrollOffset, placementContext
-      ));
+      ), OperationCallbackScope.unscoped());
    }
 
    private BuildingPreviewSessionPayload(FriendlyByteBuf buffer) {
@@ -51,7 +61,7 @@ public record BuildingPreviewSessionPayload(long revision, BuildingPreviewSessio
          buffer.readBoolean(), buffer.readBoolean(), buffer.readEnum(PolygonVolumeShape.class),
          BuildingPreviewCodec.readPoints(buffer), buffer.readBlockPos(),
          BuildingPreviewCodec.readPlacementContext(buffer)
-      ));
+      ), OperationCallbackScope.STREAM_CODEC.decode(buffer));
    }
 
    private void write(FriendlyByteBuf buffer) {
@@ -66,6 +76,7 @@ public record BuildingPreviewSessionPayload(long revision, BuildingPreviewSessio
       BuildingPreviewCodec.writePoints(buffer, value.points());
       buffer.writeBlockPos(value.freeScrollOffset());
       BuildingPreviewCodec.writePlacementContext(buffer, value.placementContext());
+      OperationCallbackScope.STREAM_CODEC.encode(buffer, callbackScope);
    }
 
    private static BuildingPreviewSession inactive() {

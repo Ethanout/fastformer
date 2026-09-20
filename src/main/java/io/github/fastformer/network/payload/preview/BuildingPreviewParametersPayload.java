@@ -1,13 +1,14 @@
 package io.github.fastformer.network.payload.preview;
 
-import io.github.fastformer.fastplace.FaceMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.FaceRasterizationMode;
 import io.github.fastformer.fastplace.FillMode;
-import io.github.fastformer.fastplace.LineMode;
-import io.github.fastformer.fastplace.PointMode;
-import io.github.fastformer.fastplace.RaycastPlacement;
-import io.github.fastformer.fastplace.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -16,7 +17,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 
 /** Wire payload for geometry and interaction parameters of a building preview. */
-public record BuildingPreviewParametersPayload(long revision, BuildingPreviewParameters value) implements CustomPacketPayload {
+public record BuildingPreviewParametersPayload(
+   long revision, BuildingPreviewParameters value, OperationCallbackScope callbackScope
+) implements CustomPacketPayload {
    public static final Type<BuildingPreviewParametersPayload> TYPE = new Type<>(
       ResourceLocation.fromNamespaceAndPath("fastformer", "building_preview_parameters")
    );
@@ -26,12 +29,19 @@ public record BuildingPreviewParametersPayload(long revision, BuildingPreviewPar
    );
 
    public BuildingPreviewParametersPayload(BuildingPreviewParameters value) {
-      this(0L, value);
+      this(0L, value, OperationCallbackScope.unscoped());
    }
 
    public BuildingPreviewParametersPayload(long revision, BuildingPreviewParameters value) {
-      this.revision = Math.max(0L, revision);
-      this.value = value == null ? inactive() : value;
+      this(revision, value, OperationCallbackScope.unscoped());
+   }
+
+   public BuildingPreviewParametersPayload {
+      revision = Math.max(0L, revision);
+      value = value == null ? inactive() : value;
+      if (callbackScope == null) {
+         throw new IllegalArgumentException("Building callback scope is required");
+      }
    }
 
    public BuildingPreviewParametersPayload(
@@ -53,7 +63,7 @@ public record BuildingPreviewParametersPayload(long revision, BuildingPreviewPar
          angleDistance, faceBaseOffset, volumeBaseOffset, perpendicularAnchor, angleDegrees,
          pointMode, raycastPlacement, lineMode, faceMode, volumeMode, fillMode,
          faceTieBias, faceRasterizationMode
-      ));
+      ), OperationCallbackScope.unscoped());
    }
 
    private BuildingPreviewParametersPayload(FriendlyByteBuf buffer) {
@@ -63,7 +73,7 @@ public record BuildingPreviewParametersPayload(long revision, BuildingPreviewPar
          buffer.readEnum(RaycastPlacement.class), buffer.readEnum(LineMode.class),
          buffer.readEnum(FaceMode.class), buffer.readEnum(VolumeMode.class), buffer.readEnum(FillMode.class),
          buffer.readEnum(LineTieBias.class), buffer.readEnum(FaceRasterizationMode.class)
-      ));
+      ), OperationCallbackScope.STREAM_CODEC.decode(buffer));
    }
 
    private void write(FriendlyByteBuf buffer) {
@@ -81,12 +91,13 @@ public record BuildingPreviewParametersPayload(long revision, BuildingPreviewPar
       buffer.writeEnum(value.fillMode());
       buffer.writeEnum(value.faceTieBias());
       buffer.writeEnum(value.faceRasterizationMode());
+      OperationCallbackScope.STREAM_CODEC.encode(buffer, callbackScope);
    }
 
    private static BuildingPreviewParameters inactive() {
       return new BuildingPreviewParameters(
          5, Vec3.ZERO, Vec3.ZERO, BlockPos.ZERO, 0.0, PointMode.RAYCAST,
-         RaycastPlacement.EMBEDDED, LineMode.AXIS, FaceMode.POLYGON,
+         RaycastPlacement.SURFACE, LineMode.AXIS, FaceMode.POLYGON,
          VolumeMode.PERPENDICULAR_TO_FACE, FillMode.OUTLINE,
          LineTieBias.DEFAULT, FaceRasterizationMode.POINT_SWEEP
       );

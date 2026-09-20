@@ -48,4 +48,58 @@ class DisappearanceStateTest {
       assertEquals(0.55F, state.visibility(), 1.0E-6F);
       assertEquals(0.525F, state.visibility(0.5F), 1.0E-6F);
    }
+
+   @Test
+   void acceleratesAfterTwoTicksOnTheSameTarget() {
+      DisappearanceState state = new DisappearanceState(20);
+
+      state.tick(true, true, "stone");
+      state.tick(true, true, "stone");
+      state.tick(true, true, "stone");
+
+      assertTrue(state.accelerated());
+      assertEquals(5, state.count());
+   }
+
+   @Test
+   void switchingTargetRestoresNormalRate() {
+      DisappearanceState state = new DisappearanceState(20);
+
+      state.tick(true, true, "stone");
+      state.tick(true, true, "stone");
+      state.tick(true, true, "stone");
+      state.tick(true, true, "dirt");
+
+      assertFalse(state.accelerated());
+      assertEquals(6, state.count());
+   }
+
+   @Test
+   void stableTargetAcceleratesVisibilityRecoveryOutsideRange() {
+      DisappearanceState state = new DisappearanceState(20);
+      for (int tick = 0; tick < 10; tick++) {
+         state.tick(true, true, "stone");
+      }
+      int beforeRecovery = state.count();
+
+      state.tick(true, false, "stone");
+
+      assertTrue(state.accelerated());
+      assertEquals(beforeRecovery - 3, state.count());
+      assertEquals(1.0F - (float)(beforeRecovery - 3) / 20.0F, state.visibility(), 1.0E-6F);
+   }
+
+   @Test
+   void targetSwitchRestoresNormalVisibilityRecoveryRate() {
+      DisappearanceState state = new DisappearanceState(20);
+      for (int tick = 0; tick < 10; tick++) {
+         state.tick(true, true, "stone");
+      }
+      int beforeRecovery = state.count();
+
+      state.tick(true, false, "dirt");
+
+      assertFalse(state.accelerated());
+      assertEquals(beforeRecovery - 1, state.count());
+   }
 }

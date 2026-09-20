@@ -1,5 +1,10 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.world.*;
 
@@ -54,6 +59,7 @@ public final class ServerInputDispatcher {
       FastPlaceManager.cancel(player);
       FastPlaceManager.cancelTask(player);
       OperationManager.cancelTask(player);
+      WorldHistoryManager.cancel(player);
       if (taskWasActive && !PersistentRecoveryJournal.writesAllowed()) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
       }
@@ -145,7 +151,7 @@ public final class ServerInputDispatcher {
       };
    }
 
-   public static void startPlacement(ServerPlayer player, boolean embedded) {
+   public static void startPlacement(ServerPlayer player, RaycastPlacement placement) {
       if (interactionBlocked(player) || !canOperate(player)
          || !PlaceableItems.isPlaceable(player.getMainHandItem())
          || FastPlaceManager.active(player)
@@ -155,17 +161,7 @@ public final class ServerInputDispatcher {
       }
       BlockHitResult hit = raycastBlocks(player, EXTENDED_REACH);
       if (hit.getType() == HitResult.Type.BLOCK) {
-         boolean previousModifier = FastPlaceManager.modifierHeld(player);
-         if (embedded) {
-            FastPlaceManager.setModifierHeld(player, true);
-         }
-         try {
-            FastPlaceManager.addPoint(player, hit);
-         } finally {
-            if (embedded) {
-               FastPlaceManager.setModifierHeld(player, previousModifier);
-            }
-         }
+         FastPlaceManager.addInitialPoint(player, hit, placement == RaycastPlacement.EMBEDDED);
       }
    }
 
@@ -515,6 +511,12 @@ public final class ServerInputDispatcher {
    }
 
    public static void quickShape(ServerPlayer player) {
+      FastPlaceSession session = FastPlaceManager.session(player).orElse(null);
+      if (session != null && io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
+         FastPlaceSettings.load(player).faceMode(), session.points().size(), session.polygonClosed()
+      )) {
+         return;
+      }
       rightClickItem(player);
       confirm(player);
    }
@@ -527,9 +529,26 @@ public final class ServerInputDispatcher {
       OperationManager.applyConfirmed(player, copy);
    }
 
-   public static boolean applyWorkspace(ServerPlayer player, UUID transferId, OperationWorkspacePlan plan) {
+   /**
+    * Admits one workspace submission and reports what happened.
+    *
+    * <p>A refused admission and a replayed transfer are different answers. The caller must
+    * not flatten them into a failure, because a replay of applied work would then record a
+    * failure for work that the world already holds.</p>
+    *
+    * <p>The ledger is examined before the gates. A gate refuses new work, and a replay is
+    * not new work: it reports a result that already exists.</p>
+    */
+   public static io.github.fastformer.fastplace.WorkspaceAdmission applyWorkspace(
+      ServerPlayer player, UUID transferId, OperationWorkspacePlan plan
+   ) {
+      io.github.fastformer.network.payload.operation.OperationSubmissionOutcome recorded =
+         OperationManager.recordedOutcome(player, transferId);
+      if (recorded != io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.UNKNOWN) {
+         return io.github.fastformer.fastplace.WorkspaceAdmission.replayed(recorded);
+      }
       if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)) {
-         return false;
+         return io.github.fastformer.fastplace.WorkspaceAdmission.rejected();
       }
       return OperationManager.applyWorkspace(player, transferId, plan);
    }
@@ -584,6 +603,9 @@ public final class ServerInputDispatcher {
    }
 
    private static boolean requestWorldUndo(ServerPlayer player, int count, boolean allowSessionRollback) {
+      if (canOperate(player) && WorldHistoryManager.snapshotRetryAvailable(player)) {
+         return WorldHistoryManager.requestUndo(player, count);
+      }
       UndoRoute route = undoRoute(
          canOperate(player),
          WorldHistoryManager.busy(player),
@@ -657,6 +679,10 @@ public final class ServerInputDispatcher {
    }
 
    public static void redo(ServerPlayer player) {
+      if (canOperate(player) && WorldHistoryManager.snapshotRetryAvailable(player)) {
+         WorldHistoryManager.requestRedo(player, 1);
+         return;
+      }
       if (!canOperate(player) || WorldHistoryManager.busy(player)) {
          return;
       }

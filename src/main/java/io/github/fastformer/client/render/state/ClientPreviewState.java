@@ -25,6 +25,8 @@ public final class ClientPreviewState {
    private long buildingSessionRevision;
    private long buildingParametersRevision;
    private long buildingEffectRevision;
+   private long geometryRevision = -1L;
+   private long activityRevision = -1L;
    /** Ticks an unanswered connection boundary waits before it is dropped. */
    private static final int RECONNECT_BOUNDARY_IDLE_TICKS = 40;
    private boolean reconnectRestoreArmed;
@@ -104,6 +106,8 @@ public final class ClientPreviewState {
       buildingSessionRevision = 0L;
       buildingParametersRevision = 0L;
       buildingEffectRevision = 0L;
+      geometryRevision = -1L;
+      activityRevision = -1L;
       applyBuilding(BuildingPreviewPayload.inactive());
       applyOperation(OperationPreviewPayload.inactive());
       applyGeometry(GeometryPreviewPayload.inactive());
@@ -328,15 +332,27 @@ public final class ClientPreviewState {
       revision++;
    }
 
-   public void applyGeometry(GeometryPreviewPayload payload) {
-      geometry = Objects.requireNonNull(payload, "payload");
+   public boolean applyGeometry(GeometryPreviewPayload payload) {
+      payload = Objects.requireNonNull(payload, "payload");
+      if (payload.revision() <= geometryRevision) {
+         return false;
+      }
+      geometry = payload;
+      geometryRevision = payload.revision();
       revision++;
       geometryVersion++;
+      return true;
    }
 
-   public void applyActivity(ActivityStatePayload payload) {
-      activity = Objects.requireNonNull(payload, "payload").activity();
+   public boolean applyActivity(ActivityStatePayload payload) {
+      payload = Objects.requireNonNull(payload, "payload");
+      if (payload.revision() <= activityRevision) {
+         return false;
+      }
+      activity = payload.activity();
+      activityRevision = payload.revision();
       revision++;
+      return true;
    }
 
    /** Server preview parts replayed at a reconnect boundary, in publication order. */

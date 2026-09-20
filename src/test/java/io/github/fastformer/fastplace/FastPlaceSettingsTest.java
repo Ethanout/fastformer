@@ -1,5 +1,10 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;
@@ -75,6 +80,17 @@ class FastPlaceSettingsTest {
    }
 
    @Test
+   void placementUpdatesDefaultToClientOnlyAndKeepAnExplicitNormalSetting() {
+      FastPlaceSettings defaults = FastPlaceSettings.fromTag(new CompoundTag());
+      CompoundTag normal = new CompoundTag();
+      normal.putString("placementUpdateMode", PlacementUpdateMode.NORMAL.name());
+
+      assertEquals(PlacementUpdateMode.CLIENT_ONLY, defaults.placementUpdateMode());
+      assertEquals(PlacementUpdateMode.CLIENT_ONLY.name(), defaults.toTag().getString("placementUpdateMode"));
+      assertEquals(PlacementUpdateMode.NORMAL, FastPlaceSettings.fromTag(normal).placementUpdateMode());
+   }
+
+   @Test
    void operationSelectionModePersistsAcrossSessions() {
       CompoundTag tag = new CompoundTag();
       tag.putString("operationSelectionMode", OperationSelectionMode.PRISM.name());
@@ -142,14 +158,14 @@ class FastPlaceSettingsTest {
    }
 
    @Test
-   void quickRaycastDefaultsToEmbeddedAndAltKeepsEmbedded() {
+   void quickRaycastDefaultsToSurfaceAndAltSelectsEmbedded() {
       CompoundTag tag = new CompoundTag();
       tag.putString("lineMode", LineMode.RAYCAST.name());
       FastPlaceSettings settings = FastPlaceSettings.fromTag(tag);
-      assertEquals(RaycastPlacement.EMBEDDED, settings.raycastPlacement());
+      assertEquals(RaycastPlacement.SURFACE, settings.modes().raycastPlacement());
       FastPlaceSession session = new FastPlaceSession();
 
-      assertEquals(RaycastPlacement.EMBEDDED, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
+      assertEquals(RaycastPlacement.SURFACE, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
 
       session.setModifierHeld(true);
       assertEquals(RaycastPlacement.EMBEDDED, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
@@ -160,20 +176,21 @@ class FastPlaceSettingsTest {
          net.minecraft.world.phys.Vec3.ZERO,
          new net.minecraft.world.phys.Vec3(0.0, 0.0, 1.0)
       );
-      assertEquals(RaycastPlacement.EMBEDDED, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
+      assertEquals(RaycastPlacement.SURFACE, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
 
       session.setModifierHeld(true);
       assertEquals(RaycastPlacement.EMBEDDED, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
    }
 
    @Test
-   void explicitSurfaceSettingRemainsAvailableUntilAltEmbeds() {
+   void legacyRaycastSettingDoesNotPersistOrOverrideInputSemantics() {
       CompoundTag tag = new CompoundTag();
-      tag.putString("lineMode", LineMode.RAYCAST.name());
-      tag.putString("raycastPlacement", RaycastPlacement.SURFACE.name());
+      tag.putString("raycastPlacement", RaycastPlacement.EMBEDDED.name());
       FastPlaceSettings settings = FastPlaceSettings.fromTag(tag);
       FastPlaceSession session = new FastPlaceSession();
 
+      assertFalse(settings.toTag().contains("raycastPlacement"));
+      assertEquals(RaycastPlacement.SURFACE, settings.modes().raycastPlacement());
       assertEquals(RaycastPlacement.SURFACE, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
       session.setModifierHeld(true);
       assertEquals(RaycastPlacement.EMBEDDED, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());

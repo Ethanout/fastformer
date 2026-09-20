@@ -3,9 +3,9 @@ package io.github.fastformer.fastplace.task;
 import io.github.fastformer.fastplace.world.JournalPreparation;
 import io.github.fastformer.fastplace.OperationConflictMode;
 import io.github.fastformer.fastplace.OperationExecutionSemantics;
-import io.github.fastformer.fastplace.OperationMode;
-import io.github.fastformer.fastplace.OperationSelectionVolume;
-import io.github.fastformer.fastplace.OperationStackRegion;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
@@ -57,6 +57,8 @@ public final class SelectionOperationTask implements WorldOperationTask {
    private final ResourceKey<Level> dimension;
    private final WorldOperationMetrics metrics = new WorldOperationMetrics();
    private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
+   /** The only object that may release this task's dimension lease. */
+   private WorldWriteCoordinator.Lease lease;
    private MemoryReservation memoryReservation;
    private boolean memoryThrottled;
    private final List<ReversibleBlockSnapshot> source = new ArrayList<>();
@@ -507,7 +509,15 @@ public final class SelectionOperationTask implements WorldOperationTask {
       }
       boolean movingSource = overlappingPlacementPositions.contains(pos) && transaction.afterAt(pos) == null;
       if (conflictMode != OperationConflictMode.REPLACE && !movingSource && !current.canBeReplaced()) {
+         // A move must never be reported as successful after its source was
+         // cleared but KEEP_EXISTING skipped the destination. Mark the task
+         // failed so OperationManager transfers the journal to recovery;
+         // restoreSkippedSource keeps the source visible until that rollback
+         // completes.
          restoreSkippedSource(level, sourceBlock);
+         if (clearsSource()) {
+            failed = true;
+         }
          return;
       }
       ReversibleBlockSnapshot before = expectedSnapshot;
@@ -785,16 +795,21 @@ public final class SelectionOperationTask implements WorldOperationTask {
 
    @Override
    public boolean acquireLease(WorldTaskContext context) {
-      boolean acquired = WorldWriteCoordinator.tryAcquire(context.server(), dimension, context.owner());
-      if (acquired) {
-         this.metrics.leaseAcquired();
+      if (this.lease != null && WorldWriteCoordinator.renew(this.lease)) {
+         return true;
       }
-      return acquired;
+      this.lease = WorldWriteCoordinator.takeOver(context.server(), dimension, context.owner());
+      if (this.lease == null) {
+         return false;
+      }
+      this.metrics.leaseAcquired();
+      return true;
    }
 
    @Override
    public void releaseLease(WorldTaskContext context) {
-      WorldWriteCoordinator.release(context.server(), dimension, context.owner());
+      WorldWriteCoordinator.release(this.lease);
+      this.lease = null;
    }
 
    @Override
@@ -802,7 +817,11 @@ public final class SelectionOperationTask implements WorldOperationTask {
       if (operationCommit != null) {
          operationCommit.cancel();
       }
-      journalPreparation.releaseAfterCancellation(context, dimension);
+      // The lease travels with the cleanup so a late journal callback can never
+      // release a later transaction of the same player.
+      WorldWriteCoordinator.Lease cancelled = this.lease;
+      this.lease = null;
+      journalPreparation.releaseAfterCancellation(cancelled);
    }
 
    @Override

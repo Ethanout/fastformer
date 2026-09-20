@@ -2,6 +2,7 @@ package io.github.fastformer.client.placement;
 
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.network.payload.operation.OperationApplyPayload;
 import io.github.fastformer.network.payload.operation.OperationWorkspaceApplyPayload;
 import io.github.fastformer.network.payload.placement.QuickReplacePayload;
@@ -68,11 +69,11 @@ public final class ClientPlacementRouter {
       return send(minecraft, QuickReplacePayload.TYPE, QuickReplacePayload.INSTANCE);
    }
 
-   public static boolean startPlacement(Minecraft minecraft, boolean embedded) {
+   public static boolean startPlacement(Minecraft minecraft, RaycastPlacement placement) {
       return send(
          minecraft,
          StartPlacementPayload.TYPE,
-         embedded ? StartPlacementPayload.EMBEDDED_INSTANCE : StartPlacementPayload.INSTANCE
+         StartPlacementPayload.forPlacement(placement)
       );
    }
 

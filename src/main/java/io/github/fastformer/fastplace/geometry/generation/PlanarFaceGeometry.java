@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.FaceMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;

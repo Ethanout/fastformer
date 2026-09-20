@@ -1,9 +1,11 @@
 package io.github.fastformer.client.operation.workspace;
 
+import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -11,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import net.minecraft.core.BlockPos;
 
 /** Client-owned edit state. World writes are deliberately outside this type. */
 public final class ClientOperationWorkspace {
@@ -18,20 +21,33 @@ public final class ClientOperationWorkspace {
    public static final int MAX_PARTS = Integer.MAX_VALUE;
 
    private final LinkedHashMap<Integer, ClientSelectionPart> parts = new LinkedHashMap<>();
+   private final Map<Integer, Long> interactionIds = new LinkedHashMap<>();
+   private long interactionSequence;
    private final LinkedHashSet<Integer> selectedIds = new LinkedHashSet<>();
-   /** Every client-side edit and input event shares this one history. */
-   private final ClientOperationEventStack history = new ClientOperationEventStack();
+   /**
+    * Every client-side edit and input event shares this one history. The history
+    * holds a count budget and a weight budget, so a long editing session cannot
+    * retain an unlimited chain of workspace snapshots.
+    */
+   private final ClientOperationEventStack history;
    private int activeId;
    private Snapshot editBaseline;
    private long revision;
-   private long editSequence;
    private EditToken activeEdit;
    private boolean locked;
-   private int nextPartId = 1;
-   private Runnable changeListener;
 
-   public void setChangeListener(Runnable listener) {
-      this.changeListener = listener;
+   public ClientOperationWorkspace() {
+      this(ClientOperationEventStack.DEFAULT_RECORD_LIMIT, ClientOperationEventStack.DEFAULT_WEIGHT_LIMIT);
+   }
+
+   /**
+    * Builds a workspace with explicit history budgets.
+    *
+    * <p>The budgets are parameters so a settings update or a test can bound the
+    * local undo chain without changing the workspace behaviour.</p>
+    */
+   ClientOperationWorkspace(int recordLimit, int weightLimit) {
+      this.history = new ClientOperationEventStack(recordLimit, weightLimit);
    }
 
    public boolean addParts(Collection<ClientSelectionPart> additions) {
@@ -54,7 +70,9 @@ public final class ClientOperationWorkspace {
       this.selectedIds.clear();
       for (ClientSelectionPart addition : additions) {
          int slot = this.allocateId();
+         this.interactionSequence = Math.incrementExact(this.interactionSequence);
          this.parts.put(slot, addition.withId(slot));
+         this.interactionIds.put(slot, this.interactionSequence);
          this.selectedIds.add(slot);
          this.activeId = slot;
       }
@@ -68,6 +86,7 @@ public final class ClientOperationWorkspace {
       }
       Snapshot before = this.snapshot();
       this.selectedIds.forEach(this.parts::remove);
+      this.selectedIds.forEach(this.interactionIds::remove);
       this.selectedIds.clear();
       this.activeId = 0;
       this.record(before);
@@ -139,7 +158,7 @@ public final class ClientOperationWorkspace {
          return false;
       }
       this.editBaseline = this.snapshot();
-      this.activeEdit = new EditToken(++this.editSequence);
+      this.activeEdit = new EditToken();
       return true;
    }
 
@@ -148,7 +167,7 @@ public final class ClientOperationWorkspace {
    }
 
    public boolean ownsEdit(EditToken token) {
-      return token != null && token.equals(this.activeEdit) && this.editBaseline != null;
+      return token != null && token == this.activeEdit && this.editBaseline != null;
    }
 
    public void updatePart(ClientSelectionPart part) {
@@ -167,6 +186,7 @@ public final class ClientOperationWorkspace {
       if (this.parts.remove(id) == null) {
          return;
       }
+      this.interactionIds.remove(id);
       this.selectedIds.remove(id);
       if (this.activeId == id) {
          this.activeId = this.selectedIds.stream().reduce((first, second) -> second).orElse(0);
@@ -232,8 +252,19 @@ public final class ClientOperationWorkspace {
 
    /** Adds a reversible client input event to the same undo entry point. */
    public void pushEvent(Runnable inverse) {
+      this.pushEvent(inverse, ClientOperationEventStack.Retention.UNMEASURED);
+   }
+
+   /**
+    * Adds a reversible client input event with a declared retention.
+    *
+    * <p>The caller declares the references that its inverse keeps alive. A
+    * closure that hides a large payload must declare it, so the weight budget can
+    * account for it.</p>
+    */
+   public void pushEvent(Runnable inverse, ClientOperationEventStack.Retention retention) {
       if (!this.locked && this.editBaseline == null && inverse != null) {
-         this.history.push(inverse);
+         this.history.push(inverse, retention);
          this.changed();
       }
    }
@@ -254,6 +285,7 @@ public final class ClientOperationWorkspace {
       boolean changed = !this.parts.isEmpty() || !this.selectedIds.isEmpty() || this.editBaseline != null;
       this.parts.clear();
       this.selectedIds.clear();
+      this.interactionIds.clear();
       this.history.clear();
       this.activeId = 0;
       this.editBaseline = null;
@@ -294,11 +326,52 @@ public final class ClientOperationWorkspace {
       return Optional.ofNullable(this.parts.get(id));
    }
 
+   /** Transient identity survives edits, but a reused display number gets a new identity. */
+   public long interactionId(int id) {
+      Long identity = this.interactionIds.get(id);
+      if (identity == null) {
+         throw new IllegalArgumentException("Unknown workspace part: " + id);
+      }
+      return identity;
+   }
+
    public List<ClientSelectionPart> parts() {
       return this.parts.entrySet().stream()
          .sorted(Map.Entry.comparingByKey())
          .map(Map.Entry::getValue)
          .toList();
+   }
+
+   /** Captures only durable draft data. Gesture, lock, and history state stay transient. */
+   public DraftState draftState() {
+      return new DraftState(this.parts(), this.selectedIds(), this.activeId);
+   }
+
+   /** Replaces the live draft without restoring a gesture, lock, or undo history. */
+   public void restoreDraftState(DraftState draft) {
+      if (draft == null) {
+         this.clear();
+         return;
+      }
+      LinkedHashMap<Integer, ClientSelectionPart> restored = new LinkedHashMap<>();
+      for (ClientSelectionPart part : draft.parts()) {
+         if (part.id() <= 0 || restored.putIfAbsent(part.id(), part) != null) {
+            throw new IllegalArgumentException("A workspace draft requires unique positive part ids");
+         }
+      }
+      this.clear();
+      this.parts.putAll(restored);
+      for (int id : restored.keySet()) {
+         this.interactionSequence = Math.incrementExact(this.interactionSequence);
+         this.interactionIds.put(id, this.interactionSequence);
+      }
+      draft.selectedIds().stream().filter(this.parts::containsKey).forEach(this.selectedIds::add);
+      this.activeId = this.selectedIds.contains(draft.activeId()) ? draft.activeId() : 0;
+      this.locked = false;
+      this.editBaseline = null;
+      this.activeEdit = null;
+      this.history.clear();
+      this.changed();
    }
 
    public Set<Integer> selectedIds() {
@@ -353,6 +426,7 @@ public final class ClientOperationWorkspace {
    public void restoreParts(Set<Integer> keepIds) {
       if (this.locked || this.editBaseline != null || keepIds == null) return;
       this.parts.keySet().removeIf(id -> !keepIds.contains(id));
+      this.interactionIds.keySet().retainAll(this.parts.keySet());
       this.selectedIds.removeIf(id -> !this.parts.containsKey(id));
       if (!this.selectedIds.contains(this.activeId)) {
          this.activeId = this.selectedIds.stream().reduce((first, second) -> second).orElse(0);
@@ -371,20 +445,57 @@ public final class ClientOperationWorkspace {
          }
          candidate++;
       }
-      this.nextPartId = Math.max(this.nextPartId, candidate + 1);
       return candidate;
    }
 
    private void record(Snapshot before) {
-      this.history.push(() -> this.restore(before));
+      if (this.sameState(before)) {
+         // An edit that changed nothing must not take an undo slot, and it must
+         // not retain a snapshot either.
+         return;
+      }
+      this.history.push(() -> this.restore(before), before.retention());
+   }
+
+   /**
+    * Reports whether the live state still matches this snapshot, by reference.
+    *
+    * <p>A part is immutable, so any real content change replaces the instance.
+    * This check therefore never misses a change, and it never walks the retained
+    * block maps.</p>
+    */
+   private boolean sameState(Snapshot before) {
+      if (before.activeId() != this.activeId
+         || before.parts().size() != this.parts.size()
+         || !before.selectedIds().equals(this.selectedIds)) {
+         return false;
+      }
+      for (Map.Entry<Integer, ClientSelectionPart> entry : this.parts.entrySet()) {
+         if (entry.getValue() != before.parts().get(entry.getKey())) {
+            return false;
+         }
+      }
+      return true;
+   }
+
+   /** Current undo weight in retained-reference units. */
+   long historyWeight() {
+      return this.history.retainedWeight();
+   }
+
+   /** Nodes that the history budgets dropped, oldest first. */
+   long historyDiscardedRecords() {
+      return this.history.discardedRecords();
    }
 
    private Snapshot snapshot() {
-      return new Snapshot(Map.copyOf(this.parts), Set.copyOf(this.selectedIds), this.activeId);
+      return new Snapshot(Map.copyOf(this.parts), Map.copyOf(this.interactionIds), Set.copyOf(this.selectedIds), this.activeId);
    }
 
    private void restore(Snapshot snapshot) {
       this.parts.clear();
+      this.interactionIds.clear();
+      this.interactionIds.putAll(snapshot.interactionIds());
       snapshot.parts().entrySet().stream()
          .sorted(Map.Entry.comparingByKey())
          .forEach(entry -> this.parts.put(entry.getKey(), entry.getValue()));
@@ -395,14 +506,58 @@ public final class ClientOperationWorkspace {
 
    private void changed() {
       this.revision++;
-      if (this.changeListener != null) this.changeListener.run();
    }
 
-   public record EditToken(long value) {
+   public static final class EditToken {
+      private EditToken() { }
    }
 
    public record SelectionState(Set<Integer> ids, int activeId) { }
 
-   private record Snapshot(Map<Integer, ClientSelectionPart> parts, Set<Integer> selectedIds, int activeId) {
+   public record DraftState(List<ClientSelectionPart> parts, Set<Integer> selectedIds, int activeId) {
+      public DraftState {
+         parts = parts == null ? List.of() : List.copyOf(parts);
+         selectedIds = selectedIds == null ? Set.of() : Set.copyOf(selectedIds);
+      }
+   }
+
+   private record Snapshot(
+      Map<Integer, ClientSelectionPart> parts, Map<Integer, Long> interactionIds, Set<Integer> selectedIds, int activeId
+   ) {
+      /** Units for the references that this snapshot owns itself. */
+      int nodeUnits() {
+         return 1 + this.parts.size() + this.interactionIds.size() + this.selectedIds.size();
+      }
+
+      /**
+       * Payload holders that this snapshot keeps alive, by identity.
+       *
+       * <p>An unchanged part keeps the same block maps, so several snapshots
+       * of that part share one payload and the history charges it once.</p>
+       */
+      List<ClientOperationEventStack.SharedPayload> sharedPayloads() {
+         List<ClientOperationEventStack.SharedPayload> payloads = new ArrayList<>();
+         IdentityHashMap<Object, Boolean> seen = new IdentityHashMap<>();
+         for (ClientSelectionPart part : this.parts.values()) {
+            addPayload(payloads, seen, part.blocks());
+            addPayload(payloads, seen, part.sourceSnapshot());
+         }
+         return payloads;
+      }
+
+      ClientOperationEventStack.Retention retention() {
+         return ClientOperationEventStack.Retention.of(this.nodeUnits(), this.sharedPayloads());
+      }
+   }
+
+   private static void addPayload(
+      List<ClientOperationEventStack.SharedPayload> payloads,
+      IdentityHashMap<Object, Boolean> seen,
+      Map<BlockPos, ClientBlockSnapshot> holder
+   ) {
+      if (holder == null || seen.put(holder, Boolean.TRUE) != null) {
+         return;
+      }
+      payloads.add(ClientOperationEventStack.SharedPayload.of(holder, holder.size()));
    }
 }

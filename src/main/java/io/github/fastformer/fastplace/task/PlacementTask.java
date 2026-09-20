@@ -66,6 +66,8 @@ public final class PlacementTask {
    private Set<BlockPos> targets;
    private BlockPositionSource generatedPositions;
    private Map<BlockPos, BlockState> resolvedStates = Map.of();
+   /** The only object that may release this task's dimension lease. */
+   private WorldWriteCoordinator.Lease lease;
    private boolean resolvedStatesPrepared;
    private final ArrayDeque<BlockPos> writable = new ArrayDeque<>();
    private final Iterator<BlockPos> blocks = new Iterator<>() {
@@ -607,22 +609,31 @@ public final class PlacementTask {
    }
 
    public boolean acquireLease(WorldTaskContext context) {
-      boolean acquired = WorldWriteCoordinator.tryAcquire(context.server(), this.plan.dimension(), context.owner());
-      if (acquired) {
-         this.metrics.leaseAcquired();
+      if (this.lease != null && WorldWriteCoordinator.renew(this.lease)) {
+         return true;
       }
-      return acquired;
+      this.lease = WorldWriteCoordinator.takeOver(context.server(), this.plan.dimension(), context.owner());
+      if (this.lease == null) {
+         return false;
+      }
+      this.metrics.leaseAcquired();
+      return true;
    }
 
    public void releaseLease(WorldTaskContext context) {
-      WorldWriteCoordinator.release(context.server(), this.plan.dimension(), context.owner());
+      WorldWriteCoordinator.release(this.lease);
+      this.lease = null;
    }
 
    public void releaseAfterCancelledJournal(WorldTaskContext context) {
       if (this.operationCommit != null) {
          this.operationCommit.cancel();
       }
-      this.journalPreparation.releaseAfterCancellation(context, this.plan.dimension());
+      // The lease travels with the cleanup so a late journal callback can never
+      // release a later transaction of the same player.
+      WorldWriteCoordinator.Lease cancelled = this.lease;
+      this.lease = null;
+      this.journalPreparation.releaseAfterCancellation(cancelled);
    }
 
    public boolean hasWrites() {
@@ -649,7 +660,9 @@ public final class PlacementTask {
          this.generationProgress.cancel();
          this.generationProgress.releasePublished();
       }
-      releaseGenerationReservation();
+      CompletableFuture<BlockGenerationResult> pendingGeneration = this.future;
+      this.future = null;
+      releaseGenerationReservation(pendingGeneration);
    }
 
    /** Releases the task working-set budget after ownership transfers or completion. */
@@ -698,10 +711,14 @@ public final class PlacementTask {
    }
 
    private void releaseGenerationReservation() {
+      releaseGenerationReservation(this.future);
+   }
+
+   /** Transfers late generation completion cleanup out of the task. */
+   private void releaseGenerationReservation(CompletableFuture<?> generationCompletion) {
       if (this.generationReservation != null) {
          MemoryReservation reservation = this.generationReservation;
          this.generationReservation = null;
-         CompletableFuture<?> generationCompletion = this.future;
          if (generationCompletion == null || generationCompletion.isDone()) {
             reservation.close();
          } else {

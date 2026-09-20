@@ -1,5 +1,13 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.geometry.GuideLine;
@@ -165,7 +173,7 @@ public final class FastPlaceGeometry {
    ) {
       List<Vec3> base = PlanarFaceGeometry.vertices(points, modes.faceMode());
       Vec3 anchor = Vec3.atCenterOf(points.get(2));
-      Vec3 extrusion = Vec3.atCenterOf(points.get(3)).subtract(anchor);
+      Vec3 extrusion = constrainedVolumeExtrusion(base, anchor, Vec3.atCenterOf(points.get(3)), modes.volumeMode());
       return PrismGenerator.generateQuad(
          base, extrusion, modes.fillMode(), maxBlocks, observer, modes.faceTieBias(), modes.faceRasterizationMode()
       );
@@ -176,10 +184,25 @@ public final class FastPlaceGeometry {
    ) {
       List<Vec3> base = points.subList(0, points.size() - 1).stream().map(Vec3::atCenterOf).toList();
       Vec3 anchor = Vec3.atCenterOf(points.get(Math.min(2, points.size() - 2)));
-      Vec3 extrusion = Vec3.atCenterOf(points.getLast()).subtract(anchor);
+      Vec3 extrusion = constrainedVolumeExtrusion(base, anchor, Vec3.atCenterOf(points.getLast()), modes.volumeMode());
       return shape == PolygonVolumeShape.APEX
          ? PyramidGenerator.generate(base, extrusion, modes.fillMode(), maxBlocks, observer)
          : PrismGenerator.generatePolygon(base, extrusion, modes.fillMode(), maxBlocks, observer);
+   }
+
+   /**
+    * Keeps a perpendicular-volume height on its face normal after block-grid
+    * rounding. Free volumes intentionally preserve all three offset axes.
+    */
+   public static Vec3 constrainedVolumeExtrusion(
+      List<Vec3> base, Vec3 anchor, Vec3 requestedEnd, VolumeMode volumeMode
+   ) {
+      Vec3 requested = requestedEnd.subtract(anchor);
+      if (volumeMode != VolumeMode.PERPENDICULAR_TO_FACE) {
+         return requested;
+      }
+      Vec3 normal = PlanarFaceGeometry.normal(base);
+      return normal.lengthSqr() < EPSILON ? requested : normal.scale(requested.dot(normal));
    }
 
    public static List<GuidePlane> guidePlanes(

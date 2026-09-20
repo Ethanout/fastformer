@@ -7,12 +7,14 @@ import io.github.fastformer.fastplace.FastPlaceSettings;
 import io.github.fastformer.fastplace.GeometryManager;
 import io.github.fastformer.fastplace.OperationManager;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.ServerInputDispatcher;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.task.WorldOperationTask;
 import java.util.ArrayDeque;
 import java.util.BitSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,6 +40,7 @@ public final class WorldHistoryManager {
    public static final int MAX_LIMIT = 800;
    /** A second budget prevents 800 large batches from retaining unbounded NBT. */
    private static final long MAX_BYTES_PER_PLAYER = 256L * 1024L * 1024L;
+   private static final long HISTORY_PAGE_BYTES = 64L * 1024L * 1024L;
    /** Global guard against many disconnected players retaining large histories. */
    static final long MAX_BYTES_GLOBAL = 1024L * 1024L * 1024L;
    static final int MAX_IDLE_OWNERS = 128;
@@ -155,6 +158,86 @@ public final class WorldHistoryManager {
       return true;
    }
 
+   public static JournalPreparation pollPreparedOperation(
+      WorldTaskContext context,
+      Optional<WorldChangeBatch> captured,
+      PersistentRecoveryJournal journal
+   ) {
+      if (captured == null || captured.isEmpty()) {
+         return journal == null || journal.resolveAfterRollback(context.server())
+            ? JournalPreparation.READY : JournalPreparation.FAILED;
+      }
+      WorldChangeBatch batch = captured.orElseThrow();
+      if (batch.operationId() == null) batch = batch.withOperationId(UUID.randomUUID());
+      OwnerState owner = ownerState(context.owner());
+      DurableCommit pending = owner.durableCommit;
+      if (pending == null) {
+         owner.durableCommit = new DurableCommit(
+            batch,
+            journal,
+            WorldHistoryPersistence.publishBatchOnly(context.server(), context.owner(), batch)
+         );
+         return JournalPreparation.PENDING;
+      }
+      if (!pending.batch.operationId().equals(batch.operationId()) || pending.journal != journal) {
+         return JournalPreparation.FAILED;
+      }
+      if (!pending.future.isDone()) {
+         return JournalPreparation.PENDING;
+      }
+      if (pending.phase == DurableCommitPhase.BATCH) {
+         if (futureFailed(pending.future)) {
+            owner.durableCommit = null;
+            return JournalPreparation.FAILED;
+         }
+         if (journal != null && !journal.sealFinalizedForHistory()) {
+            owner.durableCommit = null;
+            return JournalPreparation.FAILED;
+         }
+         HistoryOrderCatalog prospective = historyOrder(owner).copy();
+         prospective.addNew(batch.operationId());
+         prospective.trim(owner.historyLimit);
+         pending.phase = DurableCommitPhase.INDEX;
+         pending.future = WorldHistoryPersistence.publishIndex(
+            context.server(), context.owner(), prospective.order(true), prospective.order(false)
+         );
+         return JournalPreparation.PENDING;
+      }
+      if (futureFailed(pending.future)) {
+         if (pending.retryTicks-- > 0) return JournalPreparation.PENDING;
+         pending.retryTicks = 100;
+         HistoryOrderCatalog prospective = historyOrder(owner).copy();
+         prospective.addNew(batch.operationId());
+         prospective.trim(owner.historyLimit);
+         pending.future = WorldHistoryPersistence.publishIndex(
+            context.server(), context.owner(), prospective.order(true), prospective.order(false)
+         );
+         return JournalPreparation.PENDING;
+      }
+      addBatchInMemory(owner, batch);
+      if (journal != null) journal.historyPublished();
+      owner.durableCommit = null;
+      return JournalPreparation.READY;
+   }
+
+   private static boolean futureFailed(CompletableFuture<Void> future) {
+      try {
+         future.join();
+         return false;
+      } catch (RuntimeException failure) {
+         return true;
+      }
+   }
+
+   private static void addBatchInMemory(OwnerState owner, WorldChangeBatch batch) {
+      HistoryMemoryCache history = owner.history();
+      history.addNew(batch);
+      trim(owner.historyLimit, history);
+      HistoryOrderCatalog order = historyOrder(owner);
+      order.addNew(batch.operationId());
+      order.trim(owner.historyLimit);
+   }
+
    private static void addBatch(ServerPlayer player, WorldChangeBatch batch) {
       addBatch(new WorldTaskContext(player.getServer(), player.getUUID()), batch);
    }
@@ -162,15 +245,17 @@ public final class WorldHistoryManager {
    private static void addBatch(WorldTaskContext context, WorldChangeBatch batch) {
       if (batch.operationId() == null) batch = batch.withOperationId(UUID.randomUUID());
       OwnerState owner = ownerState(context.owner());
-      History history = owner.history();
-      history.undo.addFirst(batch);
-      history.undoBytes += batch.estimatedBytes();
-      history.clearRedo();
+      HistoryMemoryCache history = owner.history();
+      history.addNew(batch);
       ServerPlayer player = context.onlinePlayer();
-      if (player == null) {
-         trim(owner.historyLimit, history);
-      } else {
-         trimSafely(player, history);
+      // Keep all batches in memory while an earlier save is unresolved. The
+      // recovery snapshot must still contain the failed batch and any newer work.
+      if (owner.pendingPersistence == 0 && !owner.persistenceDirty) {
+         if (player == null) {
+            trim(owner.historyLimit, history);
+         } else {
+            trimSafely(player, history);
+         }
       }
       scheduleNewBatch(context.server(), context.owner(), owner, batch, history);
    }
@@ -193,8 +278,10 @@ public final class WorldHistoryManager {
          OwnerState owner = entry.getValue();
          if (owner.history == null || (!owner.persistenceDirty && owner.pendingPersistence == 0)) continue;
          // Capture before clearServer releases the only in-memory undo/redo stacks.
+         HistoryOrderCatalog order = historyOrder(owner);
          saves.add(WorldHistoryPersistence.publishSnapshot(server, entry.getKey(),
-            java.util.List.copyOf(owner.history.undo), java.util.List.copyOf(owner.history.redo)));
+            owner.history.snapshot(true), owner.history.snapshot(false),
+            order.order(true), order.order(false)));
       }
       return CompletableFuture.allOf(saves.toArray(CompletableFuture[]::new));
    }
@@ -226,7 +313,17 @@ public final class WorldHistoryManager {
       UUID id = player.getUUID();
       OwnerState owner = ownerState(id);
       int requested = Math.clamp(count, 1, MAX_LIMIT);
-      if (busy(player)
+      if (owner.historyLoadFailed) {
+         if (owner.historyLoad == null && ServerInputDispatcher.canOperate(player)) {
+            startHistorySnapshotLoad(player, owner);
+            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.history_loading_older"));
+         } else {
+            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.history_load_failed"));
+         }
+         return false;
+      }
+      if (!ServerInputDispatcher.canOperate(player)
+         || busy(player)
          || FastPlaceManager.taskActive(player)
          || OperationManager.taskActive(player)
          || FastPlaceManager.active(player)
@@ -235,21 +332,28 @@ public final class WorldHistoryManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.history_wait_task"));
          return false;
       }
-      History history = owner.history;
+      HistoryMemoryCache history = owner.history;
       if (history == null) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text(
             undo ? "fastformer.message.history_no_undo" : "fastformer.message.history_no_redo"
          ));
          return false;
       }
-      ArrayDeque<WorldChangeBatch> source = undo ? history.undo : history.redo;
-      if (source.isEmpty()) {
+      owner.scheduler().clearFailedPagePlan();
+      Optional<HistoryPageLoadPlan> pagePlan = history.size(undo) == 0
+         ? HistoryPageLoadPlan.create(undo, requested, history.operationIds(undo), owner.historyLimit, historyOrder(owner))
+         : Optional.empty();
+      if (pagePlan.isPresent()) {
+         startHistoryPageLoad(player, owner, pagePlan.orElseThrow());
+         return true;
+      }
+      if (history.size(undo) == 0) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text(
             undo ? "fastformer.message.history_no_undo" : "fastformer.message.history_no_redo"
          ));
          return false;
       }
-      WorldChangeBatch next = source.peekFirst();
+      WorldChangeBatch next = history.peek(undo);
       // A history batch is owned by its target dimension, not by the
       // player's current dimension.  Accept the single undo request even
       // after a dimension change; tickOwner will retain it in WORLD_UNLOADED
@@ -258,7 +362,12 @@ public final class WorldHistoryManager {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
          return false;
       }
-      owner.active = new HistoryTask(history, undo, requested);
+      owner.active = new HistoryTask(
+         history,
+         undo,
+         requested,
+         FastPlaceSettings.load(player).placementUpdateMode()
+      );
       FastPlaceMessages.actionBar(
          player,
          FastPlaceMessages.text(undo ? "fastformer.message.history_start_undo" : "fastformer.message.history_start_redo", requested)
@@ -360,13 +469,16 @@ public final class WorldHistoryManager {
          return false;
       }
       if (!recovery.ready()) {
+         // The queue takes the capture first. Nothing after that point may throw, or the
+         // caller cannot tell an accepted snapshot from a refused one and hands it over
+         // a second time.
          enqueueCapture(
             context.owner(),
             recoveryCapture(
                dimension, recovery.before(), recovery.after(), journal, recovery.readyForRecovery()
             )
          );
-         context.actionBar(FastPlaceMessages.text("fastformer.message.task_recovery_blocked"));
+         notifyQuietly(context, "fastformer.message.task_recovery_blocked");
          return true;
       }
       return startRollback(context, dimension, recovery.before(), recovery.after(), journal);
@@ -399,7 +511,14 @@ public final class WorldHistoryManager {
       );
    }
 
-   static TaskCancellationResult acceptTransferredRecovery(
+   /**
+    * Takes ownership of an already extracted snapshot.
+    *
+    * <p>The caller keeps the snapshot until this call accepts it. A caller that must retry
+    * after a failure passes the same snapshot again instead of extracting a second one,
+    * because the extraction already moved the record out of the task.</p>
+    */
+   public static TaskCancellationResult acceptTransferredRecovery(
       WorldTaskContext context,
       ResourceKey<Level> dimension,
       WorldRecoverySnapshot recovery,
@@ -416,7 +535,25 @@ public final class WorldHistoryManager {
             ? TaskCancellationResult.ROLLBACK_STARTED
             : TaskCancellationResult.RECOVERY_BLOCKED;
       } finally {
+         releaseTaskMemoryQuietly(releaseTaskMemory);
+      }
+   }
+
+   /**
+    * Releases the detached task's memory after the hand-off.
+    *
+    * <p>The release must never decide whether the hand-off was accepted. A failure here
+    * would replace the result with an exception, and a caller that reads an exception as
+    * "not accepted" would hand the same snapshot over a second time.
+    */
+   private static void releaseTaskMemoryQuietly(Runnable releaseTaskMemory) {
+      if (releaseTaskMemory == null) {
+         return;
+      }
+      try {
          releaseTaskMemory.run();
+      } catch (RuntimeException | OutOfMemoryError exception) {
+         LOGGER.error("FastFormer could not release task memory after a recovery hand-off", exception);
       }
    }
 
@@ -428,6 +565,38 @@ public final class WorldHistoryManager {
       PersistentRecoveryJournal journal
    ) {
       return startRollback(context, dimension, changes, after, context.level(dimension), journal);
+   }
+
+   /**
+    * Takes ownership of a failed short transaction's capture.
+    *
+    * <p>The caller must not use the containers after this call, because the
+    * manager stores them in the owner's recovery queue. A queued capture keeps
+    * its block positions, its dimension and its operation id until a later tick
+    * materializes the recovery task or resolves it as already restored.</p>
+    *
+    * @return {@code true} when this manager owns the capture, {@code false}
+    *         when the caller still owns it and must keep it with the write lease
+    */
+   public static boolean acceptShortTransactionRecovery(
+      WorldTaskContext context,
+      ResourceKey<Level> dimension,
+      ArrayDeque<ReversibleBlockSnapshot> changes,
+      Map<BlockPos, ReversibleBlockSnapshot> after
+   ) {
+      if (context == null || dimension == null || changes == null || changes.isEmpty()) {
+         return false;
+      }
+      if (startRollback(context, dimension, changes, after, null)) {
+         return true;
+      }
+      // startRollback declines only for input it cannot own. The snapshots
+      // already belong to this call, so queue them instead of returning them to
+      // a caller that would drop the only record of a partial write.
+      enqueueCapture(context.owner(), recoveryCapture(dimension, changes, after, null));
+      // The queue owns the capture now, so the announcement must stay harmless.
+      notifyQuietly(context, "fastformer.message.task_recovery_blocked");
+      return true;
    }
 
    private static boolean startRollback(
@@ -448,7 +617,10 @@ public final class WorldHistoryManager {
          // A previous history/recovery task owns this player. Keep this
          // rollback in order instead of reporting success without a task.
          if (!changes.isEmpty() || journal != null) {
-            enqueueCapture(context.owner(), recoveryCapture(dimension, changes, safeAfter, journal));
+            if (!enqueueCaptureQuietly(context.owner(), dimension, changes, safeAfter, journal)) {
+               // Nothing was transferred, so the caller still owns the snapshot.
+               return false;
+            }
          }
          return true;
       }
@@ -456,8 +628,10 @@ public final class WorldHistoryManager {
          return resolveAlreadyRestored(context, dimension, changes, safeAfter, journal);
       }
       if (!WorldOperationMemory.snapshotAdmission(changes.size(), 0L).fitsCurrentHeap()) {
-         enqueueCapture(context.owner(), recoveryCapture(dimension, changes, safeAfter, journal));
-         context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+         if (!enqueueCaptureQuietly(context.owner(), dimension, changes, safeAfter, journal)) {
+            return false;
+         }
+         notifyQuietly(context, "fastformer.message.operation_memory_unsafe");
          return true;
       }
       Optional<WorldChangeBatch> captured;
@@ -483,7 +657,9 @@ public final class WorldHistoryManager {
       }
       if (captured.isPresent()) {
          ownerState(context.owner()).active = HistoryTask.recovery(captured.orElseThrow(), journal);
-         context.actionBar(FastPlaceMessages.text("fastformer.message.restore_cancelled_task"));
+         // The ownership transfer happened above. Nothing after it may throw, or the
+         // caller cannot tell an accepted snapshot from a refused one.
+         notifyQuietly(context, "fastformer.message.restore_cancelled_task");
          return true;
       }
       if (level == null && completeAfter(changes, safeAfter)) {
@@ -501,9 +677,41 @@ public final class WorldHistoryManager {
       }
       // Do not drop a partially-written task merely because its dimension is
       // unloaded. The world task retries on later server ticks.
-      enqueueCapture(context.owner(), recoveryCapture(dimension, changes, safeAfter, journal));
-      context.actionBar(FastPlaceMessages.text("fastformer.message.task_recovery_blocked"));
+      if (!enqueueCaptureQuietly(context.owner(), dimension, changes, safeAfter, journal)) {
+         return false;
+      }
+      notifyQuietly(context, "fastformer.message.task_recovery_blocked");
       return true;
+   }
+
+   /**
+    * Queues one recovery capture, or reports that it was not queued.
+    *
+    * <p>A failed enqueue transfers nothing, so the caller keeps ownership of the snapshot.
+    */
+   private static boolean enqueueCaptureQuietly(
+      UUID owner,
+      ResourceKey<Level> dimension,
+      ArrayDeque<ReversibleBlockSnapshot> changes,
+      Map<BlockPos, ReversibleBlockSnapshot> after,
+      PersistentRecoveryJournal journal
+   ) {
+      try {
+         enqueueCapture(owner, recoveryCapture(dimension, changes, after, journal));
+         return true;
+      } catch (RuntimeException | OutOfMemoryError exception) {
+         LOGGER.error("FastFormer could not queue a recovery capture for {}", owner, exception);
+         return false;
+      }
+   }
+
+   /** Progress feedback must never decide ownership, so a failed message stays harmless. */
+   private static void notifyQuietly(WorldTaskContext context, String key) {
+      try {
+         context.actionBar(FastPlaceMessages.text(key));
+      } catch (RuntimeException | OutOfMemoryError exception) {
+         LOGGER.warn("FastFormer could not show the recovery message {}", key, exception);
+      }
    }
 
    private static boolean resolveAlreadyRestored(
@@ -552,6 +760,11 @@ public final class WorldHistoryManager {
       return owner != null && owner.busy();
    }
 
+   public static boolean snapshotRetryAvailable(ServerPlayer player) {
+      OwnerState owner = OWNERS.get(player.getUUID());
+      return owner != null && owner.historyLoadFailed && owner.historyLoad == null;
+   }
+
    public static boolean restoreActive(ServerPlayer player) {
       return busy(player);
    }
@@ -568,10 +781,13 @@ public final class WorldHistoryManager {
          task = owner.pendingTask;
       }
       if (task == null) {
-         return false;
+         return owner.scheduler != null && owner.scheduler.cancelPageLoad();
       }
       if (task.recovery) {
          return false;
+      }
+      if (owner.scheduler != null) {
+         owner.scheduler.cancelPageLoad();
       }
       task.requestCancel();
       return true;
@@ -583,6 +799,9 @@ public final class WorldHistoryManager {
 
    static void detachOwner(UUID id) {
       OwnerState owner = ownerState(id);
+      if (owner.scheduler != null) {
+         owner.scheduler.cancelPageLoad();
+      }
       HistoryTask active = owner.active;
       if (active != null && !active.recovery) {
          active.requestCancel();
@@ -617,15 +836,19 @@ public final class WorldHistoryManager {
       UUID id = player.getUUID();
       OwnerState owner = ownerState(id);
       owner.historyLimit = boundedLimit(limit);
+      if ((owner.history == null || owner.historyLoadFailed) && owner.historyLoad == null) {
+         startHistorySnapshotLoad(player, owner);
+      }
       // Do not evict the batch currently being applied; HistoryTask keeps a
       // reference to it until commit. The completion path trims again after
       // the active task is removed.
       if (owner.active != null || owner.pendingTask != null) {
          return;
       }
-      History history = owner.history;
+      HistoryMemoryCache history = owner.history;
       if (history != null) {
          trim(limit, history);
+         historyOrder(owner).trim(owner.historyLimit);
          scheduleIndex(player.getServer(), id, owner, history);
       }
    }
@@ -645,9 +868,15 @@ public final class WorldHistoryManager {
    }
 
    private static boolean tickOwner(WorldTaskContext context) {
-      attachPending(context);
       UUID owner = context.owner();
       OwnerState ownerState = ownerState(owner);
+      if (!PersistentRecoveryJournal.writesAllowed() && ownerState.scheduler != null) {
+         // Discard the continuation before a completed page can resume it.
+         ownerState.scheduler.cancelPageLoad();
+      }
+      attachLoadedHistory(context);
+      attachHistoryPage(context);
+      attachPending(context);
       if (context.onlinePlayer() != null) {
          ownerState.detached = false;
       }
@@ -700,14 +929,14 @@ public final class WorldHistoryManager {
          task.releaseLease(context);
          task.releaseMemoryReservation();
          ownerState.active = null;
-         RecoveryRetentionAction retention = recoveryRetentionAction(
+         HistoryRecoveryPolicy.RetentionAction retention = HistoryRecoveryPolicy.retentionAction(
             task.recovery && task.retainRecovery(),
             task.batch() != null
          );
-         if (retention == RecoveryRetentionAction.RETRY_AUTOMATICALLY) {
+         if (retention == HistoryRecoveryPolicy.RetentionAction.RETRY_AUTOMATICALLY) {
             ownerState.active = HistoryTask.recovery(task.batch(), task.journal());
          }
-         History history = ownerState.history;
+         HistoryMemoryCache history = ownerState.history;
          if (history != null) {
             ServerPlayer player = context.onlinePlayer();
             if (player == null) {
@@ -731,8 +960,8 @@ public final class WorldHistoryManager {
       if (count <= 0) {
          return false;
       }
-      History history = owner.history;
-      WorldChangeBatch next = history == null ? null : history.undo.peekFirst();
+      HistoryMemoryCache history = owner.history;
+      WorldChangeBatch next = history == null ? null : history.peek(true);
       if (next != null && WorldWriteCoordinator.busy(player.getServer(), next.dimension())) {
          return true;
       }
@@ -821,6 +1050,122 @@ public final class WorldHistoryManager {
             owner.pendingRecords.removeFirst();
          }
       }
+   }
+
+   private static void attachLoadedHistory(WorldTaskContext context) {
+      OwnerState owner = ownerState(context.owner());
+      CompletableFuture<WorldHistoryPersistence.LoadedHistory> load = owner.historyLoad;
+      if (load == null || !load.isDone()) {
+         return;
+      }
+      owner.historyLoad = null;
+      try {
+         WorldHistoryPersistence.LoadedHistory loaded = load.join();
+         applyLoadedHistory(owner, loaded);
+         owner.historyLoadFailed = false;
+      } catch (RuntimeException failure) {
+         owner.historyLoadFailed = true;
+         context.chat(FastPlaceMessages.text("fastformer.message.history_load_failed"));
+         LOGGER.error("Could not load durable history for {}", context.owner(), failure);
+      }
+   }
+
+   private static void startHistorySnapshotLoad(ServerPlayer player, OwnerState owner) {
+      owner.historyLoad = WorldHistoryPersistence.loadSnapshot(
+         player.getServer(), player.getUUID(), owner.historyLimit, MAX_BYTES_PER_PLAYER
+      );
+   }
+
+   private static void attachHistoryPage(WorldTaskContext context) {
+      OwnerState owner = ownerState(context.owner());
+      Optional<HistoryTaskScheduler.CompletedPageLoad> completed;
+      try {
+         completed = owner.scheduler().takeCompletedPageLoad();
+      } catch (RuntimeException failure) {
+         // Keep decoded history and the durable order. A later undo/redo may retry
+         // the same missing page. Do not mark the owner as permanently blocked.
+         notifyHistoryLoadFailed(context, "Could not load an older history page for {}", failure);
+         return;
+      }
+      if (completed.isEmpty()) {
+         return;
+      }
+      HistoryTaskScheduler.CompletedPageLoad pageLoad = completed.orElseThrow();
+      HistoryPageLoadPlan plan = pageLoad.plan();
+      try {
+         HistoryMemoryCache history = owner.history();
+         history.merge(plan.undoDirection(), pageLoad.batches());
+         trim(owner.historyLimit, history);
+      } catch (RuntimeException failure) {
+         owner.scheduler().pageMergeFailed(plan);
+         notifyHistoryLoadFailed(context, "Could not merge an older history page for {}", failure);
+         return;
+      }
+      ServerPlayer player = context.onlinePlayer();
+      if (player != null && owner.active == null) {
+         request(player, plan.undoDirection(), plan.requestedCount());
+      }
+   }
+
+   /**
+    * Starts one older-page load for an undo or redo that memory cannot satisfy.
+    *
+    * <p>A later player request may send the same plan again after a failed load.
+    * The scheduler holds at most one in-flight page, so this call never stacks IO.</p>
+    */
+   private static void startHistoryPageLoad(
+      ServerPlayer player, OwnerState owner, HistoryPageLoadPlan plan
+   ) {
+      owner.scheduler().startPageLoad(
+         plan,
+         WorldHistoryPersistence.loadPage(
+            player.getServer(), player.getUUID(), plan.operationIds(), plan.operationIds().size(), HISTORY_PAGE_BYTES
+         )
+      );
+      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.history_loading_older"));
+   }
+
+   private static void notifyHistoryLoadFailed(WorldTaskContext context, String log, RuntimeException failure) {
+      context.chat(FastPlaceMessages.text("fastformer.message.history_load_failed"));
+      LOGGER.error(log, context.owner(), failure);
+   }
+
+   static void mergeLoaded(ArrayDeque<WorldChangeBatch> target, java.util.List<WorldChangeBatch> loaded) {
+      java.util.Set<UUID> present = target.stream().map(WorldChangeBatch::operationId).collect(
+         java.util.stream.Collectors.toSet()
+      );
+      for (WorldChangeBatch batch : loaded) {
+         if (present.add(batch.operationId())) target.addLast(batch);
+      }
+   }
+
+   private static void applyLoadedHistory(
+      OwnerState owner, WorldHistoryPersistence.LoadedHistory loaded
+   ) {
+      HistoryMemoryCache history = owner.history();
+      history.merge(true, loaded.undo());
+      history.merge(false, loaded.redo());
+      owner.historyOrder = HistoryOrderCatalog.merge(
+         history.operationIds(true), history.operationIds(false),
+         loaded.undoOrder(), loaded.redoOrder()
+      );
+      owner.historyOrder.trim(owner.historyLimit);
+      trim(owner.historyLimit, history);
+   }
+
+   static void installLoadedHistoryForTest(
+      UUID ownerId, WorldHistoryPersistence.LoadedHistory loaded, int limit
+   ) {
+      OwnerState owner = ownerState(ownerId);
+      owner.historyLimit = boundedLimit(limit);
+      owner.historyLoad = null;
+      owner.historyLoadFailed = false;
+      applyLoadedHistory(owner, loaded);
+   }
+
+   static List<UUID> historyOrderForTest(UUID ownerId, boolean undo) {
+      OwnerState owner = OWNERS.get(ownerId);
+      return owner == null ? List.of() : historyOrder(owner).order(undo);
    }
 
    private static void enqueueCapture(UUID owner, RecoveryCapture capture) {
@@ -930,8 +1275,8 @@ public final class WorldHistoryManager {
 
    static int undoSizeForTest(UUID owner) {
       OwnerState state = OWNERS.get(owner);
-      History history = state == null ? null : state.history;
-      return history == null ? 0 : history.undo.size();
+      HistoryMemoryCache history = state == null ? null : state.history;
+      return history == null ? 0 : history.size(true);
    }
 
    static void setOwnerLimitForTest(UUID owner, int limit) {
@@ -950,7 +1295,7 @@ public final class WorldHistoryManager {
    }
 
    static void releaseResolvedLease(Object server, ResourceKey<Level> dimension, UUID owner) {
-      WorldWriteCoordinator.release(server, dimension, owner);
+      WorldWriteCoordinator.releaseCurrentLease(server, dimension, owner);
    }
 
    private record RecoveryCapture(
@@ -987,13 +1332,13 @@ public final class WorldHistoryManager {
       }
    }
 
-   private static void trim(ServerPlayer player, History history) {
+   private static void trim(ServerPlayer player, HistoryMemoryCache history) {
       int limit = boundedLimit(FastPlaceSettings.load(player).worldUndoHistoryLimit());
       ownerState(player.getUUID()).historyLimit = limit;
       trim(limit, history);
    }
 
-   private static void trimSafely(ServerPlayer player, History history) {
+   private static void trimSafely(ServerPlayer player, HistoryMemoryCache history) {
       try {
          trim(player, history);
       } catch (RuntimeException exception) {
@@ -1003,45 +1348,24 @@ public final class WorldHistoryManager {
       }
    }
 
-   private static void trim(int limit, History history) {
-      int bounded = boundedLimit(limit);
-      while (history.undo.size() > bounded) {
-         WorldChangeBatch removed = history.undo.removeLast();
-         history.undoBytes -= removed.estimatedBytes();
-      }
-      while (history.redo.size() > bounded) {
-         WorldChangeBatch removed = history.redo.removeLast();
-         history.redoBytes -= removed.estimatedBytes();
-      }
-      // Prefer retaining the newest batch. If a single batch exceeds the
-      // budget it is kept; otherwise evict the oldest batch from whichever
-      // stack currently contributes more bytes. The budget covers both undo
-      // and redo so an undo/redo cycle cannot silently retain ~512 MiB.
-      // Use saturating arithmetic so a corrupted or adversarially large
-      // estimate cannot wrap the total below the byte-budget threshold.
-      while (saturatedAdd(history.undoBytes, history.redoBytes) > MAX_BYTES_PER_PLAYER
-         && (history.undo.size() > 1 || history.redo.size() > 1)) {
-         if (history.redo.isEmpty() || (history.undoBytes >= history.redoBytes && history.undo.size() > 1)) {
-            WorldChangeBatch removed = history.undo.removeLast();
-            history.undoBytes -= removed.estimatedBytes();
-         } else {
-            WorldChangeBatch removed = history.redo.removeLast();
-            history.redoBytes -= removed.estimatedBytes();
-         }
-      }
+   private static void trim(int limit, HistoryMemoryCache history) {
+      history.trim(boundedLimit(limit), MAX_BYTES_PER_PLAYER);
    }
 
    private static void scheduleNewBatch(
-      MinecraftServer server, UUID ownerId, OwnerState owner, WorldChangeBatch batch, History history
+      MinecraftServer server, UUID ownerId, OwnerState owner, WorldChangeBatch batch, HistoryMemoryCache history
    ) {
-      trackPersistence(server, ownerId, owner, WorldHistoryPersistence.publishNewBatch(
-         server, ownerId, batch, operationIds(history.undo), operationIds(history.redo)
+      HistoryOrderCatalog order = historyOrder(owner);
+      order.addNew(batch.operationId());
+      order.trim(owner.historyLimit);
+      trackPersistence(server, ownerId, owner, false, WorldHistoryPersistence.publishNewBatch(
+         server, ownerId, batch, order.order(true), order.order(false)
       ));
    }
 
-   private static void scheduleIndex(MinecraftServer server, UUID ownerId, OwnerState owner, History history) {
-      trackPersistence(server, ownerId, owner, WorldHistoryPersistence.publishIndex(
-         server, ownerId, operationIds(history.undo), operationIds(history.redo)
+   private static void scheduleIndex(MinecraftServer server, UUID ownerId, OwnerState owner, HistoryMemoryCache history) {
+      trackPersistence(server, ownerId, owner, false, WorldHistoryPersistence.publishIndex(
+         server, ownerId, historyOrder(owner).order(true), historyOrder(owner).order(false)
       ));
    }
 
@@ -1051,23 +1375,34 @@ public final class WorldHistoryManager {
          owner.persistenceRetryTicks--;
          return;
       }
-      History history = owner.history;
-      trackPersistence(context.server(), context.owner(), owner, WorldHistoryPersistence.publishSnapshot(
-         context.server(), context.owner(), java.util.List.copyOf(history.undo), java.util.List.copyOf(history.redo)
+      HistoryMemoryCache history = owner.history;
+      HistoryOrderCatalog order = historyOrder(owner);
+      trackPersistence(context.server(), context.owner(), owner, true, WorldHistoryPersistence.publishSnapshot(
+         context.server(), context.owner(), history.snapshot(true), history.snapshot(false),
+         order.order(true), order.order(false)
       ));
    }
 
    private static void trackPersistence(
-      MinecraftServer server, UUID ownerId, OwnerState owner, CompletableFuture<Void> persistence
+      MinecraftServer server, UUID ownerId, OwnerState owner, boolean clearsDirty,
+      CompletableFuture<Void> persistence
    ) {
       if (server == null) return;
+      // Each write gets its own generation. A later failure must not be
+      // cleared by an older snapshot completing successfully afterwards.
+      long generation = ++owner.persistenceGeneration;
       owner.pendingPersistence++;
       persistence.whenComplete((ignored, failure) -> server.execute(() -> {
          OwnerState current = OWNERS.get(ownerId);
          if (current != owner) return;
          current.pendingPersistence = Math.max(0, current.pendingPersistence - 1);
          boolean previouslyFailed = current.persistenceDirty;
-         current.persistenceDirty = failure != null;
+         if (failure != null) {
+            current.persistenceDirty = true;
+         } else if (clearsDirty && current.pendingPersistence == 0
+            && generation == current.persistenceGeneration) {
+            current.persistenceDirty = false;
+         }
          // Retry soon after the storage fault clears. History remains in memory
          // while the bounded backoff prevents a busy retry loop.
          if (failure != null) current.persistenceRetryTicks = 100;
@@ -1087,8 +1422,28 @@ public final class WorldHistoryManager {
       return owner != null && owner.persistenceDirty && owner.pendingPersistence == 0;
    }
 
-   private static java.util.List<UUID> operationIds(ArrayDeque<WorldChangeBatch> batches) {
-      return batches.stream().map(WorldChangeBatch::operationId).toList();
+   static void trackPersistenceForTest(
+      MinecraftServer server, UUID ownerId, boolean snapshot, CompletableFuture<Void> future
+   ) {
+      trackPersistence(server, ownerId, ownerState(ownerId), snapshot, future);
+   }
+
+   static boolean durableIndexFailedForTest(UUID ownerId) {
+      OwnerState owner = OWNERS.get(ownerId);
+      DurableCommit commit = owner == null ? null : owner.durableCommit;
+      return commit != null
+         && commit.phase == DurableCommitPhase.INDEX
+         && commit.future.isCompletedExceptionally();
+   }
+
+   private static HistoryOrderCatalog historyOrder(OwnerState owner) {
+      if (owner.historyOrder == null) {
+         HistoryMemoryCache history = owner.history();
+         owner.historyOrder = HistoryOrderCatalog.merge(
+            history.operationIds(true), history.operationIds(false), List.of(), List.of()
+         );
+      }
+      return owner.historyOrder;
    }
 
    private static OwnerState ownerState(UUID owner) {
@@ -1097,6 +1452,30 @@ public final class WorldHistoryManager {
 
    static int ownerCountForTest() {
       return OWNERS.size();
+   }
+
+   static void enqueuePendingRecordForTest(
+      UUID owner,
+      ResourceKey<Level> dimension,
+      ArrayDeque<ReversibleBlockSnapshot> changes,
+      Map<BlockPos, ReversibleBlockSnapshot> after
+   ) {
+      ownerState(owner).pendingRecords.addLast(pendingRecord(dimension, changes, after));
+   }
+
+   static void setPersistenceRetentionForTest(
+      UUID ownerId, int pendingPersistence, boolean persistenceDirty, boolean durableCommit
+   ) {
+      OwnerState owner = ownerState(ownerId);
+      owner.pendingPersistence = pendingPersistence;
+      owner.persistenceDirty = persistenceDirty;
+      owner.durableCommit = durableCommit
+         ? new DurableCommit(null, null, CompletableFuture.completedFuture(null))
+         : null;
+   }
+
+   static boolean ownerPresentForTest(UUID owner) {
+      return OWNERS.containsKey(owner);
    }
 
    private static void pruneDetachedOwners() {
@@ -1108,10 +1487,10 @@ public final class WorldHistoryManager {
       var iterator = OWNERS.entrySet().iterator();
       while (iterator.hasNext() && (OWNERS.size() > MAX_IDLE_OWNERS || total > MAX_BYTES_GLOBAL)) {
          OwnerState state = iterator.next().getValue();
-         if (!state.detached || state.busy()) continue;
+         if (!state.canEvict()) continue;
          // Until disk-backed history is attached, these stacks are the only
          // undo/redo copy. Only empty owners can be evicted safely.
-         if (state.history != null && (!state.history.undo.isEmpty() || !state.history.redo.isEmpty())) continue;
+         if (state.history != null && !state.history.isEmpty()) continue;
          total -= state.historyBytes();
          iterator.remove();
       }
@@ -1127,7 +1506,7 @@ public final class WorldHistoryManager {
 
    /** All mutable history and recovery state owned by one player UUID. */
    private static final class OwnerState {
-      private History history;
+      private HistoryMemoryCache history;
       private HistoryTask active;
       private HistoryTask pendingTask;
       private final ArrayDeque<RecoveryCapture> pendingCaptures = new ArrayDeque<>();
@@ -1138,21 +1517,37 @@ public final class WorldHistoryManager {
       private boolean detached;
       private int pendingPersistence;
       private boolean persistenceDirty;
+      private long persistenceGeneration;
       private int persistenceRetryTicks;
+      private CompletableFuture<WorldHistoryPersistence.LoadedHistory> historyLoad;
+      private HistoryTaskScheduler scheduler;
+      private HistoryOrderCatalog historyOrder;
+      private boolean historyLoadFailed;
+      private DurableCommit durableCommit;
 
       private long historyBytes() {
-         return history == null ? 0L : saturatedAdd(history.undoBytes, history.redoBytes);
+         return history == null ? 0L : history.estimatedBytes();
       }
 
-      private History history() {
+      private HistoryMemoryCache history() {
          if (history == null) {
-            history = new History();
+            history = new HistoryMemoryCache();
          }
          return history;
       }
 
+      private HistoryTaskScheduler scheduler() {
+         if (scheduler == null) {
+            scheduler = new HistoryTaskScheduler();
+         }
+         return scheduler;
+      }
+
       private boolean busy() {
-         return active != null
+         return historyLoad != null
+            || scheduler != null && scheduler.hasPendingPageLoad()
+            || snapshotLoadFailed()
+            || active != null
             || pendingTask != null
             || !pendingCaptures.isEmpty()
             || !pendingRecords.isEmpty()
@@ -1160,32 +1555,59 @@ public final class WorldHistoryManager {
       }
 
       private boolean needsTick() {
-         return active != null
+         return historyLoad != null
+            || scheduler != null && scheduler.hasPendingPageLoad()
+            || active != null
             || pendingTask != null
             || !pendingCaptures.isEmpty()
             || !pendingRecords.isEmpty()
             || deferredUndo > 0
             || persistenceDirty;
       }
+
+      /**
+       * A failed snapshot remains blocked even if its merge allocated a partial cache.
+       *
+       * <p>An older-page failure must not use this flag. That owner already holds
+       * decoded batches and a durable order, so a later undo can retry the page.</p>
+       */
+      private boolean snapshotLoadFailed() {
+         return historyLoadFailed;
+      }
+
+      private boolean canEvict() {
+         return detached
+            && !busy()
+            && pendingPersistence == 0
+            && !persistenceDirty
+            && durableCommit == null;
+      }
    }
 
-   private static final class History {
-      private final ArrayDeque<WorldChangeBatch> undo = new ArrayDeque<>();
-      private final ArrayDeque<WorldChangeBatch> redo = new ArrayDeque<>();
-      private long undoBytes;
-      private long redoBytes;
+   private enum DurableCommitPhase { BATCH, INDEX }
 
-      private void clearRedo() {
-         this.redo.clear();
-         this.redoBytes = 0L;
+   private static final class DurableCommit {
+      private final WorldChangeBatch batch;
+      private final PersistentRecoveryJournal journal;
+      private DurableCommitPhase phase = DurableCommitPhase.BATCH;
+      private CompletableFuture<Void> future;
+      private int retryTicks = 100;
+
+      private DurableCommit(
+         WorldChangeBatch batch, PersistentRecoveryJournal journal, CompletableFuture<Void> future
+      ) {
+         this.batch = batch;
+         this.journal = journal;
+         this.future = future;
       }
    }
 
    private static final class HistoryTask {
-      private final History history;
+      private final HistoryMemoryCache history;
       private final boolean undo;
       private final int requested;
       private final boolean recovery;
+      private final PlacementUpdateMode updateMode;
       private PersistentRecoveryJournal journal;
       private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
       private WorldChangeBatch batch;
@@ -1198,7 +1620,7 @@ public final class WorldHistoryManager {
       private boolean retainRecovery;
       private int skippedConflicts;
       private int durabilityRetryTicks;
-      private ResourceKey<Level> leasedDimension;
+      private WorldWriteCoordinator.Lease leased;
       private int partialApplyIndex = -1;
       private ReversibleBlockSnapshot partialApplyState;
       private int blockedApplyIndex = -1;
@@ -1211,18 +1633,21 @@ public final class WorldHistoryManager {
       private UUID operationId;
       private WorldOperationMetrics metrics;
 
-      private HistoryTask(History history, boolean undo, int requested) {
+      private HistoryTask(
+         HistoryMemoryCache history, boolean undo, int requested, PlacementUpdateMode updateMode
+      ) {
          this.history = history;
          this.undo = undo;
          this.requested = requested;
-          this.recovery = false;
-          this.journal = null;
-          WorldChangeBatch first = history == null
-             ? null
-             : (undo ? history.undo : history.redo).peekFirst();
-          this.operationId = first == null || first.operationId() == null
-             ? UUID.randomUUID()
-             : first.operationId();
+         this.recovery = false;
+         this.updateMode = HistoryRecoveryPolicy.effectiveUpdateMode(updateMode, false);
+         this.journal = null;
+         WorldChangeBatch first = history == null
+            ? null
+            : history.peek(undo);
+         this.operationId = first == null || first.operationId() == null
+            ? UUID.randomUUID()
+            : first.operationId();
          this.metrics = new WorldOperationMetrics(this.operationId);
          this.metrics.queued();
          this.batchFeedback = new WorldBatchFeedback(this.metrics);
@@ -1232,12 +1657,13 @@ public final class WorldHistoryManager {
          this.history = null;
          this.undo = true;
          this.requested = 1;
-          this.recovery = true;
-          this.batch = batch;
-          this.journal = journal;
-          this.operationId = journal != null && journal.operationId() != null
-             ? journal.operationId()
-             : batch != null && batch.operationId() != null ? batch.operationId() : UUID.randomUUID();
+         this.recovery = true;
+         this.updateMode = HistoryRecoveryPolicy.effectiveUpdateMode(null, true);
+         this.batch = batch;
+         this.journal = journal;
+         this.operationId = journal != null && journal.operationId() != null
+            ? journal.operationId()
+            : batch != null && batch.operationId() != null ? batch.operationId() : UUID.randomUUID();
          this.metrics = new WorldOperationMetrics(this.operationId);
          this.metrics.queued();
          this.batchFeedback = new WorldBatchFeedback(this.metrics);
@@ -1273,11 +1699,34 @@ public final class WorldHistoryManager {
                return true;
             }
             if (this.batch == null) {
-               ArrayDeque<WorldChangeBatch> source = this.undo ? this.history.undo : this.history.redo;
-               this.batch = source.peekFirst();
+               this.batch = this.history.peek(this.undo);
                if (this.batch == null) {
                   if (!this.recovery) {
                      this.releaseLease(context);
+                     OwnerState owner = ownerState(context.owner());
+                     if (this.cancelRequested) {
+                        context.actionBar(FastPlaceMessages.text("fastformer.message.cancelled"));
+                        return true;
+                     }
+                     if (owner.scheduler().hasPendingPageLoad()) {
+                        return false;
+                     }
+                     if (owner.scheduler().failedPagePlan().isPresent()) {
+                        owner.scheduler().clearFailedPagePlan();
+                        return true;
+                     }
+                     if (!this.cancelRequested && this.completed < this.requested) {
+                        Optional<HistoryPageLoadPlan> nextPage = HistoryPageLoadPlan.create(
+                           this.undo, this.requested - this.completed, List.of(), owner.historyLimit, historyOrder(owner)
+                        );
+                        if (nextPage.isPresent()) {
+                           HistoryPageLoadPlan plan = nextPage.orElseThrow();
+                           owner.scheduler().startPageLoad(plan, WorldHistoryPersistence.loadPage(
+                              context.server(), context.owner(), plan.operationIds(), plan.operationIds().size(), HISTORY_PAGE_BYTES
+                           ));
+                           return false;
+                        }
+                     }
                      this.completedSuccessfully = true;
                      context.actionBar(
                         FastPlaceMessages.text(
@@ -1298,7 +1747,7 @@ public final class WorldHistoryManager {
                this.phase = Phase.CHECK;
                this.applied = null;
             }
-            if (cancellationCanFinishImmediately(
+            if (HistoryRecoveryPolicy.canFinishCancellation(
                this.cancelRequested,
                this.phase == Phase.ROLLBACK,
                this.phase == Phase.RESOLVE,
@@ -1440,7 +1889,8 @@ public final class WorldHistoryManager {
                      continue;
                   }
                   if (match != 1) {
-                     if (recoveryCellAction(this.recovery, match) == RecoveryCellAction.PRESERVE_EXTERNAL) {
+                     if (HistoryRecoveryPolicy.cellAction(this.recovery, match)
+                        == HistoryRecoveryPolicy.CellAction.PRESERVE_EXTERNAL) {
                         this.skippedConflicts++;
                         this.index++;
                         continue;
@@ -1451,7 +1901,7 @@ public final class WorldHistoryManager {
                      break;
                   }
                   this.applied.set(this.index);
-                  boolean applied = this.batch.apply(level, this.index, this.undo, PlacementUpdateMode.CLIENT_ONLY.flags());
+                  boolean applied = this.batch.apply(level, this.index, this.undo, this.updateMode.flags());
                   this.metrics.writeAttempt(applied);
                   if (!applied) {
                      Optional<ReversibleBlockSnapshot> partial = ReversibleBlockSnapshot.capture(
@@ -1534,7 +1984,9 @@ public final class WorldHistoryManager {
                   && this.partialApplyState != null
                   && this.partialApplyState.matches(level, this.batch.position(appliedIndex));
                boolean normalTargetMatches = this.batch.matchesExpected(level, appliedIndex, inverseUndo);
-               if (rollbackOwnsPartial(partialIndexMatches, partialFingerprintMatches, normalTargetMatches)) {
+               if (HistoryRecoveryPolicy.ownsPartialRollback(
+                  partialIndexMatches, partialFingerprintMatches, normalTargetMatches
+               )) {
                   boolean rolledBack = this.batch.apply(level, appliedIndex, inverseUndo, PlacementUpdateMode.CLIENT_ONLY.flags());
                   this.metrics.writeAttempt(rolledBack);
                   if (!rolledBack) {
@@ -1612,24 +2064,17 @@ public final class WorldHistoryManager {
       }
 
       private void commitBatch(WorldTaskContext context) {
-         ArrayDeque<WorldChangeBatch> source = this.undo ? this.history.undo : this.history.redo;
-         ArrayDeque<WorldChangeBatch> target = this.undo ? this.history.redo : this.history.undo;
-         WorldChangeBatch committed = source.removeFirst();
-         target.addFirst(committed);
-         if (this.undo) {
-            this.history.undoBytes -= committed.estimatedBytes();
-            this.history.redoBytes += committed.estimatedBytes();
-         } else {
-            this.history.redoBytes -= committed.estimatedBytes();
-            this.history.undoBytes += committed.estimatedBytes();
-         }
+         WorldChangeBatch committed = this.history.commit(this.undo);
+         OwnerState owner = ownerState(context.owner());
+         historyOrder(owner).commit(this.undo, committed.operationId());
          ServerPlayer player = context.onlinePlayer();
          if (player == null) {
-            trim(ownerState(context.owner()).historyLimit, this.history);
+            trim(owner.historyLimit, this.history);
          } else {
             trimSafely(player, this.history);
          }
-         scheduleIndex(context.server(), context.owner(), ownerState(context.owner()), this.history);
+         historyOrder(owner).trim(owner.historyLimit);
+         scheduleIndex(context.server(), context.owner(), owner, this.history);
       }
 
       private JournalPreparation prepareJournal(WorldTaskContext context) {
@@ -1802,38 +2247,41 @@ public final class WorldHistoryManager {
             return false;
          }
          ResourceKey<Level> desired = this.batch.dimension();
-         if (desired.equals(this.leasedDimension)) {
+         if (this.leased != null && desired.equals(this.leased.dimension()) && WorldWriteCoordinator.renew(this.leased)) {
             return true;
          }
-         if (this.leasedDimension != null) {
-            WorldWriteCoordinator.release(context.server(), this.leasedDimension, context.owner());
-            this.leasedDimension = null;
+         if (this.leased != null) {
+            WorldWriteCoordinator.release(this.leased);
+            this.leased = null;
          }
-         if (!WorldWriteCoordinator.tryAcquire(context.server(), desired, context.owner())) {
+         // A recovery or the next history step takes over the lease of the same
+         // owner. The takeover keeps the lease held and makes the predecessor's
+         // late release a no-op, so no other writer can enter between them.
+         this.leased = WorldWriteCoordinator.takeOver(context.server(), desired, context.owner());
+         if (this.leased == null) {
             return false;
          }
-         this.leasedDimension = desired;
          this.metrics.leaseAcquired();
          return true;
       }
 
       private void releaseLease(WorldTaskContext context) {
-         if (this.leasedDimension != null) {
-            WorldWriteCoordinator.release(context.server(), this.leasedDimension, context.owner());
-            this.leasedDimension = null;
+         if (this.leased != null) {
+            WorldWriteCoordinator.release(this.leased);
+            this.leased = null;
          }
       }
 
       private void releaseAfterCancelledJournal(WorldTaskContext context) {
-         ResourceKey<Level> dimension = this.leasedDimension != null
-            ? this.leasedDimension
-            : this.batch == null ? null : this.batch.dimension();
-         if (dimension == null) {
+         WorldWriteCoordinator.Lease cancelled = this.leased;
+         this.leased = null;
+         if (cancelled == null) {
+            // This task never took the lease, so it must not release anything.
+            // An owner-keyed release here could free the transaction of the same
+            // player that still holds the dimension.
             return;
          }
-         WorldWriteCoordinator.releaseAfterUnusedJournal(
-            context.server(), dimension, context.owner(), this.journal, this.journalPreparation.future()
-         );
+         WorldWriteCoordinator.releaseAfterUnusedJournal(cancelled, this.journal, this.journalPreparation.future());
       }
 
       private enum Phase {
@@ -1846,52 +2294,4 @@ public final class WorldHistoryManager {
       }
    }
 
-   static boolean rollbackOwnsPartial(
-      boolean partialIndexMatches,
-      boolean partialFingerprintMatches,
-      boolean normalTargetMatches
-   ) {
-      return normalTargetMatches || (partialIndexMatches && partialFingerprintMatches);
-   }
-
-   static boolean cancellationCanFinishImmediately(
-      boolean cancelRequested,
-      boolean rollingBack,
-      boolean resolving,
-      boolean failedApplyState
-   ) {
-      return cancelRequested && !rollingBack && !resolving && !failedApplyState;
-   }
-
-   static RecoveryRetentionAction recoveryRetentionAction(
-      boolean retainRecovery,
-      boolean hasBatch
-   ) {
-      if (!retainRecovery || !hasBatch) {
-         return RecoveryRetentionAction.NONE;
-      }
-      return RecoveryRetentionAction.RETRY_AUTOMATICALLY;
-   }
-
-   static RecoveryCellAction recoveryCellAction(boolean recovery, int match) {
-      if (match == 1) {
-         return RecoveryCellAction.RESTORE;
-      }
-      if (match == 2) {
-         return RecoveryCellAction.ALREADY_RESTORED;
-      }
-      return recovery ? RecoveryCellAction.PRESERVE_EXTERNAL : RecoveryCellAction.FAIL_ATOMIC_BATCH;
-   }
-
-   enum RecoveryCellAction {
-      RESTORE,
-      ALREADY_RESTORED,
-      PRESERVE_EXTERNAL,
-      FAIL_ATOMIC_BATCH
-   }
-
-   enum RecoveryRetentionAction {
-      NONE,
-      RETRY_AUTOMATICALLY
-   }
 }

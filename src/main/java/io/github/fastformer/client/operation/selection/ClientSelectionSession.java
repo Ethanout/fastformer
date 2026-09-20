@@ -1,34 +1,123 @@
 package io.github.fastformer.client.operation.selection;
 
-import io.github.fastformer.fastplace.OperationSelectionMode;
-import java.util.ArrayList;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.interaction.SelectionInteractionScene;
+import io.github.fastformer.client.interaction.InteractionHover;
+import io.github.fastformer.client.interaction.InteractionObject;
+import io.github.fastformer.client.interaction.InteractionVisibility;
+import io.github.fastformer.client.input.drag.SelectionGestureState;
+import io.github.fastformer.client.input.OperationInteractionIntent;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 
 /**
- * Owns the mutable client-side selection gesture data behind one state
- * machine. The controller exposes only the derived four-state projection.
+ * Owns selection drafts, parts, and selection membership. The phase is a
+ * read-only projection until the event-driven session lifecycle is migrated.
  */
 public final class ClientSelectionSession {
-   private final ArrayList<BlockPos> draftPoints = new ArrayList<>();
-   private BlockPos draftMinPoint;
-   private BlockPos draftMaxPoint;
-   private OperationSelectionMode selectionMode = OperationSelectionMode.CUBOID;
-   private int prismBaseCount;
+   private final ClientOperationWorkspace workspace = new ClientOperationWorkspace();
+   private UUID interactionOwnerId = UUID.randomUUID();
+   private final InteractionHover hover = new InteractionHover();
+   private final SelectionGestureState gestures = new SelectionGestureState();
+   private final SelectionSessionLifecycle lifecycle = new SelectionSessionLifecycle();
+   private SelectionInteractionScene interactionScene = SelectionInteractionScene.empty(this.interactionOwnerId);
+   private final SelectionDraftStateMachine draft = new SelectionDraftStateMachine();
    private boolean altHeld;
-   private ClientSelectionState state = ClientSelectionState.UNFOCUSED;
 
    public ClientSelectionSession() {
    }
 
+   public ClientOperationWorkspace workspace() {
+      return this.workspace;
+   }
+
+   public SelectionGestureState gestures() {
+      return this.gestures;
+   }
+
+   public SelectionSessionLifecycle.Phase lifecyclePhase() {
+      return this.lifecycle.phase();
+   }
+
+   public SelectionSessionLifecycle.Transition onLifecycleEvent(SelectionSessionLifecycle.Event event) {
+      return this.lifecycle.onEvent(event);
+   }
+
+   public UUID interactionOwnerId() {
+      return this.interactionOwnerId;
+   }
+
+   public SelectionInteractionScene interactionScene() {
+      return this.interactionScene;
+   }
+
+   public void publishInteractionScene() {
+      this.interactionScene = SelectionInteractionScene.capture(this.interactionOwnerId, this.workspace, this.interactionScene);
+      if (this.workspace.locked()) this.hover.update(null);
+      else {
+         this.hover.reconcile(this.interactionScene);
+         if (this.hover.intent() != null) updateHover(this.hover.intent());
+      }
+   }
+
+   public InteractionObject.Id hoveredObject() {
+      return this.hover.current();
+   }
+
+   public List<InteractionHover.Event> updateHover(int partId) {
+      return updateHover(new OperationInteractionIntent.Part(partId, 0));
+   }
+
+   public OperationInteractionIntent hoveredIntent() {
+      return this.hover.intent();
+   }
+
+   public int hoveredPartId() {
+      return switch (this.hover.intent()) {
+         case OperationInteractionIntent.Part part -> part.partId();
+         case OperationInteractionIntent.Face face -> face.partId();
+         case OperationInteractionIntent.Gizmo gizmo -> gizmo.common() ? 0 : gizmo.partId();
+         case null, default -> 0;
+      };
+   }
+
+   public List<InteractionHover.Event> updateHover(OperationInteractionIntent intent) {
+      InteractionObject object = this.workspace.locked() ? null : this.interactionScene.targetObject(intent);
+      int partId = switch (intent) {
+         case OperationInteractionIntent.Part part -> part.partId();
+         case OperationInteractionIntent.Face face -> face.partId();
+         case OperationInteractionIntent.Gizmo gizmo -> gizmo.partId();
+         case null, default -> 0;
+      };
+      if (!InteractionVisibility.isVisible(object, this.workspace.selectedIds().contains(partId))) object = null;
+      return this.hover.updateTarget(object, intent);
+   }
+
+   public void clearLiveInteraction() {
+      this.workspace.clear();
+      clearDraft();
+      clearTransientInteraction();
+   }
+
+   public void clearTransientInteraction() {
+      this.workspace.cancelEdit();
+      this.lifecycle.exit(SelectionSessionLifecycle.Cause.ENVIRONMENT_CHANGED);
+      this.gestures.clear();
+      this.interactionOwnerId = UUID.randomUUID();
+      this.hover.update(null);
+      this.interactionScene = SelectionInteractionScene.empty(this.interactionOwnerId);
+      this.altHeld = false;
+      publishInteractionScene();
+   }
+
    public OperationSelectionMode selectionMode() {
-      return this.selectionMode;
+      return this.draft.snapshot().selectionMode();
    }
 
    public void setSelectionMode(OperationSelectionMode mode) {
-      if (mode != null) {
-         this.selectionMode = mode;
-      }
+      this.draft.setMode(mode);
    }
 
    public boolean altHeld() {
@@ -40,159 +129,116 @@ public final class ClientSelectionSession {
    }
 
    public ClientSelectionState state() {
-      return this.state;
+      return state(false);
    }
 
-   public void refresh(boolean hasSelection, boolean workspaceEmpty, boolean serverPointing) {
-      this.state = this.altHeld
+   public ClientSelectionState state(boolean serverPointing) {
+      return this.altHeld
          ? ClientSelectionState.ALT_FOCUSED
-         : !this.draftPoints.isEmpty() || workspaceEmpty && serverPointing
+         : hasDraft() || this.workspace.isEmpty() && serverPointing
             ? ClientSelectionState.POINTING
-            : hasSelection ? ClientSelectionState.FOCUSED : ClientSelectionState.UNFOCUSED;
+            : !this.workspace.selectedIds().isEmpty() ? ClientSelectionState.FOCUSED : ClientSelectionState.UNFOCUSED;
    }
 
    public boolean hasDraft() {
-      return !this.draftPoints.isEmpty();
+      return !this.draft.snapshot().points().isEmpty();
+   }
+
+   public SelectionDraftResult onDraftEvent(SelectionDraftEvent event) {
+      SelectionDraftResult result = this.draft.onEvent(event);
+      if (result != SelectionDraftResult.REJECTED) {
+         this.lifecycle.onEvent(SelectionSessionLifecycle.Event.BEGIN);
+      }
+      return result;
    }
 
    public int draftSize() {
-      return this.draftPoints.size();
+      return this.draft.snapshot().points().size();
    }
 
    public BlockPos draftFirst() {
-      return this.draftPoints.isEmpty() ? null : this.draftPoints.getFirst();
+      return hasDraft() ? this.draft.snapshot().points().getFirst() : null;
    }
 
    public BlockPos draftAt(int index) {
-      return this.draftPoints.get(index);
+      return this.draft.snapshot().points().get(index);
    }
 
    public List<BlockPos> draftPoints() {
-      return List.copyOf(this.draftPoints);
+      return this.draft.snapshot().points();
    }
 
    public List<BlockPos> selectionDraftPoints() {
-      if (this.draftPoints.size() >= 2 && this.draftMinPoint != null && this.draftMaxPoint != null) {
-         return List.of(this.draftMinPoint, this.draftMaxPoint);
-      }
-      return draftPoints();
+      DraftState snapshot = this.draft.snapshot();
+      return snapshot.points().size() >= 2
+         ? List.of(snapshot.minPoint(), snapshot.maxPoint()) : snapshot.points();
    }
 
    public void addDraftPoint(BlockPos point) {
-      if (point != null) {
-         this.draftPoints.add(point.immutable());
-         refreshDraftBounds();
-      }
+      if (point == null) return;
+      this.lifecycle.onEvent(SelectionSessionLifecycle.Event.BEGIN);
+      this.draft.addPoint(point);
    }
 
-   public void setDraftPoint(int index, BlockPos point) {
-      if (point != null && index >= 0 && index < this.draftPoints.size()) {
-         this.draftPoints.set(index, point.immutable());
-         refreshDraftBounds();
-      }
-   }
-
-   /** Expands the cuboid draft without changing its input points. */
    public boolean expandDraftTo(BlockPos point) {
-      if (point == null || this.draftPoints.size() < 2) {
-         return false;
-      }
-      BlockPos nextMin = new BlockPos(
-         Math.min(this.draftMinPoint.getX(), point.getX()),
-         Math.min(this.draftMinPoint.getY(), point.getY()),
-         Math.min(this.draftMinPoint.getZ(), point.getZ())
-      );
-      BlockPos nextMax = new BlockPos(
-         Math.max(this.draftMaxPoint.getX(), point.getX()),
-         Math.max(this.draftMaxPoint.getY(), point.getY()),
-         Math.max(this.draftMaxPoint.getZ(), point.getZ())
-      );
-      if (nextMin.equals(this.draftMinPoint) && nextMax.equals(this.draftMaxPoint)) {
-         return false;
-      }
-      this.draftMinPoint = nextMin;
-      this.draftMaxPoint = nextMax;
-      return true;
+      return this.draft.expandTo(point);
    }
 
    public BlockPos draftMinPoint() {
-      return this.draftMinPoint;
+      return this.draft.snapshot().minPoint();
    }
 
    public BlockPos draftMaxPoint() {
-      return this.draftMaxPoint;
+      return this.draft.snapshot().maxPoint();
    }
 
    public BlockPos removeLastDraftPoint() {
-      if (this.draftPoints.isEmpty()) {
-         return null;
-      }
-      BlockPos removed = this.draftPoints.removeLast();
-      refreshDraftBounds();
-      return removed;
+      return this.draft.removeLastPoint();
    }
 
    public void clearDraft() {
-      this.draftPoints.clear();
-      this.prismBaseCount = 0;
-      this.draftMinPoint = null;
-      this.draftMaxPoint = null;
+      this.draft.clear();
    }
 
    public int prismBaseCount() {
-      return this.prismBaseCount;
-   }
-
-   public void setPrismBaseCount(int count) {
-      this.prismBaseCount = Math.max(0, count);
-   }
-
-   public void restoreDraft(List<BlockPos> points, int baseCount) {
-      this.draftPoints.clear();
-      if (points != null) {
-         points.stream().filter(java.util.Objects::nonNull)
-            .map(BlockPos::immutable).forEach(this.draftPoints::add);
-      }
-      this.prismBaseCount = Math.max(0, baseCount);
-      refreshDraftBounds();
+      return this.draft.snapshot().prismBaseCount();
    }
 
    public void restoreDraftBounds(BlockPos min, BlockPos max) {
-      if (min != null && max != null && this.draftPoints.size() >= 2) {
-         this.draftMinPoint = new BlockPos(
-            Math.min(min.getX(), max.getX()),
-            Math.min(min.getY(), max.getY()),
-            Math.min(min.getZ(), max.getZ())
-         );
-         this.draftMaxPoint = new BlockPos(
-            Math.max(min.getX(), max.getX()),
-            Math.max(min.getY(), max.getY()),
-            Math.max(min.getZ(), max.getZ())
-         );
-      }
+      this.draft.restoreBounds(min, max);
    }
 
-   private void refreshDraftBounds() {
-      if (this.draftPoints.isEmpty()) {
-         this.draftMinPoint = null;
-         this.draftMaxPoint = null;
-         return;
+   public DraftState draftState() {
+      return this.draft.snapshot();
+   }
+
+   public void restoreDraftState(DraftState draft) {
+      this.draft.restore(draft);
+      this.altHeld = false;
+   }
+
+   public void restoreDraftEdit(DraftState draft) {
+      this.draft.restore(draft);
+   }
+
+   public record DraftState(
+      OperationSelectionMode selectionMode,
+      List<BlockPos> points,
+      int prismBaseCount,
+      BlockPos minPoint,
+      BlockPos maxPoint
+   ) {
+      public DraftState {
+         if (selectionMode == null) {
+            throw new IllegalArgumentException("A selection draft requires a mode");
+         }
+         points = points == null ? List.of() : points.stream()
+            .filter(java.util.Objects::nonNull)
+            .map(BlockPos::immutable)
+            .toList();
+         minPoint = minPoint == null ? null : minPoint.immutable();
+         maxPoint = maxPoint == null ? null : maxPoint.immutable();
+         prismBaseCount = Math.max(0, prismBaseCount);
       }
-      BlockPos min = this.draftPoints.getFirst();
-      BlockPos max = min;
-      for (BlockPos point : this.draftPoints) {
-         min = new BlockPos(
-            Math.min(min.getX(), point.getX()),
-            Math.min(min.getY(), point.getY()),
-            Math.min(min.getZ(), point.getZ())
-         );
-         max = new BlockPos(
-            Math.max(max.getX(), point.getX()),
-            Math.max(max.getY(), point.getY()),
-            Math.max(max.getZ(), point.getZ())
-         );
-      }
-      this.draftMinPoint = min;
-      this.draftMaxPoint = max;
    }
 }

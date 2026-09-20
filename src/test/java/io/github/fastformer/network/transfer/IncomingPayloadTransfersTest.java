@@ -12,6 +12,48 @@ import org.junit.jupiter.api.Test;
 
 class IncomingPayloadTransfersTest {
    @Test
+   void staleWorkspaceFailurePreservesTheCurrentTransfer() throws IOException {
+      IncomingPayloadTransfers transfers = new IncomingPayloadTransfers();
+      UUID owner = UUID.randomUUID();
+      UUID current = UUID.randomUUID();
+      UUID stale = UUID.randomUUID();
+      assertNull(transfers.acceptWorkspace(owner, new OperationWorkspaceApplyPayload(current, 0, 2, new byte[] {1})));
+      assertThrows(IOException.class, () -> transfers.acceptWorkspace(
+         owner, new OperationWorkspaceApplyPayload(stale, 1, 2, new byte[] {9})));
+      transfers.forgetWorkspace(owner, stale);
+      assertArrayEquals(new byte[] {1, 2}, transfers.acceptWorkspace(
+         owner, new OperationWorkspaceApplyPayload(current, 1, 2, new byte[] {2})));
+   }
+
+   @Test
+   void staleShapeFailurePreservesTheCurrentTransfer() throws IOException {
+      IncomingPayloadTransfers transfers = new IncomingPayloadTransfers();
+      UUID owner = UUID.randomUUID();
+      UUID current = UUID.randomUUID();
+      UUID stale = UUID.randomUUID();
+      assertNull(transfers.acceptShape(owner, new ShapePlacementPayload(current, 0, 2, new byte[] {1})));
+      assertThrows(IOException.class, () -> transfers.acceptShape(
+         owner, new ShapePlacementPayload(stale, 1, 2, new byte[] {9})));
+      transfers.forgetShape(owner, stale);
+      assertArrayEquals(new byte[] {1, 2}, transfers.acceptShape(
+         owner, new ShapePlacementPayload(current, 1, 2, new byte[] {2})));
+   }
+
+   @Test
+   void matchingFailureRemovesOnlyItsTransferKind() throws IOException {
+      IncomingPayloadTransfers transfers = new IncomingPayloadTransfers();
+      UUID owner = UUID.randomUUID();
+      UUID id = UUID.randomUUID();
+      transfers.acceptWorkspace(owner, new OperationWorkspaceApplyPayload(id, 0, 2, new byte[] {1}));
+      transfers.acceptShape(owner, new ShapePlacementPayload(id, 0, 2, new byte[] {3}));
+      transfers.forgetWorkspace(owner, id);
+      assertThrows(IOException.class, () -> transfers.acceptWorkspace(
+         owner, new OperationWorkspaceApplyPayload(id, 1, 2, new byte[] {2})));
+      assertArrayEquals(new byte[] {3, 4}, transfers.acceptShape(
+         owner, new ShapePlacementPayload(id, 1, 2, new byte[] {4})));
+   }
+
+   @Test
    void keepsWorkspaceAndShapeTransfersIndependentForTheSamePlayer() throws IOException {
       IncomingPayloadTransfers transfers = new IncomingPayloadTransfers();
       UUID owner = UUID.randomUUID();

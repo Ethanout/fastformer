@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.fastplace.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 
 public final class OperationInputSemantics {
    private OperationInputSemantics() {
@@ -37,7 +37,9 @@ public final class OperationInputSemantics {
          snapshot.gizmoHit()
       );
       boolean yieldToVanilla = yieldToVanillaNearBlock(
-         snapshot.nearVanillaBlock(), snapshot.modifierOverride(), snapshot.interactionTargetHit()
+         snapshot.nearVanillaBlock(),
+         snapshot.modifierOverride() || snapshot.workspaceOwnsPress(),
+         snapshot.interactionTargetHit()
       );
       return new LeftDecision(action, yieldToVanilla);
    }
@@ -49,7 +51,8 @@ public final class OperationInputSemantics {
       boolean gizmoHit,
       boolean nearVanillaBlock,
       boolean modifierOverride,
-      boolean interactionTargetHit
+      boolean interactionTargetHit,
+      boolean workspaceOwnsPress
    ) {
    }
 

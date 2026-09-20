@@ -284,6 +284,21 @@ public final class PersistentRecoveryJournal {
       return this.complete();
    }
 
+   synchronized boolean sealFinalizedForHistory() {
+      if (!this.completeFinalized()) {
+         return false;
+      }
+      COMMITTED.remove(this.segmented ? this.file : committedMarker(this.file));
+      return true;
+   }
+
+   synchronized void historyPublished() {
+      if (!this.committed || this.dimension == null) {
+         return;
+      }
+      COMMITTED.put(this.segmented ? this.file : committedMarker(this.file), this.dimension);
+   }
+
    /** Removes a prepared journal for a task that was cancelled before any world write. */
    public synchronized boolean discardUnused() {
       try {
@@ -524,7 +539,7 @@ public final class PersistentRecoveryJournal {
             }
          }
          for (Path path : committed) {
-            if (recoverOne(server, path, true)) {
+            if (recoverOne(server, path, true) && reconcileHistory(server, path)) {
                recovered.add(path);
             } else {
                success = false;
@@ -565,6 +580,19 @@ public final class PersistentRecoveryJournal {
       }
       startupRecoveryBlocked = !success;
       return success;
+   }
+
+   private static boolean reconcileHistory(MinecraftServer server, Path path) {
+      if (!Files.isDirectory(path)) {
+         return true;
+      }
+      try {
+         WorldHistoryPersistence.reconcileCommittedJournal(server, path).join();
+         return true;
+      } catch (RuntimeException failure) {
+         LOGGER.error("Could not reconcile history for committed journal {}", path, failure);
+         return false;
+      }
    }
 
    /**

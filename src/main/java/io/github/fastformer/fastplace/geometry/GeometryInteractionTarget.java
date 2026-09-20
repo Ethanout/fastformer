@@ -3,6 +3,7 @@ package io.github.fastformer.fastplace.geometry;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 
 public record GeometryInteractionTarget(
    TargetType type,
@@ -54,6 +55,23 @@ public record GeometryInteractionTarget(
 
    public GeometryInteractionAction action(PointerGesture gesture) {
       return this.interaction == null ? null : this.interaction.action(gesture);
+   }
+
+   /** Text shown beside the crosshair for this geometry target. */
+   public Component hoverText() {
+      return switch (this.type) {
+         case CONTROL_POINT -> Component.translatable("fastformer.operation.control_point.handle");
+         case CLOSE_PATH -> Component.translatable("fastformer.operation.selection_click_hint");
+      };
+   }
+
+   /** Enforced entry point for renderers and input feedback. */
+   public Component requireHoverText() {
+      Component text = hoverText();
+      if (text == null) {
+         throw new IllegalStateException("Geometry interaction target is missing hover text: " + this.type);
+      }
+      return text;
    }
 
    private static Vec3 sanitizeHalfExtents(Vec3 value) {

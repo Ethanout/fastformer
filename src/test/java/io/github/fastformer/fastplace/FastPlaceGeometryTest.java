@@ -1,5 +1,11 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;
@@ -18,14 +24,14 @@ import org.junit.jupiter.api.Test;
 
 class FastPlaceGeometryTest {
    @Test
-   void quickRaycastDefaultUsesTheHitBlockInternally() {
+   void quickRaycastDefaultUsesTheHitSurface() {
       FastPlaceSettings settings = FastPlaceSettings.fromTag(new net.minecraft.nbt.CompoundTag());
       FastPlaceSession session = new FastPlaceSession();
       FastPlaceGeometry.Modes modes = FastPlaceManager.effectiveModes(settings, session);
 
-      assertEquals(RaycastPlacement.EMBEDDED, modes.raycastPlacement());
+      assertEquals(RaycastPlacement.SURFACE, modes.raycastPlacement());
       assertEquals(
-         new BlockPos(4, 5, 6),
+         new BlockPos(4, 5, 7),
          FastPlaceGeometry.resolveCandidate(
             List.of(),
             false,
@@ -150,6 +156,21 @@ class FastPlaceGeometryTest {
 
       assertTrue(Math.abs(vertical.getY() - nearVertical.getY()) <= 1);
       assertTrue(Math.abs(vertical.getY()) <= 130);
+   }
+
+   @Test
+   void perpendicularVolumeGenerationIgnoresGridSnapLateralOffset() {
+      List<BlockPos> base = List.of(
+         new BlockPos(0, 0, 0), new BlockPos(4, 0, 0), new BlockPos(0, 0, 4)
+      );
+      Set<BlockPos> snapped = FastPlaceGeometry.blocks(
+         List.of(base.get(0), base.get(1), base.get(2), new BlockPos(2, 3, 1)), modes(FillMode.OUTLINE)
+      );
+      Set<BlockPos> normal = FastPlaceGeometry.blocks(
+         List.of(base.get(0), base.get(1), base.get(2), new BlockPos(0, 3, 4)), modes(FillMode.OUTLINE)
+      );
+
+      assertEquals(normal, snapped);
    }
 
    private static BlockPos candidate(

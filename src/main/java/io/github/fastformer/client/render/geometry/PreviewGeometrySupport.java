@@ -1,7 +1,9 @@
 package io.github.fastformer.client.render.geometry;
 
-import io.github.fastformer.fastplace.FaceMode;
-import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.FastPlaceGeometry;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
@@ -53,6 +55,23 @@ public final class PreviewGeometrySupport {
       boolean polygonHeightConfirmed,
       PolygonVolumeShape polygonVolumeShape
    ) {
+      return outlineGeometryEdges(
+         points, faceMode, polygonClosed, polygonHeightConfirmed, polygonVolumeShape, VolumeMode.FREE
+      );
+   }
+
+   /**
+    * Returns the stable geometric boundary. In perpendicular mode, grid-rounding
+    * may move the height point sideways, so only its normal-distance is used.
+    */
+   public static List<GuideLine> outlineGeometryEdges(
+      List<BlockPos> points,
+      FaceMode faceMode,
+      boolean polygonClosed,
+      boolean polygonHeightConfirmed,
+      PolygonVolumeShape polygonVolumeShape,
+      VolumeMode volumeMode
+   ) {
       if (points == null || points.size() < 2) {
          return List.of();
       }
@@ -67,14 +86,24 @@ public final class PreviewGeometrySupport {
          return List.of();
       }
       if (points.size() == 3) {
-         return closedEdges(base);
+         return hasArea(base) ? closedEdges(base) : lineEdge(points.getFirst(), points.get(1));
       }
       Vec3 anchor = Vec3.atCenterOf(points.get(2));
-      Vec3 extrusion = Vec3.atCenterOf(points.get(3)).subtract(anchor);
+      Vec3 extrusion = FastPlaceGeometry.constrainedVolumeExtrusion(
+         base, anchor, Vec3.atCenterOf(points.get(3)), volumeMode
+      );
       if (extrusion.lengthSqr() < 1.0E-7) {
          return closedEdges(base);
       }
       return new SelectionPrism(base, extrusion).edges();
+   }
+
+   private static boolean hasArea(List<Vec3> vertices) {
+      return PlanarFaceGeometry.normal(vertices).lengthSqr() >= 1.0E-7;
+   }
+
+   private static List<GuideLine> lineEdge(BlockPos from, BlockPos to) {
+      return List.of(new GuideLine(Vec3.atCenterOf(from), Vec3.atCenterOf(to)));
    }
 
    private static List<GuideLine> polygonEdges(

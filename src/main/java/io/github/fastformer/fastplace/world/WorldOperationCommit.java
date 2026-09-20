@@ -70,8 +70,8 @@ public final class WorldOperationCommit {
             this.failureReason = "journal finalization returned false";
             return JournalPreparation.FAILED;
          }
-         if (this.history.batch().isEmpty()) {
-            this.failureReason = "history publication returned empty";
+         if (this.cancelled || this.history.poll() == JournalPreparation.FAILED) {
+            this.failureReason = "history publication failed or was cancelled";
             return JournalPreparation.FAILED;
          }
          return JournalPreparation.READY;

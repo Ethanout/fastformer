@@ -1,5 +1,11 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+
+import io.github.fastformer.fastplace.selection.OperationMode;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
@@ -145,6 +151,37 @@ public final class TaskLifecycleGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
+   public static void clientOnlyWorkspaceKeepsFloatingGrass(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos support = helper.absolutePos(new BlockPos(1, 2, 1));
+      BlockPos grass = support.above();
+      UUID owner = UUID.randomUUID();
+      Map<BlockPos, ClientBlockSnapshot> blocks = new LinkedHashMap<>();
+      // Insert in the unsafe order to verify task-wide support-first ordering.
+      blocks.put(grass, new ClientBlockSnapshot(Blocks.SHORT_GRASS.defaultBlockState(), null));
+      blocks.put(support, new ClientBlockSnapshot(Blocks.DIRT.defaultBlockState(), null));
+      OperationWorkspacePlan.Part part = new OperationWorkspacePlan.Part(
+         1, ClientSelectionPart.Source.CLIPBOARD, blocks, WorkspaceTransform.IDENTITY, false
+      );
+      ClientWorkspacePlacementTask task = new ClientWorkspacePlacementTask(
+         UUID.randomUUID(),
+         new OperationWorkspacePlan(List.of(part)),
+         PlacementUpdateMode.CLIENT_ONLY,
+         16,
+         level.dimension()
+      );
+      OperationManager.addTaskForTest(owner, task);
+
+      helper.succeedWhen(() -> {
+         OperationManager.tickWorld(level.getServer());
+         helper.assertTrue(!OperationManager.taskActive(owner), "waiting for client-only workspace placement");
+         helper.assertTrue(!WorldHistoryManager.busy(owner), "floating grass workspace entered recovery");
+         helper.assertTrue(level.getBlockState(support).is(Blocks.DIRT), "workspace did not place grass support");
+         helper.assertTrue(level.getBlockState(grass).is(Blocks.SHORT_GRASS), "client-only workspace removed floating grass");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "task_lifecycle", timeoutTicks = 20000)
    public static void placementCompletesAtRepresentativeSizes(GameTestHelper helper) {
       ServerLevel level = helper.getLevel();
       BlockPos origin = helper.absolutePos(new BlockPos(1, 33, 1));
@@ -185,6 +222,11 @@ public final class TaskLifecycleGameTests {
             OperationManager.addTaskForTest(owner[0], active[0]);
          }
          OperationManager.tickWorld(level.getServer());
+         if (OperationManager.taskActive(owner[0])) {
+            // GameTestServer skips the normal tick delay. Give asynchronous disk
+            // commits real time to run before the test spends its tick budget.
+            java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+         }
          helper.assertTrue(!OperationManager.taskActive(owner[0]), "waiting for workspace size " + count + ": " + active[0].metricsSummary());
          assertBlockRange(helper, level, origin, count, Blocks.GOLD_BLOCK);
          clearRange(level, origin, count);

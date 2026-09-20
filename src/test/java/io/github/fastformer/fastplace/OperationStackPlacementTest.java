@@ -1,5 +1,9 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+
+import io.github.fastformer.fastplace.selection.OperationMode;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;

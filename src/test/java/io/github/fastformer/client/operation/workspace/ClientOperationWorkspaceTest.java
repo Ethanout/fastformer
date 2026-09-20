@@ -198,6 +198,201 @@ class ClientOperationWorkspaceTest {
          .withTranslation(new BlockPos(1, 0, 0)).masksSourceBlocks());
    }
 
+   @Test
+   void repeatedNoOpSelectionsDoNotGrowTheHistory() {
+      ClientOperationWorkspace workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1), part(2)));
+      workspace.clearHistory();
+
+      workspace.selectOnly(1);
+      workspace.selectOnly(1);
+      workspace.selectAll();
+      workspace.selectAll();
+
+      // Both edits changed the live state once and were recorded once.
+      assertEquals(2, workspace.undoSize());
+      assertTrue(workspace.undo());
+      assertEquals(Set.of(1), workspace.selectedIds());
+      assertTrue(workspace.undo());
+      assertEquals(Set.of(1, 2), workspace.selectedIds());
+      assertFalse(workspace.undo());
+   }
+
+   @Test
+   void theHistoryBudgetDropsTheOldestWorkspaceEdits() {
+      ClientOperationWorkspace bounded = new ClientOperationWorkspace(3, 10_000_000);
+      ClientOperationWorkspace unbounded = new ClientOperationWorkspace();
+      for (ClientOperationWorkspace workspace : List.of(bounded, unbounded)) {
+         workspace.addParts(List.of(part(1)));
+         workspace.addParts(List.of(part(2)));
+         workspace.addParts(List.of(part(3)));
+         workspace.addParts(List.of(part(4)));
+      }
+
+      assertEquals(4, unbounded.undoSize());
+      assertEquals(3, bounded.undoSize());
+      assertEquals(1L, bounded.historyDiscardedRecords());
+      assertTrue(bounded.historyWeight() < unbounded.historyWeight());
+
+      // The remaining nodes keep their order, and the dropped node is gone, so
+      // the fourth undo of the bounded workspace reports nothing to undo.
+      assertTrue(bounded.undo());
+      assertEquals(Set.of(1, 2, 3), bounded.partIds());
+      assertTrue(bounded.undo());
+      assertTrue(bounded.undo());
+      assertEquals(Set.of(1), bounded.partIds());
+      assertFalse(bounded.undo());
+   }
+
+   @Test
+   void theHistoryAccountsTheDeclaredRetentionOfEachNode() {
+      ClientOperationWorkspace workspace = new ClientOperationWorkspace(100, 10_000_000);
+
+      workspace.addParts(List.of(part(1)));
+      // The recorded snapshot is the empty state before the first part.
+      assertEquals(1L, workspace.historyWeight());
+
+      workspace.pushEvent(() -> {});
+      assertEquals(2L, workspace.historyWeight());
+
+      workspace.addParts(List.of(part(2)));
+      // The snapshot retains the part, its interaction identity, and its selection.
+      assertEquals(6L, workspace.historyWeight());
+
+      workspace.addParts(List.of(part(3)));
+      assertEquals(12L, workspace.historyWeight());
+      assertEquals(4, workspace.undoSize());
+   }
+
+   @Test
+   void aPayloadSharedByTwoDeclaredEventsIsChargedOnce() {
+      ClientOperationWorkspace workspace = new ClientOperationWorkspace(100, 10_000_000);
+      Object holder = new Object();
+      ClientOperationEventStack.Retention retention = ClientOperationEventStack.Retention.of(
+         1, List.of(ClientOperationEventStack.SharedPayload.of(holder, 5))
+      );
+
+      workspace.pushEvent(() -> {}, retention);
+      assertEquals(6L, workspace.historyWeight());
+
+      workspace.pushEvent(() -> {}, retention);
+      // The second event keeps the same holder alive, so it only adds its own
+      // unit. This is the "count the shared snapshot, not every reference" rule.
+      assertEquals(7L, workspace.historyWeight());
+
+      assertTrue(workspace.undo());
+      assertEquals(6L, workspace.historyWeight());
+      assertTrue(workspace.undo());
+      assertEquals(0L, workspace.historyWeight());
+   }
+
+   @Test
+   void clearingTheHistoryReleasesItsWeight() {
+      ClientOperationWorkspace workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1)));
+      workspace.addParts(List.of(part(2)));
+      assertTrue(workspace.historyWeight() > 0L);
+
+      workspace.clearHistory();
+
+      assertEquals(0L, workspace.historyWeight());
+      assertEquals(0, workspace.undoSize());
+   }
+
+   @Test
+   void reusedPartNumberHasANewInteractionIdentity() {
+      ClientOperationWorkspace workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1)));
+      long original = workspace.interactionId(1);
+      assertTrue(workspace.removeSelectedParts());
+      org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> workspace.interactionId(1));
+      workspace.addParts(List.of(part(2)));
+      long replacement = workspace.interactionId(1);
+      assertTrue(replacement > original);
+      assertTrue(workspace.undo());
+      assertTrue(workspace.undo());
+      assertEquals(original, workspace.interactionId(1));
+      assertTrue(workspace.removeSelectedParts());
+      workspace.addParts(List.of(part(3)));
+      assertTrue(workspace.interactionId(1) > replacement);
+   }
+
+   @Test
+   void editsAndTheirUndoPreserveInteractionIdentity() {
+      ClientOperationWorkspace workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1)));
+      long identity = workspace.interactionId(1);
+      assertTrue(workspace.beginEdit());
+      workspace.updatePart(workspace.part(1).orElseThrow().withTranslation(new BlockPos(8, 0, 0)));
+      assertTrue(workspace.finishEdit());
+      assertEquals(identity, workspace.interactionId(1));
+      assertTrue(workspace.undo());
+      assertEquals(identity, workspace.interactionId(1));
+      assertTrue(workspace.beginEdit());
+      workspace.removePartDuringEdit(1);
+      workspace.cancelEdit();
+      assertEquals(identity, workspace.interactionId(1));
+   }
+
+   @Test
+   void restoringDurableDraftCreatesNewTransientIdentities() {
+      ClientOperationWorkspace workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1)));
+      long identity = workspace.interactionId(1);
+      var draft = workspace.draftState();
+      workspace.restoreDraftState(draft);
+      assertTrue(workspace.interactionId(1) > identity);
+      long restored = workspace.interactionId(1);
+      workspace.clear();
+      workspace.addParts(List.of(part(1)));
+      assertTrue(workspace.interactionId(1) > restored);
+   }
+
+   @Test
+   void compositePartRemovalAlsoRemovesInteractionIdentity() {
+      ClientOperationWorkspace workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1), part(2)));
+      long remaining = workspace.interactionId(1);
+      long removed = workspace.interactionId(2);
+      workspace.restoreParts(Set.of(1));
+      assertEquals(remaining, workspace.interactionId(1));
+      org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> workspace.interactionId(2));
+      workspace.addParts(List.of(part(3)));
+      assertTrue(workspace.interactionId(2) > removed);
+   }
+
+   @Test
+   void editingTokensCannotCrossWorkspaceOwners() {
+      var first = new ClientOperationWorkspace();
+      var second = new ClientOperationWorkspace();
+      first.addParts(List.of(part(1)));
+      second.addParts(List.of(part(2)));
+      assertTrue(first.beginEdit());
+      assertTrue(second.beginEdit());
+      var stale = first.activeEditToken();
+      var current = second.activeEditToken();
+      assertFalse(second.ownsEdit(stale));
+      assertFalse(second.finishEdit(stale));
+      assertFalse(second.cancelEdit(stale));
+      assertTrue(second.ownsEdit(current));
+      assertTrue(first.ownsEdit(stale));
+   }
+
+   @Test
+   void clearingAndRestoringCannotReviveAnOldEditToken() {
+      var workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1)));
+      var draft = workspace.draftState();
+      assertTrue(workspace.beginEdit());
+      var stale = workspace.activeEditToken();
+      workspace.restoreDraftState(draft);
+      assertTrue(workspace.beginEdit());
+      var current = workspace.activeEditToken();
+      assertFalse(workspace.cancelEdit(stale));
+      assertFalse(workspace.finishEdit(stale));
+      assertTrue(workspace.ownsEdit(current));
+   }
+
    private static ClientSelectionPart part(int marker) {
       return ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)
          .withTranslation(new BlockPos(marker, 0, 0));

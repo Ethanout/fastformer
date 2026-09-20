@@ -2,7 +2,7 @@ package io.github.fastformer.client.operation.transform;
 
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
-import io.github.fastformer.fastplace.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.world.phys.AABB;
 

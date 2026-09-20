@@ -32,4 +32,5 @@ class PreviewBlockOcclusionTest {
          assertFalse(PreviewBlockOcclusion.hasPreviewNeighbor(blocks, pos, direction));
       }
    }
+
 }

@@ -1,8 +1,10 @@
 package io.github.fastformer.client.operation.clipboard;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import net.minecraft.nbt.CompoundTag;
@@ -32,6 +34,15 @@ class OperationClipboardStoreTest {
       Files.write(file, new byte[]{1, 2, 3, 4});
 
       assertTrue(OperationClipboardStore.load(file).isEmpty());
+      assertEquals(4L, Files.size(file));
+   }
+
+   @Test
+   void strictLoadReportsCorruptDurableData() throws Exception {
+      Path file = this.directory.resolve("draft.nbt.gz");
+      Files.write(file, new byte[]{1, 2, 3, 4});
+
+      assertThrows(IOException.class, () -> OperationClipboardStore.loadStrict(file));
       assertEquals(4L, Files.size(file));
    }
 }

@@ -1,5 +1,15 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+
+import io.github.fastformer.fastplace.selection.OperationStageMode;
+
+import io.github.fastformer.fastplace.selection.OperationMode;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionStage;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+
 import io.github.fastformer.fastplace.*;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
@@ -799,6 +809,9 @@ public final class OperationSession implements SessionLifecycle {
 
    public boolean addSelectionPoint(BlockPos point) {
       if (this.selectionConfirmed || this.selectionReady()) {
+         return false;
+      }
+      if (this.selectionMode == OperationSelectionMode.CUBOID && !this.hasFirst()) {
          return false;
       }
       if (this.selectionPoints().second == null) {

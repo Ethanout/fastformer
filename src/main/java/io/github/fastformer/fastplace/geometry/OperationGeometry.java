@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.geometry;
 
-import io.github.fastformer.fastplace.OperationStackRegion;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

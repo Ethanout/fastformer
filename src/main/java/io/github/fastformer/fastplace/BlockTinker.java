@@ -2,7 +2,6 @@ package io.github.fastformer.fastplace;
 
 import io.github.fastformer.fastplace.world.*;
 
-import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,14 +74,27 @@ public final class BlockTinker {
       }
       ServerLevel level = player.serverLevel();
       Map<BlockPos, BlockState> changes = resolve(level, hit);
-      if (changes.isEmpty() || !WorldWriteCoordinator.tryAcquire(player.getServer(), level.dimension(), player.getUUID())) {
+      if (changes.isEmpty()) {
          return false;
       }
-      try {
-         return apply(player, level, changes, settings.placementUpdateMode().flags());
-      } finally {
-         WorldWriteCoordinator.release(player.getServer(), level.dimension(), player.getUUID());
-      }
+      return tinker(player, level, changes, settings.placementUpdateMode().flags()).consumedInteraction();
+   }
+
+   /**
+    * Applies the tinkered states through the shared short transaction.
+    *
+    * <p>The result separates "this block has no tinker change" from "the change
+    * failed". A failed change reports itself here, and never continues with the
+    * default game interaction as if the tinker did not apply.</p>
+    */
+   static ShortWriteTransaction.Outcome tinker(
+      ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes, int flags
+   ) {
+      ShortWriteTransaction.Outcome outcome = ShortWriteTransaction.apply(
+         player, level, changes, flags, PlacementUpdateMode.CLIENT_ONLY.flags()
+      );
+      ShortWriteTransaction.report(outcome, player);
+      return outcome;
    }
 
    static Map<BlockPos, BlockState> resolve(ServerLevel level, BlockHitResult hit) {
@@ -228,39 +240,6 @@ public final class BlockTinker {
          }
       }
       return state;
-   }
-
-   private static boolean apply(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes, int flags) {
-      ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>();
-      LinkedHashMap<BlockPos, ReversibleBlockSnapshot> after = new LinkedHashMap<>();
-      for (BlockPos pos : changes.keySet()) {
-         Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
-         if (snapshot.isEmpty()) {
-            return false;
-         }
-         before.addFirst(snapshot.orElseThrow());
-      }
-      for (var entry : changes.entrySet()) {
-         if (!WorldWriteSideEffectGuard.setBlock(level, entry.getKey(), entry.getValue(), flags)) {
-            rollback(level, before);
-            return false;
-         }
-         Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, entry.getKey());
-         if (snapshot.isEmpty()) {
-            rollback(level, before);
-            return false;
-         }
-         after.put(entry.getKey(), snapshot.orElseThrow());
-      }
-      if (!WorldHistoryManager.record(player, level, before, after)) {
-         rollback(level, before);
-         return false;
-      }
-      return true;
-   }
-
-   private static void rollback(ServerLevel level, ArrayDeque<ReversibleBlockSnapshot> before) {
-      before.forEach(snapshot -> snapshot.restore(level, PlacementUpdateMode.CLIENT_ONLY.flags()));
    }
 
    private static SpecialResult handled(BlockState state) {

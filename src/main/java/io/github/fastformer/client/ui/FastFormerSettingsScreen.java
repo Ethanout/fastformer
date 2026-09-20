@@ -3,7 +3,6 @@ package io.github.fastformer.client.ui;
 import io.github.fastformer.fastplace.FaceRasterizationMode;
 import io.github.fastformer.fastplace.OperationConflictMode;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
-import io.github.fastformer.fastplace.RaycastPlacement;
 import io.github.fastformer.network.payload.settings.FaceRasterizationSettingPayload;
 import io.github.fastformer.network.payload.settings.MiddleConfirmSettingPayload;
 import io.github.fastformer.network.payload.settings.SettingsActionPayload;
@@ -28,7 +27,6 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 public final class FastFormerSettingsScreen extends Screen {
    private boolean middleConfirmEnabled;
    private FaceRasterizationMode faceRasterizationMode;
-   private RaycastPlacement raycastPlacement;
    private OperationConflictMode placementConflictMode;
    private PlacementUpdateMode placementUpdateMode;
    private final Set<ResourceLocation> enabledPlacementEffects;
@@ -38,7 +36,6 @@ public final class FastFormerSettingsScreen extends Screen {
    private int sessionUndoHistoryLimit;
    private Button middleConfirmButton;
    private Button faceRasterizationButton;
-   private Button raycastPlacementButton;
    private Button placementConflictButton;
    private Button placementUpdateButton;
    private final Map<ResourceLocation, Button> placementEffectButtons = new HashMap<>();
@@ -50,7 +47,6 @@ public final class FastFormerSettingsScreen extends Screen {
    public FastFormerSettingsScreen(
       boolean middleConfirmEnabled,
       FaceRasterizationMode faceRasterizationMode,
-      RaycastPlacement raycastPlacement,
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
       List<ResourceLocation> enabledPlacementEffects,
@@ -64,9 +60,8 @@ public final class FastFormerSettingsScreen extends Screen {
       this.faceRasterizationMode = faceRasterizationMode == null
          ? FaceRasterizationMode.POINT_SWEEP
          : faceRasterizationMode;
-      this.raycastPlacement = raycastPlacement == null ? RaycastPlacement.EMBEDDED : raycastPlacement;
       this.placementConflictMode = placementConflictMode == null ? OperationConflictMode.REPLACE : placementConflictMode;
-      this.placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.NORMAL : placementUpdateMode;
+      this.placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.CLIENT_ONLY : placementUpdateMode;
       this.enabledPlacementEffects = new HashSet<>(
          enabledPlacementEffects == null ? List.of() : enabledPlacementEffects
       );
@@ -79,7 +74,6 @@ public final class FastFormerSettingsScreen extends Screen {
    public static void open(
       boolean middleConfirmEnabled,
       FaceRasterizationMode faceRasterizationMode,
-      RaycastPlacement raycastPlacement,
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
       List<ResourceLocation> enabledPlacementEffects,
@@ -90,7 +84,7 @@ public final class FastFormerSettingsScreen extends Screen {
    ) {
       Minecraft.getInstance().setScreen(
          new FastFormerSettingsScreen(
-            middleConfirmEnabled, faceRasterizationMode, raycastPlacement, placementConflictMode,
+            middleConfirmEnabled, faceRasterizationMode, placementConflictMode,
             placementUpdateMode, enabledPlacementEffects, emptyHandWrench, globalFrozen,
             worldUndoHistoryLimit, sessionUndoHistoryLimit
          )
@@ -113,19 +107,14 @@ public final class FastFormerSettingsScreen extends Screen {
             .bounds(leftX, top + 34, 200, 20)
             .build()
       );
-      this.raycastPlacementButton = this.addRenderableWidget(
-         Button.builder(this.raycastPlacementLabel(), button -> this.cycleRaycastPlacement())
-            .bounds(leftX, top + 68, 200, 20)
-            .build()
-      );
       this.placementConflictButton = this.addRenderableWidget(
          Button.builder(this.placementConflictLabel(), button -> this.cyclePlacementConflict())
-            .bounds(leftX, top + 102, 200, 20)
+            .bounds(leftX, top + 68, 200, 20)
             .build()
       );
       this.placementUpdateButton = this.addRenderableWidget(
          Button.builder(this.placementUpdateLabel(), button -> this.cyclePlacementUpdate())
-            .bounds(leftX, top + 136, 200, 20)
+            .bounds(leftX, top + 102, 200, 20)
             .build()
       );
       int effectRow = 0;
@@ -175,9 +164,8 @@ public final class FastFormerSettingsScreen extends Screen {
       graphics.drawCenteredString(this.font, this.title, this.width / 2, top - 18, 0xFFFFFFFF);
       this.labelAt(graphics, "fastformer.settings.middle_confirm", leftX, top - 11);
       this.labelAt(graphics, "fastformer.settings.face_rasterization", leftX, top + 23);
-      this.labelAt(graphics, "fastformer.settings.raycast_placement", leftX, top + 57);
-      this.labelAt(graphics, "fastformer.settings.placement_conflict", leftX, top + 91);
-      this.labelAt(graphics, "fastformer.settings.placement_update", leftX, top + 125);
+      this.labelAt(graphics, "fastformer.settings.placement_conflict", leftX, top + 57);
+      this.labelAt(graphics, "fastformer.settings.placement_update", leftX, top + 91);
       int effectRow = 0;
       for (PlacementEffect effect : PlacementEffectRegistry.effects()) {
          this.labelAt(graphics, effect.translationKey(), rightX, top + effectRow * 34 - 11);
@@ -226,16 +214,6 @@ public final class FastFormerSettingsScreen extends Screen {
       });
    }
 
-   private void cycleRaycastPlacement() {
-      this.raycastPlacement = this.raycastPlacement == RaycastPlacement.EMBEDDED ? RaycastPlacement.SURFACE : RaycastPlacement.EMBEDDED;
-      this.raycastPlacementButton.setMessage(this.raycastPlacementLabel());
-      this.send(SettingsActionPayload.Action.CYCLE_RAYCAST_PLACEMENT);
-   }
-
-   private Component raycastPlacementLabel() {
-      return Component.translatable(this.raycastPlacement.translationKey());
-   }
-
    private void cyclePlacementConflict() {
       this.placementConflictMode = next(this.placementConflictMode, OperationConflictMode.values());
       this.placementConflictButton.setMessage(this.placementConflictLabel());
@@ -276,7 +254,7 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private int contentRows() {
-      return Math.max(5, this.rightStaticStartRow() + 4);
+      return Math.max(4, this.rightStaticStartRow() + 4);
    }
 
    private int settingsTop() {

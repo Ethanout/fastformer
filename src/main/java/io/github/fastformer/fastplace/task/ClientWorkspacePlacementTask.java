@@ -22,6 +22,8 @@ import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +49,8 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    private final ResourceKey<Level> dimension;
    private final WorldOperationMetrics metrics = new WorldOperationMetrics();
    private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
+   /** The only object that may release this task's dimension lease. */
+   private WorldWriteCoordinator.Lease lease;
    private MemoryReservation memoryReservation;
    private long blockEntityReserve;
    private boolean memoryThrottled;
@@ -61,6 +65,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    private Iterator<BlockPos> finalizationIterator;
    private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
    private List<Integer> invalidPartIds = List.of();
+   private final java.util.LinkedHashSet<BlockPos> failedTargetPositions = new java.util.LinkedHashSet<>();
    private Phase phase = Phase.VALIDATE;
 
    public ClientWorkspacePlacementTask(
@@ -84,6 +89,10 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    public List<Integer> failedPartIds() {
       return invalidPartIds;
+   }
+
+   public List<BlockPos> failedTargetPositions() {
+      return List.copyOf(failedTargetPositions);
    }
 
    @Override
@@ -156,8 +165,12 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
                BlockPos position = finalizationIterator.next();
                Optional<ReversibleBlockSnapshot> actual = ReversibleBlockSnapshot.capture(level, position);
                if (actual.isEmpty()) {
+                  failedTargetPositions.add(position.immutable());
                   return OperationTaskResult.FAILED;
                }
+               // The write path validates the target synchronously. Capture
+               // the final world state so later world ticks do not turn a
+               // completed placement into a false transaction failure.
                transaction.recordAfter(position, actual.orElseThrow());
             }
             case FINAL_JOURNAL -> {
@@ -233,27 +246,39 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
          return OperationTaskResult.EXCEEDED;
       }
       metrics.targetCount(composed.size());
-      desired = Map.copyOf(composed);
+      desired = Collections.unmodifiableMap(composed);
       captureIterator = desired.entrySet().iterator();
       return OperationTaskResult.ACTIVE;
    }
 
-   private static LinkedHashMap<BlockPos, ClientBlockSnapshot> composeDesiredSnapshots(
+   static LinkedHashMap<BlockPos, ClientBlockSnapshot> composeDesiredSnapshots(
       OperationWorkspaceValidator.Result validated
    ) {
       LinkedHashMap<BlockPos, ClientBlockSnapshot> composed = new LinkedHashMap<>();
       ClientBlockSnapshot air = new ClientBlockSnapshot(Blocks.AIR.defaultBlockState(), null);
       validated.clears().forEach(pos -> composed.put(pos.immutable(), air));
-      composed.putAll(validated.writes());
-      return composed;
+      validated.writes().forEach((pos, snapshot) -> composed.put(pos.immutable(), snapshot));
+      LinkedHashMap<BlockPos, ClientBlockSnapshot> supportFirst = new LinkedHashMap<>();
+      orderedPositions(composed.keySet()).forEach(pos -> supportFirst.put(pos, composed.get(pos)));
+      return supportFirst;
+   }
+
+   static List<BlockPos> orderedPositions(Collection<BlockPos> positions) {
+      List<BlockPos> ordered = new java.util.ArrayList<>(positions);
+      ordered.sort(Comparator.<BlockPos>comparingInt(BlockPos::getY)
+         .thenComparingInt(BlockPos::getX)
+         .thenComparingInt(BlockPos::getZ));
+      return ordered;
    }
 
    private boolean captureExpected(ServerLevel level, Map.Entry<BlockPos, ClientBlockSnapshot> entry) {
       if (!validSnapshot(level, entry.getKey(), entry.getValue())) {
+         failedTargetPositions.add(entry.getKey().immutable());
          return false;
       }
       Optional<ReversibleBlockSnapshot> captured = ReversibleBlockSnapshot.capture(level, entry.getKey());
       if (captured.isEmpty()) {
+         failedTargetPositions.add(entry.getKey().immutable());
          return false;
       }
       ReversibleBlockSnapshot snapshot = captured.orElseThrow();
@@ -288,6 +313,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       BlockPos pos = entry.getKey();
       ReversibleBlockSnapshot before = transaction.expectedAt(pos);
       if (before == null || !before.matches(level, pos)) {
+         failedTargetPositions.add(pos.immutable());
          return false;
       }
       ClientBlockSnapshot target = entry.getValue();
@@ -476,16 +502,21 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public boolean acquireLease(WorldTaskContext context) {
-      boolean acquired = WorldWriteCoordinator.tryAcquire(context.server(), dimension, context.owner());
-      if (acquired) {
-         this.metrics.leaseAcquired();
+      if (this.lease != null && WorldWriteCoordinator.renew(this.lease)) {
+         return true;
       }
-      return acquired;
+      this.lease = WorldWriteCoordinator.takeOver(context.server(), dimension, context.owner());
+      if (this.lease == null) {
+         return false;
+      }
+      this.metrics.leaseAcquired();
+      return true;
    }
 
    @Override
    public void releaseLease(WorldTaskContext context) {
-      WorldWriteCoordinator.release(context.server(), dimension, context.owner());
+      WorldWriteCoordinator.release(this.lease);
+      this.lease = null;
    }
 
    @Override
@@ -493,7 +524,11 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       if (operationCommit != null) {
          operationCommit.cancel();
       }
-      journalPreparation.releaseAfterCancellation(context, dimension);
+      // The lease travels with the cleanup so a late journal callback can never
+      // release a later transaction of the same player.
+      WorldWriteCoordinator.Lease cancelled = this.lease;
+      this.lease = null;
+      journalPreparation.releaseAfterCancellation(cancelled);
    }
 
    @Override

@@ -1,5 +1,15 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
+import io.github.fastformer.fastplace.quickshape.FastPlaceMode;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
@@ -20,7 +30,6 @@ public final class FastPlaceSettings {
    private boolean middleConfirmEnabled = true;
    private FaceRasterizationMode faceRasterizationMode = FaceRasterizationMode.POINT_SWEEP;
    private PointMode pointMode = PointMode.RAYCAST;
-   private RaycastPlacement raycastPlacement = RaycastPlacement.EMBEDDED;
    private LineMode lineMode = LineMode.AXIS;
    private FaceMode faceMode = FaceMode.POLYGON;
    private VolumeMode volumeMode = VolumeMode.PERPENDICULAR_TO_FACE;
@@ -28,7 +37,8 @@ public final class FastPlaceSettings {
    private FillMode fillMode = FillMode.OUTLINE;
    private OperationConflictMode placementConflictMode = OperationConflictMode.REPLACE;
    private OperationSelectionMode operationSelectionMode = OperationSelectionMode.CUBOID;
-   private PlacementUpdateMode placementUpdateMode = PlacementUpdateMode.NORMAL;
+   /** Suppress neighbor updates by default; users can opt into vanilla updates. */
+   private PlacementUpdateMode placementUpdateMode = PlacementUpdateMode.CLIENT_ONLY;
    private final Set<ResourceLocation> enabledPlacementEffects = new HashSet<>();
    private boolean emptyHandWrench = true;
    private int maxPlacement = 20972152;
@@ -60,7 +70,8 @@ public final class FastPlaceSettings {
          tag, "faceRasterizationMode", FaceRasterizationMode.POINT_SWEEP
       );
       settings.pointMode = readEnum(tag, "pointMode", PointMode.RAYCAST);
-      settings.raycastPlacement = readEnum(tag, "raycastPlacement", RaycastPlacement.EMBEDDED);
+      // Raycast placement is now an input policy. Legacy preferences must not
+      // override the surface-by-default and Alt-to-embed behavior.
       settings.lineMode = readEnum(tag, "lineMode", LineMode.AXIS);
       settings.faceMode = readEnum(tag, "faceMode", FaceMode.POLYGON);
       settings.volumeMode = readEnum(tag, "volumeMode", VolumeMode.PERPENDICULAR_TO_FACE);
@@ -71,7 +82,7 @@ public final class FastPlaceSettings {
       if (settings.operationSelectionMode == OperationSelectionMode.CONVEX_HULL) {
          settings.operationSelectionMode = OperationSelectionMode.CUBOID;
       }
-      settings.placementUpdateMode = readEnum(tag, "placementUpdateMode", PlacementUpdateMode.NORMAL);
+      settings.placementUpdateMode = readEnum(tag, "placementUpdateMode", PlacementUpdateMode.CLIENT_ONLY);
       if (tag.contains("enabledPlacementEffects", Tag.TAG_LIST)) {
          settings.enabledPlacementEffects.clear();
          ListTag effectIds = tag.getList("enabledPlacementEffects", Tag.TAG_STRING);
@@ -160,16 +171,6 @@ public final class FastPlaceSettings {
       return (LineMode)this.modeFor(FastPlaceStage.LINE);
    }
 
-   public RaycastPlacement raycastPlacement() {
-      return this.raycastPlacement;
-   }
-
-   public RaycastPlacement cycleRaycastPlacement(ServerPlayer player) {
-      this.raycastPlacement = this.raycastPlacement == RaycastPlacement.EMBEDDED ? RaycastPlacement.SURFACE : RaycastPlacement.EMBEDDED;
-      this.save(player);
-      return this.raycastPlacement;
-   }
-
    public FaceMode faceMode() {
       return (FaceMode)this.modeFor(FastPlaceStage.FACE);
    }
@@ -207,7 +208,7 @@ public final class FastPlaceSettings {
 
    public FastPlaceGeometry.Modes modes() {
       return new FastPlaceGeometry.Modes(
-         this.pointMode(), this.raycastPlacement, this.lineMode(), this.faceMode(), this.volumeMode(), this.fillMode,
+         this.pointMode(), RaycastPlacement.SURFACE, this.lineMode(), this.faceMode(), this.volumeMode(), this.fillMode,
          this.angleDegrees, false, io.github.fastformer.fastplace.geometry.generation.LineTieBias.DEFAULT,
          this.faceRasterizationMode
       );
@@ -338,7 +339,6 @@ public final class FastPlaceSettings {
       tag.putBoolean("middleConfirmEnabled", this.middleConfirmEnabled);
       tag.putString("faceRasterizationMode", this.faceRasterizationMode.name());
       tag.putString("pointMode", this.pointMode.name());
-      tag.putString("raycastPlacement", this.raycastPlacement.name());
       tag.putString("lineMode", this.lineMode.name());
       tag.putString("faceMode", this.faceMode.name());
       tag.putString("volumeMode", this.volumeMode.name());

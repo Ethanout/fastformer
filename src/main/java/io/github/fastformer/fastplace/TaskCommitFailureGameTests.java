@@ -1,5 +1,11 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+
+import io.github.fastformer.fastplace.selection.OperationMode;
+
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
@@ -105,6 +111,42 @@ public final class TaskCommitFailureGameTests {
          injected[0] = false;
          kind[0]++;
          helper.assertTrue(kind[0] == 3, "running next publication failure scenario");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "workspace_finalization", timeoutTicks = 20000)
+   public static void workspaceFinalizationRecordsObservedBlockState(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos target = helper.absolutePos(new BlockPos(1, 2, 1));
+      UUID owner = UUID.randomUUID();
+      var task = (ClientWorkspacePlacementTask)create(level, target, 1);
+      var context = new WorldTaskContext(level.getServer(), owner);
+      boolean[] targetChanged = {false};
+
+      helper.succeedWhen(() -> {
+         helper.assertTrue(task.acquireLease(context), "waiting for workspace write lease");
+         OperationTaskResult result = task.tick(context, level, oneCellBudget());
+         if (!targetChanged[0] && level.getBlockState(target).is(Blocks.GOLD_BLOCK)) {
+            // Simulates a block update that removes an unsupported placement
+            // after the write phase but before transaction finalization.
+            level.setBlock(target, Blocks.STONE.defaultBlockState(), 2);
+            targetChanged[0] = true;
+         }
+         if (!targetChanged[0]) {
+            helper.assertTrue(result == OperationTaskResult.ACTIVE, "waiting for workspace target write");
+            helper.assertTrue(false, "workspace target write is still pending");
+         }
+         if (result != OperationTaskResult.COMPLETE) {
+            helper.assertTrue(result == OperationTaskResult.ACTIVE,
+               "workspace finalization stopped with " + result + " at " + task.phaseName());
+            helper.assertTrue(false, "workspace finalization is still pending");
+         }
+         helper.assertTrue(task.failedTargetPositions().isEmpty(), "finalization rejected an observed world state");
+         helper.assertTrue(task.transaction().afterAt(target).state().is(Blocks.STONE),
+            "finalization did not record the observed target state");
+         task.releaseCommittedTransactionState();
+         task.releaseMemoryReservation();
+         task.releaseLease(context);
       });
    }
 

@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.session;
 
-import io.github.fastformer.fastplace.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 
 /** Groups the independent point buffers used by the operation selection modes. */
 final class OperationSelectionPoints {

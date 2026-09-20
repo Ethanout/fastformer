@@ -2,13 +2,15 @@ package io.github.fastformer.network.payload.operation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.OperationMode;
-import io.github.fastformer.fastplace.OperationSelectionMode;
-import io.github.fastformer.fastplace.OperationStageMode;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationStageMode;
 import io.netty.buffer.Unpooled;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -38,7 +40,11 @@ class OperationPreviewPayloadTest {
          true,
          false,
          false
-      );
+      ).withCallbackScope(new OperationCallbackScope(
+         UUID.fromString("00000000-0000-0000-0000-000000000011"),
+         ResourceLocation.withDefaultNamespace("the_nether"),
+         UUID.fromString("00000000-0000-0000-0000-000000000012")
+      ));
 
       FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
       OperationPreviewPayload.STREAM_CODEC.encode(buffer, payload);
@@ -56,6 +62,7 @@ class OperationPreviewPayloadTest {
       assertEquals(OperationStageMode.TRANSFORM, decoded.operationStageMode());
       assertEquals(new Vec3(0.1, 0.2, 0.3), decoded.operationRotation());
       assertEquals(37L, decoded.operationRevision());
+      assertEquals(payload.callbackScope(), decoded.callbackScope());
    }
 
    @Test

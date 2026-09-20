@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.interaction.InteractionPressBinding;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
@@ -20,9 +22,7 @@ import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.session.ClientSessionManager;
 import io.github.fastformer.client.ui.GeometryRadialScreen;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.transform.PixelPerfectAngles;
 import io.github.fastformer.client.operation.transform.RepeatDragQuantizer;
-import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
 import io.github.fastformer.network.payload.geometry.CycleStageModePayload;
 import io.github.fastformer.network.payload.geometry.ClosePathPayload;
 import io.github.fastformer.network.payload.settings.ModifierStatePayload;
@@ -48,15 +48,17 @@ import io.github.fastformer.fastplace.geometry.GeometryInteractionHit;
 import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.PointerGesture;
-import io.github.fastformer.fastplace.OperationSelectionVolume;
+import io.github.fastformer.client.interaction.SelectionDragCapture;
+import java.util.List;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.PlaceableItems;
 import io.github.fastformer.fastplace.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
@@ -66,6 +68,7 @@ import net.neoforged.neoforge.client.event.InputEvent.InteractionKeyMappingTrigg
 import net.neoforged.neoforge.client.event.InputEvent.Key;
 import net.neoforged.neoforge.client.event.InputEvent.MouseButton.Pre;
 import net.neoforged.neoforge.client.event.InputEvent.MouseScrollingEvent;
+import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent.Post;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
@@ -79,52 +82,31 @@ public final class FastPlaceClientInput {
    private static final int MAX_DRAG_STEPS_PER_PACKET = 128;
    private static final long MODIFIER_SHORT_PRESS_NANOS = 250_000_000L;
    private static final long UNDO_SHORT_PRESS_NANOS = 250_000_000L;
-   private static final long OPERATION_FACE_SHORT_PRESS_NANOS = 140_000_000L;
+   static final long OPERATION_FACE_SHORT_PRESS_NANOS = 140_000_000L;
    private static final long OPERATION_POINT_SHORT_PRESS_NANOS = 250_000_000L;
    private static final long OPERATION_POINT_DOUBLE_CLICK_NANOS = 350_000_000L;
-   private static final long PATH_DOUBLE_CLICK_NANOS = 350_000_000L;
-   private static final ShortPressTracker UNDO_PRESS = new ShortPressTracker();
-   private static final PhysicalPressGate BUILDING_RIGHT_PRESS = new PhysicalPressGate();
-   private static final PointerGestureState POINTER_GESTURE = new PointerGestureState();
-   private static final ClientInputStateMachine INPUT_STATE = new ClientInputStateMachine();
-   private static long pointerGestureToken;
-   private static long clickGestureToken;
-   private static OperationDrag operationDrag;
-   private static OperationPointDrag operationPointDrag;
-   private static int operationClickCapturedButton = -1;
-   private static GeometryGizmoDrag geometryGizmoDrag;
-   private static WorkspaceGizmoDrag workspaceGizmoDrag;
-   private static WorkspaceFaceDrag workspaceFaceDrag;
-   private static boolean undoPressCaptured;
-   private static int geometryClickCapturedButton = -1;
-   private static final ModifierGestureState MODIFIER_STATE = new ModifierGestureState();
-   private static boolean radialChordDown;
-   private static long lastPathClickAt;
-   private static BlockPos lastPathClickPoint;
-   private static boolean lastPathClickGeometry;
-   private static long lastOperationPointLeftClickAt;
-   private static int lastOperationPointLeftClickIndex = -1;
-   private static long lastOperationPointRightClickAt;
-   private static int lastOperationPointRightClickIndex = -1;
-   private static boolean operationSessionWasActive;
+   private static final ClientInputSession UNBOUND_INPUT = new ClientInputSession();
+
+   static ClientInputSession inputSession() {
+      var owner = ClientSessionManager.instance().currentSession();
+      return owner == null ? UNBOUND_INPUT : owner.inputSession();
+   }
 
    private FastPlaceClientInput() {
    }
 
    public static void endWorldSession() {
-      INPUT_STATE.reset();
-      cancelOperationGesture(Minecraft.getInstance());
-      resetPathDoubleClick();
-      resetOperationPointClicks();
-      BUILDING_RIGHT_PRESS.release();
-      MODIFIER_STATE.reset();
-      radialChordDown = false;
+      io.github.fastformer.network.client.ClientPayloadDispatcher.endWorldSession();
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft != null && inputSession().operationSessionWasActive) minecraft.options.keyAttack.setDown(false);
+      cancelOperationGesture(minecraft);
+      inputSession().reset();
       QuickReplaceMode.clear();
    }
 
    public static boolean beginPlacementRequest(long requestId) {
       synchronizeInputState();
-      if (!INPUT_STATE.submit(requestId)) {
+      if (!inputSession().routing.submit(requestId)) {
          return false;
       }
       cancelOperationGesture(Minecraft.getInstance());
@@ -134,16 +116,22 @@ public final class FastPlaceClientInput {
    public static void acknowledgePlacementRequest(
       io.github.fastformer.network.payload.placement.PlacementActionAckPayload payload
    ) {
-      INPUT_STATE.acknowledge(payload.requestId(), observedInputState());
+      var observed = observedInputState();
+      inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
+         new ClientSemanticEvent.Submit.Placement(payload.requestId()),
+         ClientInputStateMachine.SubmissionEvent.SUCCEEDED, observed));
    }
 
    public static void abortPlacementRequest(long requestId) {
-      INPUT_STATE.abortSubmission(requestId, observedInputState());
+      var observed = observedInputState();
+      inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
+         new ClientSemanticEvent.Submit.Placement(requestId),
+         ClientInputStateMachine.SubmissionEvent.FAILED, observed));
    }
 
    public static boolean beginWorkspaceRequest(java.util.UUID transferId) {
       synchronizeInputState();
-      if (!INPUT_STATE.submit(transferId)) {
+      if (!inputSession().routing.submit(transferId)) {
          return false;
       }
       cancelOperationGesture(Minecraft.getInstance());
@@ -151,26 +139,61 @@ public final class FastPlaceClientInput {
    }
 
    public static void acknowledgeWorkspaceRequest(java.util.UUID transferId) {
-      INPUT_STATE.acknowledge(transferId, observedInputState());
+      var observed = observedInputState();
+      inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
+         new ClientSemanticEvent.Submit.Workspace(transferId),
+         ClientInputStateMachine.SubmissionEvent.SUCCEEDED, observed));
    }
 
    public static void abortWorkspaceRequest(java.util.UUID transferId) {
-      INPUT_STATE.abortSubmission(transferId, observedInputState());
+      var observed = observedInputState();
+      inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
+         new ClientSemanticEvent.Submit.Workspace(transferId),
+         ClientInputStateMachine.SubmissionEvent.FAILED, observed));
+   }
+
+   public static void expireWorkspaceRequest(java.util.UUID transferId) {
+      var observed = observedInputState();
+      inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
+         new ClientSemanticEvent.Submit.Workspace(transferId),
+         ClientInputStateMachine.SubmissionEvent.EXPIRED, observed));
    }
 
    @SubscribeEvent
    public static void onKey(Key event) {
       Minecraft minecraft = Minecraft.getInstance();
+      long window = minecraft.getWindow().getWindow();
+      KeyboardInputSnapshot input = KeyboardInputSnapshot.capture(
+         event.getKey(), event.getScanCode(), event.getAction(), event.getModifiers(), System.nanoTime(),
+         InputConstants.isKeyDown(window, 342), InputConstants.isKeyDown(window, 346),
+         InputConstants.isKeyDown(window, 341), InputConstants.isKeyDown(window, 345)
+      );
+      if (requiresImmediateKeyHandling(minecraft, input)) {
+         handleKey(minecraft, input);
+      } else {
+         inputSession().postKeyboard(input);
+      }
+   }
+
+   private static boolean requiresImmediateKeyHandling(Minecraft minecraft, KeyboardInputSnapshot input) {
+      if (input.key() == 256) return true;
+      if (minecraft == null || minecraft.player == null || minecraft.screen != null) return false;
+      if (input.key() != minecraft.options.keyDrop.getKey().getValue()) return false;
+      ClientInputStateMachine.Dispatch route = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.CANCEL);
+      return route == ClientInputStateMachine.Dispatch.CANCEL || route == ClientInputStateMachine.Dispatch.BLOCKED
+         || inputSession().canCancelPendingRemotePoint();
+   }
+
+   private static void handleKey(Minecraft minecraft, KeyboardInputSnapshot event) {
       synchronizeInputState();
-      ClientInputStateMachine.Dispatch inputRoute = INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.KEY);
+      ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY);
       boolean buildingSession = inputRoute == ClientInputStateMachine.Dispatch.BUILDING;
       boolean geometrySession = inputRoute == ClientInputStateMachine.Dispatch.GEOMETRY;
       boolean operationSession = inputRoute == ClientInputStateMachine.Dispatch.OPERATION;
-      boolean altKey = event.getKey() == 342 || event.getKey() == 346;
-      boolean ctrlKey = event.getKey() == 341 || event.getKey() == 345;
-      boolean controlDown = physicalCtrlDown(minecraft, false);
-      boolean cancelKey = event.getAction() == 1 && event.getKey() == 81;
-      if (event.getAction() == 1 && event.getKey() == 257
+      boolean altKey = event.altKey();
+      boolean ctrlKey = event.controlKey();
+      boolean controlDown = event.controlDown();
+      if (event.action() == 1 && event.key() == 257
          && (ClientOperationController.reconnectRestorePending()
             || FastPlaceClientPreview.reconnectPreviewRestorePending())
          && minecraft.player != null && minecraft.screen == null) {
@@ -178,137 +201,265 @@ public final class FastPlaceClientInput {
          FastPlaceClientPreview.confirmReconnectPreviewRestore();
          return;
       }
-      if (cancelKey
-         && minecraft.player != null
+      boolean clientReady = minecraft.player != null
          && minecraft.screen == null
-         && minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
-         if (ClientOperationController.workspaceSubmissionPending()) {
-            showOperationFeedback(minecraft, "fastformer.message.operation_submit_pending");
-            return;
+         && minecraft.getConnection() != null;
+      boolean operationRestorePending = ClientOperationController.reconnectRestorePending();
+      boolean previewRestorePending = FastPlaceClientPreview.reconnectPreviewRestorePending();
+      CancelInputSemantics.Decision cancel = CancelInputSemantics.decide(
+         event.action(),
+         event.key(),
+         clientReady,
+         clientReady && NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id()),
+         ClientOperationController.workspaceSubmissionPending(),
+         operationRestorePending,
+         previewRestorePending
+      );
+      if (cancel.command() == CancelInputSemantics.Command.REPORT_SUBMISSION_PENDING) {
+         ClientInteractionFeedback.show(minecraft, "fastformer.message.operation_submit_pending");
+         return;
+      }
+      if (cancel.command() == CancelInputSemantics.Command.REQUEST_CANCEL) {
+         boolean cancellationAccepted = cancelActiveSession(
+            minecraft, cancel.dismissOperationRestore(), cancel.dismissPreviewRestore()
+         );
+         if (CancelInputSemantics.consumesVanillaDrop(
+            cancel, cancellationAccepted, cancelKeyCarriesVanillaDrop(minecraft, event.key())
+         )) {
+            minecraft.options.keyDrop.consumeClick();
          }
-         boolean pendingRestore = ClientOperationController.reconnectRestorePending();
-         boolean pendingPreviewRestore = FastPlaceClientPreview.reconnectPreviewRestorePending();
-         boolean cancelled = INPUT_STATE.cancel();
-         if (pendingRestore) ClientOperationController.dismissReconnectRestore();
-         if (pendingPreviewRestore) FastPlaceClientPreview.dismissReconnectPreviewRestore();
-         if (!cancelled) return;
-         cancelOperationGesture(minecraft);
-         ClientOperationController.clearWorkspace();
-         PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
          return;
       }
       if (inputRoute == ClientInputStateMachine.Dispatch.BLOCKED) {
          return;
       }
-      if (minecraft.player != null && minecraft.screen == null && event.getAction() == 1) {
-         if (event.getKey() == 82 && !controlDown && !physicalAltDown(minecraft, false)
+      if (minecraft.player != null && minecraft.screen == null && event.action() == 1) {
+         if (event.key() == 82 && !controlDown && !event.altDown()
             && inputRoute == ClientInputStateMachine.Dispatch.VANILLA) {
             QuickReplaceMode.toggle(minecraft);
             return;
          }
-         if (controlDown && event.getKey() == 67 && ClientOperationController.active()) {
-            if (!ClientOperationController.copySelected()) {
-               showOperationFeedback(minecraft, "fastformer.message.operation_copy_failed");
-            }
-            return;
-         }
-         if (controlDown && event.getKey() == 86
-            && INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE) != ClientInputStateMachine.Dispatch.BLOCKED) {
-            if (!ClientOperationController.paste(minecraft)) {
-               showOperationFeedback(minecraft, "fastformer.message.operation_paste_failed");
-            }
-            return;
-         }
-         if (controlDown && event.getKey() == 65 && ClientOperationController.active()) {
-            ClientOperationController.workspace().selectAll();
-            return;
-         }
-         if ((event.getKey() == 261 || event.getKey() == 259) && ClientOperationController.active()) {
-            if (controlDown) {
-               ClientOperationController.removeSelectedParts();
-            } else {
-               ClientOperationController.markSelectedForDeletion();
-            }
-            return;
-         }
-         if (controlDown && event.getKey() == 90 && ClientOperationController.active()) {
-            ClientOperationController.undo();
+         if (handleWorkspaceShortcut(minecraft, event.action(), event.key(), controlDown, inputRoute)) {
             return;
          }
       }
       if (altKey
-         && (event.getAction() == 0 || event.getAction() == 1)
+         && (event.action() == 0 || event.action() == 1)
          && minecraft.player != null
          && minecraft.getConnection() != null) {
-         handleAltTransition(minecraft, altDownAfterEvent(minecraft, event.getKey(), event.getAction()));
+         handleAltTransition(minecraft, event.altDown(), event.occurredAtNanos());
       }
       if ((altKey || ctrlKey)
-         && (event.getAction() == 0 || event.getAction() == 1)
+         && (event.action() == 0 || event.action() == 1)
          && minecraft.player != null
          && minecraft.getConnection() != null) {
-         handleRadialKeyTransition(minecraft, physicalCtrlDown(minecraft, false) && physicalAltDown(minecraft, false));
+         handleRadialKeyTransition(minecraft, controlDown && event.altDown());
       }
       if (minecraft.player != null
          && minecraft.screen == null
          && minecraft.getConnection() != null
-         && (event.getKey() == 90 || event.getKey() == 89)
-         && event.getAction() == 1
-         && physicalCtrlDown(minecraft, false)) {
+         && (event.key() == 90 || event.key() == 89)
+         && event.action() == 1
+         && controlDown) {
          if (operationSession) {
             cancelOperationGesture(minecraft);
          }
-         if (event.getKey() == 90
+         if (event.key() == 90
             && NetworkRegistry.hasChannel(minecraft.getConnection(), WorldUndoPayload.TYPE.id())) {
             PacketDistributor.sendToServer(WorldUndoPayload.INSTANCE, new CustomPacketPayload[0]);
-         } else if (event.getKey() == 89
+         } else if (event.key() == 89
             && NetworkRegistry.hasChannel(minecraft.getConnection(), WorldRedoPayload.TYPE.id())) {
             PacketDistributor.sendToServer(WorldRedoPayload.INSTANCE, new CustomPacketPayload[0]);
          }
       }
       if (minecraft.player != null && minecraft.screen == null && minecraft.getConnection() != null) {
-         if (event.getAction() == 1
-            && (event.getKey() == 257 || event.getKey() == 335)
-            && (buildingSession || operationSession || geometrySession)
-            && ClientPlacementRouter.canConfirm(minecraft)) {
-            if (InteractionContext.nearVanillaBlock(minecraft)) {
-               return;
-            }
+         SubmissionKeyboardSemantics.Command submissionCommand = SubmissionKeyboardSemantics.fromPhysicalKey(
+            event.action(), event.key()
+         );
+         ClientInputStateMachine.Dispatch submissionRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.SUBMIT);
+         boolean needsCandidateContext = SubmissionKeyboardSemantics.requiresCandidateContext(
+            submissionCommand, submissionRoute
+         );
+         boolean canConfirm = needsCandidateContext && ClientPlacementRouter.canConfirm(minecraft);
+         SubmissionKeyboardSemantics.Decision submission = SubmissionKeyboardSemantics.decide(
+            submissionCommand,
+            submissionRoute,
+            canConfirm,
+            canConfirm && InteractionContext.nearVanillaBlock(minecraft)
+         );
+         if (submission.accepted()) {
             // A confirmation ends the current input gesture.  If the mouse
             // button release arrives after the server has already consumed
             // this confirmation, it must not become a stale session undo.
-            UNDO_PRESS.cancel();
-            undoPressCaptured = false;
-            if (MODIFIER_STATE.held()) {
-               MODIFIER_STATE.consume();
+            inputSession().undoPress.cancel();
+            inputSession().undoPressCaptured = false;
+            if (inputSession().modifier.held()) {
+               inputSession().modifier.consume();
             }
             if (operationSession) {
                if (ClientOperationController.active()) {
                   if (!ClientOperationController.submitWorkspace(minecraft)) {
-                     showOperationFeedback(minecraft, "fastformer.message.operation_submit_failed");
+                     ClientInteractionFeedback.showWorkspaceSubmitFailure(minecraft);
                   }
                } else if (ClientOperationController.operationAdjustmentStarted()) {
-                  if (!ClientPlacementRouter.applyOperation(minecraft, physicalCtrlDown(minecraft, false))) {
-                     showOperationFeedback(minecraft, "fastformer.message.operation_apply_failed");
+                  if (!ClientPlacementRouter.applyOperation(minecraft, controlDown)) {
+                     ClientInteractionFeedback.show(minecraft, "fastformer.message.operation_apply_failed");
                   }
                }
                return;
             }
             if (!ClientPlacementRouter.confirm(minecraft)) {
-               showOperationFeedback(minecraft, "fastformer.message.placement_confirm_failed");
+                ClientInteractionFeedback.show(minecraft, "fastformer.message.placement_confirm_failed");
             }
          }
       }
    }
 
-   private static void showOperationFeedback(Minecraft minecraft, String key) {
-      if (minecraft.player != null) {
-         minecraft.player.displayClientMessage(Component.translatable(key), true);
+   /**
+    * Escape reaches the pause screen before the mod receives the key. This hook
+    * runs before the screen is installed, so an active session cancels here and
+    * the pause screen never opens. An existing screen keeps its own close
+    * rules, and a submission still waiting reports instead of cancelling.
+    */
+   @SubscribeEvent
+   public static void onScreenOpening(ScreenEvent.Opening event) {
+      Minecraft minecraft = Minecraft.getInstance();
+      if (!(event.getNewScreen() instanceof PauseScreen) || event.getCurrentScreen() != null) {
+         return;
+      }
+      // Losing window focus opens the same screen from GameRenderer. Only an
+      // Escape press in an active window is a cancel; a lost focus must keep
+      // the session and only ends the physical gesture.
+      if (!minecraft.isWindowActive()) {
+         return;
+      }
+      if (minecraft.player == null || minecraft.getConnection() == null) {
+         return;
+      }
+      synchronizeInputState();
+      CancelInputSemantics.Decision escape = CancelInputSemantics.decideEscape(
+         true,
+         NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id()),
+         inputSession().routing.dispatch(ClientInputStateMachine.InputKind.CANCEL)
+            == ClientInputStateMachine.Dispatch.CANCEL || inputSession().canCancelPendingRemotePoint(),
+         ClientOperationController.workspaceSubmissionPending(),
+         ClientOperationController.reconnectRestorePending(),
+         FastPlaceClientPreview.reconnectPreviewRestorePending()
+      );
+      if (escape.command() == CancelInputSemantics.Command.REPORT_SUBMISSION_PENDING) {
+         ClientInteractionFeedback.show(minecraft, "fastformer.message.operation_submit_pending");
+         return;
+      }
+      if (escape.command() != CancelInputSemantics.Command.REQUEST_CANCEL) {
+         return;
+      }
+      if (cancelActiveSession(minecraft, escape.dismissOperationRestore(), escape.dismissPreviewRestore())) {
+         event.setCanceled(true);
+         // pauseGame pauses the sound after the screen call returns, so the
+         // matching resume must wait for the next tick.
+         inputSession().suppressedPausePausedSound = minecraft.hasSingleplayerServer()
+            && minecraft.getSingleplayerServer() != null
+            && !minecraft.getSingleplayerServer().isPublished();
+      }
+   }
+
+   /** Ends the local session for an accepted cancel. False when the phase refused. */
+   private static boolean cancelActiveSession(
+      Minecraft minecraft, boolean dismissOperationRestore, boolean dismissPreviewRestore
+   ) {
+      boolean cancelled = inputSession().cancel();
+      if (dismissOperationRestore) ClientOperationController.dismissReconnectRestore();
+      if (dismissPreviewRestore) FastPlaceClientPreview.dismissReconnectPreviewRestore();
+      if (!cancelled) {
+         return false;
+      }
+      cancelOperationGesture(minecraft);
+      resetModifierState(minecraft);
+      ClientOperationController.clearWorkspace();
+      FastPlaceClientPreview.clearTransientFeedback();
+      if (NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
+         PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
+      }
+      return true;
+   }
+
+   /**
+    * True when the pressed cancel key is also the vanilla drop binding. The
+    * vanilla click queue already holds this press, so the cancel must remove
+    * exactly that queued click and nothing else.
+    */
+   private static boolean cancelKeyCarriesVanillaDrop(Minecraft minecraft, int eventKey) {
+      if (minecraft.options.keyDrop.isUnbound()) {
+         return false;
+      }
+      return minecraft.options.keyDrop.getKey()
+         .equals(InputConstants.Type.KEYSYM.getOrCreate(eventKey));
+   }
+
+   private static boolean handleWorkspaceShortcut(
+      Minecraft minecraft,
+      int action,
+      int key,
+      boolean controlDown,
+      ClientInputStateMachine.Dispatch keyRoute
+   ) {
+      WorkspaceKeyboardSemantics.Command command = WorkspaceKeyboardSemantics.fromPhysicalKey(action, key, controlDown);
+      WorkspaceKeyboardSemantics.Decision decision = WorkspaceKeyboardSemantics.decide(
+         command,
+         keyRoute,
+         inputSession().routing.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE),
+         new WorkspaceKeyboardSemantics.WorkspaceFacts(
+            ClientOperationController.active(),
+            ClientOperationController.workspaceUndoDepth(),
+            ClientOperationController.workspaceEditInProgress(),
+            ClientOperationController.workspaceSubmissionPending()
+         )
+      );
+      if (!decision.accepted()) {
+         // A missing local step is not a rejection. The world undo request later
+         // in onKey owns the press in that case, so it stays unconsumed here.
+         if (decision.handsPressToWorldUndo()) {
+            return false;
+         }
+         if (decision.consumesPress()) {
+            reportWorkspaceShortcutRejection(minecraft, decision);
+         }
+         return decision.consumesPress();
+      }
+      switch (decision.command()) {
+         case COPY -> ClientInteractionFeedback.showCopyResult(minecraft, ClientOperationController.copySelected());
+         case PASTE -> ClientInteractionFeedback.showPasteResult(minecraft, ClientOperationController.paste(minecraft));
+         case SELECT_ALL -> ClientOperationController.selectAllWorkspaceParts();
+         case MARK_SELECTED_FOR_DELETION -> ClientOperationController.markSelectedForDeletion();
+         case REMOVE_SELECTED -> ClientOperationController.removeSelectedParts();
+         case UNDO -> ClientOperationController.undo();
+         case NONE -> {
+            return false;
+         }
+      }
+      return true;
+   }
+
+   /** Reports why a workspace shortcut did not run, without claiming a step. */
+   private static void reportWorkspaceShortcutRejection(
+      Minecraft minecraft,
+      WorkspaceKeyboardSemantics.Decision decision
+   ) {
+      if (decision.rejection() == WorkspaceKeyboardSemantics.Rejection.SUBMISSION_PENDING) {
+         ClientInteractionFeedback.show(minecraft, "fastformer.message.operation_submit_pending");
       }
    }
 
    private static void handleAltTransition(Minecraft minecraft, boolean down) {
-      if (down == MODIFIER_STATE.held()) {
+      handleAltTransition(minecraft, down, System.nanoTime());
+   }
+
+   private static void handleAltTransition(Minecraft minecraft, boolean down, long occurredAtNanos) {
+      if (down == inputSession().modifier.held()) {
+         return;
+      }
+      if (!down) {
+         releaseModifierState(minecraft, true, occurredAtNanos);
          return;
       }
       // Alt has no FastFormer meaning while the client is idle. Do not update
@@ -318,25 +469,30 @@ public final class FastPlaceClientInput {
       if (minecraft.screen != null || !modifierSubmodeAvailable()) {
          return;
       }
-      if (INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.KEY) == ClientInputStateMachine.Dispatch.OPERATION) {
-         ClientOperationController.setAltMode(down);
+      if (inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY) == ClientInputStateMachine.Dispatch.OPERATION) {
+         ClientOperationController.setAltMode(true);
       }
-      if (down) {
-         boolean routed = minecraft.screen == null
-            && modifierSubmodeAvailable()
-            && NetworkRegistry.hasChannel(minecraft.getConnection(), ModifierStatePayload.TYPE.id());
-         MODIFIER_STATE.press(System.nanoTime(), modifierCycleAvailable(), routed);
-         if (routed) {
-            PacketDistributor.sendToServer(new ModifierStatePayload(true), new CustomPacketPayload[0]);
-         }
-         return;
+      boolean routed = minecraft.screen == null
+         && modifierSubmodeAvailable()
+         && NetworkRegistry.hasChannel(minecraft.getConnection(), ModifierStatePayload.TYPE.id());
+      inputSession().modifier.press(occurredAtNanos, modifierCycleAvailable(), routed);
+      if (routed) {
+         PacketDistributor.sendToServer(new ModifierStatePayload(true), new CustomPacketPayload[0]);
       }
+   }
 
-      ModifierGestureState.Release release = MODIFIER_STATE.release(System.nanoTime(), MODIFIER_SHORT_PRESS_NANOS);
+   /** Releases Alt even if the session ended before the physical key release. */
+   private static void releaseModifierState(Minecraft minecraft, boolean allowStageCycle) {
+      releaseModifierState(minecraft, allowStageCycle, System.nanoTime());
+   }
+
+   private static void releaseModifierState(Minecraft minecraft, boolean allowStageCycle, long occurredAtNanos) {
+      ModifierGestureState.Release release = inputSession().modifier.release(occurredAtNanos, MODIFIER_SHORT_PRESS_NANOS);
+      ClientOperationController.setAltMode(false);
       if (release.routed() && NetworkRegistry.hasChannel(minecraft.getConnection(), ModifierStatePayload.TYPE.id())) {
          PacketDistributor.sendToServer(new ModifierStatePayload(false), new CustomPacketPayload[0]);
       }
-      if (release.routed()
+      if (allowStageCycle && release.routed()
          && release.cycleEligible()
          && release.shortPress()
          && NetworkRegistry.hasChannel(minecraft.getConnection(), CycleStageModePayload.TYPE.id())) {
@@ -370,20 +526,21 @@ public final class FastPlaceClientInput {
    }
 
    private static void handleRadialKeyTransition(Minecraft minecraft, boolean down) {
-      if (down == radialChordDown) {
+      if (down == inputSession().radialChordDown) {
          return;
       }
-      radialChordDown = down;
+      inputSession().radialChordDown = down;
       if (down && tryOpenGeometryRadial(minecraft)) {
-         MODIFIER_STATE.consume();
+         inputSession().modifier.consume();
       }
    }
 
    @SubscribeEvent
    public static void onInteraction(InteractionKeyMappingTriggered event) {
+      long occurredAtNanos = System.nanoTime();
       Minecraft minecraft = Minecraft.getInstance();
       synchronizeInputState();
-      ClientInputStateMachine.Dispatch inputRoute = INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.INTERACTION);
+      ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.INTERACTION);
       boolean buildingSession = inputRoute == ClientInputStateMachine.Dispatch.BUILDING;
       boolean geometrySession = inputRoute == ClientInputStateMachine.Dispatch.GEOMETRY;
       boolean operationSession = inputRoute == ClientInputStateMachine.Dispatch.OPERATION;
@@ -394,7 +551,7 @@ public final class FastPlaceClientInput {
          event.setCanceled(true);
          return;
       }
-      if (INPUT_STATE.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION)
+      if (inputSession().routing.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION)
          && QuickReplaceMode.canReplace(minecraft) && event.isUseItem()
          && minecraft.screen == null && minecraft.getConnection() != null
          && ClientPlacementRouter.quickReplace(minecraft)) {
@@ -408,7 +565,7 @@ public final class FastPlaceClientInput {
       if (event.isUseItem()
          && buildingSession
          && !InteractionContext.nearVanillaBlock(minecraft)
-         && !BUILDING_RIGHT_PRESS.consume()) {
+         && !inputSession().buildingRightPress.consume()) {
          event.setSwingHand(false);
          event.setCanceled(true);
          return;
@@ -431,29 +588,29 @@ public final class FastPlaceClientInput {
             return;
          }
          if (leftDecision.action() == OperationInputSemantics.LeftAction.GIZMO_DRAG) {
-            operationClickCapturedButton = 0;
+            inputSession().operationClickCapturedButton = 0;
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
          }
          if (leftDecision.action() == OperationInputSemantics.LeftAction.SELECTION_UNDO
             || leftDecision.action() == OperationInputSemantics.LeftAction.ADJUSTMENT_UNDO) {
-            if (!undoPressCaptured) {
-               UNDO_PRESS.press(System.nanoTime());
-               undoPressCaptured = true;
+            if (!inputSession().undoPressCaptured) {
+               inputSession().undoPress.press(System.nanoTime());
+               inputSession().undoPressCaptured = true;
             }
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
          }
          if (operationSession && modifierHeld()) {
-            boolean handled = operationClickCapturedButton != 0
+            boolean handled = inputSession().operationClickCapturedButton != 0
                && ClientOperationController.operationSelectionReady()
                && beginOperationGizmoDrag(minecraft, 0);
             if (handled) {
-               MODIFIER_STATE.consume();
+               inputSession().modifier.consume();
             }
-            operationClickCapturedButton = 0;
+            inputSession().operationClickCapturedButton = 0;
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
@@ -462,17 +619,15 @@ public final class FastPlaceClientInput {
             if (!modifierHeld() && !InteractionContext.nearVanillaBlock(minecraft)) {
                OperationPointerTarget target = FastPlaceClientPreview.operationPointerTarget();
                if (target.kind() == OperationPointerKind.WORLD) {
-                  PacketDistributor.sendToServer(
-                     new OperationPointPayload(OperationPointPayload.Role.FIRST), new CustomPacketPayload[0]
-                  );
-                  operationClickCapturedButton = 0;
+                  queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
+                  inputSession().operationClickCapturedButton = 0;
                   event.setSwingHand(false);
                   event.setCanceled(true);
                   return;
                }
                if (target.kind() == OperationPointerKind.FACE) {
-                  if (operationClickCapturedButton != 0 && beginOperationFaceAdjustment(minecraft, -1, 0)) {
-                     operationClickCapturedButton = 0;
+                  if (inputSession().operationClickCapturedButton != 0 && beginOperationFaceAdjustment(minecraft, -1, 0)) {
+                     inputSession().operationClickCapturedButton = 0;
                   }
                   event.setSwingHand(false);
                   event.setCanceled(true);
@@ -481,16 +636,16 @@ public final class FastPlaceClientInput {
             }
          }
          if (ClientOperationController.operationPrism()
-            && (operationClickCapturedButton == 0 || beginOperationPointDrag(minecraft, 0))) {
-            operationClickCapturedButton = 0;
+            && (inputSession().operationClickCapturedButton == 0 || beginOperationPointDrag(minecraft, 0))) {
+            inputSession().operationClickCapturedButton = 0;
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
          }
          if (!InteractionContext.nearVanillaBlock(minecraft)
             && ClientOperationController.operationPrism()
-            && (operationClickCapturedButton == 0 || sendOperationEdgeInsertion(minecraft))) {
-            operationClickCapturedButton = 0;
+            && (inputSession().operationClickCapturedButton == 0 || sendOperationEdgeInsertion(minecraft))) {
+            inputSession().operationClickCapturedButton = 0;
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
@@ -498,8 +653,8 @@ public final class FastPlaceClientInput {
          if (!InteractionContext.nearVanillaBlock(minecraft)
             && ClientOperationController.operationPrism()
             && FastPlaceClientPreview.operationCandidatePoint() != null
-            && (operationClickCapturedButton == 0 || sendNextOperationPrismPoint(minecraft))) {
-            operationClickCapturedButton = 0;
+            && (inputSession().operationClickCapturedButton == 0 || sendNextOperationPrismPoint(minecraft))) {
+            inputSession().operationClickCapturedButton = 0;
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
@@ -507,16 +662,14 @@ public final class FastPlaceClientInput {
          if (!operationSession
             && !InteractionContext.nearVanillaBlock(minecraft)
             && FastPlaceClientPreview.operationCandidatePoint() != null) {
-            PacketDistributor.sendToServer(
-               new OperationPointPayload(OperationPointPayload.Role.FIRST), new CustomPacketPayload[0]
-            );
-            operationClickCapturedButton = 0;
+            queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
+            inputSession().operationClickCapturedButton = 0;
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
          }
          if (operationSession && !InteractionContext.nearVanillaBlock(minecraft)) {
-            operationClickCapturedButton = 0;
+            inputSession().operationClickCapturedButton = 0;
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
@@ -531,9 +684,7 @@ public final class FastPlaceClientInput {
          && !InteractionContext.nearVanillaBlock(minecraft)
          && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())
          && FastPlaceClientPreview.operationCandidatePoint() != null) {
-         PacketDistributor.sendToServer(
-            new OperationPointPayload(OperationPointPayload.Role.SECOND), new CustomPacketPayload[0]
-         );
+         queueRemoteSelectionPoint(OperationPointPayload.Role.SECOND);
          event.setSwingHand(false);
          event.setCanceled(true);
          return;
@@ -546,7 +697,7 @@ public final class FastPlaceClientInput {
          if (InteractionContext.nearVanillaBlock(minecraft)) {
             return;
          }
-         if (handleGeometryRightClick(minecraft)) {
+         if (handleGeometryRightClick(minecraft, occurredAtNanos)) {
             event.setSwingHand(false);
             event.setCanceled(true);
             return;
@@ -562,12 +713,12 @@ public final class FastPlaceClientInput {
          }
          if (geometrySession
             && NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())) {
-            if (geometryClickCapturedButton == 0) {
+            if (inputSession().geometryClickCapturedButton == 0) {
                event.setSwingHand(false);
                event.setCanceled(true);
                return;
             }
-            if (geometryGizmoDrag == null && beginGeometryGizmoDrag(minecraft, 0)) {
+            if (inputSession().geometryGizmoDrag == null && beginGeometryGizmoDrag(minecraft, 0)) {
                event.setSwingHand(false);
                event.setCanceled(true);
                return;
@@ -581,9 +732,9 @@ public final class FastPlaceClientInput {
          if (!NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())) {
             return;
          }
-         if (geometryGizmoDrag == null && !undoPressCaptured) {
-            UNDO_PRESS.press(System.nanoTime());
-            undoPressCaptured = true;
+         if (inputSession().geometryGizmoDrag == null && !inputSession().undoPressCaptured) {
+            inputSession().undoPress.press(System.nanoTime());
+            inputSession().undoPressCaptured = true;
          }
          event.setSwingHand(false);
          event.setCanceled(true);
@@ -592,9 +743,19 @@ public final class FastPlaceClientInput {
 
    @SubscribeEvent
    public static void onMouseButton(Pre event) {
+      long occurredAtNanos = System.nanoTime();
       Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft.player == null || minecraft.screen != null || minecraft.getConnection() == null) return;
       synchronizeInputState();
-      ClientInputStateMachine.Dispatch inputRoute = INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.POINTER);
+      if (queueSelectionPointer(minecraft, event.getAction(), event.getButton(), occurredAtNanos)) {
+         event.setCanceled(true);
+         return;
+      }
+      // During migration, synchronous mouse paths cannot overtake queued physical input.
+      if (!drainPhysicalInput(minecraft)) return;
+      if (event.getAction() == MouseButtonInputSemantics.PRESS) inputSession().selectionPointer.clear();
+      synchronizeInputState();
+      ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.POINTER);
       boolean buildingSession = inputRoute == ClientInputStateMachine.Dispatch.BUILDING;
       boolean geometrySession = inputRoute == ClientInputStateMachine.Dispatch.GEOMETRY;
       boolean operationSession = inputRoute == ClientInputStateMachine.Dispatch.OPERATION;
@@ -607,49 +768,54 @@ public final class FastPlaceClientInput {
       }
       if (event.getButton() == 1) {
          if (event.getAction() == 1) {
-            BUILDING_RIGHT_PRESS.press();
+            inputSession().buildingRightPress.press();
          } else if (event.getAction() == 0) {
-            BUILDING_RIGHT_PRESS.release();
+            inputSession().buildingRightPress.release();
          }
       }
       if (event.getAction() == 1) {
-         if (INPUT_STATE.accepts(clickGestureToken)
-            && (POINTER_GESTURE.kind() != PointerGestureState.Kind.NONE || undoPressCaptured)) {
+         if (inputSession().routing.accepts(inputSession().clickGestureToken)
+            && (inputSession().pointerGesture.kind() != PointerGestureState.Kind.NONE || inputSession().undoPressCaptured)) {
             cancelOperationGesture(minecraft);
          }
-         clickGestureToken = INPUT_STATE.beginGesture(event.getButton());
+         inputSession().clickGestureToken = 0L;
+         // A legacy gesture may have blocked capture before its cancellation above.
+         if (queueSelectionPointer(minecraft, event.getAction(), event.getButton(), occurredAtNanos)) {
+            event.setCanceled(true);
+            return;
+         }
+         inputSession().clickGestureToken = inputSession().routing.beginGesture(event.getButton());
       } else if (event.getAction() == 0) {
-         if (!INPUT_STATE.finishGesture(event.getButton(), clickGestureToken)) {
-            if (!INPUT_STATE.accepts(clickGestureToken)) {
-               clickGestureToken = 0L;
+         if (!inputSession().routing.finishGesture(event.getButton(), inputSession().clickGestureToken)) {
+            if (!inputSession().routing.accepts(inputSession().clickGestureToken)) {
+               inputSession().clickGestureToken = 0L;
             }
             return;
          }
-         clickGestureToken = 0L;
+         inputSession().clickGestureToken = 0L;
       }
-      boolean altMouseChord = physicalAltDown(minecraft, false) || MODIFIER_STATE.held();
+      boolean altMouseChord = physicalAltDown(minecraft, false) || inputSession().modifier.held();
       OperationInteractionIntent pointerIntent = FastPlaceClientPreview.operationInteractionIntent().orElse(null);
       // Alt is an explicit "new selection" chord. It must win over gizmos,
-      // existing-part selection and vanilla placement, even when the ray hits
-      // an existing workspace component.
-      if (altMouseChord && event.getAction() == 1
-         && INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION)
-            == ClientInputStateMachine.Dispatch.OPERATION
-         && (event.getButton() == 0 || event.getButton() == 1 || event.getButton() == 2)) {
-         ClientOperationController.setAltMode(true);
-         MODIFIER_STATE.consume();
-         BlockHitResult hit = longRangeBlockHit(minecraft);
-         if (hit != null && ClientOperationController.handleAltCreateClick(event.getButton(), hit.getBlockPos())) {
-            MODIFIER_STATE.consume();
-            operationClickCapturedButton = event.getButton();
-            event.setCanceled(true);
-            return;
+      // existing-part selection and vanilla placement, except for an explicit
+      // Gizmo handle. That direct handle hit starts a transform while Alt
+      // continues to create a selection everywhere else.
+      if (MouseButtonInputSemantics.startsAltWorkspaceGizmoTransform(
+         altMouseChord,
+         pointerIntent instanceof OperationInteractionIntent.Gizmo,
+         event.getAction(),
+         event.getButton()
+      )) {
+         if (handleWorkspacePointerClick(minecraft, pointerIntent, event.getButton(),
+            event.getButton() == MouseButtonInputSemantics.RIGHT_BUTTON ? 1 : -1)) {
+            inputSession().modifier.consume();
+            inputSession().operationClickCapturedButton = event.getButton();
          }
          event.setCanceled(true);
          return;
       }
-      if (MODIFIER_STATE.held() && event.getAction() == 1) {
-         MODIFIER_STATE.consume();
+      if (inputSession().modifier.held() && event.getAction() == 1) {
+         inputSession().modifier.consume();
       }
       if (event.getAction() == 1
          && (event.getButton() == 0 || event.getButton() == 1 || event.getButton() == 2)
@@ -657,11 +823,13 @@ public final class FastPlaceClientInput {
          && inputRoute == ClientInputStateMachine.Dispatch.VANILLA
          && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
          && !InteractionContext.nearVanillaBlock(minecraft)
-         && longRangeBlockHit(minecraft) != null) {
+         && longRangePlacementBlockHit(minecraft) != null) {
          if (event.getButton() == 1) {
-            BUILDING_RIGHT_PRESS.consume();
+            inputSession().buildingRightPress.consume();
          }
-         if (ClientPlacementRouter.startPlacement(minecraft, event.getButton() == 2)) {
+         if (ClientPlacementRouter.startPlacement(
+            minecraft, BuildingInputSemantics.raycastPlacement(altMouseChord)
+         )) {
             event.setCanceled(true);
             return;
          }
@@ -669,30 +837,17 @@ public final class FastPlaceClientInput {
       if (modifierHeld()
          && event.getAction() == 1
          && (event.getButton() == 0 || event.getButton() == 1)
-         && operationDrag == null
-         && workspaceGizmoDrag == null
-         && workspaceFaceDrag == null) {
+         && inputSession().operationDrag == null
+         && workspaceGizmoDrag() == null
+         && workspaceFaceDrag() == null) {
          if (ClientOperationController.active()
             && adjustWorkspaceSelectionAtCrosshair(minecraft, event.getButton())) {
-            MODIFIER_STATE.consume();
-            operationClickCapturedButton = event.getButton();
+            inputSession().modifier.consume();
+            inputSession().operationClickCapturedButton = event.getButton();
             event.setCanceled(true);
          }
          return;
       }
-      if (event.getAction() == 1
-         && (event.getButton() == 0 || event.getButton() == 1 || event.getButton() == 2)
-         && (event.getButton() != 2 || ClientOperationController.activeSelectionTransformed())
-         && ClientOperationController.active()
-         && operationDrag == null && workspaceGizmoDrag == null && workspaceFaceDrag == null
-         && pointerIntent instanceof OperationInteractionIntent.CreateSelection create) {
-         if (ClientOperationController.handleCreateClick(event.getButton(), create.point())) {
-            operationClickCapturedButton = event.getButton();
-            event.setCanceled(true);
-            return;
-         }
-      }
-
       if (event.getButton() == 0
          && (buildingSession || geometrySession || operationSession)
          && (NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())
@@ -704,129 +859,78 @@ public final class FastPlaceClientInput {
                && operationAdjustModifierHeld();
             boolean operationAlt = operationSession && modifierHeld();
             OperationInputSemantics.LeftDecision leftDecision = operationLeftDecision(pointerIntent);
-            if (leftDecision.yieldToVanilla()) {
-               return;
-            }
-            OperationInputSemantics.LeftAction operationLeft = leftDecision.action();
-            if (handleWorkspacePointerClick(minecraft, pointerIntent, 0, -1)) {
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (ClientOperationController.active()
-               && adjustWorkspaceSelectionAtCrosshair(minecraft, 0)) {
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (ClientOperationController.active()) {
-               // A confirmed client workspace owns the interaction surface;
-               // never fall through to the legacy server session handlers.
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (operationLeft == OperationInputSemantics.LeftAction.GIZMO_DRAG) {
-               beginOperationGizmoDrag(minecraft, 0);
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (ClientOperationController.operationPrism() && beginOperationPointDrag(minecraft, 0)) {
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (operationLeft == OperationInputSemantics.LeftAction.SELECTION_UNDO
-               || operationLeft == OperationInputSemantics.LeftAction.ADJUSTMENT_UNDO) {
-               if (!undoPressCaptured) {
-                  UNDO_PRESS.press(System.nanoTime());
-                  undoPressCaptured = true;
+            MousePressRoutingSemantics.LeftTarget target = leftPressTarget(
+               minecraft, event.getAction(), pointerIntent, leftDecision, operationAdjust, operationAlt,
+               buildingSession, geometrySession, operationSession
+            );
+            consumed = switch (target) {
+               case NONE -> false;
+               case YIELD_TO_VANILLA -> false;
+               case WORKSPACE_POINTER -> {
+                  handleWorkspacePointerClick(minecraft, pointerIntent, 0, -1);
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
                }
-               consumed = true;
-            } else if (operationAlt) {
-               boolean handled = operationClickCapturedButton != 0 && beginOperationGizmoDrag(minecraft, 0);
-               if (handled) {
-                  MODIFIER_STATE.consume();
+               case WORKSPACE_ADJUST_OR_CAPTURE -> {
+                  adjustWorkspaceSelectionAtCrosshair(minecraft, 0);
+                  // A confirmed client workspace owns the interaction surface.
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
                }
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (operationAdjust) {
-               boolean handled = ClientOperationController.operationCuboid()
-                  ? beginOperationGizmoDrag(minecraft, 0)
-                  : beginOperationGizmoDrag(minecraft, 0)
-                     || sendOperationPointSelection(minecraft)
-                     || beginOperationFaceAdjustment(minecraft, -1, 0);
-               if (operationClickCapturedButton != 0 && handled) {
-                  MODIFIER_STATE.consume();
+               case OPERATION_GIZMO -> {
+                  beginOperationGizmoDrag(minecraft, 0);
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
                }
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else if (ClientOperationController.operationCuboid() && !InteractionContext.nearVanillaBlock(minecraft)) {
-               OperationPointerTarget target = FastPlaceClientPreview.operationPointerTarget();
-               if (target.kind() == OperationPointerKind.WORLD) {
-                  PacketDistributor.sendToServer(
-                     new OperationPointPayload(OperationPointPayload.Role.FIRST), new CustomPacketPayload[0]
-                  );
-                  operationClickCapturedButton = 0;
-                  consumed = true;
-               } else if (target.kind() == OperationPointerKind.FACE) {
+               case OPERATION_POINT -> {
+                  beginOperationPointDrag(minecraft, 0);
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
+               }
+               case UNDO -> beginUndoPress();
+               case OPERATION_ALT -> {
+                  boolean handled = inputSession().operationClickCapturedButton != 0 && beginOperationGizmoDrag(minecraft, 0);
+                  if (handled) inputSession().modifier.consume();
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
+               }
+               case OPERATION_ADJUST -> {
+                  boolean handled = beginOperationGizmoDrag(minecraft, 0);
+                  if (!handled && ClientOperationController.operationPrism()) {
+                     handled = sendOperationPointSelection(minecraft)
+                        || beginOperationFaceAdjustment(minecraft, -1, 0);
+                  }
+                  if (inputSession().operationClickCapturedButton != 0 && handled) inputSession().modifier.consume();
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
+               }
+               case CUBOID_FIRST_POINT -> {
+                  queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
+               }
+               case CUBOID_FACE -> {
                   beginOperationFaceAdjustment(minecraft, -1, 0);
-                  // A face hit is an adjustment target, never a rollback target.
-                  operationClickCapturedButton = 0;
-                  consumed = true;
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
                }
-            } else if (operationClickCapturedButton == 0 || operationDrag != null && operationDrag.mouseButton() == 0) {
-               consumed = true;
-            } else if (geometryClickCapturedButton == 0) {
-               consumed = true;
-            } else if (geometryGizmoDrag != null) {
-               consumed = true;
-            } else if (geometrySession && beginGeometryGizmoDrag(minecraft, 0)) {
-               UNDO_PRESS.cancel();
-               undoPressCaptured = false;
-               consumed = true;
-            } else if (geometrySession && beginGeometryInteraction(minecraft, 0)) {
-               UNDO_PRESS.cancel();
-               undoPressCaptured = false;
-               consumed = true;
-            } else if (operationSession) {
-               operationClickCapturedButton = 0;
-               consumed = true;
-            } else {
-               if (NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())) {
-                  UNDO_PRESS.press(System.nanoTime());
-                  undoPressCaptured = true;
-                  consumed = true;
+               case OPERATION_CAPTURE -> {
+                  inputSession().operationClickCapturedButton = 0;
+                  yield true;
                }
-            }
-         } else if (event.getAction() == 0) {
-            if (operationPointDrag != null && operationPointDrag.mouseButton() == 0) {
-               OperationPointDrag finished = finishOperationPointDrag(minecraft);
-               finishOperationPointClick(minecraft, finished);
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (operationDrag != null && operationDrag.mouseButton() == 0) {
-               finishOperationDrag(minecraft);
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (workspaceGizmoDrag != null && workspaceGizmoDrag.mouseButton() == 0) {
-               finishWorkspaceGizmoDrag();
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (workspaceFaceDrag != null && workspaceFaceDrag.mouseButton() == 0) {
-               finishWorkspaceFaceDrag();
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (geometryGizmoDrag != null && geometryGizmoDrag.mouseButton() == 0) {
-               finishGeometryGizmoDrag(minecraft);
-               UNDO_PRESS.cancel();
-               undoPressCaptured = false;
-               consumed = true;
-            } else if (operationClickCapturedButton == 0) {
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (geometryClickCapturedButton == 0) {
-               geometryClickCapturedButton = -1;
-               consumed = true;
-            } else if (undoPressCaptured) {
-               boolean shortPress = UNDO_PRESS.release(System.nanoTime(), UNDO_SHORT_PRESS_NANOS);
-               undoPressCaptured = false;
-               if (shortPress && NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())) {
-                  PacketDistributor.sendToServer(UndoFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
+               case GEOMETRY_CAPTURE, GEOMETRY_GIZMO_CAPTURE -> true;
+               case GEOMETRY_INTERACTION -> {
+                  boolean handled = beginGeometryGizmoDrag(minecraft, 0) || beginGeometryInteraction(minecraft, 0);
+                  if (handled) {
+                     inputSession().undoPress.cancel();
+                     inputSession().undoPressCaptured = false;
+                     yield true;
+                  }
+                  yield operationSession ? captureOperationPress() : beginFallbackUndoPress(minecraft);
                }
-               consumed = true;
-            }
+            };
+         } else if (event.getAction() == MouseButtonInputSemantics.RELEASE) {
+            consumed = finishMouseRelease(minecraft, event.getAction(), event.getButton(), occurredAtNanos);
          }
          if (consumed) {
             event.setCanceled(true);
@@ -834,21 +938,19 @@ public final class FastPlaceClientInput {
       } else if (event.getButton() == 1 && geometrySession) {
          boolean consumed = false;
          if (event.getAction() == 1) {
-            if (InteractionContext.nearVanillaBlock(minecraft)) {
-               return;
-            }
-            if (geometryClickCapturedButton == 1) {
-               consumed = true;
-            } else {
-               consumed = handleGeometryRightClick(minecraft);
-            }
+            MousePressRoutingSemantics.RightTarget target = rightPressTarget(
+               minecraft, event.getAction(), pointerIntent, true, false
+            );
+            if (target == MousePressRoutingSemantics.RightTarget.YIELD_TO_VANILLA) return;
+            consumed = target == MousePressRoutingSemantics.RightTarget.GEOMETRY_CAPTURE
+               || target == MousePressRoutingSemantics.RightTarget.GEOMETRY_INTERACTION && handleGeometryRightClick(minecraft, occurredAtNanos);
          } else if (event.getAction() == 0
-            && geometryClickCapturedButton == 1) {
-            geometryClickCapturedButton = -1;
+            && inputSession().geometryClickCapturedButton == 1) {
+            inputSession().geometryClickCapturedButton = -1;
             consumed = true;
          } else if (event.getAction() == 0
-            && geometryGizmoDrag != null
-            && geometryGizmoDrag.mouseButton() == 1) {
+            && inputSession().geometryGizmoDrag != null
+            && inputSession().geometryGizmoDrag.mouseButton() == 1) {
             finishGeometryGizmoDrag(minecraft);
             consumed = true;
          }
@@ -858,128 +960,89 @@ public final class FastPlaceClientInput {
       } else if (event.getButton() == 1 && operationSession) {
          boolean consumed = false;
          if (event.getAction() == 1) {
-            if (handleWorkspacePointerClick(minecraft, pointerIntent, 1, 1)) {
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (ClientOperationController.active()
-               && adjustWorkspaceSelectionAtCrosshair(minecraft, 1)) {
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (ClientOperationController.active()) {
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (ClientOperationController.operationSelectionConfirmed()) {
-               if (InteractionContext.nearVanillaBlock(minecraft)) {
-                  return;
+            MousePressRoutingSemantics.RightTarget target = rightPressTarget(
+               minecraft, event.getAction(), pointerIntent, false, true
+            );
+            if (target == MousePressRoutingSemantics.RightTarget.YIELD_TO_VANILLA) return;
+            consumed = switch (target) {
+               case NONE, YIELD_TO_VANILLA, GEOMETRY_CAPTURE, GEOMETRY_INTERACTION -> false;
+               case WORKSPACE_POINTER -> {
+                  handleWorkspacePointerClick(minecraft, pointerIntent, 1, 1);
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
                }
-               beginOperationGizmoDrag(minecraft, 1);
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else {
-            boolean operationAdjust = ClientOperationController.operationSelectionReady()
-               && operationAdjustModifierHeld();
-            boolean operationAlt = modifierHeld();
-            boolean operationPointTarget = ClientOperationController.operationPrism()
-               && FastPlaceClientPreview.operationPointUnderCrosshairIndex() >= 0;
-            if (InteractionContext.nearVanillaBlock(minecraft) && !operationAdjust && !operationAlt && !operationPointTarget) {
-               return;
-            }
-            if (operationAlt) {
-               boolean handled = beginOperationGizmoDrag(minecraft, 1);
-               if (handled) {
-                  MODIFIER_STATE.consume();
+               case WORKSPACE_ADJUST_OR_CAPTURE -> {
+                  adjustWorkspaceSelectionAtCrosshair(minecraft, 1);
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
                }
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (operationAdjust) {
-               if (beginOperationGizmoDrag(minecraft, 1)
-                  || sendOperationPointSelection(minecraft)
-                  || beginOperationFaceAdjustment(minecraft, 1, 1)) {
-                  MODIFIER_STATE.consume();
+               case CONFIRMED_GIZMO_CAPTURE -> {
+                  beginOperationGizmoDrag(minecraft, 1);
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
                }
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (ClientOperationController.operationPrism() && beginOperationPointDrag(minecraft, 1)) {
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (!InteractionContext.nearVanillaBlock(minecraft)
-               && ClientOperationController.operationPrism()
-               && sendOperationEdgeInsertion(minecraft)) {
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (!InteractionContext.nearVanillaBlock(minecraft)
-               && ClientOperationController.operationPrism()
-               && sendNextOperationPrismPoint(minecraft)) {
-               operationClickCapturedButton = 1;
-               consumed = true;
-            } else if (ClientOperationController.operationCuboid()) {
-               OperationPointerTarget target = FastPlaceClientPreview.operationPointerTarget();
-               if (target.kind() == OperationPointerKind.WORLD) {
-                  PacketDistributor.sendToServer(
-                     new OperationPointPayload(OperationPointPayload.Role.SECOND), new CustomPacketPayload[0]
-                  );
-                  operationClickCapturedButton = 1;
-                  consumed = true;
-               } else if (target.kind() == OperationPointerKind.FACE) {
-                  consumed = beginOperationFaceAdjustment(minecraft, 1, 1);
-                  operationClickCapturedButton = 1;
+               case OPERATION_ALT -> {
+                  if (beginOperationGizmoDrag(minecraft, 1)) inputSession().modifier.consume();
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
                }
-            } else if (FastPlaceClientPreview.operationPrismBaseOpen() && tryClosePathGesture(minecraft, false)) {
-               consumed = true;
-            }
-            }
-         } else if (event.getAction() == 0) {
-            if (operationPointDrag != null && operationPointDrag.mouseButton() == 1) {
-               OperationPointDrag finished = finishOperationPointDrag(minecraft);
-               finishOperationPointClick(minecraft, finished);
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (operationDrag != null && operationDrag.mouseButton() == 1) {
-               finishOperationDrag(minecraft);
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (workspaceGizmoDrag != null && workspaceGizmoDrag.mouseButton() == 1) {
-               finishWorkspaceGizmoDrag();
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (workspaceFaceDrag != null && workspaceFaceDrag.mouseButton() == 1) {
-               finishWorkspaceFaceDrag();
-               operationClickCapturedButton = -1;
-               consumed = true;
-            } else if (geometryGizmoDrag != null && geometryGizmoDrag.mouseButton() == 1) {
-               finishGeometryGizmoDrag(minecraft);
-               consumed = true;
-            } else if (operationClickCapturedButton == 1) {
-               operationClickCapturedButton = -1;
-               consumed = true;
-            }
+               case OPERATION_ADJUST -> {
+                  if (beginOperationGizmoDrag(minecraft, 1)
+                     || sendOperationPointSelection(minecraft)
+                     || beginOperationFaceAdjustment(minecraft, 1, 1)) {
+                     inputSession().modifier.consume();
+                  }
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
+               }
+               case OPERATION_POINT -> {
+                  beginOperationPointDrag(minecraft, 1);
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
+               }
+               case OPERATION_EDGE -> {
+                  sendOperationEdgeInsertion(minecraft);
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
+               }
+               case OPERATION_NEXT_POINT -> {
+                  sendNextOperationPrismPoint(minecraft);
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
+               }
+               case CUBOID_SECOND_POINT -> {
+                  queueRemoteSelectionPoint(OperationPointPayload.Role.SECOND);
+                  inputSession().operationClickCapturedButton = 1;
+                  yield true;
+               }
+               case CUBOID_FACE -> {
+                  boolean handled = beginOperationFaceAdjustment(minecraft, 1, 1);
+                  inputSession().operationClickCapturedButton = 1;
+                  yield handled;
+               }
+               case CLOSE_PATH -> PathCloseInputDispatcher.press(minecraft, inputSession(), false, occurredAtNanos);
+            };
+         } else if (event.getAction() == MouseButtonInputSemantics.RELEASE) {
+            consumed = finishMouseRelease(minecraft, event.getAction(), event.getButton(), occurredAtNanos);
          }
          if (consumed) {
             event.setCanceled(true);
          }
       } else if (event.getButton() == 1 && buildingSession) {
-         if (event.getAction() == 1 && !InteractionContext.nearVanillaBlock(minecraft) && tryClosePathGesture(minecraft, false)) {
-            BUILDING_RIGHT_PRESS.consume();
+         if (event.getAction() == 1 && !InteractionContext.nearVanillaBlock(minecraft) && PathCloseInputDispatcher.press(minecraft, inputSession(), false, occurredAtNanos)) {
+            inputSession().buildingRightPress.consume();
             event.setCanceled(true);
          }
-      } else if (event.getButton() == 2
-         && operationSession
-         && ClientOperationController.active()) {
-         if (event.getAction() == 1 && adjustWorkspaceSelectionAtCrosshair(minecraft, 2)) {
-            operationClickCapturedButton = 2;
-            event.setCanceled(true);
-         } else if (event.getAction() == 0 && workspaceFaceDrag != null && workspaceFaceDrag.mouseButton() == 2) {
-            finishWorkspaceFaceDrag();
-            operationClickCapturedButton = -1;
-            event.setCanceled(true);
-         } else if (event.getAction() == 0 && operationClickCapturedButton == 2) {
-            operationClickCapturedButton = -1;
-            event.setCanceled(true);
-         }
-      } else if (event.getButton() == 2
-         && event.getAction() == 1
-         && buildingSession
-         && FastPlaceClientPreview.middleConfirmEnabled()
+      } else if (buildingSession
+         && event.getButton() == MouseButtonInputSemantics.MIDDLE_BUTTON
+         && FastPlaceClientPreview.buildingMiddleClickIgnored()) {
+         event.setCanceled(true);
+      } else if (MouseButtonInputSemantics.requestsBuildingMiddleConfirm(
+         buildingSession,
+         FastPlaceClientPreview.middleConfirmEnabled(),
+         event.getAction(),
+         event.getButton()
+      )
          && ClientPlacementRouter.quickShape(minecraft)) {
          event.setCanceled(true);
       } else if (event.getButton() == 2
@@ -989,159 +1052,513 @@ public final class FastPlaceClientInput {
          && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) {
          BlockPos point = FastPlaceClientPreview.operationCandidatePoint();
          if (point != null) {
-            PacketDistributor.sendToServer(new OperationPointPayload(OperationPointPayload.Role.EXTRA), new CustomPacketPayload[0]);
+            queueRemoteSelectionPoint(OperationPointPayload.Role.EXTRA);
             event.setCanceled(true);
          }
       }
    }
 
+   private static boolean queueSelectionPointer(Minecraft minecraft, int action, int button, long occurredAtNanos) {
+      var session = inputSession();
+      if (action == MouseButtonInputSemantics.RELEASE) {
+         var release = session.selectionPointer.release(button, occurredAtNanos);
+         if (release == null) return false;
+         session.postSelectionPointer(release);
+         return true;
+      }
+      boolean ownSelectionDrag = session.selectionPointer.owns(ClientOperationController.selectionGestures().capture());
+      if (action != MouseButtonInputSemantics.PRESS || pointerGestureInFlight() && !ownSelectionDrag
+         || session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) != ClientInputStateMachine.Dispatch.OPERATION) {
+         return false;
+      }
+      var target = FastPlaceClientPreview.operationInteractionIntent().orElse(null);
+      boolean alt = physicalAltDown(minecraft, false);
+      boolean altGizmo = MouseButtonInputSemantics.startsAltWorkspaceGizmoTransform(
+         alt, target instanceof OperationInteractionIntent.Gizmo, action, button);
+      if (!altGizmo && queueSelectionDraft(minecraft, target, button, alt, occurredAtNanos)) return true;
+      if (!ClientOperationController.active()) return false;
+      if (alt && !altGizmo) return false;
+      SelectionPressRoute route = altGizmo ? SelectionPressRoute.OBJECT : selectionPressRoute(minecraft, target, button);
+      if (route == SelectionPressRoute.NONE) return false;
+      if (route == SelectionPressRoute.POINT) {
+         queueSelectionPoint(minecraft, button, occurredAtNanos);
+         return true;
+      }
+      var press = SelectionPointerPress.capture(target, button, physicalCtrlDown(minecraft, false),
+         button == MouseButtonInputSemantics.RIGHT_BUTTON ? 1 : -1,
+         ClientOperationController.interactionScene(), ClientOperationController.workspace(), occurredAtNanos);
+      if (press.isEmpty()) return false;
+      session.captureSelectionPress(press.orElseThrow(), alt);
+      return true;
+   }
+
+   private enum SelectionPressRoute { NONE, POINT, OBJECT }
+
+   private static SelectionPressRoute selectionPressRoute(Minecraft minecraft, OperationInteractionIntent target, int button) {
+      return switch (button) {
+         case MouseButtonInputSemantics.LEFT_BUTTON -> {
+            if (!NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())
+               && !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())) {
+               yield SelectionPressRoute.NONE;
+            }
+            yield switch (leftPressTarget(minecraft, MouseButtonInputSemantics.PRESS, target, operationLeftDecision(target),
+               false, false, false, false, true)) {
+               case WORKSPACE_POINTER -> SelectionPressRoute.OBJECT;
+               case WORKSPACE_ADJUST_OR_CAPTURE -> SelectionPressRoute.POINT;
+               default -> SelectionPressRoute.NONE;
+            };
+         }
+         case MouseButtonInputSemantics.RIGHT_BUTTON -> switch (
+            rightPressTarget(minecraft, MouseButtonInputSemantics.PRESS, target, false, true)) {
+            case WORKSPACE_POINTER -> SelectionPressRoute.OBJECT;
+            case WORKSPACE_ADJUST_OR_CAPTURE -> SelectionPressRoute.POINT;
+            default -> SelectionPressRoute.NONE;
+         };
+         case MouseButtonInputSemantics.MIDDLE_BUTTON -> SelectionPressRoute.POINT;
+         default -> SelectionPressRoute.NONE;
+      };
+   }
+
+   private static void queueSelectionPoint(Minecraft minecraft, int button, long occurredAtNanos) {
+      var workspace = ClientOperationController.workspace();
+      int partId = workspace.activeId();
+      BlockHitResult hit = longRangeSelectionBlockHit(minecraft);
+      inputSession().captureSelectionPress(new SelectionPointPress(ClientOperationController.interactionScene().owner(),
+         partId, workspace.interactionId(partId), button, physicalCtrlDown(minecraft, false),
+         hit == null ? null : hit.getBlockPos(), occurredAtNanos));
+   }
+
+   private static boolean queueSelectionDraft(
+      Minecraft minecraft, OperationInteractionIntent target, int button, boolean alt, long occurredAtNanos
+   ) {
+      var session = inputSession();
+      if (button < 0 || button > 2) return false;
+      BlockPos point;
+      if (MouseButtonInputSemantics.startsAltCreateSelection(alt,
+         session.routing.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION) == ClientInputStateMachine.Dispatch.OPERATION,
+         MouseButtonInputSemantics.PRESS, button)) {
+         BlockHitResult hit = longRangeSelectionBlockHit(minecraft);
+         point = hit == null ? null : hit.getBlockPos();
+      } else if (!alt && ClientOperationController.active()
+         && (button != MouseButtonInputSemantics.MIDDLE_BUTTON || ClientOperationController.activeSelectionTransformed())
+         && target instanceof OperationInteractionIntent.CreateSelection create) {
+         point = create.point();
+      } else {
+         return false;
+      }
+      session.captureSelectionPress(new SelectionDraftPress(ClientOperationController.interactionScene().owner(),
+         ClientOperationController.draftSelectionMode(), button, point, alt, physicalCtrlDown(minecraft, false), occurredAtNanos));
+      return true;
+   }
+
+   static void queueRemoteSelectionPoint(OperationPointPayload.Role role) {
+      inputSession().postRemoteSelectionPoint(RemoteSelectionPointDispatcher.capture(role));
+   }
+
+   static void handleRemoteSelectionPoint(RemoteSelectionPointRequest request,
+      java.util.function.Consumer<OperationPointPayload> send) {
+      RemoteSelectionPointDispatcher.dispatch(request, inputSession().routing, send);
+   }
+
+   private static boolean drainPhysicalInput(Minecraft minecraft) {
+      var dispatchSession = inputSession();
+      var dispatchPlayer = minecraft.player;
+      var dispatchConnection = minecraft.getConnection();
+      var dispatchLevel = minecraft.level;
+      java.util.function.BooleanSupplier contextActive = () -> dispatchSession == inputSession()
+         && dispatchPlayer != null && dispatchPlayer == minecraft.player
+         && dispatchConnection != null && dispatchConnection == minecraft.getConnection()
+         && dispatchLevel != null && dispatchLevel == minecraft.level
+         && minecraft.screen == null && minecraft.isWindowActive();
+      if (!contextActive.getAsBoolean()) {
+         dispatchSession.discardPhysicalEvents();
+         return false;
+      }
+      dispatchSession.drainPhysicalEvents(contextActive,
+         key -> handleKey(minecraft, key), scroll -> {
+            if (NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id())
+               && FastPlaceClientPreview.usesScrollContext()
+               && inputSession().routing.dispatch(ClientInputStateMachine.InputKind.SCROLL)
+                  != ClientInputStateMachine.Dispatch.BLOCKED) {
+               PacketDistributor.sendToServer(new ScrollCandidatePayload(scroll.direction()), new CustomPacketPayload[0]);
+               FastPlaceClientPreview.noteScrollFeedback();
+            }
+         }, click -> SelectionInputDispatcher.dispatch(minecraft, dispatchSession, click), request -> {
+            if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) {
+               handleRemoteSelectionPoint(request,
+                  payload -> PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]));
+            }
+         });
+      return contextActive.getAsBoolean();
+   }
+
+   /** Cancelling a session must also release the server-side modifier state. */
+   private static void resetModifierState(Minecraft minecraft) {
+      if (inputSession().modifier.held()) {
+         releaseModifierState(minecraft, false);
+      }
+   }
+
+   private static boolean finishMouseRelease(Minecraft minecraft, int action, int button, long releasedAtNanos) {
+      return switch (mouseReleaseTarget(action, button)) {
+         case OPERATION_POINT_DRAG -> {
+            OperationPointDrag finished = finishOperationPointDrag(minecraft);
+            finishOperationPointClick(minecraft, finished, releasedAtNanos);
+            inputSession().operationClickCapturedButton = -1;
+            yield true;
+         }
+         case OPERATION_DRAG -> {
+            finishOperationDrag(minecraft, releasedAtNanos);
+            inputSession().operationClickCapturedButton = -1;
+            yield true;
+         }
+         case WORKSPACE_GIZMO_DRAG -> {
+            finishWorkspaceGizmoDrag();
+            inputSession().operationClickCapturedButton = -1;
+            yield true;
+         }
+         case WORKSPACE_FACE_DRAG -> {
+            finishWorkspaceFaceDrag();
+            inputSession().operationClickCapturedButton = -1;
+            yield true;
+         }
+         case GEOMETRY_GIZMO_DRAG -> {
+            finishGeometryGizmoDrag(minecraft);
+            if (button == MouseButtonInputSemantics.LEFT_BUTTON) {
+               inputSession().undoPress.cancel();
+               inputSession().undoPressCaptured = false;
+            }
+            yield true;
+         }
+         case OPERATION_CAPTURE -> {
+            inputSession().operationClickCapturedButton = -1;
+            yield true;
+         }
+         case GEOMETRY_CAPTURE -> {
+            inputSession().geometryClickCapturedButton = -1;
+            yield true;
+         }
+         case UNDO_PRESS -> finishUndoPress(minecraft, releasedAtNanos);
+         case NONE -> false;
+      };
+   }
+
+   private static MouseDragReleaseSemantics.Target mouseReleaseTarget(int action, int button) {
+      return MouseDragReleaseSemantics.releaseTarget(action, button, new MouseDragReleaseSemantics.State(
+         dragButton(inputSession().operationPointDrag),
+         dragButton(inputSession().operationDrag),
+         dragButton(workspaceGizmoDrag()),
+         dragButton(workspaceFaceDrag()),
+         dragButton(inputSession().geometryGizmoDrag),
+         inputSession().operationClickCapturedButton,
+         inputSession().geometryClickCapturedButton,
+         inputSession().undoPressCaptured
+      ));
+   }
+
+   private static boolean finishUndoPress(Minecraft minecraft, long releasedAtNanos) {
+      boolean shortPress = inputSession().undoPress.release(releasedAtNanos, UNDO_SHORT_PRESS_NANOS);
+      inputSession().undoPressCaptured = false;
+      if (shortPress && NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())) {
+         PacketDistributor.sendToServer(UndoFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
+      }
+      return true;
+   }
+
+   private static int dragButton(OperationPointDrag drag) {
+      return drag == null ? -1 : drag.mouseButton();
+   }
+
+   private static int dragButton(OperationDrag drag) {
+      return drag == null ? -1 : drag.mouseButton();
+   }
+
+   private static int dragButton(WorkspaceGizmoDrag drag) {
+      return drag == null ? -1 : drag.mouseButton();
+   }
+
+   private static int dragButton(WorkspaceFaceDrag drag) {
+      return drag == null ? -1 : drag.mouseButton();
+   }
+
+   private static int dragButton(GeometryGizmoDrag drag) {
+      return drag == null ? -1 : drag.mouseButton();
+   }
+
+   private static MousePressRoutingSemantics.LeftTarget leftPressTarget(
+      Minecraft minecraft,
+      int action,
+      OperationInteractionIntent pointerIntent,
+      OperationInputSemantics.LeftDecision leftDecision,
+      boolean operationAdjust,
+      boolean operationAlt,
+      boolean buildingSession,
+      boolean geometrySession,
+      boolean operationSession
+   ) {
+      OperationPointerTarget pointerTarget = FastPlaceClientPreview.operationPointerTarget();
+      boolean operationPointTarget = ClientOperationController.operationPrism()
+         && inputSession().operationDrag == null
+         && inputSession().operationPointDrag == null
+         && FastPlaceClientPreview.operationPointUnderCrosshairIndex() >= 0
+         && FastPlaceClientPreview.operationPointCenter(FastPlaceClientPreview.operationPointUnderCrosshairIndex()) != null
+         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id());
+      boolean operationUndo = leftDecision.action() == OperationInputSemantics.LeftAction.SELECTION_UNDO
+         || leftDecision.action() == OperationInputSemantics.LeftAction.ADJUSTMENT_UNDO;
+      return MousePressRoutingSemantics.leftTarget(new MousePressRoutingSemantics.LeftState(
+         action,
+         MouseButtonInputSemantics.LEFT_BUTTON,
+         buildingSession || geometrySession || operationSession,
+         leftDecision.yieldToVanilla(),
+         workspacePointerTarget(pointerIntent),
+         ClientOperationController.active(),
+         leftDecision.action() == OperationInputSemantics.LeftAction.GIZMO_DRAG,
+         operationPointTarget,
+         operationUndo,
+         operationAlt,
+         operationAdjust,
+         ClientOperationController.operationCuboid()
+            && !InteractionContext.nearVanillaBlock(minecraft)
+            && pointerTarget.kind() == OperationPointerKind.WORLD,
+         ClientOperationController.operationCuboid()
+            && !InteractionContext.nearVanillaBlock(minecraft)
+            && pointerTarget.kind() == OperationPointerKind.FACE,
+         inputSession().operationClickCapturedButton == MouseButtonInputSemantics.LEFT_BUTTON,
+         inputSession().operationDrag != null && inputSession().operationDrag.mouseButton() == MouseButtonInputSemantics.LEFT_BUTTON,
+         inputSession().geometryClickCapturedButton == MouseButtonInputSemantics.LEFT_BUTTON,
+         inputSession().geometryGizmoDrag != null,
+         geometrySession && FastPlaceClientPreview.geometryGizmoHit() != null,
+         geometrySession,
+         operationSession,
+         NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())
+      ));
+   }
+
+   private static MousePressRoutingSemantics.RightTarget rightPressTarget(
+      Minecraft minecraft,
+      int action,
+      OperationInteractionIntent pointerIntent,
+      boolean geometrySession,
+      boolean operationSession
+   ) {
+      OperationPointerTarget pointerTarget = FastPlaceClientPreview.operationPointerTarget();
+      boolean nearVanillaBlock = InteractionContext.nearVanillaBlock(minecraft);
+      boolean operationAdjust = operationSession
+         && ClientOperationController.operationSelectionReady()
+         && operationAdjustModifierHeld();
+      boolean operationPointTarget = ClientOperationController.operationPrism()
+         && inputSession().operationDrag == null
+         && inputSession().operationPointDrag == null
+         && FastPlaceClientPreview.operationPointUnderCrosshairIndex() >= 0
+         && FastPlaceClientPreview.operationPointCenter(FastPlaceClientPreview.operationPointUnderCrosshairIndex()) != null
+         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id());
+      return MousePressRoutingSemantics.rightTarget(new MousePressRoutingSemantics.RightState(
+         action,
+         MouseButtonInputSemantics.RIGHT_BUTTON,
+         geometrySession,
+         operationSession,
+         nearVanillaBlock,
+         inputSession().geometryClickCapturedButton == MouseButtonInputSemantics.RIGHT_BUTTON,
+         workspacePointerTarget(pointerIntent),
+         ClientOperationController.active(),
+         ClientOperationController.operationSelectionConfirmed(),
+         operationAdjust,
+         operationSession && modifierHeld(),
+         operationPointTarget,
+         !nearVanillaBlock
+            && ClientOperationController.operationPrism()
+            && FastPlaceClientPreview.operationPrismEdgeInsertion() != null
+            && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationInsertPointPayload.TYPE.id()),
+         !nearVanillaBlock
+            && ClientOperationController.operationPrism()
+            && FastPlaceClientPreview.operationCandidatePoint() != null
+            && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id()),
+         ClientOperationController.operationCuboid() && pointerTarget.kind() == OperationPointerKind.WORLD,
+         ClientOperationController.operationCuboid() && pointerTarget.kind() == OperationPointerKind.FACE,
+         FastPlaceClientPreview.operationPrismBaseOpen()
+      ));
+   }
+
+   private static boolean workspacePointerTarget(OperationInteractionIntent pointerIntent) {
+      return pointerIntent instanceof OperationInteractionIntent.Gizmo
+         || pointerIntent instanceof OperationInteractionIntent.Face
+         || pointerIntent instanceof OperationInteractionIntent.Part part && part.partId() > 0;
+   }
+
+   private static boolean beginUndoPress() {
+      if (!inputSession().undoPressCaptured) {
+         inputSession().undoPress.press(System.nanoTime());
+         inputSession().undoPressCaptured = true;
+      }
+      return true;
+   }
+
+   private static boolean captureOperationPress() {
+      inputSession().operationClickCapturedButton = MouseButtonInputSemantics.LEFT_BUTTON;
+      return true;
+   }
+
+   private static boolean beginFallbackUndoPress(Minecraft minecraft) {
+      return NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id()) && beginUndoPress();
+   }
+
    @SubscribeEvent
    public static void onClientTick(Post event) {
       Minecraft minecraft = Minecraft.getInstance();
+      resumeSoundAfterSuppressedPause(minecraft);
       ClientSessionManager.instance().observePlayer(minecraft);
       InteractionContext.tick(minecraft);
       if (minecraft.player == null || minecraft.getConnection() == null) {
-         INPUT_STATE.reset();
+         io.github.fastformer.network.client.ClientPayloadDispatcher.endWorldSession();
          QuickReplaceMode.clear();
          cancelWorkspaceEditIfPresent();
-         BUILDING_RIGHT_PRESS.release();
-         if (operationSessionWasActive) {
+         ClientOperationController.selectionGestures().clear();
+         if (inputSession().operationSessionWasActive) {
             minecraft.options.keyAttack.setDown(false);
          }
-         operationSessionWasActive = false;
-         operationDrag = null;
-         operationPointDrag = null;
-         operationClickCapturedButton = -1;
-         geometryGizmoDrag = null;
-         geometryClickCapturedButton = -1;
-         UNDO_PRESS.cancel();
-         undoPressCaptured = false;
-        cancelPointerGesture();
+         inputSession().reset();
+         ClientOperationController.setAltMode(false);
+         InteractionContext.reset();
+         FastPlaceClientPreview.clearTransientFeedback();
         return;
       }
+      io.github.fastformer.network.client.ClientPayloadDispatcher.onClientTick();
+      inputSession().drainSubmissionEvents();
+      drainPhysicalInput(minecraft);
       ClientOperationController.onClientTick();
+      ClientOperationController.sourceMask().reapply();
       FastPlaceClientPreview.onClientTick();
       synchronizeInputState();
-      if (INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.KEY)
+      if (activeSession() && !InputContextBoundary.pointerContextIntact(
+         pointerGestureInFlight(), minecraft.screen != null, minecraft.isWindowActive()
+      )) {
+         suspendPointerGesture(minecraft);
+      }
+      if (inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY)
          != ClientInputStateMachine.Dispatch.BLOCKED) {
          pollModifierKeys(minecraft);
       }
-      if (INPUT_STATE.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION)
+      if (inputSession().routing.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION)
          && QuickReplaceMode.active() && minecraft.screen == null && minecraft.options.keyUse.isDown()) {
          ClientPlacementRouter.quickReplace(minecraft);
       }
       if (!minecraft.options.keyUse.isDown()) {
-         BUILDING_RIGHT_PRESS.release();
+         inputSession().buildingRightPress.release();
       }
       boolean operationActive = FastPlaceClientPreview.operationActive();
-      if (operationSessionWasActive && !operationActive) {
+      if (inputSession().operationSessionWasActive && !operationActive) {
          minecraft.options.keyAttack.setDown(false);
       }
-      operationSessionWasActive = operationActive;
+      inputSession().operationSessionWasActive = operationActive;
       if (!activeSession()) {
          cancelWorkspaceEditIfPresent();
-         operationDrag = null;
-         operationPointDrag = null;
+         inputSession().operationDrag = null;
+         inputSession().operationPointDrag = null;
          resetOperationPointClicks();
-         UNDO_PRESS.cancel();
-         undoPressCaptured = false;
-         geometryClickCapturedButton = -1;
-         operationClickCapturedButton = -1;
-         workspaceGizmoDrag = null;
-         workspaceFaceDrag = null;
+         inputSession().undoPress.cancel();
+         inputSession().undoPressCaptured = false;
+         inputSession().geometryClickCapturedButton = -1;
+         inputSession().operationClickCapturedButton = -1;
+         ClientOperationController.selectionGestures().clear();
          cancelPointerGesture();
       }
-      if (operationDrag == null && operationPointDrag == null
-         && geometryGizmoDrag == null && workspaceGizmoDrag == null && workspaceFaceDrag == null) {
+      if (inputSession().operationDrag == null && inputSession().operationPointDrag == null
+         && inputSession().geometryGizmoDrag == null && workspaceGizmoDrag() == null && workspaceFaceDrag() == null) {
          return;
       }
 
-      if (operationDrag != null
-         && !ownsPointerGesture(PointerGestureState.Kind.OPERATION_FACE)
-         && !ownsPointerGesture(PointerGestureState.Kind.OPERATION_GIZMO)) {
-         operationDrag = null;
-      }
-      if (operationPointDrag != null
-         && !ownsPointerGesture(PointerGestureState.Kind.OPERATION_POINT)) {
-         operationPointDrag = null;
-      }
-
-      if (workspaceFaceDrag != null) {
-         updateWorkspaceFaceDrag(minecraft);
+      DragAdvanceSemantics.Plan dragPlan = DragAdvanceSemantics.plan(new DragAdvanceSemantics.State(
+         inputSession().operationDrag != null,
+         ownsPointerGesture(PointerGestureState.Kind.OPERATION_FACE)
+            || ownsPointerGesture(PointerGestureState.Kind.OPERATION_GIZMO),
+         inputSession().operationPointDrag != null,
+         ownsPointerGesture(PointerGestureState.Kind.OPERATION_POINT),
+         inputSession().geometryGizmoDrag != null,
+         workspaceGizmoDrag() != null,
+         workspaceFaceDrag() != null,
+         FastPlaceClientPreview.operationActive()
+      ));
+      if (dragPlan.clearOperationDrag()) inputSession().operationDrag = null;
+      if (dragPlan.clearOperationPointDrag()) inputSession().operationPointDrag = null;
+      if (dragPlan.exclusiveOwner() == DragAdvanceSemantics.Owner.WORKSPACE_FACE) {
+         SelectionGestureController.updateFace(inputSession(), minecraft);
          return;
       }
-
-      if (workspaceGizmoDrag != null) {
-         updateWorkspaceGizmoDrag(minecraft);
+      if (dragPlan.exclusiveOwner() == DragAdvanceSemantics.Owner.WORKSPACE_GIZMO) {
+         SelectionGestureController.updateGizmo(inputSession(), minecraft, physicalCtrlDown(minecraft, false));
          return;
       }
-
-      if (geometryGizmoDrag != null) {
-         updateGeometryGizmoDrag(minecraft);
-      }
-      if (operationPointDrag != null) {
-         updateOperationPointDrag(minecraft);
-      }
-      if (operationDrag == null) {
+      if (dragPlan.advanceGeometryGizmo()) updateGeometryGizmoDrag(minecraft);
+      if (dragPlan.advanceOperationPoint()) updateOperationPointDrag(minecraft);
+      if (dragPlan.clearInactiveOperationDrags()) {
+         inputSession().operationDrag = null;
+         inputSession().operationPointDrag = null;
          return;
       }
-      if (!FastPlaceClientPreview.operationActive()) {
-         operationDrag = null;
-         operationPointDrag = null;
-         return;
-      }
+      if (!dragPlan.advanceOperationDrag()) return;
       long now = System.nanoTime();
       Vec3 eye = minecraft.player.getEyePosition();
       Vec3 view = minecraft.player.getViewVector(1.0F);
       Vec3 axisPoint = OperationGeometry.closestPointOnAxisToRay(
-         operationDrag.frame().origin(), operationDrag.normal(), eye, view
+         inputSession().operationDrag.frame().origin(), inputSession().operationDrag.normal(), eye, view
       );
-      int projectedSteps = operationDrag.frame().project(axisPoint, operationDrag.normal());
-      if (operationDrag.faceHit() != null
-         && operationDrag.deferredClick().awaitingRelease(now, OPERATION_FACE_SHORT_PRESS_NANOS)) {
+      int projectedSteps = inputSession().operationDrag.frame().project(axisPoint, inputSession().operationDrag.normal());
+      if (inputSession().operationDrag.faceHit() != null
+         && inputSession().operationDrag.deferredClick().awaitingRelease(now, OPERATION_FACE_SHORT_PRESS_NANOS)) {
          return;
       }
-      if (operationDrag.deferredClick().steps() != 0) {
-         operationDrag = operationDrag.withDeferredClick(operationDrag.deferredClick().cancel());
+      if (inputSession().operationDrag.deferredClick().steps() != 0) {
+         inputSession().operationDrag = inputSession().operationDrag.withDeferredClick(inputSession().operationDrag.deferredClick().cancel());
       }
-      if (operationDrag.faceHit() != null && ClientOperationController.operationCuboid()) {
+      if (inputSession().operationDrag.faceHit() != null && ClientOperationController.operationCuboid()) {
          OperationSelectionVolume selection = FastPlaceClientPreview.operationSelection();
          boolean inside = selection != null
             && selection.bounds().inflate(OperationSelectionVolume.RAYCAST_INFLATE).contains(eye);
-         if (inside != operationDrag.frame().reversed()) {
-            operationDrag = operationDrag.withFrame(
-               operationDrag.frame().rebase(axisPoint, projectedSteps, inside)
+         if (inside != inputSession().operationDrag.frame().reversed()) {
+            inputSession().operationDrag = inputSession().operationDrag.withFrame(
+               inputSession().operationDrag.frame().rebase(axisPoint, projectedSteps, inside)
             );
          }
       }
-      int totalSteps = operationDrag.frame().project(axisPoint, operationDrag.normal());
-      int delta = totalSteps - operationDrag.sentSteps();
+      int totalSteps = inputSession().operationDrag.frame().project(axisPoint, inputSession().operationDrag.normal());
+      int delta = totalSteps - inputSession().operationDrag.sentSteps();
       if (delta != 0 && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
          int clippedDelta = ClientInputMath.clampDragSteps(delta, MAX_DRAG_STEPS_PER_PACKET);
          PacketDistributor.sendToServer(
-            new OperationExtendPayload(operationDrag.axis(), operationDrag.positive(), clippedDelta, false),
+            new OperationExtendPayload(inputSession().operationDrag.axis(), inputSession().operationDrag.positive(), clippedDelta, false),
             new CustomPacketPayload[0]
          );
-         operationDrag = operationDrag.withSentSteps(operationDrag.sentSteps() + clippedDelta);
-         if (operationDrag.gizmoKey() != null) {
+         inputSession().operationDrag = inputSession().operationDrag.withSentSteps(inputSession().operationDrag.sentSteps() + clippedDelta);
+         if (inputSession().operationDrag.gizmoKey() != null) {
             FastPlaceClientPreview.noteGizmoFeedback(
-               operationDrag.gizmoKey().axis(),
+               inputSession().operationDrag.gizmoKey().axis(),
                AxisGizmo.Operation.MOVE,
-               operationDrag.sentSteps(),
-               operationDrag.gizmoBaseValue()
+               inputSession().operationDrag.sentSteps(),
+               inputSession().operationDrag.gizmoBaseValue()
             );
          }
       }
    }
 
+   @SubscribeEvent
+   public static void onVisualPointerFrame(net.neoforged.neoforge.client.event.RenderFrameEvent.Pre event) {
+      Minecraft minecraft = Minecraft.getInstance();
+      OperationInteractionIntent intent = null;
+      if (minecraft.player != null && minecraft.level != null && minecraft.screen == null
+         && minecraft.isWindowActive() && ClientOperationController.active()) {
+         intent = FastPlaceClientPreview.operationInteractionIntent().orElse(null);
+      }
+      ClientOperationController.updateVisualHover(intent);
+   }
+
    private static void updateOperationPointDrag(Minecraft minecraft) {
-      OperationPointDrag drag = operationPointDrag;
+      OperationPointDrag drag = inputSession().operationPointDrag;
       if (drag == null || !FastPlaceClientPreview.operationActive() || ClientOperationController.operationSelectionConfirmed()) {
-         operationPointDrag = null;
+         inputSession().operationPointDrag = null;
          return;
       }
       if (!ownsPointerGesture(PointerGestureState.Kind.OPERATION_POINT)) {
-         operationPointDrag = null;
+         inputSession().operationPointDrag = null;
          return;
       }
       Vec3 eye = minecraft.player.getEyePosition();
@@ -1149,7 +1566,7 @@ public final class FastPlaceClientInput {
       OperationPointDragConstraint constraint = OperationPointDragCalculator.selectConstraint(drag, eye, view);
       if (constraint != drag.constraint()) {
          drag = OperationPointDragCalculator.rebase(drag, constraint, eye, view);
-         operationPointDrag = drag;
+         inputSession().operationPointDrag = drag;
       }
       BlockPos desired = constraint == OperationPointDragConstraint.LINE
          ? OperationPointDragCalculator.lineTarget(drag, eye, view)
@@ -1160,56 +1577,51 @@ public final class FastPlaceClientInput {
       BlockPos target = OperationPointDragCalculator.nextTarget(drag.sentTarget(), desired, drag, constraint);
       if (target.equals(drag.sentTarget())
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
-         operationPointDrag = drag.withConstraint(constraint);
+         inputSession().operationPointDrag = drag.withConstraint(constraint);
          return;
       }
       PacketDistributor.sendToServer(
          new OperationPointDragPayload(drag.pointIndex(), target, constraint, false), new CustomPacketPayload[0]
       );
-      operationPointDrag = drag.withSentTarget(target).withConstraint(constraint);
+      inputSession().operationPointDrag = drag.withSentTarget(target).withConstraint(constraint);
    }
 
    @SubscribeEvent
    public static void onMouseScroll(MouseScrollingEvent event) {
       synchronizeInputState();
-      ClientInputStateMachine.Dispatch inputRoute = INPUT_STATE.dispatch(ClientInputStateMachine.InputKind.SCROLL);
-      if (inputRoute == ClientInputStateMachine.Dispatch.BLOCKED) {
-         event.setCanceled(true);
-         return;
-      }
+      ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.SCROLL);
       Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.player != null
-         && minecraft.screen == null
-         && inputRoute == ClientInputStateMachine.Dispatch.OPERATION
-         && ClientOperationController.active()
-         && event.getScrollDeltaY() != 0.0) {
-         int steps = event.getScrollDeltaY() > 0.0 ? 1 : -1;
-         BlockPos offset = OperationGeometry.viewAxisStep(minecraft.player.getViewVector(1.0F), steps);
-         if (ClientOperationController.moveSelected(offset)) {
+      boolean sessionReady = minecraft.player != null && minecraft.screen == null;
+      boolean candidateChannelAvailable = minecraft.getConnection() != null
+         && NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id());
+      ScrollInputSemantics.Decision scroll = ScrollInputSemantics.decide(
+         event.getScrollDeltaY(),
+         inputRoute,
+         sessionReady && ClientOperationController.active(),
+         sessionReady && candidateChannelAvailable && FastPlaceClientPreview.usesScrollContext(),
+         modifierInputRoute(ModifierInput.SCROLL) == ModifierInputRoute.VANILLA,
+         sessionReady && InteractionContext.nearVanillaBlock(minecraft)
+      );
+      switch (scroll.command()) {
+         case BLOCK -> event.setCanceled(true);
+         case WORKSPACE_MOVE -> {
+            BlockPos offset = OperationGeometry.viewAxisStep(minecraft.player.getViewVector(1.0F), scroll.direction());
+            if (ClientOperationController.moveSelected(offset)) {
+               event.setCanceled(true);
+            }
+         }
+         case CANDIDATE_SCROLL -> {
+            inputSession().postScroll(new ScrollInputSnapshot(scroll.direction()));
+            if (inputSession().modifier.held()) {
+               inputSession().modifier.consume();
+            }
             event.setCanceled(true);
          }
-         return;
-      }
-      if (minecraft.player != null
-         && minecraft.screen == null
-         && minecraft.getConnection() != null
-         && inputRoute != ClientInputStateMachine.Dispatch.VANILLA
-         && FastPlaceClientPreview.usesScrollContext()
-         && event.getScrollDeltaY() != 0.0
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id())) {
-         if (modifierInputRoute(ModifierInput.SCROLL) == ModifierInputRoute.VANILLA) {
-            MODIFIER_STATE.consume();
-            return;
+         case YIELD_TO_VANILLA -> {
+            inputSession().modifier.consume();
          }
-         if (InteractionContext.nearVanillaBlock(minecraft)) {
-            return;
-          }
-          PacketDistributor.sendToServer(new ScrollCandidatePayload(event.getScrollDeltaY() > 0.0 ? 1 : -1), new CustomPacketPayload[0]);
-          FastPlaceClientPreview.noteScrollFeedback();
-          if (MODIFIER_STATE.held()) {
-             MODIFIER_STATE.consume();
-          }
-         event.setCanceled(true);
+         case NONE -> {
+         }
       }
    }
 
@@ -1217,7 +1629,7 @@ public final class FastPlaceClientInput {
       if (ClientOperationController.operationSelectionConfirmed()) {
          return ModifierInputRoute.SESSION;
       }
-      return MODIFIER_STATE.held() && input == ModifierInput.SCROLL
+      return inputSession().modifier.held() && input == ModifierInput.SCROLL
          ? ModifierInputRoute.VANILLA
          : ModifierInputRoute.SESSION;
    }
@@ -1247,7 +1659,7 @@ public final class FastPlaceClientInput {
       }
       boolean reverseInside = ClientOperationController.operationCuboid() && selection.contains(eye);
       int deferredSteps = reverseInside ? -shortPressSteps : shortPressSteps;
-      operationDrag = new OperationDrag(
+      inputSession().operationDrag = new OperationDrag(
          axis,
          positive,
          DragAxisFrame.start(hit.point(), reverseInside),
@@ -1259,14 +1671,16 @@ public final class FastPlaceClientInput {
          0.0,
          DeferredDragClick.start(System.nanoTime(), deferredSteps)
       );
-      pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.OPERATION_FACE);
+      inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
       return true;
    }
 
    private static boolean beginOperationGizmoDrag(Minecraft minecraft, int mouseButton) {
       OperationInteractionIntent.Gizmo workspaceTarget = FastPlaceClientPreview.operationWorkspaceGizmoHit();
       if (workspaceTarget != null) {
-         return beginWorkspaceGizmoDrag(minecraft, workspaceTarget, mouseButton);
+         var press = SelectionPointerPress.capture(workspaceTarget, mouseButton, physicalCtrlDown(minecraft, false), 0,
+            ClientOperationController.interactionScene(), ClientOperationController.workspace());
+         return press.isPresent() && beginWorkspaceGizmoDrag(workspaceTarget, press.get().button(), press.get().control());
       }
       AxisGizmo gizmo = FastPlaceClientPreview.operationGizmo();
       AxisGizmo.Hit hit = FastPlaceClientPreview.operationGizmoHit();
@@ -1283,7 +1697,7 @@ public final class FastPlaceClientInput {
       int encodedAxis = handle.operation() == AxisGizmo.Operation.MOVE
          ? axis + (FastPlaceClientPreview.operationPointSelected() ? 6 : 3)
          : axis;
-      operationDrag = new OperationDrag(
+      inputSession().operationDrag = new OperationDrag(
          encodedAxis,
          positive,
          DragAxisFrame.start(hit.point(), !positive),
@@ -1295,7 +1709,7 @@ public final class FastPlaceClientInput {
          ClientInputMath.axisComponent(gizmo.center(), handle.axis()),
          DeferredDragClick.none()
       );
-      pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+      inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       return true;
    }
 
@@ -1303,121 +1717,19 @@ public final class FastPlaceClientInput {
    private static boolean handleWorkspacePointerClick(
       Minecraft minecraft, OperationInteractionIntent pointerIntent, int mouseButton, int shortPressSteps
    ) {
-      if (pointerIntent instanceof OperationInteractionIntent.Gizmo gizmo) {
-         beginWorkspaceGizmoDrag(minecraft, gizmo, mouseButton);
-         return true;
-      }
-      if (pointerIntent instanceof OperationInteractionIntent.Face face) {
-         selectOrBeginWorkspaceFace(minecraft, face, mouseButton, shortPressSteps);
-         return true;
-      }
-      if (pointerIntent instanceof OperationInteractionIntent.Part part && part.partId() > 0) {
-         if (physicalCtrlDown(minecraft, false)) {
-            ClientOperationController.workspace().toggleSelected(part.partId());
-         } else {
-            ClientOperationController.workspace().selectOnly(part.partId());
-         }
-         return true;
-      }
-      return false;
+      var press = SelectionPointerPress.capture(
+         pointerIntent, mouseButton, physicalCtrlDown(minecraft, false), shortPressSteps,
+         ClientOperationController.interactionScene(), ClientOperationController.workspace()
+      );
+      if (press.isEmpty()) return false;
+      SelectionGestureController.press(inputSession(), minecraft, press.orElseThrow());
+      return true;
    }
 
    private static boolean beginWorkspaceGizmoDrag(
-      Minecraft minecraft, OperationInteractionIntent.Gizmo target, int mouseButton
+      OperationInteractionIntent.Gizmo target, int mouseButton, boolean control
    ) {
-      if (ClientOperationController.workspaceSubmissionPending()) {
-         return false;
-      }
-      AxisGizmo.Handle handle = target.hit().handle();
-      var workspace = ClientOperationController.workspace();
-      if (workspace.selectedParts().stream().anyMatch(part ->
-         !WorkspacePreviewComposer.canResolveForRendering(part.blocks(), part.transform()))) {
-         return false;
-      }
-      if (!target.common()) {
-         boolean selected = workspace.selectedIds().contains(target.partId());
-         boolean control = physicalCtrlDown(minecraft, false);
-         if (!selected) {
-            if (control) {
-               workspace.toggleSelected(target.partId());
-            } else {
-               workspace.selectOnly(target.partId());
-            }
-         }
-         workspace.activate(target.partId());
-      }
-      if (!workspace.beginEdit()) {
-         return false;
-      }
-      var editToken = workspace.activeEditToken();
-      Vec3 axis = target.gizmo().axisVector(handle.axis());
-      if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
-         axis = axis.scale(-1.0);
-      }
-      Vec3 radial = handle.drawsRing() ? target.hit().point().subtract(target.gizmo().center()) : Vec3.ZERO;
-      if (handle.drawsRing() && radial.lengthSqr() < 1.0E-7) {
-         ClientOperationController.cancelTransformGesture(editToken);
-         return false;
-      }
-      workspaceGizmoDrag = new WorkspaceGizmoDrag(
-         target.partId(), target.common(), handle.operation(), handle.axis(),
-         target.hit().point(), axis, 0, target.gizmo().center(),
-         handle.drawsRing() ? radial.normalize() : Vec3.ZERO,
-         handle.drawsRing() ? GizmoDragCalculator.rotationTangent(axis, radial.normalize()) : Vec3.ZERO,
-         handle.direction(), mouseButton, java.util.List.copyOf(workspace.selectedParts()), editToken
-      );
-      pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
-      return true;
-   }
-
-   private static boolean beginWorkspaceFaceDrag(
-      Minecraft minecraft, OperationInteractionIntent.Face target, int mouseButton, int shortPressSteps
-   ) {
-      if (ClientOperationController.workspaceSubmissionPending()) {
-         return false;
-      }
-      if (target == null || !target.adjustable()) {
-         return false;
-      }
-      var workspace = ClientOperationController.workspace();
-      ClientSelectionPart part = workspace.part(target.partId()).orElse(null);
-      if (!ClientOperationController.sourceSnapshotMatches(part)) {
-         return false;
-      }
-      if (!workspace.selectedIds().contains(part.id())) {
-         workspace.selectOnly(part.id());
-      }
-      workspace.activate(part.id());
-      if (!workspace.beginEdit()) {
-         return false;
-      }
-      var editToken = workspace.activeEditToken();
-      OperationGeometry.RayHit hit = target.hit();
-      int axis = hit.axis();
-      Vec3 worldAxis = ClientInputMath.worldAxis(axis);
-      boolean positive = hit.normal().dot(worldAxis) > 0.0;
-      workspaceFaceDrag = new WorkspaceFaceDrag(
-         part, axis, positive, DragAxisFrame.start(hit.point(), false), hit.normal(), 0,
-         mouseButton, DeferredDragClick.start(System.nanoTime(), shortPressSteps), hit, editToken
-      );
-      pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.WORKSPACE_FACE);
-      return true;
-   }
-
-   private static void selectOrBeginWorkspaceFace(
-      Minecraft minecraft, OperationInteractionIntent.Face target, int mouseButton, int shortPressSteps
-   ) {
-      if (target == null) {
-         return;
-      }
-      var workspace = ClientOperationController.workspace();
-      if (!workspace.selectedIds().contains(target.partId())) {
-         workspace.selectOnly(target.partId());
-      }
-      workspace.activate(target.partId());
-      if (target.adjustable()) {
-         beginWorkspaceFaceDrag(minecraft, target, mouseButton, shortPressSteps);
-      }
+      return SelectionGestureController.beginWorkspaceGizmoDrag(inputSession(), target, mouseButton, control);
    }
 
    private static boolean beginConfirmedOperationGizmoDrag(
@@ -1433,22 +1745,22 @@ public final class FastPlaceClientInput {
          if (radial.lengthSqr() < 1.0E-7) {
             return false;
          }
-           geometryGizmoDrag = new GeometryGizmoDrag(
+           inputSession().geometryGizmoDrag = new GeometryGizmoDrag(
              handle.operation(), handle.axis(), hit.point(), gizmo.axisVector(handle.axis()), 0, baseValue,
             gizmo.center(), radial.normalize(), GizmoDragCalculator.rotationTangent(gizmo.axisVector(handle.axis()), radial.normalize()),
              handle.direction(), mouseButton
           );
-          pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+          inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       } else {
          Vec3 axis = gizmo.axisVector(handle.axis());
          if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
             axis = axis.scale(-1.0);
          }
-          geometryGizmoDrag = new GeometryGizmoDrag(
+          inputSession().geometryGizmoDrag = new GeometryGizmoDrag(
              handle.operation(), handle.axis(), hit.point(), axis, 0, baseValue,
              Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, handle.direction(), mouseButton
           );
-          pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+          inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       }
       FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
       return true;
@@ -1456,8 +1768,8 @@ public final class FastPlaceClientInput {
 
    private static boolean beginOperationPointDrag(Minecraft minecraft, int mouseButton) {
       if (!ClientOperationController.operationPrism()
-         || operationDrag != null
-         || operationPointDrag != null
+         || inputSession().operationDrag != null
+         || inputSession().operationPointDrag != null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
          return false;
       }
@@ -1479,7 +1791,7 @@ public final class FastPlaceClientInput {
       Vec3 planeHit = plane == null ? null : plane.rayIntersection(eye, view);
       Vec3 planeGrabOffset = planeHit == null ? Vec3.ZERO : center.subtract(planeHit);
       double lineGrabBaseline = line == null ? 0.0 : line.rayOffset(eye, view) - line.offset(initialPoint);
-      operationPointDrag = new OperationPointDrag(
+      inputSession().operationPointDrag = new OperationPointDrag(
          pointIndex,
          mouseButton,
          initialPoint,
@@ -1494,9 +1806,9 @@ public final class FastPlaceClientInput {
             : plane != null ? OperationPointDragConstraint.PLANE : OperationPointDragConstraint.FREE,
          System.nanoTime()
       );
-      pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.OPERATION_POINT);
+      inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
       PacketDistributor.sendToServer(
-         new OperationPointDragPayload(pointIndex, initialPoint, operationPointDrag.constraint(), false),
+         new OperationPointDragPayload(pointIndex, initialPoint, inputSession().operationPointDrag.constraint(), false),
          new CustomPacketPayload[0]
       );
       return true;
@@ -1522,7 +1834,7 @@ public final class FastPlaceClientInput {
          : FastPlaceClientPreview.operationNeedsSecond()
          ? OperationPointPayload.Role.SECOND
          : OperationPointPayload.Role.EXTRA;
-      PacketDistributor.sendToServer(new OperationPointPayload(role), new CustomPacketPayload[0]);
+      queueRemoteSelectionPoint(role);
       return true;
    }
 
@@ -1552,9 +1864,9 @@ public final class FastPlaceClientInput {
 
    private static void pollModifierKeys(Minecraft minecraft) {
       if (minecraft.player == null || minecraft.getConnection() == null) {
-         MODIFIER_STATE.reset();
+         inputSession().modifier.reset();
          ClientOperationController.setAltMode(false);
-         radialChordDown = false;
+         inputSession().radialChordDown = false;
          return;
       }
       handleAltTransition(minecraft, physicalAltDown(minecraft, false));
@@ -1564,15 +1876,6 @@ public final class FastPlaceClientInput {
    private static boolean physicalAltDown(Minecraft minecraft, boolean eventPressed) {
       long window = minecraft.getWindow().getWindow();
       return eventPressed || InputConstants.isKeyDown(window, 342) || InputConstants.isKeyDown(window, 346);
-   }
-
-   private static boolean altDownAfterEvent(Minecraft minecraft, int eventKey, int action) {
-      if (action == 1) {
-         return true;
-      }
-      long window = minecraft.getWindow().getWindow();
-      int otherAlt = eventKey == 342 ? 346 : 342;
-      return InputConstants.isKeyDown(window, otherAlt);
    }
 
    private static boolean physicalCtrlDown(Minecraft minecraft, boolean eventPressed) {
@@ -1613,7 +1916,7 @@ public final class FastPlaceClientInput {
          if (radial.lengthSqr() < 1.0E-7) {
             return false;
          }
-          geometryGizmoDrag = new GeometryGizmoDrag(
+          inputSession().geometryGizmoDrag = new GeometryGizmoDrag(
              handle.operation(),
             handle.axis(),
              hit.point(),
@@ -1626,7 +1929,7 @@ public final class FastPlaceClientInput {
               handle.direction(),
               mouseButton
            );
-           pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
+           inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
            FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
           return true;
       }
@@ -1637,11 +1940,11 @@ public final class FastPlaceClientInput {
       if (handle.operation() == AxisGizmo.Operation.SCALE && handle.direction() == AxisGizmo.Direction.NEGATIVE) {
          axis = axis.scale(-1.0);
       }
-      geometryGizmoDrag = new GeometryGizmoDrag(
+      inputSession().geometryGizmoDrag = new GeometryGizmoDrag(
          handle.operation(), handle.axis(), hit.point(), axis, 0, baseValue, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO,
          handle.direction(), mouseButton
       );
-      pointerGestureToken = POINTER_GESTURE.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
+      inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
       FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
       return true;
    }
@@ -1676,7 +1979,7 @@ public final class FastPlaceClientInput {
          new GeometryInteractionPayload(target.type(), target.index(), action, gesture),
          new CustomPacketPayload[0]
       );
-      geometryClickCapturedButton = mouseButton;
+      inputSession().geometryClickCapturedButton = mouseButton;
    }
 
    private static void sendGeometryClearSelection(PointerGesture gesture, int mouseButton) {
@@ -1684,7 +1987,7 @@ public final class FastPlaceClientInput {
          GeometryInteractionPayload.clearSelection(gesture),
          new CustomPacketPayload[0]
       );
-      geometryClickCapturedButton = mouseButton;
+      inputSession().geometryClickCapturedButton = mouseButton;
    }
 
    private static boolean sendGeometryPointInput(Minecraft minecraft, int mouseButton) {
@@ -1693,217 +1996,79 @@ public final class FastPlaceClientInput {
          return false;
       }
       PacketDistributor.sendToServer(GeometryPointPayload.INSTANCE, new CustomPacketPayload[0]);
-      geometryClickCapturedButton = mouseButton;
+      inputSession().geometryClickCapturedButton = mouseButton;
       return true;
    }
 
-   private static boolean handleGeometryRightClick(Minecraft minecraft) {
-      if (geometryClickCapturedButton == 1) {
+   private static boolean handleGeometryRightClick(Minecraft minecraft, long occurredAtNanos) {
+      if (inputSession().geometryClickCapturedButton == 1) {
          return true;
       }
-      return geometryGizmoDrag != null
+      return inputSession().geometryGizmoDrag != null
          || beginGeometryGizmoDrag(minecraft, 1)
          || beginGeometryInteraction(minecraft, 1)
-         || tryClosePathGesture(minecraft, true)
+         || PathCloseInputDispatcher.press(minecraft, inputSession(), true, occurredAtNanos)
          || sendGeometryPointInput(minecraft, 1);
    }
 
-   private static boolean tryClosePathGesture(Minecraft minecraft, boolean geometrySession) {
-      if (!NetworkRegistry.hasChannel(minecraft.getConnection(), ClosePathPayload.TYPE.id())) {
-         resetPathDoubleClick();
-         return false;
-      }
-      if (FastPlaceClientPreview.closePathAtHoveredStart()) {
-         PacketDistributor.sendToServer(ClosePathPayload.INSTANCE, new CustomPacketPayload[0]);
-         resetPathDoubleClick();
-         return true;
-      }
-      if (!FastPlaceClientPreview.canDoubleClickClosePath()) {
-         resetPathDoubleClick();
-         return false;
-      }
-
-      BlockPos candidate = FastPlaceClientPreview.pathCandidatePoint();
-      long now = System.nanoTime();
-      boolean doubleClick = candidate != null
-         && candidate.equals(lastPathClickPoint)
-         && geometrySession == lastPathClickGeometry
-         && now - lastPathClickAt <= PATH_DOUBLE_CLICK_NANOS;
-      lastPathClickAt = now;
-      lastPathClickPoint = candidate;
-      lastPathClickGeometry = geometrySession;
-      if (!doubleClick) {
-         return false;
-      }
-
-      PacketDistributor.sendToServer(ClosePathPayload.INSTANCE, new CustomPacketPayload[0]);
-      resetPathDoubleClick();
-      return true;
-   }
-
-   private static void resetPathDoubleClick() {
-      lastPathClickAt = 0L;
-      lastPathClickPoint = null;
-   }
-
    private static void resetOperationPointClicks() {
-      lastOperationPointLeftClickAt = 0L;
-      lastOperationPointLeftClickIndex = -1;
-      lastOperationPointRightClickAt = 0L;
-      lastOperationPointRightClickIndex = -1;
+      inputSession().lastOperationPointLeftClickAt = 0L;
+      inputSession().lastOperationPointLeftClickIndex = -1;
+      inputSession().lastOperationPointRightClickAt = 0L;
+      inputSession().lastOperationPointRightClickIndex = -1;
    }
 
    private static void updateGeometryGizmoDrag(Minecraft minecraft) {
-      if (geometryGizmoDrag != null
+      if (inputSession().geometryGizmoDrag != null
          && !ownsPointerGesture(PointerGestureState.Kind.BUILDING_GEOMETRY)
          && !ownsPointerGesture(PointerGestureState.Kind.OPERATION_GIZMO)) {
-         geometryGizmoDrag = null;
+         inputSession().geometryGizmoDrag = null;
          return;
       }
       boolean operationTransform = ClientOperationController.operationSelectionReady();
       if (!FastPlaceClientPreview.geometryActive() && !operationTransform) {
-         geometryGizmoDrag = null;
+         inputSession().geometryGizmoDrag = null;
          return;
       }
 
       Vec3 eye = minecraft.player.getEyePosition();
       Vec3 view = minecraft.player.getViewVector(1.0F);
-      int totalSteps = geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
-         ? GizmoDragCalculator.geometryRotationSteps(geometryGizmoDrag, eye, view)
+      int totalSteps = inputSession().geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
+         ? GizmoDragCalculator.geometryRotationSteps(inputSession().geometryGizmoDrag, eye, view)
          : operationTransform
-            ? GizmoDragCalculator.operationEndpointSteps(geometryGizmoDrag, eye, view)
-            : GizmoDragCalculator.geometryEndpointSteps(geometryGizmoDrag, eye, view);
-      if (operationTransform && geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE) {
+            ? GizmoDragCalculator.operationEndpointSteps(inputSession().geometryGizmoDrag, eye, view)
+            : GizmoDragCalculator.geometryEndpointSteps(inputSession().geometryGizmoDrag, eye, view);
+      if (operationTransform && inputSession().geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE) {
          totalSteps = operationRotationSteps(minecraft, totalSteps);
       }
-      int delta = totalSteps - geometryGizmoDrag.sentSteps();
+      int delta = totalSteps - inputSession().geometryGizmoDrag.sentSteps();
       if (delta != 0 && (operationTransform
          ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
          : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
          int clippedDelta = ClientInputMath.clampDragSteps(delta, MAX_DRAG_STEPS_PER_PACKET);
-         int operationTotal = geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
+         int operationTotal = inputSession().geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
             ? Math.clamp(totalSteps, -128, 128)
             : Math.clamp(totalSteps, 0, 128);
          CustomPacketPayload payload = operationTransform
             ? new OperationTransformPayload(
-               ClientInputMath.geometryOperationIndex(geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(geometryGizmoDrag.axis()),
-               gizmoDirection(geometryGizmoDrag),
+               ClientInputMath.geometryOperationIndex(inputSession().geometryGizmoDrag.operation()),
+               ClientInputMath.geometryAxisIndex(inputSession().geometryGizmoDrag.axis()),
+               gizmoDirection(inputSession().geometryGizmoDrag),
                operationTotal,
                false
             )
             : new GeometryGizmoDragPayload(
-               ClientInputMath.geometryOperationIndex(geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(geometryGizmoDrag.axis()),
+               ClientInputMath.geometryOperationIndex(inputSession().geometryGizmoDrag.operation()),
+               ClientInputMath.geometryAxisIndex(inputSession().geometryGizmoDrag.axis()),
                clippedDelta,
                false
             );
          PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
-          geometryGizmoDrag = geometryGizmoDrag.withSentSteps(geometryGizmoDrag.sentSteps() + clippedDelta);
+          inputSession().geometryGizmoDrag = inputSession().geometryGizmoDrag.withSentSteps(inputSession().geometryGizmoDrag.sentSteps() + clippedDelta);
           FastPlaceClientPreview.noteGizmoFeedback(
-             geometryGizmoDrag.axis(), geometryGizmoDrag.operation(), geometryGizmoDrag.sentSteps(), geometryGizmoDrag.baseValue()
+             inputSession().geometryGizmoDrag.axis(), inputSession().geometryGizmoDrag.operation(), inputSession().geometryGizmoDrag.sentSteps(), inputSession().geometryGizmoDrag.baseValue()
           );
       }
-   }
-
-   private static void updateWorkspaceGizmoDrag(Minecraft minecraft) {
-      WorkspaceGizmoDrag drag = workspaceGizmoDrag;
-      if (drag == null || minecraft.player == null) {
-         return;
-      }
-      if (!ownsPointerGesture(PointerGestureState.Kind.WORKSPACE_GIZMO)) {
-         workspaceGizmoDrag = null;
-         return;
-      }
-      Vec3 eye = minecraft.player.getEyePosition();
-      Vec3 view = minecraft.player.getViewVector(1.0F);
-      GeometryGizmoDrag geometry = new GeometryGizmoDrag(
-         drag.operation(), drag.axis(), drag.origin(), drag.axisVector(), drag.sentSteps(), 0.0,
-         drag.center(), drag.startRadial(), drag.startTangent(), drag.direction(), drag.mouseButton()
-      );
-      int totalSteps;
-      double rotationRadians = Double.NaN;
-      if (drag.operation() == AxisGizmo.Operation.ROTATE) {
-         int rawSteps = GizmoDragCalculator.geometryRotationSteps(geometry, eye, view);
-         rotationRadians = operationRotationRadians(minecraft, rawSteps);
-         totalSteps = GizmoDragCalculator.rotationSteps(rotationRadians);
-      } else {
-         double rawOffset = GizmoDragCalculator.operationEndpointOffset(geometry, eye, view);
-         totalSteps = workspaceScaleUsesRepeat(drag)
-            ? RepeatDragQuantizer.copiesForOffset(rawOffset, workspaceRepeatUnit(drag))
-            : (int)Math.round(rawOffset);
-         totalSteps = Math.clamp(totalSteps, -128, 128);
-      }
-      if (totalSteps == drag.sentSteps()) {
-         return;
-      }
-      int direction = drag.direction() == AxisGizmo.Direction.NEGATIVE ? -1 : 1;
-      ClientOperationController.updateTransformGesture(
-         drag.editToken(), drag.baseline(), drag.common(), drag.operation(), drag.axis(), direction, totalSteps, rotationRadians
-      );
-      workspaceGizmoDrag = drag.withSentSteps(totalSteps);
-      if (MODIFIER_STATE.held()) {
-         MODIFIER_STATE.consume();
-      }
-   }
-
-   private static boolean workspaceScaleUsesRepeat(WorkspaceGizmoDrag drag) {
-      return drag.operation() == AxisGizmo.Operation.SCALE
-         && drag.baseline().stream().noneMatch(part -> part.selection() != null && part.selection().prism() != null);
-   }
-
-   private static int workspaceRepeatUnit(WorkspaceGizmoDrag drag) {
-      if (drag.operation() != AxisGizmo.Operation.SCALE
-         || drag.baseline().stream().anyMatch(part -> part.selection() != null && part.selection().prism() != null)) {
-         return 1;
-      }
-      if (!drag.common()) {
-         ClientSelectionPart target = drag.baseline().stream()
-            .filter(part -> part.id() == drag.partId())
-            .findFirst()
-            .orElse(null);
-         if (target == null) {
-            return 1;
-         }
-         return RepeatDragQuantizer.structureExtent(target, drag.axis());
-      }
-      return drag.baseline().stream()
-         .map(WorkspacePreviewComposer::resolve)
-         .filter(values -> !values.isEmpty())
-         .map(values -> io.github.fastformer.client.operation.selection.OccupiedBlockBounds.from(values.keySet()).orElseThrow())
-         .reduce(io.github.fastformer.client.operation.selection.OccupiedBlockBounds::union)
-         .map(bounds -> bounds.width(drag.axis()))
-         .orElse(1);
-   }
-
-   private static void updateWorkspaceFaceDrag(Minecraft minecraft) {
-      WorkspaceFaceDrag drag = workspaceFaceDrag;
-      if (drag == null || minecraft.player == null) {
-         return;
-      }
-      if (!ownsPointerGesture(PointerGestureState.Kind.WORKSPACE_FACE)) {
-         workspaceFaceDrag = null;
-         return;
-      }
-      long now = System.nanoTime();
-      Vec3 axisPoint = OperationGeometry.closestPointOnAxisToRay(
-         drag.frame().origin(), drag.normal(), minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F)
-      );
-      int projectedSteps = drag.frame().project(axisPoint, drag.normal());
-      if (drag.deferredClick().awaitingRelease(now, OPERATION_FACE_SHORT_PRESS_NANOS)) {
-         return;
-      }
-      if (drag.deferredClick().steps() != 0) {
-         drag = drag.withDeferredClick(drag.deferredClick().cancel());
-      }
-      int totalSteps = drag.frame().project(axisPoint, drag.normal());
-      if (totalSteps != drag.sentSteps()) {
-         ClientOperationController.updateAabbFaceGesture(
-            drag.editToken(), drag.baseline(), drag.axis(), drag.positive(), totalSteps
-         );
-         drag = drag.withSentSteps(totalSteps);
-      }
-      workspaceFaceDrag = drag;
    }
 
    public static boolean precisionHudActive() {
@@ -1911,7 +2076,7 @@ public final class FastPlaceClientInput {
    }
 
    public static boolean modifierHeld() {
-      return MODIFIER_STATE.held();
+      return inputSession().modifier.held();
    }
 
    public static boolean controlHeld() {
@@ -1920,7 +2085,7 @@ public final class FastPlaceClientInput {
    }
 
    public static boolean operationAdjustModifierHeld() {
-      return MODIFIER_STATE.held();
+      return inputSession().modifier.held();
    }
 
    private enum ModifierInput {
@@ -1933,7 +2098,7 @@ public final class FastPlaceClientInput {
    }
 
    public static ModifierReticleMode modifierReticleMode() {
-      if (!MODIFIER_STATE.held() || radialChordDown || !modifierSubmodeAvailable()) {
+      if (!inputSession().modifier.held() || inputSession().radialChordDown || !modifierSubmodeAvailable()) {
          return ModifierReticleMode.NONE;
       }
       if (FastPlaceClientPreview.embeddedModifierReticle()) {
@@ -1946,114 +2111,114 @@ public final class FastPlaceClientInput {
    }
 
    public static OperationGeometry.RayHit operationFaceDragHit() {
-      return operationDrag == null ? null : operationDrag.faceHit();
+      return inputSession().operationDrag == null ? null : inputSession().operationDrag.faceHit();
    }
 
    public static OperationGeometry.RayHit workspaceFaceDragHit() {
-      return workspaceFaceDrag == null ? null : workspaceFaceDrag.hit();
+      return workspaceFaceDrag() == null ? null : workspaceFaceDrag().hit();
    }
 
    public static int workspaceFaceDragPartId() {
-      return workspaceFaceDrag == null ? 0 : workspaceFaceDrag.baseline().id();
+      return workspaceFaceDrag() == null ? 0 : workspaceFaceDrag().baseline().id();
    }
 
    public static AxisGizmo.Axis operationGizmoDragAxis() {
-      if (ClientOperationController.operationSelectionReady() && geometryGizmoDrag != null) {
-         return geometryGizmoDrag.axis();
+      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
+         return inputSession().geometryGizmoDrag.axis();
       }
-      return operationDrag == null || operationDrag.gizmoKey() == null
+      return inputSession().operationDrag == null || inputSession().operationDrag.gizmoKey() == null
          ? null
-         : operationDrag.gizmoKey().axis();
+         : inputSession().operationDrag.gizmoKey().axis();
    }
 
    public static AxisGizmo.Operation operationGizmoDragOperation() {
-      if (ClientOperationController.operationSelectionReady() && geometryGizmoDrag != null) {
-         return geometryGizmoDrag.operation();
+      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
+         return inputSession().geometryGizmoDrag.operation();
       }
-      return operationDrag == null || operationDrag.gizmoKey() == null
+      return inputSession().operationDrag == null || inputSession().operationDrag.gizmoKey() == null
          ? null
-         : operationDrag.gizmoKey().operation();
+         : inputSession().operationDrag.gizmoKey().operation();
    }
 
    public static AxisGizmo.HandleKey operationGizmoDragKey() {
-      if (workspaceGizmoDrag != null) {
+      if (workspaceGizmoDrag() != null) {
          return new AxisGizmo.HandleKey(
-            workspaceGizmoDrag.operation(), workspaceGizmoDrag.axis(), workspaceGizmoDrag.direction()
+            workspaceGizmoDrag().operation(), workspaceGizmoDrag().axis(), workspaceGizmoDrag().direction()
          );
       }
-      if (ClientOperationController.operationSelectionReady() && geometryGizmoDrag != null) {
+      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
          return new AxisGizmo.HandleKey(
-            geometryGizmoDrag.operation(), geometryGizmoDrag.axis(), geometryGizmoDrag.direction()
+            inputSession().geometryGizmoDrag.operation(), inputSession().geometryGizmoDrag.axis(), inputSession().geometryGizmoDrag.direction()
          );
       }
-      return operationDrag == null ? null : operationDrag.gizmoKey();
+      return inputSession().operationDrag == null ? null : inputSession().operationDrag.gizmoKey();
    }
 
    public static boolean workspaceGizmoDragMatches(int partId, boolean common) {
-      return workspaceGizmoDrag != null
-         && workspaceGizmoDrag.common() == common
-         && (common || workspaceGizmoDrag.partId() == partId);
+      return workspaceGizmoDrag() != null
+         && workspaceGizmoDrag().common() == common
+         && (common || workspaceGizmoDrag().partId() == partId);
    }
 
    public static int operationGizmoDragSteps() {
-      if (workspaceGizmoDrag != null) {
-         return workspaceGizmoDrag.sentSteps();
+      if (workspaceGizmoDrag() != null) {
+         return workspaceGizmoDrag().sentSteps();
       }
-      if (ClientOperationController.operationSelectionReady() && geometryGizmoDrag != null) {
-         return geometryGizmoDrag.sentSteps();
+      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
+         return inputSession().geometryGizmoDrag.sentSteps();
       }
-      return operationDrag == null || operationDrag.gizmoKey() == null ? 0 : operationDrag.sentSteps();
+      return inputSession().operationDrag == null || inputSession().operationDrag.gizmoKey() == null ? 0 : inputSession().operationDrag.sentSteps();
    }
 
    public static double operationGizmoDragBaseValue() {
-      if (ClientOperationController.operationSelectionReady() && geometryGizmoDrag != null) {
-         return geometryGizmoDrag.baseValue();
+      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
+         return inputSession().geometryGizmoDrag.baseValue();
       }
-      return operationDrag == null || operationDrag.gizmoKey() == null ? 0.0 : operationDrag.gizmoBaseValue();
+      return inputSession().operationDrag == null || inputSession().operationDrag.gizmoKey() == null ? 0.0 : inputSession().operationDrag.gizmoBaseValue();
    }
 
    public static SelectionPrism.GridPlane operationPointDragPlane() {
-      if (operationPointDrag == null || operationPointDrag.plane() == null) {
+      if (inputSession().operationPointDrag == null || inputSession().operationPointDrag.plane() == null) {
          return null;
       }
-      return operationPointDrag.plane();
+      return inputSession().operationPointDrag.plane();
    }
 
    public static SelectionPrism.GridLine operationPointDragLine() {
-      if (operationPointDrag == null || operationPointDrag.line() == null) {
+      if (inputSession().operationPointDrag == null || inputSession().operationPointDrag.line() == null) {
          return null;
       }
-      return operationPointDrag.line();
+      return inputSession().operationPointDrag.line();
    }
 
    public static BlockPos operationPointDragTarget() {
-      return operationPointDrag == null ? null : operationPointDrag.sentTarget();
+      return inputSession().operationPointDrag == null ? null : inputSession().operationPointDrag.sentTarget();
    }
 
    public static AxisGizmo.Axis geometryGizmoDragAxis() {
-      return geometryGizmoDrag == null ? null : geometryGizmoDrag.axis();
+      return inputSession().geometryGizmoDrag == null ? null : inputSession().geometryGizmoDrag.axis();
    }
 
    public static AxisGizmo.Operation geometryGizmoDragOperation() {
-      return geometryGizmoDrag == null ? null : geometryGizmoDrag.operation();
+      return inputSession().geometryGizmoDrag == null ? null : inputSession().geometryGizmoDrag.operation();
    }
 
    public static AxisGizmo.HandleKey geometryGizmoDragKey() {
-      return geometryGizmoDrag == null
+      return inputSession().geometryGizmoDrag == null
          ? null
          : new AxisGizmo.HandleKey(
-            geometryGizmoDrag.operation(),
-            geometryGizmoDrag.axis(),
-            geometryGizmoDrag.direction()
+            inputSession().geometryGizmoDrag.operation(),
+            inputSession().geometryGizmoDrag.axis(),
+            inputSession().geometryGizmoDrag.direction()
          );
    }
 
    public static int geometryGizmoDragSteps() {
-      return geometryGizmoDrag == null ? 0 : geometryGizmoDrag.sentSteps();
+      return inputSession().geometryGizmoDrag == null ? 0 : inputSession().geometryGizmoDrag.sentSteps();
    }
 
    public static double geometryGizmoDragBaseValue() {
-      return geometryGizmoDrag == null ? 0.0 : geometryGizmoDrag.baseValue();
+      return inputSession().geometryGizmoDrag == null ? 0.0 : inputSession().geometryGizmoDrag.baseValue();
    }
 
    private static int operationRotationSteps(Minecraft minecraft, int rawSteps) {
@@ -2061,65 +2226,59 @@ public final class FastPlaceClientInput {
    }
 
    private static double operationRotationRadians(Minecraft minecraft, int rawSteps) {
-      double radians = rawSteps * Math.PI * 2.0 / 1024.0;
-      if (physicalCtrlDown(minecraft, false)) {
-         return PixelPerfectAngles.free(radians);
-      }
-      if (MODIFIER_STATE.held()) {
-         MODIFIER_STATE.consume();
-         return PixelPerfectAngles.snap(radians);
-      }
-      return PixelPerfectAngles.defaultSnap(radians);
+      return RotationInputAngles.resolve(rawSteps, physicalCtrlDown(minecraft, false), inputSession().modifier);
    }
 
    private static void finishGeometryGizmoDrag(Minecraft minecraft) {
       boolean operationTransform = ClientOperationController.operationSelectionReady();
-      if (geometryGizmoDrag != null && (operationTransform
+      if (inputSession().geometryGizmoDrag != null && (operationTransform
          ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
          : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
          FastPlaceClientPreview.noteGizmoFeedback(
-            geometryGizmoDrag.axis(), geometryGizmoDrag.operation(), geometryGizmoDrag.sentSteps(), geometryGizmoDrag.baseValue()
+            inputSession().geometryGizmoDrag.axis(), inputSession().geometryGizmoDrag.operation(), inputSession().geometryGizmoDrag.sentSteps(), inputSession().geometryGizmoDrag.baseValue()
          );
          CustomPacketPayload payload = operationTransform
             ? new OperationTransformPayload(
-               ClientInputMath.geometryOperationIndex(geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(geometryGizmoDrag.axis()),
-               gizmoDirection(geometryGizmoDrag),
-               geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
-                  ? Math.clamp(geometryGizmoDrag.sentSteps(), -128, 128)
-                  : Math.clamp(geometryGizmoDrag.sentSteps(), 0, 128),
+               ClientInputMath.geometryOperationIndex(inputSession().geometryGizmoDrag.operation()),
+               ClientInputMath.geometryAxisIndex(inputSession().geometryGizmoDrag.axis()),
+               gizmoDirection(inputSession().geometryGizmoDrag),
+               inputSession().geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
+                  ? Math.clamp(inputSession().geometryGizmoDrag.sentSteps(), -128, 128)
+                  : Math.clamp(inputSession().geometryGizmoDrag.sentSteps(), 0, 128),
                true
             )
             : new GeometryGizmoDragPayload(
-               ClientInputMath.geometryOperationIndex(geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(geometryGizmoDrag.axis()),
+               ClientInputMath.geometryOperationIndex(inputSession().geometryGizmoDrag.operation()),
+               ClientInputMath.geometryAxisIndex(inputSession().geometryGizmoDrag.axis()),
                0,
                true
             );
          PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
       }
-      geometryGizmoDrag = null;
+      inputSession().geometryGizmoDrag = null;
       finishPointerGesture();
    }
 
-   private static void finishWorkspaceGizmoDrag() {
-      if (workspaceGizmoDrag != null) {
-         ClientOperationController.finishTransformGesture(workspaceGizmoDrag.editToken());
-         if (MODIFIER_STATE.held()) {
-            MODIFIER_STATE.consume();
-         }
-      }
-      workspaceGizmoDrag = null;
-      finishPointerGesture();
+   static void finishWorkspaceGizmoDrag() {
+      SelectionGestureController.finishGizmo(inputSession());
    }
 
-   private static void finishWorkspaceFaceDrag() {
-      WorkspaceFaceDrag drag = workspaceFaceDrag;
-      if (drag != null) {
-         ClientOperationController.finishTransformGesture(drag.editToken());
-      }
-      workspaceFaceDrag = null;
-      finishPointerGesture();
+   static void finishWorkspaceFaceDrag() {
+      SelectionGestureController.finishFace(inputSession());
+   }
+
+   private static boolean ownsSelectionCapture(SelectionDragCapture capture) {
+      return capture.matches(
+         ClientOperationController.interactionScene().owner(), ClientOperationController.workspace(), inputSession().pointerGestureToken
+      );
+   }
+
+   private static WorkspaceGizmoDrag workspaceGizmoDrag() {
+      return ClientOperationController.selectionGestures().gizmo();
+   }
+
+   private static WorkspaceFaceDrag workspaceFaceDrag() {
+      return ClientOperationController.selectionGestures().face();
    }
 
    private static int gizmoDirection(GeometryGizmoDrag drag) {
@@ -2136,29 +2295,30 @@ public final class FastPlaceClientInput {
 
    /** Refreshes the routing phase before every event, including same-tick task transitions. */
    private static void synchronizeInputState() {
-      long generation = INPUT_STATE.generation();
-      INPUT_STATE.observe(observedInputState());
-      if (INPUT_STATE.generation() != generation) {
+      var observed = observedInputState();
+      var routing = inputSession().routing;
+      long generation = routing.generation();
+      routing.observe(observed);
+      if (routing.generation() != generation) {
          cancelOperationGesture(Minecraft.getInstance());
       }
    }
 
    private static ClientInputStateMachine.State observedInputState() {
-      if (FastPlaceClientPreview.activity() == io.github.fastformer.fastplace.FastPlaceActivity.RESTORE_TASK) {
-         return ClientInputStateMachine.State.RESTORING;
-      }
-      if (FastPlaceClientPreview.taskActive()) {
-         return ClientInputStateMachine.State.PLACING;
-      }
-      if (FastPlaceClientPreview.operationActive()) {
-         return ClientOperationController.active() || ClientOperationController.operationSelectionConfirmed()
-            ? ClientInputStateMachine.State.ADJUSTING : ClientInputStateMachine.State.SELECTING;
-      }
-      if (FastPlaceClientPreview.geometryActive()) {
-         return ClientInputStateMachine.State.GEOMETRY;
-      }
-      return FastPlaceClientPreview.active()
-         ? ClientInputStateMachine.State.BUILDING : ClientInputStateMachine.State.IDLE;
+      return ObservedInputState.stateFor(observedSessions());
+   }
+
+   /** Collects the live session flags. The order of the state lives in ObservedInputState. */
+   private static ObservedInputState.Sessions observedSessions() {
+      return new ObservedInputState.Sessions(
+         FastPlaceClientPreview.activity() == io.github.fastformer.fastplace.FastPlaceActivity.RESTORE_TASK,
+         FastPlaceClientPreview.taskActive(),
+         FastPlaceClientPreview.operationActive(),
+         ClientOperationController.active(),
+         ClientOperationController.operationSelectionConfirmed(),
+         FastPlaceClientPreview.geometryActive(),
+         FastPlaceClientPreview.active()
+      );
    }
 
    private static OperationInteractionIntent pointerIntent() {
@@ -2178,52 +2338,53 @@ public final class FastPlaceClientInput {
          || pointerIntent instanceof OperationInteractionIntent.Part;
       return OperationInputSemantics.decideLeftPress(new OperationInputSemantics.LeftPressSnapshot(
          ClientOperationController.operationPrism()
-            ? io.github.fastformer.fastplace.OperationSelectionMode.PRISM
-            : io.github.fastformer.fastplace.OperationSelectionMode.CUBOID,
+            ? io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM
+            : io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID,
          operationActive && (ClientOperationController.operationSelectionReady() || ClientOperationController.active()),
          operationActive && (ClientOperationController.operationAdjustmentStarted() || ClientOperationController.active()),
          operationActive && FastPlaceClientPreview.operationGizmoHit() != null,
          InteractionContext.nearVanillaBlock(Minecraft.getInstance()),
          operationAdjust || operationAlt,
-         interactionTargetHit
+         interactionTargetHit,
+         ClientOperationController.active()
       ));
    }
 
    private static boolean leftMousePressAlreadyHandled() {
-      return operationClickCapturedButton == 0
-         || geometryClickCapturedButton == 0
-         || undoPressCaptured
-         || operationDrag != null && operationDrag.mouseButton() == 0
-         || operationPointDrag != null && operationPointDrag.mouseButton() == 0
-         || workspaceGizmoDrag != null && workspaceGizmoDrag.mouseButton() == 0
-         || workspaceFaceDrag != null && workspaceFaceDrag.mouseButton() == 0
-         || geometryGizmoDrag != null && geometryGizmoDrag.mouseButton() == 0;
+      return inputSession().operationClickCapturedButton == 0
+         || inputSession().geometryClickCapturedButton == 0
+         || inputSession().undoPressCaptured
+         || inputSession().operationDrag != null && inputSession().operationDrag.mouseButton() == 0
+         || inputSession().operationPointDrag != null && inputSession().operationPointDrag.mouseButton() == 0
+         || workspaceGizmoDrag() != null && workspaceGizmoDrag().mouseButton() == 0
+         || workspaceFaceDrag() != null && workspaceFaceDrag().mouseButton() == 0
+         || inputSession().geometryGizmoDrag != null && inputSession().geometryGizmoDrag.mouseButton() == 0;
    }
 
-   private static void finishOperationDrag(Minecraft minecraft) {
-      if (operationDrag != null && operationDrag.gizmoKey() != null) {
+   private static void finishOperationDrag(Minecraft minecraft, long releasedAtNanos) {
+      if (inputSession().operationDrag != null && inputSession().operationDrag.gizmoKey() != null) {
          FastPlaceClientPreview.noteGizmoFeedback(
-            operationDrag.gizmoKey().axis(),
-            operationDrag.gizmoKey().operation(),
-            operationDrag.sentSteps(),
-            operationDrag.gizmoBaseValue()
+            inputSession().operationDrag.gizmoKey().axis(),
+            inputSession().operationDrag.gizmoKey().operation(),
+            inputSession().operationDrag.sentSteps(),
+            inputSession().operationDrag.gizmoBaseValue()
          );
       }
-      if (operationDrag != null && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
-         int releaseSteps = operationDrag.faceHit() == null
-            ? operationDrag.deferredClick().releaseSteps(System.nanoTime(), OPERATION_FACE_SHORT_PRESS_NANOS)
+      if (inputSession().operationDrag != null && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
+         int releaseSteps = inputSession().operationDrag.faceHit() == null
+            ? inputSession().operationDrag.deferredClick().releaseSteps(releasedAtNanos, OPERATION_FACE_SHORT_PRESS_NANOS)
             : 0;
          PacketDistributor.sendToServer(
-            new OperationExtendPayload(operationDrag.axis(), operationDrag.positive(), releaseSteps, true),
+            new OperationExtendPayload(inputSession().operationDrag.axis(), inputSession().operationDrag.positive(), releaseSteps, true),
             new CustomPacketPayload[0]
          );
       }
-      operationDrag = null;
+      inputSession().operationDrag = null;
       finishPointerGesture();
    }
 
    private static OperationPointDrag finishOperationPointDrag(Minecraft minecraft) {
-      OperationPointDrag finished = operationPointDrag;
+      OperationPointDrag finished = inputSession().operationPointDrag;
       if (finished != null && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
          PacketDistributor.sendToServer(
             new OperationPointDragPayload(
@@ -2232,21 +2393,20 @@ public final class FastPlaceClientInput {
             new CustomPacketPayload[0]
          );
       }
-      operationPointDrag = null;
+      inputSession().operationPointDrag = null;
       finishPointerGesture();
       return finished;
    }
 
-   private static void finishOperationPointClick(Minecraft minecraft, OperationPointDrag finished) {
-      long now = System.nanoTime();
+   private static void finishOperationPointClick(Minecraft minecraft, OperationPointDrag finished, long now) {
       boolean shortUnmovedClick = finished != null
          && now - finished.pressedAt() <= OPERATION_POINT_SHORT_PRESS_NANOS
          && finished.sentTarget().equals(finished.initialPoint());
       if (finished == null || !shortUnmovedClick) {
-         lastOperationPointLeftClickAt = 0L;
-         lastOperationPointLeftClickIndex = -1;
-         lastOperationPointRightClickAt = 0L;
-         lastOperationPointRightClickIndex = -1;
+         inputSession().lastOperationPointLeftClickAt = 0L;
+         inputSession().lastOperationPointLeftClickIndex = -1;
+         inputSession().lastOperationPointRightClickAt = 0L;
+         inputSession().lastOperationPointRightClickIndex = -1;
          return;
       }
       if (finished.pointIndex() == 0
@@ -2254,109 +2414,165 @@ public final class FastPlaceClientInput {
          && FastPlaceClientPreview.operationPointCount() >= 3
          && NetworkRegistry.hasChannel(minecraft.getConnection(), ClosePathPayload.TYPE.id())) {
          PacketDistributor.sendToServer(ClosePathPayload.INSTANCE, new CustomPacketPayload[0]);
-         lastOperationPointRightClickAt = 0L;
-         lastOperationPointRightClickIndex = -1;
-         lastOperationPointLeftClickAt = 0L;
-         lastOperationPointLeftClickIndex = -1;
-         resetPathDoubleClick();
+         inputSession().lastOperationPointRightClickAt = 0L;
+         inputSession().lastOperationPointRightClickIndex = -1;
+         inputSession().lastOperationPointLeftClickAt = 0L;
+         inputSession().lastOperationPointLeftClickIndex = -1;
+         inputSession().pathClose.reset();
          return;
       }
       if (finished.mouseButton() == 1) {
-         boolean doubleClick = finished.pointIndex() == lastOperationPointRightClickIndex
-            && now - lastOperationPointRightClickAt <= OPERATION_POINT_DOUBLE_CLICK_NANOS;
+         boolean doubleClick = finished.pointIndex() == inputSession().lastOperationPointRightClickIndex
+            && now - inputSession().lastOperationPointRightClickAt <= OPERATION_POINT_DOUBLE_CLICK_NANOS;
          if (doubleClick
             && FastPlaceClientPreview.operationPrismBaseOpen()
             && FastPlaceClientPreview.operationPointCount() >= 3
             && NetworkRegistry.hasChannel(minecraft.getConnection(), ClosePathPayload.TYPE.id())) {
             PacketDistributor.sendToServer(ClosePathPayload.INSTANCE, new CustomPacketPayload[0]);
-            lastOperationPointRightClickAt = 0L;
-            lastOperationPointRightClickIndex = -1;
-            resetPathDoubleClick();
+            inputSession().lastOperationPointRightClickAt = 0L;
+            inputSession().lastOperationPointRightClickIndex = -1;
+            inputSession().pathClose.reset();
          } else {
-            lastOperationPointRightClickAt = now;
-            lastOperationPointRightClickIndex = finished.pointIndex();
+            inputSession().lastOperationPointRightClickAt = now;
+            inputSession().lastOperationPointRightClickIndex = finished.pointIndex();
          }
-         lastOperationPointLeftClickAt = 0L;
-         lastOperationPointLeftClickIndex = -1;
+         inputSession().lastOperationPointLeftClickAt = 0L;
+         inputSession().lastOperationPointLeftClickIndex = -1;
          return;
       }
-      lastOperationPointRightClickAt = 0L;
-      lastOperationPointRightClickIndex = -1;
-      boolean doubleClick = finished.pointIndex() == lastOperationPointLeftClickIndex
-         && now - lastOperationPointLeftClickAt <= OPERATION_POINT_DOUBLE_CLICK_NANOS;
+      inputSession().lastOperationPointRightClickAt = 0L;
+      inputSession().lastOperationPointRightClickIndex = -1;
+      boolean doubleClick = finished.pointIndex() == inputSession().lastOperationPointLeftClickIndex
+         && now - inputSession().lastOperationPointLeftClickAt <= OPERATION_POINT_DOUBLE_CLICK_NANOS;
       if (doubleClick) {
          sendOperationPointRemoval(minecraft, finished.pointIndex());
-         lastOperationPointLeftClickAt = 0L;
-         lastOperationPointLeftClickIndex = -1;
+         inputSession().lastOperationPointLeftClickAt = 0L;
+         inputSession().lastOperationPointLeftClickIndex = -1;
       } else {
-         lastOperationPointLeftClickAt = now;
-         lastOperationPointLeftClickIndex = finished.pointIndex();
+         inputSession().lastOperationPointLeftClickAt = now;
+         inputSession().lastOperationPointLeftClickIndex = finished.pointIndex();
       }
    }
 
+   /**
+    * Adjusts the active selection at the crosshair. A blocked adjustment shows its
+    * reason. The result stays false when nothing changed, so the pointer routing
+    * keeps the behavior it had before.
+    */
    private static boolean adjustWorkspaceSelectionAtCrosshair(Minecraft minecraft, int mouseButton) {
       if (!ClientOperationController.active()) {
          return false;
       }
-      BlockHitResult hit = longRangeBlockHit(minecraft);
-      return hit != null
-         && ClientOperationController.adjustActiveAabbPoint(mouseButton, hit.getBlockPos());
+      BlockHitResult hit = longRangeSelectionBlockHit(minecraft);
+      if (hit == null) {
+         return false;
+      }
+      ClientOperationController.AabbAdjustDecision decision =
+         ClientOperationController.adjustActiveAabbPoint(mouseButton, hit.getBlockPos());
+      ClientInteractionFeedback.showAabbAdjustFailure(minecraft, decision);
+      return decision.adjusted();
    }
 
-   private static BlockHitResult longRangeBlockHit(Minecraft minecraft) {
+   /**
+    * Uses the normal block outline ray used by Minecraft's empty-hand actions.
+    * Selection must be able to target replaceable blocks such as short grass.
+    */
+   private static BlockHitResult longRangeSelectionBlockHit(Minecraft minecraft) {
+      return longRangeBlockHit(minecraft, false);
+   }
+
+   /** Uses placement semantics, which deliberately see through replaceable blocks. */
+   private static BlockHitResult longRangePlacementBlockHit(Minecraft minecraft) {
+      return longRangeBlockHit(minecraft, true);
+   }
+
+   private static BlockHitResult longRangeBlockHit(Minecraft minecraft, boolean forPlacement) {
       if (minecraft.level == null || minecraft.player == null) {
          return null;
       }
-      BlockHitResult hit = LongRangeBlockRaycast.clipForPlacement(
-         minecraft.level, minecraft.player,
-         minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F)
-      ).hit();
+      BlockHitResult hit = (forPlacement
+         ? LongRangeBlockRaycast.clipForPlacement(
+            minecraft.level, minecraft.player,
+            minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F)
+         )
+         : LongRangeBlockRaycast.clip(
+            minecraft.level, minecraft.player,
+            minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F)
+         )).hit();
       return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK ? hit : null;
    }
 
    private static void cancelOperationGesture(Minecraft minecraft) {
-      if (workspaceGizmoDrag != null) {
-         ClientOperationController.cancelTransformGesture(workspaceGizmoDrag.editToken());
-      } else if (workspaceFaceDrag != null) {
-         ClientOperationController.cancelTransformGesture(workspaceFaceDrag.editToken());
-      }
-      workspaceGizmoDrag = null;
-      workspaceFaceDrag = null;
-      operationDrag = null;
-      operationPointDrag = null;
-      operationClickCapturedButton = -1;
-      geometryGizmoDrag = null;
-      geometryClickCapturedButton = -1;
-      UNDO_PRESS.cancel();
-      undoPressCaptured = false;
+      SelectionGestureController.cancelActive(inputSession());
+      inputSession().operationDrag = null;
+      inputSession().operationPointDrag = null;
+      inputSession().operationClickCapturedButton = -1;
+      inputSession().geometryGizmoDrag = null;
+      inputSession().geometryClickCapturedButton = -1;
+      inputSession().undoPress.cancel();
+      inputSession().undoPressCaptured = false;
       cancelPointerGesture();
       minecraft.options.keyAttack.setDown(false);
       minecraft.options.keyUse.setDown(false);
    }
 
    private static void cancelWorkspaceEditIfPresent() {
-      if (workspaceGizmoDrag != null) {
-         ClientOperationController.cancelTransformGesture(workspaceGizmoDrag.editToken());
-      } else if (workspaceFaceDrag != null) {
-         ClientOperationController.cancelTransformGesture(workspaceFaceDrag.editToken());
-      }
-      workspaceGizmoDrag = null;
-      workspaceFaceDrag = null;
+      SelectionGestureController.cancelActive(inputSession());
       cancelPointerGesture();
    }
 
-   private static boolean ownsPointerGesture(PointerGestureState.Kind kind) {
-      return POINTER_GESTURE.owns(pointerGestureToken, kind);
+   /**
+    * Ends the pointer gesture that a screen takeover or a lost window focus
+    * interrupted. The physical release never reaches the world handler, so the
+    * gesture must end on the context change itself.
+    */
+   private static void suspendPointerGesture(Minecraft minecraft) {
+      cancelOperationGesture(minecraft);
+      inputSession().clickGestureToken = 0L;
    }
 
-   private static void finishPointerGesture() {
-      POINTER_GESTURE.finish(pointerGestureToken);
-      pointerGestureToken = 0L;
+   /**
+    * The integrated server pauses its sound after the cancelled screen opening,
+    * because the pause call continues past the screen hook. The resume therefore
+    * runs one tick later.
+    */
+   private static void resumeSoundAfterSuppressedPause(Minecraft minecraft) {
+      if (!inputSession().suppressedPausePausedSound) {
+         return;
+      }
+      inputSession().suppressedPausePausedSound = false;
+      minecraft.getSoundManager().resume();
+   }
+
+   private static boolean pointerGestureInFlight() {
+      return inputSession().operationDrag != null
+         || inputSession().operationPointDrag != null
+         || inputSession().geometryGizmoDrag != null
+         || workspaceGizmoDrag() != null
+         || workspaceFaceDrag() != null
+         || inputSession().operationClickCapturedButton >= 0
+         || inputSession().geometryClickCapturedButton >= 0
+         || inputSession().undoPressCaptured
+         || inputSession().clickGestureToken != 0L
+         || inputSession().pointerGesture.kind() != PointerGestureState.Kind.NONE;
+   }
+
+   private static boolean ownsPointerGesture(PointerGestureState.Kind kind) {
+      return inputSession().pointerGesture.owns(inputSession().pointerGestureToken, kind);
+   }
+
+   static void finishPointerGesture() {
+      finishPointerGesture(inputSession().pointerGestureToken);
+   }
+
+   static void finishPointerGesture(long token) {
+      inputSession().pointerGesture.finish(token);
+      if (inputSession().pointerGestureToken == token) inputSession().pointerGestureToken = 0L;
    }
 
    private static void cancelPointerGesture() {
-      POINTER_GESTURE.cancel();
-      pointerGestureToken = 0L;
+      inputSession().pointerGesture.cancel();
+      inputSession().pointerGestureToken = 0L;
    }
 
 }

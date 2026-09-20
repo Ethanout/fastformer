@@ -2,16 +2,23 @@ package io.github.fastformer.client.render.core;
 
 import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 import static io.github.fastformer.client.render.core.FastPlaceClientPreviewCore.*;
+import static io.github.fastformer.client.gizmo.GizmoRenderer.operationGizmoAlpha;
+import io.github.fastformer.client.gizmo.GizmoRenderer;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.OperationInteractionIntent;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
-import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
-import io.github.fastformer.client.render.GizmoViewScale;
+import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.render.OperationFaceHitInterpolator;
-import io.github.fastformer.client.render.OperationGizmoPresentation;
+import io.github.fastformer.client.gizmo.OperationGizmoPresentation;
+import io.github.fastformer.client.interaction.PartLabelInteraction;
+import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
+import io.github.fastformer.client.interaction.InteractionComponents;
+import io.github.fastformer.client.interaction.InteractionTooltip;
+import io.github.fastformer.client.render.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspacePreviewRenderer;
 import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
 import io.github.fastformer.client.render.interaction.OperationPointerKind;
@@ -19,8 +26,8 @@ import io.github.fastformer.client.render.interaction.OperationPointerTarget;
 import io.github.fastformer.client.render.model.BuildingSpecialBlock;
 import io.github.fastformer.client.render.model.GeometryRenderLayers;
 import io.github.fastformer.client.render.model.BuildingRenderLayers;
-import io.github.fastformer.fastplace.OperationSelectionVolume;
-import io.github.fastformer.fastplace.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.geometry.*;
 import io.github.fastformer.fastplace.geometry.generation.*;
@@ -144,17 +151,20 @@ final class OperationPreviewRenderer {
       }
       renderOperationPointDragGuides(poseStack, buffers, camera, snapshot);
       renderControlPoints(
-         poseStack, buffers, camera, operationControlPoints(snapshot, candidate, edgeInsertion != null)
+         poseStack, buffers, camera, io.github.fastformer.client.controlpoint.ControlPointPresentation.selection(
+            snapshot, candidate, edgeInsertion != null, operationPointUnderCrosshairIndex())
       );
       if (gizmo != null) {
-         renderGeometryGizmo(poseStack, buffers, camera, gizmo, operationGizmoAlpha(gizmo));
+         new GizmoRenderer(worldPreviewOpacity).renderGeometryGizmo(poseStack, buffers, camera, gizmo, operationGizmoAlpha(gizmo));
       }
    }
 
    static void renderClientOperationWorkspace(
       RenderLevelStageEvent event, Minecraft minecraft, OperationInteractionIntent pointerIntent
    ) {
+      pointerIntent = ClientOperationController.visualHoverIntent();
       var workspace = ClientOperationController.workspace();
+      var interactionScene = ClientOperationController.interactionScene();
       if (minecraft.level == null || workspace.isEmpty()) {
          return;
       }
@@ -175,38 +185,55 @@ final class OperationPreviewRenderer {
          ? hoveredGizmo.partId()
          : hoveredFace != null ? hoveredFace.partId()
          : pointerIntent instanceof OperationInteractionIntent.Part part ? part.partId() : 0;
-      boolean controlPreview = FastPlaceClientInput.controlHeld();
+      boolean workspaceLocked = workspace.locked();
+      boolean controlHeld = FastPlaceClientInput.controlHeld();
 
       List<ClientSelectionPart> parts = workspace.parts();
-         WorkspaceInteractionResolver.pruneCache(parts);
+      WorkspaceInteractionResolver.pruneCache(parts);
+      Map<Integer, Map<BlockPos, ClientBlockSnapshot>> resolvedParts = new LinkedHashMap<>();
+      Map<BlockPos, Integer> previewOwners = new LinkedHashMap<>();
       for (ClientSelectionPart part : parts) {
-         Map<BlockPos, io.github.fastformer.client.operation.model.ClientBlockSnapshot> resolved =
-            WorkspaceInteractionResolver.resolvePartBlocks(part);
-         if (resolved.isEmpty()) {
-            continue;
+         if (!part.pendingDelete()) {
+            Map<BlockPos, ClientBlockSnapshot> resolved = WorkspaceInteractionResolver.resolveVisiblePartBlocks(part);
+            resolvedParts.put(part.id(), resolved);
+            for (var entry : resolved.entrySet()) {
+               previewOwners.put(entry.getKey(), part.id());
+            }
          }
+      }
+      for (ClientSelectionPart part : parts) {
+         Map<BlockPos, ClientBlockSnapshot> resolved = part.pendingDelete()
+            ? WorkspaceInteractionResolver.resolveVisiblePartBlocks(part)
+            : resolvedParts.getOrDefault(part.id(), Map.of());
          boolean selected = workspace.selectedIds().contains(part.id());
          boolean hovered = part.id() == hoveredPartId;
-         boolean editable = part.editability() == ClientSelectionPart.Editability.FREE;
-         OccupiedBlockBounds bounds = OccupiedBlockBounds.from(resolved.keySet()).orElseThrow();
+         boolean lockedOutlineVisible = part.transformed();
+         var interactionPart = interactionScene.parts().get(part.id());
+         AABB interactionBounds = interactionPart == null ? null : interactionPart.bounds();
+         if (interactionBounds == null) {
+            continue;
+         }
+         boolean transformGizmoVisible = io.github.fastformer.client.interaction.InteractionVisibility
+            .isVisible(interactionPart.gizmo(), selected);
+         Vec3 boundsCenter = interactionBounds.getCenter();
          poseStack.pushPose();
          poseStack.translate(-camera.x, -camera.y, -camera.z);
-         AABB outlineBounds = WorkspaceInteractionResolver.outlineBounds(part, bounds.aabb());
+         AABB outlineBounds = interactionBounds;
          Vec3 halfExtents = new Vec3(
             outlineBounds.getXsize() * 0.5 + 0.018,
             outlineBounds.getYsize() * 0.5 + 0.018,
             outlineBounds.getZsize() * 0.5 + 0.018
          );
-         if (selected && editable) {
+         if (selected && transformGizmoVisible) {
             renderFlowingDashedBox(
                poseStack, buffers.getBuffer(RenderType.lines()), outlineBounds.getCenter(), halfExtents,
                pendingGridDashOffset() + part.id() * 0.31, hovered ? 0.48F : 0.38F
             );
-         } else if (editable) {
-            LevelRenderer.renderLineBox(
+         } else if (transformGizmoVisible || lockedOutlineVisible) {
+               LevelRenderer.renderLineBox(
                poseStack,
                buffers.getBuffer(RenderType.lines()),
-               bounds.aabb().inflate(hovered ? 0.018 + pulse * 0.008 : 0.006),
+               outlineBounds.inflate(hovered ? 0.018 + pulse * 0.008 : 0.006),
                hovered ? 0.25F : 0.45F,
                hovered ? 1.0F : 0.72F,
                hovered ? 1.0F : 0.88F,
@@ -214,26 +241,38 @@ final class OperationPreviewRenderer {
             );
          }
          poseStack.popPose();
-         if (editable) {
+         if (WorkspacePartInteractionCapabilities.canSelect(part, interactionBounds)) {
             WorkspacePreviewRenderer.renderPartLabel(
-               poseStack, buffers, minecraft, camera, bounds.center(), part.id(), selected, hovered, controlPreview, pulse
+               poseStack, buffers, minecraft, camera,
+               interactionPart.label(),
+               new PartLabelInteraction.Context(selected, ClientOperationController.hoveredLabel(interactionPart.label()),
+                  workspaceLocked, controlHeld, pointerIntent, pulse)
             );
          }
 
          boolean adjusted = part.transformed();
-         if (!part.pendingDelete()) {
+         // Locked/transformed parts keep their boundary and Gizmo, but their
+         // ordinary block presentation must not look like an editable hover.
+         if (shouldRenderPartBlocks(part)) {
             float blockAlpha = adjusted ? 0.58F + 0.30F * pulse : 0.34F + 0.16F * pulse;
             if (altFocused) {
                blockAlpha *= 0.45F;
             }
+            Map<BlockPos, ClientBlockSnapshot> ownedBlocks = blocksOwnedByPart(
+               resolved, previewOwners, part.id()
+            );
             WorkspacePreviewRenderer.renderBlocks(
-               poseStack, buffers, minecraft, camera, resolved,
+               poseStack, buffers, minecraft, camera, ownedBlocks, ownedBlocks,
                1.0F, 1.0F, 1.0F, blockAlpha, worldPreviewOpacity
             );
          }
          if (part.pendingDelete()) {
             WorkspacePreviewRenderer.renderPendingDeleteBlocks(
-               poseStack, buffers, camera, part.sourceSnapshot().keySet(), pendingGridDashOffset()
+               poseStack, buffers, camera,
+               WorkspaceInteractionResolver.withoutFailedTargets(
+                  part.sourceSnapshot(), ClientOperationController.failedWorkspaceTargets()
+               ).keySet(),
+               pendingGridDashOffset()
             );
          }
 
@@ -254,32 +293,34 @@ final class OperationPreviewRenderer {
             );
             buffers.endBatch(RenderType.lines());
             poseStack.popPose();
-            WorkspacePreviewRenderer.renderHintLabel(
-               poseStack, buffers, minecraft, camera,
-               displayedWorkspaceFaceHit.point().add(displayedWorkspaceFaceHit.normal().scale(0.08)),
-               Component.translatable(
-                  hoveredFace.adjustable()
-                     ? "fastformer.operation.face_drag_hint"
-                     : "fastformer.operation.selection_click_hint"
-               ).getString()
-            );
+            if (WorkspacePointerPrompt.acceptsNewAction(workspaceLocked)) {
+               WorkspacePreviewRenderer.renderHintLabel(
+                  poseStack, buffers, minecraft, camera,
+                  displayedWorkspaceFaceHit.point().add(displayedWorkspaceFaceHit.normal().scale(0.08)),
+                  InteractionTooltip.summary(interactionPart.frame(), hoveredFace).orElseThrow().getString()
+               );
+            }
          }
 
-         Vec3 center = bounds.center();
-         if (!editable) {
+         Vec3 center = boundsCenter;
+         if (!transformGizmoVisible) {
             continue;
          }
          GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
-         AxisGizmo gizmo = WorkspaceInteractionResolver.partGizmo(part, center, scale)
-            .withTextComponent(GizmoTextComponent.pointLevel());
          AxisGizmo.HandleKey hoveredKey = hoveredGizmo != null
             && !hoveredGizmo.common()
             && hoveredGizmo.partId() == part.id()
             ? hoveredGizmo.hit().handle().key() : null;
          AxisGizmo.HandleKey activeKey = FastPlaceClientInput.workspaceGizmoDragMatches(part.id(), false)
             ? FastPlaceClientInput.operationGizmoDragKey() : null;
-         gizmo = gizmo.withState(hoveredKey, activeKey);
-         renderGeometryGizmo(poseStack, buffers, camera, gizmo, selected || hovered ? 1.0F : 0.52F);
+         var gizmoGeometry = SelectionGizmoInteraction.resolvePart(interactionPart.gizmo(), scale);
+         AxisGizmo worldGizmo = gizmoGeometry.world()
+            .withState(hoveredKey, activeKey);
+         AxisGizmo scaleGizmo = gizmoGeometry.scale()
+            .withState(hoveredKey, activeKey);
+         new GizmoRenderer(worldPreviewOpacity).renderWorkspaceGizmo(
+            poseStack, buffers, camera, worldGizmo, scaleGizmo, selected || hovered ? 1.0F : 0.52F
+         );
          if (PreviewGeometrySupport.hasNonOrthogonalRotation(part.transform().rotation())) {
             AxisGizmo.Axis highlightedLocalAxis = hoveredGizmo != null
                && !hoveredGizmo.common()
@@ -288,25 +329,18 @@ final class OperationPreviewRenderer {
                ? hoveredGizmo.hit().handle().axis()
                : activeKey != null && activeKey.operation() == AxisGizmo.Operation.SCALE
                   ? activeKey.axis() : null;
-            renderLocalWorkspaceGizmo(
+            new GizmoRenderer(worldPreviewOpacity).renderLocalWorkspaceGizmo(
                poseStack, buffers, camera, center, scale.axisLength() * 0.82,
                part.transform().rotation(), highlightedLocalAxis, hovered ? 1.0F : 0.58F
             );
          }
       }
 
-      List<ClientSelectionPart> editableSelectedParts = workspace.selectedParts().stream()
-         .filter(part -> part.editability() == ClientSelectionPart.Editability.FREE)
-         .toList();
-      if (editableSelectedParts.size() > 1) {
-         OccupiedBlockBounds group = editableSelectedParts.stream()
-            .map(WorkspaceInteractionResolver::resolvePartBlocks)
-            .filter(values -> !values.isEmpty())
-            .map(values -> OccupiedBlockBounds.from(values.keySet()).orElseThrow())
-            .reduce(OccupiedBlockBounds::union)
-            .orElse(null);
-         if (group != null) {
-            Vec3 center = group.center();
+      var groupObject = interactionScene.groupGizmo();
+      if (groupObject != null) {
+         AABB groupBounds = groupObject.require(InteractionComponents.WORLD_BOUNDS);
+         if (groupBounds != null) {
+            Vec3 center = groupBounds.getCenter();
             poseStack.pushPose();
             poseStack.translate(-camera.x, -camera.y, -camera.z);
             renderFlowingDashedBox(
@@ -314,9 +348,9 @@ final class OperationPreviewRenderer {
                buffers.getBuffer(RenderType.lines()),
                center,
                new Vec3(
-                  group.width(AxisGizmo.Axis.X) * 0.5 + 0.035,
-                  group.width(AxisGizmo.Axis.Y) * 0.5 + 0.035,
-                  group.width(AxisGizmo.Axis.Z) * 0.5 + 0.035
+                  groupBounds.getXsize() * 0.5 + 0.035,
+                  groupBounds.getYsize() * 0.5 + 0.035,
+                  groupBounds.getZsize() * 0.5 + 0.035
                ),
                pendingGridDashOffset(),
                0.96F
@@ -326,36 +360,56 @@ final class OperationPreviewRenderer {
                buffers.getBuffer(RenderType.lines()),
                center,
                new Vec3(
-                  group.width(AxisGizmo.Axis.X) * 0.5 + 0.085,
-                  group.width(AxisGizmo.Axis.Y) * 0.5 + 0.085,
-                  group.width(AxisGizmo.Axis.Z) * 0.5 + 0.085
+                  groupBounds.getXsize() * 0.5 + 0.085,
+                  groupBounds.getYsize() * 0.5 + 0.085,
+                  groupBounds.getZsize() * 0.5 + 0.085
                ),
                -pendingGridDashOffset() * 0.72,
                0.62F
             );
             poseStack.popPose();
             GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
-            boolean includesPrism = editableSelectedParts.stream()
-               .anyMatch(part -> part.selection() != null && part.selection().prism() != null);
-            AxisGizmo common = (includesPrism
-               ? AxisGizmo.inFrame(
-                  TransformFrame.world(center), scale.axisLength() * 1.12, scale.handleRadius() * 1.12,
-                  AxisGizmo.Operation.MOVE, AxisGizmo.Operation.ROTATE
-               )
-               : AxisGizmo.inFrame(
-                  TransformFrame.world(center), scale.axisLength() * 1.12, scale.handleRadius() * 1.12,
-                  AxisGizmo.Operation.MOVE, AxisGizmo.Operation.SCALE, AxisGizmo.Operation.ROTATE
-               )).withTextComponent(GizmoTextComponent.pointLevel());
+            AxisGizmo common = SelectionGizmoInteraction.resolveGroup(groupObject, scale);
             AxisGizmo.HandleKey hoveredKey = hoveredGizmo != null && hoveredGizmo.common()
                ? hoveredGizmo.hit().handle().key() : null;
             AxisGizmo.HandleKey activeKey = FastPlaceClientInput.workspaceGizmoDragMatches(0, true)
                ? FastPlaceClientInput.operationGizmoDragKey() : null;
             common = common.withState(hoveredKey, activeKey);
-            renderGeometryGizmo(poseStack, buffers, camera, common, 1.0F);
+            new GizmoRenderer(worldPreviewOpacity).renderGeometryGizmo(poseStack, buffers, camera, common, 1.0F);
          }
       }
       buffers.endBatch(GHOST_OUTLINE_LINES);
       buffers.endBatch(RenderType.lines());
+   }
+
+   static boolean shouldRenderPartBlocks(ClientSelectionPart part) {
+      return part != null && !part.pendingDelete();
+   }
+
+   /**
+    * The server-owned selection stays visible while Alt changes its input
+    * meaning. Alt can create another selection, but it must not hide the
+    * current selection before that click creates a local draft.
+    */
+   static boolean shouldRenderServerSelection(
+      boolean operationPreviewActive, boolean workspaceActive, boolean selectionDraftActive
+   ) {
+      return operationPreviewActive && !workspaceActive && !selectionDraftActive;
+   }
+
+   static <T> Map<BlockPos, T> blocksOwnedByPart(
+      Map<BlockPos, T> blocks, Map<BlockPos, Integer> owners, int partId
+   ) {
+      if (blocks == null || blocks.isEmpty() || owners == null || owners.isEmpty()) {
+         return Map.of();
+      }
+      LinkedHashMap<BlockPos, T> owned = new LinkedHashMap<>();
+      blocks.forEach((pos, value) -> {
+         if (Objects.equals(owners.get(pos), partId)) {
+            owned.put(pos, value);
+         }
+      });
+      return Map.copyOf(owned);
    }
 
    /** Draws the shared marker for every state where left/right creates a selection point. */
@@ -379,10 +433,14 @@ final class OperationPreviewRenderer {
          0.35F, 0.95F, 1.0F, 0.48F + 0.26F * pulse
       );
       poseStack.popPose();
-      WorkspacePreviewRenderer.renderHintLabel(
-         poseStack, buffers, minecraft, camera, Vec3.atCenterOf(position).add(0.0, 0.68, 0.0),
-         Component.translatable("fastformer.operation.selection_create_hint").getString()
-      );
+      // A locked workspace refuses the creation click, so the marker keeps its
+      // position but drops the command text.
+      if (WorkspacePointerPrompt.acceptsNewAction(ClientOperationController.workspace().locked())) {
+         WorkspacePreviewRenderer.renderHintLabel(
+            poseStack, buffers, minecraft, camera, Vec3.atCenterOf(position).add(0.0, 0.68, 0.0),
+            create.requireHoverText().getString()
+         );
+      }
    }
 
    private static void renderOperationPointDragGuides(
@@ -439,6 +497,10 @@ final class OperationPreviewRenderer {
    ) {
       if (selection != null) {
          renderOperationVolume(poseStack, lines, selection, Vec3.ZERO, outlineAlpha * alphaScale);
+         // The volume's outline is the authoritative world-space boundary.
+         // Do not overlay point-derived edges while a transformed selection is
+         // active; those edges use pre-transform anchors and can visibly split
+         // from the filled preview after rotation.
       } else if (points.size() >= 2) {
          if (snapshot.operationSelectionMode() == OperationSelectionMode.PRISM) {
             int baseCount = snapshot.operationPrismBasePointCount() > 0
@@ -508,7 +570,10 @@ final class OperationPreviewRenderer {
       if (selection.prism() != null) {
          List<Vec3> base = selection.prism().base();
          Vec3 extrusion = selection.prism().extrusion();
-         Vec3 center = base.stream().reduce(Vec3.ZERO, Vec3::add).scale(1.0 / base.size()).add(extrusion.scale(0.5));
+         Vec3 center = prismFaceCenter(base, extrusion);
+         if (center == null) {
+            return;
+         }
          for (int index = 1; index + 1 < base.size(); index++) {
             Vec3 a = inflateSelectionVertex(base.getFirst(), center, camera);
             Vec3 b = inflateSelectionVertex(base.get(index), center, camera);
@@ -552,6 +617,20 @@ final class OperationPreviewRenderer {
       addGhostQuad(poseStack, consumer, p100, p101, p111, p110, red, green, blue, alpha);
    }
 
+   /**
+    * Centroid of a prism base plus half its extrusion. Returns null when the base
+    * cannot form a face: the triangle loop needs three points, and dividing by a
+    * smaller base size would not be finite.
+    */
+   static Vec3 prismFaceCenter(List<Vec3> base, Vec3 extrusion) {
+      if (base == null || base.size() < 3) {
+         return null;
+      }
+      return base.stream().reduce(Vec3.ZERO, Vec3::add)
+         .scale(1.0 / base.size())
+         .add(extrusion.scale(0.5));
+   }
+
    private static void renderOperationHighlightedFace(
       PoseStack poseStack,
       VertexConsumer consumer,
@@ -566,6 +645,11 @@ final class OperationPreviewRenderer {
       if (selection.prism() != null) {
          List<Vec3> base = selection.prism().base();
          Vec3 extrusion = selection.prism().extrusion();
+         // Every branch below indexes the base and wraps with a modulo, so a
+         // shorter base has no addressable side face.
+         if (base.size() < 3) {
+            return;
+         }
          if (hit.axis() == 2) {
             boolean top = hit.normal().dot(extrusion) > 0.0;
             Vec3 offset = top ? extrusion : Vec3.ZERO;

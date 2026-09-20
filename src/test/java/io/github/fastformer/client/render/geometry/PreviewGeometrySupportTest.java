@@ -1,10 +1,13 @@
 package io.github.fastformer.client.render.geometry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.FaceMode;
-import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import java.util.List;
@@ -101,6 +104,41 @@ class PreviewGeometrySupportTest {
       assertEquals(6, edges.size());
       assertEquals(new GuideLine(Vec3.atCenterOf(points.get(0)), apex), edges.get(3));
       assertEquals(new GuideLine(Vec3.atCenterOf(points.get(2)), apex), edges.get(5));
+   }
+
+   @Test
+   void degenerateFaceRetainsItsConfirmedInitialLine() {
+      List<BlockPos> points = List.of(
+         new BlockPos(0, 0, 0), new BlockPos(4, 0, 0), new BlockPos(2, 0, 0)
+      );
+
+      List<GuideLine> edges = PreviewGeometrySupport.outlineGeometryEdges(
+         points, FaceMode.COORDINATE_PLANE, false, false, PolygonVolumeShape.EXTRUDE, VolumeMode.PERPENDICULAR_TO_FACE
+      );
+
+      assertEquals(List.of(line(points.getFirst(), points.get(1))), edges);
+   }
+
+   @Test
+   void perpendicularVolumeOutlineIgnoresGridSnapLateralOffset() {
+      List<BlockPos> points = List.of(
+         new BlockPos(0, 0, 0),
+         new BlockPos(4, 0, 0),
+         new BlockPos(0, 0, 4),
+         new BlockPos(2, 3, 1)
+      );
+
+      List<GuideLine> edges = PreviewGeometrySupport.outlineGeometryEdges(
+         points, FaceMode.COORDINATE_PLANE, false, false, PolygonVolumeShape.EXTRUDE, VolumeMode.PERPENDICULAR_TO_FACE
+      );
+
+      assertEquals(12, edges.size());
+      assertTrue(edges.contains(new GuideLine(
+         Vec3.atCenterOf(points.getFirst()), Vec3.atCenterOf(points.getFirst()).add(0.0, 3.0, 0.0)
+      )));
+      assertFalse(edges.contains(new GuideLine(
+         Vec3.atCenterOf(points.getFirst()), Vec3.atCenterOf(points.getFirst()).add(2.0, 3.0, 1.0)
+      )));
    }
 
    private static GuideLine line(BlockPos from, BlockPos to) {

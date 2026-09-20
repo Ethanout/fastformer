@@ -1,7 +1,7 @@
 package io.github.fastformer.network.payload.preview;
 
 import io.github.fastformer.fastplace.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 

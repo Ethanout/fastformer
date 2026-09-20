@@ -1,5 +1,6 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -46,12 +47,36 @@ public record InteractionContext(
       if (player == null) {
          return false;
       }
+      // The draft read walks the session box, so it stays behind the cheap
+      // phase check. A draft can only exist while an operation phase exists.
+      boolean selectionPhase = ClientOperationController.selectionSessionActive()
+         || ClientOperationController.active()
+         || FastPlaceClientPreview.operationActive();
+      boolean operationSelection = selectionPhase && selectionOwnsPointer(
+         ClientOperationController.selectionSessionActive(),
+         ClientOperationController.selectionDraftActive()
+      );
+      // Empty-hand block breaking yields to vanilla when no selection owns the
+      // pointer. The point phase counts as ownership, so it cannot lose the
+      // second-point input. The immediate reach test is used here, because a
+      // click owner must not depend on a fade that the camera can suspend.
+      if (player.getMainHandItem().isEmpty()) {
+         return !operationSelection
+            && vanillaOwnsEmptyHandClick(
+               minecraft.hitResult instanceof BlockHitResult
+                  && withinReach(minecraft, player, player.blockInteractionRange()),
+               minecraft.hitResult instanceof net.minecraft.world.phys.EntityHitResult
+                  && withinReach(minecraft, player, player.entityInteractionRange())
+            );
+      }
+      if (operationSelection) {
+         return false;
+      }
       // Selection editing owns the pointer and retains its historical direct
       // reach behavior. Near blocks suppress selection-face picking instead
       // of handing the click back to vanilla; this keeps corner adjustment
       // available while a selection session owns the input vocabulary.
-      if (FastPlaceClientPreview.operationActive()
-         || io.github.fastformer.client.operation.controller.ClientOperationController.active()) {
+      if (FastPlaceClientPreview.operationActive() || ClientOperationController.active()) {
          return false;
       }
       return DISAPPEARANCE.disappeared();
@@ -74,16 +99,18 @@ public record InteractionContext(
       cameraInitialized = true;
 
       boolean selectionSession = FastPlaceClientPreview.operationActive()
-         || io.github.fastformer.client.operation.controller.ClientOperationController.active();
+         || io.github.fastformer.client.operation.controller.ClientOperationController.active()
+         || io.github.fastformer.client.operation.controller.ClientOperationController.selectionSessionActive();
       if (selectionSession) {
          DISAPPEARANCE.reset();
          return;
       }
       boolean condition = directNearVanillaBlock(minecraft, player);
+      Object target = FastPlaceClientPreview.previewRaycastTarget(player);
       // Fast camera movement cannot confirm a deliberate mode transition. It
       // decays toward visible instead of freezing the previous state.
       boolean stable = speed <= MAX_CAMERA_SPEED_DEGREES_PER_TICK;
-      DISAPPEARANCE.tick(stable, condition);
+      DISAPPEARANCE.tick(stable, condition, target);
    }
 
    public static float previewVisibility(Minecraft minecraft) {
@@ -96,12 +123,24 @@ public record InteractionContext(
     * layer share the same transition instead of stepping independently.
     */
    public static float previewVisibility(Minecraft minecraft, float partialTick) {
-      if (minecraft.player == null
-         || FastPlaceClientPreview.operationActive()
-         || io.github.fastformer.client.operation.controller.ClientOperationController.active()) {
+      if (shouldForceFullPreviewVisibility(
+         minecraft.player != null,
+         FastPlaceClientPreview.operationActive(),
+         io.github.fastformer.client.operation.controller.ClientOperationController.active(),
+         io.github.fastformer.client.operation.controller.ClientOperationController.selectionSessionActive()
+      )) {
          return 1.0F;
       }
       return DISAPPEARANCE.visibility(partialTick);
+   }
+
+   static boolean shouldForceFullPreviewVisibility(
+      boolean playerPresent,
+      boolean operationPreviewActive,
+      boolean workspaceActive,
+      boolean selectionSessionActive
+   ) {
+      return !playerPresent || operationPreviewActive || workspaceActive || selectionSessionActive;
    }
 
    public static void reset() {
@@ -119,6 +158,33 @@ public record InteractionContext(
    public static boolean directlyNearVanillaBlock(Minecraft minecraft) {
       LocalPlayer player = minecraft.player;
       return player != null && directNearVanillaBlock(minecraft, player);
+   }
+
+   /**
+    * True while a selection owns the pointer. The server preview and the
+    * client-owned draft both count, so the gate never depends on one of them
+    * alone. This is the seam the operation layer must fill when it makes the
+    * AABB point phase client-owned.
+    */
+   public static boolean selectionOwnsPointer(boolean serverSelectionActive, boolean localDraftActive) {
+      return serverSelectionActive || localDraftActive;
+   }
+
+   /**
+    * Vanilla owns an empty-hand click when the crosshair already has a target
+    * inside the vanilla interaction range. A block and an entity both count:
+    * the vanilla crosshair reports an entity target for an attack, and that
+    * click must not be diverted into a selection or a block action.
+    */
+   public static boolean vanillaOwnsEmptyHandClick(boolean blockWithinReach, boolean entityWithinReach) {
+      return blockWithinReach || entityWithinReach;
+   }
+
+   private static boolean withinReach(Minecraft minecraft, LocalPlayer player, double reach) {
+      if (minecraft.hitResult == null) {
+         return false;
+      }
+      return player.getEyePosition().distanceToSqr(minecraft.hitResult.getLocation()) <= reach * reach;
    }
 
    private static boolean directNearVanillaBlock(Minecraft minecraft, LocalPlayer player) {

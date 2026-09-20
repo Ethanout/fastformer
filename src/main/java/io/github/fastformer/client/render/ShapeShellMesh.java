@@ -38,12 +38,12 @@ public final class ShapeShellMesh {
       long x1 = q(box.maxX);
       long y1 = q(box.maxY);
       long z1 = q(box.maxZ);
-      addFace(planes, Direction.DOWN, y0, x0, x1, z0, z1, part);
-      addFace(planes, Direction.UP, y1, x0, x1, z0, z1, part);
-      addFace(planes, Direction.NORTH, z0, x0, x1, y0, y1, part);
-      addFace(planes, Direction.SOUTH, z1, x0, x1, y0, y1, part);
-      addFace(planes, Direction.WEST, x0, z0, z1, y0, y1, part);
-      addFace(planes, Direction.EAST, x1, z0, z1, y0, y1, part);
+      if (!part.hiddenFaces().contains(Direction.DOWN)) addFace(planes, Direction.DOWN, y0, x0, x1, z0, z1, part);
+      if (!part.hiddenFaces().contains(Direction.UP)) addFace(planes, Direction.UP, y1, x0, x1, z0, z1, part);
+      if (!part.hiddenFaces().contains(Direction.NORTH)) addFace(planes, Direction.NORTH, z0, x0, x1, y0, y1, part);
+      if (!part.hiddenFaces().contains(Direction.SOUTH)) addFace(planes, Direction.SOUTH, z1, x0, x1, y0, y1, part);
+      if (!part.hiddenFaces().contains(Direction.WEST)) addFace(planes, Direction.WEST, x0, z0, z1, y0, y1, part);
+      if (!part.hiddenFaces().contains(Direction.EAST)) addFace(planes, Direction.EAST, x1, z0, z1, y0, y1, part);
    }
 
    private static void addFace(
@@ -56,7 +56,7 @@ public final class ShapeShellMesh {
       long v1,
       Part part
    ) {
-      Plane plane = new Plane(direction.getAxis(), planeCoordinate);
+      Plane plane = new Plane(direction.getAxis(), planeCoordinate, part.cullGroup());
       planes.computeIfAbsent(plane, ignored -> new ArrayList<>()).add(
          new RawFace(direction, u0, u1, v0, v1, part.faceColor(), part.outlineColor(), part.outline())
       );
@@ -337,9 +337,31 @@ public final class ShapeShellMesh {
       public static final Color BLACK = new Color(0.0F, 0.0F, 0.0F);
    }
 
-   public record Part(List<AABB> boxes, Color faceColor, Color outlineColor, boolean outline) {
+   public record Part(
+      List<AABB> boxes,
+      Color faceColor,
+      Color outlineColor,
+      boolean outline,
+      Set<Direction> hiddenFaces,
+      long cullGroup
+   ) {
       public Part {
          boxes = List.copyOf(boxes);
+         hiddenFaces = Set.copyOf(hiddenFaces);
+      }
+
+      public Part(
+         List<AABB> boxes,
+         Color faceColor,
+         Color outlineColor,
+         boolean outline,
+         Set<Direction> hiddenFaces
+      ) {
+         this(boxes, faceColor, outlineColor, outline, hiddenFaces, 0L);
+      }
+
+      public Part(List<AABB> boxes, Color faceColor, Color outlineColor, boolean outline) {
+         this(boxes, faceColor, outlineColor, outline, Set.of(), 0L);
       }
    }
 
@@ -398,7 +420,7 @@ public final class ShapeShellMesh {
       }
    }
 
-   private record Plane(Direction.Axis axis, long coordinate) {
+   private record Plane(Direction.Axis axis, long coordinate, long cullGroup) {
    }
 
    private record RawFace(

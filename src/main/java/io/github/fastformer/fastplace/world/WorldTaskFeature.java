@@ -26,15 +26,28 @@ public final class WorldTaskFeature {
    public static void tick(MinecraftServer server) {
       // Recovery has priority. A writer that transfers itself to recovery is
       // removed from its manager before the next manager gets a chance to run.
-      if (!tickSafely("history/recovery", () -> WorldHistoryManager.tickWorld(server))
-         || !PersistentRecoveryJournal.writesAllowed()) {
+      if (!tickSafely("history/recovery", () -> WorldHistoryManager.tickWorld(server))) {
          return;
       }
-      if (!tickSafely("placement", () -> FastPlaceManager.tickWorld(server))
-         || !PersistentRecoveryJournal.writesAllowed()) {
-         return;
+      // A closed gate stops new writes for the rest of the session. Placement and operation
+      // then hand their queued tasks to recovery instead of ticking them: their tick path
+      // waits for a lease first, so it would never reach the gate check inside the task.
+      // The two handovers are independent, so one failure must not skip the other.
+      if (PersistentRecoveryJournal.writesAllowed()) {
+         if (!tickSafely("placement", () -> FastPlaceManager.tickWorld(server))) {
+            return;
+         }
+      } else {
+         tickSafely("placement-handover", () -> FastPlaceManager.handOverBlockedTasks(server));
       }
-      tickSafely("operation", () -> OperationManager.tickWorld(server));
+      if (PersistentRecoveryJournal.writesAllowed()) {
+         tickSafely("operation", () -> OperationManager.tickWorld(server));
+      } else {
+         tickSafely("operation-handover", () -> OperationManager.handOverBlockedTasks(server));
+      }
+      // Finished submission results age out here. A record of work that still runs is
+      // never removed, so a query always learns that the work is still in progress.
+      tickSafely("submission-ledger", () -> WorkspaceSubmissionLedger.tick(server));
    }
 
    static boolean tickSafely(String kind, Runnable tick) {

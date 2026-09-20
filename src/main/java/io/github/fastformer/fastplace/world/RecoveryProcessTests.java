@@ -5,9 +5,9 @@ import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.OperationConflictMode;
-import io.github.fastformer.fastplace.OperationMode;
-import io.github.fastformer.fastplace.OperationSelectionVolume;
-import io.github.fastformer.fastplace.OperationStackRegion;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
@@ -45,6 +45,10 @@ public final class RecoveryProcessTests {
    private static final BlockPos WORKSPACE_POS = new BlockPos(0, 80, 0);
    private static final BlockPos SELECTION_SOURCE = new BlockPos(0, 80, 0);
    private static final BlockPos SELECTION_TARGET = SELECTION_SOURCE.above();
+   private static final UUID HISTORY_OWNER = UUID.fromString("f0825d71-dc8c-4a5b-9511-0a9d9e998bcc");
+   private static final UUID HISTORY_OPERATION = UUID.fromString("96813bc0-a3be-48e4-a9e2-227f2139c9f2");
+   private static final UUID OLDER_HISTORY_OPERATION = UUID.fromString("dfdfe872-e48e-4217-a4bc-30f25b478db9");
+   private static final UUID NEWEST_HISTORY_OPERATION = UUID.fromString("27470dfc-2df2-45fd-8ca5-d969758a24c9");
 
    private static Mode mode = Mode.DISABLED;
    private static CrashOperations crashOperations;
@@ -60,13 +64,26 @@ public final class RecoveryProcessTests {
       mode = switch (configured) {
          case "crash" -> Mode.CRASH;
          case "verify" -> Mode.VERIFY;
+         case "crash-history" -> Mode.CRASH_HISTORY;
+         case "crash-index" -> Mode.CRASH_INDEX;
+         case "crash-before-batch" -> Mode.CRASH_BEFORE_BATCH;
+         case "crash-after-batch" -> Mode.CRASH_AFTER_BATCH;
+         case "crash-multiple-history" -> Mode.CRASH_MULTIPLE_HISTORY;
+         case "crash-mixed-history" -> Mode.CRASH_MIXED_HISTORY;
+         case "verify-multiple-history" -> Mode.VERIFY_MULTIPLE_HISTORY;
+         case "verify-unsealed-history" -> Mode.VERIFY_UNSEALED_HISTORY;
+         case "verify-history" -> Mode.VERIFY_HISTORY;
          default -> Mode.DISABLED;
       };
       if (mode == Mode.DISABLED) {
          return;
       }
       try {
-         if (mode == Mode.CRASH) {
+         if (mode == Mode.CRASH_HISTORY || mode == Mode.CRASH_INDEX
+            || mode == Mode.CRASH_BEFORE_BATCH || mode == Mode.CRASH_AFTER_BATCH
+            || mode == Mode.CRASH_MULTIPLE_HISTORY || mode == Mode.CRASH_MIXED_HISTORY) {
+            crashHistoryPublication(event.getServer());
+         } else if (mode == Mode.CRASH) {
             Files.deleteIfExists(CRASH_MARKER);
             Files.deleteIfExists(RESULT);
             crashTicks = 0;
@@ -92,7 +109,15 @@ public final class RecoveryProcessTests {
             }
             advanceCrash(server);
          } else if (++verifyTicks >= 5) {
-            verifyRecovery(server);
+            if (mode == Mode.VERIFY_HISTORY) {
+               verifySealedHistory(server);
+            } else if (mode == Mode.VERIFY_UNSEALED_HISTORY) {
+               verifyUnsealedHistory(server);
+            } else if (mode == Mode.VERIFY_MULTIPLE_HISTORY) {
+               verifyMultipleHistory(server);
+            } else {
+               verifyRecovery(server);
+            }
          }
       } catch (Throwable failure) {
          finish(server, "FAIL runtime: " + failure);
@@ -141,6 +166,139 @@ public final class RecoveryProcessTests {
       return new CrashOperations(
          placement, placementContext, workspace, workspaceContext, selection, selectionContext
       );
+   }
+
+   private static void crashHistoryPublication(MinecraftServer server) throws IOException {
+      ServerLevel level = requiredLevel(server, Level.OVERWORLD);
+      setBaseline(level, PLACEMENT_POS, Blocks.STONE.defaultBlockState());
+      prepareOlderHistory(server, level);
+      if (!server.saveAllChunks(true, true, true)) {
+         throw new IllegalStateException("history baseline save failed");
+      }
+      IOUtilities.waitUntilIOWorkerComplete();
+      var before = new ReversibleBlockSnapshot(PLACEMENT_POS, Blocks.STONE.defaultBlockState(),
+         net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState(), null);
+      var after = new ReversibleBlockSnapshot(PLACEMENT_POS, Blocks.GOLD_BLOCK.defaultBlockState(),
+         net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState(), null);
+      var batch = WorldChangeBatch.capturePairsByPos(Level.OVERWORLD, List.of(before),
+         Map.of(PLACEMENT_POS, after)).orElseThrow().withOperationId(HISTORY_OPERATION);
+      var journal = PersistentRecoveryJournal.begin(server, HISTORY_OWNER, Level.OVERWORLD,
+         List.of(before), List.of(after), HISTORY_OPERATION).orElseThrow();
+      if (!journal.finalizeAfter(Map.of()).join()) {
+         throw new IllegalStateException("history journal finalization failed");
+      }
+      setBaseline(level, PLACEMENT_POS, Blocks.GOLD_BLOCK.defaultBlockState());
+      if (mode == Mode.CRASH_BEFORE_BATCH) {
+         haltUnsealedHistory(server);
+         return;
+      }
+      WorldHistoryPersistence.publishBatchOnly(server, HISTORY_OWNER, batch).join();
+      if (mode == Mode.CRASH_AFTER_BATCH) {
+         haltUnsealedHistory(server);
+         return;
+      }
+      if (!journal.sealFinalizedForHistory() || !PersistentRecoveryJournal.awaitIoIdle()) {
+         throw new IllegalStateException("history journal seal failed");
+      }
+      Path index = server.getWorldPath(LevelResource.ROOT).resolve("fastformer-history")
+         .resolve(HISTORY_OWNER.toString()).resolve("index.dat");
+      requireHistoryOrder(server, List.of(OLDER_HISTORY_OPERATION));
+      if (mode == Mode.CRASH_MULTIPLE_HISTORY || mode == Mode.CRASH_MIXED_HISTORY) {
+         prepareNewestJournal(server, level, after);
+      }
+      if (mode == Mode.CRASH_MIXED_HISTORY) {
+         haltUnsealedHistory(server);
+         return;
+      }
+      if (mode == Mode.CRASH_INDEX) {
+         WorldHistoryPersistence.publishIndex(server, HISTORY_OWNER,
+            List.of(HISTORY_OPERATION, OLDER_HISTORY_OPERATION), List.of()).join();
+         if (!Files.isRegularFile(index)) {
+            throw new IllegalStateException("history index publication did not create a durable index");
+         }
+      }
+      // Keep the world save older than the seal, so startup must replay the committed journal.
+      Files.writeString(CRASH_MARKER, mode == Mode.CRASH_INDEX ? "PUBLISHED_HISTORY_READY\n" : "SEALED_HISTORY_READY\n");
+      Runtime.getRuntime().halt(17);
+   }
+
+   private static void verifySealedHistory(MinecraftServer server) throws IOException {
+      requireBlock(requiredLevel(server, Level.OVERWORLD), PLACEMENT_POS, Blocks.GOLD_BLOCK,
+         "committed history replay");
+      requireHistoryOrder(server, List.of(HISTORY_OPERATION, OLDER_HISTORY_OPERATION));
+      requireRecoveryReleased(server);
+      finish(server, "PASS\n");
+   }
+
+   private static void prepareNewestJournal(
+      MinecraftServer server, ServerLevel level, ReversibleBlockSnapshot before
+   ) {
+      var after = new ReversibleBlockSnapshot(PLACEMENT_POS, Blocks.EMERALD_BLOCK.defaultBlockState(),
+         net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState(), null);
+      var batch = WorldChangeBatch.capturePairsByPos(Level.OVERWORLD, List.of(before),
+         Map.of(PLACEMENT_POS, after)).orElseThrow().withOperationId(NEWEST_HISTORY_OPERATION);
+      var journal = PersistentRecoveryJournal.begin(server, HISTORY_OWNER, Level.OVERWORLD,
+         List.of(before), List.of(after), NEWEST_HISTORY_OPERATION).orElseThrow();
+      if (!journal.finalizeAfter(Map.of()).join()) {
+         throw new IllegalStateException("newest journal finalization failed");
+      }
+      setBaseline(level, PLACEMENT_POS, Blocks.EMERALD_BLOCK.defaultBlockState());
+      WorldHistoryPersistence.publishBatchOnly(server, HISTORY_OWNER, batch).join();
+      if (mode == Mode.CRASH_MIXED_HISTORY) {
+         return;
+      }
+      if (!journal.sealFinalizedForHistory() || !PersistentRecoveryJournal.awaitIoIdle()) {
+         throw new IllegalStateException("newest journal seal failed");
+      }
+   }
+
+   private static void verifyMultipleHistory(MinecraftServer server) throws IOException {
+      requireBlock(requiredLevel(server, Level.OVERWORLD), PLACEMENT_POS, Blocks.EMERALD_BLOCK,
+         "multiple committed journal replay");
+      requireHistoryOrder(server, List.of(NEWEST_HISTORY_OPERATION, HISTORY_OPERATION, OLDER_HISTORY_OPERATION));
+      requireRecoveryReleased(server);
+      finish(server, "PASS\n");
+   }
+
+   private static void haltUnsealedHistory(MinecraftServer server) throws IOException {
+      if (!PersistentRecoveryJournal.awaitIoIdle() || !server.saveAllChunks(true, true, true)) {
+         throw new IllegalStateException("unsealed history boundary was not saved");
+      }
+      IOUtilities.waitUntilIOWorkerComplete();
+      Files.writeString(CRASH_MARKER, mode.name() + "\n");
+      Runtime.getRuntime().halt(17);
+   }
+
+   private static void verifyUnsealedHistory(MinecraftServer server) throws IOException {
+      requireBlock(requiredLevel(server, Level.OVERWORLD), PLACEMENT_POS, Blocks.STONE,
+         "unsealed history rollback");
+      requireHistoryOrder(server, List.of(OLDER_HISTORY_OPERATION));
+      requireRecoveryReleased(server);
+      finish(server, "PASS\n");
+   }
+
+   private static void prepareOlderHistory(MinecraftServer server, ServerLevel level) {
+      BlockPos position = PLACEMENT_POS.above();
+      var before = new ReversibleBlockSnapshot(position, Blocks.STONE.defaultBlockState(),
+         net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState(), null);
+      var after = new ReversibleBlockSnapshot(position, Blocks.DIAMOND_BLOCK.defaultBlockState(),
+         net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState(), null);
+      setBaseline(level, position, Blocks.DIAMOND_BLOCK.defaultBlockState());
+      var batch = WorldChangeBatch.capturePairsByPos(Level.OVERWORLD, List.of(before), Map.of(position, after))
+         .orElseThrow().withOperationId(OLDER_HISTORY_OPERATION);
+      WorldHistoryPersistence.publishNewBatch(server, HISTORY_OWNER, batch,
+         List.of(OLDER_HISTORY_OPERATION), List.of()).join();
+   }
+
+   private static void requireHistoryOrder(MinecraftServer server, List<UUID> expected) {
+      requireBlock(requiredLevel(server, Level.OVERWORLD), PLACEMENT_POS.above(), Blocks.DIAMOND_BLOCK,
+         "older committed operation");
+      var history = WorldHistoryPersistence.loadSnapshot(server, HISTORY_OWNER, 10, 1024L * 1024L).join();
+      if (!history.undoOrder().equals(expected) || !history.redoOrder().isEmpty()
+         || !history.undo().stream().map(WorldChangeBatch::operationId).toList().equals(expected)
+         || !history.redo().isEmpty()) {
+         throw new IllegalStateException("history order differs from " + expected);
+      }
    }
 
    private static void advanceCrash(MinecraftServer server) throws IOException {
@@ -247,6 +405,11 @@ public final class RecoveryProcessTests {
       requireBlock(requiredLevel(server, Level.NETHER), WORKSPACE_POS, Blocks.STONE, "workspace");
       requireBlock(requiredLevel(server, Level.END), SELECTION_SOURCE, Blocks.GOLD_BLOCK, "selection source");
       requireBlock(requiredLevel(server, Level.END), SELECTION_TARGET, Blocks.STONE, "selection target");
+      requireRecoveryReleased(server);
+      finish(server, "PASS\n");
+   }
+
+   private static void requireRecoveryReleased(MinecraftServer server) throws IOException {
       Path journalDirectory = server.getWorldPath(LevelResource.ROOT).resolve("fastformer-recovery");
       if (Files.isDirectory(journalDirectory)) {
          try (var journals = Files.list(journalDirectory)) {
@@ -268,7 +431,6 @@ public final class RecoveryProcessTests {
             "startup recovery retained " + MemoryReservation.reservedBytes() + " reserved bytes"
          );
       }
-      finish(server, "PASS\n");
    }
 
    private static void setBaseline(ServerLevel level, BlockPos pos, net.minecraft.world.level.block.state.BlockState state) {
@@ -310,7 +472,16 @@ public final class RecoveryProcessTests {
    private enum Mode {
       DISABLED,
       CRASH,
-      VERIFY
+      VERIFY,
+      CRASH_HISTORY,
+      CRASH_INDEX,
+      CRASH_BEFORE_BATCH,
+      CRASH_AFTER_BATCH,
+      CRASH_MULTIPLE_HISTORY,
+      CRASH_MIXED_HISTORY,
+      VERIFY_MULTIPLE_HISTORY,
+      VERIFY_UNSEALED_HISTORY,
+      VERIFY_HISTORY
    }
 
    private record CrashOperations(

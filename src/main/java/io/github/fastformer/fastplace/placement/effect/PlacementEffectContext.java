@@ -2,7 +2,7 @@ package io.github.fastformer.fastplace.placement.effect;
 
 import io.github.fastformer.fastplace.FastPlaceGeometry;
 import io.github.fastformer.fastplace.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.PolygonVolumeShape;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

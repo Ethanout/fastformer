@@ -14,7 +14,7 @@ public record SettingsActionPayload(Action action) implements CustomPacketPayloa
    );
 
    public SettingsActionPayload {
-      action = action == null ? Action.CYCLE_RAYCAST_PLACEMENT : action;
+      action = action == null ? Action.CYCLE_PLACEMENT_CONFLICT : action;
    }
 
    private SettingsActionPayload(FriendlyByteBuf buffer) {
@@ -31,7 +31,6 @@ public record SettingsActionPayload(Action action) implements CustomPacketPayloa
    }
 
    public enum Action {
-      CYCLE_RAYCAST_PLACEMENT,
       CYCLE_PLACEMENT_CONFLICT,
       CYCLE_PLACEMENT_UPDATE,
       TOGGLE_EMPTY_HAND_WRENCH,

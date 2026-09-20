@@ -2,9 +2,9 @@ package io.github.fastformer.client.operation.model;
 
 import io.github.fastformer.client.operation.selection.SelectionBaseline;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import java.util.LinkedHashMap;
+import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import java.util.Map;
-import io.github.fastformer.fastplace.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
@@ -46,9 +46,14 @@ public record ClientSelectionPart(
       if (changed && nextEditability == Editability.FREE && value.hasEffect()) {
          nextBaseline = new SelectionBaseline(this.selection, this.transform, this.sourceSnapshot);
          nextEditability = Editability.LOCKED;
-      } else if (nextEditability == Editability.LOCKED && nextBaseline != null && nextBaseline.matches(this.selection, value, this.sourceSnapshot)) {
-         nextBaseline = null;
-         nextEditability = Editability.FREE;
+      }
+      if (nextBaseline != null && (this.source == Source.WORLD
+         ? nextBaseline.matchesBlocks(this.blocks, value)
+         : nextBaseline.matches(this.selection, value, this.sourceSnapshot))) {
+         Map<BlockPos, ClientBlockSnapshot> restoredBlocks = this.source == Source.WORLD
+            ? nextBaseline.sourceSnapshot() : this.blocks;
+         return copy(this.id, this.source, nextBaseline.selection(), restoredBlocks, nextBaseline.transform(),
+            this.pendingDelete, this.sourceSnapshot, null, Editability.FREE);
       }
       return copy(this.id, this.source, this.selection, this.blocks, value, this.pendingDelete, this.sourceSnapshot, nextBaseline, nextEditability);
    }
@@ -63,17 +68,26 @@ public record ClientSelectionPart(
 
    public ClientSelectionPart withBlocks(Map<BlockPos, ClientBlockSnapshot> value) {
       Map<BlockPos, ClientBlockSnapshot> nextSource = this.baseline == null ? value : this.sourceSnapshot;
-      return copy(this.id, this.source, this.selection, value, this.transform, this.pendingDelete, nextSource, this.baseline, this.editability);
+      ClientSelectionPart updated = copy(this.id, this.source, this.selection, value, this.transform,
+         this.pendingDelete, nextSource, this.baseline, this.editability);
+      return this.baseline == null ? updated : updated.withTransform(this.transform);
    }
 
    public boolean canAdjustGeometry() { return this.editability == Editability.FREE && this.source == Source.WORLD && this.selection != null && this.axisAlignedCuboid() && !this.transform.hasEffect(); }
-   public boolean transformed() { return this.transform.hasEffect(); }
+   public boolean transformed() { return this.transform.hasEffect() || this.source == Source.WORLD && this.baseline != null; }
+   /** A world selection that has not become an operation component. */
+   public boolean isOriginalSelection() {
+      return this.source == Source.WORLD && !this.pendingDelete && this.baseline == null
+         && !this.transform.hasEffect();
+   }
    public boolean masksSourceBlocks() { return this.source == Source.WORLD && (this.transformed() || this.pendingDelete); }
-   public boolean axisAlignedCuboid() { return this.selection != null && this.selection.mode() == io.github.fastformer.fastplace.OperationSelectionMode.CUBOID && orthogonal(this.transform.rotation().x) && orthogonal(this.transform.rotation().y) && orthogonal(this.transform.rotation().z); }
-   public boolean orientedCuboid() { return this.selection != null && this.selection.mode() == io.github.fastformer.fastplace.OperationSelectionMode.CUBOID && !this.axisAlignedCuboid(); }
+   public boolean axisAlignedCuboid() { return this.selection != null && this.selection.mode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID && orthogonal(this.transform.rotation().x) && orthogonal(this.transform.rotation().y) && orthogonal(this.transform.rotation().z); }
+   public boolean orientedCuboid() { return this.selection != null && this.selection.mode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID && !this.axisAlignedCuboid(); }
 
    private static boolean orthogonal(double radians) { double quarterTurns = radians / (Math.PI * 0.5); return Math.abs(quarterTurns - Math.rint(quarterTurns)) <= ORTHOGONAL_EPSILON; }
    private static ClientSelectionPart copy(int id, Source source, OperationSelectionVolume selection, Map<BlockPos, ClientBlockSnapshot> blocks, WorkspaceTransform transform, boolean pendingDelete, Map<BlockPos, ClientBlockSnapshot> sourceSnapshot, SelectionBaseline baseline, Editability editability) { return new ClientSelectionPart(id, source, selection, blocks, transform, pendingDelete, sourceSnapshot, baseline, editability); }
-   private static Map<BlockPos, ClientBlockSnapshot> immutable(Map<BlockPos, ClientBlockSnapshot> values) { LinkedHashMap<BlockPos, ClientBlockSnapshot> copy = new LinkedHashMap<>(); if (values != null) values.forEach((pos, snapshot) -> copy.put(pos.immutable(), snapshot)); return Map.copyOf(copy); }
+   private static Map<BlockPos, ClientBlockSnapshot> immutable(Map<BlockPos, ClientBlockSnapshot> values) {
+      return values == null ? Map.of() : BlockPositionMaps.copyOf(values);
+   }
    public enum Source { WORLD, CLIPBOARD }
 }
