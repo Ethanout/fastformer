@@ -311,12 +311,13 @@ class ClientReceiptBoundaryTest {
       // A regular file where the receipt directory must go. Every write fails, with a real
       // file system error rather than an injected flag.
       Path blocker = this.directory.resolve("blocker");
-      Files.writeString(blocker, "x");
       manager.installReceiptFile(key, blocker.resolve("receipts.nbt.gz"));
 
       UUID transferId = UUID.randomUUID();
       UUID keeper = UUID.randomUUID();
       OperationSubmissionReceiptStore receipts = manager.receiptStore(key);
+      assertFalse(receipts.readOnly());
+      Files.writeString(blocker, "x");
       receipts.record(receipt(transferId, OperationSubmissionOutcome.APPLIED));
       // A second receipt keeps the store non-empty, so the save must write a file. An empty
       // store only deletes a file that does not exist, and that delete reports success even
