@@ -56,7 +56,7 @@ final class GeometryDragController {
    }
 
    static void update(Minecraft minecraft, ClientInputSession session, boolean controlDown) {
-      if (session.geometryGizmoDrag == null) return;
+      if (discardInvalidCapture(session)) return;
       Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
       if (target == Target.NONE) {
          session.geometryGizmoDrag = null;
@@ -105,6 +105,7 @@ final class GeometryDragController {
    }
 
    static void finish(Minecraft minecraft, ClientInputSession session) {
+      if (discardInvalidCapture(session)) return;
       Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
       if (target == Target.NONE) {
          session.geometryGizmoDrag = null;
@@ -157,6 +158,13 @@ final class GeometryDragController {
          return operationReady ? Target.OPERATION : Target.NONE;
       }
       return Target.NONE;
+   }
+
+   private static boolean discardInvalidCapture(ClientInputSession session) {
+      if (session.geometryGizmoDrag == null) return true;
+      if (target(session, true, true) != Target.NONE) return false;
+      session.geometryGizmoDrag = null;
+      return true;
    }
 
    enum Target { NONE, GEOMETRY, OPERATION }
