@@ -134,4 +134,25 @@ public final class QuickShapeSubmissionGameTests {
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "current request did not write");
       });
    }
+
+   @GameTest(template = "fastformergametests.empty", batch = "quick_shape_policy")
+   public static void changedMaterialInvalidatesPublishedSubmissionParameters(GameTestHelper helper) {
+      ServerPlayer player = helper.makeMockServerPlayerInLevel();
+      player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Blocks.GOLD_BLOCK));
+      BlockPos first = helper.absolutePos(new BlockPos(1, 3, 1));
+      FastPlaceManager.addPoint(player, first, first);
+      helper.assertTrue(io.github.fastformer.network.sync.PlayerPreviewSync.buildingSubmissionParametersMatch(player),
+         "published parameters do not match their original material");
+      player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Blocks.IRON_BLOCK));
+      helper.assertFalse(io.github.fastformer.network.sync.PlayerPreviewSync.buildingSubmissionParametersMatch(player),
+         "old parameters accepted a different material");
+      io.github.fastformer.network.sync.PlayerPreviewSync.syncPreview(player, FastPlaceManager.session(player).orElseThrow());
+      helper.assertTrue(io.github.fastformer.network.sync.PlayerPreviewSync.buildingSubmissionParametersMatch(player),
+         "refreshed parameters rejected the new material");
+      io.github.fastformer.network.sync.PlayerPreviewSync.forgetActivity(player);
+      helper.assertFalse(io.github.fastformer.network.sync.PlayerPreviewSync.buildingSubmissionParametersMatch(player),
+         "forgotten session retained submission parameters");
+      FastPlaceManager.cancel(player);
+      helper.succeed();
+   }
 }

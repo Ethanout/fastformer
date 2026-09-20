@@ -379,7 +379,7 @@ public final class FastPlaceClientInput {
       Minecraft minecraft, boolean dismissOperationRestore, boolean dismissPreviewRestore
    ) {
       boolean cancellingQuickShape = inputSession().quickShapeSubmission.active()
-         || inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY) == ClientInputStateMachine.Dispatch.BUILDING;
+         || inputSession().routing.ownsQuickShapeSubmission();
       boolean cancelled = inputSession().cancel();
       if (dismissOperationRestore) ClientOperationController.dismissReconnectRestore();
       if (dismissPreviewRestore) FastPlaceClientPreview.dismissReconnectPreviewRestore();

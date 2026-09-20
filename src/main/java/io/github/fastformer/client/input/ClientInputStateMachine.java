@@ -15,6 +15,10 @@ public final class ClientInputStateMachine {
       return state;
    }
 
+   public boolean ownsQuickShapeSubmission() {
+      return state == State.BUILDING || state == State.SUBMITTING && submissionOrigin == State.BUILDING;
+   }
+
    public long generation() {
       return generation;
    }

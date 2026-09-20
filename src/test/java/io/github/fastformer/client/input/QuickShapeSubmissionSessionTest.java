@@ -9,6 +9,22 @@ import org.junit.jupiter.api.Test;
 
 class QuickShapeSubmissionSessionTest {
    @Test
+   void sentQuickShapeRequestRetainsItsOriginUntilReceiptOrCancel() {
+      var routing = new ClientInputStateMachine();
+      routing.observe(ClientInputStateMachine.State.BUILDING);
+      assertTrue(routing.submit(7));
+      assertTrue(routing.ownsQuickShapeSubmission());
+      routing.observe(ClientInputStateMachine.State.PLACING);
+      assertTrue(routing.ownsQuickShapeSubmission());
+      assertTrue(routing.cancel());
+      assertFalse(routing.ownsQuickShapeSubmission());
+      routing.reset();
+      routing.observe(ClientInputStateMachine.State.ADJUSTING);
+      assertTrue(routing.submit(8));
+      assertFalse(routing.ownsQuickShapeSubmission());
+   }
+
+   @Test
    void acceptedCancelInvalidatesReadyResultAndSubmissionGate() {
       var session = new ClientInputSession();
       var snapshot = QuickShapeSubmissionIntentTest.snapshot(LineMode.AXIS);
