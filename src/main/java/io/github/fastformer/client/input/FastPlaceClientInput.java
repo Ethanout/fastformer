@@ -1069,7 +1069,8 @@ public final class FastPlaceClientInput {
       if (action != MouseButtonInputSemantics.RELEASE) return false;
       var session = inputSession();
       var target = mouseReleaseTarget(action, button);
-      if (target == MouseDragReleaseSemantics.Target.NONE || !session.routing.accepts(session.clickGestureToken)) {
+      if (target == MouseDragReleaseSemantics.Target.NONE
+         || !session.routing.accepts(button, session.clickGestureToken)) {
          return false;
       }
       session.postPointerRelease(new PointerReleaseSnapshot(button, occurredAtNanos,

@@ -53,6 +53,13 @@ class PointerReleaseMailboxTest {
    }
 
    @Test
+   void productionButtonCheckKeepsMismatchedReleaseOnSynchronousPath() {
+      var session = session();
+      assertFalse(session.routing.accepts(0, session.clickGestureToken));
+      assertTrue(session.routing.accepts(1, session.clickGestureToken));
+   }
+
+   @Test
    void cancelAheadOfReleaseDiscardsRemainingBatch() {
       var session = session();
       session.postScroll(new ScrollInputSnapshot(1));

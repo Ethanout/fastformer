@@ -106,6 +106,10 @@ public final class ClientInputStateMachine {
       return token != 0L && token == gesture;
    }
 
+   public boolean accepts(int button, long token) {
+      return accepts(token) && this.gestureButton == button;
+   }
+
    public void reset() {
       onEvent(ClientSemanticEvent.Reset.INSTANCE);
    }
