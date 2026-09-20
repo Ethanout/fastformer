@@ -13,16 +13,7 @@ public final class ClientInputSession {
       new io.github.fastformer.client.quickshape.QuickShapeSubmissionIntent();
    private final ClientTickMailbox<ClientSemanticEvent.SubmissionCompleted> submissionEvents =
       new ClientTickMailbox<>(event -> { });
-   private sealed interface PhysicalEvent {
-      record Key(KeyboardInputSnapshot value) implements PhysicalEvent { }
-      record Scroll(ScrollInputSnapshot value) implements PhysicalEvent { }
-      record SelectionPointer(SelectionPointerEvent value) implements PhysicalEvent { }
-      record RemotePoint(RemoteSelectionPointRequest value) implements PhysicalEvent { }
-      record PointerRelease(PointerReleaseSnapshot value) implements PhysicalEvent { }
-   }
-   private final ClientTickMailbox<PhysicalEvent> physicalEvents =
-      new ClientTickMailbox<>(this::releaseQueuedEvent);
-   private int pendingRemotePoints;
+   private final PhysicalInputMailbox physicalEvents = new PhysicalInputMailbox();
    final ShortPressTracker undoPress = new ShortPressTracker();
    final SelectionPointerCapture selectionPointer = new SelectionPointerCapture();
    final PhysicalPressGate buildingRightPress = new PhysicalPressGate();
@@ -94,11 +85,7 @@ public final class ClientInputSession {
    }
 
    boolean canCancelPendingRemotePoint() {
-      return this.pendingRemotePoints > 0 && this.routing.state() == ClientInputStateMachine.State.IDLE;
-   }
-
-   private void releaseQueuedEvent(PhysicalEvent event) {
-      if (event instanceof PhysicalEvent.RemotePoint) this.pendingRemotePoints--;
+      return this.physicalEvents.hasPendingRemotePoints() && this.routing.state() == ClientInputStateMachine.State.IDLE;
    }
 
    void discardPhysicalEvents() {
@@ -111,20 +98,19 @@ public final class ClientInputSession {
    }
 
    void postKeyboard(KeyboardInputSnapshot event) {
-      this.physicalEvents.post(new PhysicalEvent.Key(java.util.Objects.requireNonNull(event)));
+      this.physicalEvents.postKeyboard(event);
    }
 
    void postScroll(ScrollInputSnapshot event) {
-      this.physicalEvents.post(new PhysicalEvent.Scroll(java.util.Objects.requireNonNull(event)));
+      this.physicalEvents.postScroll(event);
    }
 
    void postSelectionPointer(SelectionPointerEvent event) {
-      this.physicalEvents.post(new PhysicalEvent.SelectionPointer(java.util.Objects.requireNonNull(event)));
+      this.physicalEvents.postSelectionPointer(event);
    }
 
    void postRemoteSelectionPoint(RemoteSelectionPointRequest request) {
-      this.physicalEvents.post(new PhysicalEvent.RemotePoint(java.util.Objects.requireNonNull(request)));
-      this.pendingRemotePoints++;
+      this.physicalEvents.postRemoteSelectionPoint(request);
    }
 
    SelectionPointerEvent.Press captureSelectionPress(SelectionPointerPress snapshot) {
@@ -173,7 +159,7 @@ public final class ClientInputSession {
    }
 
    void postPointerRelease(PointerReleaseSnapshot event) {
-      this.physicalEvents.post(new PhysicalEvent.PointerRelease(java.util.Objects.requireNonNull(event)));
+      this.physicalEvents.postPointerRelease(event);
    }
 
    void drainPhysicalEvents(BooleanSupplier contextActive,
@@ -188,20 +174,8 @@ public final class ClientInputSession {
       Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
       Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
       Consumer<PointerReleaseSnapshot> pointerReleases) {
-      this.physicalEvents.drain(event -> {
-         releaseQueuedEvent(event);
-         if (!contextActive.getAsBoolean()) {
-            discardPhysicalEvents();
-            return;
-         }
-         switch (event) {
-            case PhysicalEvent.Key key -> keys.accept(key.value());
-            case PhysicalEvent.Scroll scroll -> scrolls.accept(scroll.value());
-            case PhysicalEvent.SelectionPointer click -> selectionPointer.accept(click.value());
-            case PhysicalEvent.RemotePoint point -> remotePoints.accept(point.value());
-            case PhysicalEvent.PointerRelease release -> pointerReleases.accept(release.value());
-         }
-      });
+      this.physicalEvents.drain(contextActive, this::discardPhysicalEvents,
+         keys, scrolls, selectionPointer, remotePoints, pointerReleases);
    }
 
    void drainSubmissionEvents() {
