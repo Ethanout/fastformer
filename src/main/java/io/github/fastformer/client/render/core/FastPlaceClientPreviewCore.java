@@ -38,6 +38,7 @@ import io.github.fastformer.fastplace.selection.OperationStageMode;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
 import io.github.fastformer.client.input.FastPlaceClientInput;
+import io.github.fastformer.client.input.PointerDragSnapshotView;
 import io.github.fastformer.client.input.InteractionContext;
 import io.github.fastformer.client.input.ModifierReticleMode;
 import io.github.fastformer.client.input.OperationInteractionIntent;
@@ -699,7 +700,7 @@ public class FastPlaceClientPreviewCore {
          minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), PREVIEW_REACH
       );
       AxisGizmo.HandleKey hovered = hit == null ? null : hit.handle().key();
-      return gizmo.withState(hovered, FastPlaceClientInput.operationGizmoDragKey());
+      return gizmo.withState(hovered, PointerDragSnapshotView.operationKey(FastPlaceClientInput.currentSession()));
    }
 
    public static double operationGizmoValue(AxisGizmo.Axis axis, AxisGizmo.Operation operation) {
@@ -742,7 +743,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    static OperationGeometry.RayHit operationFaceTarget(OperationSelectionVolume selection) {
-      OperationGeometry.RayHit dragged = FastPlaceClientInput.operationFaceDragHit();
+      OperationGeometry.RayHit dragged = PointerDragSnapshotView.operationFaceHit(FastPlaceClientInput.currentSession());
       if (dragged == null) {
          return operationFaceHit();
       }
@@ -1601,10 +1602,10 @@ public class FastPlaceClientPreviewCore {
          OperationInteractionIntent.Gizmo target = operationWorkspaceGizmoHit();
          return new GizmoHudInput(
             target == null ? null : target.gizmo(),
-            FastPlaceClientInput.operationGizmoDragAxis(),
-            FastPlaceClientInput.operationGizmoDragOperation(),
-            FastPlaceClientInput.operationGizmoDragBaseValue(),
-            FastPlaceClientInput.operationGizmoDragSteps(),
+            PointerDragSnapshotView.operationAxis(FastPlaceClientInput.currentSession()),
+            PointerDragSnapshotView.operationOperation(FastPlaceClientInput.currentSession()),
+            PointerDragSnapshotView.operationBaseValue(FastPlaceClientInput.currentSession()),
+            PointerDragSnapshotView.operationSteps(FastPlaceClientInput.currentSession()),
             true,
             false
          );
@@ -1612,20 +1613,20 @@ public class FastPlaceClientPreviewCore {
       if (PREVIEW_STATE.operation().active()) {
          return new GizmoHudInput(
             operationGizmo(),
-            FastPlaceClientInput.operationGizmoDragAxis(),
-            FastPlaceClientInput.operationGizmoDragOperation(),
-            FastPlaceClientInput.operationGizmoDragBaseValue(),
-            FastPlaceClientInput.operationGizmoDragSteps(),
+            PointerDragSnapshotView.operationAxis(FastPlaceClientInput.currentSession()),
+            PointerDragSnapshotView.operationOperation(FastPlaceClientInput.currentSession()),
+            PointerDragSnapshotView.operationBaseValue(FastPlaceClientInput.currentSession()),
+            PointerDragSnapshotView.operationSteps(FastPlaceClientInput.currentSession()),
             true,
             true
          );
       }
       return new GizmoHudInput(
          geometryPlan == null ? null : geometryPlan.gizmo(),
-         FastPlaceClientInput.geometryGizmoDragAxis(),
-         FastPlaceClientInput.geometryGizmoDragOperation(),
-         FastPlaceClientInput.geometryGizmoDragBaseValue(),
-         FastPlaceClientInput.geometryGizmoDragSteps(),
+         PointerDragSnapshotView.axis(FastPlaceClientInput.currentSession()),
+         PointerDragSnapshotView.operation(FastPlaceClientInput.currentSession()),
+         PointerDragSnapshotView.baseValue(FastPlaceClientInput.currentSession()),
+         PointerDragSnapshotView.steps(FastPlaceClientInput.currentSession()),
          false,
          false
       );
@@ -2598,7 +2599,7 @@ public class FastPlaceClientPreviewCore {
       }
       AxisGizmo.Hit hit = gizmo.hitTest(player.getEyePosition(), view, visiblePreviewReach(player));
       AxisGizmo.HandleKey hoveredKey = hit == null ? null : hit.handle().key();
-      return gizmo.withState(hoveredKey, FastPlaceClientInput.geometryGizmoDragKey());
+      return gizmo.withState(hoveredKey, PointerDragSnapshotView.geometryKey(FastPlaceClientInput.currentSession()));
    }
 
    private static AxisGizmo cameraScaledGizmo(AxisGizmo gizmo, Minecraft minecraft) {

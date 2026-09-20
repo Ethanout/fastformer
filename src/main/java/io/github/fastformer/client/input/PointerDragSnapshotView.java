@@ -98,6 +98,10 @@ public final class PointerDragSnapshotView {
       return drag == null ? null : drag.hit();
    }
 
+   public static OperationGeometry.RayHit operationFaceHit(ClientInputSession session) {
+      return session.operationDrag == null ? null : session.operationDrag.faceHit();
+   }
+
    public static int facePartId(ClientInputSession session) {
       WorkspaceFaceDrag drag = face(session);
       return drag == null ? 0 : drag.baseline().id();
