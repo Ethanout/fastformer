@@ -20,6 +20,41 @@ final class GeometryDragController {
 
    private GeometryDragController() { }
 
+   static boolean beginConfirmedOperation(
+      Minecraft minecraft, ClientInputSession session, AxisGizmo gizmo, AxisGizmo.Hit hit, int mouseButton
+   ) {
+      if (!NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())) {
+         return false;
+      }
+      AxisGizmo.Handle handle = hit.handle();
+      double baseValue = FastPlaceClientPreview.operationGizmoValue(handle.axis(), handle.operation());
+      if (handle.drawsRing()) {
+         Vec3 radial = hit.point().subtract(gizmo.center());
+         if (radial.lengthSqr() < 1.0E-7) {
+            return false;
+         }
+           session.geometryGizmoDrag = new GeometryGizmoDrag(
+             handle.operation(), handle.axis(), hit.point(), gizmo.axisVector(handle.axis()), 0, baseValue,
+            gizmo.center(), radial.normalize(), GizmoDragCalculator.rotationTangent(gizmo.axisVector(handle.axis()), radial.normalize()),
+             handle.direction(), mouseButton
+          );
+          session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+      } else {
+         Vec3 axis = gizmo.axisVector(handle.axis());
+         if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
+            axis = axis.scale(-1.0);
+         }
+          session.geometryGizmoDrag = new GeometryGizmoDrag(
+             handle.operation(), handle.axis(), hit.point(), axis, 0, baseValue,
+             Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, handle.direction(), mouseButton
+          );
+          session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+      }
+      session.geometryGizmoDrag = session.geometryGizmoDrag.withCapture(session.pointerGestureToken);
+      FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
+      return true;
+   }
+
    static void update(Minecraft minecraft, ClientInputSession session, boolean controlDown) {
       if (session.geometryGizmoDrag == null) return;
       Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());

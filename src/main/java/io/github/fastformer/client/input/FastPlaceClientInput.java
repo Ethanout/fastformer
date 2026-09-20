@@ -1693,7 +1693,7 @@ public final class FastPlaceClientInput {
       }
       AxisGizmo.Handle handle = hit.handle();
       if (ClientOperationController.operationSelectionReady()) {
-         return beginConfirmedOperationGizmoDrag(minecraft, gizmo, hit, mouseButton);
+         return GeometryDragController.beginConfirmedOperation(minecraft, inputSession(), gizmo, hit, mouseButton);
       }
       int axis = ClientInputMath.geometryAxisIndex(handle.axis());
       boolean positive = handle.direction() != AxisGizmo.Direction.NEGATIVE;
@@ -1734,41 +1734,6 @@ public final class FastPlaceClientInput {
       OperationInteractionIntent.Gizmo target, int mouseButton, boolean control
    ) {
       return SelectionGestureController.beginWorkspaceGizmoDrag(inputSession(), target, mouseButton, control);
-   }
-
-   private static boolean beginConfirmedOperationGizmoDrag(
-      Minecraft minecraft, AxisGizmo gizmo, AxisGizmo.Hit hit, int mouseButton
-   ) {
-      if (!NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())) {
-         return false;
-      }
-      AxisGizmo.Handle handle = hit.handle();
-      double baseValue = FastPlaceClientPreview.operationGizmoValue(handle.axis(), handle.operation());
-      if (handle.drawsRing()) {
-         Vec3 radial = hit.point().subtract(gizmo.center());
-         if (radial.lengthSqr() < 1.0E-7) {
-            return false;
-         }
-           inputSession().geometryGizmoDrag = new GeometryGizmoDrag(
-             handle.operation(), handle.axis(), hit.point(), gizmo.axisVector(handle.axis()), 0, baseValue,
-            gizmo.center(), radial.normalize(), GizmoDragCalculator.rotationTangent(gizmo.axisVector(handle.axis()), radial.normalize()),
-             handle.direction(), mouseButton
-          );
-          inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
-      } else {
-         Vec3 axis = gizmo.axisVector(handle.axis());
-         if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
-            axis = axis.scale(-1.0);
-         }
-          inputSession().geometryGizmoDrag = new GeometryGizmoDrag(
-             handle.operation(), handle.axis(), hit.point(), axis, 0, baseValue,
-             Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, handle.direction(), mouseButton
-          );
-          inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
-      }
-      inputSession().geometryGizmoDrag = inputSession().geometryGizmoDrag.withCapture(inputSession().pointerGestureToken);
-      FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
-      return true;
    }
 
    private static boolean beginOperationPointDrag(Minecraft minecraft, int mouseButton) {
