@@ -54,6 +54,11 @@ public final class QuickShapeSubmissionIntent {
       return Optional.of(new Completion(request.requestId, request.snapshot, outcome));
    }
 
+   /** Drops a completion that no longer belongs to the active request. */
+   public boolean accepts(long requestId, QuickShapeSubmissionSnapshot snapshot) {
+      return pending != null && pending.requestId == requestId && pending.snapshot == snapshot;
+   }
+
    public void cancel() {
       Pending request = pending;
       pending = null;

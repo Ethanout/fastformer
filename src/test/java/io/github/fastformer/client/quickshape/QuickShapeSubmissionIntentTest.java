@@ -115,6 +115,20 @@ public class QuickShapeSubmissionIntentTest {
       assertTrue(intent.begin(2, data));
    }
 
+   @Test
+   void requestIdentityCannotBeReusedForAReplacementIntent() {
+      var intent = new QuickShapeSubmissionIntent();
+      var first = snapshot(LineMode.AXIS);
+      var second = snapshot(LineMode.FREE_SCROLL);
+      assertTrue(intent.begin(11, first));
+      assertTrue(intent.accepts(11, first));
+      intent.cancel();
+      assertTrue(intent.begin(12, second));
+      assertFalse(intent.accepts(11, first));
+      assertFalse(intent.accepts(12, first));
+      assertTrue(intent.accepts(12, second));
+   }
+
    public static QuickShapeSubmissionSnapshot snapshot(LineMode mode) {
       var d = BuildingPreviewPayload.inactive();
       var data = new BuildingPreviewPayload(true, true, true, false, false, false, d.polygonVolumeShape(),
