@@ -1170,12 +1170,9 @@ public final class FastPlaceClientInput {
       }
       dispatchSession.drainPhysicalEvents(contextActive,
          key -> handleKey(minecraft, key), scroll -> ScrollInputDispatcher.dispatch(minecraft, dispatchSession, scroll),
-         click -> SelectionInputDispatcher.dispatch(minecraft, dispatchSession, click), request -> {
-            if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) {
-               handleRemoteSelectionPoint(request,
-                  payload -> PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]));
-            }
-         }, release -> release.dispatch(dispatchSession,
+         click -> SelectionInputDispatcher.dispatch(minecraft, dispatchSession, click),
+         request -> RemoteSelectionPointSender.sendIfAvailable(minecraft, dispatchSession, request),
+         release -> release.dispatch(dispatchSession,
             MouseReleaseDispatcher.target(dispatchSession, MouseButtonInputSemantics.RELEASE, release.button()),
             () -> MouseReleaseDispatcher.finish(minecraft, dispatchSession, MouseButtonInputSemantics.RELEASE,
                release.button(), release.occurredAtNanos())));
