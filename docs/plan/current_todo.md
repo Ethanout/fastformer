@@ -121,6 +121,7 @@
 快速起形模式和控制点目录归类已完成，具体范围与验证见 [职责归类记录](../changelog/2026-09-20-quickshape-and-controlpoint-packages.md)。它不代表下列会话与队列迁移完成。
 
 - [x] 鼠标按钮、按下路由和拖动释放规则归入 `client.input.mouse`，三组对应测试同步归类。调用入口显式导入鼠标规则，完整 `test check` 通过。本次只调整归属，不改变按钮语义，也不代表鼠标队列迁移完成。
+- [x] 鼠标释放的目标选择与业务结算拆入 `MouseReleaseDispatcher`，显式接收输入会话。队列分派沿用已校验的会话，控制点、Gizmo、选区面和撤销短按共用此入口。按钮和物理时间测试直接调用分派器，新增会话隔离测试。完整 `test check runGameTestServer` 通过，91 项游戏测试全部通过。同步兼容路径仍待迁移。
 
 快速起形逐点回退、多边面中键无操作见 [阶段输入记录](../changelog/2026-09-20-quickshape-stage-input.md)。提交等待已有实现与自动化，范围见 [提交等待记录](../changelog/2026-09-20-quickshape-wait.md)。客户端实机仍未验收。
 

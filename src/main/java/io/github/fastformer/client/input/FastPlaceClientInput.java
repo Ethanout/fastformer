@@ -70,7 +70,6 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 )
 public final class FastPlaceClientInput {
    private static final long MODIFIER_SHORT_PRESS_NANOS = 250_000_000L;
-   private static final long UNDO_SHORT_PRESS_NANOS = 250_000_000L;
    static final long OPERATION_FACE_SHORT_PRESS_NANOS = 140_000_000L;
    private static final ClientInputSession UNBOUND_INPUT = new ClientInputSession();
 
@@ -934,7 +933,7 @@ public final class FastPlaceClientInput {
                }
             };
          } else if (event.getAction() == MouseButtonInputSemantics.RELEASE) {
-            consumed = finishMouseRelease(minecraft, event.getAction(), event.getButton(), occurredAtNanos);
+            consumed = MouseReleaseDispatcher.finish(minecraft, inputSession(), event.getAction(), event.getButton(), occurredAtNanos);
          }
          if (consumed) {
             event.setCanceled(true);
@@ -1027,7 +1026,7 @@ public final class FastPlaceClientInput {
                case CLOSE_PATH -> PathCloseInputDispatcher.press(minecraft, inputSession(), false, occurredAtNanos);
             };
          } else if (event.getAction() == MouseButtonInputSemantics.RELEASE) {
-            consumed = finishMouseRelease(minecraft, event.getAction(), event.getButton(), occurredAtNanos);
+            consumed = MouseReleaseDispatcher.finish(minecraft, inputSession(), event.getAction(), event.getButton(), occurredAtNanos);
          }
          if (consumed) {
             event.setCanceled(true);
@@ -1065,7 +1064,7 @@ public final class FastPlaceClientInput {
    private static boolean queuePointerRelease(int action, int button, long occurredAtNanos) {
       if (action != MouseButtonInputSemantics.RELEASE) return false;
       var session = inputSession();
-      var target = mouseReleaseTarget(action, button);
+      var target = MouseReleaseDispatcher.target(session, action, button);
       if (target == MouseDragReleaseSemantics.Target.NONE
          || !session.routing.accepts(button, session.clickGestureToken)) {
          return false;
@@ -1199,8 +1198,8 @@ public final class FastPlaceClientInput {
                   payload -> PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]));
             }
          }, release -> release.dispatch(dispatchSession,
-            mouseReleaseTarget(MouseButtonInputSemantics.RELEASE, release.button()),
-            () -> finishMouseRelease(minecraft, MouseButtonInputSemantics.RELEASE,
+            MouseReleaseDispatcher.target(dispatchSession, MouseButtonInputSemantics.RELEASE, release.button()),
+            () -> MouseReleaseDispatcher.finish(minecraft, dispatchSession, MouseButtonInputSemantics.RELEASE,
                release.button(), release.occurredAtNanos())));
       return contextActive.getAsBoolean();
    }
@@ -1212,91 +1211,6 @@ public final class FastPlaceClientInput {
       }
    }
 
-   private static boolean finishMouseRelease(Minecraft minecraft, int action, int button, long releasedAtNanos) {
-      return switch (mouseReleaseTarget(action, button)) {
-         case OPERATION_POINT_DRAG -> {
-            OperationPointDrag finished = OperationPointInputController.finishOperationPointDrag(minecraft, inputSession());
-            OperationPointInputController.finishOperationPointClick(minecraft, inputSession(), finished, releasedAtNanos);
-            inputSession().operationClickCapturedButton = -1;
-            yield true;
-         }
-         case OPERATION_DRAG -> {
-            OperationDragController.finish(minecraft, inputSession(), releasedAtNanos);
-            inputSession().operationClickCapturedButton = -1;
-            yield true;
-         }
-         case WORKSPACE_GIZMO_DRAG -> {
-            finishWorkspaceGizmoDrag();
-            inputSession().operationClickCapturedButton = -1;
-            yield true;
-         }
-         case WORKSPACE_FACE_DRAG -> {
-            finishWorkspaceFaceDrag();
-            inputSession().operationClickCapturedButton = -1;
-            yield true;
-         }
-         case GEOMETRY_GIZMO_DRAG -> {
-            GeometryDragController.finish(minecraft, inputSession());
-            if (button == MouseButtonInputSemantics.LEFT_BUTTON) {
-               inputSession().undoPress.cancel();
-               inputSession().undoPressCaptured = false;
-            }
-            yield true;
-         }
-         case OPERATION_CAPTURE -> {
-            inputSession().operationClickCapturedButton = -1;
-            yield true;
-         }
-         case GEOMETRY_CAPTURE -> {
-            inputSession().geometryClickCapturedButton = -1;
-            yield true;
-         }
-         case UNDO_PRESS -> finishUndoPress(minecraft, releasedAtNanos);
-         case NONE -> false;
-      };
-   }
-
-   private static MouseDragReleaseSemantics.Target mouseReleaseTarget(int action, int button) {
-      return MouseDragReleaseSemantics.releaseTarget(action, button, new MouseDragReleaseSemantics.State(
-         dragButton(inputSession().operationPointDrag),
-         dragButton(inputSession().operationDrag),
-         dragButton(workspaceGizmoDrag()),
-         dragButton(workspaceFaceDrag()),
-         dragButton(inputSession().geometryGizmoDrag),
-         inputSession().operationClickCapturedButton,
-         inputSession().geometryClickCapturedButton,
-         inputSession().undoPressCaptured
-      ));
-   }
-
-   private static boolean finishUndoPress(Minecraft minecraft, long releasedAtNanos) {
-      boolean shortPress = inputSession().undoPress.release(releasedAtNanos, UNDO_SHORT_PRESS_NANOS);
-      inputSession().undoPressCaptured = false;
-      if (shortPress && NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())) {
-         PacketDistributor.sendToServer(UndoFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
-      }
-      return true;
-   }
-
-   private static int dragButton(OperationPointDrag drag) {
-      return drag == null ? -1 : drag.mouseButton();
-   }
-
-   private static int dragButton(OperationDrag drag) {
-      return drag == null ? -1 : drag.mouseButton();
-   }
-
-   private static int dragButton(WorkspaceGizmoDrag drag) {
-      return drag == null ? -1 : drag.mouseButton();
-   }
-
-   private static int dragButton(WorkspaceFaceDrag drag) {
-      return drag == null ? -1 : drag.mouseButton();
-   }
-
-   private static int dragButton(GeometryGizmoDrag drag) {
-      return drag == null ? -1 : drag.mouseButton();
-   }
 
    private static MousePressRoutingSemantics.LeftTarget leftPressTarget(
       Minecraft minecraft,

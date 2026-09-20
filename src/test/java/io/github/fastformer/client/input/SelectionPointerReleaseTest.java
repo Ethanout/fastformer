@@ -9,6 +9,19 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class SelectionPointerReleaseTest {
+   @Test
+   void releaseUsesSuppliedSessionWithoutClearingAnotherSessionsCapture() {
+      var first = new ClientInputSession();
+      var second = new ClientInputSession();
+      first.operationClickCapturedButton = 0;
+      second.operationClickCapturedButton = 0;
+      assertTrue(MouseReleaseDispatcher.finish(null, first, MouseButtonInputSemantics.RELEASE, 0, 123L));
+      assertEquals(-1, first.operationClickCapturedButton);
+      assertEquals(0, second.operationClickCapturedButton);
+      assertTrue(MouseReleaseDispatcher.finish(null, second, MouseButtonInputSemantics.RELEASE, 0, 124L));
+      assertEquals(-1, second.operationClickCapturedButton);
+   }
+
    @AfterEach
    void clearPointer() throws Exception {
       FastPlaceClientInput.inputSession().reset();
@@ -40,10 +53,8 @@ class SelectionPointerReleaseTest {
    }
 
    private static boolean releaseMouse(int button) throws Exception {
-      Method method = FastPlaceClientInput.class.getDeclaredMethod(
-         "finishMouseRelease", net.minecraft.client.Minecraft.class, int.class, int.class, long.class);
-      method.setAccessible(true);
-      return (boolean) method.invoke(null, null, MouseButtonInputSemantics.RELEASE, button, System.nanoTime());
+      return MouseReleaseDispatcher.finish(null, FastPlaceClientInput.inputSession(),
+         MouseButtonInputSemantics.RELEASE, button, System.nanoTime());
    }
 
    @Test
@@ -52,11 +63,8 @@ class SelectionPointerReleaseTest {
       session.reset();
       session.undoPress.press(System.nanoTime());
       session.undoPressCaptured = true;
-      Method method = FastPlaceClientInput.class.getDeclaredMethod(
-         "finishMouseRelease", net.minecraft.client.Minecraft.class, int.class, int.class, long.class);
-      method.setAccessible(true);
       long releasedAt = System.nanoTime() + 1_000_000_000L;
-      assertEquals(true, method.invoke(null, null, MouseButtonInputSemantics.RELEASE, 0, releasedAt));
+      assertTrue(MouseReleaseDispatcher.finish(null, session, MouseButtonInputSemantics.RELEASE, 0, releasedAt));
       assertFalse(session.undoPressCaptured);
       assertFalse(session.undoPress.release(releasedAt, Long.MAX_VALUE));
    }
