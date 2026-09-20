@@ -5,7 +5,6 @@ import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.GizmoDragCalculator;
 import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
-import io.github.fastformer.network.payload.geometry.GeometryPointPayload;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
@@ -13,10 +12,8 @@ import io.github.fastformer.fastplace.geometry.GeometryInteractionHit;
 import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
 import io.github.fastformer.fastplace.geometry.PointerGesture;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Routes special-shape presses through the owning input session. */
@@ -83,45 +80,22 @@ final class GeometryInputController {
       GeometryInteractionHit hit = FastPlaceClientPreview.geometryInteractionHit();
       GeometryInteractionAction action = hit == null ? null : hit.target().action(gesture);
       if (action != null) {
-         sendGeometryInteraction(session, hit.target(), action, gesture, mouseButton);
+         GeometryInteractionDispatcher.send(session, hit.target(), action, gesture, mouseButton);
          return true;
       }
       if (FastPlaceClientPreview.geometryPointSelected()) {
-         sendGeometryClearSelection(session, gesture, mouseButton);
+         GeometryInteractionDispatcher.clearSelection(session, gesture, mouseButton);
          return true;
       }
       return false;
    }
 
-   private static void sendGeometryInteraction(
-      ClientInputSession session,
-      GeometryInteractionTarget target,
-      GeometryInteractionAction action,
-      PointerGesture gesture,
-      int mouseButton
-   ) {
-      PacketDistributor.sendToServer(
-         new GeometryInteractionPayload(target.type(), target.index(), action, gesture),
-         new CustomPacketPayload[0]
-      );
-      session.geometryClickCapturedButton = mouseButton;
-   }
-
-   private static void sendGeometryClearSelection(ClientInputSession session, PointerGesture gesture, int mouseButton) {
-      PacketDistributor.sendToServer(
-         GeometryInteractionPayload.clearSelection(gesture),
-         new CustomPacketPayload[0]
-      );
-      session.geometryClickCapturedButton = mouseButton;
-   }
-
    static boolean sendGeometryPointInput(Minecraft minecraft, ClientInputSession session, int mouseButton) {
       if (!(minecraft.hitResult instanceof BlockHitResult)
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryPointPayload.TYPE.id())) {
+         || !NetworkRegistry.hasChannel(minecraft.getConnection(), io.github.fastformer.network.payload.geometry.GeometryPointPayload.TYPE.id())) {
          return false;
       }
-      PacketDistributor.sendToServer(GeometryPointPayload.INSTANCE, new CustomPacketPayload[0]);
-      session.geometryClickCapturedButton = mouseButton;
+      GeometryInteractionDispatcher.sendPoint(session, mouseButton);
       return true;
    }
 
