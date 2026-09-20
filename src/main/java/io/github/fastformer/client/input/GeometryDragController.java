@@ -59,7 +59,7 @@ final class GeometryDragController {
       if (discardInvalidCapture(session)) return;
       Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
       if (target == Target.NONE) {
-         session.geometryGizmoDrag = null;
+         clearCapture(session);
          return;
       }
       boolean operationTransform = target == Target.OPERATION;
@@ -108,7 +108,7 @@ final class GeometryDragController {
       if (discardInvalidCapture(session)) return;
       Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
       if (target == Target.NONE) {
-         session.geometryGizmoDrag = null;
+         clearCapture(session);
          return;
       }
       boolean operationTransform = target == Target.OPERATION;
@@ -136,10 +136,7 @@ final class GeometryDragController {
             );
          PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
       }
-      long token = session.geometryGizmoDrag.captureToken();
-      session.geometryGizmoDrag = null;
-      session.pointerGesture.finish(token);
-      if (session.pointerGestureToken == token) session.pointerGestureToken = 0L;
+      clearCapture(session);
    }
 
    private static int gizmoDirection(GeometryGizmoDrag drag) {
@@ -163,8 +160,16 @@ final class GeometryDragController {
    private static boolean discardInvalidCapture(ClientInputSession session) {
       if (session.geometryGizmoDrag == null) return true;
       if (target(session, true, true) != Target.NONE) return false;
-      session.geometryGizmoDrag = null;
+      clearCapture(session);
       return true;
+   }
+
+   private static void clearCapture(ClientInputSession session) {
+      if (session.geometryGizmoDrag == null) return;
+      long token = session.geometryGizmoDrag.captureToken();
+      session.geometryGizmoDrag = null;
+      session.pointerGesture.finish(token);
+      if (session.pointerGestureToken == token) session.pointerGestureToken = 0L;
    }
 
    enum Target { NONE, GEOMETRY, OPERATION }

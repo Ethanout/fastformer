@@ -10,6 +10,26 @@ import net.minecraft.world.phys.Vec3;
 
 class GeometryDragControllerTest {
    @Test
+   void inactiveGeometryReleasesCaptureBeforeAccessingWorld() {
+      var session = capture(PointerGestureState.Kind.BUILDING_GEOMETRY);
+      GeometryDragController.update(null, session, false);
+      assertNull(session.geometryGizmoDrag);
+      assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
+      assertEquals(0L, session.pointerGestureToken);
+      GeometryDragController.finish(null, session);
+      assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
+   }
+
+   @Test
+   void inactiveOperationReleaseClearsItsCapture() {
+      var session = capture(PointerGestureState.Kind.OPERATION_GIZMO);
+      GeometryDragController.finish(null, session);
+      assertNull(session.geometryGizmoDrag);
+      assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
+      assertEquals(0L, session.pointerGestureToken);
+   }
+
+   @Test
    void staleReleaseDiscardsOldDragWithoutFinishingNewGesture() {
       var session = capture(PointerGestureState.Kind.BUILDING_GEOMETRY);
       long next = session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
