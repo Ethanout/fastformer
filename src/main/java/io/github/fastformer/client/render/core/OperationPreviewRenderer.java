@@ -5,6 +5,7 @@ import static io.github.fastformer.client.render.core.FastPlaceClientPreviewCore
 import static io.github.fastformer.client.gizmo.GizmoRenderer.operationGizmoAlpha;
 import io.github.fastformer.client.gizmo.GizmoRenderer;
 import io.github.fastformer.client.input.FastPlaceClientInput;
+import io.github.fastformer.client.input.PointerDragSnapshotView;
 import io.github.fastformer.client.input.OperationInteractionIntent;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.model.ClientSelectionPart;
@@ -446,8 +447,9 @@ final class OperationPreviewRenderer {
    private static void renderOperationPointDragGuides(
       PoseStack poseStack, BufferSource buffers, Vec3 camera, OperationPreviewPayload snapshot
    ) {
-      SelectionPrism.GridPlane plane = FastPlaceClientInput.operationPointDragPlane();
-      SelectionPrism.GridLine line = FastPlaceClientInput.operationPointDragLine();
+      var inputSession = FastPlaceClientInput.currentSession();
+      SelectionPrism.GridPlane plane = PointerDragSnapshotView.pointPlane(inputSession);
+      SelectionPrism.GridLine line = PointerDragSnapshotView.pointLine(inputSession);
       if (plane == null && line == null) {
          return;
       }
@@ -458,7 +460,7 @@ final class OperationPreviewRenderer {
             ? List.of(snapshot.selectionMin(), snapshot.selectionMax())
             : snapshot.points();
          List<Vec3> bounds = new ArrayList<>(guidePoints.stream().map(Vec3::atCenterOf).toList());
-         BlockPos target = FastPlaceClientInput.operationPointDragTarget();
+         BlockPos target = PointerDragSnapshotView.pointTarget(inputSession);
          if (target != null) {
             bounds.add(Vec3.atCenterOf(target));
          }
@@ -469,7 +471,7 @@ final class OperationPreviewRenderer {
       if (line != null) {
          Vec3 anchor = line.anchor();
          double radius = Math.max(8.0, camera.distanceTo(anchor) * 0.3);
-         BlockPos target = FastPlaceClientInput.operationPointDragTarget();
+         BlockPos target = PointerDragSnapshotView.pointTarget(inputSession);
          if (target != null) {
             radius = Math.max(radius, Math.abs(Vec3.atCenterOf(target).subtract(anchor).dot(line.direction())) + 4.0);
          }

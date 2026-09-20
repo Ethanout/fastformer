@@ -78,6 +78,8 @@ public final class FastPlaceClientInput {
       return owner == null ? UNBOUND_INPUT : owner.inputSession();
    }
 
+   public static ClientInputSession currentSession() { return inputSession(); }
+
    private FastPlaceClientInput() {
    }
 

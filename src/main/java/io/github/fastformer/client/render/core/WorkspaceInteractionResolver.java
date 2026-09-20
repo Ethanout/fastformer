@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render.core;
 
 import io.github.fastformer.client.input.FastPlaceClientInput;
+import io.github.fastformer.client.input.PointerDragSnapshotView;
 import io.github.fastformer.client.input.InteractionContext;
 import io.github.fastformer.client.input.InteractionIntentProvider;
 import io.github.fastformer.client.input.InteractionIntentResolver;
@@ -179,8 +180,9 @@ final class WorkspaceInteractionResolver {
    }
 
    private static Optional<OperationInteractionIntent> resolveDraggedFace(InteractionContext context) {
-      OperationGeometry.RayHit dragged = FastPlaceClientInput.workspaceFaceDragHit();
-      int draggedPartId = FastPlaceClientInput.workspaceFaceDragPartId();
+      var inputSession = FastPlaceClientInput.currentSession();
+      OperationGeometry.RayHit dragged = PointerDragSnapshotView.faceHit(inputSession);
+      int draggedPartId = PointerDragSnapshotView.facePartId(inputSession);
       if (dragged != null && draggedPartId > 0) {
          ClientSelectionPart part = ClientOperationController.workspace().part(draggedPartId).orElse(null);
          if (WorkspacePartInteractionCapabilities.canEditSource(part)) {
