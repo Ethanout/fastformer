@@ -15,23 +15,38 @@ public record OperationDrag(
    OperationGeometry.RayHit faceHit,
    AxisGizmo.HandleKey gizmoKey,
    double gizmoBaseValue,
-   DeferredDragClick deferredClick
+   DeferredDragClick deferredClick,
+   long captureToken
 ) {
+   public OperationDrag(
+      int axis, boolean positive, DragAxisFrame frame, Vec3 normal, int sentSteps, int mouseButton,
+      OperationGeometry.RayHit faceHit, AxisGizmo.HandleKey gizmoKey, double gizmoBaseValue,
+      DeferredDragClick deferredClick
+   ) {
+      this(axis, positive, frame, normal, sentSteps, mouseButton, faceHit, gizmoKey, gizmoBaseValue,
+         deferredClick, 0L);
+   }
+
+   public OperationDrag withCapture(long token) {
+      return new OperationDrag(axis, positive, frame, normal, sentSteps, mouseButton, faceHit,
+         gizmoKey, gizmoBaseValue, deferredClick, token);
+   }
+
    public OperationDrag withFrame(DragAxisFrame value) {
       return new OperationDrag(
-         axis, positive, value, normal, sentSteps, mouseButton, faceHit, gizmoKey, gizmoBaseValue, deferredClick
+         axis, positive, value, normal, sentSteps, mouseButton, faceHit, gizmoKey, gizmoBaseValue, deferredClick, captureToken
       );
    }
 
    public OperationDrag withSentSteps(int value) {
       return new OperationDrag(
-         axis, positive, frame, normal, value, mouseButton, faceHit, gizmoKey, gizmoBaseValue, deferredClick
+         axis, positive, frame, normal, value, mouseButton, faceHit, gizmoKey, gizmoBaseValue, deferredClick, captureToken
       );
    }
 
    public OperationDrag withDeferredClick(DeferredDragClick value) {
       return new OperationDrag(
-         axis, positive, frame, normal, sentSteps, mouseButton, faceHit, gizmoKey, gizmoBaseValue, value
+         axis, positive, frame, normal, sentSteps, mouseButton, faceHit, gizmoKey, gizmoBaseValue, value, captureToken
       );
    }
 }
