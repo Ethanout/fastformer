@@ -17,19 +17,20 @@ public record OperationPointDrag(
    double lineGrabBaseline,
    Vec3 axisBaselines,
    OperationPointDragConstraint constraint,
-   long pressedAt
+   long pressedAt,
+   long captureToken
 ) {
    public OperationPointDrag withSentTarget(BlockPos target) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, target, plane, planeGrabOffset, line,
-         lineGrabBaseline, axisBaselines, constraint, pressedAt
+         lineGrabBaseline, axisBaselines, constraint, pressedAt, captureToken
       );
    }
 
    public OperationPointDrag withConstraint(OperationPointDragConstraint value) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, plane, planeGrabOffset, line,
-         lineGrabBaseline, axisBaselines, value, pressedAt
+         lineGrabBaseline, axisBaselines, value, pressedAt, captureToken
       );
    }
 
@@ -41,7 +42,7 @@ public record OperationPointDrag(
    ) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, value, grabOffset, line,
-         lineGrabBaseline, baselines, valueConstraint, pressedAt
+         lineGrabBaseline, baselines, valueConstraint, pressedAt, captureToken
       );
    }
 
@@ -52,7 +53,7 @@ public record OperationPointDrag(
    ) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, plane, planeGrabOffset, value,
-         grabBaseline, axisBaselines, valueConstraint, pressedAt
+         grabBaseline, axisBaselines, valueConstraint, pressedAt, captureToken
       );
    }
 }
