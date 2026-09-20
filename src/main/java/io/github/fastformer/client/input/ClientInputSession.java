@@ -176,10 +176,6 @@ public final class ClientInputSession {
       this.physicalEvents.post(new PhysicalEvent.PointerRelease(java.util.Objects.requireNonNull(event)));
    }
 
-   boolean hasQueuedPhysicalEvents() {
-      return this.physicalEvents.hasUnfinishedEvents();
-   }
-
    void drainPhysicalEvents(BooleanSupplier contextActive,
       Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
       Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints) {

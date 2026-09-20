@@ -759,9 +759,7 @@ public final class FastPlaceClientInput {
          return;
       }
       // During migration, synchronous mouse paths cannot overtake queued physical input.
-      // Drain once at the tick boundary. A callback only handles a mouse event when no
-      // earlier physical event remains, so one callback cannot consume a later event.
-      if (inputSession().hasQueuedPhysicalEvents()) return;
+      if (!drainPhysicalInput(minecraft)) return;
       if (event.getAction() == MouseButtonInputSemantics.PRESS) inputSession().selectionPointer.clear();
       synchronizeInputState();
       ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.POINTER);
