@@ -49,7 +49,8 @@ final class OperationDragController {
       }
       boolean reverseInside = ClientOperationController.operationCuboid() && selection.contains(eye);
       int deferredSteps = reverseInside ? -shortPressSteps : shortPressSteps;
-      OperationDrag drag = new OperationDrag(
+      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
+      session.operationDrag = new OperationDrag(
          axis,
          positive,
          DragAxisFrame.start(hit.point(), reverseInside),
@@ -59,10 +60,9 @@ final class OperationDragController {
          hit,
          null,
          0.0,
-         DeferredDragClick.start(System.nanoTime(), deferredSteps)
+         DeferredDragClick.start(System.nanoTime(), deferredSteps),
+         session.pointerGestureToken
       );
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
-      session.operationDrag = drag.withCapture(session.pointerGestureToken);
       return true;
    }
 
@@ -82,7 +82,8 @@ final class OperationDragController {
       int encodedAxis = handle.operation() == AxisGizmo.Operation.MOVE
          ? axis + (FastPlaceClientPreview.operationPointSelected() ? 6 : 3)
          : axis;
-      OperationDrag drag = new OperationDrag(
+      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+      session.operationDrag = new OperationDrag(
          encodedAxis,
          positive,
          DragAxisFrame.start(hit.point(), !positive),
@@ -92,10 +93,9 @@ final class OperationDragController {
          null,
          handle.key(),
          ClientInputMath.axisComponent(gizmo.center(), handle.axis()),
-         DeferredDragClick.none()
+         DeferredDragClick.none(),
+         session.pointerGestureToken
       );
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
-      session.operationDrag = drag.withCapture(session.pointerGestureToken);
       return true;
    }
 

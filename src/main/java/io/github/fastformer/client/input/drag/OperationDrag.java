@@ -18,18 +18,10 @@ public record OperationDrag(
    DeferredDragClick deferredClick,
    long captureToken
 ) {
-   public OperationDrag(
-      int axis, boolean positive, DragAxisFrame frame, Vec3 normal, int sentSteps, int mouseButton,
-      OperationGeometry.RayHit faceHit, AxisGizmo.HandleKey gizmoKey, double gizmoBaseValue,
-      DeferredDragClick deferredClick
-   ) {
-      this(axis, positive, frame, normal, sentSteps, mouseButton, faceHit, gizmoKey, gizmoBaseValue,
-         deferredClick, 0L);
-   }
-
-   public OperationDrag withCapture(long token) {
-      return new OperationDrag(axis, positive, frame, normal, sentSteps, mouseButton, faceHit,
-         gizmoKey, gizmoBaseValue, deferredClick, token);
+   public OperationDrag {
+      if (captureToken == 0L) {
+         throw new IllegalArgumentException("An operation drag requires a capture token");
+      }
    }
 
    public OperationDrag withFrame(DragAxisFrame value) {
