@@ -1031,21 +1031,12 @@ public final class FastPlaceClientInput {
             event.setCanceled(true);
          }
       } else if (event.getButton() == 1 && buildingSession) {
-         if (event.getAction() == 1 && !InteractionContext.nearVanillaBlock(minecraft) && PathCloseInputDispatcher.press(minecraft, inputSession(), false, occurredAtNanos)) {
-            inputSession().buildingRightPress.consume();
+         if (QuickShapeMouseInputController.handleRight(minecraft, inputSession(), event.getAction(), occurredAtNanos)) {
             event.setCanceled(true);
          }
-      } else if (buildingSession
-         && event.getButton() == MouseButtonInputSemantics.MIDDLE_BUTTON
-         && FastPlaceClientPreview.buildingMiddleClickIgnored()) {
-         event.setCanceled(true);
-      } else if (MouseButtonInputSemantics.requestsBuildingMiddleConfirm(
-         buildingSession,
-         FastPlaceClientPreview.middleConfirmEnabled(),
-         event.getAction(),
-         event.getButton()
-      )
-         && ClientPlacementRouter.quickShape(minecraft)) {
+      } else if (QuickShapeMouseInputController.handleMiddle(
+         minecraft, inputSession(), buildingSession, event.getAction(), event.getButton()
+      )) {
          event.setCanceled(true);
       } else if (event.getButton() == 2
          && event.getAction() == 1
