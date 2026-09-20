@@ -1320,17 +1320,7 @@ public final class FastPlaceClientInput {
       ClientSessionManager.instance().observePlayer(minecraft);
       InteractionContext.tick(minecraft);
       if (minecraft.player == null || minecraft.getConnection() == null) {
-         io.github.fastformer.network.client.ClientPayloadDispatcher.endWorldSession();
-         QuickReplaceMode.clear();
-         cancelWorkspaceEditIfPresent();
-         ClientOperationController.selectionGestures().clear();
-         if (inputSession().operationSessionWasActive) {
-            minecraft.options.keyAttack.setDown(false);
-         }
-         inputSession().reset();
-         ClientOperationController.setAltMode(false);
-         InteractionContext.reset();
-         FastPlaceClientPreview.clearTransientFeedback();
+         InputWorldCleanup.clear(minecraft, inputSession());
         return;
       }
       io.github.fastformer.network.client.ClientPayloadDispatcher.onClientTick();
