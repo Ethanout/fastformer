@@ -97,7 +97,7 @@
 
 当前输入边界剩余任务：
 
-- [x] 特殊形状点击、设点、右键优先级和 Gizmo 启动拆入 GeometryInputController，显式接收输入会话。完整 test check 通过。拖动更新与释放、完整鼠标入队仍未完成。
+- [x] 特殊形状点击、设点、右键优先级和 Gizmo 启动拆入 GeometryInputController，显式接收输入会话。几何拖动更新与释放拆入 GeometryDragController，接收输入会话和 Ctrl 状态。两轮完整 test check 通过。完整鼠标入队及拖动捕获身份迁移仍未完成。
 
 快速起形模式和控制点目录归类已完成，具体范围与验证见 [职责归类记录](../changelog/2026-09-20-quickshape-and-controlpoint-packages.md)。它不代表下列会话与队列迁移完成。
 

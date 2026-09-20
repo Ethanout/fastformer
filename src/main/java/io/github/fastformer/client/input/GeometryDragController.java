@@ -1,0 +1,113 @@
+package io.github.fastformer.client.input;
+
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.input.math.ClientInputMath;
+import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.input.drag.GizmoDragCalculator;
+import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
+import io.github.fastformer.network.payload.operation.OperationTransformPayload;
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
+
+/** Updates and finishes geometry handles for the owning input session. */
+final class GeometryDragController {
+   private static final int MAX_DRAG_STEPS_PER_PACKET = 128;
+
+   private GeometryDragController() { }
+
+   static void update(Minecraft minecraft, ClientInputSession session, boolean controlDown) {
+      if (session.geometryGizmoDrag != null
+         && !session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.BUILDING_GEOMETRY)
+         && !session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.OPERATION_GIZMO)) {
+         session.geometryGizmoDrag = null;
+         return;
+      }
+      boolean operationTransform = ClientOperationController.operationSelectionReady();
+      if (!FastPlaceClientPreview.geometryActive() && !operationTransform) {
+         session.geometryGizmoDrag = null;
+         return;
+      }
+
+      Vec3 eye = minecraft.player.getEyePosition();
+      Vec3 view = minecraft.player.getViewVector(1.0F);
+      int totalSteps = session.geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
+         ? GizmoDragCalculator.geometryRotationSteps(session.geometryGizmoDrag, eye, view)
+         : operationTransform
+            ? GizmoDragCalculator.operationEndpointSteps(session.geometryGizmoDrag, eye, view)
+            : GizmoDragCalculator.geometryEndpointSteps(session.geometryGizmoDrag, eye, view);
+      if (operationTransform && session.geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE) {
+         totalSteps = GizmoDragCalculator.rotationSteps(RotationInputAngles.resolve(totalSteps, controlDown, session.modifier));
+      }
+      int delta = totalSteps - session.geometryGizmoDrag.sentSteps();
+      if (delta != 0 && (operationTransform
+         ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
+         : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
+         int clippedDelta = ClientInputMath.clampDragSteps(delta, MAX_DRAG_STEPS_PER_PACKET);
+         int operationTotal = session.geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
+            ? Math.clamp(totalSteps, -128, 128)
+            : Math.clamp(totalSteps, 0, 128);
+         CustomPacketPayload payload = operationTransform
+            ? new OperationTransformPayload(
+               ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
+               ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
+               gizmoDirection(session.geometryGizmoDrag),
+               operationTotal,
+               false
+            )
+            : new GeometryGizmoDragPayload(
+               ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
+               ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
+               clippedDelta,
+               false
+            );
+         PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
+          session.geometryGizmoDrag = session.geometryGizmoDrag.withSentSteps(session.geometryGizmoDrag.sentSteps() + clippedDelta);
+          FastPlaceClientPreview.noteGizmoFeedback(
+             session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.sentSteps(), session.geometryGizmoDrag.baseValue()
+          );
+      }
+   }
+
+   static void finish(Minecraft minecraft, ClientInputSession session) {
+      boolean operationTransform = ClientOperationController.operationSelectionReady();
+      if (session.geometryGizmoDrag != null && (operationTransform
+         ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
+         : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
+         FastPlaceClientPreview.noteGizmoFeedback(
+            session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.sentSteps(), session.geometryGizmoDrag.baseValue()
+         );
+         CustomPacketPayload payload = operationTransform
+            ? new OperationTransformPayload(
+               ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
+               ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
+               gizmoDirection(session.geometryGizmoDrag),
+               session.geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
+                  ? Math.clamp(session.geometryGizmoDrag.sentSteps(), -128, 128)
+                  : Math.clamp(session.geometryGizmoDrag.sentSteps(), 0, 128),
+               true
+            )
+            : new GeometryGizmoDragPayload(
+               ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
+               ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
+               0,
+               true
+            );
+         PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
+      }
+      session.geometryGizmoDrag = null;
+      session.pointerGesture.finish(session.pointerGestureToken);
+      session.pointerGestureToken = 0L;
+   }
+
+   private static int gizmoDirection(GeometryGizmoDrag drag) {
+      return drag.operation() == AxisGizmo.Operation.ROTATE
+         ? 0
+         : drag.direction() == AxisGizmo.Direction.NEGATIVE ? -1 : 1;
+   }
+
+}

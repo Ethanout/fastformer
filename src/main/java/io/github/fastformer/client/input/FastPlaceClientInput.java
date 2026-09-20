@@ -23,7 +23,6 @@ import io.github.fastformer.client.ui.GeometryRadialScreen;
 import io.github.fastformer.network.payload.geometry.CycleStageModePayload;
 import io.github.fastformer.network.payload.geometry.ClosePathPayload;
 import io.github.fastformer.network.payload.settings.ModifierStatePayload;
-import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
 import io.github.fastformer.network.payload.operation.OperationExtendPayload;
 import io.github.fastformer.network.payload.operation.OperationTransformPayload;
@@ -955,7 +954,7 @@ public final class FastPlaceClientInput {
          } else if (event.getAction() == 0
             && inputSession().geometryGizmoDrag != null
             && inputSession().geometryGizmoDrag.mouseButton() == 1) {
-            finishGeometryGizmoDrag(minecraft);
+            GeometryDragController.finish(minecraft, inputSession());
             consumed = true;
          }
          if (consumed) {
@@ -1227,7 +1226,7 @@ public final class FastPlaceClientInput {
             yield true;
          }
          case GEOMETRY_GIZMO_DRAG -> {
-            finishGeometryGizmoDrag(minecraft);
+            GeometryDragController.finish(minecraft, inputSession());
             if (button == MouseButtonInputSemantics.LEFT_BUTTON) {
                inputSession().undoPress.cancel();
                inputSession().undoPressCaptured = false;
@@ -1493,7 +1492,7 @@ public final class FastPlaceClientInput {
          SelectionGestureController.updateGizmo(inputSession(), minecraft, physicalCtrlDown(minecraft, false));
          return;
       }
-      if (dragPlan.advanceGeometryGizmo()) updateGeometryGizmoDrag(minecraft);
+      if (dragPlan.advanceGeometryGizmo()) GeometryDragController.update(minecraft, inputSession(), physicalCtrlDown(minecraft, false));
       if (dragPlan.advanceOperationPoint()) updateOperationPointDrag(minecraft);
       if (dragPlan.clearInactiveOperationDrags()) {
          inputSession().operationDrag = null;
@@ -1908,59 +1907,6 @@ public final class FastPlaceClientInput {
       inputSession().lastOperationPointRightClickIndex = -1;
    }
 
-   private static void updateGeometryGizmoDrag(Minecraft minecraft) {
-      if (inputSession().geometryGizmoDrag != null
-         && !ownsPointerGesture(PointerGestureState.Kind.BUILDING_GEOMETRY)
-         && !ownsPointerGesture(PointerGestureState.Kind.OPERATION_GIZMO)) {
-         inputSession().geometryGizmoDrag = null;
-         return;
-      }
-      boolean operationTransform = ClientOperationController.operationSelectionReady();
-      if (!FastPlaceClientPreview.geometryActive() && !operationTransform) {
-         inputSession().geometryGizmoDrag = null;
-         return;
-      }
-
-      Vec3 eye = minecraft.player.getEyePosition();
-      Vec3 view = minecraft.player.getViewVector(1.0F);
-      int totalSteps = inputSession().geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
-         ? GizmoDragCalculator.geometryRotationSteps(inputSession().geometryGizmoDrag, eye, view)
-         : operationTransform
-            ? GizmoDragCalculator.operationEndpointSteps(inputSession().geometryGizmoDrag, eye, view)
-            : GizmoDragCalculator.geometryEndpointSteps(inputSession().geometryGizmoDrag, eye, view);
-      if (operationTransform && inputSession().geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE) {
-         totalSteps = operationRotationSteps(minecraft, totalSteps);
-      }
-      int delta = totalSteps - inputSession().geometryGizmoDrag.sentSteps();
-      if (delta != 0 && (operationTransform
-         ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
-         : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
-         int clippedDelta = ClientInputMath.clampDragSteps(delta, MAX_DRAG_STEPS_PER_PACKET);
-         int operationTotal = inputSession().geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
-            ? Math.clamp(totalSteps, -128, 128)
-            : Math.clamp(totalSteps, 0, 128);
-         CustomPacketPayload payload = operationTransform
-            ? new OperationTransformPayload(
-               ClientInputMath.geometryOperationIndex(inputSession().geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(inputSession().geometryGizmoDrag.axis()),
-               gizmoDirection(inputSession().geometryGizmoDrag),
-               operationTotal,
-               false
-            )
-            : new GeometryGizmoDragPayload(
-               ClientInputMath.geometryOperationIndex(inputSession().geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(inputSession().geometryGizmoDrag.axis()),
-               clippedDelta,
-               false
-            );
-         PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
-          inputSession().geometryGizmoDrag = inputSession().geometryGizmoDrag.withSentSteps(inputSession().geometryGizmoDrag.sentSteps() + clippedDelta);
-          FastPlaceClientPreview.noteGizmoFeedback(
-             inputSession().geometryGizmoDrag.axis(), inputSession().geometryGizmoDrag.operation(), inputSession().geometryGizmoDrag.sentSteps(), inputSession().geometryGizmoDrag.baseValue()
-          );
-      }
-   }
-
    public static boolean precisionHudActive() {
       return modifierReticleMode() != ModifierReticleMode.NONE;
    }
@@ -2111,42 +2057,8 @@ public final class FastPlaceClientInput {
       return inputSession().geometryGizmoDrag == null ? 0.0 : inputSession().geometryGizmoDrag.baseValue();
    }
 
-   private static int operationRotationSteps(Minecraft minecraft, int rawSteps) {
-      return GizmoDragCalculator.rotationSteps(operationRotationRadians(minecraft, rawSteps));
-   }
-
    private static double operationRotationRadians(Minecraft minecraft, int rawSteps) {
       return RotationInputAngles.resolve(rawSteps, physicalCtrlDown(minecraft, false), inputSession().modifier);
-   }
-
-   private static void finishGeometryGizmoDrag(Minecraft minecraft) {
-      boolean operationTransform = ClientOperationController.operationSelectionReady();
-      if (inputSession().geometryGizmoDrag != null && (operationTransform
-         ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
-         : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
-         FastPlaceClientPreview.noteGizmoFeedback(
-            inputSession().geometryGizmoDrag.axis(), inputSession().geometryGizmoDrag.operation(), inputSession().geometryGizmoDrag.sentSteps(), inputSession().geometryGizmoDrag.baseValue()
-         );
-         CustomPacketPayload payload = operationTransform
-            ? new OperationTransformPayload(
-               ClientInputMath.geometryOperationIndex(inputSession().geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(inputSession().geometryGizmoDrag.axis()),
-               gizmoDirection(inputSession().geometryGizmoDrag),
-               inputSession().geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
-                  ? Math.clamp(inputSession().geometryGizmoDrag.sentSteps(), -128, 128)
-                  : Math.clamp(inputSession().geometryGizmoDrag.sentSteps(), 0, 128),
-               true
-            )
-            : new GeometryGizmoDragPayload(
-               ClientInputMath.geometryOperationIndex(inputSession().geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(inputSession().geometryGizmoDrag.axis()),
-               0,
-               true
-            );
-         PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
-      }
-      inputSession().geometryGizmoDrag = null;
-      finishPointerGesture();
    }
 
    static void finishWorkspaceGizmoDrag() {
@@ -2169,12 +2081,6 @@ public final class FastPlaceClientInput {
 
    private static WorkspaceFaceDrag workspaceFaceDrag() {
       return ClientOperationController.selectionGestures().face();
-   }
-
-   private static int gizmoDirection(GeometryGizmoDrag drag) {
-      return drag.operation() == AxisGizmo.Operation.ROTATE
-         ? 0
-         : drag.direction() == AxisGizmo.Direction.NEGATIVE ? -1 : 1;
    }
 
    private static boolean activeSession() {
