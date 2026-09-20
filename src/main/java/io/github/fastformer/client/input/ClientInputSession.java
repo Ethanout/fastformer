@@ -93,6 +93,21 @@ public final class ClientInputSession {
       this.selectionPointer.clear();
    }
 
+   /** Releases all pointer-owned state without touching the active draft. */
+   void cancelPointerState() {
+      this.selectionPointer.clear();
+      this.pointerGesture.cancel();
+      this.operationDrag = null;
+      this.operationPointDrag = null;
+      this.operationClickCapturedButton = -1;
+      this.geometryGizmoDrag = null;
+      this.geometryClickCapturedButton = -1;
+      this.undoPress.cancel();
+      this.undoPressCaptured = false;
+      this.clickGestureToken = 0L;
+      this.pointerGestureToken = 0L;
+   }
+
    void postSubmissionCompleted(ClientSemanticEvent.SubmissionCompleted event) {
       this.submissionEvents.post(event);
    }

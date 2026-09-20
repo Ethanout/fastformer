@@ -1883,11 +1883,7 @@ public final class FastPlaceClientInput {
       SelectionGestureController.cancelActive(inputSession());
       OperationDragController.cancel(inputSession());
       OperationPointInputController.cancel(inputSession());
-      inputSession().operationClickCapturedButton = -1;
-      inputSession().geometryGizmoDrag = null;
-      inputSession().geometryClickCapturedButton = -1;
-      inputSession().undoPress.cancel();
-      inputSession().undoPressCaptured = false;
+      inputSession().cancelPointerState();
       cancelPointerGesture();
       minecraft.options.keyAttack.setDown(false);
       minecraft.options.keyUse.setDown(false);
