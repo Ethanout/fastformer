@@ -1,5 +1,9 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
+
+import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
+
 record PointerReleaseSnapshot(int button, long occurredAtNanos, long clickToken,
    long pointerToken, MouseDragReleaseSemantics.Target target) {
    boolean dispatch(ClientInputSession session, MouseDragReleaseSemantics.Target currentTarget,

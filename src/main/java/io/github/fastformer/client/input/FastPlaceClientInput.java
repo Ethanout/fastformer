@@ -1,5 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.mouse.MousePressRoutingSemantics;
+
+import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
+
+import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
+
 
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.fastformer.client.operation.controller.ClientOperationController;

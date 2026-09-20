@@ -1,4 +1,4 @@
-package io.github.fastformer.client.input;
+package io.github.fastformer.client.input.mouse;
 
 /** Pure input policy for semantic mouse gestures. */
 public final class MouseButtonInputSemantics {

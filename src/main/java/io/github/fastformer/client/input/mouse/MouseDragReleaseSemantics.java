@@ -1,4 +1,4 @@
-package io.github.fastformer.client.input;
+package io.github.fastformer.client.input.mouse;
 
 /** Pure release priority for the left and right mouse gesture owners. */
 public final class MouseDragReleaseSemantics {

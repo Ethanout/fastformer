@@ -1,4 +1,4 @@
-package io.github.fastformer.client.input;
+package io.github.fastformer.client.input.mouse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

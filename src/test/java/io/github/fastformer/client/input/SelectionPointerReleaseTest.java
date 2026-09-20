@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Method;

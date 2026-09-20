@@ -120,6 +120,8 @@
 
 快速起形模式和控制点目录归类已完成，具体范围与验证见 [职责归类记录](../changelog/2026-09-20-quickshape-and-controlpoint-packages.md)。它不代表下列会话与队列迁移完成。
 
+- [x] 鼠标按钮、按下路由和拖动释放规则归入 `client.input.mouse`，三组对应测试同步归类。调用入口显式导入鼠标规则，完整 `test check` 通过。本次只调整归属，不改变按钮语义，也不代表鼠标队列迁移完成。
+
 快速起形逐点回退、多边面中键无操作见 [阶段输入记录](../changelog/2026-09-20-quickshape-stage-input.md)。提交等待已有实现与自动化，范围见 [提交等待记录](../changelog/2026-09-20-quickshape-wait.md)。客户端实机仍未验收。
 
 - [x] 菜单接管和会话退出共用 SelectionGestureController.cancelActive 回退选区编辑，按捕获令牌释放指针。完整 `test check` 通过，新增回归测试确认回退内容、重复取消无副作用、迟到释放不提交旧编辑。定向测试通过，日志见 `.dsh-tmp/selection-context-cancel-test.log`。真实菜单与失焦场景仍待实机验收。

@@ -1,4 +1,4 @@
-package io.github.fastformer.client.input;
+package io.github.fastformer.client.input.mouse;
 
 /** Resolves the owner of an ordinary left or right mouse press. */
 public final class MousePressRoutingSemantics {
