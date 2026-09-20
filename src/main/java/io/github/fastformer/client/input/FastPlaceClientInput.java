@@ -474,9 +474,7 @@ public final class FastPlaceClientInput {
          && modifierSubmodeAvailable()
          && NetworkRegistry.hasChannel(minecraft.getConnection(), ModifierStatePayload.TYPE.id());
       inputSession().modifier.press(occurredAtNanos, modifierCycleAvailable(), routed);
-      if (routed) {
-         PacketDistributor.sendToServer(new ModifierStatePayload(true), new CustomPacketPayload[0]);
-      }
+      if (routed) ModifierCommandDispatcher.press(minecraft);
    }
 
    /** Releases Alt even if the session ended before the physical key release. */
@@ -487,17 +485,13 @@ public final class FastPlaceClientInput {
    private static void releaseModifierState(Minecraft minecraft, boolean allowStageCycle, long occurredAtNanos) {
       ModifierGestureState.Release release = inputSession().modifier.release(occurredAtNanos, MODIFIER_SHORT_PRESS_NANOS);
       ClientOperationController.setAltMode(false);
-      if (release.routed() && NetworkRegistry.hasChannel(minecraft.getConnection(), ModifierStatePayload.TYPE.id())) {
-         PacketDistributor.sendToServer(new ModifierStatePayload(false), new CustomPacketPayload[0]);
-      }
+      if (release.routed()) ModifierCommandDispatcher.release(minecraft);
       if (allowStageCycle && release.routed()
          && release.cycleEligible()
          && release.shortPress()
          && NetworkRegistry.hasChannel(minecraft.getConnection(), CycleStageModePayload.TYPE.id())) {
          BlockPos candidate = FastPlaceClientPreview.lineModeCandidate();
-         PacketDistributor.sendToServer(
-            candidate != null ? new CycleStageModePayload(true, candidate) : CycleStageModePayload.INSTANCE, new CustomPacketPayload[0]
-         );
+         ModifierCommandDispatcher.cycle(minecraft);
       }
    }
 
