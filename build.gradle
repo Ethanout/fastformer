@@ -212,10 +212,8 @@ tasks.register('prepareAsciiTestRuntime', Sync) {
     from(sourceSets.test.output) {
         into 'test'
     }
-    from({
-        fileTree(layout.buildDirectory.dir('neoForm')) {
-            include '**/steps/recompile/outputs.jar'
-        }.singleFile
+    from(tasks.named('neoFormRecompile').map { task ->
+        task.outputs.files.filter { it.name == 'outputs.jar' }
     }) {
         into 'minecraft'
         rename { 'minecraft-neoforge.jar' }
