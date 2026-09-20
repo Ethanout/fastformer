@@ -1566,114 +1566,71 @@ public final class FastPlaceClientInput {
    }
 
    public static OperationGeometry.RayHit operationFaceDragHit() {
-      return inputSession().operationDrag == null ? null : inputSession().operationDrag.faceHit();
+      return PointerDragSnapshotView.operationFaceHit(inputSession());
    }
 
    public static OperationGeometry.RayHit workspaceFaceDragHit() {
-      return workspaceFaceDrag() == null ? null : workspaceFaceDrag().hit();
+      return PointerDragSnapshotView.faceHit(inputSession());
    }
 
    public static int workspaceFaceDragPartId() {
-      return workspaceFaceDrag() == null ? 0 : workspaceFaceDrag().baseline().id();
+      return PointerDragSnapshotView.facePartId(inputSession());
    }
 
    public static AxisGizmo.Axis operationGizmoDragAxis() {
-      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
-         return inputSession().geometryGizmoDrag.axis();
-      }
-      return inputSession().operationDrag == null || inputSession().operationDrag.gizmoKey() == null
-         ? null
-         : inputSession().operationDrag.gizmoKey().axis();
+      return PointerDragSnapshotView.operationAxis(inputSession());
    }
 
    public static AxisGizmo.Operation operationGizmoDragOperation() {
-      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
-         return inputSession().geometryGizmoDrag.operation();
-      }
-      return inputSession().operationDrag == null || inputSession().operationDrag.gizmoKey() == null
-         ? null
-         : inputSession().operationDrag.gizmoKey().operation();
+      return PointerDragSnapshotView.operationOperation(inputSession());
    }
 
    public static AxisGizmo.HandleKey operationGizmoDragKey() {
-      if (workspaceGizmoDrag() != null) {
-         return new AxisGizmo.HandleKey(
-            workspaceGizmoDrag().operation(), workspaceGizmoDrag().axis(), workspaceGizmoDrag().direction()
-         );
-      }
-      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
-         return new AxisGizmo.HandleKey(
-            inputSession().geometryGizmoDrag.operation(), inputSession().geometryGizmoDrag.axis(), inputSession().geometryGizmoDrag.direction()
-         );
-      }
-      return inputSession().operationDrag == null ? null : inputSession().operationDrag.gizmoKey();
+      return PointerDragSnapshotView.operationKey(inputSession());
    }
 
    public static boolean workspaceGizmoDragMatches(int partId, boolean common) {
-      return workspaceGizmoDrag() != null
-         && workspaceGizmoDrag().common() == common
-         && (common || workspaceGizmoDrag().partId() == partId);
+      return PointerDragSnapshotView.workspaceGizmoMatches(inputSession(), partId, common);
    }
 
    public static int operationGizmoDragSteps() {
-      if (workspaceGizmoDrag() != null) {
-         return workspaceGizmoDrag().sentSteps();
-      }
-      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
-         return inputSession().geometryGizmoDrag.sentSteps();
-      }
-      return inputSession().operationDrag == null || inputSession().operationDrag.gizmoKey() == null ? 0 : inputSession().operationDrag.sentSteps();
+      return PointerDragSnapshotView.operationSteps(inputSession());
    }
 
    public static double operationGizmoDragBaseValue() {
-      if (ClientOperationController.operationSelectionReady() && inputSession().geometryGizmoDrag != null) {
-         return inputSession().geometryGizmoDrag.baseValue();
-      }
-      return inputSession().operationDrag == null || inputSession().operationDrag.gizmoKey() == null ? 0.0 : inputSession().operationDrag.gizmoBaseValue();
+      return PointerDragSnapshotView.operationBaseValue(inputSession());
    }
 
    public static SelectionPrism.GridPlane operationPointDragPlane() {
-      if (inputSession().operationPointDrag == null || inputSession().operationPointDrag.plane() == null) {
-         return null;
-      }
-      return inputSession().operationPointDrag.plane();
+      return PointerDragSnapshotView.pointPlane(inputSession());
    }
 
    public static SelectionPrism.GridLine operationPointDragLine() {
-      if (inputSession().operationPointDrag == null || inputSession().operationPointDrag.line() == null) {
-         return null;
-      }
-      return inputSession().operationPointDrag.line();
+      return PointerDragSnapshotView.pointLine(inputSession());
    }
 
    public static BlockPos operationPointDragTarget() {
-      return inputSession().operationPointDrag == null ? null : inputSession().operationPointDrag.sentTarget();
+      return PointerDragSnapshotView.pointTarget(inputSession());
    }
 
    public static AxisGizmo.Axis geometryGizmoDragAxis() {
-      return inputSession().geometryGizmoDrag == null ? null : inputSession().geometryGizmoDrag.axis();
+      return PointerDragSnapshotView.axis(inputSession());
    }
 
    public static AxisGizmo.Operation geometryGizmoDragOperation() {
-      return inputSession().geometryGizmoDrag == null ? null : inputSession().geometryGizmoDrag.operation();
+      return PointerDragSnapshotView.operation(inputSession());
    }
 
    public static AxisGizmo.HandleKey geometryGizmoDragKey() {
-      return inputSession().geometryGizmoDrag == null
-         ? null
-         : new AxisGizmo.HandleKey(
-            inputSession().geometryGizmoDrag.operation(),
-            inputSession().geometryGizmoDrag.axis(),
-            inputSession().geometryGizmoDrag.direction()
-         );
+      return PointerDragSnapshotView.geometryKey(inputSession());
    }
 
    public static int geometryGizmoDragSteps() {
-      return inputSession().geometryGizmoDrag == null ? 0 : inputSession().geometryGizmoDrag.sentSteps();
+      return PointerDragSnapshotView.steps(inputSession());
    }
 
    public static double geometryGizmoDragBaseValue() {
-      return inputSession().geometryGizmoDrag == null ? 0.0 : inputSession().geometryGizmoDrag.baseValue();
+      return PointerDragSnapshotView.baseValue(inputSession());
    }
 
    private static double operationRotationRadians(Minecraft minecraft, int rawSteps) {
