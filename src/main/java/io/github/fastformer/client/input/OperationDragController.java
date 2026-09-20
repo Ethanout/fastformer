@@ -1,6 +1,9 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.drag.OperationDrag;
+import io.github.fastformer.client.input.drag.DeferredDragClick;
+import io.github.fastformer.client.input.drag.DragAxisFrame;
+import io.github.fastformer.fastplace.LongRangeBlockRaycast;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
@@ -20,6 +23,81 @@ final class OperationDragController {
    private static final long FACE_SHORT_PRESS_NANOS = FastPlaceClientInput.OPERATION_FACE_SHORT_PRESS_NANOS;
 
    private OperationDragController() { }
+
+   static boolean beginFace(Minecraft minecraft, ClientInputSession session, int mouseButton, int shortPressSteps) {
+      OperationSelectionVolume selection = FastPlaceClientPreview.operationSelection();
+      if (selection == null
+         || shortPressSteps == 0
+         || !ClientOperationController.operationSelectionReady()
+         || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
+         return false;
+      }
+
+      Vec3 eye = minecraft.player.getEyePosition();
+      OperationGeometry.RayHit hit = ClientOperationController.operationCuboid()
+         ? FastPlaceClientPreview.operationFaceHit()
+         : selection.raycast(eye, minecraft.player.getViewVector(1.0F), LongRangeBlockRaycast.MAX_REACH);
+      if (hit == null) {
+         return false;
+      }
+
+      Vec3 normal = hit.normal();
+      int axis = hit.axis();
+      boolean positive = normal.dot(selection.axis(axis)) > 0.0;
+      if (!ClientOperationController.operationCuboid() && (axis != 2 || !positive)) {
+         return false;
+      }
+      boolean reverseInside = ClientOperationController.operationCuboid() && selection.contains(eye);
+      int deferredSteps = reverseInside ? -shortPressSteps : shortPressSteps;
+      OperationDrag drag = new OperationDrag(
+         axis,
+         positive,
+         DragAxisFrame.start(hit.point(), reverseInside),
+         normal,
+         0,
+         mouseButton,
+         hit,
+         null,
+         0.0,
+         DeferredDragClick.start(System.nanoTime(), deferredSteps)
+      );
+      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
+      session.operationDrag = drag.withCapture(session.pointerGestureToken);
+      return true;
+   }
+
+   static boolean beginGizmo(Minecraft minecraft, ClientInputSession session, int mouseButton) {
+      AxisGizmo gizmo = FastPlaceClientPreview.operationGizmo();
+      AxisGizmo.Hit hit = FastPlaceClientPreview.operationGizmoHit();
+      if (gizmo == null || hit == null) {
+         return false;
+      }
+      AxisGizmo.Handle handle = hit.handle();
+      if (ClientOperationController.operationSelectionReady()) {
+         return GeometryDragController.beginConfirmedOperation(minecraft, session, gizmo, hit, mouseButton);
+      }
+      int axis = ClientInputMath.geometryAxisIndex(handle.axis());
+      boolean positive = handle.direction() != AxisGizmo.Direction.NEGATIVE;
+      Vec3 vector = gizmo.axisVector(handle.axis()).scale(positive ? 1.0 : -1.0);
+      int encodedAxis = handle.operation() == AxisGizmo.Operation.MOVE
+         ? axis + (FastPlaceClientPreview.operationPointSelected() ? 6 : 3)
+         : axis;
+      OperationDrag drag = new OperationDrag(
+         encodedAxis,
+         positive,
+         DragAxisFrame.start(hit.point(), !positive),
+         vector,
+         0,
+         mouseButton,
+         null,
+         handle.key(),
+         ClientInputMath.axisComponent(gizmo.center(), handle.axis()),
+         DeferredDragClick.none()
+      );
+      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+      session.operationDrag = drag.withCapture(session.pointerGestureToken);
+      return true;
+   }
 
    static void update(Minecraft minecraft, ClientInputSession session) {
       OperationDrag drag = session.operationDrag;
