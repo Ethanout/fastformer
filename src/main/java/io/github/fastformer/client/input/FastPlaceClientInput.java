@@ -1195,15 +1195,8 @@ public final class FastPlaceClientInput {
          return false;
       }
       dispatchSession.drainPhysicalEvents(contextActive,
-         key -> handleKey(minecraft, key), scroll -> {
-            if (NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id())
-               && FastPlaceClientPreview.usesScrollContext()
-               && inputSession().routing.dispatch(ClientInputStateMachine.InputKind.SCROLL)
-                  != ClientInputStateMachine.Dispatch.BLOCKED) {
-               PacketDistributor.sendToServer(new ScrollCandidatePayload(scroll.direction()), new CustomPacketPayload[0]);
-               FastPlaceClientPreview.noteScrollFeedback();
-            }
-         }, click -> SelectionInputDispatcher.dispatch(minecraft, dispatchSession, click), request -> {
+         key -> handleKey(minecraft, key), scroll -> ScrollInputDispatcher.dispatch(minecraft, dispatchSession, scroll),
+         click -> SelectionInputDispatcher.dispatch(minecraft, dispatchSession, click), request -> {
             if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) {
                handleRemoteSelectionPoint(request,
                   payload -> PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]));
@@ -1630,7 +1623,10 @@ public final class FastPlaceClientInput {
          case BLOCK -> event.setCanceled(true);
          case WORKSPACE_MOVE -> {
             BlockPos offset = OperationGeometry.viewAxisStep(minecraft.player.getViewVector(1.0F), scroll.direction());
-            if (ClientOperationController.moveSelected(offset)) {
+            var move = SelectionScrollMove.capture(ClientOperationController.interactionScene().owner(),
+               ClientOperationController.workspace(), offset);
+            if (move.isPresent() && !ClientOperationController.workspaceSubmissionPending()) {
+               inputSession().postScroll(new ScrollInputSnapshot(scroll.direction(), move.orElseThrow()));
                event.setCanceled(true);
             }
          }
