@@ -32,6 +32,11 @@ public final class ClientInputStateMachine {
       return onEvent(new ClientSemanticEvent.Submit.Placement(requestId)) instanceof InteractionTransition.Switch;
    }
 
+   public boolean awaitsPlacementRequest(long requestId) {
+      return state == State.SUBMITTING && requests.current() instanceof ClientSemanticEvent.Submit.Placement placement
+         && placement.requestId() == requestId;
+   }
+
    public boolean submit(java.util.UUID transferId) {
       return onEvent(new ClientSemanticEvent.Submit.Workspace(transferId)) instanceof InteractionTransition.Switch;
    }

@@ -49,6 +49,11 @@ public final class FastPlaceNetwork {
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
       PayloadRegistrar registrar = event.registrar("61").optional();
+      registrar.playToClient(QuickShapeSubmissionParametersPayload.TYPE, QuickShapeSubmissionParametersPayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyQuickShapeSubmissionParameters(payload, connection));
+         });
       registrar.playToClient(PlacementActionAckPayload.TYPE, PlacementActionAckPayload.STREAM_CODEC,
          (payload, context) -> {
             var connection = context.connection();

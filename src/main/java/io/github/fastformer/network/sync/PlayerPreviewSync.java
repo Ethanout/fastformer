@@ -32,6 +32,8 @@ public final class PlayerPreviewSync {
    private static final Map<UUID, UUID> CLIENT_CALLBACK_SESSIONS = new ConcurrentHashMap<>();
    private static final Map<UUID, Long> OPERATION_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
    private static final Map<UUID, Long> BUILDING_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
+   private static final Map<UUID, io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload> BUILDING_SUBMISSION_PARAMETERS =
+      new ConcurrentHashMap<>();
    private static final Map<UUID, Long> GEOMETRY_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
    private static final Map<UUID, Long> ACTIVITY_REVISIONS = new ConcurrentHashMap<>();
 
@@ -40,6 +42,17 @@ public final class PlayerPreviewSync {
 
    public static long buildingRevision(ServerPlayer player) {
       return BUILDING_PREVIEW_REVISIONS.getOrDefault(player.getUUID(), 0L);
+   }
+
+   public static boolean buildingSubmissionParametersMatch(ServerPlayer player) {
+      var published = BUILDING_SUBMISSION_PARAMETERS.get(player.getUUID());
+      var session = FastPlaceManager.session(player).orElse(null);
+      if (published == null || session == null || published.revision() != buildingRevision(player)) return false;
+      var settings = FastPlaceSettings.load(player);
+      return published.maxPlacement() == settings.maxPlacement()
+         && published.faceTieBias() == FastPlaceManager.effectiveFaceTieBias(session, settings)
+         && PlaceableItems.placementState(player.getMainHandItem(), player, session.placementContext())
+            .filter(published.prototype()::equals).isPresent();
    }
 
    public static void syncPreview(ServerPlayer player, FastPlaceSession session) {
@@ -187,6 +200,7 @@ public final class PlayerPreviewSync {
       LAST_ACTIVITY.remove(player.getUUID());
       CLIENT_CALLBACK_SESSIONS.remove(player.getUUID());
       BUILDING_PREVIEW_REVISIONS.remove(player.getUUID());
+      BUILDING_SUBMISSION_PARAMETERS.remove(player.getUUID());
       OPERATION_PREVIEW_REVISIONS.remove(player.getUUID());
       GEOMETRY_PREVIEW_REVISIONS.remove(player.getUUID());
       ACTIVITY_REVISIONS.remove(player.getUUID());
@@ -197,6 +211,7 @@ public final class PlayerPreviewSync {
       CLIENT_CALLBACK_SESSIONS.clear();
       OPERATION_PREVIEW_REVISIONS.clear();
       BUILDING_PREVIEW_REVISIONS.clear();
+      BUILDING_SUBMISSION_PARAMETERS.clear();
       GEOMETRY_PREVIEW_REVISIONS.clear();
       ACTIVITY_REVISIONS.clear();
    }
@@ -275,6 +290,26 @@ public final class PlayerPreviewSync {
             ),
             new CustomPacketPayload[0]
          );
+      }
+      sendSubmissionParameters(player, payload, revision);
+   }
+
+   private static void sendSubmissionParameters(ServerPlayer player, BuildingPreviewPayload payload, long revision) {
+      if (!payload.active()) {
+         BUILDING_SUBMISSION_PARAMETERS.remove(player.getUUID());
+         return;
+      }
+      var session = FastPlaceManager.session(player).orElse(null);
+      if (session == null) return;
+      var settings = FastPlaceSettings.load(player);
+      var state = PlaceableItems.placementState(player.getMainHandItem(), player, session.placementContext())
+         .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+      var parameters = new io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload(
+         revision, settings.maxPlacement(), state, FastPlaceManager.effectiveFaceTieBias(session, settings), callbackScope(player)
+      );
+      BUILDING_SUBMISSION_PARAMETERS.put(player.getUUID(), parameters);
+      if (player.connection.hasChannel(io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload.TYPE)) {
+         PacketDistributor.sendToPlayer(player, parameters);
       }
    }
 

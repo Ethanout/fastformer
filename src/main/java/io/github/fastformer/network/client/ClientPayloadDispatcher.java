@@ -12,6 +12,7 @@ import io.github.fastformer.network.payload.preview.ActivityStatePayload;
 import io.github.fastformer.network.payload.preview.BuildingPreviewEffectPayload;
 import io.github.fastformer.network.payload.preview.BuildingPreviewParametersPayload;
 import io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload;
+import io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload;
 import io.github.fastformer.network.payload.settings.OpenSettingsPayload;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -31,6 +32,16 @@ public final class ClientPayloadDispatcher {
 
    public static void applyBuildingSession(BuildingPreviewSessionPayload payload, Connection sourceConnection) {
       EVENTS.post(new PendingPayload(payload, sourceConnection));
+   }
+
+   public static void applyQuickShapeSubmissionParameters(QuickShapeSubmissionParametersPayload payload, Connection sourceConnection) {
+      EVENTS.post(new PendingPayload(payload, sourceConnection));
+   }
+
+   private static void deliverQuickShapeSubmissionParameters(QuickShapeSubmissionParametersPayload payload, Connection connection) {
+      if (ClientSessionManager.instance().acceptsPreviewCallback(payload.callbackScope(), connection)) {
+         invokeStatic(PREVIEW_CLASS, "applyQuickShapeSubmissionParameters", QuickShapeSubmissionParametersPayload.class, payload);
+      }
    }
 
    private static void deliverBuildingSession(BuildingPreviewSessionPayload payload, Connection sourceConnection) {
@@ -159,6 +170,7 @@ public final class ClientPayloadDispatcher {
       Connection connection = event.connection();
       switch (event.payload()) {
          case BuildingPreviewSessionPayload payload -> deliverBuildingSession(payload, connection);
+         case QuickShapeSubmissionParametersPayload payload -> deliverQuickShapeSubmissionParameters(payload, connection);
          case BuildingPreviewParametersPayload payload -> deliverBuildingParameters(payload, connection);
          case BuildingPreviewEffectPayload payload -> deliverBuildingEffect(payload, connection);
          case OperationPreviewPayload payload -> deliverOperationPreview(payload, connection);

@@ -22,6 +22,23 @@ public final class QuickShapeSubmissionGameTests {
    private QuickShapeSubmissionGameTests() {
    }
 
+   @GameTest(template = "fastformergametests.empty", batch = "quick_shape_snapshot")
+   public static void submissionParametersPreserveRegisteredBlockState(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      var value = new io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload(
+         12, 789, Blocks.OAK_LOG.defaultBlockState(), io.github.fastformer.fastplace.geometry.generation.LineTieBias.OPPOSITE,
+         io.github.fastformer.network.sync.PlayerPreviewSync.callbackScope(player));
+      var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+      try {
+         var codec = io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload.STREAM_CODEC;
+         codec.encode(buffer, value);
+         helper.assertTrue(value.equals(codec.decode(buffer)), "submission parameters lost their registry state or limit");
+      } finally {
+         buffer.release();
+      }
+      helper.succeed();
+   }
+
    @GameTest(template = "fastformergametests.empty", batch = "quick_shape_submission", timeoutTicks = 20000)
    public static void scrollEnterWritesTheCandidateLine(GameTestHelper helper) {
       submit(helper, LineMode.FREE_SCROLL, true);

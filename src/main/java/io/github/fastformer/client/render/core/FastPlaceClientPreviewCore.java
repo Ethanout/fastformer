@@ -341,6 +341,18 @@ public class FastPlaceClientPreviewCore {
       return PREVIEW_STATE.buildingSubmission();
    }
 
+   public static void applyQuickShapeSubmissionParameters(
+      io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload payload
+   ) {
+      PREVIEW_STATE.applyQuickShapeSubmissionParameters(payload);
+   }
+
+   public static java.util.Optional<io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload> submissionParameters(
+      io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot snapshot
+   ) {
+      return PREVIEW_STATE.submissionParameters(snapshot);
+   }
+
    public static void applyBuildingSession(BuildingPreviewSessionPayload payload) {
       if (PREVIEW_STATE.holdReconnectBuildingSession(payload)) {
          return;

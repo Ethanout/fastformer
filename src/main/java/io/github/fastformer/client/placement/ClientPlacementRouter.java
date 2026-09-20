@@ -40,17 +40,20 @@ public final class ClientPlacementRouter {
       return sendAction(minecraft, PlacementActionPayload.Action.QUICK_SHAPE);
    }
 
-   public static boolean confirmQuickShape(
-      Minecraft minecraft, QuickShapeSubmissionSnapshot snapshot
-   ) {
+   public static long beginQuickShapeRequest(Minecraft minecraft) {
       var type = QuickShapeConfirmPayload.TYPE;
-      if (snapshot == null || !supports(minecraft, type)
+      if (!supports(minecraft, type)
+         || !supports(minecraft, io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload.TYPE)
          || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) {
-         return false;
+         return 0;
       }
       long requestId = NEXT_ACTION_ID.incrementAndGet();
-      if (!io.github.fastformer.client.input.FastPlaceClientInput.beginPlacementRequest(requestId)) return false;
-      return sendSubmittedAction(minecraft, type,
+      return io.github.fastformer.client.input.FastPlaceClientInput.beginPlacementRequest(requestId) ? requestId : 0;
+   }
+
+   public static boolean sendPreparedQuickShape(Minecraft minecraft, QuickShapeSubmissionSnapshot snapshot, long requestId) {
+      if (!io.github.fastformer.client.input.FastPlaceClientInput.awaitsPlacementRequest(requestId)) return false;
+      return sendSubmittedAction(minecraft, QuickShapeConfirmPayload.TYPE,
          new QuickShapeConfirmPayload(
             requestId, snapshot.revision(), snapshot.scope()
          ), requestId);

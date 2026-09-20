@@ -1227,7 +1227,7 @@ public final class FastPlaceManager {
       return FastPlaceGeometry.effectiveStage(session.points(), settings.faceMode(), session.polygonClosed());
    }
 
-   private static LineTieBias effectiveFaceTieBias(FastPlaceSession session, FastPlaceSettings settings) {
+   public static LineTieBias effectiveFaceTieBias(FastPlaceSession session, FastPlaceSettings settings) {
       if (settings.faceMode() == FaceMode.POLYGON || session.points().size() < 3) {
          return LineTieBias.DEFAULT;
       }

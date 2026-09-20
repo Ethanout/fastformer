@@ -69,6 +69,8 @@
   "fastformer.message.placement_update_usage": "Update mode: normal or client_only",
   "fastformer.message.placement_update_value": "Update mode = %s",
   "fastformer.message.placement_generating": "Generating placement asynchronously",
+  "fastformer.message.quick_shape_submit_waiting": "Preparing placement. Press Q to cancel.",
+  "fastformer.message.quick_shape_submit_limit": "Placement exceeds the allowed limit",
   "fastformer.message.placement_too_large": "Placement exceeds limit %s",
   "fastformer.message.placement_queued": "Queued %s blocks",
   "fastformer.message.placement_placed": "Placed %s blocks",

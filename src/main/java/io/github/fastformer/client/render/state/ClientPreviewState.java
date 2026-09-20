@@ -30,6 +30,7 @@ public final class ClientPreviewState {
    private long buildingParametersRevision;
    private long buildingEffectRevision;
    private QuickShapeSubmissionSnapshot buildingSubmission;
+   private io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload submissionParameters;
    private long geometryRevision = -1L;
    private long activityRevision = -1L;
    /** Ticks an unanswered connection boundary waits before it is dropped. */
@@ -56,6 +57,21 @@ public final class ClientPreviewState {
          return Optional.empty();
       }
       return Optional.of(buildingSubmission);
+   }
+
+   public void applyQuickShapeSubmissionParameters(
+      io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload payload
+   ) {
+      if (submissionParameters == null || payload.revision() >= submissionParameters.revision()) {
+         submissionParameters = payload;
+      }
+   }
+
+   public Optional<io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload> submissionParameters(
+      QuickShapeSubmissionSnapshot snapshot
+   ) {
+      return submissionParameters != null && submissionParameters.revision() == snapshot.revision()
+         && submissionParameters.callbackScope().equals(snapshot.scope()) ? Optional.of(submissionParameters) : Optional.empty();
    }
 
    public OperationPreviewPayload operation() {
@@ -116,6 +132,7 @@ public final class ClientPreviewState {
     * next replayed snapshot never becomes visible on its own.
     */
    public void resetConnection() {
+      submissionParameters = null;
       if (building.active() || geometry.active() || reconnectRestorePending) {
          beginReconnectRestore();
       }

@@ -9,6 +9,8 @@ import java.util.function.BooleanSupplier;
 
 /** Transient input state owned by one player environment, never persisted with a draft. */
 public final class ClientInputSession {
+   final io.github.fastformer.client.quickshape.QuickShapeSubmissionIntent quickShapeSubmission =
+      new io.github.fastformer.client.quickshape.QuickShapeSubmissionIntent();
    private final ClientTickMailbox<ClientSemanticEvent.SubmissionCompleted> submissionEvents =
       new ClientTickMailbox<>(event -> { });
    private sealed interface PhysicalEvent {
@@ -56,6 +58,7 @@ public final class ClientInputSession {
    }
 
    public void reset() {
+      this.quickShapeSubmission.cancel();
       this.submissionEvents.invalidate();
       this.physicalEvents.invalidate();
       this.selectionPointer.clear();
@@ -84,6 +87,7 @@ public final class ClientInputSession {
 
    boolean cancel() {
       if (!this.routing.cancel() && !canCancelPendingRemotePoint()) return false;
+      this.quickShapeSubmission.cancel();
       discardPhysicalEvents();
       return true;
    }

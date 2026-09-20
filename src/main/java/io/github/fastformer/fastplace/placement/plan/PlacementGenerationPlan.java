@@ -23,7 +23,7 @@ public record PlacementGenerationPlan(
    PlacementTaskPlan taskPlan
 ) {
    public PlacementGenerationPlan {
-      points = List.copyOf(points);
+      points = points.stream().map(BlockPos::immutable).toList();
       if (modes == null || polygonVolumeShape == null || taskPlan == null || estimatedBlocks < 0L) {
          throw new IllegalArgumentException("A placement generation plan requires geometry and task policy");
       }
@@ -81,23 +81,9 @@ public record PlacementGenerationPlan(
    }
 
    private BlockGenerationResult generateTargets(ProgressiveBlockGeneration progress) {
-      BlockGenerationResult baseResult = progress == null
-         ? FastPlaceGeometry.blocksResult(
-            this.points,
-            this.modes,
-            this.polygonHeightConfirmed,
-            this.polygonVolumeShape,
-            this.taskPlan.maxPlacement() + 1
-         )
-         : FastPlaceGeometry.blocksResult(
-            this.points,
-            this.modes,
-            this.polygonHeightConfirmed,
-            this.polygonVolumeShape,
-            this.taskPlan.maxPlacement() + 1,
-            progress
-         );
-      return this.effect == null ? baseResult : this.effect.applyToTargets(baseResult);
+      return new PlacementGeometryPlan(points, modes, polygonHeightConfirmed, polygonVolumeShape,
+         taskPlan.maxPlacement(), effect).generate(progress == null
+            ? io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver.NONE : progress);
    }
 
    public record GeneratedPlacement(BlockGenerationResult result) {

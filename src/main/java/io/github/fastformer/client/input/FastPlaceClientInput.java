@@ -113,6 +113,10 @@ public final class FastPlaceClientInput {
       return true;
    }
 
+   public static boolean awaitsPlacementRequest(long requestId) {
+      return inputSession().routing.awaitsPlacementRequest(requestId);
+   }
+
    public static void acknowledgePlacementRequest(
       io.github.fastformer.network.payload.placement.PlacementActionAckPayload payload
    ) {
@@ -312,7 +316,8 @@ public final class FastPlaceClientInput {
                return;
             }
             boolean submitted = buildingSession
-               ? ClientPlacementRouter.confirmQuickShape(minecraft, event.quickShapeSubmission())
+               ? io.github.fastformer.client.quickshape.QuickShapeSubmissionController.begin(
+                  minecraft, inputSession().quickShapeSubmission, event.quickShapeSubmission())
                : ClientPlacementRouter.confirm(minecraft);
             if (!submitted) {
                 ClientInteractionFeedback.show(minecraft, "fastformer.message.placement_confirm_failed");
@@ -373,6 +378,8 @@ public final class FastPlaceClientInput {
    private static boolean cancelActiveSession(
       Minecraft minecraft, boolean dismissOperationRestore, boolean dismissPreviewRestore
    ) {
+      boolean cancellingQuickShape = inputSession().quickShapeSubmission.active()
+         || inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY) == ClientInputStateMachine.Dispatch.BUILDING;
       boolean cancelled = inputSession().cancel();
       if (dismissOperationRestore) ClientOperationController.dismissReconnectRestore();
       if (dismissPreviewRestore) FastPlaceClientPreview.dismissReconnectPreviewRestore();
@@ -381,7 +388,7 @@ public final class FastPlaceClientInput {
       }
       cancelOperationGesture(minecraft);
       resetModifierState(minecraft);
-      ClientOperationController.clearWorkspace();
+      if (!cancellingQuickShape) ClientOperationController.clearWorkspace();
       FastPlaceClientPreview.clearTransientFeedback();
       if (NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
          PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
@@ -1431,6 +1438,7 @@ public final class FastPlaceClientInput {
       io.github.fastformer.network.client.ClientPayloadDispatcher.onClientTick();
       inputSession().drainSubmissionEvents();
       drainPhysicalInput(minecraft);
+      io.github.fastformer.client.quickshape.QuickShapeSubmissionController.tick(minecraft, inputSession().quickShapeSubmission);
       ClientOperationController.onClientTick();
       ClientOperationController.sourceMask().reapply();
       FastPlaceClientPreview.onClientTick();

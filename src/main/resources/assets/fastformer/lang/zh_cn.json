@@ -69,6 +69,8 @@
   "fastformer.message.placement_update_usage": "更新策略使用 normal 或 client_only",
   "fastformer.message.placement_update_value": "更新策略 = %s",
   "fastformer.message.placement_generating": "正在异步生成放置内容",
+  "fastformer.message.quick_shape_submit_waiting": "正在准备放置，按 Q 取消。",
+  "fastformer.message.quick_shape_submit_limit": "放置量超过允许上限",
   "fastformer.message.placement_too_large": "放置量超过上限 %s",
   "fastformer.message.placement_queued": "已加入放置队列 %s 格",
   "fastformer.message.placement_placed": "已放置 %s 格",

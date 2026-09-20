@@ -510,6 +510,7 @@ public final class ServerInputDispatcher {
       if (payload == null || interactionBlocked(player) || !canOperate(player)
          || !acceptPlacementAction(player.getUUID(), payload.requestId())) return;
       if (!FastPlaceManager.active(player) || GeometryManager.active(player) || OperationManager.active(player)
+         || !PlayerPreviewSync.buildingSubmissionParametersMatch(player)
          || !payload.matches(PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player))) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_confirm_failed"));
          return;
