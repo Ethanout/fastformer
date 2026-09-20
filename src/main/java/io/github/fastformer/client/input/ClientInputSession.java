@@ -101,6 +101,10 @@ public final class ClientInputSession {
       this.physicalEvents.postKeyboard(event);
    }
 
+   boolean hasQueuedPhysicalInput() {
+      return this.physicalEvents.hasUnfinishedEvents();
+   }
+
    void postScroll(ScrollInputSnapshot event) {
       this.physicalEvents.postScroll(event);
    }

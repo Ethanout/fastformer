@@ -302,8 +302,7 @@ public final class FastPlaceClientInput {
                return;
             }
             boolean submitted = buildingSession
-               ? io.github.fastformer.client.quickshape.QuickShapeSubmissionController.begin(
-                  minecraft, inputSession().quickShapeSubmission, event.quickShapeSubmission())
+               ? QuickShapeInputController.submit(minecraft, inputSession(), event)
                : ClientPlacementRouter.confirm(minecraft);
             if (!submitted) {
                 ClientInteractionFeedback.show(minecraft, "fastformer.message.placement_confirm_failed");
