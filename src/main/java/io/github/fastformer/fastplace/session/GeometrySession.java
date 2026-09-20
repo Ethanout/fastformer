@@ -620,37 +620,7 @@ public final class GeometrySession implements SessionLifecycle {
    }
 
    private boolean removeOrUndo(BlockPos point, boolean useHitPoint) {
-      if (this.state instanceof PolyhedronGeometryState polyhedron && polyhedron.closed()) {
-         polyhedron.setClosed(false);
-         polyhedron.restoreAdjustmentBaseline();
-         if (polyhedron.points().size() > 1) {
-            polyhedron.points().removeLast();
-         }
-         this.resetPolyhedronTransform();
-         this.clearSelectedControlPoint();
-         return true;
-      }
-      int index = -1;
-      for (int i = 0; i < this.state.points().size(); i++) {
-         if (useHitPoint && this.state.points().get(i).block().equals(point)) {
-            index = i;
-            break;
-         }
-      }
-      if (index >= 0) {
-         this.state.points().remove(index);
-      } else if (!this.state.points().isEmpty()) {
-         this.state.points().removeLast();
-      } else {
-         return false;
-      }
-      this.state.setClosed(false);
-      if (this.state instanceof WallGeometryState wall) {
-         wall.extrusion = BlockPos.ZERO;
-      }
-      if (this.state instanceof ConePrismGeometryState cone && cone.points().size() < this.coneRequiredPoints()) {
-         cone.resetAdjustments();
-      }
+      if (!this.state.removeOrUndo(point, useHitPoint)) return false;
       this.clearSelectedControlPoint();
       return true;
    }
