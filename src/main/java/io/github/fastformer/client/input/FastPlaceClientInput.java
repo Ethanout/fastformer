@@ -257,13 +257,7 @@ public final class FastPlaceClientInput {
          if (operationSession) {
             cancelOperationGesture(minecraft);
          }
-         if (event.key() == 90
-            && NetworkRegistry.hasChannel(minecraft.getConnection(), WorldUndoPayload.TYPE.id())) {
-            PacketDistributor.sendToServer(WorldUndoPayload.INSTANCE, new CustomPacketPayload[0]);
-         } else if (event.key() == 89
-            && NetworkRegistry.hasChannel(minecraft.getConnection(), WorldRedoPayload.TYPE.id())) {
-            PacketDistributor.sendToServer(WorldRedoPayload.INSTANCE, new CustomPacketPayload[0]);
-         }
+         WorldHistoryCommandDispatcher.send(minecraft, event.key());
       }
       if (minecraft.player != null && minecraft.screen == null && minecraft.getConnection() != null) {
          SubmissionKeyboardSemantics.Command submissionCommand = SubmissionKeyboardSemantics.fromPhysicalKey(
