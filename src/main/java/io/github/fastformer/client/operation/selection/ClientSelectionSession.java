@@ -8,6 +8,7 @@ import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.InteractionVisibility;
 import io.github.fastformer.client.input.drag.SelectionGestureState;
 import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.session.ClientTickMailbox;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -20,6 +21,8 @@ public final class ClientSelectionSession {
    private final ClientOperationWorkspace workspace = new ClientOperationWorkspace();
    private UUID interactionOwnerId = UUID.randomUUID();
    private final InteractionHover hover = new InteractionHover();
+   private final ClientTickMailbox<InteractionHover.Event> hoverEvents =
+      new ClientTickMailbox<>(event -> { });
    private final SelectionGestureState gestures = new SelectionGestureState();
    private final SelectionSessionLifecycle lifecycle = new SelectionSessionLifecycle();
    private SelectionInteractionScene interactionScene = SelectionInteractionScene.empty(this.interactionOwnerId);
@@ -55,7 +58,7 @@ public final class ClientSelectionSession {
 
    public void publishInteractionScene() {
       this.interactionScene = SelectionInteractionScene.capture(this.interactionOwnerId, this.workspace, this.interactionScene);
-      if (this.workspace.locked()) this.hover.update(null);
+      if (this.workspace.locked()) enqueueHoverTransitions(this.hover.update(null));
       else {
          this.hover.reconcile(this.interactionScene);
          if (this.hover.intent() != null) updateHover(this.hover.intent());
@@ -92,7 +95,18 @@ public final class ClientSelectionSession {
          case null, default -> 0;
       };
       if (!InteractionVisibility.isVisible(object, this.workspace.selectedIds().contains(partId))) object = null;
-      return this.hover.updateTarget(object, intent);
+      List<InteractionHover.Event> transitions = this.hover.updateTarget(object, intent);
+      transitions.forEach(this.hoverEvents::post);
+      return transitions;
+   }
+
+   /** Delivers hover enter/leave notifications at the tick boundary. */
+   public void drainHoverEvents(java.util.function.Consumer<InteractionHover.Event> consumer) {
+      this.hoverEvents.drain(consumer);
+   }
+
+   private void enqueueHoverTransitions(List<InteractionHover.Event> transitions) {
+      transitions.forEach(this.hoverEvents::post);
    }
 
    public void clearLiveInteraction() {
@@ -106,7 +120,8 @@ public final class ClientSelectionSession {
       this.lifecycle.exit(SelectionSessionLifecycle.Cause.ENVIRONMENT_CHANGED);
       this.gestures.clear();
       this.interactionOwnerId = UUID.randomUUID();
-      this.hover.update(null);
+      enqueueHoverTransitions(this.hover.update(null));
+      this.hoverEvents.invalidate();
       this.interactionScene = SelectionInteractionScene.empty(this.interactionOwnerId);
       this.altHeld = false;
       publishInteractionScene();

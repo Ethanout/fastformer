@@ -27,6 +27,32 @@ class InteractionHoverTest {
    }
 
    @Test
+   void hoverTransitionsCanBeConsumedAtTickBoundary() {
+      var session = session();
+      session.updateHover(1);
+      var events = new java.util.ArrayList<InteractionHover.Event>();
+      session.drainHoverEvents(events::add);
+      assertEquals(1, events.size());
+      assertEquals(InteractionHover.Phase.ENTER, events.getFirst().phase());
+
+      session.updateHover(99);
+      assertTrue(events.size() == 1);
+      session.drainHoverEvents(events::add);
+      assertEquals(2, events.size());
+      assertEquals(InteractionHover.Phase.LEAVE, events.get(1).phase());
+   }
+
+   @Test
+   void clearingTransientInteractionInvalidatesQueuedHoverTransitions() {
+      var session = session();
+      session.updateHover(1);
+      session.clearTransientInteraction();
+      var events = new java.util.ArrayList<InteractionHover.Event>();
+      session.drainHoverEvents(events::add);
+      assertTrue(events.isEmpty());
+   }
+
+   @Test
    void deletionAndNumberReuseCannotTransferHover() {
       var session = session();
       session.updateHover(1);
