@@ -21,17 +21,13 @@ final class GeometryDragController {
    private GeometryDragController() { }
 
    static void update(Minecraft minecraft, ClientInputSession session, boolean controlDown) {
-      if (session.geometryGizmoDrag != null
-         && !session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.BUILDING_GEOMETRY)
-         && !session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.OPERATION_GIZMO)) {
+      if (session.geometryGizmoDrag == null) return;
+      Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
+      if (target == Target.NONE) {
          session.geometryGizmoDrag = null;
          return;
       }
-      boolean operationTransform = ClientOperationController.operationSelectionReady();
-      if (!FastPlaceClientPreview.geometryActive() && !operationTransform) {
-         session.geometryGizmoDrag = null;
-         return;
-      }
+      boolean operationTransform = target == Target.OPERATION;
 
       Vec3 eye = minecraft.player.getEyePosition();
       Vec3 view = minecraft.player.getViewVector(1.0F);
@@ -74,7 +70,12 @@ final class GeometryDragController {
    }
 
    static void finish(Minecraft minecraft, ClientInputSession session) {
-      boolean operationTransform = ClientOperationController.operationSelectionReady();
+      Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
+      if (target == Target.NONE) {
+         session.geometryGizmoDrag = null;
+         return;
+      }
+      boolean operationTransform = target == Target.OPERATION;
       if (session.geometryGizmoDrag != null && (operationTransform
          ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
          : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
@@ -109,5 +110,17 @@ final class GeometryDragController {
          ? 0
          : drag.direction() == AxisGizmo.Direction.NEGATIVE ? -1 : 1;
    }
+
+   static Target target(ClientInputSession session, boolean geometryActive, boolean operationReady) {
+      if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.BUILDING_GEOMETRY)) {
+         return geometryActive ? Target.GEOMETRY : Target.NONE;
+      }
+      if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.OPERATION_GIZMO)) {
+         return operationReady ? Target.OPERATION : Target.NONE;
+      }
+      return Target.NONE;
+   }
+
+   enum Target { NONE, GEOMETRY, OPERATION }
 
 }
