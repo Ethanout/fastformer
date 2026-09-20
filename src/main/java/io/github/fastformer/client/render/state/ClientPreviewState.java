@@ -1,5 +1,9 @@
 package io.github.fastformer.client.render.state;
 
+import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
+import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import java.util.Optional;
+
 import io.github.fastformer.fastplace.FastPlaceActivity;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
@@ -25,6 +29,7 @@ public final class ClientPreviewState {
    private long buildingSessionRevision;
    private long buildingParametersRevision;
    private long buildingEffectRevision;
+   private QuickShapeSubmissionSnapshot buildingSubmission;
    private long geometryRevision = -1L;
    private long activityRevision = -1L;
    /** Ticks an unanswered connection boundary waits before it is dropped. */
@@ -41,6 +46,16 @@ public final class ClientPreviewState {
 
    public BuildingPreviewPayload building() {
       return building;
+   }
+
+   /** A partial network update cannot supply submission data from the old display. */
+   public Optional<QuickShapeSubmissionSnapshot> buildingSubmission() {
+      if (buildingSubmission == null || buildingSessionRevision != buildingSubmission.revision()
+         || buildingParametersRevision != buildingSubmission.revision()
+         || buildingEffectRevision != buildingSubmission.revision()) {
+         return Optional.empty();
+      }
+      return Optional.of(buildingSubmission);
    }
 
    public OperationPreviewPayload operation() {
@@ -74,6 +89,7 @@ public final class ClientPreviewState {
          Math.max(this.buildingParametersRevision, this.buildingEffectRevision)
       );
       building = payload;
+      buildingSubmission = null;
       buildingSession = new BuildingPreviewSessionPayload(payload.session());
       buildingParameters = new BuildingPreviewParametersPayload(payload.parameters());
       buildingEffect = new BuildingPreviewEffectPayload(payload.activePlacementEffect());
@@ -322,6 +338,13 @@ public final class ClientPreviewState {
          sessionValue.placementContext(),
          effectValue.activeEffect()
       );
+      var scope = buildingSession.callbackScope();
+      buildingSubmission = building.active() && buildingSessionRevision > 0
+         && !scope.equals(OperationCallbackScope.unscoped())
+         && scope.equals(buildingParameters.callbackScope()) && scope.equals(buildingEffect.callbackScope())
+         ? new QuickShapeSubmissionSnapshot(
+            buildingSessionRevision, scope, building
+         ) : null;
       revision++;
       buildingVersion++;
       return true;

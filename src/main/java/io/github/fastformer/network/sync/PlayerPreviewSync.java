@@ -38,6 +38,10 @@ public final class PlayerPreviewSync {
    private PlayerPreviewSync() {
    }
 
+   public static long buildingRevision(ServerPlayer player) {
+      return BUILDING_PREVIEW_REVISIONS.getOrDefault(player.getUUID(), 0L);
+   }
+
    public static void syncPreview(ServerPlayer player, FastPlaceSession session) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       var modes = FastPlaceManager.effectiveModes(settings, session);

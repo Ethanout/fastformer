@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
+
 /** Physical key data captured before semantic dispatch. */
 record KeyboardInputSnapshot(
    int key,
@@ -8,8 +10,21 @@ record KeyboardInputSnapshot(
    int modifiers,
    long occurredAtNanos,
    boolean altDown,
-   boolean controlDown
+   boolean controlDown,
+   QuickShapeSubmissionSnapshot quickShapeSubmission
 ) {
+   KeyboardInputSnapshot(int key, int scanCode, int action, int modifiers, long occurredAtNanos,
+      boolean altDown, boolean controlDown) {
+      this(key, scanCode, action, modifiers, occurredAtNanos, altDown, controlDown, null);
+   }
+
+   KeyboardInputSnapshot withQuickShapeSubmission(
+      QuickShapeSubmissionSnapshot snapshot
+   ) {
+      return new KeyboardInputSnapshot(key, scanCode, action, modifiers, occurredAtNanos,
+         altDown, controlDown, snapshot);
+   }
+
    static KeyboardInputSnapshot capture(
       int key, int scanCode, int action, int modifiers, long occurredAtNanos,
       boolean leftAlt, boolean rightAlt, boolean leftControl, boolean rightControl

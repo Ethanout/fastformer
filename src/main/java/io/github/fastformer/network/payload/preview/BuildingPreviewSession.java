@@ -20,7 +20,7 @@ public record BuildingPreviewSession(
 ) {
    public BuildingPreviewSession {
       polygonVolumeShape = polygonVolumeShape == null ? PolygonVolumeShape.EXTRUDE : polygonVolumeShape;
-      points = points == null ? List.of() : List.copyOf(points);
-      freeScrollOffset = freeScrollOffset == null ? BlockPos.ZERO : freeScrollOffset;
+      points = points == null ? List.of() : points.stream().map(BlockPos::immutable).toList();
+      freeScrollOffset = freeScrollOffset == null ? BlockPos.ZERO : freeScrollOffset.immutable();
    }
 }

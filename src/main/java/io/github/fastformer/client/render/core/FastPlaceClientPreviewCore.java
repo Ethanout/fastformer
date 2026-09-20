@@ -337,6 +337,10 @@ public class FastPlaceClientPreviewCore {
       resetBuildingPreviewCaches();
    }
 
+   public static java.util.Optional<io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot> buildingSubmission() {
+      return PREVIEW_STATE.buildingSubmission();
+   }
+
    public static void applyBuildingSession(BuildingPreviewSessionPayload payload) {
       if (PREVIEW_STATE.holdReconnectBuildingSession(payload)) {
          return;

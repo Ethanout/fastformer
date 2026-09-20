@@ -133,14 +133,9 @@ public final class FastPlaceSession implements SessionLifecycle {
    }
 
    public List<BlockPos> submissionPoints(LineMode lineMode) {
-      List<BlockPos> submitted = new ArrayList<>(this.points);
-      if (this.stage() == FastPlaceStage.LINE && lineMode == LineMode.FREE_SCROLL) {
-         BlockPos candidate = this.points.getFirst().offset(this.freeScrollOffset());
-         if (!candidate.equals(this.points.getFirst())) {
-            submitted.add(candidate);
-         }
-      }
-      return List.copyOf(submitted);
+      return io.github.fastformer.fastplace.quickshape.QuickShapeSubmissionPoints.capture(
+         this.points, lineMode, this.freeScrollOffset()
+      );
    }
 
    public void setModifierHeld(boolean modifierHeld) {

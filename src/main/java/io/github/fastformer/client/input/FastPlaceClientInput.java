@@ -168,6 +168,9 @@ public final class FastPlaceClientInput {
          InputConstants.isKeyDown(window, 342), InputConstants.isKeyDown(window, 346),
          InputConstants.isKeyDown(window, 341), InputConstants.isKeyDown(window, 345)
       );
+      if (input.action() == 1 && (input.key() == 257 || input.key() == 335)) {
+         input = input.withQuickShapeSubmission(FastPlaceClientPreview.buildingSubmission().orElse(null));
+      }
       if (requiresImmediateKeyHandling(minecraft, input)) {
          handleKey(minecraft, input);
       } else {
@@ -308,7 +311,10 @@ public final class FastPlaceClientInput {
                }
                return;
             }
-            if (!ClientPlacementRouter.confirm(minecraft)) {
+            boolean submitted = buildingSession
+               ? ClientPlacementRouter.confirmQuickShape(minecraft, event.quickShapeSubmission())
+               : ClientPlacementRouter.confirm(minecraft);
+            if (!submitted) {
                 ClientInteractionFeedback.show(minecraft, "fastformer.message.placement_confirm_failed");
             }
          }

@@ -88,6 +88,8 @@ public final class FastPlaceNetwork {
          FastPlaceNetwork::handlePlacementAction
       );
       registrar.playToServer(QuickReplacePayload.TYPE, QuickReplacePayload.STREAM_CODEC, FastPlaceNetwork::handleQuickReplace);
+      registrar.playToServer(QuickShapeConfirmPayload.TYPE, QuickShapeConfirmPayload.STREAM_CODEC,
+         FastPlaceNetwork::handleQuickShapeConfirm);
       registrar.playToServer(GeometryRemovePointPayload.TYPE, GeometryRemovePointPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryRemovePoint);
       registrar.playToServer(GeometrySelectModePayload.TYPE, GeometrySelectModePayload.STREAM_CODEC, FastPlaceNetwork::handleGeometrySelectMode);
       registrar.playToServer(GeometryGizmoDragPayload.TYPE, GeometryGizmoDragPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryGizmoDrag);
@@ -374,6 +376,17 @@ public final class FastPlaceNetwork {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
             ServerInputDispatcher.startPlacement(player, payload.placement());
+         }
+      });
+   }
+
+   private static void handleQuickShapeConfirm(QuickShapeConfirmPayload payload, IPayloadContext context) {
+      context.enqueueWork(() -> {
+         if (!(context.player() instanceof ServerPlayer player)) return;
+         try {
+            ServerInputDispatcher.confirmQuickShape(player, payload);
+         } finally {
+            acknowledgePlacement(player, payload.requestId());
          }
       });
    }

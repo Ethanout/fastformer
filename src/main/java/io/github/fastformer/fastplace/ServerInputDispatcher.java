@@ -18,6 +18,8 @@ import io.github.fastformer.fastplace.geometry.PointerGesture;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.network.payload.operation.OperationPointPayload;
 import io.github.fastformer.network.payload.placement.PlacementActionPayload;
+import io.github.fastformer.network.payload.placement.QuickShapeConfirmPayload;
+import io.github.fastformer.network.sync.PlayerPreviewSync;
 import java.util.UUID;
 import java.util.HashMap;
 import java.util.Map;
@@ -500,6 +502,19 @@ public final class ServerInputDispatcher {
       }
       LAST_PLACEMENT_ACTION.put(owner, requestId);
       return true;
+   }
+
+   public static void confirmQuickShape(
+      ServerPlayer player, QuickShapeConfirmPayload payload
+   ) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player)
+         || !acceptPlacementAction(player.getUUID(), payload.requestId())) return;
+      if (!FastPlaceManager.active(player) || GeometryManager.active(player) || OperationManager.active(player)
+         || !payload.matches(PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player))) {
+         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_confirm_failed"));
+         return;
+      }
+      if (!nearNormalBlockReach(player)) FastPlaceManager.fill(player);
    }
 
    static void clearPlacementActions(UUID owner) {

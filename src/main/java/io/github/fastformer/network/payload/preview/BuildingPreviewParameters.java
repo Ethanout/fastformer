@@ -31,7 +31,7 @@ public record BuildingPreviewParameters(
    public BuildingPreviewParameters {
       faceBaseOffset = GeometryNumbers.finiteOrZero(faceBaseOffset);
       volumeBaseOffset = GeometryNumbers.finiteOrZero(volumeBaseOffset);
-      perpendicularAnchor = perpendicularAnchor == null ? BlockPos.ZERO : perpendicularAnchor;
+      perpendicularAnchor = perpendicularAnchor == null ? BlockPos.ZERO : perpendicularAnchor.immutable();
       angleDegrees = GeometryNumbers.finiteOr(angleDegrees, 0.0);
       faceTieBias = faceTieBias == null ? LineTieBias.DEFAULT : faceTieBias;
       faceRasterizationMode = faceRasterizationMode == null

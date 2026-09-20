@@ -61,7 +61,9 @@ public record BuildingPreviewPayload(
       faceRasterizationMode = faceRasterizationMode == null
          ? FaceRasterizationMode.POINT_SWEEP
          : faceRasterizationMode;
-      points = List.copyOf(points);
+      points = points.stream().map(BlockPos::immutable).toList();
+      freeScrollOffset = freeScrollOffset == null ? BlockPos.ZERO : freeScrollOffset.immutable();
+      perpendicularAnchor = perpendicularAnchor == null ? BlockPos.ZERO : perpendicularAnchor.immutable();
       faceBaseOffset = GeometryNumbers.finiteOrZero(faceBaseOffset);
       volumeBaseOffset = GeometryNumbers.finiteOrZero(volumeBaseOffset);
       angleDegrees = GeometryNumbers.finiteOr(angleDegrees, 0.0);

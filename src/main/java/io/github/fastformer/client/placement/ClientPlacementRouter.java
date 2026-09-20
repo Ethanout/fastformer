@@ -1,5 +1,8 @@
 package io.github.fastformer.client.placement;
 
+import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
+import io.github.fastformer.network.payload.placement.QuickShapeConfirmPayload;
+
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
@@ -35,6 +38,22 @@ public final class ClientPlacementRouter {
 
    public static boolean quickShape(Minecraft minecraft) {
       return sendAction(minecraft, PlacementActionPayload.Action.QUICK_SHAPE);
+   }
+
+   public static boolean confirmQuickShape(
+      Minecraft minecraft, QuickShapeSubmissionSnapshot snapshot
+   ) {
+      var type = QuickShapeConfirmPayload.TYPE;
+      if (snapshot == null || !supports(minecraft, type)
+         || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) {
+         return false;
+      }
+      long requestId = NEXT_ACTION_ID.incrementAndGet();
+      if (!io.github.fastformer.client.input.FastPlaceClientInput.beginPlacementRequest(requestId)) return false;
+      return sendSubmittedAction(minecraft, type,
+         new QuickShapeConfirmPayload(
+            requestId, snapshot.revision(), snapshot.scope()
+         ), requestId);
    }
 
    private static boolean sendAction(Minecraft minecraft, PlacementActionPayload.Action action) {
