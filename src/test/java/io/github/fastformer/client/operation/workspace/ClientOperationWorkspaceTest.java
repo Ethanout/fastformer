@@ -187,7 +187,12 @@ class ClientOperationWorkspaceTest {
 
    @Test
    void sourceMaskOnlyReplacesTransformedOrDeletedWorldParts() {
-      ClientSelectionPart original = ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD);
+      ClientSelectionPart original = new ClientSelectionPart(
+         1, ClientSelectionPart.Source.WORLD,
+         io.github.fastformer.fastplace.selection.OperationSelectionVolume.cuboid(
+            new BlockPos(0, 0, 0), new BlockPos(0, 0, 0), null, null),
+         java.util.Map.of(), WorkspaceTransform.IDENTITY, false
+      );
       assertFalse(original.masksSourceBlocks());
 
       ClientSelectionPart moved = original.withTranslation(new BlockPos(1, 0, 0));

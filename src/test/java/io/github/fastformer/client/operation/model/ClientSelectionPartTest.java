@@ -130,6 +130,27 @@ class ClientSelectionPartTest {
    }
 
    @Test
+   void emptySelectionRestoresOnlyWhenItsOuterFrameAlsoMatches() {
+      var original = new ClientSelectionPart(
+         1, ClientSelectionPart.Source.WORLD,
+         volume(new AABB(0, 0, 0, 2, 2, 2)), Map.of(), WorkspaceTransform.IDENTITY, false
+      );
+      var moved = original.withTranslation(new Vec3(3, 0, 0));
+      var sameFrame = moved.withTranslation(Vec3.ZERO);
+      assertTrue(sameFrame.isOriginalSelection(), "matching empty shape did not restore selection");
+
+      var differentFrame = new ClientSelectionPart(
+         1, ClientSelectionPart.Source.WORLD,
+         volume(new AABB(0, 0, 0, 3, 2, 2)), Map.of(),
+         moved.transform(), false, Map.of(),
+         new io.github.fastformer.client.operation.selection.SelectionBaseline(
+            original.selection(), WorkspaceTransform.IDENTITY, Map.of()),
+         ClientSelectionPart.Editability.LOCKED
+      ).withTranslation(Vec3.ZERO);
+      assertFalse(differentFrame.isOriginalSelection(), "empty blocks ignored a changed outer frame");
+   }
+
+   @Test
    void restoringContentsUnlocksWithoutAnotherTransformEvent() {
       var original = part(new AABB(0, 0, 0, 1, 1, 1));
       var changed = original.withTranslation(new Vec3(4, 0, 0))

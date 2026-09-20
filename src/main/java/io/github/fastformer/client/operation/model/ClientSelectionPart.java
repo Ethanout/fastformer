@@ -48,7 +48,7 @@ public record ClientSelectionPart(
          nextEditability = Editability.LOCKED;
       }
       if (nextBaseline != null && (this.source == Source.WORLD
-         ? nextBaseline.matchesBlocks(this.blocks, value)
+         ? nextBaseline.matchesBlocks(this.selection, this.blocks, value)
          : nextBaseline.matches(this.selection, value, this.sourceSnapshot))) {
          Map<BlockPos, ClientBlockSnapshot> restoredBlocks = this.source == Source.WORLD
             ? nextBaseline.sourceSnapshot() : this.blocks;

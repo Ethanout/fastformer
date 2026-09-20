@@ -14,6 +14,7 @@ import io.github.fastformer.client.operation.preview.Composition;
 import io.github.fastformer.client.operation.preview.CompositionBatch;
 import io.github.fastformer.client.operation.preview.CompositionBudget;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
@@ -130,7 +131,8 @@ class WorkspaceContentPreparerTest {
    @Test
    void unchangedAndRestoredSelectionsAreNotWorldWritesButRemainCopyable() {
       var blocks = Map.of(BlockPos.ZERO, snapshot());
-      var selection = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, null,
+      var selection = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, OperationSelectionVolume.cuboid(
+         BlockPos.ZERO, BlockPos.ZERO, null, null),
          blocks, WorkspaceTransform.IDENTITY, false);
       assertTrue(selection.isOriginalSelection());
       var moved = selection.withTranslation(new Vec3(2, 0, 0));
@@ -145,9 +147,11 @@ class WorkspaceContentPreparerTest {
    @Test
    void clipboardContentsStillSubmitWithoutATransformAlongsideUnchangedSelection() {
       var blocks = Map.of(BlockPos.ZERO, snapshot());
-      var selection = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, null,
+      var selection = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, OperationSelectionVolume.cuboid(
+         BlockPos.ZERO, BlockPos.ZERO, null, null),
          blocks, WorkspaceTransform.IDENTITY, false);
-      var pasted = new ClientSelectionPart(2, ClientSelectionPart.Source.CLIPBOARD, null,
+      var pasted = new ClientSelectionPart(2, ClientSelectionPart.Source.CLIPBOARD, OperationSelectionVolume.cuboid(
+         BlockPos.ZERO, BlockPos.ZERO, null, null),
          blocks, WorkspaceTransform.IDENTITY, false);
       var submitted = WorkspaceContentPreparer.submissionParts(List.of(selection, pasted));
       assertEquals(1, submitted.size());

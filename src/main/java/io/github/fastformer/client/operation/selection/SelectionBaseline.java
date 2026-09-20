@@ -21,7 +21,9 @@ public record SelectionBaseline(OperationSelectionVolume selection, WorkspaceTra
    }
 
    /** Compare full voxel contents, not transform parameters or visible bounds. */
-   public boolean matchesBlocks(Map<BlockPos, ClientBlockSnapshot> blocks, WorkspaceTransform candidate) {
+   public boolean matchesBlocks(OperationSelectionVolume currentSelection,
+      Map<BlockPos, ClientBlockSnapshot> blocks, WorkspaceTransform candidate) {
+      if (!sameBounds(this.selection, currentSelection)) return false;
       if (this.transform.equals(candidate) && this.sourceSnapshot.equals(blocks)) return true;
       if (this.sourceSnapshot.isEmpty() || blocks.isEmpty()) return false;
       Composition<ClientBlockSnapshot> original = WorkspacePreviewComposer.composeSnapshots(
@@ -35,5 +37,9 @@ public record SelectionBaseline(OperationSelectionVolume selection, WorkspaceTra
       return expected.size() == actual.size()
          && expected.hashCode() == actual.hashCode()
          && expected.equals(actual);
+   }
+
+   private static boolean sameBounds(OperationSelectionVolume left, OperationSelectionVolume right) {
+      return left != null && right != null && java.util.Objects.equals(left.bounds(), right.bounds());
    }
 }
