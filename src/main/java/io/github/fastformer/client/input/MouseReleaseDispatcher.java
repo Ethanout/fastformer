@@ -63,6 +63,14 @@ final class MouseReleaseDispatcher {
       };
    }
 
+   static boolean finishGeometryRightRelease(Minecraft minecraft, ClientInputSession session) {
+      if (session.geometryGizmoDrag == null || session.geometryGizmoDrag.mouseButton() != MouseButtonInputSemantics.RIGHT_BUTTON) {
+         return false;
+      }
+      GeometryDragController.finish(minecraft, session);
+      return true;
+   }
+
    static MouseDragReleaseSemantics.Target target(ClientInputSession session, int action, int button) {
       return MouseDragReleaseSemantics.releaseTarget(action, button, new MouseDragReleaseSemantics.State(
          dragButton(session.operationPointDrag),

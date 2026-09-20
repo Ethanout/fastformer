@@ -943,8 +943,7 @@ public final class FastPlaceClientInput {
          } else if (event.getAction() == 0
             && inputSession().geometryGizmoDrag != null
             && inputSession().geometryGizmoDrag.mouseButton() == 1) {
-            GeometryDragController.finish(minecraft, inputSession());
-            consumed = true;
+            consumed = MouseReleaseDispatcher.finishGeometryRightRelease(minecraft, inputSession());
          }
          if (consumed) {
             event.setCanceled(true);
