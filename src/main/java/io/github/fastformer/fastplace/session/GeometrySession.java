@@ -616,6 +616,10 @@ public final class GeometrySession implements SessionLifecycle {
    }
 
    public boolean removeOrUndo(BlockPos point) {
+      return this.removeOrUndo(point, true);
+   }
+
+   private boolean removeOrUndo(BlockPos point, boolean useHitPoint) {
       if (this.state instanceof PolyhedronGeometryState polyhedron && polyhedron.closed()) {
          polyhedron.setClosed(false);
          polyhedron.restoreAdjustmentBaseline();
@@ -628,7 +632,7 @@ public final class GeometrySession implements SessionLifecycle {
       }
       int index = -1;
       for (int i = 0; i < this.state.points().size(); i++) {
-         if (this.state.points().get(i).block().equals(point)) {
+         if (useHitPoint && this.state.points().get(i).block().equals(point)) {
             index = i;
             break;
          }
@@ -653,7 +657,7 @@ public final class GeometrySession implements SessionLifecycle {
 
    @Override
    public boolean undoStep() {
-      return this.removeOrUndo(BlockPos.ZERO);
+      return this.removeOrUndo(null, false);
    }
 
    @Override
