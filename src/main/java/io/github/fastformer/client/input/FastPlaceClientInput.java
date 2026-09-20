@@ -1353,15 +1353,7 @@ public final class FastPlaceClientInput {
       }
       inputSession().operationSessionWasActive = operationActive;
       if (!activeSession()) {
-         cancelWorkspaceEditIfPresent();
-         OperationDragController.cancel(inputSession());
-         OperationPointInputController.cancel(inputSession());
-         inputSession().undoPress.cancel();
-         inputSession().undoPressCaptured = false;
-         inputSession().geometryClickCapturedButton = -1;
-         inputSession().operationClickCapturedButton = -1;
-         ClientOperationController.selectionGestures().clear();
-         cancelPointerGesture();
+         InputSessionIdleCleanup.clear(minecraft, inputSession());
       }
       if (inputSession().operationDrag == null && inputSession().operationPointDrag == null
          && inputSession().geometryGizmoDrag == null && workspaceGizmoDrag() == null && workspaceFaceDrag() == null) {
