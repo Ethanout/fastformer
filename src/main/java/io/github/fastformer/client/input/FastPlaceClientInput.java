@@ -1766,6 +1766,7 @@ public final class FastPlaceClientInput {
           );
           inputSession().pointerGestureToken = inputSession().pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       }
+      inputSession().geometryGizmoDrag = inputSession().geometryGizmoDrag.withCapture(inputSession().pointerGestureToken);
       FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
       return true;
    }

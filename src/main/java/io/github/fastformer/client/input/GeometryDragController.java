@@ -100,9 +100,10 @@ final class GeometryDragController {
             );
          PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
       }
+      long token = session.geometryGizmoDrag.captureToken();
       session.geometryGizmoDrag = null;
-      session.pointerGesture.finish(session.pointerGestureToken);
-      session.pointerGestureToken = 0L;
+      session.pointerGesture.finish(token);
+      if (session.pointerGestureToken == token) session.pointerGestureToken = 0L;
    }
 
    private static int gizmoDirection(GeometryGizmoDrag drag) {
@@ -112,10 +113,12 @@ final class GeometryDragController {
    }
 
    static Target target(ClientInputSession session, boolean geometryActive, boolean operationReady) {
-      if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.BUILDING_GEOMETRY)) {
+      if (session.geometryGizmoDrag == null) return Target.NONE;
+      long token = session.geometryGizmoDrag.captureToken();
+      if (session.pointerGesture.owns(token, PointerGestureState.Kind.BUILDING_GEOMETRY)) {
          return geometryActive ? Target.GEOMETRY : Target.NONE;
       }
-      if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.OPERATION_GIZMO)) {
+      if (session.pointerGesture.owns(token, PointerGestureState.Kind.OPERATION_GIZMO)) {
          return operationReady ? Target.OPERATION : Target.NONE;
       }
       return Target.NONE;

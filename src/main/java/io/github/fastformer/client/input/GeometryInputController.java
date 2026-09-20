@@ -69,6 +69,7 @@ final class GeometryInputController {
 
    private static void captureGizmo(ClientInputSession session, AxisGizmo.Handle handle, double baseValue) {
       session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
+      session.geometryGizmoDrag = session.geometryGizmoDrag.withCapture(session.pointerGestureToken);
       FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
    }
 
