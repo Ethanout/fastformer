@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.session.FastPlaceSession;
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -19,7 +19,7 @@ class FastPlaceSessionDimensionTest {
    @Test
    void aDimensionChangeParksTheOldSelectionAndRestoresItOnReturn() {
       UUID owner = UUID.randomUUID();
-      FastPlaceSession overworld = sessionWithPoint(new BlockPos(4, 5, 6));
+      QuickShapeDraft overworld = sessionWithPoint(new BlockPos(4, 5, 6));
       try {
          FastPlaceManager.putSessionForTest(owner, overworld);
          assertTrue(FastPlaceManager.activeSessionForTest(owner));
@@ -46,8 +46,8 @@ class FastPlaceSessionDimensionTest {
    @Test
    void eachDimensionKeepsItsOwnSelection() {
       UUID owner = UUID.randomUUID();
-      FastPlaceSession overworld = sessionWithPoint(new BlockPos(1, 0, 0));
-      FastPlaceSession nether = sessionWithPoint(new BlockPos(0, 0, 1));
+      QuickShapeDraft overworld = sessionWithPoint(new BlockPos(1, 0, 0));
+      QuickShapeDraft nether = sessionWithPoint(new BlockPos(0, 0, 1));
       try {
          FastPlaceManager.putSessionForTest(owner, overworld);
          FastPlaceManager.parkDimensionSession(owner, Level.OVERWORLD);
@@ -98,8 +98,8 @@ class FastPlaceSessionDimensionTest {
       }
    }
 
-   private static FastPlaceSession sessionWithPoint(BlockPos point) {
-      FastPlaceSession session = new FastPlaceSession();
+   private static QuickShapeDraft sessionWithPoint(BlockPos point) {
+      QuickShapeDraft session = new QuickShapeDraft();
       session.addPoint(point, Vec3.ZERO, new Vec3(0.0, 0.0, 1.0));
       return session;
    }

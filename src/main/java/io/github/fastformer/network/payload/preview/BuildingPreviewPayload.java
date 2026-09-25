@@ -59,7 +59,7 @@ public record BuildingPreviewPayload(
       polygonVolumeShape = polygonVolumeShape == null ? PolygonVolumeShape.EXTRUDE : polygonVolumeShape;
       faceTieBias = faceTieBias == null ? LineTieBias.DEFAULT : faceTieBias;
       faceRasterizationMode = faceRasterizationMode == null
-         ? FaceRasterizationMode.POINT_SWEEP
+         ? FaceRasterizationMode.DEFAULT
          : faceRasterizationMode;
       points = points.stream().map(BlockPos::immutable).toList();
       freeScrollOffset = freeScrollOffset == null ? BlockPos.ZERO : freeScrollOffset.immutable();
@@ -97,7 +97,7 @@ public record BuildingPreviewPayload(
          enabled, middleConfirmEnabled, active, ctrlHeld, polygonClosed, polygonHeightConfirmed,
          polygonVolumeShape, points, angleDistance, freeScrollOffset, faceBaseOffset, volumeBaseOffset,
          perpendicularAnchor, angleDegrees, pointMode, raycastPlacement, lineMode, faceMode, volumeMode,
-         fillMode, faceTieBias, FaceRasterizationMode.POINT_SWEEP, placementContext, null
+         fillMode, faceTieBias, FaceRasterizationMode.DEFAULT, placementContext, null
       );
    }
 
@@ -226,7 +226,7 @@ public record BuildingPreviewPayload(
          VolumeMode.PERPENDICULAR_TO_FACE,
          FillMode.OUTLINE,
          LineTieBias.DEFAULT,
-         FaceRasterizationMode.POINT_SWEEP,
+         FaceRasterizationMode.DEFAULT,
          null,
          null
       );

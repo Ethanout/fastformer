@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.geometry;
 
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import java.util.Map;
 import net.minecraft.core.BlockPos;

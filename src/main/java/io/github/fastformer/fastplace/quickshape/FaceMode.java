@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.quickshape;
 
 
-public enum FaceMode implements FastPlaceMode {
+public enum FaceMode implements QuickShapeMode {
    COORDINATE_PLANE("fastformer.mode.face.coordinate_plane"),
    PARALLELOGRAM_BASE_PLANE("fastformer.mode.face.parallelogram_base_plane"),
    POLYGON("fastformer.mode.face.polygon");
@@ -13,8 +13,8 @@ public enum FaceMode implements FastPlaceMode {
    }
 
    @Override
-   public FastPlaceStage stage() {
-      return FastPlaceStage.FACE;
+   public QuickShapeStage stage() {
+      return QuickShapeStage.FACE;
    }
 
    @Override

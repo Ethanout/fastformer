@@ -11,6 +11,30 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class IncomingPayloadTransfersTest {
+   @Test void ownerBudgetIncludesBothKindsAndGlobalBudgetIncludesAllOwners() throws IOException {
+      var transfers = new IncomingPayloadTransfers(ignored -> {}, 8, 6);
+      UUID first = UUID.randomUUID(), second = UUID.randomUUID();
+      UUID workspace = UUID.randomUUID(), shape = UUID.randomUUID(), other = UUID.randomUUID();
+      transfers.acceptWorkspace(first, new OperationWorkspaceApplyPayload(workspace, 0, 3, new byte[] {1, 2, 3}));
+      transfers.acceptShape(first, new ShapePlacementPayload(shape, 0, 3, new byte[] {4, 5, 6}));
+      assertThrows(IOException.class, () -> transfers.acceptShape(first, new ShapePlacementPayload(shape, 1, 3, new byte[] {7})));
+      transfers.acceptWorkspace(second, new OperationWorkspaceApplyPayload(other, 0, 3, new byte[] {7, 8}));
+      assertThrows(IOException.class, () -> transfers.acceptWorkspace(second, new OperationWorkspaceApplyPayload(other, 1, 3, new byte[] {9})));
+      transfers.forget(first);
+      assertNull(transfers.acceptWorkspace(second, new OperationWorkspaceApplyPayload(other, 1, 3, new byte[] {9})));
+      assertArrayEquals(new byte[] {7, 8, 9, 10}, transfers.acceptWorkspace(second, new OperationWorkspaceApplyPayload(other, 2, 3, new byte[] {10})));
+   }
+   @Test void replacementEvictsAllPreviousIdentities() throws IOException {
+      var evicted = new java.util.ArrayList<IncomingPayloadTransfers.ExpiredTransfer>();
+      var transfers = new IncomingPayloadTransfers(evicted::add);
+      UUID owner = UUID.randomUUID();
+      for (int i = 0; i < 1000; i++) transfers.acceptWorkspace(owner,
+         new OperationWorkspaceApplyPayload(UUID.randomUUID(), 0, 2, new byte[] {1}));
+      org.junit.jupiter.api.Assertions.assertEquals(999, evicted.size());
+      transfers.forget(owner);
+      org.junit.jupiter.api.Assertions.assertEquals(1000, evicted.size());
+      org.junit.jupiter.api.Assertions.assertEquals(1000, evicted.stream().map(IncomingPayloadTransfers.ExpiredTransfer::transferId).distinct().count());
+   }
    @Test
    void staleWorkspaceFailurePreservesTheCurrentTransfer() throws IOException {
       IncomingPayloadTransfers transfers = new IncomingPayloadTransfers();

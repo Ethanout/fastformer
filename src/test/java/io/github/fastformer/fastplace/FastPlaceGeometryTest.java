@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+
 import io.github.fastformer.fastplace.quickshape.PointMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
@@ -26,7 +28,7 @@ class FastPlaceGeometryTest {
    @Test
    void quickRaycastDefaultUsesTheHitSurface() {
       FastPlaceSettings settings = FastPlaceSettings.fromTag(new net.minecraft.nbt.CompoundTag());
-      FastPlaceSession session = new FastPlaceSession();
+      QuickShapeDraft session = new QuickShapeDraft();
       FastPlaceGeometry.Modes modes = FastPlaceManager.effectiveModes(settings, session);
 
       assertEquals(RaycastPlacement.SURFACE, modes.raycastPlacement());
@@ -64,7 +66,7 @@ class FastPlaceGeometryTest {
 
    @Test
    void inheritedFreeScrollOffsetSurvivesTheModeChangeHook() {
-      FastPlaceSession session = new FastPlaceSession();
+      QuickShapeDraft session = new QuickShapeDraft();
       BlockPos inheritedOffset = new BlockPos(7, -2, 4);
       session.setFreeScrollOffset(inheritedOffset);
 

@@ -1,4 +1,7 @@
 {
+  "fastformer.message.operation_capture_too_large": "Selection exceeds the 2,000,000-cell scan limit. Reduce its bounds.",
+  "fastformer.message.operation_capture_failed": "Selection capture failed. Load its chunks and try again.",
+  "fastformer.message.operation_capture_pending": "Selection capture is in progress. Try the adjustment again when it completes.",
   "key.categories.fastformer": "FastFormer",
   "key.fastformer.toggle": "Toggle FastFormer",
 
@@ -146,6 +149,7 @@
   "fastformer.settings.face_rasterization": "Discrete face algorithm",
   "fastformer.settings.face_rasterization.point_sweep": "Point sweep (current)",
   "fastformer.settings.face_rasterization.gradient_cross_experimental": "Gradient cross interpolation (experimental)",
+  "fastformer.settings.face_rasterization.normal_plane_experimental": "Normal plane (default)",
   "fastformer.settings.placement_conflict": "Placement conflict",
   "fastformer.settings.placement_update": "Freeze placement updates",
   "fastformer.settings.smart_wood_frame": "Smart wood frame",

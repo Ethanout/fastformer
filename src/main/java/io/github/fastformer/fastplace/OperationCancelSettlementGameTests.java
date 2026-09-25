@@ -1,9 +1,9 @@
 package io.github.fastformer.fastplace;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;

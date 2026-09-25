@@ -9,6 +9,7 @@ import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -18,6 +19,7 @@ import net.minecraft.world.phys.Vec3;
 
 public record GeometryPreviewPayload(
    long revision,
+   UUID draftId,
    boolean active,
    GeometryMode mode,
    List<BlockPos> points,
@@ -117,6 +119,7 @@ public record GeometryPreviewPayload(
    ) {
       this(
          0L,
+         null,
          active,
          mode,
          points,
@@ -150,6 +153,7 @@ public record GeometryPreviewPayload(
    private GeometryPreviewPayload(FriendlyByteBuf buffer) {
       this(
          buffer.readVarLong(),
+         buffer.readBoolean() ? buffer.readUUID() : null,
          buffer.readBoolean(),
          buffer.readEnum(GeometryMode.class),
          readPoints(buffer),
@@ -182,6 +186,10 @@ public record GeometryPreviewPayload(
 
    private void write(FriendlyByteBuf buffer) {
       buffer.writeVarLong(this.revision);
+      buffer.writeBoolean(this.draftId != null);
+      if (this.draftId != null) {
+         buffer.writeUUID(this.draftId);
+      }
       buffer.writeBoolean(this.active);
       buffer.writeEnum(this.mode);
       buffer.writeCollection(this.points, (writeBuffer, point) -> writeBuffer.writeBlockPos(point));
@@ -215,6 +223,8 @@ public record GeometryPreviewPayload(
 
    public static GeometryPreviewPayload inactive() {
       return new GeometryPreviewPayload(
+         0L,
+         null,
          false,
          GeometryMode.WALL,
          List.of(),
@@ -240,13 +250,49 @@ public record GeometryPreviewPayload(
          new Vec3(1.0, 1.0, 1.0),
          new Vec3(1.0, 1.0, 1.0),
          false,
-         -1
+         -1,
+         OperationCallbackScope.unscoped()
       );
    }
 
    public GeometryPreviewPayload withRevision(long revision) {
       return new GeometryPreviewPayload(
          revision,
+         this.draftId,
+         this.active,
+         this.mode,
+         this.points,
+         this.pointLocations,
+         this.pointRoles,
+         this.closed,
+         this.ctrlHeld,
+         this.extrusion,
+         this.polyhedronShapeVariant,
+         this.coneShapeVariant,
+         this.compoundShapeVariant,
+         this.polyhedronSizeMode,
+         this.fillMode,
+         this.conePlaneMode,
+         this.coneRadius,
+         this.coneScaleX,
+         this.coneScaleZ,
+         this.coneTopScaleOffset,
+         this.coneTopOffset,
+         this.coneRotationRadians,
+         this.coneGizmoLocal,
+         this.rotation,
+         this.polyhedronLocalScale,
+         this.polyhedronWorldScale,
+         this.polyhedronGizmoLocal,
+         this.selectedPointIndex,
+         this.callbackScope
+      );
+   }
+
+   public GeometryPreviewPayload withDraftId(UUID draftId) {
+      return new GeometryPreviewPayload(
+         this.revision,
+         draftId,
          this.active,
          this.mode,
          this.points,
@@ -280,6 +326,7 @@ public record GeometryPreviewPayload(
    public GeometryPreviewPayload withCallbackScope(OperationCallbackScope callbackScope) {
       return new GeometryPreviewPayload(
          this.revision,
+         this.draftId,
          this.active,
          this.mode,
          this.points,

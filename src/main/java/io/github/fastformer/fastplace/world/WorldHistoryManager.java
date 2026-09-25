@@ -19,6 +19,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
@@ -758,6 +761,35 @@ public final class WorldHistoryManager {
    public static boolean busy(UUID id) {
       OwnerState owner = OWNERS.get(id);
       return owner != null && owner.busy();
+   }
+
+   /** Waits for the login-triggered history snapshot before a GameTest dispatches input. */
+   public static void awaitInitialHistoryLoadForTest(ServerPlayer player, long timeoutMillis) {
+      if (player == null || player.getServer() == null || timeoutMillis <= 0L) {
+         throw new IllegalArgumentException("A player with a server and a positive timeout is required");
+      }
+      OwnerState owner = OWNERS.get(player.getUUID());
+      if (owner == null) {
+         throw new IllegalStateException("Player history initialization did not start for " + player.getUUID());
+      }
+      CompletableFuture<WorldHistoryPersistence.LoadedHistory> load = owner.historyLoad;
+      if (load != null) {
+         try {
+            load.get(timeoutMillis, TimeUnit.MILLISECONDS);
+         } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for player history initialization", exception);
+         } catch (TimeoutException exception) {
+            throw new IllegalStateException("Timed out after " + timeoutMillis
+               + " ms waiting for player history initialization", exception);
+         } catch (ExecutionException exception) {
+            throw new IllegalStateException("Player history initialization failed", exception.getCause());
+         }
+         attachLoadedHistory(new WorldTaskContext(player.getServer(), player.getUUID()));
+      }
+      if (owner.historyLoad != null || owner.historyLoadFailed || owner.history == null) {
+         throw new IllegalStateException("Player history initialization did not become ready");
+      }
    }
 
    public static boolean snapshotRetryAvailable(ServerPlayer player) {

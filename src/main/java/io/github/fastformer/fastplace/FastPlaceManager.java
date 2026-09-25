@@ -1,7 +1,12 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
-import io.github.fastformer.fastplace.quickshape.FastPlaceMode;
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.fastplace.quickshape.QuickShapeWorkflow;
+import io.github.fastformer.fastplace.quickshape.QuickShapeTransitionExecutor;
+import io.github.fastformer.fastplace.quickshape.QuickShapeModeRules;
+
+import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
+import io.github.fastformer.fastplace.quickshape.QuickShapeMode;
 import io.github.fastformer.fastplace.quickshape.PointMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
@@ -53,7 +58,7 @@ public final class FastPlaceManager {
    private static final Logger LOGGER = LogUtils.getLogger();
    /** Generate ordinary placements on the server thread up to this size. */
    private static final long SYNCHRONOUS_PLACEMENT_LIMIT = 262_144L;
-   private static final Map<UUID, FastPlaceSession> SESSIONS = new HashMap<>();
+   private static final Map<UUID, QuickShapeDraft> SESSIONS = new HashMap<>();
    private static final Map<UUID, PlacementTask> TASKS = new HashMap<>();
    /**
     * Recovery snapshots already extracted from a task and not yet accepted.
@@ -69,12 +74,12 @@ public final class FastPlaceManager {
     * selection: only the binding to the old environment ends, so the points of
     * one dimension are never reused with the coordinates of another.
     */
-   private static final DimensionSessionStore<FastPlaceSession> PARKED_SESSIONS = new DimensionSessionStore<>();
+   private static final DimensionSessionStore<QuickShapeDraft> PARKED_SESSIONS = new DimensionSessionStore<>();
 
    private FastPlaceManager() {
    }
 
-   public static Optional<FastPlaceSession> session(ServerPlayer player) {
+   public static Optional<QuickShapeDraft> session(ServerPlayer player) {
       return Optional.ofNullable(SESSIONS.get(player.getUUID()));
    }
 
@@ -84,7 +89,7 @@ public final class FastPlaceManager {
 
    public static void setModifierHeld(ServerPlayer player, boolean modifierHeld) {
       MODIFIER_HELD.put(player.getUUID(), modifierHeld);
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session != null) {
          session.setModifierHeld(modifierHeld);
          FastPlaceNetwork.syncPreview(player, session);
@@ -117,7 +122,7 @@ public final class FastPlaceManager {
       return OperationManager.active(player);
    }
 
-   public static FastPlaceGeometry.Modes effectiveModes(FastPlaceSettings settings, FastPlaceSession session) {
+   public static FastPlaceGeometry.Modes effectiveModes(FastPlaceSettings settings, QuickShapeDraft session) {
       FastPlaceGeometry.Modes modes = settings.modes().withModifierHeld(session != null && session.modifierHeld());
       if (session != null && session.polygonClosed()) {
          return modes.withVolumeMode(VolumeMode.PERPENDICULAR_TO_FACE);
@@ -129,7 +134,8 @@ public final class FastPlaceManager {
             session != null && session.modifierHeld() ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE
          );
       }
-      if (session != null && session.stage() == FastPlaceStage.LINE && settings.lineMode() == LineMode.RAYCAST) {
+      if (session != null && session.stage(settings.faceMode())
+         == QuickShapeStage.LINE && settings.lineMode() == LineMode.RAYCAST) {
          return modes.withRaycastPlacement(
             session.modifierHeld() ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE
          );
@@ -146,20 +152,29 @@ public final class FastPlaceManager {
    }
 
    public static void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean modifierHeld) {
+      addInitialPoint(player, hit, modifierHeld, player.getEyePosition(), player.getViewVector(1.0F));
+   }
+
+   /** Starts a draft with the physical press ray, rather than the server's later camera state. */
+   public static void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean modifierHeld, Vec3 eye, Vec3 view) {
       MODIFIER_HELD.put(player.getUUID(), modifierHeld);
-      addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit, modifierHeld);
+      addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit, modifierHeld, eye, view);
    }
 
    private static void addPoint(
       ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld
    ) {
-      FastPlaceSession session = SESSIONS.computeIfAbsent(player.getUUID(), ignored -> new FastPlaceSession());
+      addPoint(player, hitBlock, surfaceBlock, hit, modifierHeld, player.getEyePosition(), player.getViewVector(1.0F));
+   }
+
+   private static void addPoint(
+      ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld, Vec3 eye, Vec3 view
+   ) {
+      QuickShapeDraft session = SESSIONS.computeIfAbsent(player.getUUID(), ignored -> new QuickShapeDraft());
       session.setModifierHeld(modifierHeld);
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int previousPointCount = session.points().size();
-      FastPlaceStage previousStage = effectiveStage(session, settings);
       FastPlaceGeometry.Modes modes = effectiveModes(settings, session);
-      boolean collectingPolygon = settings.faceMode() == FaceMode.POLYGON && session.points().size() >= 2 && !session.polygonClosed();
       BlockPos point = FastPlaceGeometry.resolveCandidate(
          session.points(),
          session.polygonClosed(),
@@ -168,8 +183,8 @@ public final class FastPlaceManager {
          session.faceBaseOffset(),
          session.volumeBaseOffset(),
          session.perpendicularAnchor(),
-         player.getEyePosition(),
-         player.getViewVector(1.0F),
+         eye,
+         view,
          session.freeScrollOffset(),
          modes
       );
@@ -180,59 +195,80 @@ public final class FastPlaceManager {
             player.level(), player, player.getMainHandItem(), hit, embedded
          ));
       }
-      if (session.polygonClosed()) {
-         int pointCount = session.points().size();
-         session.addPoint(point, player.getEyePosition(), player.getViewVector(1.0F));
-         if (session.points().size() > pointCount) {
-            session.confirmPolygonHeight();
-            fill(player);
-         } else {
-            FastPlaceNetwork.syncPreview(player, session);
-         }
-         return;
-      }
-      boolean closed = session.addOrClose(point, player.getEyePosition(), player.getViewVector(1.0F), collectingPolygon ? 3 : defaultClosingPoints(session));
-      if (!collectingPolygon && previousPointCount == 2 && session.points().size() == 3) {
-         session.confirmFaceTieBias(modifierHeld ? LineTieBias.OPPOSITE : LineTieBias.DEFAULT);
-      }
-      FastPlaceStage currentStage = effectiveStage(session, settings);
-      if (!collectingPolygon && currentStage != previousStage) {
-         session.onStageChanged();
-      }
-      if (closed) {
-         if (collectingPolygon) {
-            session.closePolygon();
-            session.onStageChanged();
-            FastPlaceNetwork.syncPreview(player, session);
-         } else {
-            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.closed_points", session.points().size()));
-            cancel(player);
-         }
-      } else if (!collectingPolygon && session.points().size() == 4) {
-         fill(player);
-      } else {
-         FastPlaceNetwork.syncPreview(player, session);
-      }
+      dispatchQuickShape(player, session, settings.faceMode(), new QuickShapeWorkflow.Event.ConfirmPoint(
+         point, eye, view, modifierHeld));
    }
 
-   private static int defaultClosingPoints(FastPlaceSession session) {
-      return session.stage() == FastPlaceStage.VOLUME ? 4 : 3;
+   private static boolean dispatchQuickShape(ServerPlayer player, QuickShapeDraft draft, FaceMode faceMode,
+      QuickShapeWorkflow.Event event) {
+      return QuickShapeTransitionExecutor.execute(draft, faceMode, event, new QuickShapeTransitionExecutor.Effects() {
+         @Override
+         public boolean accepts(QuickShapeWorkflow.Decision decision) {
+            if (decision.action() != QuickShapeWorkflow.Action.SUBMIT) return true;
+            if (placementBusy(player)) {
+               FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
+               return false;
+            }
+            if (PlaceableItems.placementState(player.getMainHandItem(), player, draft.placementContext()).isEmpty()) {
+               FastPlaceNetwork.syncPreview(player, draft);
+               return false;
+            }
+            return true;
+         }
+
+         @Override
+         public void preview() {
+            FastPlaceNetwork.syncPreview(player, draft);
+         }
+
+         @Override
+         public void submit() {
+            fill(player);
+         }
+
+         @Override
+         public void finishClosedPath() {
+            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.closed_points", draft.points().size()));
+            cancel(player);
+         }
+
+         @Override
+         public void cancelEmptyDraft() {
+            cancel(player);
+            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.cancelled"));
+         }
+      });
+   }
+
+   public static io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext candidateContext(ServerPlayer player) {
+      QuickShapeDraft draft = SESSIONS.get(player.getUUID());
+      if (draft == null) return null;
+      return new io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext(draft.points(), draft.polygonClosed(),
+         draft.faceBaseOffset(), draft.volumeBaseOffset(), draft.perpendicularAnchor(), draft.freeScrollOffset(),
+         effectiveModes(FastPlaceSettings.load(player), draft), draft.modifierHeld());
+   }
+
+   public static boolean confirmCapturedPoint(ServerPlayer player,
+      io.github.fastformer.network.payload.placement.QuickShapePointerPayload input, BlockHitResult hit,
+      io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext context) {
+      QuickShapeDraft draft = SESSIONS.get(player.getUUID());
+      if (draft == null || context.modifierHeld() != input.modifierHeld()) return false;
+      FastPlaceSettings settings = FastPlaceSettings.load(player);
+      BlockPos candidate = context.resolve(hit, input.eye(), input.view());
+      if (!candidate.equals(input.candidate())) return false;
+      return dispatchQuickShape(player, draft, settings.faceMode(), new QuickShapeWorkflow.Event.ConfirmPoint(
+         candidate, input.eye(), input.view(), input.modifierHeld()));
    }
 
    public static void undo(ServerPlayer player) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session != null) {
-         if (!session.undoStep()) {
-            cancel(player);
-            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.cancelled"));
-         } else {
-            FastPlaceNetwork.syncPreview(player, session);
-         }
+         dispatchQuickShape(player, session, FastPlaceSettings.load(player).faceMode(), QuickShapeWorkflow.Event.Undo.INSTANCE);
       }
    }
 
    public static void sync(ServerPlayer player) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session != null) {
          FastPlaceNetwork.syncPreview(player, session);
       } else {
@@ -241,7 +277,7 @@ public final class FastPlaceManager {
    }
 
    public static void cancel(ServerPlayer player) {
-      FastPlaceSession session = SESSIONS.remove(player.getUUID());
+      QuickShapeDraft session = SESSIONS.remove(player.getUUID());
       if (session != null) {
          session.onDestroyed();
          FastPlaceNetwork.clearPreview(player);
@@ -287,13 +323,13 @@ public final class FastPlaceManager {
       cycleStageMode(player, null);
    }
 
-   public static void setStageMode(ServerPlayer player, FastPlaceMode mode) {
+   public static void setStageMode(ServerPlayer player, QuickShapeMode mode) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
-      if (session != null && session.polygonClosed() && mode.stage() == FastPlaceStage.VOLUME) {
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
+      if (session != null && session.polygonClosed() && mode.stage() == QuickShapeStage.VOLUME) {
          return;
       }
-      if (!FastPlaceStateMachine.allowedModes(mode.stage(), settings.storedLineMode(), settings.storedFaceMode()).contains(mode)) {
+      if (!QuickShapeModeRules.allowedModes(mode.stage(), settings.storedLineMode()).contains(mode)) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.mode_rejected", FastPlaceMessages.text(mode)));
          return;
       }
@@ -308,19 +344,19 @@ public final class FastPlaceManager {
    }
 
    public static void cycleStageMode(ServerPlayer player, BlockPos lineCandidate) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       if (session != null && session.polygonClosed() && !session.polygonHeightConfirmed()) {
          session.cyclePolygonVolumeShape();
          FastPlaceNetwork.syncPreview(player, session);
          return;
       }
-      FastPlaceStage stage = session == null ? FastPlaceStage.POINT : effectiveStage(session, settings);
+      QuickShapeStage stage = session == null ? QuickShapeStage.POINT : effectiveStage(session, settings);
       BlockPos freeScrollCandidateOffset = null;
-      if (session != null && stage == FastPlaceStage.LINE && lineCandidate != null) {
+      if (session != null && stage == QuickShapeStage.LINE && lineCandidate != null) {
          freeScrollCandidateOffset = lineCandidate.subtract(session.points().getFirst());
       }
-      FastPlaceMode nextMode = settings.cycleMode(player, stage);
+      QuickShapeMode nextMode = settings.cycleMode(player, stage);
       if (session != null) {
          session.onModeChanged(nextMode == LineMode.FREE_SCROLL ? freeScrollCandidateOffset : null);
          FastPlaceNetwork.syncPreview(player, session);
@@ -336,7 +372,7 @@ public final class FastPlaceManager {
    }
 
    public static void adjustFreeScrollOffset(ServerPlayer player, int steps) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session != null && steps != 0) {
          session.adjustFreeScrollOffset(player.getViewVector(1.0F), steps);
          FastPlaceNetwork.syncPreview(player, session);
@@ -344,22 +380,13 @@ public final class FastPlaceManager {
    }
 
    public static boolean closePolygon(ServerPlayer player) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       FastPlaceSettings settings = FastPlaceSettings.load(player);
-      if (session == null
-         || settings.faceMode() != FaceMode.POLYGON
-         || session.polygonClosed()
-         || session.points().size() < 3) {
-         return false;
-      }
-      session.closePolygon();
-      session.onStageChanged();
-      FastPlaceNetwork.syncPreview(player, session);
-      return true;
+      return session != null && dispatchQuickShape(player, session, settings.faceMode(), QuickShapeWorkflow.Event.ClosePath.INSTANCE);
    }
 
    public static void scrollContext(ServerPlayer player, int steps) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session != null && steps != 0) {
          if (session.polygonClosed()) {
             return;
@@ -395,7 +422,7 @@ public final class FastPlaceManager {
       if (!GeometryNumbers.finite(value)) {
          return false;
       }
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session == null) {
          return false;
       }
@@ -435,8 +462,8 @@ public final class FastPlaceManager {
       if (!GeometryNumbers.finite(value)) {
          return false;
       }
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
-      if (session != null && effectiveStage(session, FastPlaceSettings.load(player)) == FastPlaceStage.FACE) {
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
+      if (session != null && effectiveStage(session, FastPlaceSettings.load(player)) == QuickShapeStage.FACE) {
          FastPlaceSettings settings = FastPlaceSettings.load(player);
          if (settings.faceMode() != FaceMode.POLYGON) {
             return false;
@@ -451,8 +478,9 @@ public final class FastPlaceManager {
    }
 
    public static boolean setLineAngleDistance(ServerPlayer player, int value) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
-      if (session != null && session.stage() == FastPlaceStage.LINE) {
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
+      if (session != null && session.stage(FastPlaceSettings.load(player).faceMode())
+         == QuickShapeStage.LINE) {
          FastPlaceSettings settings = FastPlaceSettings.load(player);
          if (settings.lineMode() != LineMode.FREE_SCROLL) {
             return false;
@@ -467,10 +495,10 @@ public final class FastPlaceManager {
    }
 
    public static boolean setVolumeDistance(ServerPlayer player, int value) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session != null
          && !session.polygonClosed()
-         && effectiveStage(session, FastPlaceSettings.load(player)) == FastPlaceStage.VOLUME
+         && effectiveStage(session, FastPlaceSettings.load(player)) == QuickShapeStage.VOLUME
          && FastPlaceGeometry.usesVolumeOffset(FastPlaceSettings.load(player).modes())) {
          session.setVolumeBaseOffset(
             FastPlaceGeometry.volumeBaseAxis(session.points(), FastPlaceSettings.load(player).modes(), player.getViewVector(1.0F)).scale((double)value)
@@ -483,7 +511,7 @@ public final class FastPlaceManager {
    }
 
    public static void fill(ServerPlayer player) {
-      FastPlaceSession session = SESSIONS.get(player.getUUID());
+      QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session != null) {
          if (placementBusy(player)) {
             FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
@@ -526,7 +554,7 @@ public final class FastPlaceManager {
             if (!generationAdmission.allowed()) {
                LOGGER.warn(
                   "FastFormer placement generation rejected: stage={}, fillMode={}, pointCount={}, baseEstimate={}, targetEstimate={}, additionalSets={}, requestedBytes={}, usableBytes={}",
-                  FastPlaceGeometry.effectiveStage(points, modes.faceMode(), session.polygonClosed()),
+                  session.stage(modes.faceMode()),
                   modes.fillMode(),
                   points.size(),
                   generationPlan.estimatedBlocks(),
@@ -535,7 +563,7 @@ public final class FastPlaceManager {
                   generationAdmission.requestedBytes(),
                   generationAdmission.usableBytes()
                );
-               cancel(player);
+               FastPlaceNetwork.syncPreview(player, session);
                FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
                return;
             }
@@ -559,14 +587,14 @@ public final class FastPlaceManager {
                );
                if (generationReservation.isEmpty()) {
                   enqueueTask(player, generationPlan.waitForGenerationMemory());
-                  cancel(player);
+                  FastPlaceNetwork.syncPreview(player, session);
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
                   return;
                }
                try {
                   generated = generationPlan.generateNow();
                } catch (RuntimeException | OutOfMemoryError exception) {
-                  cancel(player);
+                  FastPlaceNetwork.syncPreview(player, session);
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
                   LOGGER.error("FastFormer synchronous placement generation failed for {}", player.getUUID(), exception);
                   return;
@@ -576,14 +604,14 @@ public final class FastPlaceManager {
                BlockGenerationResult generationResult = generated.result();
                Set<BlockPos> blocks = generationResult.blocks();
                if (generationResult.status() == BlockGenerationResult.Status.CONSTRAINTS_FAILED) {
-                  cancel(player);
+                  FastPlaceNetwork.syncPreview(player, session);
                   FastPlaceMessages.chat(player, "fastformer.message.face_generation_constraints_failed");
                } else if (generationResult.status() == BlockGenerationResult.Status.LIMIT_EXCEEDED
                   || blocks.size() > maxPlacement) {
-                  cancel(player);
+                  FastPlaceNetwork.syncPreview(player, session);
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_too_large", maxPlacement));
                } else if (blocks.isEmpty()) {
-                  cancel(player);
+                  FastPlaceNetwork.syncPreview(player, session);
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
                 } else {
                    enqueueTask(player, PlacementTask.ready(blocks, generationPlan.taskPlan()));
@@ -817,7 +845,7 @@ public final class FastPlaceManager {
       QuickReplaceDedupe.forget(owner);
       // Modifier state belongs to the old connection, unlike the workflow
       // points and shape data that remain owned by the player UUID.
-      FastPlaceSession session = SESSIONS.get(owner);
+      QuickShapeDraft session = SESSIONS.get(owner);
       if (session != null) {
          session.setModifierHeld(false);
       }
@@ -861,7 +889,7 @@ public final class FastPlaceManager {
       if (owner == null || dimension == null) {
          return;
       }
-      FastPlaceSession session = PARKED_SESSIONS.take(owner, dimension);
+      QuickShapeDraft session = PARKED_SESSIONS.take(owner, dimension);
       if (session == null) {
          return;
       }
@@ -870,7 +898,7 @@ public final class FastPlaceManager {
       }
    }
 
-   static void putSessionForTest(UUID owner, FastPlaceSession session) {
+   static void putSessionForTest(UUID owner, QuickShapeDraft session) {
       SESSIONS.put(owner, session);
    }
 
@@ -883,7 +911,7 @@ public final class FastPlaceManager {
    }
 
    static List<BlockPos> sessionPointsForTest(UUID owner) {
-      FastPlaceSession session = SESSIONS.get(owner);
+      QuickShapeDraft session = SESSIONS.get(owner);
       return session == null ? List.of() : session.points();
    }
 
@@ -1223,11 +1251,11 @@ public final class FastPlaceManager {
          || WorldWriteCoordinator.busy(player.getServer(), player.serverLevel().dimension());
    }
 
-   private static FastPlaceStage effectiveStage(FastPlaceSession session, FastPlaceSettings settings) {
-      return FastPlaceGeometry.effectiveStage(session.points(), settings.faceMode(), session.polygonClosed());
+   private static QuickShapeStage effectiveStage(QuickShapeDraft session, FastPlaceSettings settings) {
+      return session.stage(settings.faceMode());
    }
 
-   public static LineTieBias effectiveFaceTieBias(FastPlaceSession session, FastPlaceSettings settings) {
+   public static LineTieBias effectiveFaceTieBias(QuickShapeDraft session, FastPlaceSettings settings) {
       if (settings.faceMode() == FaceMode.POLYGON || session.points().size() < 3) {
          return LineTieBias.DEFAULT;
       }

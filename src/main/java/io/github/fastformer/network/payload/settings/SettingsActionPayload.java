@@ -5,7 +5,8 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-public record SettingsActionPayload(Action action) implements CustomPacketPayload {
+public record SettingsActionPayload(Action action, boolean targetFrozen) implements CustomPacketPayload {
+   public SettingsActionPayload(Action action) { this(action, false); }
    public static final Type<SettingsActionPayload> TYPE = new Type<>(
       ResourceLocation.fromNamespaceAndPath("fastformer", "settings_action")
    );
@@ -18,11 +19,12 @@ public record SettingsActionPayload(Action action) implements CustomPacketPayloa
    }
 
    private SettingsActionPayload(FriendlyByteBuf buffer) {
-      this(buffer.readEnum(Action.class));
+      this(buffer.readEnum(Action.class), buffer.readBoolean());
    }
 
    private void write(FriendlyByteBuf buffer) {
       buffer.writeEnum(this.action);
+      buffer.writeBoolean(this.targetFrozen);
    }
 
    @Override
@@ -38,6 +40,7 @@ public record SettingsActionPayload(Action action) implements CustomPacketPayloa
       DECREASE_WORLD_HISTORY,
       INCREASE_WORLD_HISTORY,
       DECREASE_SESSION_HISTORY,
-      INCREASE_SESSION_HISTORY
+      INCREASE_SESSION_HISTORY,
+      QUERY_GLOBAL_FREEZE
    }
 }

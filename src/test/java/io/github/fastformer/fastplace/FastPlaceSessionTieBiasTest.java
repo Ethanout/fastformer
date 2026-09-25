@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;
@@ -15,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class FastPlaceSessionTieBiasTest {
    @Test
    void confirmedFaceBiasSurvivesStageChangeAndResetsWhenFacePointIsUndone() {
-      FastPlaceSession session = new FastPlaceSession();
+      QuickShapeDraft session = new QuickShapeDraft();
       session.addPoint(BlockPos.ZERO, Vec3.ZERO, new Vec3(1.0, 0.0, 0.0));
       session.addPoint(new BlockPos(2, 1, 0), Vec3.ZERO, new Vec3(1.0, 0.0, 0.0));
       session.addPoint(new BlockPos(0, 0, 2), Vec3.ZERO, new Vec3(1.0, 0.0, 0.0));
@@ -31,7 +33,7 @@ class FastPlaceSessionTieBiasTest {
 
    @Test
    void destroyingSessionClearsConfirmedFaceBias() {
-      FastPlaceSession session = new FastPlaceSession();
+      QuickShapeDraft session = new QuickShapeDraft();
       session.confirmFaceTieBias(LineTieBias.OPPOSITE);
 
       session.onDestroyed();
@@ -41,7 +43,7 @@ class FastPlaceSessionTieBiasTest {
 
    @Test
    void heldModifierOverridesDefaultAtFinalConfirmationWithoutChangingStoredBias() {
-      FastPlaceSession session = new FastPlaceSession();
+      QuickShapeDraft session = new QuickShapeDraft();
 
       assertEquals(LineTieBias.DEFAULT, session.effectiveFaceTieBias(false));
       assertEquals(LineTieBias.OPPOSITE, session.effectiveFaceTieBias(true));

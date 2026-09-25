@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.task;
 
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.fastplace.world.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.JournalPreparation;
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
@@ -230,7 +230,6 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    private OperationTaskResult composeDesired(ServerLevel level) {
       OperationWorkspaceValidator.Result validated = OperationWorkspaceValidator.validate(
          plan,
-         pos -> ReversibleBlockSnapshot.capture(level, pos).map(ClientWorkspacePlacementTask::clientSnapshot),
          maxPlacement
       );
       if (!validated.success()) {

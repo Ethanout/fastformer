@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,16 @@ class GeometryShapeStateTest {
 
       session.setMode(GeometryMode.POLYHEDRON);
       assertEquals(0, session.polyhedronShapeVariant());
+   }
+
+   @Test
+   void modeSwitchReplacesTheDraftIdentity() {
+      GeometrySession session = new GeometrySession();
+      UUID originalDraft = session.draftId();
+
+      session.setMode(GeometryMode.CONVEX_POLYHEDRON);
+
+      assertFalse(originalDraft.equals(session.draftId()));
    }
 
    @Test

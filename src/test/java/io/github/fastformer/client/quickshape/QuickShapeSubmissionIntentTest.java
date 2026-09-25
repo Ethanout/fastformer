@@ -38,6 +38,22 @@ public class QuickShapeSubmissionIntentTest {
    }
 
    @Test
+   void cancellationDiscardsAQueuedResultBeforeTheNextTick() {
+      var intent = new QuickShapeSubmissionIntent();
+      var data = snapshot(LineMode.AXIS);
+      intent.begin(1, data);
+      intent.calculate(plan(data, 20, null), Runnable::run);
+      assertTrue(intent.active());
+      assertTrue(intent.accepts(1, data));
+      intent.cancel();
+      assertTrue(intent.begin(2, data));
+      assertTrue(intent.takeCompleted().isEmpty());
+      assertTrue(intent.accepts(2, data));
+      intent.calculate(plan(data, 20, null), Runnable::run);
+      assertEquals(2, intent.takeCompleted().orElseThrow().requestId());
+   }
+
+   @Test
    void cancellationBeforeWorkerStartCannotCompleteANewIntent() {
       var intent = new QuickShapeSubmissionIntent();
       var executor = new ArrayDeque<Runnable>();

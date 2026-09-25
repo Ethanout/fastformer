@@ -13,6 +13,27 @@ public final class IncomingPayloadTransfers {
 
    private final Map<UUID, ChunkedPayloadTransfer> workspaceTransfers = new ConcurrentHashMap<>();
    private final Map<UUID, ChunkedPayloadTransfer> shapeTransfers = new ConcurrentHashMap<>();
+   private final java.util.function.Consumer<ExpiredTransfer> onEvicted;
+   private final long globalByteLimit;
+   private final long ownerByteLimit;
+
+   public IncomingPayloadTransfers() { this(ignored -> { }); }
+   public IncomingPayloadTransfers(java.util.function.Consumer<ExpiredTransfer> onEvicted) {
+      this(onEvicted, 128L * 1024 * 1024, io.github.fastformer.fastplace.OperationWorkspacePlanCodec.MAX_COMPRESSED_BYTES);
+   }
+   IncomingPayloadTransfers(java.util.function.Consumer<ExpiredTransfer> onEvicted, long globalByteLimit, long ownerByteLimit) {
+      if (globalByteLimit <= 0 || ownerByteLimit <= 0 || ownerByteLimit > globalByteLimit) throw new IllegalArgumentException("Invalid upload memory budget");
+      this.onEvicted = java.util.Objects.requireNonNull(onEvicted);
+      this.globalByteLimit = globalByteLimit;
+      this.ownerByteLimit = ownerByteLimit;
+   }
+
+   private long retainedBytes(UUID owner) {
+      return java.util.stream.Stream.of(workspaceTransfers, shapeTransfers)
+         .flatMap(map -> map.entrySet().stream())
+         .filter(entry -> owner == null || entry.getKey().equals(owner))
+         .mapToLong(entry -> entry.getValue().bytes()).sum();
+   }
 
    public byte[] acceptWorkspace(UUID owner, OperationWorkspaceApplyPayload payload) throws IOException {
       return accept(
@@ -42,19 +63,19 @@ public final class IncomingPayloadTransfers {
       if (owner == null) {
          return;
       }
-      workspaceTransfers.remove(owner);
-      shapeTransfers.remove(owner);
+      forgetWorkspace(owner);
+      forgetShape(owner);
    }
 
    public void forgetWorkspace(UUID owner) {
       if (owner != null) {
-         workspaceTransfers.remove(owner);
+         evict(workspaceTransfers, owner);
       }
    }
 
    public void forgetShape(UUID owner) {
       if (owner != null) {
-         shapeTransfers.remove(owner);
+         evict(shapeTransfers, owner);
       }
    }
 
@@ -66,16 +87,27 @@ public final class IncomingPayloadTransfers {
       forgetMatching(shapeTransfers, owner, transferId);
    }
 
-   private static void forgetMatching(Map<UUID, ChunkedPayloadTransfer> transfers, UUID owner, UUID transferId) {
+   private void evict(Map<UUID, ChunkedPayloadTransfer> transfers, UUID owner) {
+      var removed = transfers.remove(owner);
+      if (removed != null) onEvicted.accept(new ExpiredTransfer(owner, removed.transferId(), transfers == shapeTransfers));
+   }
+
+   private void forgetMatching(Map<UUID, ChunkedPayloadTransfer> transfers, UUID owner, UUID transferId) {
       if (owner != null && transferId != null) {
-         transfers.computeIfPresent(owner, (key, transfer) ->
-            transfer.transferId().equals(transferId) ? null : transfer);
+         var transfer = transfers.get(owner);
+         if (transfer != null && transfer.transferId().equals(transferId)) evict(transfers, owner);
       }
    }
 
    public void clear() {
       workspaceTransfers.clear();
       shapeTransfers.clear();
+   }
+
+   public boolean contains(UUID owner, UUID transferId) {
+      var workspace = workspaceTransfers.get(owner);
+      var shape = shapeTransfers.get(owner);
+      return workspace != null && workspace.transferId().equals(transferId) || shape != null && shape.transferId().equals(transferId);
    }
 
    /** Removes stalled transfers even when the client sends no further chunks. */
@@ -87,11 +119,13 @@ public final class IncomingPayloadTransfers {
       var expired = new java.util.ArrayList<ExpiredTransfer>();
       workspaceTransfers.forEach((owner, transfer) -> {
          if (transfer.expired(now, TRANSFER_TIMEOUT_NANOS) && workspaceTransfers.remove(owner, transfer)) {
+            onEvicted.accept(new ExpiredTransfer(owner, transfer.transferId(), false));
             expired.add(new ExpiredTransfer(owner, transfer.transferId(), false));
          }
       });
       shapeTransfers.forEach((owner, transfer) -> {
          if (transfer.expired(now, TRANSFER_TIMEOUT_NANOS) && shapeTransfers.remove(owner, transfer)) {
+            onEvicted.accept(new ExpiredTransfer(owner, transfer.transferId(), true));
             expired.add(new ExpiredTransfer(owner, transfer.transferId(), true));
          }
       });
@@ -104,7 +138,7 @@ public final class IncomingPayloadTransfers {
       }
    }
 
-   private static byte[] accept(
+   private byte[] accept(
       Map<UUID, ChunkedPayloadTransfer> transfers,
       UUID owner,
       UUID transferId,
@@ -118,11 +152,20 @@ public final class IncomingPayloadTransfers {
          if (chunkIndex != 0) {
             throw new IOException(payloadName + " transfer must start with chunk zero");
          }
+         if (transfer != null) {
+            transfers.remove(owner, transfer);
+            onEvicted.accept(new ExpiredTransfer(owner, transfer.transferId(), transfers == shapeTransfers));
+         }
+         if (workspaceTransfers.size() + shapeTransfers.size() >= 128) throw new IOException("Too many uploads");
          transfer = new ChunkedPayloadTransfer(transferId, chunkCount);
          transfers.put(owner, transfer);
       }
       if (transfer.chunkCount() != chunkCount) {
          throw new IOException(payloadName + " transfer metadata changed");
+      }
+      if (data == null || retainedBytes(null) + data.length > globalByteLimit
+         || retainedBytes(owner) + data.length > ownerByteLimit) {
+         throw new IOException("Upload memory budget exceeded");
       }
       byte[] completed = transfer.accept(chunkIndex, data);
       if (completed != null) {
@@ -131,13 +174,14 @@ public final class IncomingPayloadTransfers {
       return completed;
    }
 
-   private static ChunkedPayloadTransfer currentTransfer(
+   private ChunkedPayloadTransfer currentTransfer(
       Map<UUID, ChunkedPayloadTransfer> transfers,
       UUID owner
    ) {
       ChunkedPayloadTransfer transfer = transfers.get(owner);
       if (transfer != null && transfer.expired(System.nanoTime(), TRANSFER_TIMEOUT_NANOS)) {
          transfers.remove(owner, transfer);
+         onEvicted.accept(new ExpiredTransfer(owner, transfer.transferId(), transfers == shapeTransfers));
          return null;
       }
       return transfer;

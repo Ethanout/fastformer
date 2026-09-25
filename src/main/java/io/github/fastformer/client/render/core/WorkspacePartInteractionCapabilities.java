@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render.core;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
 import net.minecraft.world.phys.AABB;
 
 /** Defines which workspace interactions remain available after a part is transformed. */

@@ -57,9 +57,7 @@ public final class FastFormerSettingsScreen extends Screen {
    ) {
       super(Component.translatable("fastformer.settings.title"));
       this.middleConfirmEnabled = middleConfirmEnabled;
-      this.faceRasterizationMode = faceRasterizationMode == null
-         ? FaceRasterizationMode.POINT_SWEEP
-         : faceRasterizationMode;
+      this.faceRasterizationMode = FaceRasterizationMode.DEFAULT;
       this.placementConflictMode = placementConflictMode == null ? OperationConflictMode.REPLACE : placementConflictMode;
       this.placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.CLIENT_ONLY : placementUpdateMode;
       this.enabledPlacementEffects = new HashSet<>(
@@ -157,7 +155,7 @@ public final class FastFormerSettingsScreen extends Screen {
 
    @Override
    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-      this.renderBackground(graphics, mouseX, mouseY, partialTick);
+      super.render(graphics, mouseX, mouseY, partialTick);
       int top = this.settingsTop();
       int leftX = this.width / 2 - 206;
       int rightX = this.width / 2 + 6;
@@ -176,7 +174,6 @@ public final class FastFormerSettingsScreen extends Screen {
       this.labelAt(graphics, "fastformer.settings.global_freeze", rightX, top + (staticRow + 1) * 34 - 11);
       this.labelAt(graphics, "fastformer.settings.world_history", rightX, top + (staticRow + 2) * 34 - 11);
       this.labelAt(graphics, "fastformer.settings.session_history", rightX, top + (staticRow + 3) * 34 - 11);
-      super.render(graphics, mouseX, mouseY, partialTick);
    }
 
    private void toggleMiddleConfirm() {
@@ -211,6 +208,7 @@ public final class FastFormerSettingsScreen extends Screen {
       return Component.translatable(switch (this.faceRasterizationMode) {
          case POINT_SWEEP -> "fastformer.settings.face_rasterization.point_sweep";
          case GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL -> "fastformer.settings.face_rasterization.gradient_cross_experimental";
+         case NORMAL_PLANE_EXPERIMENTAL -> "fastformer.settings.face_rasterization.normal_plane_experimental";
       });
    }
 
@@ -272,9 +270,28 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private void toggleGlobalFreeze() {
-      this.globalFrozen = !this.globalFrozen;
-      this.globalFreezeButton.setMessage(this.globalFreezeLabel());
-      this.send(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE);
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft.getConnection() == null || !NetworkRegistry.hasChannel(minecraft.getConnection(), SettingsActionPayload.TYPE.id())) return;
+      this.globalFreezeButton.active = false;
+      PacketDistributor.sendToServer(new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE, !this.globalFrozen));
+   }
+
+   private int freezePollTicks;
+
+   @Override public void tick() {
+      super.tick();
+      if (Minecraft.getInstance().getConnection() == null) { this.globalFreezeButton.active = false; return; }
+      if (freezePollTicks++ % 20 == 0) this.send(SettingsActionPayload.Action.QUERY_GLOBAL_FREEZE);
+   }
+
+   public static void applyFreezeState(io.github.fastformer.network.payload.settings.FreezeStatePayload payload) {
+      if (Minecraft.getInstance().screen instanceof FastFormerSettingsScreen screen) {
+         screen.globalFrozen = payload.frozen();
+         if (screen.globalFreezeButton != null) {
+            screen.globalFreezeButton.setMessage(screen.globalFreezeLabel());
+            screen.globalFreezeButton.active = payload.allowed();
+         }
+      }
    }
 
    private Component globalFreezeLabel() {

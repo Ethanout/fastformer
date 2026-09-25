@@ -1,0 +1,93 @@
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+
+buildscript {
+    repositories { mavenCentral() }
+    dependencies { classpath 'org.ow2.asm:asm:9.8' }
+}
+
+// Development runs retain test hooks. Release classes omit test harnesses and hooks.
+abstract class PrepareReleaseClasses extends DefaultTask {
+    @javax.inject.Inject abstract org.gradle.api.file.FileSystemOperations getFileSystem()
+    @InputFiles @PathSensitive(PathSensitivity.RELATIVE)
+    abstract ConfigurableFileCollection getClassDirectories()
+
+    @OutputDirectory abstract DirectoryProperty getDestination()
+
+    static boolean testMethod(String name) {
+        name.contains('ForTest')
+    }
+
+    @TaskAction void prepare() {
+        File output = destination.get().asFile
+        fileSystem.delete { delete(output) }
+        classDirectories.files.each { root ->
+            if (!root.exists()) return
+            root.eachFileRecurse { source ->
+                if (!source.isFile()) return
+                String relative = root.toPath().relativize(source.toPath()).toString()
+                if (relative.contains('GameTests') || relative.contains('RecoveryProcessTests')) return
+                byte[] bytes = source.bytes
+                if (relative.endsWith('.class')) {
+                    def writer = new ClassWriter(0)
+                    new ClassReader(bytes).accept(new ClassVisitor(Opcodes.ASM9, writer) {
+                        @Override MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                            if (PrepareReleaseClasses.testMethod(name)) return null
+                            def delegate = super.visitMethod(access, name, descriptor, signature, exceptions)
+                            return new MethodVisitor(Opcodes.ASM9, delegate) {
+                                @Override void visitMethodInsn(int opcode, String owner, String called, String desc, boolean itf) {
+                                    if (owner.startsWith('io/github/fastformer/') && PrepareReleaseClasses.testMethod(called)) {
+                                        throw new GradleException("Production method ${name} calls test hook ${owner}.${called}")
+                                    }
+                                    super.visitMethodInsn(opcode, owner, called, desc, itf)
+                                }
+                            }
+                        }
+                    }, 0)
+                    bytes = writer.toByteArray()
+                }
+                File target = new File(output, relative)
+                target.parentFile.mkdirs()
+                target.bytes = bytes
+            }
+        }
+    }
+}
+
+def releaseClasses = tasks.register('prepareReleaseClasses', PrepareReleaseClasses) {
+    dependsOn tasks.named('classes')
+    classDirectories.from(sourceSets.main.output.classesDirs)
+    destination.set(layout.buildDirectory.dir('classes/release'))
+}
+
+abstract class VerifyReleaseHooks extends DefaultTask {
+    @InputFile abstract RegularFileProperty getArchive()
+    @TaskAction void verify() {
+        new java.util.zip.ZipFile(archive.get().asFile).withCloseable { zip ->
+            zip.entries().each { entry ->
+                if (!entry.name.endsWith('.class')) return
+                new ClassReader(zip.getInputStream(entry)).accept(new ClassVisitor(Opcodes.ASM9) {
+                    @Override MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                        if (PrepareReleaseClasses.testMethod(name)) throw new GradleException("Release contains test hook: ${entry.name}.${name}")
+                        return null
+                    }
+                }, ClassReader.SKIP_CODE)
+            }
+        }
+    }
+}
+tasks.register('verifyReleaseHooks', VerifyReleaseHooks) {
+    dependsOn tasks.named('jar')
+    archive.set(tasks.named('jar', Jar).flatMap { it.archiveFile })
+}
+tasks.named('check') { dependsOn tasks.named('verifyReleaseHooks') }
+tasks.named('jar', Jar) {
+    def originalRoots = sourceSets.main.output.classesDirs.files.collect { it.toPath().toAbsolutePath().normalize().toString() }
+    eachFile { details ->
+        if (details.name.endsWith('.class') && originalRoots.any { details.file.toPath().toAbsolutePath().normalize().startsWith(it) }) details.exclude()
+    }
+    from(releaseClasses.flatMap { it.destination })
+}

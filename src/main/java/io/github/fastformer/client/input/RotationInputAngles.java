@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.transform.PixelPerfectAngles;
+import io.github.fastformer.workspace.transform.PixelPerfectAngles;
 
 final class RotationInputAngles {
    private RotationInputAngles() { }

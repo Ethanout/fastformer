@@ -23,6 +23,40 @@ import org.junit.jupiter.api.Test;
 
 class ClientPreviewStateTest {
    @Test
+   void idleStartRequiresAllPreviewPartsFromTheSameScopedRevision() {
+      var state = new ClientPreviewState();
+      var inactive = BuildingPreviewPayload.inactive();
+      var scope = new io.github.fastformer.network.payload.operation.OperationCallbackScope(
+         java.util.UUID.randomUUID(), net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"),
+         java.util.UUID.randomUUID());
+      assertTrue(state.idleBuildingSession().isEmpty());
+      var session = new BuildingPreviewSessionPayload(1L, inactive.session(), scope);
+      state.applyBuildingSession(session);
+      state.applyBuildingParameters(new BuildingPreviewParametersPayload(1L, inactive.parameters(), scope));
+      assertTrue(state.idleBuildingSession().isEmpty());
+      state.applyBuildingEffect(new BuildingPreviewEffectPayload(1L,
+         new BuildingPreviewEffectSnapshot(null), scope));
+      assertEquals(session, state.idleBuildingSession().orElseThrow());
+      state.applyBuildingParameters(new BuildingPreviewParametersPayload(2L, inactive.parameters(), scope));
+      assertTrue(state.idleBuildingSession().isEmpty());
+   }
+
+   @Test
+   void idleStartRejectsPreviewPartsFromDifferentSessions() {
+      var state = new ClientPreviewState();
+      var inactive = BuildingPreviewPayload.inactive();
+      var scope = new io.github.fastformer.network.payload.operation.OperationCallbackScope(
+         java.util.UUID.randomUUID(), net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"),
+         java.util.UUID.randomUUID());
+      var other = new io.github.fastformer.network.payload.operation.OperationCallbackScope(
+         scope.playerId(), scope.dimension(), java.util.UUID.randomUUID());
+      state.applyBuildingSession(new BuildingPreviewSessionPayload(1L, inactive.session(), scope));
+      state.applyBuildingParameters(new BuildingPreviewParametersPayload(1L, inactive.parameters(), other));
+      state.applyBuildingEffect(new BuildingPreviewEffectPayload(1L, new BuildingPreviewEffectSnapshot(null), scope));
+      assertTrue(state.idleBuildingSession().isEmpty());
+   }
+
+   @Test
    void invalidatesPreviewOnlyWhenACompleteNewSnapshotIsPublished() {
       ClientPreviewState state = new ClientPreviewState();
       BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();

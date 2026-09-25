@@ -59,6 +59,16 @@ public final class ClientPreviewState {
       return Optional.of(buildingSubmission);
    }
 
+   public Optional<BuildingPreviewSessionPayload> idleBuildingSession() {
+      return !buildingSession.value().active() && buildingSessionRevision > 0
+         && !buildingSession.callbackScope().equals(io.github.fastformer.network.payload.operation.OperationCallbackScope.unscoped())
+         && buildingSessionRevision == buildingParametersRevision
+         && buildingSessionRevision == buildingEffectRevision
+         && buildingSession.callbackScope().equals(buildingParameters.callbackScope())
+         && buildingSession.callbackScope().equals(buildingEffect.callbackScope())
+         ? Optional.of(buildingSession) : Optional.empty();
+   }
+
    public void applyQuickShapeSubmissionParameters(
       io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload payload
    ) {

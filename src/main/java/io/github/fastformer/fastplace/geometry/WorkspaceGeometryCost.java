@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
-import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import java.util.Collection;
 import net.minecraft.core.BlockPos;
 

@@ -2,8 +2,6 @@ package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
 
-import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
-
 record PointerReleaseSnapshot(int button, long occurredAtNanos, long clickToken,
    long pointerToken, MouseDragReleaseSemantics.Target target) {
    boolean dispatch(ClientInputSession session, MouseDragReleaseSemantics.Target currentTarget,
@@ -14,7 +12,6 @@ record PointerReleaseSnapshot(int button, long occurredAtNanos, long clickToken,
          return false;
       }
       session.clickGestureToken = 0L;
-      if (button == MouseButtonInputSemantics.RIGHT_BUTTON) session.buildingRightPress.release();
       finish.run();
       return true;
    }

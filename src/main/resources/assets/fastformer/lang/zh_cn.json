@@ -1,4 +1,7 @@
 {
+  "fastformer.message.operation_capture_too_large": "选区超过 200 万格扫描上限，请缩小范围。",
+  "fastformer.message.operation_capture_failed": "选区采样失败，请加载选区所在区块后重试。",
+  "fastformer.message.operation_capture_pending": "正在采样选区，完成后请再次调整。",
   "key.categories.fastformer": "几何手",
   "key.fastformer.toggle": "开关几何手",
 
@@ -146,6 +149,7 @@
   "fastformer.settings.face_rasterization": "离散面算法",
   "fastformer.settings.face_rasterization.point_sweep": "点对点扫掠（当前）",
   "fastformer.settings.face_rasterization.gradient_cross_experimental": "梯度十字插值（试验）",
+  "fastformer.settings.face_rasterization.normal_plane_experimental": "法线平面（默认）",
   "fastformer.settings.placement_conflict": "放置冲突策略",
   "fastformer.settings.placement_update": "放置冻结",
   "fastformer.settings.smart_wood_frame": "智能木框",

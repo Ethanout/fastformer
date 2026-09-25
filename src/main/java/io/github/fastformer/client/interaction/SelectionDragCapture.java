@@ -1,6 +1,6 @@
 package io.github.fastformer.client.interaction;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import java.util.LinkedHashMap;
 import java.util.List;

@@ -9,9 +9,16 @@ import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
+import java.util.UUID;
 
-public final class GeometrySession implements SessionLifecycle {
+public final class GeometrySession {
    private GeometryShapeState state = GeometryShapeState.create(GeometryMode.WALL);
+   private UUID draftId = UUID.randomUUID();
+
+   /** Identifies the current shape draft, including a replacement created by a mode change. */
+   public UUID draftId() {
+      return this.draftId;
+   }
 
    public List<BlockPos> points() {
       return this.state.blockPoints();
@@ -32,6 +39,7 @@ public final class GeometrySession implements SessionLifecycle {
    public void setMode(GeometryMode mode) {
       this.clearSelectedControlPoint();
       this.state = GeometryShapeState.create(mode == null ? GeometryMode.WALL : mode);
+      this.draftId = UUID.randomUUID();
    }
 
    public BlockPos extrusion() {
@@ -625,12 +633,10 @@ public final class GeometrySession implements SessionLifecycle {
       return true;
    }
 
-   @Override
    public boolean undoStep() {
       return this.removeOrUndo(null, false);
    }
 
-   @Override
    public boolean canUndoStep() {
       return true;
    }

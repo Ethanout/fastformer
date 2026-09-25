@@ -4,13 +4,13 @@ import io.github.fastformer.fastplace.selection.OperationStackRegion;
 
 import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.preview.Composition;
-import io.github.fastformer.client.operation.preview.CompositionBudget;
-import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.WorkspaceLimits;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.preview.Composition;
+import io.github.fastformer.workspace.preview.CompositionBudget;
+import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.geometry.WorkspaceGeometryBudget;
 import io.github.fastformer.fastplace.geometry.WorkspaceGeometryCost;
 import java.util.ArrayList;
@@ -30,9 +30,9 @@ public final class OperationWorkspaceValidator {
    private OperationWorkspaceValidator() {
    }
 
-   public static Result validate(OperationWorkspacePlan plan, LiveBlockLookup live, int maxBlocks) {
-      if (plan == null || live == null || maxBlocks < 1 || plan.parts().isEmpty()
-         || plan.parts().size() > ClientOperationWorkspace.MAX_PARTS) {
+   public static Result validate(OperationWorkspacePlan plan, int maxBlocks) {
+      if (plan == null || maxBlocks < 1 || plan.parts().isEmpty()
+         || plan.parts().size() > WorkspaceLimits.MAX_PARTS) {
          return Result.failed(List.of());
       }
       List<OperationWorkspacePlan.Part> parts = new ArrayList<>(plan.parts());
@@ -41,7 +41,7 @@ public final class OperationWorkspaceValidator {
       long supplied = 0L;
       List<WorkspaceGeometryCost.Cost> costs = new ArrayList<>();
       for (OperationWorkspacePlan.Part part : parts) {
-         if (part == null || part.id() < 1 || part.id() > ClientOperationWorkspace.MAX_PARTS
+         if (part == null || part.id() < 1 || part.id() > WorkspaceLimits.MAX_PARTS
             || !ids.add(part.id()) || part.source() == null || !validTransform(part.transform()) || part.blocks().isEmpty()
             || (supplied += part.blocks().size()) > maxBlocks) {
             return Result.failed(List.of());
@@ -127,11 +127,6 @@ public final class OperationWorkspaceValidator {
 
    private static boolean finite(net.minecraft.world.phys.Vec3 value) {
       return Double.isFinite(value.x) && Double.isFinite(value.y) && Double.isFinite(value.z);
-   }
-
-   @FunctionalInterface
-   public interface LiveBlockLookup {
-      Optional<ClientBlockSnapshot> read(BlockPos pos);
    }
 
    public record Result(

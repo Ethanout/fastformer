@@ -51,21 +51,44 @@ final class GeometryDragController {
           session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       }
       session.geometryGizmoDrag = session.geometryGizmoDrag.withCapture(session.pointerGestureToken);
+      session.operationTransformCapture = new ClientInputSession.OperationTransformCapture(GeometryInputController.nextRequestId(),
+         ClientOperationController.remoteSelectionRevision(), ClientOperationController.remoteSelectionCallbackScope());
       FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
       return true;
    }
 
    static void update(Minecraft minecraft, ClientInputSession session, boolean controlDown) {
-      if (discardInvalidCapture(session)) return;
+      Target target = validatedTarget(session);
+      if (target == Target.NONE) return;
+      update(minecraft, session, controlDown, minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), target);
+   }
+
+   static void update(Minecraft minecraft, ClientInputSession session, boolean controlDown, Vec3 eye, Vec3 view) {
+      Target target = validatedTarget(session);
+      if (target != Target.NONE) update(minecraft, session, controlDown, eye, view, target);
+   }
+
+   private static Target validatedTarget(ClientInputSession session) {
+      if (discardInvalidCapture(session)) return Target.NONE;
+      if (session.geometryGizmoCapture.owns(session.geometryGizmoDrag.captureToken())) {
+         var preview = FastPlaceClientPreview.geometrySnapshot();
+         if (!preview.active() || !session.geometryGizmoCapture.matchesActive(preview.draftId(), preview.callbackScope(), preview.mode())) {
+            clearCapture(session);
+            session.geometryGizmoCapture.cancel();
+            return Target.NONE;
+         }
+      }
       Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
       if (target == Target.NONE) {
          clearCapture(session);
-         return;
       }
+      return target;
+   }
+
+   private static void update(Minecraft minecraft, ClientInputSession session, boolean controlDown,
+      Vec3 eye, Vec3 view, Target target) {
       boolean operationTransform = target == Target.OPERATION;
 
-      Vec3 eye = minecraft.player.getEyePosition();
-      Vec3 view = minecraft.player.getViewVector(1.0F);
       int totalSteps = session.geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
          ? GizmoDragCalculator.geometryRotationSteps(session.geometryGizmoDrag, eye, view)
          : operationTransform
@@ -84,18 +107,19 @@ final class GeometryDragController {
             : Math.clamp(totalSteps, 0, 128);
          CustomPacketPayload payload = operationTransform
             ? new OperationTransformPayload(
+               GeometryInputController.nextRequestId(), session.operationTransformCapture.gestureId(),
+               session.operationTransformCapture.revision(), session.operationTransformCapture.scope(),
                ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
                ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
                gizmoDirection(session.geometryGizmoDrag),
                operationTotal,
                false
             )
-            : new GeometryGizmoDragPayload(
-               ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
-               clippedDelta,
-               false
-            );
+            : capturedGeometryPayload(session, clippedDelta, false);
+         if (payload == null) {
+            clearCapture(session);
+            return;
+         }
          PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
           session.geometryGizmoDrag = session.geometryGizmoDrag.withSentSteps(session.geometryGizmoDrag.sentSteps() + clippedDelta);
           FastPlaceClientPreview.noteGizmoFeedback(
@@ -105,12 +129,8 @@ final class GeometryDragController {
    }
 
    static void finish(Minecraft minecraft, ClientInputSession session) {
-      if (discardInvalidCapture(session)) return;
-      Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
-      if (target == Target.NONE) {
-         clearCapture(session);
-         return;
-      }
+      Target target = validatedTarget(session);
+      if (target == Target.NONE) return;
       boolean operationTransform = target == Target.OPERATION;
       if (session.geometryGizmoDrag != null && (operationTransform
          ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
@@ -120,6 +140,8 @@ final class GeometryDragController {
          );
          CustomPacketPayload payload = operationTransform
             ? new OperationTransformPayload(
+               GeometryInputController.nextRequestId(), session.operationTransformCapture.gestureId(),
+               session.operationTransformCapture.revision(), session.operationTransformCapture.scope(),
                ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
                ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
                gizmoDirection(session.geometryGizmoDrag),
@@ -128,12 +150,11 @@ final class GeometryDragController {
                   : Math.clamp(session.geometryGizmoDrag.sentSteps(), 0, 128),
                true
             )
-            : new GeometryGizmoDragPayload(
-               ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
-               ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
-               0,
-               true
-            );
+            : capturedGeometryPayload(session, 0, true);
+         if (payload == null) {
+            clearCapture(session);
+            return;
+         }
          PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
       }
       clearCapture(session);
@@ -157,6 +178,23 @@ final class GeometryDragController {
       return Target.NONE;
    }
 
+   private static GeometryGizmoDragPayload capturedGeometryPayload(ClientInputSession session, int steps, boolean finish) {
+      GeometryGizmoCapture.Event.Press press = session.geometryGizmoCapture.activePress();
+      if (press == null || press.draftId() == null || session.geometryGizmoDrag == null) {
+         return null;
+      }
+      return new GeometryGizmoDragPayload(
+         GeometryInputController.nextRequestId(),
+         press.revision(),
+         press.scope(),
+         press.draftId(),
+         ClientInputMath.geometryOperationIndex(session.geometryGizmoDrag.operation()),
+         ClientInputMath.geometryAxisIndex(session.geometryGizmoDrag.axis()),
+         steps,
+         finish
+      );
+   }
+
    private static boolean discardInvalidCapture(ClientInputSession session) {
       if (session.geometryGizmoDrag == null) return true;
       if (target(session, true, true) != Target.NONE) return false;
@@ -164,10 +202,11 @@ final class GeometryDragController {
       return true;
    }
 
-   private static void clearCapture(ClientInputSession session) {
+   static void clearCapture(ClientInputSession session) {
       if (session.geometryGizmoDrag == null) return;
       long token = session.geometryGizmoDrag.captureToken();
       session.geometryGizmoDrag = null;
+      session.operationTransformCapture = null;
       session.pointerGesture.finish(token);
       if (session.pointerGestureToken == token) session.pointerGestureToken = 0L;
    }

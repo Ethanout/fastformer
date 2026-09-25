@@ -1,6 +1,6 @@
-package io.github.fastformer.client.operation.preview;
+package io.github.fastformer.workspace.preview;
 
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.WorkspaceGeometryCost;

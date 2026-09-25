@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.FastPlaceManager;
 import io.github.fastformer.fastplace.FastPlaceSettings;
@@ -59,7 +61,7 @@ public final class QuickShapeSubmissionGameTests {
       FastPlaceSettings.load(player).setMode(player, FaceMode.POLYGON);
       BlockPos first = helper.absolutePos(new BlockPos(1, 3, 1));
       FastPlaceManager.addPoint(player, first, first);
-      FastPlaceSession session = FastPlaceManager.session(player).orElseThrow();
+      QuickShapeDraft session = FastPlaceManager.session(player).orElseThrow();
       session.addPoint(first.offset(3, 0, 0), player.getEyePosition(), player.getViewVector(1.0F));
       var confirmed = java.util.List.copyOf(session.points());
       helper.succeedWhen(() -> {

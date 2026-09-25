@@ -2,6 +2,7 @@ package io.github.fastformer.client.input.drag;
 
 import io.github.fastformer.fastplace.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
@@ -18,19 +19,32 @@ public record OperationPointDrag(
    Vec3 axisBaselines,
    OperationPointDragConstraint constraint,
    long pressedAt,
-   long captureToken
+   long captureToken,
+   long revision,
+   OperationCallbackScope callbackScope
 ) {
+   public OperationPointDrag(
+      int pointIndex, int mouseButton, BlockPos initialPoint, BlockPos sentTarget,
+      SelectionPrism.GridPlane plane, Vec3 planeGrabOffset, SelectionPrism.GridLine line,
+      double lineGrabBaseline, Vec3 axisBaselines, OperationPointDragConstraint constraint,
+      long pressedAt, long captureToken
+   ) {
+      this(pointIndex, mouseButton, initialPoint, sentTarget, plane, planeGrabOffset, line,
+         lineGrabBaseline, axisBaselines, constraint, pressedAt, captureToken, 0L,
+         OperationCallbackScope.unscoped());
+   }
+
    public OperationPointDrag withSentTarget(BlockPos target) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, target, plane, planeGrabOffset, line,
-         lineGrabBaseline, axisBaselines, constraint, pressedAt, captureToken
+         lineGrabBaseline, axisBaselines, constraint, pressedAt, captureToken, revision, callbackScope
       );
    }
 
    public OperationPointDrag withConstraint(OperationPointDragConstraint value) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, plane, planeGrabOffset, line,
-         lineGrabBaseline, axisBaselines, value, pressedAt, captureToken
+         lineGrabBaseline, axisBaselines, value, pressedAt, captureToken, revision, callbackScope
       );
    }
 
@@ -42,7 +56,7 @@ public record OperationPointDrag(
    ) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, value, grabOffset, line,
-         lineGrabBaseline, baselines, valueConstraint, pressedAt, captureToken
+         lineGrabBaseline, baselines, valueConstraint, pressedAt, captureToken, revision, callbackScope
       );
    }
 
@@ -53,7 +67,7 @@ public record OperationPointDrag(
    ) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, plane, planeGrabOffset, value,
-         grabBaseline, axisBaselines, valueConstraint, pressedAt, captureToken
+         grabBaseline, axisBaselines, valueConstraint, pressedAt, captureToken, revision, callbackScope
       );
    }
 }

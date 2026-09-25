@@ -112,7 +112,10 @@ public record OperationSelectionVolume(
    }
 
    public boolean intersects(AABB box) {
-      return this.prism != null ? this.prism.intersects(box) : this.bounds.intersects(box);
+      if (!bounds.intersects(box)) return false;
+      if (prism != null) return prism.intersects(box);
+      return mode != OperationSelectionMode.CONVEX_HULL
+         || io.github.fastformer.fastplace.geometry.ConvexHullIntersection.intersects(box, hullFaces, hullInflation);
    }
 
    public OperationGeometry.RayHit raycast(Vec3 origin, Vec3 direction, double maxDistance) {

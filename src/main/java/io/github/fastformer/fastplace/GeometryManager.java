@@ -84,6 +84,14 @@ public final class GeometryManager {
    }
 
    public static void addPoint(ServerPlayer player, GeometryHit hit) {
+      addPoint(player, hit, context(player, hit));
+   }
+
+   static void addPoint(ServerPlayer player, GeometryHit hit, Vec3 eye, Vec3 view) {
+      addPoint(player, hit, new GeometryActionContext(player, FastPlaceManager.modifierHeld(player), hit, eye, view));
+   }
+
+   private static void addPoint(ServerPlayer player, GeometryHit hit, GeometryActionContext context) {
       GeometrySession session = SESSIONS.get(player.getUUID());
       if (session != null) {
          GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
@@ -94,7 +102,7 @@ public final class GeometryManager {
             }
             return;
          }
-         workflow.onAddPoint(session, context(player, hit), hit);
+         workflow.onAddPoint(session, context, hit);
          FastPlaceNetwork.syncGeometry(player, session);
       }
    }
@@ -144,29 +152,33 @@ public final class GeometryManager {
       }
    }
 
-   public static void gizmoDrag(ServerPlayer player, AxisGizmo.Operation operation, AxisGizmo.Axis axis, int steps, boolean finish) {
+   public static boolean gizmoDrag(ServerPlayer player, AxisGizmo.Operation operation, AxisGizmo.Axis axis, int steps, boolean finish) {
       GeometrySession session = SESSIONS.get(player.getUUID());
       if (session == null) {
-         return;
+         return false;
       }
       if (!GeometryWorkflows.get(session.mode()).allows(session, GeometryAction.GIZMO_DRAG)) {
-         return;
+         return false;
       }
       if (!finish && steps != 0 && !GeometryWorkflows.get(session.mode()).onGizmoDrag(session, context(player), operation, axis, steps)) {
-         return;
+         return false;
       }
       FastPlaceNetwork.syncGeometry(player, session);
+      return true;
    }
 
+   /** Applies an interaction against the ray that the client captured with its preview revision. */
    public static boolean interaction(
       ServerPlayer player,
       GeometryInteractionTarget.TargetType targetType,
       int index,
       GeometryInteractionAction action,
-      PointerGesture gesture
+      PointerGesture gesture,
+      Vec3 eye,
+      Vec3 view
    ) {
       GeometrySession session = SESSIONS.get(player.getUUID());
-      if (session == null || targetType == null || action == null || gesture == null) {
+      if (session == null || targetType == null || action == null || gesture == null || eye == null || view == null) {
          return false;
       }
       if (action == GeometryInteractionAction.CLEAR_SELECTION) {
@@ -189,15 +201,16 @@ public final class GeometryManager {
          return false;
       }
       GeometryInteractionHit hit = GeometryInteractionHit.nearest(
-         player.getEyePosition(),
-         player.getViewVector(1.0F),
-         ServerInputDispatcher.visibleExtendedReach(player),
+         eye,
+         view,
+         ServerInputDispatcher.visibleExtendedReach(player, eye, view),
          List.of(target)
       );
       if (hit == null) {
          return false;
       }
-      if (!workflow.onInteraction(session, context(player), targetType, index, action, gesture)) {
+      if (!workflow.onInteraction(session, new GeometryActionContext(player, FastPlaceManager.modifierHeld(player), null, eye, view),
+         targetType, index, action, gesture)) {
          return false;
       }
       FastPlaceNetwork.syncGeometry(player, session);
@@ -419,4 +432,3 @@ public final class GeometryManager {
       return new GeometryActionContext(player, FastPlaceManager.modifierHeld(player), hit);
    }
 }
-

@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 
@@ -43,9 +45,15 @@ class FastPlaceSettingsTest {
    }
 
    @Test
-   void faceRasterizationDefaultsToPointSweepAndExperimentalModeRoundTrips() {
+   void faceRasterizationDefaultsToNormalPlaneAndMigratesArchivedMode() {
+      for (FaceRasterizationMode mode : FaceRasterizationMode.values()) {
+         CompoundTag legacy = new CompoundTag();
+         legacy.putString("faceRasterizationMode", mode.name());
+         assertEquals(FaceRasterizationMode.DEFAULT, FastPlaceSettings.fromTag(legacy).faceRasterizationMode());
+         assertEquals(FaceRasterizationMode.DEFAULT, mode.next());
+      }
       assertEquals(
-         FaceRasterizationMode.POINT_SWEEP,
+         FaceRasterizationMode.DEFAULT,
          FastPlaceSettings.fromTag(new CompoundTag()).faceRasterizationMode()
       );
       CompoundTag tag = new CompoundTag();
@@ -56,15 +64,15 @@ class FastPlaceSettingsTest {
       FastPlaceSettings settings = FastPlaceSettings.fromTag(tag);
 
       assertEquals(
-         FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
+         FaceRasterizationMode.DEFAULT,
          settings.faceRasterizationMode()
       );
       assertEquals(
-         FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
+         FaceRasterizationMode.DEFAULT,
          settings.modes().faceRasterizationMode()
       );
       assertEquals(
-         FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
+         FaceRasterizationMode.DEFAULT,
          FastPlaceSettings.fromTag(settings.toTag()).faceRasterizationMode()
       );
    }
@@ -163,7 +171,7 @@ class FastPlaceSettingsTest {
       tag.putString("lineMode", LineMode.RAYCAST.name());
       FastPlaceSettings settings = FastPlaceSettings.fromTag(tag);
       assertEquals(RaycastPlacement.SURFACE, settings.modes().raycastPlacement());
-      FastPlaceSession session = new FastPlaceSession();
+      QuickShapeDraft session = new QuickShapeDraft();
 
       assertEquals(RaycastPlacement.SURFACE, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
 
@@ -187,7 +195,7 @@ class FastPlaceSettingsTest {
       CompoundTag tag = new CompoundTag();
       tag.putString("raycastPlacement", RaycastPlacement.EMBEDDED.name());
       FastPlaceSettings settings = FastPlaceSettings.fromTag(tag);
-      FastPlaceSession session = new FastPlaceSession();
+      QuickShapeDraft session = new QuickShapeDraft();
 
       assertFalse(settings.toTag().contains("raycastPlacement"));
       assertEquals(RaycastPlacement.SURFACE, settings.modes().raycastPlacement());

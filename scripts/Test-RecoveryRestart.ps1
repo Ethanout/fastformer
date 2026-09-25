@@ -43,7 +43,7 @@ Set-Content -LiteralPath (Join-Path $runDirectory 'server.properties') -Encoding
 Push-Location $projectRoot
 try {
     $gradleRecoveryDirectory = $runDirectory
-    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon `
+    & (Join-Path $projectRoot 'gradlew.bat') --no-daemon `
         -x cacheVersionExecutableClient1.21.1 runServer `
         "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" "-PrecoveryProcessTest=$crashPhase"
     $crashExit = $LASTEXITCODE
@@ -51,7 +51,7 @@ try {
         throw "Crash phase did not reach the $Scenario boundary (exit=$crashExit)."
     }
 
-    & (Join-Path $projectRoot 'gradlew.bat') --offline --no-daemon `
+    & (Join-Path $projectRoot 'gradlew.bat') --no-daemon `
         -x cacheVersionExecutableClient1.21.1 runServer `
         "-PrecoveryProcessDirectory=$gradleRecoveryDirectory" "-PrecoveryProcessTest=$verifyPhase"
     if ($LASTEXITCODE -ne 0) {

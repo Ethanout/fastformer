@@ -103,4 +103,5 @@ class SourceMaskRenderFilterTest {
       assertTrue(this.filter.snapshot().hides(SECOND.asLong()));
       assertFalse(this.filter.snapshot().hides(FIRST.asLong()));
    }
+
 }

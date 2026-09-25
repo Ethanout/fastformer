@@ -4,10 +4,10 @@ import io.github.fastformer.fastplace.selection.OperationStackRegion;
 
 import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.WorkspaceLimits;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -53,14 +53,15 @@ public final class OperationWorkspacePlanCodec {
       if (bytes == null || bytes.length == 0 || bytes.length > MAX_COMPRESSED_BYTES) {
          throw new IOException("Invalid compressed workspace plan size");
       }
+      long started = System.nanoTime();
       CompoundTag root = NbtIo.readCompressed(
-         new ByteArrayInputStream(bytes), NbtAccounter.create(MAX_DECODE_BYTES)
+         new io.github.fastformer.network.transfer.DeadlineInputStream(new ByteArrayInputStream(bytes), 10_000_000_000L), NbtAccounter.create(MAX_DECODE_BYTES)
       );
-      return decode(root, blocks);
+      return decode(root, blocks, started);
    }
 
    public static CompoundTag encode(OperationWorkspacePlan plan) {
-      if (plan == null || plan.parts().isEmpty() || plan.parts().size() > ClientOperationWorkspace.MAX_PARTS) {
+      if (plan == null || plan.parts().isEmpty() || plan.parts().size() > WorkspaceLimits.MAX_PARTS) {
          throw new IllegalArgumentException("Invalid workspace part count");
       }
       CompoundTag root = new CompoundTag();
@@ -95,11 +96,15 @@ public final class OperationWorkspacePlanCodec {
    }
 
    public static OperationWorkspacePlan decode(CompoundTag root, HolderGetter<Block> blocks) throws IOException {
+      return decode(root, blocks, System.nanoTime());
+   }
+
+   private static OperationWorkspacePlan decode(CompoundTag root, HolderGetter<Block> blocks, long started) throws IOException {
       if (root == null || root.getInt("Version") != VERSION) {
          throw new IOException("Unsupported workspace plan version");
       }
       ListTag partTags = root.getList("Parts", Tag.TAG_COMPOUND);
-      if (partTags.isEmpty() || partTags.size() > ClientOperationWorkspace.MAX_PARTS) {
+      if (partTags.isEmpty() || partTags.size() > WorkspaceLimits.MAX_PARTS) {
          throw new IOException("Invalid workspace part count");
       }
       List<OperationWorkspacePlan.Part> parts = new ArrayList<>(partTags.size());
@@ -118,6 +123,9 @@ public final class OperationWorkspacePlanCodec {
          }
          LinkedHashMap<BlockPos, ClientBlockSnapshot> snapshots = new LinkedHashMap<>();
          for (int blockIndex = 0; blockIndex < blockTags.size(); blockIndex++) {
+            if ((total & 255) == 0 && (Thread.currentThread().isInterrupted() || System.nanoTime() - started > 10_000_000_000L)) {
+               throw new IOException("Workspace decoding exceeded its time budget");
+            }
             if (++total > MAX_BLOCKS) {
                throw new IOException("Workspace plan exceeds the server block limit");
             }

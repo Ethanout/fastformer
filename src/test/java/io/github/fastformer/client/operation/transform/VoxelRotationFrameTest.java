@@ -1,9 +1,9 @@
-package io.github.fastformer.client.operation.transform;
+package io.github.fastformer.workspace.transform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
+import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.LinkedHashMap;
 import java.util.Map;

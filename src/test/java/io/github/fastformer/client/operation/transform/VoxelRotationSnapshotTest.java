@@ -1,9 +1,9 @@
-package io.github.fastformer.client.operation.transform;
+package io.github.fastformer.workspace.transform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
-import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import java.util.LinkedHashMap;
 import java.util.Map;

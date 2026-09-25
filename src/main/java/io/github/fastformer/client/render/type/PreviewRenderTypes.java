@@ -9,6 +9,19 @@ import net.minecraft.client.renderer.RenderType;
 
 /** Render pipelines used by client previews, outlines, and gizmos. */
 public final class PreviewRenderTypes {
+   /** Block meshes already contain directional shading; entity shaders would apply it twice. */
+   public static final RenderType WORKSPACE_BLOCKS = RenderType.create(
+      "fastformer_workspace_blocks", DefaultVertexFormat.BLOCK, VertexFormat.Mode.QUADS,
+      2097152, false, true,
+      RenderType.CompositeState.builder()
+         .setShaderState(RenderStateShard.RENDERTYPE_TRANSLUCENT_SHADER)
+         .setTextureState(RenderStateShard.BLOCK_SHEET_MIPPED)
+         .setLightmapState(RenderStateShard.LIGHTMAP)
+         .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+         .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
+         .setWriteMaskState(RenderStateShard.COLOR_DEPTH_WRITE)
+         .createCompositeState(false)
+   );
    public static final RenderType PENDING_LINES = lines(
       "fastformer_pending_lines", DefaultVertexFormat.POSITION_COLOR_NORMAL,
       RenderStateShard.RENDERTYPE_LINES_SHADER, 1.0, RenderStateShard.LEQUAL_DEPTH_TEST

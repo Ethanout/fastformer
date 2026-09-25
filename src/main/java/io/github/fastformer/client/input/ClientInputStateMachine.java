@@ -16,7 +16,8 @@ public final class ClientInputStateMachine {
    }
 
    public boolean ownsQuickShapeSubmission() {
-      return state == State.BUILDING || state == State.SUBMITTING && submissionOrigin == State.BUILDING;
+      return state == State.BUILDING || state == State.SUBMITTING
+         && (submissionOrigin == State.BUILDING || submissionOrigin == State.IDLE);
    }
 
    public long generation() {
@@ -34,6 +35,10 @@ public final class ClientInputStateMachine {
 
    public boolean submit(long requestId) {
       return onEvent(new ClientSemanticEvent.Submit.Placement(requestId)) instanceof InteractionTransition.Switch;
+   }
+
+   public boolean startPlacement(long requestId) {
+      return onEvent(new ClientSemanticEvent.StartPlacement(requestId)) instanceof InteractionTransition.Switch;
    }
 
    public boolean awaitsPlacementRequest(long requestId) {
@@ -178,6 +183,9 @@ public final class ClientInputStateMachine {
             case ClientSemanticEvent.Reset ignored ->
                new InteractionTransition.Switch(IDLE, InteractionTransition.Cause.RESET);
             case ClientSemanticEvent.Submit request -> submitTransition(request, activeRequest);
+            case ClientSemanticEvent.StartPlacement start -> this == IDLE
+               ? validatedSubmission(new ClientSemanticEvent.Submit.Placement(start.requestId()), activeRequest)
+               : new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
             case ClientSemanticEvent.SubmissionCompleted completion ->
                completionTransition(completion, activeRequest, submissionOrigin);
          };
@@ -189,6 +197,12 @@ public final class ClientInputStateMachine {
          if (!this.canSubmit) {
             return new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
          }
+         return validatedSubmission(request, activeRequest);
+      }
+
+      private InteractionTransition validatedSubmission(
+         ClientSemanticEvent.Submit request, ClientSemanticEvent.Submit activeRequest
+      ) {
          if (activeRequest != null) {
             return new InteractionTransition.Rejected(InteractionTransition.Rejection.REQUEST_ACTIVE);
          }

@@ -32,6 +32,8 @@ public final class ChunkedPayloadTransfer {
       return chunkCount;
    }
 
+   public int bytes() { return bytes; }
+
    /** Adds a chunk and returns the complete payload once every chunk arrived. */
    public byte[] accept(int index, byte[] data) throws IOException {
       if (index < 0 || index >= chunkCount || data == null || data.length == 0) {
@@ -49,11 +51,13 @@ public final class ChunkedPayloadTransfer {
       if (received != chunkCount) {
          return null;
       }
-      ByteArrayOutputStream output = new ByteArrayOutputStream(bytes);
+      byte[] output = new byte[bytes];
+      int offset = 0;
       for (byte[] chunk : chunks) {
-         output.writeBytes(chunk);
+         System.arraycopy(chunk, 0, output, offset, chunk.length);
+         offset += chunk.length;
       }
-      return output.toByteArray();
+      return output;
    }
 
    public boolean expired(long now, long timeoutNanos) {

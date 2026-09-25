@@ -1,6 +1,7 @@
 package io.github.fastformer.network.payload.geometry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import io.github.fastformer.fastplace.ConePlaneMode;
 import io.github.fastformer.fastplace.FillMode;
@@ -60,5 +61,18 @@ class GeometryPreviewPayloadTest {
       assertEquals(42L, decoded.revision());
       assertEquals(scope, decoded.callbackScope());
       assertEquals(payload.pointLocations(), decoded.pointLocations());
+      assertNull(decoded.draftId());
+   }
+
+   @Test
+   void draftIdSurvivesCodecRoundTrip() {
+      UUID draftId = UUID.randomUUID();
+      GeometryPreviewPayload payload = GeometryPreviewPayload.inactive().withRevision(7L).withDraftId(draftId);
+      FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+      GeometryPreviewPayload.STREAM_CODEC.encode(buffer, payload);
+      GeometryPreviewPayload decoded = GeometryPreviewPayload.STREAM_CODEC.decode(buffer);
+
+      assertEquals(draftId, decoded.draftId());
    }
 }

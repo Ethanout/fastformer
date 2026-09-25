@@ -17,6 +17,8 @@ public sealed interface ClientSemanticEvent {
    enum Cancel implements ClientSemanticEvent { INSTANCE }
    enum Reset implements ClientSemanticEvent { INSTANCE }
 
+   record StartPlacement(long requestId) implements ClientSemanticEvent { }
+
    sealed interface Submit extends ClientSemanticEvent {
       record Placement(long requestId) implements Submit { }
       record Workspace(UUID transferId) implements Submit {

@@ -1,4 +1,4 @@
-package io.github.fastformer.client.operation.transform;
+package io.github.fastformer.workspace.transform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

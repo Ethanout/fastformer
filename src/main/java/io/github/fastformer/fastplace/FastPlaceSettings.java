@@ -1,7 +1,9 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
-import io.github.fastformer.fastplace.quickshape.FastPlaceMode;
+import io.github.fastformer.fastplace.quickshape.QuickShapeModeRules;
+
+import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
+import io.github.fastformer.fastplace.quickshape.QuickShapeMode;
 import io.github.fastformer.fastplace.quickshape.PointMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
@@ -28,7 +30,7 @@ public final class FastPlaceSettings {
    public static final int MAX_UNDO_HISTORY_LIMIT = 800;
    private boolean enabled = true;
    private boolean middleConfirmEnabled = true;
-   private FaceRasterizationMode faceRasterizationMode = FaceRasterizationMode.POINT_SWEEP;
+   private FaceRasterizationMode faceRasterizationMode = FaceRasterizationMode.DEFAULT;
    private PointMode pointMode = PointMode.RAYCAST;
    private LineMode lineMode = LineMode.AXIS;
    private FaceMode faceMode = FaceMode.POLYGON;
@@ -66,9 +68,7 @@ public final class FastPlaceSettings {
       FastPlaceSettings settings = new FastPlaceSettings();
       settings.enabled = !tag.contains("enabled") || tag.getBoolean("enabled");
       settings.middleConfirmEnabled = !tag.contains("middleConfirmEnabled") || tag.getBoolean("middleConfirmEnabled");
-      settings.faceRasterizationMode = readEnum(
-         tag, "faceRasterizationMode", FaceRasterizationMode.POINT_SWEEP
-      );
+      settings.faceRasterizationMode = FaceRasterizationMode.DEFAULT;
       settings.pointMode = readEnum(tag, "pointMode", PointMode.RAYCAST);
       // Raycast placement is now an input policy. Legacy preferences must not
       // override the surface-by-default and Alt-to-embed behavior.
@@ -138,16 +138,16 @@ public final class FastPlaceSettings {
    }
 
    public void setFaceRasterizationMode(ServerPlayer player, FaceRasterizationMode value) {
-      this.faceRasterizationMode = value == null ? FaceRasterizationMode.POINT_SWEEP : value;
+      this.faceRasterizationMode = FaceRasterizationMode.DEFAULT;
       this.save(player);
    }
 
-   public FastPlaceMode modeFor(FastPlaceStage stage) {
-      return FastPlaceStateMachine.validMode(stage, this);
+   public QuickShapeMode modeFor(QuickShapeStage stage) {
+      return QuickShapeModeRules.validMode(stage, this.storedLineMode(), this.storedModeFor(stage));
    }
 
-   FastPlaceMode storedModeFor(FastPlaceStage stage) {
-      return (FastPlaceMode)(switch (stage) {
+   QuickShapeMode storedModeFor(QuickShapeStage stage) {
+      return (QuickShapeMode)(switch (stage) {
          case POINT -> this.pointMode;
          case LINE -> this.lineMode;
          case FACE -> this.faceMode;
@@ -164,19 +164,19 @@ public final class FastPlaceSettings {
    }
 
    public PointMode pointMode() {
-      return (PointMode)this.modeFor(FastPlaceStage.POINT);
+      return (PointMode)this.modeFor(QuickShapeStage.POINT);
    }
 
    public LineMode lineMode() {
-      return (LineMode)this.modeFor(FastPlaceStage.LINE);
+      return (LineMode)this.modeFor(QuickShapeStage.LINE);
    }
 
    public FaceMode faceMode() {
-      return (FaceMode)this.modeFor(FastPlaceStage.FACE);
+      return (FaceMode)this.modeFor(QuickShapeStage.FACE);
    }
 
    public VolumeMode volumeMode() {
-      return (VolumeMode)this.modeFor(FastPlaceStage.VOLUME);
+      return (VolumeMode)this.modeFor(QuickShapeStage.VOLUME);
    }
 
    public ConePlaneMode conePlaneMode() {
@@ -191,13 +191,13 @@ public final class FastPlaceSettings {
       this.save(player);
    }
 
-   public FastPlaceMode cycleMode(ServerPlayer player, FastPlaceStage stage) {
-      this.setStoredMode(stage, FastPlaceStateMachine.nextMode(stage, this));
+   public QuickShapeMode cycleMode(ServerPlayer player, QuickShapeStage stage) {
+      this.setStoredMode(stage, QuickShapeModeRules.nextMode(stage, this.storedLineMode(), this.storedModeFor(stage)));
       this.save(player);
       return this.modeFor(stage);
    }
 
-   public void setMode(ServerPlayer player, FastPlaceMode mode) {
+   public void setMode(ServerPlayer player, QuickShapeMode mode) {
       this.setStoredMode(mode.stage(), mode);
       this.save(player);
    }
@@ -378,7 +378,7 @@ public final class FastPlaceSettings {
       }
    }
 
-   private void setStoredMode(FastPlaceStage stage, FastPlaceMode mode) {
+   private void setStoredMode(QuickShapeStage stage, QuickShapeMode mode) {
       switch (stage) {
          case POINT:
             this.pointMode = (PointMode)mode;

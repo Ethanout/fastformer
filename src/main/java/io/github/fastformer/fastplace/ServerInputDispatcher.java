@@ -1,6 +1,8 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+
+import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
@@ -13,12 +15,23 @@ import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
 import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.GeometryPointerSequence;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
 import io.github.fastformer.fastplace.geometry.PointerGesture;
+import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
+import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.network.payload.geometry.GeometryPointPayload;
+import io.github.fastformer.network.payload.geometry.GeometryUndoPayload;
 import io.github.fastformer.network.payload.operation.OperationPointPayload;
+import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
+import io.github.fastformer.network.payload.operation.OperationPointClickPayload;
+import io.github.fastformer.network.payload.operation.OperationSelectPointPayload;
+import io.github.fastformer.network.payload.operation.OperationInsertPointPayload;
+import io.github.fastformer.network.payload.operation.OperationExtendPayload;
 import io.github.fastformer.network.payload.placement.PlacementActionPayload;
 import io.github.fastformer.network.payload.placement.QuickShapeConfirmPayload;
+import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import io.github.fastformer.network.sync.PlayerPreviewSync;
 import java.util.UUID;
 import java.util.HashMap;
@@ -34,7 +47,38 @@ public final class ServerInputDispatcher {
    public static final double EXTENDED_REACH = LongRangeBlockRaycast.MAX_REACH;
    private static final int MAX_DRAG_STEPS_PER_PACKET = 128;
    private static final int MAX_INHERITED_LINE_OFFSET = 128;
-   private static final Map<UUID, Long> LAST_PLACEMENT_ACTION = new HashMap<>();
+   private static final InputRequestSequence LAST_PLACEMENT_ACTION = new InputRequestSequence();
+   private static final InputRequestSequence LAST_GEOMETRY_ACTION = new InputRequestSequence();
+   private static final InputRequestSequence LAST_GEOMETRY_DRAG_ACTION = new InputRequestSequence();
+   private static final InputRequestSequence LAST_OPERATION_POINT_COMMAND = new InputRequestSequence();
+   private static final Map<UUID, OperationExtendIdentity> OPERATION_EXTEND_IDENTITIES = new HashMap<>();
+   private static final InputRequestSequence LAST_OPERATION_EXTEND = new InputRequestSequence();
+   private static final InputRequestSequence LAST_OPERATION_TRANSFORM = new InputRequestSequence();
+   private static final Map<UUID, OperationTransformIdentity> OPERATION_TRANSFORMS = new HashMap<>();
+   private record OperationTransformIdentity(OperationSession session, long gestureId, long revision, int operation, int axis, int direction, boolean finished) { }
+
+   private record OperationExtendIdentity(OperationSession session, long requestId, long revision,
+      io.github.fastformer.network.payload.operation.OperationCallbackScope scope, int axis, boolean positive) { }
+
+   public static void endOperationGestures(ServerPlayer player) {
+      OPERATION_EXTEND_IDENTITIES.remove(player.getUUID());
+      OPERATION_TRANSFORMS.remove(player.getUUID());
+   }
+   private static final Map<UUID, GeometryPointerSequence> GEOMETRY_POINTER_SEQUENCES = new HashMap<>();
+   private static final Map<UUID, OperationPointGesture> OPERATION_POINT_GESTURES = new HashMap<>();
+
+   private record OperationPointGesture(
+      OperationSession session, long gestureId, long revision,
+      io.github.fastformer.network.payload.operation.OperationCallbackScope callbackScope,
+      int pointIndex, boolean finished, long completedRevision, boolean consumed
+   ) {
+      OperationPointGesture finished(long value) {
+         return new OperationPointGesture(session, gestureId, revision, callbackScope, pointIndex, true, value, false);
+      }
+      OperationPointGesture markConsumed() {
+         return new OperationPointGesture(session, gestureId, revision, callbackScope, pointIndex, true, completedRevision, true);
+      }
+   }
 
    private ServerInputDispatcher() {
    }
@@ -140,7 +184,7 @@ public final class ServerInputDispatcher {
                if (!FastPlaceManager.active(player)) {
                   yield false;
                }
-               FastPlaceSession session = FastPlaceManager.session(player).orElse(null);
+               QuickShapeDraft session = FastPlaceManager.session(player).orElse(null);
                BlockPos offset = session != null ? session.freeScrollOffset() : BlockPos.ZERO;
                BlockPos first = session != null && !session.points().isEmpty() ? session.points().getFirst() : BlockPos.ZERO;
                BlockPos anchor = first.offset(offset);
@@ -153,18 +197,33 @@ public final class ServerInputDispatcher {
       };
    }
 
-   public static void startPlacement(ServerPlayer player, RaycastPlacement placement) {
-      if (interactionBlocked(player) || !canOperate(player)
-         || !PlaceableItems.isPlaceable(player.getMainHandItem())
+   public static void startPlacement(ServerPlayer player, StartPlacementPayload payload) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player)
+         || !acceptPlacementAction(player.getUUID(), payload.requestId())) {
+         return;
+      }
+      if (!PlaceableItems.isPlaceable(player.getMainHandItem())
          || FastPlaceManager.active(player)
          || OperationManager.active(player)
          || GeometryManager.active(player)) {
          return;
       }
-      BlockHitResult hit = raycastBlocks(player, EXTENDED_REACH);
-      if (hit.getType() == HitResult.Type.BLOCK) {
-         FastPlaceManager.addInitialPoint(player, hit, placement == RaycastPlacement.EMBEDDED);
+      StartPlacementPayload.Target target = payload.target();
+      if (target.revision() != PlayerPreviewSync.buildingRevision(player)
+         || !target.callbackScope().equals(PlayerPreviewSync.callbackScope(player))
+         || target.eye().distanceToSqr(player.getEyePosition()) > player.blockInteractionRange() * player.blockInteractionRange()) {
+         return;
       }
+      BlockHitResult hit = LongRangeBlockRaycast.clipForPlacement(player.level(), player, target.eye(), target.view()).hit();
+      if (sameHit(hit, target.hit()) && !withinNormalBlockReach(player, hit.getLocation())) {
+         FastPlaceManager.addInitialPoint(player, hit, target.placement() == RaycastPlacement.EMBEDDED, target.eye(), target.view());
+      }
+   }
+
+   private static boolean sameHit(BlockHitResult left, BlockHitResult right) {
+      return left.getType() == HitResult.Type.BLOCK && right.getType() == HitResult.Type.BLOCK
+         && left.getBlockPos().equals(right.getBlockPos()) && left.getDirection() == right.getDirection()
+         && left.isInside() == right.isInside() && left.getLocation().distanceToSqr(right.getLocation()) <= 1.0E-10;
    }
 
    public static boolean leftClickBlock(ServerPlayer player, BlockPos point) {
@@ -199,50 +258,111 @@ public final class ServerInputDispatcher {
       OperationManager.extend(player, axis, positive, clampDragSteps(steps), finish);
    }
 
-   public static void operationSelectPoint(ServerPlayer player, int index) {
-      if (!interactionBlocked(player)
-         && canOperate(player)
-         && OperationManager.active(player)
-         && (!nearNormalBlockReach(player) || FastPlaceManager.modifierHeld(player))) {
-         OperationManager.selectPoint(player, index);
-      }
+   public static void operationSelectPoint(ServerPlayer player, OperationSelectPointPayload payload) {
+      if (payload == null || payload.revision() != PlayerPreviewSync.operationRevision(player)
+         || !payload.callbackScope().equals(PlayerPreviewSync.callbackScope(player))
+         || interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)
+         || nearNormalBlockReach(player) && !FastPlaceManager.modifierHeld(player)
+         || !acceptsOperationCommand(player, payload.requestId())) return;
+      OperationManager.selectPoint(player, payload.index());
    }
 
-   public static void operationRemovePoint(ServerPlayer player, int index) {
-      if (!interactionBlocked(player) && canOperate(player) && OperationManager.active(player)) {
-         OperationManager.removePoint(player, index);
-      }
-   }
-
-   public static void operationPointDrag(
-      ServerPlayer player,
-      int index,
-      BlockPos target,
-      OperationPointDragConstraint constraint,
-      boolean finish
-   ) {
+   public static void operationPointDrag(ServerPlayer player, OperationPointDragPayload payload) {
       if (interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
          return;
       }
-      OperationManager.dragPoint(player, index, target, constraint, finish);
+      OperationPointGesture gesture = acceptsOperationPointDrag(player, payload);
+      if (gesture == null) return;
+      try {
+         OperationManager.dragPoint(player, payload.pointIndex(), payload.target(), payload.constraint(), payload.finish());
+      } finally {
+         if (payload.finish()) {
+            OPERATION_POINT_GESTURES.put(player.getUUID(), gesture.finished(PlayerPreviewSync.operationRevision(player)));
+         }
+      }
    }
 
-   public static void operationInsertPoint(ServerPlayer player) {
-      if (interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
+   public static void extend(ServerPlayer player, OperationExtendPayload payload) {
+      if (payload == null || !payload.callbackScope().equals(PlayerPreviewSync.callbackScope(player))
+         || interactionBlocked(player) || !canOperate(player)) return;
+      UUID owner = player.getUUID();
+      OperationSession session = OperationManager.session(player).orElse(null);
+      if (session == null) {
+         OPERATION_EXTEND_IDENTITIES.remove(owner);
+         return;
+      }
+      OperationExtendIdentity active = OPERATION_EXTEND_IDENTITIES.get(owner);
+      if (active == null || active.session() != session || payload.requestId() > active.requestId()) {
+         if (payload.revision() != PlayerPreviewSync.operationRevision(player)
+            || !LAST_OPERATION_EXTEND.accept(owner, payload.requestId())) return;
+         if (active != null && active.session() == session) session.commitEdit();
+         OPERATION_EXTEND_IDENTITIES.put(owner, new OperationExtendIdentity(session, payload.requestId(), payload.revision(), payload.callbackScope(), payload.axis(), payload.positive()));
+      } else if (active.session() != session || active.requestId() != payload.requestId() || active.revision() != payload.revision()
+         || !active.scope().equals(payload.callbackScope()) || active.axis() != payload.axis() || active.positive() != payload.positive()) {
+         return;
+      }
+      extend(player, payload.axis(), payload.positive(), payload.steps(), payload.finish());
+      if (payload.finish()) OPERATION_EXTEND_IDENTITIES.remove(owner);
+   }
+
+   private static OperationPointGesture acceptsOperationPointDrag(ServerPlayer player, OperationPointDragPayload payload) {
+      if (payload == null || !payload.callbackScope().equals(PlayerPreviewSync.callbackScope(player))) return null;
+      UUID owner = player.getUUID();
+      OperationSession session = OperationManager.session(player).orElse(null);
+      if (session == null) return null;
+      OperationPointGesture previous = OPERATION_POINT_GESTURES.get(owner);
+      long currentRevision = PlayerPreviewSync.operationRevision(player);
+      if (previous == null || payload.gestureId() > previous.gestureId()) {
+         if (payload.revision() != currentRevision) return null;
+         var started = new OperationPointGesture(session, payload.gestureId(), payload.revision(), payload.callbackScope(),
+            payload.pointIndex(), false, -1L, false);
+         OPERATION_POINT_GESTURES.put(owner, started);
+         return started;
+      }
+      if (previous.gestureId() != payload.gestureId() || previous.finished() || previous.consumed()
+         || previous.session() != session || previous.revision() != payload.revision()
+         || previous.pointIndex() != payload.pointIndex() || !previous.callbackScope().equals(payload.callbackScope())) return null;
+      return previous;
+   }
+
+   public static void operationPointClick(ServerPlayer player, OperationPointClickPayload payload) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) return;
+      OperationPointGesture completed = OPERATION_POINT_GESTURES.get(player.getUUID());
+      OperationSession session = OperationManager.session(player).orElse(null);
+      if (completed == null || !completed.finished() || completed.consumed() || completed.gestureId() != payload.gestureId()
+         || completed.revision() != payload.revision() || !completed.callbackScope().equals(payload.callbackScope())
+         || completed.pointIndex() != payload.pointIndex() || completed.session() != session
+         || completed.completedRevision() != PlayerPreviewSync.operationRevision(player)
+         || !payload.callbackScope().equals(PlayerPreviewSync.callbackScope(player))) return;
+      if (payload.action() == OperationPointClickPayload.Action.CLOSE) {
+         OPERATION_POINT_GESTURES.put(player.getUUID(), completed.markConsumed());
+         OperationManager.closePrismBase(player);
+      } else {
+         OPERATION_POINT_GESTURES.put(player.getUUID(), completed.markConsumed());
+         OperationManager.removePoint(player, payload.pointIndex());
+      }
+   }
+
+   public static void operationInsertPoint(ServerPlayer player, OperationInsertPointPayload payload) {
+      if (payload == null || payload.revision() != PlayerPreviewSync.operationRevision(player)
+         || !io.github.fastformer.network.RaySnapshotValidation.near(payload.eye(), player.getEyePosition(), player.blockInteractionRange())
+         || !payload.callbackScope().equals(PlayerPreviewSync.callbackScope(player))
+         || interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
          return;
       }
       OperationSession session = OperationManager.session(player).orElse(null);
       if (session == null || session.selectionMode() != OperationSelectionMode.PRISM) {
          return;
       }
+      if (!acceptsOperationCommand(player, payload.requestId())) return;
       LongRangeBlockRaycast.Result raycast = LongRangeBlockRaycast.clip(
-         player.level(), player, player.getEyePosition(), player.getViewVector(1.0F)
+         player.level(), player, payload.eye(), payload.view()
       );
       SelectionPrism.EdgeInsertion insertion = SelectionPrism.resolveEdgeInsertion(
          session.points(),
          session.prismBasePointCount(),
-         player.getEyePosition(),
-         player.getViewVector(1.0F),
+         payload.eye(),
+         payload.view(),
          raycast.distance()
       );
       if (insertion != null) {
@@ -250,31 +370,67 @@ public final class ServerInputDispatcher {
       }
    }
 
-   public static void geometryGizmoDrag(ServerPlayer player, int operation, int axis, int steps, boolean finish) {
-      if (interactionBlocked(player) || !canOperate(player) || !GeometryManager.active(player)) {
-         return;
+   public static boolean geometryGizmoDrag(ServerPlayer player, GeometryGizmoDragPayload payload) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player)) {
+         return false;
       }
-      if (!finish && nearNormalBlockReach(player)) {
-         return;
+      GeometrySession session = GeometryManager.session(player).orElse(null);
+      if (session == null || !session.draftId().equals(payload.draftId())
+         || !payload.callbackScope().equals(PlayerPreviewSync.callbackScope(player))
+         || !payload.finish() && nearNormalBlockReach(player)) {
+         return false;
       }
-      AxisGizmo.Operation gizmoOperation = gizmoOperation(operation);
-      AxisGizmo.Axis gizmoAxis = gizmoAxis(axis);
-      if (gizmoOperation != null && gizmoAxis != null) {
-         GeometryManager.gizmoDrag(player, gizmoOperation, gizmoAxis, clampDragSteps(steps), finish);
+      AxisGizmo.Operation operation = gizmoOperation(payload.operation());
+      AxisGizmo.Axis axis = gizmoAxis(payload.axis());
+      if (operation == null || axis == null) return false;
+      GeometryPointerSequence sequence = acceptGeometryPointer(player, payload.requestId(), payload.revision(),
+         payload.callbackScope(), session, LAST_GEOMETRY_DRAG_ACTION);
+      if (sequence == null) return false;
+      try {
+         return GeometryManager.gizmoDrag(player, operation, axis, clampDragSteps(payload.steps()), payload.finish());
+      } finally {
+         advanceGeometryPointer(player, session, sequence);
       }
    }
 
-   public static void geometryInteraction(
-      ServerPlayer player,
-      GeometryInteractionTarget.TargetType targetType,
-      int index,
-      GeometryInteractionAction action,
-      PointerGesture gesture
-   ) {
-      if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)) {
-         return;
+   /** Routes a captured geometry interaction through the authoritative preview sequence. */
+   public static boolean geometryInteraction(ServerPlayer player, GeometryInteractionPayload payload) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player)
+         || !acceptsGeometryInteractionSnapshot(payload, PlayerPreviewSync.callbackScope(player), player.getEyePosition(),
+            player.blockInteractionRange())
+         || nearNormalBlockReach(player, payload.eye(), payload.view())) {
+         return false;
       }
-      GeometryManager.interaction(player, targetType, index, action, gesture);
+      GeometrySession session = GeometryManager.session(player).orElse(null);
+      GeometryPointerSequence sequence = acceptGeometryPointer(player, payload.requestId(), payload.revision(),
+         payload.callbackScope(), session);
+      if (sequence == null) {
+         return false;
+      }
+      try {
+         if (isCapturedDoubleClickClose(payload)) {
+            return GeometryManager.closePath(player);
+         }
+         return GeometryManager.interaction(player, payload.targetType(), payload.index(), payload.action(), payload.gesture(),
+            payload.eye(), payload.view());
+      } finally {
+         advanceGeometryPointer(player, session, sequence);
+      }
+   }
+
+   private static boolean acceptsOperationCommand(ServerPlayer player, long requestId) {
+      return acceptOperationCommand(player.getUUID(), requestId);
+   }
+
+   static boolean acceptOperationCommand(UUID owner, long requestId) {
+      return LAST_OPERATION_POINT_COMMAND.accept(owner, requestId);
+   }
+
+   private static boolean isCapturedDoubleClickClose(GeometryInteractionPayload payload) {
+      return payload.targetType() == GeometryInteractionTarget.TargetType.CLOSE_PATH
+         && payload.index() == 0
+         && payload.action() == GeometryInteractionAction.CLOSE_PATH
+         && payload.gesture() == PointerGesture.RIGHT_DOUBLE_CLICK;
    }
 
    public static void operationPoint(ServerPlayer player, OperationPointPayload.Role role) {
@@ -343,24 +499,22 @@ public final class ServerInputDispatcher {
       }
    }
 
-   public static void legacyGeometryRemovePoint(ServerPlayer player, BlockPos point) {
-      if (!interactionBlocked(player) && canOperate(player) && GeometryManager.active(player) && !withinNormalBlockReach(player, new AABB(point))) {
-         rollbackActiveSession(player);
-      }
-   }
-
-   public static void closeActivePath(ServerPlayer player) {
+   public static void closeActivePath(ServerPlayer player, io.github.fastformer.network.payload.geometry.ClosePathPayload payload) {
       if (interactionBlocked(player) || !canOperate(player)) {
          return;
       }
-      if (OperationManager.active(player)) {
-         OperationManager.closePrismBase(player);
-      } else if (nearNormalBlockReach(player)) {
-         return;
-      } else if (GeometryManager.active(player)) {
-         GeometryManager.closePath(player);
-      } else if (FastPlaceManager.active(player)) {
-         FastPlaceManager.closePolygon(player);
+      if (payload == null || !payload.scope().equals(PlayerPreviewSync.callbackScope(player))) return;
+      long revision = switch (payload.kind()) {
+         case OPERATION -> OperationManager.active(player) ? PlayerPreviewSync.operationRevision(player) : -1;
+         case GEOMETRY -> GeometryManager.active(player) ? PlayerPreviewSync.geometryRevision(player) : -1;
+         case BUILDING -> FastPlaceManager.active(player) ? PlayerPreviewSync.buildingRevision(player) : -1;
+      };
+      if (revision != payload.revision() || !acceptsOperationCommand(player, payload.requestId())) return;
+      if (payload.kind() != io.github.fastformer.network.payload.geometry.ClosePathPayload.Kind.OPERATION && nearNormalBlockReach(player)) return;
+      switch (payload.kind()) {
+         case OPERATION -> OperationManager.closePrismBase(player);
+         case GEOMETRY -> GeometryManager.closePath(player);
+         case BUILDING -> FastPlaceManager.closePolygon(player);
       }
    }
 
@@ -396,7 +550,7 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean commandCycleMode(ServerPlayer player) {
-      if (interactionBlocked(player) || !canOperate(player) || !hasActiveSession(player)) {
+      if (interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
       return cycleModeAction(player, null, false);
@@ -412,7 +566,8 @@ public final class ServerInputDispatcher {
          FastPlaceManager.cycleStageMode(player, hasLineCandidate ? trustedLineCandidate(player, lineCandidate) : null);
          return true;
       }
-      return false;
+      OperationManager.cycleMode(player);
+      return true;
    }
 
    public static void scroll(ServerPlayer player, int steps) {
@@ -493,15 +648,7 @@ public final class ServerInputDispatcher {
    }
 
    static boolean acceptPlacementAction(UUID owner, long requestId) {
-      if (owner == null || requestId <= 0L) {
-         return false;
-      }
-      Long previous = LAST_PLACEMENT_ACTION.get(owner);
-      if (previous != null && requestId <= previous) {
-         return false;
-      }
-      LAST_PLACEMENT_ACTION.put(owner, requestId);
-      return true;
+      return LAST_PLACEMENT_ACTION.accept(owner, requestId);
    }
 
    public static void confirmQuickShape(
@@ -518,16 +665,93 @@ public final class ServerInputDispatcher {
       if (!nearNormalBlockReach(player)) FastPlaceManager.fill(player);
    }
 
+   private static final java.util.Map<UUID, io.github.fastformer.fastplace.quickshape.QuickShapePointerSequence> POINTER_SEQUENCES =
+      new java.util.HashMap<>();
+
+   public static void quickShapePointer(ServerPlayer player,
+      io.github.fastformer.network.payload.placement.QuickShapePointerPayload payload) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player)
+         || !FastPlaceManager.active(player) || GeometryManager.active(player) || OperationManager.active(player)
+         || !PlaceableItems.isPlaceable(player.getMainHandItem())) return;
+      var draft = FastPlaceManager.session(player).orElseThrow();
+      var scope = PlayerPreviewSync.callbackScope(player);
+      long revision = PlayerPreviewSync.buildingRevision(player);
+      var sequence = POINTER_SEQUENCES.get(player.getUUID());
+      if (!payload.scope().equals(scope)) return;
+      if (payload.revision() == revision) {
+         sequence = new io.github.fastformer.fastplace.quickshape.QuickShapePointerSequence(draft, scope, revision,
+            FastPlaceManager.candidateContext(player));
+      } else if (sequence == null || !sequence.accepts(draft, scope, payload.revision(), revision)) {
+         return;
+      }
+      if (!acceptPlacementAction(player.getUUID(), payload.requestId())) return;
+      if (payload.revision() == revision) POINTER_SEQUENCES.put(player.getUUID(), sequence);
+      try {
+         applyQuickShapePointer(player, payload, sequence.candidateContext());
+      } finally {
+         if (FastPlaceManager.session(player).orElse(null) == draft) {
+            sequence.advance(PlayerPreviewSync.buildingRevision(player));
+         } else {
+            POINTER_SEQUENCES.remove(player.getUUID());
+         }
+      }
+   }
+
+   private static void applyQuickShapePointer(ServerPlayer player,
+      io.github.fastformer.network.payload.placement.QuickShapePointerPayload payload,
+      io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext candidateContext) {
+      if (payload.action() == io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.UNDO) {
+         FastPlaceManager.undo(player);
+         return;
+      }
+      // Bound the captured ray origin to the player's interaction range before tracing the world.
+      if (payload.eye().distanceToSqr(player.getEyePosition()) > player.blockInteractionRange() * player.blockInteractionRange()) return;
+      BlockHitResult hit = LongRangeBlockRaycast.clipForPlacement(player.level(), player, payload.eye(), payload.view()).hit();
+      if (hit.getType() == HitResult.Type.BLOCK && withinNormalBlockReach(player, hit.getLocation())) return;
+      switch (payload.action()) {
+         case CLOSE -> FastPlaceManager.closePolygon(player);
+         case UNDO -> throw new IllegalStateException("Undo was already dispatched");
+         case POINT -> FastPlaceManager.confirmCapturedPoint(player, payload, hit, candidateContext);
+         case MIDDLE -> {
+            QuickShapeDraft draft = FastPlaceManager.session(player).orElse(null);
+            if (draft == null || !FastPlaceSettings.load(player).middleConfirmEnabled()
+               || io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
+                  FastPlaceSettings.load(player).faceMode(), draft.points().size(), draft.polygonClosed())) return;
+            if (FastPlaceManager.confirmCapturedPoint(player, payload, hit, candidateContext) && FastPlaceManager.active(player)) FastPlaceManager.fill(player);
+         }
+      }
+   }
+
    static void clearPlacementActions(UUID owner) {
-      LAST_PLACEMENT_ACTION.remove(owner);
+      LAST_PLACEMENT_ACTION.clear(owner);
+      POINTER_SEQUENCES.remove(owner);
+      LAST_GEOMETRY_ACTION.clear(owner);
+      LAST_GEOMETRY_DRAG_ACTION.clear(owner);
+      LAST_OPERATION_POINT_COMMAND.clear(owner);
+      GEOMETRY_POINTER_SEQUENCES.remove(owner);
+      OPERATION_POINT_GESTURES.remove(owner);
+      OPERATION_EXTEND_IDENTITIES.remove(owner);
+      LAST_OPERATION_EXTEND.clear(owner);
+      LAST_OPERATION_TRANSFORM.clear(owner);
+      OPERATION_TRANSFORMS.remove(owner);
    }
 
    static void clearAllPlacementActions() {
       LAST_PLACEMENT_ACTION.clear();
+      POINTER_SEQUENCES.clear();
+      LAST_GEOMETRY_ACTION.clear();
+      LAST_GEOMETRY_DRAG_ACTION.clear();
+      LAST_OPERATION_POINT_COMMAND.clear();
+      GEOMETRY_POINTER_SEQUENCES.clear();
+      OPERATION_POINT_GESTURES.clear();
+      OPERATION_EXTEND_IDENTITIES.clear();
+      LAST_OPERATION_EXTEND.clear();
+      LAST_OPERATION_TRANSFORM.clear();
+      OPERATION_TRANSFORMS.clear();
    }
 
    public static void quickShape(ServerPlayer player) {
-      FastPlaceSession session = FastPlaceManager.session(player).orElse(null);
+      QuickShapeDraft session = FastPlaceManager.session(player).orElse(null);
       if (session != null && io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
          FastPlaceSettings.load(player).faceMode(), session.points().size(), session.polygonClosed()
       )) {
@@ -570,11 +794,27 @@ public final class ServerInputDispatcher {
    }
 
    public static void operationTransform(
-      ServerPlayer player, int operation, int axis, int direction, int totalSteps, boolean finish
+      ServerPlayer player, io.github.fastformer.network.payload.operation.OperationTransformPayload payload
    ) {
-      if (interactionBlocked(player) || !canOperate(player)) {
+      if (payload == null || !payload.valid() || !payload.scope().equals(PlayerPreviewSync.callbackScope(player))
+         || interactionBlocked(player) || !canOperate(player)) {
          return;
       }
+      var session = OperationManager.session(player).orElse(null);
+      if (session == null) return;
+      UUID owner = player.getUUID();
+      var active = OPERATION_TRANSFORMS.get(owner);
+      if (active == null || payload.gestureId() > active.gestureId()) {
+         if (payload.revision() != PlayerPreviewSync.operationRevision(player)) return;
+      } else if (active.finished() || active.session() != session || active.gestureId() != payload.gestureId()
+         || active.revision() != payload.revision() || active.operation() != payload.operation()
+         || active.axis() != payload.axis() || active.direction() != payload.direction()) return;
+      if (!LAST_OPERATION_TRANSFORM.accept(owner, payload.requestId())) return;
+      if (active != null && active.session() == session && payload.gestureId() > active.gestureId()) session.finishTransform();
+      OPERATION_TRANSFORMS.put(owner, new OperationTransformIdentity(session, payload.gestureId(), payload.revision(),
+         payload.operation(), payload.axis(), payload.direction(), payload.finish()));
+      int operation = payload.operation(), axis = payload.axis(), direction = payload.direction(), totalSteps = payload.totalSteps();
+      boolean finish = payload.finish();
       AxisGizmo.Operation[] operations = AxisGizmo.Operation.values();
       AxisGizmo.Axis[] axes = AxisGizmo.Axis.values();
       if (operation < 0 || operation >= operations.length || axis < 0 || axis >= axes.length) {
@@ -746,12 +986,15 @@ public final class ServerInputDispatcher {
          return rollbackSession(player, GeometryManager.session(player).orElse(null), () -> GeometryManager.sync(player), () -> GeometryManager.cancel(player));
       }
       if (FastPlaceManager.active(player)) {
-         return rollbackSession(player, FastPlaceManager.session(player).orElse(null), () -> FastPlaceManager.sync(player), () -> FastPlaceManager.cancel(player));
+         var draft = FastPlaceManager.session(player).orElse(null);
+         if (draft == null || !draft.canUndoStep()) return false;
+         FastPlaceManager.undo(player);
+         return true;
       }
       return false;
    }
 
-   private static boolean rollbackSession(ServerPlayer player, SessionLifecycle session, Runnable sync, Runnable cancel) {
+   private static boolean rollbackSession(ServerPlayer player, GeometrySession session, Runnable sync, Runnable cancel) {
       if (session == null || !session.canUndoStep()) {
          return false;
       }
@@ -784,14 +1027,16 @@ public final class ServerInputDispatcher {
    }
 
    public static double visibleExtendedReach(ServerPlayer player) {
+      return visibleExtendedReach(player, player.getEyePosition(), player.getViewVector(1.0F));
+   }
+
+   public static double visibleExtendedReach(ServerPlayer player, Vec3 eye, Vec3 view) {
       if (player == null) {
          return 0.0;
       }
-      LongRangeBlockRaycast.Result raycast = LongRangeBlockRaycast.clip(
-         player.level(), player, player.getEyePosition(), player.getViewVector(1.0F)
-      );
+      LongRangeBlockRaycast.Result raycast = LongRangeBlockRaycast.clip(player.level(), player, eye, view);
       return raycast.hit().getType() == HitResult.Type.BLOCK
-         ? GeometryRayVisibility.visibleReach(raycast.distance(), player.getEyePosition(), raycast.hit())
+         ? GeometryRayVisibility.visibleReach(raycast.distance(), eye, raycast.hit())
          : raycast.distance();
    }
 
@@ -799,13 +1044,22 @@ public final class ServerInputDispatcher {
       return withinNormalBlockReach(player, raycastBlocks(player, EXTENDED_REACH));
    }
 
+   private static boolean nearNormalBlockReach(ServerPlayer player, Vec3 eye, Vec3 view) {
+      BlockHitResult hit = LongRangeBlockRaycast.clip(player.level(), player, eye, view).hit();
+      return hit.getType() == HitResult.Type.BLOCK && withinNormalBlockReach(player, eye, hit.getLocation());
+   }
+
    private static boolean withinNormalBlockReach(ServerPlayer player, BlockHitResult hit) {
       return hit.getType() == HitResult.Type.BLOCK && withinNormalBlockReach(player, hit.getLocation());
    }
 
    private static boolean withinNormalBlockReach(ServerPlayer player, Vec3 point) {
+      return withinNormalBlockReach(player, player.getEyePosition(), point);
+   }
+
+   private static boolean withinNormalBlockReach(ServerPlayer player, Vec3 eye, Vec3 point) {
       double reach = player.blockInteractionRange();
-      return point.distanceToSqr(player.getEyePosition()) <= reach * reach;
+      return point.distanceToSqr(eye) <= reach * reach;
    }
 
    private static boolean withinNormalBlockReach(ServerPlayer player, AABB box) {
@@ -822,27 +1076,142 @@ public final class ServerInputDispatcher {
       };
    }
 
-   public static boolean geometryPoint(ServerPlayer player) {
-      if (interactionBlocked(player) || !canOperate(player) || !GeometryManager.active(player)) {
+   public static boolean geometryPoint(ServerPlayer player, GeometryPointPayload payload) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player) || !GeometryManager.active(player)
+         || !acceptsGeometryPointSnapshot(payload, PlayerPreviewSync.callbackScope(player),
+            player.getEyePosition(), player.blockInteractionRange())) {
          return false;
       }
-      return rightClickGeometry(player, raycastBlocks(player, EXTENDED_REACH));
+      GeometrySession session = GeometryManager.session(player).orElse(null);
+      GeometryPointerSequence sequence = acceptGeometryPointer(player, payload.requestId(), payload.revision(),
+         payload.callbackScope(), session);
+      if (sequence == null) {
+         return false;
+      }
+      try {
+         BlockHitResult hit = LongRangeBlockRaycast.clip(player.level(), player, payload.eye(), payload.view()).hit();
+         return rightClickGeometry(player, hit, payload.eye(), payload.view());
+      } finally {
+         advanceGeometryPointer(player, session, sequence);
+      }
+   }
+
+   /** Applies one captured short-left-click undo to the same geometry draft. */
+   public static boolean geometryUndo(ServerPlayer player, GeometryUndoPayload payload) {
+      if (payload == null || interactionBlocked(player) || !canOperate(player) || !GeometryManager.active(player)
+         || !acceptsGeometryUndoSnapshot(payload, PlayerPreviewSync.callbackScope(player), player.getEyePosition(),
+            player.blockInteractionRange())) {
+         return false;
+      }
+      GeometrySession session = GeometryManager.session(player).orElse(null);
+      if (session == null || !session.draftId().equals(payload.draftId())
+         || nearNormalBlockReach(player, payload.eye(), payload.view())) {
+         return false;
+      }
+      GeometryPointerSequence sequence = acceptGeometryPointer(player, payload.requestId(), payload.revision(),
+         payload.callbackScope(), session);
+      if (sequence == null) {
+         return false;
+      }
+      try {
+         return rollbackActiveSession(player);
+      } finally {
+         advanceGeometryPointer(player, session, sequence);
+      }
+   }
+
+   static boolean acceptsGeometryPointSnapshot(
+      GeometryPointPayload payload, io.github.fastformer.network.payload.operation.OperationCallbackScope callbackScope,
+      Vec3 currentEye, double interactionRange
+   ) {
+      return payload != null && payload.callbackScope().equals(callbackScope)
+         && currentEye != null && Double.isFinite(interactionRange) && interactionRange >= 0.0
+         && payload.eye().distanceToSqr(currentEye) <= interactionRange * interactionRange;
+   }
+
+   static boolean acceptsGeometryInteractionSnapshot(
+      GeometryInteractionPayload payload, io.github.fastformer.network.payload.operation.OperationCallbackScope callbackScope,
+      Vec3 currentEye, double interactionRange
+   ) {
+      return payload != null && payload.callbackScope().equals(callbackScope)
+         && currentEye != null && Double.isFinite(interactionRange) && interactionRange >= 0.0
+         && payload.eye().distanceToSqr(currentEye) <= interactionRange * interactionRange;
+   }
+
+   static boolean acceptsGeometryUndoSnapshot(
+      GeometryUndoPayload payload, io.github.fastformer.network.payload.operation.OperationCallbackScope callbackScope,
+      Vec3 currentEye, double interactionRange
+   ) {
+      return payload != null && payload.callbackScope().equals(callbackScope)
+         && currentEye != null && Double.isFinite(interactionRange) && interactionRange >= 0.0
+         && payload.eye().distanceToSqr(currentEye) <= interactionRange * interactionRange;
+   }
+
+   private static GeometryPointerSequence acceptGeometryPointer(ServerPlayer player, long requestId, long revision,
+      io.github.fastformer.network.payload.operation.OperationCallbackScope scope, GeometrySession session) {
+      return acceptGeometryPointer(player, requestId, revision, scope, session, LAST_GEOMETRY_ACTION);
+   }
+
+   private static GeometryPointerSequence acceptGeometryPointer(ServerPlayer player, long requestId, long revision,
+      io.github.fastformer.network.payload.operation.OperationCallbackScope scope, GeometrySession session,
+      InputRequestSequence actionLedger) {
+      UUID owner = player.getUUID();
+      if (session == null || !scope.equals(PlayerPreviewSync.callbackScope(player))) {
+         return null;
+      }
+      long currentRevision = PlayerPreviewSync.geometryRevision(player);
+      GeometryPointerSequence sequence = GEOMETRY_POINTER_SEQUENCES.get(owner);
+      if (revision == currentRevision) {
+         sequence = new GeometryPointerSequence(session, scope, revision);
+      } else if (sequence == null || !sequence.accepts(session, scope, revision, currentRevision)) {
+         return null;
+      }
+      if (!actionLedger.accept(owner, requestId)) return null;
+      if (revision == currentRevision) GEOMETRY_POINTER_SEQUENCES.put(owner, sequence);
+      return sequence;
+   }
+
+   static boolean acceptGeometryAction(UUID owner, long requestId) {
+      return LAST_GEOMETRY_ACTION.accept(owner, requestId);
+   }
+
+   private static void advanceGeometryPointer(ServerPlayer player, GeometrySession session, GeometryPointerSequence sequence) {
+      if (GeometryManager.session(player).orElse(null) == session) {
+         sequence.advance(PlayerPreviewSync.geometryRevision(player));
+      } else {
+         GEOMETRY_POINTER_SEQUENCES.remove(player.getUUID());
+      }
    }
 
    private static boolean rightClickGeometry(ServerPlayer player, BlockHitResult hit) {
+      return rightClickGeometry(player, hit, player.getEyePosition(), player.getViewVector(1.0F));
+   }
+
+   private static boolean rightClickGeometry(ServerPlayer player, BlockHitResult hit, Vec3 eye, Vec3 view) {
       if (GeometryManager.confirmsOnRightClick(player)) {
-         return !nearNormalBlockReach(player) && GeometryManager.fill(player);
+         return capturedGeometryConfirmAllowed(hit, eye, player.blockInteractionRange()) && GeometryManager.fill(player);
       }
-      if (hit == null || hit.getType() != HitResult.Type.BLOCK || withinNormalBlockReach(player, hit.getLocation())) {
+      if (hit == null || hit.getType() != HitResult.Type.BLOCK || withinNormalBlockReach(player, eye, hit.getLocation())) {
          return false;
       }
       GeometryHit geometryHit = GeometryHit.from(hit);
       if (GeometryManager.active(player)) {
-         GeometryManager.addPoint(player, geometryHit);
+         GeometryManager.addPoint(player, geometryHit, eye, view);
       } else {
          GeometryManager.start(player, geometryHit);
       }
       return true;
+   }
+
+   static boolean capturedGeometryConfirmAllowed(BlockHitResult hit, Vec3 eye, double interactionRange) {
+      if (hit == null) {
+         return false;
+      }
+      if (hit.getType() != HitResult.Type.BLOCK) {
+         return true;
+      }
+      return eye != null && Double.isFinite(interactionRange) && interactionRange >= 0.0
+         && hit.getLocation().distanceToSqr(eye) > interactionRange * interactionRange;
    }
 
    private static AxisGizmo.Axis gizmoAxis(int axis) {
@@ -862,8 +1231,9 @@ public final class ServerInputDispatcher {
       if (candidate == null) {
          return null;
       }
-      FastPlaceSession session = FastPlaceManager.session(player).orElse(null);
-      if (session == null || session.stage() != FastPlaceStage.LINE || session.points().isEmpty()) {
+      QuickShapeDraft session = FastPlaceManager.session(player).orElse(null);
+      if (session == null || QuickShapeStage.resolve(session.points().size(),
+         FastPlaceSettings.load(player).faceMode(), session.polygonClosed()) != QuickShapeStage.LINE) {
          return null;
       }
       BlockPos first = session.points().getFirst();

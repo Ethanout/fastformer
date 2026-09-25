@@ -91,6 +91,9 @@ runs {
     // The gametest system is also enabled by default for other run configs under the /test command.
     gameTestServer {
         systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        if (project.hasProperty('gameTestDirectory')) {
+            workingDirectory project.file(project.property('gameTestDirectory').toString())
+        }
     }
 
     data {
@@ -188,7 +191,10 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('jar', Jar).configure {
     exclude 'io/github/fastformer/fastplace/world/RecoveryProcessTests*.class'
+    exclude '**/*GameTests*.class'
 }
+
+apply from: 'gradle/release.gradle'
 
 // Gradle test workers cannot reliably load classes from this checkout's non-ASCII path.
 def asciiTestRoot = new File(
@@ -259,8 +265,8 @@ tasks.register('verifyModJar') {
         ]
         def jarFile = inputs.files.singleFile
         new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
-            if (zip.entries().toList().any { it.name.startsWith('io/github/fastformer/fastplace/world/RecoveryProcessTests') }) {
-                throw new GradleException('Production jar contains the process recovery test harness')
+            if (zip.entries().toList().any { it.name.contains('GameTests') || it.name.contains('RecoveryProcessTests') }) {
+                throw new GradleException('Production jar contains a test harness')
             }
             requiredEntries.each { entry ->
                 if (zip.getEntry(entry) == null) {

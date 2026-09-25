@@ -1,9 +1,9 @@
-package io.github.fastformer.client.operation.preview;
+package io.github.fastformer.workspace.preview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
@@ -25,7 +25,7 @@ class WorkspaceSelectionBoundsTest {
          WorkspaceTransform transform = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, scale);
          var frame = WorkspacePreviewComposer.geometryFrame(blocks, transform);
          AABB envelope = WorkspaceSelectionBounds.transformedBox(new AABB(0, 0, 0, 5, 1, 1), transform, frame);
-         AABB occupied = io.github.fastformer.client.operation.selection.OccupiedBlockBounds
+         AABB occupied = io.github.fastformer.workspace.selection.OccupiedBlockBounds
             .from(WorkspacePreviewComposer.resolveValues(blocks, transform).keySet()).orElseThrow().aabb();
 
          assertEquals(occupied.getXsize(), envelope.getXsize(), 1.0E-7, "scale=" + scale);

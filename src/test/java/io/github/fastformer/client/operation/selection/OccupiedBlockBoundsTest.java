@@ -1,4 +1,5 @@
 package io.github.fastformer.client.operation.selection;
+import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

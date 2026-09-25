@@ -12,6 +12,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class OperationClipboardStoreTest {
+   @Test
+   void staleSaveCannotReplaceANewerFileOrRecreateADeletedDraft() throws Exception {
+      Path file = directory.resolve("owned.nbt.gz");
+      Object old = OperationClipboardStore.reserve(file);
+      CompoundTag newer = new CompoundTag();
+      newer.putString("Marker", "new");
+      OperationClipboardStore.save(file, newer);
+      assertThrows(IOException.class, () -> OperationClipboardStore.save(file, new CompoundTag(), old));
+      assertEquals("new", OperationClipboardStore.loadStrict(file).orElseThrow().getString("Marker"));
+      Object pending = OperationClipboardStore.reserve(file);
+      OperationClipboardStore.delete(file);
+      assertThrows(IOException.class, () -> OperationClipboardStore.save(file, newer, pending));
+      assertTrue(Files.notExists(file));
+   }
    @TempDir
    Path directory;
 

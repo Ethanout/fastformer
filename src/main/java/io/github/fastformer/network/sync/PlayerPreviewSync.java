@@ -7,7 +7,7 @@ import io.github.fastformer.fastplace.GeometryManager;
 import io.github.fastformer.fastplace.OperationManager;
 import io.github.fastformer.fastplace.PlaceableItems;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
-import io.github.fastformer.fastplace.session.FastPlaceSession;
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 import io.github.fastformer.fastplace.session.GeometrySession;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
@@ -44,6 +44,14 @@ public final class PlayerPreviewSync {
       return BUILDING_PREVIEW_REVISIONS.getOrDefault(player.getUUID(), 0L);
    }
 
+   public static long geometryRevision(ServerPlayer player) {
+      return GEOMETRY_PREVIEW_REVISIONS.getOrDefault(player.getUUID(), 0L);
+   }
+
+   public static long operationRevision(ServerPlayer player) {
+      return OPERATION_PREVIEW_REVISIONS.getOrDefault(player.getUUID(), 0L);
+   }
+
    public static boolean buildingSubmissionParametersMatch(ServerPlayer player) {
       var published = BUILDING_SUBMISSION_PARAMETERS.get(player.getUUID());
       var session = FastPlaceManager.session(player).orElse(null);
@@ -55,7 +63,7 @@ public final class PlayerPreviewSync {
             .filter(published.prototype()::equals).isPresent();
    }
 
-   public static void syncPreview(ServerPlayer player, FastPlaceSession session) {
+   public static void syncPreview(ServerPlayer player, QuickShapeDraft session) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       var modes = FastPlaceManager.effectiveModes(settings, session);
       var activeEffect = PlaceableItems.placementState(
@@ -143,6 +151,8 @@ public final class PlayerPreviewSync {
       sendGeometry(
          player,
          new GeometryPreviewPayload(
+            0L,
+            session.draftId(),
             true,
             session.mode(),
             session.points(),
@@ -168,7 +178,8 @@ public final class PlayerPreviewSync {
             session.polyhedronLocalScale(),
             session.polyhedronWorldScale(),
             session.polyhedronGizmoLocal(),
-            session.selectedControlPoint()
+            session.selectedControlPoint(),
+            callbackScope(player)
          )
       );
       syncActivity(player);
@@ -324,10 +335,11 @@ public final class PlayerPreviewSync {
    }
 
    private static void sendGeometry(ServerPlayer player, GeometryPreviewPayload payload) {
+      long revision = nextGeometryPreviewRevision(player);
       if (player.connection.hasChannel(GeometryPreviewPayload.TYPE)) {
          PacketDistributor.sendToPlayer(
             player,
-            payload.withRevision(nextGeometryPreviewRevision(player)).withCallbackScope(callbackScope(player)),
+            payload.withRevision(revision).withCallbackScope(callbackScope(player)),
             new CustomPacketPayload[0]
          );
       }

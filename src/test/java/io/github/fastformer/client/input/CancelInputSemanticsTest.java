@@ -19,7 +19,7 @@ class CancelInputSemanticsTest {
    @Test
    void pendingSubmissionReportsInsteadOfCancellingOrDismissingRestore() {
       CancelInputSemantics.Decision decision = CancelInputSemantics.decide(
-         1, 81, true, true, true, true, true
+         1, 81, true, true, true, true, true, true
       );
 
       assertEquals(CancelInputSemantics.Command.REPORT_SUBMISSION_PENDING, decision.command());
@@ -30,7 +30,7 @@ class CancelInputSemanticsTest {
    @Test
    void acceptedCancelCarriesBothRestoreDismissals() {
       CancelInputSemantics.Decision decision = CancelInputSemantics.decide(
-          1, 81, true, true, false, true, true
+          1, 81, true, true, true, false, true, true
       );
 
       assertEquals(CancelInputSemantics.Command.REQUEST_CANCEL, decision.command());
@@ -39,12 +39,12 @@ class CancelInputSemanticsTest {
    }
 
    @Test
-   void escapeCancelsAnActiveSessionBeforeThePauseScreen() {
+   void escapeLeavesAnActiveSessionAndRestoreStateUntouched() {
       CancelInputSemantics.Decision decision = escape(true, true, true, false, true, true);
 
-      assertEquals(CancelInputSemantics.Command.REQUEST_CANCEL, decision.command());
-      assertTrue(decision.dismissOperationRestore());
-      assertTrue(decision.dismissPreviewRestore());
+      assertEquals(CancelInputSemantics.Command.IGNORE, decision.command());
+      assertFalse(decision.dismissOperationRestore());
+      assertFalse(decision.dismissPreviewRestore());
    }
 
    @Test
@@ -55,27 +55,29 @@ class CancelInputSemanticsTest {
    }
 
    @Test
-   void escapeReportsAPendingSubmissionAndLeavesThePauseAvailable() {
+   void escapeLeavesAPendingSubmissionAndThePauseAvailable() {
       CancelInputSemantics.Decision decision = escape(true, true, true, true, false, false);
 
-      assertEquals(CancelInputSemantics.Command.REPORT_SUBMISSION_PENDING, decision.command());
+      assertEquals(CancelInputSemantics.Command.IGNORE, decision.command());
       assertFalse(decision.dismissOperationRestore());
       assertFalse(decision.dismissPreviewRestore());
    }
 
    @Test
-   void theQueuedVanillaDropClickIsConsumedOnlyForAMatchingAcceptedCancel() {
+   void capturedCancelAndSubmissionReportConsumeOnlyTheMatchingDropClick() {
       CancelInputSemantics.Decision accepted = CancelInputSemantics.decide(
-         1, 81, true, true, false, false, false
+         1, 81, true, true, true, false, false, false
       );
       CancelInputSemantics.Decision reported = CancelInputSemantics.decide(
-         1, 81, true, true, true, false, false
+         1, 81, true, true, true, true, false, false
       );
 
-      assertTrue(CancelInputSemantics.consumesVanillaDrop(accepted, true, true));
-      assertFalse(CancelInputSemantics.consumesVanillaDrop(accepted, true, false));
-      assertFalse(CancelInputSemantics.consumesVanillaDrop(accepted, false, true));
-      assertFalse(CancelInputSemantics.consumesVanillaDrop(reported, true, true));
+      assertTrue(CancelInputSemantics.capturesVanillaDrop(accepted, true));
+      assertFalse(CancelInputSemantics.capturesVanillaDrop(accepted, false));
+      assertFalse(CancelInputSemantics.capturesVanillaDrop(reported, true));
+      var idle = CancelInputSemantics.decide(1, 81, true, true, false, false, false, false);
+      assertEquals(CancelInputSemantics.Command.IGNORE, idle.command());
+      assertFalse(CancelInputSemantics.capturesVanillaDrop(idle, true));
    }
 
    private static CancelInputSemantics.Decision escape(
@@ -96,7 +98,7 @@ class CancelInputSemanticsTest {
       int action, int key, boolean clientReady, boolean channelAvailable, boolean submissionPending
    ) {
       return CancelInputSemantics.decide(
-         action, key, clientReady, channelAvailable, submissionPending, false, false
+         action, key, clientReady, channelAvailable, true, submissionPending, false, false
       );
    }
 }

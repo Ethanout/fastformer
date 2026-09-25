@@ -11,9 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -32,33 +32,23 @@ class OperationWorkspaceValidatorTest {
       for (int id = 1; id <= 11; id++) {
          parts.add(emptyPart(id));
       }
-      boolean[] read = {false};
 
       var result = OperationWorkspaceValidator.validate(
-         new OperationWorkspacePlan(parts), ignored -> {
-            read[0] = true;
-            return Optional.empty();
-         }, 100
+         new OperationWorkspacePlan(parts), 100
       );
 
       assertFalse(result.success());
-      assertFalse(read[0]);
       assertTrue(result.writes().isEmpty());
    }
 
    @Test
    void rejectsDuplicateIdsBeforeReadingAnyWorldState() {
-      boolean[] read = {false};
       var result = OperationWorkspaceValidator.validate(
          new OperationWorkspacePlan(List.of(emptyPart(1), emptyPart(1))),
-         ignored -> {
-            read[0] = true;
-            return Optional.empty();
-         }, 100
+         100
       );
 
       assertFalse(result.success());
-      assertFalse(read[0]);
    }
 
    @Test
@@ -119,19 +109,13 @@ class OperationWorkspaceValidatorTest {
          WorkspaceTransform.IDENTITY,
          true
       );
-      boolean[] read = {false};
 
       var result = OperationWorkspaceValidator.validate(
          new OperationWorkspacePlan(List.of(part)),
-         ignored -> {
-            read[0] = true;
-            return Optional.empty();
-         },
          100
       );
 
       assertTrue(result.success());
-      assertFalse(read[0]);
       assertTrue(result.clears().contains(source));
    }
 
@@ -165,7 +149,7 @@ class OperationWorkspaceValidatorTest {
 
       var result = OperationWorkspaceValidator.validate(
          new OperationWorkspacePlan(List.of(part(1, dense, upscaled, false))),
-         ignored -> Optional.empty(), 100
+         100
       );
 
       assertFalse(result.success(), "a real 1000-cell scan must still obey the scan budget");
@@ -186,7 +170,7 @@ class OperationWorkspaceValidatorTest {
 
       var result = OperationWorkspaceValidator.validate(
          new OperationWorkspacePlan(List.of(part(1, sparse, overLimit, false))),
-         ignored -> Optional.empty(), 100
+         100
       );
 
       assertFalse(result.success(), "a sparse part still spends its repetition cells");
@@ -205,7 +189,7 @@ class OperationWorkspaceValidatorTest {
 
       var result = OperationWorkspaceValidator.validate(
          new OperationWorkspacePlan(List.of(part(1, sparse, huge, false))),
-         ignored -> Optional.empty(), 100
+         100
       );
 
       assertFalse(result.success(), "a sparse part must still respect the repetition budget");
@@ -223,7 +207,7 @@ class OperationWorkspaceValidatorTest {
 
       var result = OperationWorkspaceValidator.validate(
          new OperationWorkspacePlan(List.of(part(1, threeWide, shrink, false))),
-         ignored -> Optional.empty(), 100
+         100
       );
 
       assertTrue(result.success(), "the budget gate accepts, and an empty sample is a legal result");

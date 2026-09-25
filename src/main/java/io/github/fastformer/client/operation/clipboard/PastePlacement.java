@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.clipboard;
 
-import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
+import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;

@@ -1,9 +1,9 @@
 package io.github.fastformer.network;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.OperationManager;
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.WorkspaceAdmission;

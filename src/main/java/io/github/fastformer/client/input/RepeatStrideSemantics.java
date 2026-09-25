@@ -1,7 +1,7 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.preview.WorkspaceSelectionBounds;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.preview.WorkspaceSelectionBounds;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.List;
 import net.minecraft.world.phys.AABB;

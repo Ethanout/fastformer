@@ -1,6 +1,6 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.input.ClientInputSession;

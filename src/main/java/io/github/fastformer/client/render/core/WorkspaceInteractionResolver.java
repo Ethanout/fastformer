@@ -12,9 +12,9 @@ import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
 import io.github.fastformer.client.interaction.InteractionComponents;
 import io.github.fastformer.client.interaction.InteractionVisibility;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
 import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.fastplace.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
@@ -223,7 +223,16 @@ final class WorkspaceInteractionResolver {
 
    private static Optional<OperationInteractionIntent> resolveSelectionCreate(InteractionContext context) {
       if (context.alternative()) {
-         return Optional.empty();
+         if (!FastPlaceClientInput.canCreateSelection()
+            || context.minecraft().level == null) {
+            return Optional.empty();
+         }
+         BlockHitResult hit = LongRangeBlockRaycast.clip(
+            context.minecraft().level, context.player(), context.eye(), context.view()
+         ).hit();
+         return hit.getType() == Type.BLOCK
+            ? Optional.of(new OperationInteractionIntent.CreateSelection(hit.getBlockPos()))
+            : Optional.empty();
       }
       BlockPos point;
       boolean workspaceCreation = ClientOperationController.active()

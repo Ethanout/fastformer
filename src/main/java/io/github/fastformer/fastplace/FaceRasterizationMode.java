@@ -4,10 +4,13 @@ import io.github.fastformer.fastplace.world.*;
 
 public enum FaceRasterizationMode {
    POINT_SWEEP,
-   GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL;
+   GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
+   NORMAL_PLANE_EXPERIMENTAL;
+
+   public static final FaceRasterizationMode DEFAULT = NORMAL_PLANE_EXPERIMENTAL;
 
    public FaceRasterizationMode next() {
-      FaceRasterizationMode[] values = values();
-      return values[(this.ordinal() + 1) % values.length];
+      // Archived values keep their wire IDs for older settings and regression tests.
+      return DEFAULT;
    }
 }

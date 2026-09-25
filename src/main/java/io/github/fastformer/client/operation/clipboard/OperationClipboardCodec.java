@@ -1,9 +1,9 @@
 package io.github.fastformer.client.operation.clipboard;
 
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

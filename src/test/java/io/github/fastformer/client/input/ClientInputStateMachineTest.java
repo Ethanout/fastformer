@@ -6,6 +6,40 @@ import org.junit.jupiter.api.Test;
 
 class ClientInputStateMachineTest {
    @Test
+   void idleStartWaitsForItsReceiptAndRejectsRepeatedStarts() {
+      ClientInputStateMachine machine = new ClientInputStateMachine();
+      assertFalse(machine.startPlacement(0L));
+      assertEquals(ClientInputStateMachine.State.IDLE, machine.state());
+      assertTrue(machine.startPlacement(101L));
+      assertTrue(machine.ownsQuickShapeSubmission());
+      assertFalse(machine.startPlacement(102L));
+      machine.observe(ClientInputStateMachine.State.BUILDING);
+      assertTrue(machine.awaitsPlacementRequest(101L));
+      assertFalse(machine.completeSubmission(
+         102L, ClientInputStateMachine.SubmissionEvent.SUCCEEDED, ClientInputStateMachine.State.BUILDING
+      ));
+      assertTrue(machine.completeSubmission(
+         101L, ClientInputStateMachine.SubmissionEvent.SUCCEEDED, ClientInputStateMachine.State.BUILDING
+      ));
+      assertEquals(ClientInputStateMachine.State.BUILDING, machine.state());
+      assertFalse(machine.startPlacement(103L));
+   }
+
+   @Test
+   void rejectedIdleStartReturnsToIdleAndCancelledStartIgnoresLateReceipt() {
+      ClientInputStateMachine machine = new ClientInputStateMachine();
+      assertTrue(machine.startPlacement(101L));
+      assertTrue(machine.completeSubmission(101L, ClientInputStateMachine.SubmissionEvent.FAILED, null));
+      assertEquals(ClientInputStateMachine.State.IDLE, machine.state());
+      assertTrue(machine.startPlacement(102L));
+      assertTrue(machine.cancel());
+      assertFalse(machine.completeSubmission(
+         102L, ClientInputStateMachine.SubmissionEvent.SUCCEEDED, ClientInputStateMachine.State.BUILDING
+      ));
+      assertEquals(ClientInputStateMachine.State.CANCELLING, machine.state());
+   }
+
+   @Test
    void everyStateAndInputKindMatchesTheDispatchPolicy() {
       ClientInputStateMachine.Dispatch B = ClientInputStateMachine.Dispatch.BLOCKED;
       ClientInputStateMachine.Dispatch C = ClientInputStateMachine.Dispatch.CANCEL;

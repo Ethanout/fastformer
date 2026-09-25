@@ -3,7 +3,7 @@ package io.github.fastformer.network;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.FastPlaceManager;
-import io.github.fastformer.fastplace.session.FastPlaceSession;
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 import io.github.fastformer.fastplace.FastPlaceSettings;
 import io.github.fastformer.fastplace.OperationConflictMode;
 import io.github.fastformer.fastplace.PlacementUpdateMode;
@@ -35,7 +35,15 @@ import java.io.IOException;
 
 public final class FastPlaceNetwork {
    private static final org.slf4j.Logger LOGGER = LogUtils.getLogger();
-   private static final IncomingPayloadTransfers INCOMING_TRANSFERS = new IncomingPayloadTransfers();
+   private static final IncomingPayloadTransfers INCOMING_TRANSFERS = new IncomingPayloadTransfers(expired -> {
+      if (!OperationManager.transferActive(expired.owner(), expired.transferId())
+         && !FastPlaceNetwork.INCOMING_TRANSFERS.contains(expired.owner(), expired.transferId())
+         && !FastPlaceNetwork.DECODES.contains(expired.owner(), expired.transferId()))
+         FastPlaceNetwork.WORKSPACE_CALLBACK_SCOPES.remove(new WorkspaceCallbackKey(expired.owner(), expired.transferId()));
+   });
+   private static final io.github.fastformer.network.transfer.WorkspaceDecodeQueue DECODES =
+      new io.github.fastformer.network.transfer.WorkspaceDecodeQueue();
+   private static long serverEpoch;
    private static final java.util.Map<WorkspaceCallbackKey, OperationCallbackScope> WORKSPACE_CALLBACK_SCOPES =
       new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -48,7 +56,12 @@ public final class FastPlaceNetwork {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("61").optional();
+      PayloadRegistrar registrar = event.registrar("65").optional();
+      registrar.playToClient(FreezeStatePayload.TYPE, FreezeStatePayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.freezeState(payload, connection));
+         });
       registrar.playToClient(QuickShapeSubmissionParametersPayload.TYPE, QuickShapeSubmissionParametersPayload.STREAM_CODEC,
          (payload, context) -> {
             var connection = context.connection();
@@ -71,8 +84,8 @@ public final class FastPlaceNetwork {
       registrar.playToServer(OperationPointPayload.TYPE, OperationPointPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationPoint);
       registrar.playToServer(OperationExtendPayload.TYPE, OperationExtendPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationExtend);
       registrar.playToServer(OperationSelectPointPayload.TYPE, OperationSelectPointPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationSelectPoint);
-      registrar.playToServer(OperationRemovePointPayload.TYPE, OperationRemovePointPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationRemovePoint);
       registrar.playToServer(OperationPointDragPayload.TYPE, OperationPointDragPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationPointDrag);
+      registrar.playToServer(OperationPointClickPayload.TYPE, OperationPointClickPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationPointClick);
       registrar.playToServer(OperationInsertPointPayload.TYPE, OperationInsertPointPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationInsertPoint);
       registrar.playToServer(OperationApplyPayload.TYPE, OperationApplyPayload.STREAM_CODEC, FastPlaceNetwork::handleOperationApply);
       registrar.playToServer(
@@ -95,11 +108,13 @@ public final class FastPlaceNetwork {
       registrar.playToServer(QuickReplacePayload.TYPE, QuickReplacePayload.STREAM_CODEC, FastPlaceNetwork::handleQuickReplace);
       registrar.playToServer(QuickShapeConfirmPayload.TYPE, QuickShapeConfirmPayload.STREAM_CODEC,
          FastPlaceNetwork::handleQuickShapeConfirm);
-      registrar.playToServer(GeometryRemovePointPayload.TYPE, GeometryRemovePointPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryRemovePoint);
+      registrar.playToServer(QuickShapePointerPayload.TYPE, QuickShapePointerPayload.STREAM_CODEC,
+         FastPlaceNetwork::handleQuickShapePointer);
       registrar.playToServer(GeometrySelectModePayload.TYPE, GeometrySelectModePayload.STREAM_CODEC, FastPlaceNetwork::handleGeometrySelectMode);
       registrar.playToServer(GeometryGizmoDragPayload.TYPE, GeometryGizmoDragPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryGizmoDrag);
       registrar.playToServer(GeometryInteractionPayload.TYPE, GeometryInteractionPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryInteraction);
       registrar.playToServer(GeometryPointPayload.TYPE, GeometryPointPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryPoint);
+      registrar.playToServer(GeometryUndoPayload.TYPE, GeometryUndoPayload.STREAM_CODEC, FastPlaceNetwork::handleGeometryUndo);
       registrar.playToServer(ClosePathPayload.TYPE, ClosePathPayload.STREAM_CODEC, FastPlaceNetwork::handleClosePath);
       registrar.playToServer(CycleStageModePayload.TYPE, CycleStageModePayload.STREAM_CODEC, FastPlaceNetwork::handleCycleStageMode);
       registrar.playToServer(ScrollCandidatePayload.TYPE, ScrollCandidatePayload.STREAM_CODEC, FastPlaceNetwork::handleScrollCandidate);
@@ -196,8 +211,11 @@ public final class FastPlaceNetwork {
                case TOGGLE_EMPTY_HAND_WRENCH -> settings.toggleEmptyHandWrench(player);
                case TOGGLE_GLOBAL_FREEZE -> {
                   var manager = player.getServer().tickRateManager();
-                  manager.setFrozen(!manager.isFrozen());
+                  if (player.hasPermissions(2)) manager.setFrozen(payload.targetFrozen());
+                  else player.displayClientMessage(net.minecraft.network.chat.Component.translatable("commands.generic.permission"), false);
+                  sendFreezeState(player);
                }
+               case QUERY_GLOBAL_FREEZE -> sendFreezeState(player);
                case DECREASE_WORLD_HISTORY -> settings.setWorldUndoHistoryLimit(player, settings.worldUndoHistoryLimit() - 10);
                case INCREASE_WORLD_HISTORY -> settings.setWorldUndoHistoryLimit(player, settings.worldUndoHistoryLimit() + 10);
                case DECREASE_SESSION_HISTORY -> settings.setSessionUndoHistoryLimit(player, settings.sessionUndoHistoryLimit() - 10);
@@ -206,6 +224,12 @@ public final class FastPlaceNetwork {
             FastPlaceManager.syncCurrentPreview(player);
          }
       });
+   }
+
+   private static void sendFreezeState(ServerPlayer player) {
+      if (player.connection.hasChannel(FreezeStatePayload.TYPE)) {
+         PacketDistributor.sendToPlayer(player, new FreezeStatePayload(player.getServer().tickRateManager().isFrozen(), player.hasPermissions(2)));
+      }
    }
 
    private static void handlePlacementEffectSetting(
@@ -241,19 +265,11 @@ public final class FastPlaceNetwork {
       });
    }
 
-   private static void handleOperationRemovePoint(OperationRemovePointPayload payload, IPayloadContext context) {
-      context.enqueueWork(() -> {
-         if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.operationRemovePoint(player, payload.index());
-         }
-      });
-   }
-
    private static void handleOperationExtend(OperationExtendPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
             if (OperationExtendPayload.validAxis(payload.axis())) {
-               ServerInputDispatcher.extend(player, payload.axis(), payload.positive(), payload.steps(), payload.finish());
+               ServerInputDispatcher.extend(player, payload);
             }
          }
       });
@@ -262,7 +278,7 @@ public final class FastPlaceNetwork {
    private static void handleOperationSelectPoint(OperationSelectPointPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.operationSelectPoint(player, payload.index());
+            ServerInputDispatcher.operationSelectPoint(player, payload);
          }
       });
    }
@@ -271,16 +287,22 @@ public final class FastPlaceNetwork {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
             ServerInputDispatcher.operationPointDrag(
-               player, payload.pointIndex(), payload.target(), payload.constraint(), payload.finish()
+               player, payload
             );
          }
+      });
+   }
+
+   private static void handleOperationPointClick(OperationPointClickPayload payload, IPayloadContext context) {
+      context.enqueueWork(() -> {
+         if (context.player() instanceof ServerPlayer player) ServerInputDispatcher.operationPointClick(player, payload);
       });
    }
 
    private static void handleOperationInsertPoint(OperationInsertPointPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.operationInsertPoint(player);
+            ServerInputDispatcher.operationInsertPoint(player, payload);
          }
       });
    }
@@ -305,19 +327,13 @@ public final class FastPlaceNetwork {
             return;
          }
          try {
+            if (!admitUpload(player, payload.transferId())) return;
             rememberWorkspaceCallbackScope(player, payload.transferId(), payload.chunkIndex());
             byte[] completed = INCOMING_TRANSFERS.acceptWorkspace(player.getUUID(), payload);
             if (completed == null) {
                return;
             }
-            var blocks = player.registryAccess().lookupOrThrow(Registries.BLOCK);
-            io.github.fastformer.fastplace.WorkspaceAdmission admission = ServerInputDispatcher.applyWorkspace(
-               player, payload.transferId(), OperationWorkspacePlanCodec.decodeCompressed(completed, blocks)
-            );
-            // One sender, one packet. A queued task reports its own result, a refusal
-            // reports a retryable failure, and a replay reports the state that the ledger
-            // holds. A replay of running work reports nothing.
-            sendAdmissionResult(player, payload.transferId(), admission);
+            decodeUpload(player, payload.transferId(), completed, false);
          } catch (IOException | RuntimeException exception) {
             INCOMING_TRANSFERS.forgetWorkspace(player.getUUID(), payload.transferId());
             // A transfer that already reached the ledger is not a failure. The running task
@@ -333,20 +349,13 @@ public final class FastPlaceNetwork {
             return;
          }
          try {
+            if (!admitUpload(player, payload.transferId())) return;
             rememberWorkspaceCallbackScope(player, payload.transferId(), payload.chunkIndex());
             byte[] completed = INCOMING_TRANSFERS.acceptShape(player.getUUID(), payload);
             if (completed == null) {
                return;
             }
-            var blocks = player.registryAccess().lookupOrThrow(Registries.BLOCK);
-            var plan = OperationWorkspacePlanCodec.decodeCompressed(completed, blocks);
-            io.github.fastformer.fastplace.WorkspaceAdmission admission =
-               OperationManager.applyWorkspace(player, payload.transferId(), plan);
-            if (admission.isQueued()) {
-               FastPlaceManager.cancel(player);
-            } else {
-               sendAdmissionResult(player, payload.transferId(), admission);
-            }
+            decodeUpload(player, payload.transferId(), completed, true);
          } catch (IOException | RuntimeException exception) {
             INCOMING_TRANSFERS.forgetShape(player.getUUID(), payload.transferId());
             reportFailedAdmission(player, payload.transferId());
@@ -354,11 +363,49 @@ public final class FastPlaceNetwork {
       });
    }
 
+   private static boolean admitUpload(ServerPlayer player, UUID transferId) {
+      if (DECODES.contains(player.getUUID(), transferId)) return false;
+      var recorded = OperationManager.recordedOutcome(player, transferId);
+      if (recorded != OperationSubmissionOutcome.UNKNOWN) {
+         sendAdmissionResult(player, transferId, io.github.fastformer.fastplace.WorkspaceAdmission.replayed(recorded));
+         return false;
+      }
+      if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player)
+         || DECODES.busy(player.getUUID())) {
+         INCOMING_TRANSFERS.forget(player.getUUID());
+         reportFailedAdmission(player, transferId);
+         return false;
+      }
+      return true;
+   }
+
+   private static void decodeUpload(ServerPlayer player, UUID transferId, byte[] bytes, boolean shape) {
+      var server = player.getServer();
+      var dimension = player.level().dimension();
+      var scope = PlayerPreviewSync.callbackScope(player);
+      long epoch = serverEpoch;
+      var blocks = player.registryAccess().lookupOrThrow(Registries.BLOCK);
+      boolean accepted = DECODES.submit(player.getUUID(), transferId, () -> OperationWorkspacePlanCodec.decodeCompressed(bytes, blocks), server,
+         (plan, error) -> {
+            if (epoch != serverEpoch) return;
+            if (server.getPlayerList().getPlayer(player.getUUID()) != player || player.level().dimension() != dimension
+               || !scope.equals(PlayerPreviewSync.callbackScope(player))) {
+               WORKSPACE_CALLBACK_SCOPES.remove(new WorkspaceCallbackKey(player.getUUID(), transferId));
+               return;
+            }
+            if (error != null) { reportFailedAdmission(player, transferId); return; }
+            var admission = ServerInputDispatcher.applyWorkspace(player, transferId, plan);
+            if (shape && admission.isQueued()) FastPlaceManager.cancel(player);
+            sendAdmissionResult(player, transferId, admission);
+         });
+      if (!accepted) reportFailedAdmission(player, transferId);
+   }
+
    private static void handleOperationTransform(OperationTransformPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player && payload.valid()) {
             ServerInputDispatcher.operationTransform(
-               player, payload.operation(), payload.axis(), payload.direction(), payload.totalSteps(), payload.finish()
+               player, payload
             );
          }
       });
@@ -379,8 +426,11 @@ public final class FastPlaceNetwork {
 
    private static void handleStartPlacement(StartPlacementPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
-         if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.startPlacement(player, payload.placement());
+         if (!(context.player() instanceof ServerPlayer player)) return;
+         try {
+            ServerInputDispatcher.startPlacement(player, payload);
+         } finally {
+            acknowledgePlacement(player, payload.requestId());
          }
       });
    }
@@ -396,19 +446,23 @@ public final class FastPlaceNetwork {
       });
    }
 
+   private static void handleQuickShapePointer(QuickShapePointerPayload payload, IPayloadContext context) {
+      context.enqueueWork(() -> {
+         if (!(context.player() instanceof ServerPlayer player)) return;
+         try {
+            ServerInputDispatcher.quickShapePointer(player, payload);
+         } finally {
+            if (payload.action() == QuickShapePointerPayload.Action.MIDDLE) acknowledgePlacement(player, payload.requestId());
+         }
+      });
+   }
+
    private static void acknowledgePlacement(ServerPlayer player, long requestId) {
       FastPlaceManager.syncCurrentPreview(player);
       syncActivity(player);
       PacketDistributor.sendToPlayer(player, new PlacementActionAckPayload(requestId, PlayerPreviewSync.callbackScope(player)));
    }
 
-   private static void handleGeometryRemovePoint(GeometryRemovePointPayload payload, IPayloadContext context) {
-      context.enqueueWork(() -> {
-         if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.legacyGeometryRemovePoint(player, payload.point());
-         }
-      });
-   }
 
    private static void handleGeometrySelectMode(GeometrySelectModePayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
@@ -421,7 +475,7 @@ public final class FastPlaceNetwork {
    private static void handleGeometryGizmoDrag(GeometryGizmoDragPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.geometryGizmoDrag(player, payload.operation(), payload.axis(), payload.steps(), payload.finish());
+            ServerInputDispatcher.geometryGizmoDrag(player, payload);
          }
       });
    }
@@ -429,7 +483,7 @@ public final class FastPlaceNetwork {
    private static void handleGeometryInteraction(GeometryInteractionPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.geometryInteraction(player, payload.targetType(), payload.index(), payload.action(), payload.gesture());
+            ServerInputDispatcher.geometryInteraction(player, payload);
          }
       });
    }
@@ -437,7 +491,15 @@ public final class FastPlaceNetwork {
    private static void handleGeometryPoint(GeometryPointPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.geometryPoint(player);
+            ServerInputDispatcher.geometryPoint(player, payload);
+         }
+      });
+   }
+
+   private static void handleGeometryUndo(GeometryUndoPayload payload, IPayloadContext context) {
+      context.enqueueWork(() -> {
+         if (context.player() instanceof ServerPlayer player) {
+            ServerInputDispatcher.geometryUndo(player, payload);
          }
       });
    }
@@ -445,7 +507,7 @@ public final class FastPlaceNetwork {
    private static void handleClosePath(ClosePathPayload payload, IPayloadContext context) {
       context.enqueueWork(() -> {
          if (context.player() instanceof ServerPlayer player) {
-            ServerInputDispatcher.closeActivePath(player);
+            ServerInputDispatcher.closeActivePath(player, payload);
          }
       });
    }
@@ -544,7 +606,7 @@ public final class FastPlaceNetwork {
       });
    }
 
-   public static void syncPreview(ServerPlayer player, FastPlaceSession session) {
+   public static void syncPreview(ServerPlayer player, QuickShapeDraft session) {
       PlayerPreviewSync.syncPreview(player, session);
    }
 
@@ -579,6 +641,7 @@ public final class FastPlaceNetwork {
    }
 
    public static void clearServer() {
+      serverEpoch++;
       PlayerPreviewSync.clearServer();
       INCOMING_TRANSFERS.clear();
       WORKSPACE_CALLBACK_SCOPES.clear();

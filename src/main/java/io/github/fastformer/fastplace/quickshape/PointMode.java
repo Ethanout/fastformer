@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.quickshape;
 
 
-public enum PointMode implements FastPlaceMode {
+public enum PointMode implements QuickShapeMode {
    RAYCAST("fastformer.mode.point.raycast");
 
    private final String translationKey;
@@ -11,8 +11,8 @@ public enum PointMode implements FastPlaceMode {
    }
 
    @Override
-   public FastPlaceStage stage() {
-      return FastPlaceStage.POINT;
+   public QuickShapeStage stage() {
+      return QuickShapeStage.POINT;
    }
 
    @Override

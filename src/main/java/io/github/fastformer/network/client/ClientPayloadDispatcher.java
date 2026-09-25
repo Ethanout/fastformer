@@ -190,6 +190,11 @@ public final class ClientPayloadDispatcher {
       }
    }
 
+   public static void freezeState(io.github.fastformer.network.payload.settings.FreezeStatePayload payload, Connection connection) {
+      if (!ClientSessionManager.instance().acceptsReceiptCallback(connection)) return;
+      invokeStatic(SETTINGS_CLASS, "applyFreezeState", io.github.fastformer.network.payload.settings.FreezeStatePayload.class, payload);
+   }
+
    public static void openSettings(OpenSettingsPayload payload) {
       try {
          Class<?> handler = Class.forName(SETTINGS_CLASS);

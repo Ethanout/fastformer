@@ -2,10 +2,10 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
-import io.github.fastformer.client.operation.preview.WorkspaceSelectionBounds;
-import io.github.fastformer.client.operation.transform.RepeatDragQuantizer;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.workspace.preview.WorkspaceSelectionBounds;
+import io.github.fastformer.workspace.transform.RepeatDragQuantizer;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;

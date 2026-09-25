@@ -1,4 +1,5 @@
 package io.github.fastformer.client.render.core;
+import static io.github.fastformer.client.render.core.PreviewRenderResources.*;
 
 import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 import static io.github.fastformer.client.gizmo.GizmoRenderer.operationGizmoAlpha;
@@ -20,9 +21,9 @@ import javax.annotation.Nullable;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.FastPlaceGeometry;
 import io.github.fastformer.fastplace.FastPlaceActivity;
-import io.github.fastformer.fastplace.quickshape.FastPlaceMode;
-import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
-import io.github.fastformer.fastplace.FastPlaceStateMachine;
+import io.github.fastformer.fastplace.quickshape.QuickShapeMode;
+import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
+import io.github.fastformer.fastplace.quickshape.QuickShapeModeRules;
 import io.github.fastformer.fastplace.FillMode;
 import io.github.fastformer.fastplace.TranslatableText;
 import io.github.fastformer.fastplace.quickshape.LineMode;
@@ -36,17 +37,17 @@ import io.github.fastformer.fastplace.geometry.PlaneAxes;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationStageMode;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.PointerDragSnapshotView;
 import io.github.fastformer.client.input.InteractionContext;
 import io.github.fastformer.client.input.ModifierReticleMode;
 import io.github.fastformer.client.input.OperationInteractionIntent;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
-import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
-import io.github.fastformer.client.operation.preview.WorkspacePreviewComposer;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.placement.effect.PlacementEffectPreview;
 import io.github.fastformer.client.render.FastPlaceClientShaders;
@@ -220,59 +221,9 @@ public class FastPlaceClientPreviewCore {
    static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    static float worldPreviewOpacity = 1.0F;
-   private static LongRangeBlockRaycast.Result raycastDebug;
-   private static LongRangeBlockRaycast.Result cachedRaycast;
-   private static Vec3 cachedRaycastStart;
-   private static Vec3 cachedRaycastDirection;
-   private static long cachedRaycastAt;
-   private static boolean cachedRaycastForPlacement;
+   private static final InteractionRaycastOwner RAYCAST = new InteractionRaycastOwner();
    private static TransformStatus geometryTransformBaseline;
    private static long lastPreviewFailureLogAt;
-   private static final GhostMeshCache CONFIRMED_GHOST_CACHE = new GhostMeshCache(
-      blocks -> GhostMeshBuilder.build(blocks, true, true, true)
-   );
-   private static final GhostMeshCache CONFIRMED_OUTLINE_CACHE = new GhostMeshCache(
-      blocks -> GhostMeshBuilder.build(blocks, false, true, true)
-   );
-   private static final BuildingShellCache CONFIRMED_BUILDING_SHELL_CACHE = BuildingShellCache.forImmutableSnapshots(false);
-   private static final BuildingShellEdgeBuffer CONFIRMED_SHELL_EDGES = new BuildingShellEdgeBuffer();
-   private static final BuildingShellEdgeBuffer PENDING_SHELL_EDGES = new BuildingShellEdgeBuffer();
-   private static final BuildingShellFaceBuffer CONFIRMED_SHELL_FACES = new BuildingShellFaceBuffer();
-   private static final BuildingShellFaceBuffer PENDING_SHELL_FACES = new BuildingShellFaceBuffer();
-   private static final BuildingShellBlocksCache BUILDING_SHELL_BLOCKS_CACHE = new BuildingShellBlocksCache();
-   private static final BuildingShellCache PENDING_BUILDING_SHELL_CACHE = BuildingShellCache.forImmutableSnapshots(true);
-   private static final ThreadPoolExecutor PREVIEW_MESH_EXECUTOR = new ThreadPoolExecutor(
-      1,
-      1,
-      0L,
-      TimeUnit.MILLISECONDS,
-      new LinkedBlockingQueue<>(),
-      runnable -> {
-         Thread thread = new Thread(runnable, "FastFormer preview mesh");
-         thread.setDaemon(true);
-         return thread;
-      }
-   );
-   private static final ThreadPoolExecutor PREVIEW_GENERATION_EXECUTOR = new ThreadPoolExecutor(
-      1,
-      1,
-      0L,
-      TimeUnit.MILLISECONDS,
-      new LinkedBlockingQueue<>(),
-      runnable -> {
-         Thread thread = new Thread(runnable, "FastFormer preview generation");
-         thread.setDaemon(true);
-         return thread;
-      }
-   );
-   private static final PendingGhostMeshCache PENDING_GHOST_CACHE = new PendingGhostMeshCache(
-      PREVIEW_MESH_EXECUTOR,
-      GhostMeshBuilder::buildPending,
-      failure -> logPreviewFailure("Unable to build FastFormer preview mesh; suppressing pending mesh", failure)
-   );
-   private static final PendingGhostBufferCache PENDING_GHOST_BUFFER_CACHE = new PendingGhostBufferCache(
-      FastPlaceClientPreviewCore::uploadPendingGrid
-   );
    private static BuildingPreviewPayload cachedConfirmedBuildingState;
    private static LineTieBias cachedConfirmedBuildingBias = LineTieBias.DEFAULT;
    private static Set<BlockPos> cachedConfirmedBuildingBlocks = Set.of();
@@ -342,6 +293,14 @@ public class FastPlaceClientPreviewCore {
       return PREVIEW_STATE.buildingSubmission();
    }
 
+   public static java.util.Optional<BuildingPreviewSessionPayload> idleBuildingSession() {
+      return PREVIEW_STATE.idleBuildingSession();
+   }
+
+   public static GeometryPreviewPayload geometrySnapshot() {
+      return PREVIEW_STATE.geometry();
+   }
+
    public static void applyQuickShapeSubmissionParameters(
       io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload payload
    ) {
@@ -394,13 +353,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static void clearBuildingShellCaches() {
-      CONFIRMED_BUILDING_SHELL_CACHE.clear();
-      PENDING_BUILDING_SHELL_CACHE.clear();
-      BUILDING_SHELL_BLOCKS_CACHE.clear();
-      CONFIRMED_SHELL_FACES.clear();
-      PENDING_SHELL_FACES.clear();
-      CONFIRMED_SHELL_EDGES.clear();
-      PENDING_SHELL_EDGES.clear();
+      PreviewRenderResources.clearShells();
    }
 
    public static void applyOperation(OperationPreviewPayload payload) {
@@ -442,6 +395,9 @@ public class FastPlaceClientPreviewCore {
       WORLD_SESSION_LIFECYCLE.clearFeedbackWithoutFocusedWorld(
          minecraft.player != null && minecraft.level != null && minecraft.screen == null
       );
+      if (minecraft.player != null && minecraft.level != null && minecraft.screen == null && minecraft.isWindowActive()) {
+         applyBuildingPreviewResults();
+      }
    }
 
    /** Changes whenever a server preview or activity snapshot is applied. */
@@ -578,7 +534,7 @@ public class FastPlaceClientPreviewCore {
          PREVIEW_STATE.operation().operationPrismBasePointCount(),
          player.getEyePosition(),
          player.getViewVector(1.0F),
-         raycastDebug == null ? 0.0 : raycastDebug.distance()
+         RAYCAST.distanceOr(0.0)
       );
    }
 
@@ -617,7 +573,7 @@ public class FastPlaceClientPreviewCore {
             PREVIEW_STATE.operation().points(),
             minecraft.player.getEyePosition(),
             minecraft.player.getViewVector(1.0F),
-            raycastDebug == null ? 0.0 : raycastDebug.distance()
+            RAYCAST.distanceOr(0.0)
          );
       }
       if (operationWaitingForPrismHeight()) {
@@ -626,7 +582,7 @@ public class FastPlaceClientPreviewCore {
             PREVIEW_STATE.operation().points().subList(0, baseCount),
             minecraft.player.getEyePosition(),
             minecraft.player.getViewVector(1.0F),
-            raycastDebug == null ? 0.0 : raycastDebug.distance()
+            RAYCAST.distanceOr(0.0)
          );
       }
       return hit.getType() == Type.BLOCK ? hit.getBlockPos() : null;
@@ -970,7 +926,7 @@ public class FastPlaceClientPreviewCore {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
       BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
-      if (player == null || minecraft.level == null || !snapshot.active() || FastPlaceGeometry.stageFor(snapshot.points()) != FastPlaceStage.LINE) {
+      if (player == null || minecraft.level == null || !snapshot.active() || QuickShapeStage.fromPointCount(snapshot.points().size()) != QuickShapeStage.LINE) {
          return null;
       }
 
@@ -1037,8 +993,8 @@ public class FastPlaceClientPreviewCore {
       if (!PREVIEW_STATE.building().enabled()) {
          return false;
       } else {
-         FastPlaceStage stage = PREVIEW_STATE.building().active() ? FastPlaceGeometry.stageFor(PREVIEW_STATE.building().points()) : FastPlaceStage.POINT;
-         return stage == FastPlaceStage.LINE && PREVIEW_STATE.building().lineMode() == LineMode.FREE_SCROLL;
+         QuickShapeStage stage = PREVIEW_STATE.building().active() ? QuickShapeStage.fromPointCount(PREVIEW_STATE.building().points().size()) : QuickShapeStage.POINT;
+         return stage == QuickShapeStage.LINE && PREVIEW_STATE.building().lineMode() == LineMode.FREE_SCROLL;
       }
    }
 
@@ -1050,10 +1006,10 @@ public class FastPlaceClientPreviewCore {
       } else if (!PREVIEW_STATE.building().active()) {
          return false;
       } else {
-         FastPlaceStage stage = effectiveStage(PREVIEW_STATE.building());
+         QuickShapeStage stage = effectiveStage(PREVIEW_STATE.building());
          return usesAngleDistance()
-            || stage == FastPlaceStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE
-            || stage == FastPlaceStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(PREVIEW_STATE.building().modes());
+            || stage == QuickShapeStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE
+            || stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(PREVIEW_STATE.building().modes());
       }
    }
 
@@ -1377,7 +1333,7 @@ public class FastPlaceClientPreviewCore {
          return null;
       }
 
-      FastPlaceStage stage = effectiveStage(PREVIEW_STATE.building());
+      QuickShapeStage stage = effectiveStage(PREVIEW_STATE.building());
       MutableComponent status = Component.translatable(stage.translationKey()).withStyle(ChatFormatting.WHITE);
       status.append(Component.literal(" | ").withStyle(ChatFormatting.DARK_GRAY));
       if (PREVIEW_STATE.building().polygonClosed()) {
@@ -1390,17 +1346,16 @@ public class FastPlaceClientPreviewCore {
             appendBuildingMode(status, modes[index], modes[index] == selected);
          }
       } else {
-         List<? extends FastPlaceMode> modes = FastPlaceStateMachine.allowedModes(
+         List<? extends QuickShapeMode> modes = QuickShapeModeRules.allowedModes(
             stage,
-            PREVIEW_STATE.building().lineMode(),
-            PREVIEW_STATE.building().faceMode()
+            PREVIEW_STATE.building().lineMode()
          );
-         FastPlaceMode selected = selectedMode(PREVIEW_STATE.building(), stage);
+         QuickShapeMode selected = selectedMode(PREVIEW_STATE.building(), stage);
          for (int index = 0; index < modes.size(); index++) {
             if (index > 0) {
                 status.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
             }
-            FastPlaceMode mode = modes.get(index);
+            QuickShapeMode mode = modes.get(index);
             appendBuildingMode(status, mode, mode == selected);
          }
       }
@@ -1437,12 +1392,12 @@ public class FastPlaceClientPreviewCore {
       if (!PREVIEW_STATE.building().active()) {
          return null;
       }
-      FastPlaceStage stage = effectiveStage(PREVIEW_STATE.building());
-      if (stage == FastPlaceStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.POLYGON && !PREVIEW_STATE.building().polygonClosed()) {
+      QuickShapeStage stage = effectiveStage(PREVIEW_STATE.building());
+      if (stage == QuickShapeStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.POLYGON && !PREVIEW_STATE.building().polygonClosed()) {
          return Component.translatable("fastformer.message.polygon_close_hint").withStyle(ChatFormatting.GRAY);
       }
       return Component.translatable(
-         stage == FastPlaceStage.VOLUME
+         stage == QuickShapeStage.VOLUME
             ? PREVIEW_STATE.building().polygonClosed()
                ? "fastformer.message.building_hint_height"
                : "fastformer.message.building_hint_points"
@@ -1751,8 +1706,8 @@ public class FastPlaceClientPreviewCore {
             FEEDBACK.rememberFreeScrollData(data);
             return data;
          }
-         FastPlaceStage stage = effectiveStage(building);
-         if (stage == FastPlaceStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
+         QuickShapeStage stage = effectiveStage(building);
+         if (stage == QuickShapeStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
             LocalPlayer player = Minecraft.getInstance().player;
             if (player != null) {
                return new ScrollFeedbackData(
@@ -1764,7 +1719,7 @@ public class FastPlaceClientPreviewCore {
                );
             }
          }
-         if (stage == FastPlaceStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(effectiveBuildingModes(PREVIEW_STATE.building()))) {
+         if (stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(effectiveBuildingModes(PREVIEW_STATE.building()))) {
             return PREVIEW_STATE.building().volumeMode() == VolumeMode.FREE
                ? FEEDBACK.coordinates(PREVIEW_STATE.building().volumeBaseOffset())
                : new ScrollFeedbackData(List.of(), formatScalar(PREVIEW_STATE.building().volumeBaseOffset()));
@@ -1785,7 +1740,7 @@ public class FastPlaceClientPreviewCore {
       return (Math.clamp(alpha, 0, 255) << 24) | (color & 0x00FFFFFF);
    }
 
-   private static void logPreviewFailure(String message, Throwable failure) {
+   static void logPreviewFailure(String message, Throwable failure) {
       long now = System.nanoTime();
       if (lastPreviewFailureLogAt == 0L
          || now < lastPreviewFailureLogAt
@@ -1841,13 +1796,16 @@ public class FastPlaceClientPreviewCore {
           }
           boolean emptyBuildingPreview = snapshot.enabled()
              && player != null
-             && PlaceableItems.isPlaceable(player.getMainHandItem());
+             && (PlaceableItems.isPlaceable(player.getMainHandItem())
+                || !snapshot.active() && player.getMainHandItem().isEmpty());
+          OperationInteractionIntent pointerIntent = player == null ? null : operationInteractionIntent().orElse(null);
+          boolean selectionCandidate = pointerIntent instanceof OperationInteractionIntent.CreateSelection;
           if (!(snapshot.active() || emptyBuildingPreview || PREVIEW_STATE.operation().active()
-             || ClientOperationController.active() || PREVIEW_STATE.geometry().active() || QuickReplaceMode.active())) {
+             || ClientOperationController.active() || PREVIEW_STATE.geometry().active() || QuickReplaceMode.active() || selectionCandidate)) {
              return;
           }
           worldPreviewOpacity = updateWorldPreviewOpacity(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
-         if (emptyBuildingPreview && worldPreviewOpacity <= 0.01F) {
+         if (emptyBuildingPreview && !selectionCandidate && worldPreviewOpacity <= 0.01F) {
              return;
           }
          PreviewRenderOwner renderOwner = PreviewRenderOwner.select(
@@ -1859,8 +1817,7 @@ public class FastPlaceClientPreviewCore {
          if (minecraft.level != null && player != null && renderOwner == PreviewRenderOwner.GEOMETRY) {
             renderGeometryWall(event, minecraft);
          } else if (minecraft.level != null && player != null
-            && renderOwner == PreviewRenderOwner.OPERATION) {
-            OperationInteractionIntent pointerIntent = operationInteractionIntent().orElse(null);
+            && (renderOwner == PreviewRenderOwner.OPERATION || selectionCandidate)) {
             // The confirmed selection is retained as source data, but the workspace owns
             // its overlay and hit targets from this point on.
             if (OperationPreviewRenderer.shouldRenderServerSelection(
@@ -1876,10 +1833,17 @@ public class FastPlaceClientPreviewCore {
             renderSelectionCreationCandidate(event, minecraft, pointerIntent);
          } else if (minecraft.level != null
             && player != null
-            && (snapshot.active() || PlaceableItems.isPlaceable(player.getMainHandItem()))) {
+            && (snapshot.active() || emptyBuildingPreview)) {
             Vec3 eye = player.getEyePosition();
             Vec3 view = player.getViewVector(1.0F);
             BlockPos candidate = buildingCandidatePoint(snapshot, player);
+            if (snapshot.points().isEmpty() && candidate != null) {
+               renderBuildingEndpointFallback(
+                  event.getPoseStack(), minecraft.renderBuffers().bufferSource(),
+                  event.getCamera().getPosition(), 0, List.of(candidate), BuildingShellVisibility.NONE
+               );
+               return;
+            }
             BlockPos hoveredPoint = snapshot.points().isEmpty()
                ? null
                : pointUnderCrosshair(List.of(snapshot.points().getFirst()));
@@ -2055,6 +2019,14 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static BlockPos buildingCandidatePoint(BuildingPreviewPayload snapshot, LocalPlayer player) {
+      if (!snapshot.active() && snapshot.points().isEmpty()) {
+         BlockHitResult firstHit = raycastBlocks(player);
+         if (firstHit.getType() != Type.BLOCK) {
+            return null;
+         }
+         return PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
+            ? firstHit.getBlockPos() : firstHit.getBlockPos().relative(firstHit.getDirection());
+      }
       if (snapshot.polygonHeightConfirmed()) {
          return snapshot.points().isEmpty() ? null : snapshot.points().getLast();
       }
@@ -2243,17 +2215,26 @@ public class FastPlaceClientPreviewCore {
             );
             ProgressiveBlockGeneration progress = cachedBuildingPreviewProgress;
             BuildingPreviewKey requestKey = key;
-            BUILDING_PREVIEW_GENERATION.replace(requestKey, PREVIEW_GENERATION_EXECUTOR.submit(
+            BUILDING_PREVIEW_GENERATION.start(requestKey,
                () -> {
                   Set<BlockPos> blocks = buildingPreviewBlocks(
                      snapshot, requestKey.points(), polygonHeightConfirmed, modes, progress
                   );
                   progress.complete();
                   return new BuildingBlockResult(requestKey, blocks);
-               }
-            ));
+               }, PREVIEW_GENERATION_EXECUTOR);
          }
       }
+      return cachedBuildingPreviewBlocks;
+   }
+
+   private static void applyBuildingPreviewResults() {
+      BuildingPreviewKey key = cachedBuildingPreviewKey;
+      if (key == null || key.stateVersion() != PREVIEW_STATE.buildingVersion()
+         || key.modifierHeld() != PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())) return;
+      BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
+      if (!snapshot.active()) return;
+      boolean polygonHeightConfirmed = key.heightConfirmed();
       if (BUILDING_PREVIEW_GENERATION.completed()) {
          try {
             Optional<BuildingBlockResult> completed = BUILDING_PREVIEW_GENERATION.takeCompleted();
@@ -2296,7 +2277,6 @@ public class FastPlaceClientPreviewCore {
             holdBuildingPreviewAtFallback(snapshot, key.points(), polygonHeightConfirmed);
          }
       }
-      return cachedBuildingPreviewBlocks;
    }
 
    private static Set<BlockPos> completedBuildingPreview(
@@ -2470,16 +2450,16 @@ public class FastPlaceClientPreviewCore {
 
    private static FastPlaceGeometry.Modes effectiveBuildingModes(BuildingPreviewPayload snapshot) {
       FastPlaceGeometry.Modes modes = snapshot.modes().withModifierHeld(PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()));
-      FastPlaceStage stage = effectiveStage(snapshot);
+      QuickShapeStage stage = effectiveStage(snapshot);
       if (snapshot.faceMode() != FaceMode.POLYGON
          && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
-         && (stage == FastPlaceStage.FACE || stage == FastPlaceStage.VOLUME)) {
+         && (stage == QuickShapeStage.FACE || stage == QuickShapeStage.VOLUME)) {
          modes = modes.withFaceTieBias(LineTieBias.OPPOSITE);
       }
-      boolean firstRaycastPoint = stage == FastPlaceStage.POINT
+      boolean firstRaycastPoint = stage == QuickShapeStage.POINT
          && snapshot.pointMode() == PointMode.RAYCAST
          && snapshot.points().isEmpty();
-      boolean raycastLine = stage == FastPlaceStage.LINE && snapshot.lineMode() == LineMode.RAYCAST;
+      boolean raycastLine = stage == QuickShapeStage.LINE && snapshot.lineMode() == LineMode.RAYCAST;
       if (firstRaycastPoint || raycastLine) {
          return modes.withRaycastPlacement(
             PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE
@@ -2620,7 +2600,7 @@ public class FastPlaceClientPreviewCore {
          return 0.0;
       }
       BlockHitResult hit = raycastBlocks(player);
-      double limit = raycastDebug == null ? PREVIEW_REACH : raycastDebug.distance();
+      double limit = RAYCAST.distanceOr(PREVIEW_REACH);
       return hit.getType() == Type.BLOCK
          ? GeometryRayVisibility.visibleReach(limit, player.getEyePosition(), hit)
          : limit;
@@ -2736,20 +2716,13 @@ public class FastPlaceClientPreviewCore {
       geometryTransformBaseline = null;
       OPERATION_FACE_INTERPOLATOR.reset();
       worldPreviewOpacity = 1.0F;
-      raycastDebug = null;
-      cachedRaycast = null;
-      cachedRaycastStart = null;
-      cachedRaycastDirection = null;
-      cachedRaycastAt = 0L;
+      RAYCAST.clear();
       resetBuildingPreviewCaches();
       cachedGeometryPlanKey = null;
       cachedGeometryPlan = null;
       cachedGeometryRenderSource = null;
       cachedGeometryRenderLayers = GeometryRenderLayers.empty();
-      CONFIRMED_GHOST_CACHE.clear();
-      CONFIRMED_OUTLINE_CACHE.clear();
-      PENDING_GHOST_CACHE.clear();
-      PENDING_GHOST_BUFFER_CACHE.clear();
+      PreviewRenderResources.clearMeshes();
       SmoothReticlePostEffect.reset();
       smoothReticleFrame = false;
    }
@@ -2785,8 +2758,6 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static BlockHitResult raycastBlocks(LocalPlayer player) {
-      Vec3 start = player.getEyePosition();
-      Vec3 direction = player.getViewVector(1.0F);
       PreviewRenderOwner owner = PreviewRenderOwner.select(
          PREVIEW_STATE.building().active(),
          PREVIEW_STATE.operation().active(),
@@ -2794,23 +2765,7 @@ public class FastPlaceClientPreviewCore {
          PREVIEW_STATE.geometry().active()
       );
       boolean placement = owner == PreviewRenderOwner.BUILDING || owner == PreviewRenderOwner.NONE;
-      long now = System.nanoTime();
-      if (cachedRaycast != null
-         && cachedRaycastForPlacement == placement
-         && start.equals(cachedRaycastStart)
-         && direction.equals(cachedRaycastDirection)
-         && now - cachedRaycastAt <= 16_000_000L) {
-         return cachedRaycast.hit();
-      }
-      cachedRaycast = placement
-         ? LongRangeBlockRaycast.clipForPlacement(player.level(), player, start, direction)
-         : LongRangeBlockRaycast.clip(player.level(), player, start, direction);
-      cachedRaycastForPlacement = placement;
-      cachedRaycastStart = start;
-      cachedRaycastDirection = direction;
-      cachedRaycastAt = now;
-      raycastDebug = cachedRaycast;
-      return cachedRaycast.hit();
+      return RAYCAST.clip(player, placement);
    }
 
    private static BuildingShellVisibility renderBuildingShells(
@@ -2941,10 +2896,17 @@ public class FastPlaceClientPreviewCore {
          poseStack, buffers.getBuffer(GHOST_FACES), camera, fallback.faces(), PENDING_RED, PENDING_GREEN, PENDING_BLUE, faceAlpha
       );
       buffers.endBatch(GHOST_FACES);
+      // Endpoint fallback is used when the detailed shell is unavailable. Its
+      // outline must remain visible when the candidate is inside or behind the
+      // world surface, including the short free-scroll preview at its origin.
       renderGhostOutline(
          poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, fallback.edges(), PENDING_RED, PENDING_GREEN, PENDING_BLUE, outlineAlpha
       );
       buffers.endBatch(GHOST_OUTLINE_LINES);
+      renderGhostOutline(
+         poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, fallback.edges(), PENDING_RED, PENDING_GREEN, PENDING_BLUE, outlineAlpha
+      );
+      buffers.endBatch(PENDING_XRAY_LINES);
    }
 
    static Set<BlockPos> endpointFallbackBlocks(
@@ -3239,8 +3201,8 @@ public class FastPlaceClientPreviewCore {
       return length < 1.0E-7 ? Vec3.ZERO : vector.scale(1.0 / length);
    }
 
-   private static FastPlaceMode selectedMode(BuildingPreviewPayload snapshot, FastPlaceStage stage) {
-      return (FastPlaceMode)(switch (stage) {
+   private static QuickShapeMode selectedMode(BuildingPreviewPayload snapshot, QuickShapeStage stage) {
+      return (QuickShapeMode)(switch (stage) {
          case POINT -> snapshot.pointMode();
          case LINE -> snapshot.lineMode();
          case FACE -> snapshot.faceMode();
@@ -3257,11 +3219,11 @@ public class FastPlaceClientPreviewCore {
       if (player == null) {
          return null;
       }
-      FastPlaceStage stage = effectiveStage(snapshot);
-      if (stage == FastPlaceStage.LINE && snapshot.lineMode() == LineMode.FREE_SCROLL) {
+      QuickShapeStage stage = effectiveStage(snapshot);
+      if (stage == QuickShapeStage.LINE && snapshot.lineMode() == LineMode.FREE_SCROLL) {
          BlockPos offset = snapshot.freeScrollOffset();
          return Component.translatable("fastformer.message.context.free_scroll", offset.getX(), offset.getY(), offset.getZ()).withStyle(ChatFormatting.YELLOW);
-      } else if (stage == FastPlaceStage.LINE && snapshot.lineMode() == LineMode.RAYCAST) {
+      } else if (stage == QuickShapeStage.LINE && snapshot.lineMode() == LineMode.RAYCAST) {
          return Component.translatable(
                "fastformer.message.context.raycast",
                snapshot.raycastPlacement() == io.github.fastformer.fastplace.quickshape.RaycastPlacement.EMBEDDED
@@ -3269,16 +3231,16 @@ public class FastPlaceClientPreviewCore {
                   : Component.translatable("fastformer.mode.raycast.surface")
             )
             .withStyle(ChatFormatting.YELLOW);
-      } else if (stage == FastPlaceStage.FACE && snapshot.faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
+      } else if (stage == QuickShapeStage.FACE && snapshot.faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
          return Component.translatable(
                "fastformer.message.context.face_offset",
                GeometryNumbers.fixed(FastPlaceGeometry.faceBaseOffsetValue(snapshot.points(), snapshot.faceBaseOffset(), player.getViewVector(1.0F)), 0)
              )
              .withStyle(ChatFormatting.YELLOW);
-      } else if (stage == FastPlaceStage.FACE && snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()) {
+      } else if (stage == QuickShapeStage.FACE && snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()) {
          return Component.translatable("fastformer.message.polygon_close_hint").withStyle(ChatFormatting.YELLOW);
       } else {
-         return stage == FastPlaceStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(snapshot.modes())
+         return stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(snapshot.modes())
             ? Component.translatable(
                   snapshot.volumeMode() == VolumeMode.FREE ? "fastformer.message.context.volume_free" : "fastformer.message.context.volume_base",
                   snapshot.volumeMode() == VolumeMode.FREE ? formatOffset(snapshot.volumeBaseOffset()) : formatScalar(snapshot.volumeBaseOffset())
@@ -3300,11 +3262,11 @@ public class FastPlaceClientPreviewCore {
       return GeometryNumbers.fixed(value, 0);
    }
 
-   private static FastPlaceStage effectiveStage(BuildingPreviewPayload snapshot) {
-      return FastPlaceGeometry.effectiveStage(snapshot.points(), snapshot.faceMode(), snapshot.polygonClosed());
+   private static QuickShapeStage effectiveStage(BuildingPreviewPayload snapshot) {
+      return QuickShapeStage.resolve(snapshot.points().size(), snapshot.faceMode(), snapshot.polygonClosed());
    }
 
-   private static VertexBuffer uploadPendingGrid(List<PendingPreviewGrid.Segment> edges) {
+   static VertexBuffer uploadPendingGrid(List<PendingPreviewGrid.Segment> edges) {
       long estimatedBytes = (long)edges.size() * 2L * DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL.getVertexSize();
       int initialCapacity = (int)Math.clamp(estimatedBytes, 256L, 16L * 1024L * 1024L);
       try (ByteBufferBuilder bytes = new ByteBufferBuilder(initialCapacity)) {

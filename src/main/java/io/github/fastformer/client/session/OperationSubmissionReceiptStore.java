@@ -193,6 +193,10 @@ public final class OperationSubmissionReceiptStore {
       return this.dirty;
    }
 
+   public void confirmSaved(List<OperationSubmissionReceipt> saved) {
+      if (all().equals(saved)) this.dirty = false;
+   }
+
    /**
     * Writes the receipts to disk.
     *
@@ -209,7 +213,7 @@ public final class OperationSubmissionReceiptStore {
          // throws, and the caller reports it. A stale file would name submissions that
          // the client already reported, and the server ledger may have dropped or
          // restarted since, so the client must not read it as pending work.
-         Files.deleteIfExists(file);
+         OperationClipboardStore.delete(file);
          this.dirty = false;
          return;
       }

@@ -1,8 +1,8 @@
 package io.github.fastformer.client.operation.workspace;
 
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.IdentityHashMap;
@@ -18,7 +18,7 @@ import net.minecraft.core.BlockPos;
 /** Client-owned edit state. World writes are deliberately outside this type. */
 public final class ClientOperationWorkspace {
    /** Codec compatibility sentinel; the client workspace itself is unbounded. */
-   public static final int MAX_PARTS = Integer.MAX_VALUE;
+   public static final int MAX_PARTS = io.github.fastformer.workspace.WorkspaceLimits.MAX_PARTS;
 
    private final LinkedHashMap<Integer, ClientSelectionPart> parts = new LinkedHashMap<>();
    private final Map<Integer, Long> interactionIds = new LinkedHashMap<>();

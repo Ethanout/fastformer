@@ -18,6 +18,14 @@ import net.minecraft.core.Direction;
 public final class QuickShapeSubmissionController {
    private QuickShapeSubmissionController() { }
 
+   /** Handles Enter with the data captured when the key was pressed. */
+   public static boolean submit(Minecraft minecraft, QuickShapeSubmissionIntent intent,
+      int key, int action, QuickShapeSubmissionSnapshot snapshot) {
+      if (action != 1 || (key != 257 && key != 335)) return false;
+      if (snapshot == null || !ClientPlacementRouter.canConfirm(minecraft)) return false;
+      return begin(minecraft, intent, snapshot);
+   }
+
    public static boolean begin(Minecraft minecraft, QuickShapeSubmissionIntent intent, QuickShapeSubmissionSnapshot snapshot) {
       if (intent.active() || snapshot == null) return false;
       long requestId = ClientPlacementRouter.beginQuickShapeRequest(minecraft);

@@ -3,8 +3,8 @@ package io.github.fastformer.client.render.core;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.client.interaction.PartInteractionBounds;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import java.util.Map;
 import net.minecraft.core.BlockPos;

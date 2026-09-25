@@ -1,7 +1,7 @@
-package io.github.fastformer.client.operation.transform;
+package io.github.fastformer.workspace.transform;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

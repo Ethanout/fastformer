@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.quickshape;
 
 
-public enum VolumeMode implements FastPlaceMode {
+public enum VolumeMode implements QuickShapeMode {
    PERPENDICULAR_TO_FACE("fastformer.mode.volume.perpendicular_to_face"),
    FREE("fastformer.mode.volume.free");
 
@@ -12,8 +12,8 @@ public enum VolumeMode implements FastPlaceMode {
    }
 
    @Override
-   public FastPlaceStage stage() {
-      return FastPlaceStage.VOLUME;
+   public QuickShapeStage stage() {
+      return QuickShapeStage.VOLUME;
    }
 
    @Override

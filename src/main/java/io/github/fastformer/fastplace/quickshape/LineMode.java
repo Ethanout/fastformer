@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.quickshape;
 
 
-public enum LineMode implements FastPlaceMode {
+public enum LineMode implements QuickShapeMode {
    AXIS("fastformer.mode.line.axis"),
    FREE_SCROLL("fastformer.mode.line.free_scroll"),
    RAYCAST("fastformer.mode.line.raycast");
@@ -13,8 +13,8 @@ public enum LineMode implements FastPlaceMode {
    }
 
    @Override
-   public FastPlaceStage stage() {
-      return FastPlaceStage.LINE;
+   public QuickShapeStage stage() {
+      return QuickShapeStage.LINE;
    }
 
    @Override

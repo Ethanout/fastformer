@@ -22,7 +22,7 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
-public final class OperationSession implements SessionLifecycle {
+public final class OperationSession {
    private static final int MAX_POINT_DRAG_DELTA = 128;
    private final OperationSelectionPoints selectionPointStates = new OperationSelectionPoints();
    private int historyLimit;
@@ -827,7 +827,6 @@ public final class OperationSession implements SessionLifecycle {
       return this.appendExtraPoint(point);
    }
 
-   @Override
    public boolean undoStep() {
       this.commitEdit();
       SessionSnapshot previous = this.undoHistory.pollLast();
@@ -839,13 +838,11 @@ public final class OperationSession implements SessionLifecycle {
       return true;
    }
 
-   @Override
    public boolean canUndoStep() {
       return !this.undoHistory.isEmpty()
          || this.pendingEdit != null && !this.pendingEdit.equals(this.snapshot());
    }
 
-   @Override
    public boolean redoStep() {
       this.commitEdit();
       SessionSnapshot next = this.redoHistory.pollLast();
@@ -857,7 +854,6 @@ public final class OperationSession implements SessionLifecycle {
       return true;
    }
 
-   @Override
    public boolean canRedoStep() {
       return !this.redoHistory.isEmpty();
    }

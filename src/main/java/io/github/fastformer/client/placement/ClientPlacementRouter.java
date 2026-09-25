@@ -5,7 +5,6 @@ import io.github.fastformer.network.payload.placement.QuickShapeConfirmPayload;
 
 import io.github.fastformer.fastplace.OperationWorkspacePlan;
 import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.network.payload.operation.OperationApplyPayload;
 import io.github.fastformer.network.payload.operation.OperationWorkspaceApplyPayload;
 import io.github.fastformer.network.payload.placement.QuickReplacePayload;
@@ -36,8 +35,24 @@ public final class ClientPlacementRouter {
       return sendAction(minecraft, PlacementActionPayload.Action.CONFIRM);
    }
 
-   public static boolean quickShape(Minecraft minecraft) {
-      return sendAction(minecraft, PlacementActionPayload.Action.QUICK_SHAPE);
+   public static boolean quickShapePointer(Minecraft minecraft, long revision,
+      io.github.fastformer.network.payload.operation.OperationCallbackScope scope,
+      io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action action,
+      net.minecraft.core.BlockPos candidate, net.minecraft.world.phys.Vec3 eye,
+      net.minecraft.world.phys.Vec3 view, boolean modifierHeld) {
+      var type = io.github.fastformer.network.payload.placement.QuickShapePointerPayload.TYPE;
+      if (!supports(minecraft, type)) return false;
+      boolean submitting = action == io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.MIDDLE;
+      long requestId = NEXT_ACTION_ID.incrementAndGet();
+      if (submitting) {
+         if (!supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) return false;
+         if (!io.github.fastformer.client.input.FastPlaceClientInput.beginPlacementRequest(requestId)) return false;
+      }
+      var payload = new io.github.fastformer.network.payload.placement.QuickShapePointerPayload(
+         revision, scope, action, candidate, eye, view, modifierHeld, requestId);
+      if (submitting) return sendSubmittedAction(minecraft, type, payload, requestId);
+      net.neoforged.neoforge.network.PacketDistributor.sendToServer(payload);
+      return true;
    }
 
    public static long beginQuickShapeRequest(Minecraft minecraft) {
@@ -91,12 +106,13 @@ public final class ClientPlacementRouter {
       return send(minecraft, QuickReplacePayload.TYPE, QuickReplacePayload.INSTANCE);
    }
 
-   public static boolean startPlacement(Minecraft minecraft, RaycastPlacement placement) {
-      return send(
-         minecraft,
-         StartPlacementPayload.TYPE,
-         StartPlacementPayload.forPlacement(placement)
-      );
+   public static boolean startPlacement(Minecraft minecraft, StartPlacementPayload.Target target) {
+      if (!supports(minecraft, StartPlacementPayload.TYPE)
+         || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) return false;
+      long requestId = NEXT_ACTION_ID.incrementAndGet();
+      if (!io.github.fastformer.client.input.FastPlaceClientInput.beginStartPlacementRequest(requestId)) return false;
+      return sendSubmittedAction(minecraft, StartPlacementPayload.TYPE,
+         new StartPlacementPayload(requestId, target), requestId);
    }
 
    public static Optional<WorkspaceSubmission> prepareWorkspace(
@@ -105,14 +121,19 @@ public final class ClientPlacementRouter {
       if (!supports(minecraft, OperationWorkspaceApplyPayload.TYPE)) {
          return Optional.empty();
       }
+      return Optional.of(prepareWorkspace(plan, UUID.randomUUID()));
+   }
+
+   public static boolean canSubmitWorkspace(Minecraft minecraft) { return supports(minecraft, OperationWorkspaceApplyPayload.TYPE); }
+
+   public static WorkspaceSubmission prepareWorkspace(OperationWorkspacePlan plan, UUID transferId) throws IOException {
       byte[] compressed = OperationWorkspacePlanCodec.encodeCompressed(plan);
-      UUID transferId = UUID.randomUUID();
       List<OperationWorkspaceApplyPayload> chunks = chunk(
          compressed,
          OperationWorkspaceApplyPayload.MAX_CHUNK_BYTES,
          (index, count, data) -> new OperationWorkspaceApplyPayload(transferId, index, count, data)
       );
-      return Optional.of(new WorkspaceSubmission(transferId, chunks));
+      return new WorkspaceSubmission(transferId, chunks);
    }
 
    private static <T> List<T> chunk(byte[] data, int chunkSize, ChunkFactory<T> factory) {

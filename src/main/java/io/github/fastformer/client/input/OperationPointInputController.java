@@ -7,8 +7,7 @@ import io.github.fastformer.client.input.drag.OperationPointDragCalculator;
 import io.github.fastformer.fastplace.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
-import io.github.fastformer.network.payload.operation.OperationRemovePointPayload;
-import io.github.fastformer.network.payload.geometry.ClosePathPayload;
+import io.github.fastformer.network.payload.operation.OperationPointClickPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -22,18 +21,17 @@ final class OperationPointInputController {
 
    private OperationPointInputController() { }
 
-   static boolean beginOperationPointDrag(Minecraft minecraft, ClientInputSession session, int mouseButton) {
+   static java.util.Optional<OperationPointDragPress> capturePress(
+      Minecraft minecraft, ClientInputSession session, int mouseButton, long occurredAtNanos
+   ) {
       if (!ClientOperationController.operationPrism()
-         || session.operationDrag != null
-         || session.operationPointDrag != null
+         || session.operationDrag != null || session.operationPointDrag != null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
-         return false;
+         return java.util.Optional.empty();
       }
       int pointIndex = FastPlaceClientPreview.operationPointUnderCrosshairIndex();
       Vec3 center = FastPlaceClientPreview.operationPointCenter(pointIndex);
-      if (pointIndex < 0 || center == null) {
-         return false;
-      }
+      if (pointIndex < 0 || center == null) return java.util.Optional.empty();
       BlockPos initialPoint = BlockPos.containing(center);
       Vec3 eye = minecraft.player.getEyePosition();
       Vec3 view = minecraft.player.getViewVector(1.0F);
@@ -45,26 +43,75 @@ final class OperationPointInputController {
       SelectionPrism.GridPlane plane = FastPlaceClientPreview.operationPointGridPlane(pointIndex);
       SelectionPrism.GridLine line = FastPlaceClientPreview.operationPointGridLine(pointIndex);
       Vec3 planeHit = plane == null ? null : plane.rayIntersection(eye, view);
-      Vec3 planeGrabOffset = planeHit == null ? Vec3.ZERO : center.subtract(planeHit);
-      double lineGrabBaseline = line == null ? 0.0 : line.rayOffset(eye, view) - line.offset(initialPoint);
+      return java.util.Optional.of(new OperationPointDragPress(
+         1L, mouseButton, occurredAtNanos, ClientOperationController.remoteSelectionIdentity(),
+         ClientOperationController.remoteSelectionRevision(), ClientOperationController.remoteSelectionCallbackScope(),
+         pointIndex, initialPoint, plane, planeHit == null ? Vec3.ZERO : center.subtract(planeHit), line,
+         line == null ? 0.0 : line.rayOffset(eye, view) - line.offset(initialPoint), axisBaselines,
+         line != null && plane == null ? OperationPointDragConstraint.LINE
+            : plane != null ? OperationPointDragConstraint.PLANE : OperationPointDragConstraint.FREE,
+         eye, view
+      ));
+   }
+
+   static void dispatchPress(Minecraft minecraft, ClientInputSession session, OperationPointDragPress press) {
+      if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) != ClientInputStateMachine.Dispatch.OPERATION
+         || session.operationDrag != null || session.operationPointDrag != null
+         || !ClientOperationController.operationPrism()
+         || press.revision() != ClientOperationController.remoteSelectionRevision()
+         || !press.callbackScope().equals(ClientOperationController.remoteSelectionCallbackScope())
+         || !java.util.Objects.equals(press.selection(), ClientOperationController.remoteSelectionIdentity())) {
+         return;
+      }
+      session.clickGestureToken = session.routing.beginGesture(press.button());
+      if (beginOperationPointDrag(minecraft, session, press)) {
+         session.operationPointPointer.dispatched(press.identity(), session.clickGestureToken, session.pointerGestureToken);
+      } else if (session.routing.finishGesture(press.button(), session.clickGestureToken)) {
+         session.clickGestureToken = 0L;
+      }
+   }
+
+   static void dispatch(Minecraft minecraft, ClientInputSession session, OperationPointDragEvent event) {
+      switch (event) {
+         case OperationPointDragEvent.Press press -> dispatchPress(minecraft, session, press.snapshot());
+         case OperationPointDragEvent.Cancel cancel -> cancelQueuedPress(session, cancel.identity());
+         case OperationPointDragEvent.Release release -> finishQueuedPress(minecraft, session, release);
+      }
+   }
+
+   private static void cancelQueuedPress(ClientInputSession session, long identity) {
+      var dispatched = session.operationPointPointer.take(identity);
+      if (dispatched == null) return;
+      OperationPointDrag drag = session.operationPointDrag;
+      if (drag == null || drag.captureToken() != dispatched.pointerToken()
+         || session.pointerGestureToken != dispatched.pointerToken()) return;
+      if (session.clickGestureToken == dispatched.clickToken()) {
+         session.routing.finishGesture(session.operationPointDrag == null ? -1 : session.operationPointDrag.mouseButton(), dispatched.clickToken());
+         session.clickGestureToken = 0L;
+      }
+      cancel(session);
+   }
+
+   private static void finishQueuedPress(Minecraft minecraft, ClientInputSession session, OperationPointDragEvent.Release release) {
+      var dispatched = session.operationPointPointer.take(release.identity());
+      if (dispatched == null || dispatched.clickToken() != session.clickGestureToken
+         || dispatched.pointerToken() != session.pointerGestureToken
+         || !session.routing.finishGesture(release.button(), dispatched.clickToken())) return;
+      session.clickGestureToken = 0L;
+      OperationPointDrag finished = finishOperationPointDrag(minecraft, session, release.eye(), release.view());
+      finishOperationPointClick(minecraft, session, finished, release.occurredAtNanos());
+   }
+
+   private static boolean beginOperationPointDrag(Minecraft minecraft, ClientInputSession session, OperationPointDragPress press) {
       session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
       session.operationPointDrag = new OperationPointDrag(
-         pointIndex,
-         mouseButton,
-         initialPoint,
-         initialPoint,
-         plane,
-         planeGrabOffset,
-         line,
-         lineGrabBaseline,
-         axisBaselines,
-         line != null && plane == null
-            ? OperationPointDragConstraint.LINE
-            : plane != null ? OperationPointDragConstraint.PLANE : OperationPointDragConstraint.FREE,
-         System.nanoTime(), session.pointerGestureToken
+         press.pointIndex(), press.button(), press.initialPoint(), press.initialPoint(), press.plane(), press.planeGrabOffset(),
+         press.line(), press.lineGrabBaseline(), press.axisBaselines(), press.constraint(), press.occurredAtNanos(),
+         session.pointerGestureToken, press.revision(), press.callbackScope()
       );
       PacketDistributor.sendToServer(
-         new OperationPointDragPayload(pointIndex, initialPoint, session.operationPointDrag.constraint(), false),
+         new OperationPointDragPayload(session.pointerGestureToken, press.revision(), press.callbackScope(),
+            press.pointIndex(), press.initialPoint(), session.operationPointDrag.constraint(), false),
          new CustomPacketPayload[0]
       );
       return true;
@@ -93,17 +140,33 @@ final class OperationPointInputController {
          return;
       }
       PacketDistributor.sendToServer(
-         new OperationPointDragPayload(drag.pointIndex(), target, constraint, false), new CustomPacketPayload[0]
+         new OperationPointDragPayload(drag.captureToken(), drag.revision(), drag.callbackScope(),
+            drag.pointIndex(), target, constraint, false), new CustomPacketPayload[0]
       );
       session.operationPointDrag = drag.withSentTarget(target).withConstraint(constraint);
    }
 
    static OperationPointDrag finishOperationPointDrag(Minecraft minecraft, ClientInputSession session) {
+      if (!acceptsCapture(session, session.operationPointDrag)) return null;
+      return finishOperationPointDrag(minecraft, session, minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F));
+   }
+
+   static OperationPointDrag finishOperationPointDrag(Minecraft minecraft, ClientInputSession session, Vec3 eye, Vec3 view) {
       OperationPointDrag finished = session.operationPointDrag;
       if (!acceptsCapture(session, finished)) return null;
+      OperationPointDragConstraint constraint = OperationPointDragCalculator.selectConstraint(finished, eye, view);
+      BlockPos desired = constraint == OperationPointDragConstraint.LINE
+         ? OperationPointDragCalculator.lineTarget(finished, eye, view)
+         : OperationPointDragCalculator.planeTarget(finished, eye, view);
+      if (desired != null) {
+         finished = finished.withSentTarget(OperationPointDragCalculator.nextTarget(
+            finished.sentTarget(), desired, finished, constraint
+         )).withConstraint(constraint);
+      }
       if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
          PacketDistributor.sendToServer(
             new OperationPointDragPayload(
+               finished.captureToken(), finished.revision(), finished.callbackScope(),
                finished.pointIndex(), finished.sentTarget(), finished.constraint(), true
             ),
             new CustomPacketPayload[0]
@@ -122,13 +185,15 @@ final class OperationPointInputController {
    private static boolean acceptsCapture(ClientInputSession session, OperationPointDrag drag) {
       if (drag == null) return false;
       if (session.pointerGesture.owns(drag.captureToken(), PointerGestureState.Kind.OPERATION_POINT)
+         && drag.callbackScope().equals(ClientOperationController.remoteSelectionCallbackScope())
+         && ClientOperationController.operationPrism()
          && FastPlaceClientPreview.operationActive() && !ClientOperationController.operationSelectionConfirmed()) return true;
       clearCapture(session, drag);
       return false;
    }
 
    private static void clearCapture(ClientInputSession session, OperationPointDrag drag) {
-      session.operationPointDrag = null;
+      if (session.operationPointDrag == drag) session.operationPointDrag = null;
       session.pointerGesture.finish(drag.captureToken());
       if (session.pointerGestureToken == drag.captureToken()) session.pointerGestureToken = 0L;
    }
@@ -147,8 +212,7 @@ final class OperationPointInputController {
       if (finished.pointIndex() == 0
          && FastPlaceClientPreview.operationPrismBaseOpen()
          && FastPlaceClientPreview.operationPointCount() >= 3
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), ClosePathPayload.TYPE.id())) {
-         PacketDistributor.sendToServer(ClosePathPayload.INSTANCE, new CustomPacketPayload[0]);
+         && sendPointClick(minecraft, finished, OperationPointClickPayload.Action.CLOSE)) {
          session.lastOperationPointRightClickAt = 0L;
          session.lastOperationPointRightClickIndex = -1;
          session.lastOperationPointLeftClickAt = 0L;
@@ -162,8 +226,7 @@ final class OperationPointInputController {
          if (doubleClick
             && FastPlaceClientPreview.operationPrismBaseOpen()
             && FastPlaceClientPreview.operationPointCount() >= 3
-            && NetworkRegistry.hasChannel(minecraft.getConnection(), ClosePathPayload.TYPE.id())) {
-            PacketDistributor.sendToServer(ClosePathPayload.INSTANCE, new CustomPacketPayload[0]);
+            && sendPointClick(minecraft, finished, OperationPointClickPayload.Action.CLOSE)) {
             session.lastOperationPointRightClickAt = 0L;
             session.lastOperationPointRightClickIndex = -1;
             session.pathClose.reset();
@@ -180,7 +243,7 @@ final class OperationPointInputController {
       boolean doubleClick = finished.pointIndex() == session.lastOperationPointLeftClickIndex
          && now - session.lastOperationPointLeftClickAt <= OPERATION_POINT_DOUBLE_CLICK_NANOS;
       if (doubleClick) {
-         sendOperationPointRemoval(minecraft, session, finished.pointIndex());
+         sendOperationPointRemoval(minecraft, finished);
          session.lastOperationPointLeftClickAt = 0L;
          session.lastOperationPointLeftClickIndex = -1;
       } else {
@@ -196,11 +259,18 @@ final class OperationPointInputController {
       session.lastOperationPointRightClickIndex = -1;
    }
 
-   static boolean sendOperationPointRemoval(Minecraft minecraft, ClientInputSession session, int index) {
-      if (index < 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationRemovePointPayload.TYPE.id())) {
+   static boolean sendOperationPointRemoval(Minecraft minecraft, OperationPointDrag drag) {
+      if (drag == null) {
          return false;
       }
-      PacketDistributor.sendToServer(new OperationRemovePointPayload(index), new CustomPacketPayload[0]);
+      return sendPointClick(minecraft, drag, OperationPointClickPayload.Action.REMOVE);
+   }
+
+   private static boolean sendPointClick(Minecraft minecraft, OperationPointDrag drag, OperationPointClickPayload.Action action) {
+      if (!NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointClickPayload.TYPE.id())) return false;
+      PacketDistributor.sendToServer(new OperationPointClickPayload(
+         drag.captureToken(), drag.revision(), drag.callbackScope(), action, drag.pointIndex()
+      ), new CustomPacketPayload[0]);
       return true;
    }
 }

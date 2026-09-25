@@ -35,6 +35,24 @@ public final class SourceMaskOcclusionGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = BATCH, timeoutTicks = 100)
+   public static void ghostLightingUsesFullBrightness(GameTestHelper helper) {
+      ServerLevel level = helper.getLevel();
+      BlockPos target = helper.absolutePos(new BlockPos(1, 1, 1));
+      level.setBlock(target, Blocks.STONE.defaultBlockState(), 2);
+      BlockAndTintGetter preview = PreviewBlockOcclusion.level(
+         level, Map.of(target, Blocks.GOLD_BLOCK.defaultBlockState())
+      );
+      for (net.minecraft.core.Direction face : net.minecraft.core.Direction.values()) {
+         helper.assertTrue(
+            preview.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, target.relative(face)) == 15,
+            "ghost face inherited darkness from the world light engine"
+         );
+      }
+      helper.assertTrue(level.getBlockState(target).is(Blocks.STONE), "ghost lighting changed the world");
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = BATCH, timeoutTicks = 100)
    public static void theBaseLookupHidesAMaskedSourcePosition(GameTestHelper helper) {
       ServerLevel level = helper.getLevel();
       BlockPos source = helper.absolutePos(new BlockPos(1, 1, 1));

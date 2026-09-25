@@ -45,11 +45,11 @@ class SelectionPointerReleaseTest {
    void rightReleasePreservesLeftGeometryCapture() throws Exception {
       var session = FastPlaceClientInput.inputSession();
       session.reset();
-      session.geometryClickCapturedButton = 0;
+      session.captureGeometryPointerButton(0);
       assertFalse(releaseMouse(1));
-      assertEquals(0, session.geometryClickCapturedButton);
+      assertTrue(session.ownsGeometryPointerButton(0));
       assertTrue(releaseMouse(0));
-      assertEquals(-1, session.geometryClickCapturedButton);
+      assertFalse(session.hasGeometryPointerButtons());
    }
 
    private static boolean releaseMouse(int button) throws Exception {

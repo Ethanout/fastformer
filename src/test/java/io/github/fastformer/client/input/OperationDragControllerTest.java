@@ -59,7 +59,7 @@ class OperationDragControllerTest {
       session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
       session.operationDrag = new OperationDrag(0, true, DragAxisFrame.start(Vec3.ZERO, false),
          new Vec3(1, 0, 0), 0, 0, null, null, 0.0, DeferredDragClick.none(),
-         session.pointerGestureToken);
+         session.pointerGestureToken, 0L, io.github.fastformer.network.payload.operation.OperationCallbackScope.unscoped(), 1L);
       return session;
    }
 }

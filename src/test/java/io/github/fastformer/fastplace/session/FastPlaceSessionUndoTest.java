@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -14,7 +16,7 @@ class FastPlaceSessionUndoTest {
 
    @Test
    void ordinaryStagesRemoveOnePointUntilEmpty() {
-      FastPlaceSession session = sessionWithBase();
+      QuickShapeDraft session = sessionWithBase();
       assertTrue(session.undoStep());
       assertEquals(BASE.subList(0, 2), session.points());
       assertTrue(session.undoStep());
@@ -26,7 +28,7 @@ class FastPlaceSessionUndoTest {
 
    @Test
    void closedBaseUndoRemovesAPointAndReopensTheFace() {
-      FastPlaceSession session = sessionWithBase();
+      QuickShapeDraft session = sessionWithBase();
       session.closePolygon();
       assertTrue(session.undoStep());
       assertEquals(BASE.subList(0, 2), session.points());
@@ -36,7 +38,7 @@ class FastPlaceSessionUndoTest {
 
    @Test
    void heightUndoPreservesBaseThenNextUndoRemovesABasePoint() {
-      FastPlaceSession session = sessionWithBase();
+      QuickShapeDraft session = sessionWithBase();
       session.closePolygon();
       session.addPoint(new BlockPos(0, 3, 0), Vec3.ZERO, new Vec3(1, 0, 0));
       session.confirmPolygonHeight();
@@ -51,7 +53,7 @@ class FastPlaceSessionUndoTest {
 
    @Test
    void undoClearsCandidateOffsetsAndRemovedMeasurementAnchor() {
-      FastPlaceSession session = new FastPlaceSession();
+      QuickShapeDraft session = new QuickShapeDraft();
       session.addPoint(BlockPos.ZERO, Vec3.ZERO, new Vec3(0, 0, 1));
       BlockPos last = new BlockPos(5, 0, 0);
       session.addPoint(last, new Vec3(5.5, 0.5, -5), new Vec3(0, 0, 1));
@@ -68,8 +70,8 @@ class FastPlaceSessionUndoTest {
       assertEquals(Vec3.ZERO, session.volumeBaseOffset());
    }
 
-   private static FastPlaceSession sessionWithBase() {
-      FastPlaceSession session = new FastPlaceSession();
+   private static QuickShapeDraft sessionWithBase() {
+      QuickShapeDraft session = new QuickShapeDraft();
       BASE.forEach(point -> session.addPoint(point, Vec3.ZERO, new Vec3(1, 0, 0)));
       return session;
    }

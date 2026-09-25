@@ -2,9 +2,9 @@ package io.github.fastformer.fastplace;
 
 import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import java.util.List;
 import java.util.Map;

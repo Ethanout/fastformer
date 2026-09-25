@@ -2,7 +2,7 @@ package io.github.fastformer.client.interaction;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import java.util.List;
 import java.util.UUID;

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.session.ClientTickMailbox;
+import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -12,10 +13,22 @@ final class PhysicalInputMailbox {
       record SelectionPointer(SelectionPointerEvent value) implements PhysicalEvent { }
       record RemotePoint(RemoteSelectionPointRequest value) implements PhysicalEvent { }
       record PointerRelease(PointerReleaseSnapshot value) implements PhysicalEvent { }
+      record QuickShapeUndo(QuickShapeUndoGesture.Event value) implements PhysicalEvent { }
+      record QuickShapePointer(QuickShapePointerPress value) implements PhysicalEvent { }
+      record StartPlacement(StartPlacementPayload.Target value) implements PhysicalEvent { }
+      record GeometryGizmo(GeometryGizmoCapture.Event value) implements PhysicalEvent { }
+      record GeometryPointer(GeometryInputController.PointerPress value) implements PhysicalEvent { }
+      record OperationPointDrag(OperationPointDragEvent value) implements PhysicalEvent { }
+      record OperationPointCommand(OperationPointCommandEvent value) implements PhysicalEvent { }
    }
    private final ClientTickMailbox<PhysicalEvent> events =
       new ClientTickMailbox<>(this::releaseQueuedEvent);
    private int pendingRemotePoints;
+   private int pendingStarts;
+
+   boolean hasPendingStarts() {
+      return pendingStarts > 0;
+   }
 
    boolean hasPendingRemotePoints() {
       return pendingRemotePoints > 0;
@@ -31,6 +44,7 @@ final class PhysicalInputMailbox {
 
    private void releaseQueuedEvent(PhysicalEvent event) {
       if (event instanceof PhysicalEvent.RemotePoint) pendingRemotePoints--;
+      if (event instanceof PhysicalEvent.StartPlacement) pendingStarts--;
    }
 
    void postKeyboard(KeyboardInputSnapshot event) {
@@ -54,10 +68,36 @@ final class PhysicalInputMailbox {
       this.events.post(new PhysicalEvent.PointerRelease(java.util.Objects.requireNonNull(event)));
    }
 
-   void drain(BooleanSupplier contextActive, Runnable contextLost,
-      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
-      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
-      Consumer<PointerReleaseSnapshot> pointerReleases) {
+   void postQuickShapeUndo(QuickShapeUndoGesture.Event event) {
+      this.events.post(new PhysicalEvent.QuickShapeUndo(java.util.Objects.requireNonNull(event)));
+   }
+
+   void postQuickShapePointer(QuickShapePointerPress event) {
+      this.events.post(new PhysicalEvent.QuickShapePointer(java.util.Objects.requireNonNull(event)));
+   }
+
+   void postStartPlacement(StartPlacementPayload.Target target) {
+      this.events.post(new PhysicalEvent.StartPlacement(java.util.Objects.requireNonNull(target)));
+      this.pendingStarts++;
+   }
+
+   void postGeometryGizmo(GeometryGizmoCapture.Event event) {
+      this.events.post(new PhysicalEvent.GeometryGizmo(java.util.Objects.requireNonNull(event)));
+   }
+
+   void postGeometryPointer(GeometryInputController.PointerPress event) {
+      this.events.post(new PhysicalEvent.GeometryPointer(java.util.Objects.requireNonNull(event)));
+   }
+
+   void postOperationPointDrag(OperationPointDragEvent event) {
+      this.events.post(new PhysicalEvent.OperationPointDrag(java.util.Objects.requireNonNull(event)));
+   }
+
+   void postOperationPointCommand(OperationPointCommandEvent event) {
+      this.events.post(new PhysicalEvent.OperationPointCommand(java.util.Objects.requireNonNull(event)));
+   }
+
+   void drain(BooleanSupplier contextActive, Runnable contextLost, PhysicalInputSink sink) {
       this.events.drain(event -> {
          releaseQueuedEvent(event);
          if (!contextActive.getAsBoolean()) {
@@ -65,11 +105,18 @@ final class PhysicalInputMailbox {
             return;
          }
          switch (event) {
-            case PhysicalEvent.Key key -> keys.accept(key.value());
-            case PhysicalEvent.Scroll scroll -> scrolls.accept(scroll.value());
-            case PhysicalEvent.SelectionPointer click -> selectionPointer.accept(click.value());
-            case PhysicalEvent.RemotePoint point -> remotePoints.accept(point.value());
-            case PhysicalEvent.PointerRelease release -> pointerReleases.accept(release.value());
+            case PhysicalEvent.Key value -> sink.accept(value.value());
+            case PhysicalEvent.Scroll value -> sink.accept(value.value());
+            case PhysicalEvent.SelectionPointer value -> sink.accept(value.value());
+            case PhysicalEvent.RemotePoint value -> sink.accept(value.value());
+            case PhysicalEvent.PointerRelease value -> sink.accept(value.value());
+            case PhysicalEvent.QuickShapeUndo value -> sink.accept(value.value());
+            case PhysicalEvent.QuickShapePointer value -> sink.accept(value.value());
+            case PhysicalEvent.StartPlacement value -> sink.accept(value.value());
+            case PhysicalEvent.GeometryGizmo value -> sink.accept(value.value());
+            case PhysicalEvent.GeometryPointer value -> sink.accept(value.value());
+            case PhysicalEvent.OperationPointDrag value -> sink.accept(value.value());
+            case PhysicalEvent.OperationPointCommand value -> sink.accept(value.value());
          }
       });
    }

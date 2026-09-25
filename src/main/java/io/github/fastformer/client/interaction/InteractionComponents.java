@@ -35,8 +35,8 @@ public final class InteractionComponents {
    public enum SelectionRole {
       ORIGINAL_SELECTION, TRANSFORMED_PART, CLIPBOARD_PART;
 
-      public static SelectionRole from(io.github.fastformer.client.operation.model.ClientSelectionPart part) {
-         if (part.source() == io.github.fastformer.client.operation.model.ClientSelectionPart.Source.CLIPBOARD) {
+      public static SelectionRole from(io.github.fastformer.workspace.model.ClientSelectionPart part) {
+         if (part.source() == io.github.fastformer.workspace.model.ClientSelectionPart.Source.CLIPBOARD) {
             return CLIPBOARD_PART;
          }
          return part.isOriginalSelection() ? ORIGINAL_SELECTION : TRANSFORMED_PART;

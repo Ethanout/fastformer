@@ -25,8 +25,8 @@ class SelectionSessionLifecycleTest {
    void environmentExitKeepsDataUntilExplicitCleanup() {
       var session = new ClientSelectionSession();
       session.workspace().addParts(java.util.List.of(
-         io.github.fastformer.client.operation.model.ClientSelectionPart.empty(
-            io.github.fastformer.client.operation.model.ClientSelectionPart.Source.CLIPBOARD)));
+         io.github.fastformer.workspace.model.ClientSelectionPart.empty(
+            io.github.fastformer.workspace.model.ClientSelectionPart.Source.CLIPBOARD)));
       session.addDraftPoint(BlockPos.ZERO);
       session.clearTransientInteraction();
       assertEquals(SelectionSessionLifecycle.Phase.IDLE, session.lifecyclePhase());

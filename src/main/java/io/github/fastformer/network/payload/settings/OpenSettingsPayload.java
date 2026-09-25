@@ -36,7 +36,7 @@ public record OpenSettingsPayload(
 
    public OpenSettingsPayload {
       faceRasterizationMode = faceRasterizationMode == null
-         ? FaceRasterizationMode.POINT_SWEEP
+         ? FaceRasterizationMode.DEFAULT
          : faceRasterizationMode;
       placementConflictMode = placementConflictMode == null ? OperationConflictMode.REPLACE : placementConflictMode;
       placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.CLIENT_ONLY : placementUpdateMode;
@@ -46,7 +46,7 @@ public record OpenSettingsPayload(
    }
 
    public OpenSettingsPayload(boolean middleConfirmEnabled) {
-      this(middleConfirmEnabled, FaceRasterizationMode.POINT_SWEEP,
+      this(middleConfirmEnabled, FaceRasterizationMode.DEFAULT,
          OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, List.of(), true, false, 200, 100);
    }
 

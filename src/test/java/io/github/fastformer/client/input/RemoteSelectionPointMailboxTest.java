@@ -28,16 +28,16 @@ class RemoteSelectionPointMailboxTest {
          scroll -> fail(), pointer -> fail(), this::send);
       drain(true);
       assertEquals(List.of(OperationPointPayload.Role.FIRST, OperationPointPayload.Role.SECOND), sent);
-      assertFalse(input.canCancelPendingRemotePoint());
+      assertFalse(input.canCancelPendingSessionStart());
    }
 
    @Test void cancelBeforeInitialRequestDoesNotNeedAServerPreview() {
       FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
-      assertTrue(input.canCancelPendingRemotePoint());
+      assertTrue(input.canCancelPendingSessionStart());
       assertTrue(input.cancel());
       drain(true);
       assertTrue(sent.isEmpty());
-      assertFalse(input.canCancelPendingRemotePoint());
+      assertFalse(input.canCancelPendingSessionStart());
    }
 
    @Test void contextLossDiscardsRequestsAndPendingOwnership() {
@@ -45,7 +45,7 @@ class RemoteSelectionPointMailboxTest {
       FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.SECOND);
       drain(false);
       assertTrue(sent.isEmpty());
-      assertFalse(input.canCancelPendingRemotePoint());
+      assertFalse(input.canCancelPendingSessionStart());
       assertFalse(input.blocksDraftLoad());
    }
 
@@ -68,7 +68,7 @@ class RemoteSelectionPointMailboxTest {
       input.reset();
       drain(true);
       assertTrue(sent.isEmpty());
-      assertFalse(input.canCancelPendingRemotePoint());
+      assertFalse(input.canCancelPendingSessionStart());
    }
 
    @Test void cancellationDuringBatchDiscardsRequestsStillInThatBatch() {
@@ -77,7 +77,7 @@ class RemoteSelectionPointMailboxTest {
       input.drainPhysicalEvents(() -> true, key -> assertTrue(input.cancel()),
          scroll -> fail(), pointer -> fail(), this::send);
       assertTrue(sent.isEmpty());
-      assertFalse(input.canCancelPendingRemotePoint());
+      assertFalse(input.canCancelPendingSessionStart());
       assertFalse(input.blocksDraftLoad());
    }
 

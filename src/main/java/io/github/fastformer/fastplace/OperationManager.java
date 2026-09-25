@@ -276,18 +276,22 @@ public final class OperationManager {
 
    public static void cycleMode(ServerPlayer player) {
       OperationSession session = SESSIONS.get(player.getUUID());
-      if (session != null) {
-         if (session.operationReady()) {
-            session.cycleStageMode();
-         } else {
-            recordEdit(session, () -> {
-               session.cycleSelectionMode();
-               return true;
-            });
-            rememberSelectionMode(player, session);
-         }
-         FastPlaceNetwork.syncOperation(player, session);
+      if (session == null) {
+         FastPlaceSettings settings = FastPlaceSettings.load(player);
+         settings.setOperationSelectionMode(player, settings.operationSelectionMode().next());
+         FastPlaceNetwork.syncSettings(player);
+         return;
       }
+      if (session.operationReady()) {
+         session.cycleStageMode();
+      } else {
+         recordEdit(session, () -> {
+            session.cycleSelectionMode();
+            return true;
+         });
+         rememberSelectionMode(player, session);
+      }
+      FastPlaceNetwork.syncOperation(player, session);
    }
 
    public static boolean setSelectionMode(ServerPlayer player, OperationSelectionMode mode) {
@@ -842,6 +846,7 @@ public final class OperationManager {
    }
 
    public static void cancel(ServerPlayer player) {
+      ServerInputDispatcher.endOperationGestures(player);
       OperationSession removed = SESSIONS.remove(player.getUUID());
       if (removed != null) {
          rememberSelectionMode(player, removed);

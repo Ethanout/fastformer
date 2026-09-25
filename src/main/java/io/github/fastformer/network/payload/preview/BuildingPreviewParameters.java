@@ -35,7 +35,7 @@ public record BuildingPreviewParameters(
       angleDegrees = GeometryNumbers.finiteOr(angleDegrees, 0.0);
       faceTieBias = faceTieBias == null ? LineTieBias.DEFAULT : faceTieBias;
       faceRasterizationMode = faceRasterizationMode == null
-         ? FaceRasterizationMode.POINT_SWEEP
+         ? FaceRasterizationMode.DEFAULT
          : faceRasterizationMode;
    }
 }

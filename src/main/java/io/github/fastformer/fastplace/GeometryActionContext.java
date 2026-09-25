@@ -1,30 +1,15 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.world.*;
-
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
-public record GeometryActionContext(ServerPlayer player, boolean modifierHeld, GeometryHit hit) {
+public record GeometryActionContext(ServerPlayer player, boolean modifierHeld, GeometryHit hit, Vec3 eye, Vec3 view) {
    public GeometryActionContext(ServerPlayer player, boolean modifierHeld) {
       this(player, modifierHeld, null);
    }
 
-   public Vec3 eye() {
-      return this.player.getEyePosition();
-   }
-
-   public Vec3 view() {
-      return this.player.getViewVector(1.0F);
-   }
-
-   public BlockHitResult raycast(double range) {
-      return ServerInputDispatcher.raycastBlocks(this.player, range);
-   }
-
-   public boolean hasBlockHit(BlockHitResult hit) {
-      return hit != null && hit.getType() == HitResult.Type.BLOCK;
+   public GeometryActionContext(ServerPlayer player, boolean modifierHeld, GeometryHit hit) {
+      this(player, modifierHeld, hit, player == null ? null : player.getEyePosition(),
+         player == null ? null : player.getViewVector(1.0F));
    }
 }

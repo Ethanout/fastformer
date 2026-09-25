@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.quickshape.FastPlaceStage;
+import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
 import io.github.fastformer.fastplace.quickshape.PointMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
@@ -59,11 +59,11 @@ public final class FastPlaceGeometry {
          return (modes.raycastPlacement() == RaycastPlacement.EMBEDDED ? hitBlock : surfaceBlock).immutable();
       } else {
          Vec3 raw = Vec3.atCenterOf(modes.raycastPlacement() == RaycastPlacement.EMBEDDED ? hitBlock : surfaceBlock);
-         if (stageFor(points) == FastPlaceStage.LINE && modes.lineMode() == LineMode.FREE_SCROLL) {
+         if (QuickShapeStage.fromPointCount(points.size()) == QuickShapeStage.LINE && modes.lineMode() == LineMode.FREE_SCROLL) {
             BlockPos effectiveOffset = freeScrollOffset == null ? BlockPos.ZERO : freeScrollOffset;
             raw = Vec3.atCenterOf((Vec3i)points.getFirst()).add(effectiveOffset.getX(), effectiveOffset.getY(), effectiveOffset.getZ());
          }
-         Vec3 resolved = switch (effectiveStage(points, modes.faceMode(), polygonClosed)) {
+         Vec3 resolved = switch (QuickShapeStage.resolve(points.size(), modes.faceMode(), polygonClosed)) {
             case LINE -> resolveLine(points, raw, eye, view, modes);
             case FACE -> resolveFace(points, raw, faceBaseOffset, perpendicularAnchor, eye, view, modes);
             case VOLUME -> resolveVolume(points, raw, volumeBaseOffset, perpendicularAnchor, eye, view, modes);
@@ -220,17 +220,17 @@ public final class FastPlaceGeometry {
       if (points.isEmpty()) {
          return List.of();
       } else {
-         FastPlaceStage stage = effectiveStage(points, modes.faceMode(), polygonClosed);
+         QuickShapeStage stage = QuickShapeStage.resolve(points.size(), modes.faceMode(), polygonClosed);
          List<Vec3> bounds = structureFootprint(structureBlocks, points, candidate);
-         if (stage == FastPlaceStage.FACE && modes.faceMode() == FaceMode.COORDINATE_PLANE && points.size() >= 2) {
+         if (stage == QuickShapeStage.FACE && modes.faceMode() == FaceMode.COORDINATE_PLANE && points.size() >= 2) {
             Vec3 a = Vec3.atCenterOf((Vec3i)points.getFirst());
             Vec3 normal = previewFaceNormal(points, candidate, modes.faceMode());
             return normal.lengthSqr() < 1.0E-7 ? List.of() : List.of(new GuidePlane(a, normal, faceStageBounds(points, candidate)));
-         } else if (stage == FastPlaceStage.FACE && modes.faceMode() == FaceMode.POLYGON && points.size() >= 2) {
+         } else if (stage == QuickShapeStage.FACE && modes.faceMode() == FaceMode.POLYGON && points.size() >= 2) {
             Vec3 a = Vec3.atCenterOf((Vec3i)points.getFirst());
             Vec3 normal = candidate == null ? Vec3.ZERO : previewFaceNormal(points, candidate, modes.faceMode());
             return normal.lengthSqr() < 1.0E-7 ? List.of() : List.of(new GuidePlane(a, normal, faceStageBounds(points, candidate), true));
-         } else if (stage == FastPlaceStage.FACE && modes.faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE && points.size() >= 2) {
+         } else if (stage == QuickShapeStage.FACE && modes.faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE && points.size() >= 2) {
             Vec3 a = Vec3.atCenterOf((Vec3i)points.getFirst());
             Vec3 b = Vec3.atCenterOf((Vec3i)points.get(1));
             FastPlaceGeometry.PerpendicularPlaneHit hit = basePlaneHit(a, b, faceBaseOffset(points, faceBaseOffset, view), eye, view);
@@ -238,7 +238,7 @@ public final class FastPlaceGeometry {
                hit = null;
             }
             return hit == null ? List.of() : List.of(new GuidePlane(hit.planePoint(), hit.normal(), faceStageBounds(points, candidate), true));
-         } else if (stage == FastPlaceStage.VOLUME && points.size() >= 3) {
+         } else if (stage == QuickShapeStage.VOLUME && points.size() >= 3) {
             List<Vec3> base = PlanarFaceGeometry.vertices(points, modes.faceMode());
             Vec3 normal = PlanarFaceGeometry.normal(base);
             Vec3 center = Vec3.atCenterOf((Vec3i)points.get(2));
@@ -290,8 +290,8 @@ public final class FastPlaceGeometry {
    public static List<GuideLine> guideLines(
       List<BlockPos> points, boolean polygonClosed, Vec3 faceBaseOffset, BlockPos perpendicularAnchor, Vec3 eye, Vec3 view, FastPlaceGeometry.Modes modes
    ) {
-      FastPlaceStage stage = effectiveStage(points, modes.faceMode(), polygonClosed);
-      if (stage == FastPlaceStage.VOLUME && modes.volumeMode() == VolumeMode.PERPENDICULAR_TO_FACE && points.size() >= 3) {
+      QuickShapeStage stage = QuickShapeStage.resolve(points.size(), modes.faceMode(), polygonClosed);
+      if (stage == QuickShapeStage.VOLUME && modes.volumeMode() == VolumeMode.PERPENDICULAR_TO_FACE && points.size() >= 3) {
          List<Vec3> base = PlanarFaceGeometry.vertices(points, modes.faceMode());
          Vec3 normal = PlanarFaceGeometry.normal(base);
          if (normal.lengthSqr() < 1.0E-7) {
@@ -325,22 +325,6 @@ public final class FastPlaceGeometry {
       } else {
          return List.of();
       }
-   }
-
-   public static FastPlaceStage stageFor(List<BlockPos> points) {
-      return switch (points.size()) {
-         case 0 -> FastPlaceStage.POINT;
-         case 1 -> FastPlaceStage.LINE;
-         case 2 -> FastPlaceStage.FACE;
-         default -> FastPlaceStage.VOLUME;
-      };
-   }
-
-   public static FastPlaceStage effectiveStage(List<BlockPos> points, FaceMode faceMode, boolean polygonClosed) {
-      if (faceMode == FaceMode.POLYGON && points.size() >= 2 && !polygonClosed) {
-         return FastPlaceStage.FACE;
-      }
-      return stageFor(points);
    }
 
    private static Vec3 resolveLine(List<BlockPos> points, Vec3 raw, Vec3 eye, Vec3 view, FastPlaceGeometry.Modes modes) {
@@ -740,7 +724,7 @@ public final class FastPlaceGeometry {
       ) {
          this(
             pointMode, raycastPlacement, lineMode, faceMode, volumeMode, fillMode, angleDegrees, modifierHeld,
-            LineTieBias.DEFAULT, FaceRasterizationMode.POINT_SWEEP
+            LineTieBias.DEFAULT, FaceRasterizationMode.DEFAULT
          );
       }
 
@@ -757,14 +741,14 @@ public final class FastPlaceGeometry {
       ) {
          this(
             pointMode, raycastPlacement, lineMode, faceMode, volumeMode, fillMode, angleDegrees, modifierHeld,
-            faceTieBias, FaceRasterizationMode.POINT_SWEEP
+            faceTieBias, FaceRasterizationMode.DEFAULT
          );
       }
 
       public Modes {
          faceTieBias = faceTieBias == null ? LineTieBias.DEFAULT : faceTieBias;
          faceRasterizationMode = faceRasterizationMode == null
-            ? FaceRasterizationMode.POINT_SWEEP
+            ? FaceRasterizationMode.DEFAULT
             : faceRasterizationMode;
       }
 

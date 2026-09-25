@@ -9,10 +9,12 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.FutureTask;
+import io.github.fastformer.client.session.ClientTickMailbox;
 
 /** One unsent Enter intent. Only its owning client tick can consume the result. */
 public final class QuickShapeSubmissionIntent {
    private Pending pending;
+   private final ClientTickMailbox<Completion> results = new ClientTickMailbox<>(ignored -> { });
 
    public boolean begin(long requestId, QuickShapeSubmissionSnapshot snapshot) {
       if (pending != null || requestId <= 0 || snapshot == null) return false;
@@ -29,7 +31,22 @@ public final class QuickShapeSubmissionIntent {
       if (!waitingForParameters()) return;
       Pending request = pending;
       request.progress = new ProgressiveBlockGeneration(plan.estimatedTargetBlocks(), false);
-      request.future = new FutureTask<>(() -> validate(plan, request.progress));
+      long epoch = results.epoch();
+      request.future = new FutureTask<>(() -> validate(plan, request.progress)) {
+         @Override
+         protected void done() {
+            Outcome outcome;
+            try {
+               outcome = get();
+            } catch (InterruptedException exception) {
+               Thread.currentThread().interrupt();
+               outcome = Outcome.FAILED;
+            } catch (ExecutionException | CancellationException exception) {
+               outcome = Outcome.FAILED;
+            }
+            results.post(epoch, new Completion(request.requestId, request.snapshot, outcome));
+         }
+      };
       try {
          executor.execute(request.future);
       } catch (RuntimeException exception) {
@@ -39,19 +56,13 @@ public final class QuickShapeSubmissionIntent {
    }
 
    public Optional<Completion> takeCompleted() {
-      Pending request = pending;
-      if (request == null || request.future == null || !request.future.isDone()) return Optional.empty();
-      pending = null;
-      Outcome outcome;
-      try {
-         outcome = request.future.get();
-      } catch (InterruptedException exception) {
-         Thread.currentThread().interrupt();
-         outcome = Outcome.FAILED;
-      } catch (ExecutionException | CancellationException exception) {
-         outcome = Outcome.FAILED;
-      }
-      return Optional.of(new Completion(request.requestId, request.snapshot, outcome));
+      var completed = new java.util.ArrayList<Completion>(1);
+      results.drain(event -> {
+         if (!accepts(event.requestId(), event.snapshot())) return;
+         pending = null;
+         completed.add(event);
+      });
+      return completed.stream().findFirst();
    }
 
    /** Drops a completion that no longer belongs to the active request. */
@@ -62,6 +73,7 @@ public final class QuickShapeSubmissionIntent {
    public void cancel() {
       Pending request = pending;
       pending = null;
+      results.invalidate();
       if (request == null) return;
       if (request.progress != null) request.progress.cancel();
       if (request.future != null) request.future.cancel(true);

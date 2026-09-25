@@ -85,6 +85,16 @@ final class BoundaryInterpolatedFaceRasterizer {
          return BresenhamFaceSweep.Attempt.failed(BresenhamFaceSweep.Status.LIMIT_EXCEEDED);
       }
 
+      if (rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL) {
+         return NormalPlaneFaceRasterizer.attempt(
+            frame,
+            domain,
+            boundarySamples.stream().map(block -> project(frame, block)).collect(java.util.stream.Collectors.toSet()),
+            maxBlocks,
+            effectiveObserver
+         );
+      }
+
       FaceRasterizationMode effectiveMode = rasterizationMode == null
          ? FaceRasterizationMode.POINT_SWEEP
          : rasterizationMode;
@@ -673,7 +683,7 @@ final class BoundaryInterpolatedFaceRasterizer {
       }
    }
 
-   private record Pixel(int u, int v) {
+   record Pixel(int u, int v) {
       Pixel add(Pixel other) {
          return new Pixel(Math.addExact(this.u, other.u), Math.addExact(this.v, other.v));
       }

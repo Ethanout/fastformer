@@ -2,8 +2,8 @@ package io.github.fastformer.client.session;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import java.util.UUID;
@@ -47,8 +47,8 @@ class ClientPlayerSessionTest {
       var workspace = session.operationWorkspace();
       var selection = session.selectionSession();
       workspace.addParts(java.util.List.of(
-         io.github.fastformer.client.operation.model.ClientSelectionPart.empty(
-            io.github.fastformer.client.operation.model.ClientSelectionPart.Source.WORLD)));
+         io.github.fastformer.workspace.model.ClientSelectionPart.empty(
+            io.github.fastformer.workspace.model.ClientSelectionPart.Source.WORLD)));
       workspace.setLocked(true);
       selection.addDraftPoint(new net.minecraft.core.BlockPos(80, 64, 80));
       selection.setAltHeld(true);

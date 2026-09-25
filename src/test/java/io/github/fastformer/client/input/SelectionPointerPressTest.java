@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import net.minecraft.core.BlockPos;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.client.operation.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.interaction.InteractionPressBinding;
 import io.github.fastformer.client.interaction.InteractionObject;
@@ -170,7 +170,7 @@ class SelectionPointerPressTest {
       for (int i = 0; i < 4; i++) {
          session.workspace().addParts(List.of(new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
             io.github.fastformer.fastplace.selection.OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2), BlockPos.ZERO, BlockPos.ZERO),
-            Map.of(), io.github.fastformer.client.operation.model.WorkspaceTransform.IDENTITY, false)));
+            Map.of(), io.github.fastformer.workspace.model.WorkspaceTransform.IDENTITY, false)));
       }
       session.workspace().selectAll();
       session.publishInteractionScene();

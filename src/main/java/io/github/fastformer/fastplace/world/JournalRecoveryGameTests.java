@@ -22,7 +22,7 @@ public final class JournalRecoveryGameTests {
    private JournalRecoveryGameTests() {
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100, batch = "startup_journal_recovery")
    public static void sealedSegmentsReplayWorldContents(GameTestHelper helper) throws Exception {
       var level = helper.getLevel();
       BlockPos first = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -68,7 +68,7 @@ public final class JournalRecoveryGameTests {
       }
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100, batch = "startup_journal_recovery")
    public static void recoveryConsumesAllCorrections(GameTestHelper helper) throws Exception {
       var level = helper.getLevel();
       BlockPos first = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -123,7 +123,7 @@ public final class JournalRecoveryGameTests {
       }
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200, batch = "startup_journal_recovery")
    public static void startupScanRestoresPreparedJournalBeforeCleanup(GameTestHelper helper) throws Exception {
       var level = helper.getLevel();
       BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -151,7 +151,7 @@ public final class JournalRecoveryGameTests {
       }
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200, batch = "startup_journal_recovery")
    public static void startupScanRetainsJournalUntilDurableSaveSucceeds(GameTestHelper helper) throws Exception {
       var level = helper.getLevel();
       BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -187,7 +187,7 @@ public final class JournalRecoveryGameTests {
       }
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200, batch = "startup_journal_recovery")
    public static void startupScanRecoversSegmentedJournal(GameTestHelper helper) throws Exception {
       var level = helper.getLevel();
       BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -221,7 +221,7 @@ public final class JournalRecoveryGameTests {
       }
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100, batch = "startup_journal_recovery")
    public static void startupScanRetainsUnsafeJournalsAndBlocksWrites(GameTestHelper helper) throws Exception {
       var level = helper.getLevel();
       BlockPos pos = helper.absolutePos(new BlockPos(1, 1, 1));
@@ -253,7 +253,7 @@ public final class JournalRecoveryGameTests {
       }
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 200, batch = "startup_journal_recovery")
    public static void finalCorrectionsCoverLaterSegments(GameTestHelper helper) throws Exception {
       var level = helper.getLevel();
       BlockPos first = helper.absolutePos(new BlockPos(1, 1, 1));

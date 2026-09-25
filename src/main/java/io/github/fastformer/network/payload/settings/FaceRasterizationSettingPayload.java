@@ -14,7 +14,7 @@ public record FaceRasterizationSettingPayload(FaceRasterizationMode mode) implem
       CustomPacketPayload.codec(FaceRasterizationSettingPayload::write, FaceRasterizationSettingPayload::new);
 
    public FaceRasterizationSettingPayload {
-      mode = mode == null ? FaceRasterizationMode.POINT_SWEEP : mode;
+      mode = mode == null ? FaceRasterizationMode.DEFAULT : mode;
    }
 
    private FaceRasterizationSettingPayload(FriendlyByteBuf buffer) {

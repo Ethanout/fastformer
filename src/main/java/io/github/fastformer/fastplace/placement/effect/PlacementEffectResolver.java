@@ -3,7 +3,7 @@ package io.github.fastformer.fastplace.placement.effect;
 import io.github.fastformer.fastplace.FastPlaceGeometry;
 import io.github.fastformer.fastplace.FastPlaceSettings;
 import io.github.fastformer.fastplace.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.session.FastPlaceSession;
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 import java.util.Optional;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -19,7 +19,7 @@ public final class PlacementEffectResolver {
    public static Optional<ResolvedPlacementEffect> resolve(
       Player player,
       FastPlaceSettings settings,
-      FastPlaceSession session,
+      QuickShapeDraft session,
       BlockState prototype,
       FastPlaceGeometry.Modes modes
    ) {
@@ -29,7 +29,7 @@ public final class PlacementEffectResolver {
    public static Optional<ResolvedPlacementEffect> resolve(
       Player player,
       FastPlaceSettings settings,
-      FastPlaceSession session,
+      QuickShapeDraft session,
       BlockState prototype,
       FastPlaceGeometry.Modes modes,
       List<BlockPos> points

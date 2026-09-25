@@ -99,7 +99,7 @@ public record BuildingPreviewParametersPayload(
          5, Vec3.ZERO, Vec3.ZERO, BlockPos.ZERO, 0.0, PointMode.RAYCAST,
          RaycastPlacement.SURFACE, LineMode.AXIS, FaceMode.POLYGON,
          VolumeMode.PERPENDICULAR_TO_FACE, FillMode.OUTLINE,
-         LineTieBias.DEFAULT, FaceRasterizationMode.POINT_SWEEP
+         LineTieBias.DEFAULT, FaceRasterizationMode.DEFAULT
       );
    }
 

@@ -51,6 +51,9 @@ public final class ClientSessionManager {
    private SessionKey currentKey;
    private Object callbackConnection;
    private UUID callbackSessionId;
+   private final ClientStorageQueue storage = new ClientStorageQueue();
+
+   public void drainStorageResults() { storage.drain(); }
 
    private ClientSessionManager() {
    }
@@ -129,6 +132,7 @@ public final class ClientSessionManager {
 
    /** Records the current player identity without coupling the session box to LocalPlayer lifetime. */
    public void observePlayer(Minecraft minecraft) {
+      storage.drain();
       if (minecraft == null || minecraft.player == null || minecraft.getConnection() == null) {
          return;
       }
@@ -168,14 +172,18 @@ public final class ClientSessionManager {
       this.current.suspendOperationDraft(identity, originWhenNoIdentity, submissionId);
       ClientOperationDraft draft = this.current.suspendedOperationDraftData();
       if (draft == null) return;
-      try {
-         OperationClipboardStore.save(draftFileFor(this.currentKey), ClientOperationDraftCodec.encode(draft));
-         // The scope now owns a known draft in memory and on disk. No read is pending.
-         this.draftLoadStates.put(this.currentKey, ClientDraftLoadState.READY);
-      } catch (IOException | RuntimeException exception) {
-         LOGGER.warn("Unable to save the FastFormer client operation draft", exception);
-         showDraftMessage("fastformer.message.operation_draft_save_failed");
-      }
+      SessionKey key = currentKey;
+      Path file = draftFileFor(key);
+      Object ticket = OperationClipboardStore.reserve(file);
+      boolean queued = storage.submit(() -> {
+         OperationClipboardStore.save(file, ClientOperationDraftCodec.encode(draft), ticket);
+         return true;
+      }, (saved, error) -> {
+         if (!OperationClipboardStore.current(file, ticket)) return;
+         if (error == null) draftLoadStates.put(key, ClientDraftLoadState.READY);
+         else { LOGGER.warn("Unable to save the FastFormer client operation draft", error); showDraftMessage("fastformer.message.operation_draft_save_failed"); }
+      });
+      if (!queued) showDraftMessage("fastformer.message.operation_draft_save_failed");
    }
 
    /**
@@ -216,24 +224,61 @@ public final class ClientSessionManager {
     * result then has no receiver. A failed write keeps the previous file: the store
     * replaces the file with an atomic move, so an incomplete write never replaces it.</p>
     *
-    * @return true when the draft reached the disk
+    * @return true when the save entered the bounded storage queue
     */
    public boolean persistSubmittedDraft(
-      OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID transferId
+      OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID transferId,
+      io.github.fastformer.fastplace.OperationWorkspacePlan plan, java.util.function.BooleanSupplier owned,
+      java.util.function.Consumer<io.github.fastformer.client.placement.ClientPlacementRouter.WorkspaceSubmission> complete
    ) {
       if (this.current == null || this.currentKey == null || transferId == null) return false;
       ClientOperationDraft draft =
          this.current.buildSubmittedDraft(identity, originWhenNoIdentity, transferId);
       if (draft == null) return false;
-      try {
-         OperationClipboardStore.save(draftFileFor(this.currentKey), ClientOperationDraftCodec.encode(draft));
-         this.draftLoadStates.put(this.currentKey, ClientDraftLoadState.READY);
+      SessionKey key = currentKey;
+      var session = current;
+      var store = receiptStore(key);
+      var receipt = new OperationSubmissionReceipt(transferId, originWhenNoIdentity, identity,
+         ResourceLocation.parse(key.dimension()), OperationSubmissionOutcome.IN_FLIGHT, System.currentTimeMillis());
+      if (store.readOnly() || !store.canAccept(transferId) || !store.record(receipt)) return false;
+      var receipts = store.all();
+      Path receiptFile = receiptFileFor(key), draftFile = draftFileFor(key);
+      Object receiptTicket = OperationClipboardStore.reserve(receiptFile), draftTicket = OperationClipboardStore.reserve(draftFile);
+      boolean queued = storage.submit(() -> {
+         var submission = io.github.fastformer.client.placement.ClientPlacementRouter.prepareWorkspace(plan, transferId);
+         OperationClipboardStore.save(receiptFile, OperationSubmissionReceiptCodec.encode(receipts), receiptTicket);
+         OperationClipboardStore.save(draftFile, ClientOperationDraftCodec.encode(draft), draftTicket);
+         return submission;
+      }, (submission, error) -> {
+         boolean durable = error == null && OperationClipboardStore.current(receiptFile, receiptTicket)
+            && OperationClipboardStore.current(draftFile, draftTicket);
+         if (durable) { store.confirmSaved(receipts); draftLoadStates.put(key, ClientDraftLoadState.READY); }
+         if (current != session || !java.util.Objects.equals(currentKey, key) || !owned.getAsBoolean()) {
+            recordUnsentSubmission(store, receipt, receiptFile);
+            return;
+         }
+         if (!durable) {
+            recordUnsentSubmission(store, receipt, receiptFile);
+            LOGGER.warn("Unable to persist the workspace submission", error);
+            showDraftMessage("fastformer.message.operation_draft_save_failed");
+         }
+         complete.accept(durable ? submission : null);
+      });
+      if (!queued) store.remove(transferId);
+      return queued;
+   }
+
+   private void recordUnsentSubmission(OperationSubmissionReceiptStore store, OperationSubmissionReceipt receipt, Path file) {
+      store.record(receipt.withOutcome(OperationSubmissionOutcome.FAILED_RETRYABLE, System.currentTimeMillis()));
+      var receipts = store.all();
+      Object ticket = OperationClipboardStore.reserve(file);
+      storage.submit(() -> {
+         OperationClipboardStore.save(file, OperationSubmissionReceiptCodec.encode(receipts), ticket);
          return true;
-      } catch (IOException | RuntimeException exception) {
-         LOGGER.warn("Unable to save the FastFormer client operation draft before a submission", exception);
-         showDraftMessage("fastformer.message.operation_draft_save_failed");
-         return false;
-      }
+      }, (saved, failure) -> {
+         if (failure == null && OperationClipboardStore.current(file, ticket)) store.confirmSaved(receipts);
+         else if (failure != null) LOGGER.warn("Unable to save the unsent submission receipt", failure);
+      });
    }
 
    /**
@@ -874,7 +919,7 @@ public final class ClientSessionManager {
 
    private static boolean deleteDraftFileAt(Path file) {
       try {
-         Files.deleteIfExists(file);
+         OperationClipboardStore.delete(file);
          return true;
       } catch (IOException exception) {
          LOGGER.warn("Unable to delete the FastFormer client operation draft", exception);

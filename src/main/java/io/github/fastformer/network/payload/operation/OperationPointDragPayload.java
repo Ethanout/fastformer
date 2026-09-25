@@ -8,6 +8,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.core.BlockPos;
 
 public record OperationPointDragPayload(
+   long gestureId,
+   long revision,
+   OperationCallbackScope callbackScope,
    int pointIndex,
    BlockPos target,
    OperationPointDragConstraint constraint,
@@ -21,12 +24,18 @@ public record OperationPointDragPayload(
    );
 
    public OperationPointDragPayload {
+      if (gestureId <= 0 || revision < 0 || callbackScope == null) {
+         throw new IllegalArgumentException("Operation point drag requires an owned preview gesture");
+      }
       target = target == null ? BlockPos.ZERO : target.immutable();
       constraint = constraint == null ? OperationPointDragConstraint.FREE : constraint;
    }
 
    private OperationPointDragPayload(FriendlyByteBuf buffer) {
       this(
+         buffer.readVarLong(),
+         buffer.readVarLong(),
+         OperationCallbackScope.STREAM_CODEC.decode(buffer),
          buffer.readVarInt(),
          buffer.readBlockPos(),
          buffer.readEnum(OperationPointDragConstraint.class),
@@ -35,6 +44,9 @@ public record OperationPointDragPayload(
    }
 
    private void write(FriendlyByteBuf buffer) {
+      buffer.writeVarLong(this.gestureId);
+      buffer.writeVarLong(this.revision);
+      OperationCallbackScope.STREAM_CODEC.encode(buffer, this.callbackScope);
       buffer.writeVarInt(this.pointIndex);
       buffer.writeBlockPos(this.target);
       buffer.writeEnum(this.constraint);

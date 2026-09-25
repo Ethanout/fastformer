@@ -61,7 +61,8 @@ final class OperationDragController {
          null,
          0.0,
          DeferredDragClick.start(System.nanoTime(), deferredSteps),
-         session.pointerGestureToken
+         session.pointerGestureToken, ClientOperationController.remoteSelectionRevision(),
+         ClientOperationController.remoteSelectionCallbackScope(), GeometryInputController.nextRequestId()
       );
       return true;
    }
@@ -94,7 +95,8 @@ final class OperationDragController {
          handle.key(),
          ClientInputMath.axisComponent(gizmo.center(), handle.axis()),
          DeferredDragClick.none(),
-         session.pointerGestureToken
+         session.pointerGestureToken, ClientOperationController.remoteSelectionRevision(),
+         ClientOperationController.remoteSelectionCallbackScope(), GeometryInputController.nextRequestId()
       );
       return true;
    }
@@ -126,7 +128,7 @@ final class OperationDragController {
          return;
       }
       int clippedDelta = ClientInputMath.clampDragSteps(delta, MAX_DRAG_STEPS_PER_PACKET);
-      PacketDistributor.sendToServer(new OperationExtendPayload(drag.axis(), drag.positive(), clippedDelta, false),
+         PacketDistributor.sendToServer(new OperationExtendPayload(drag.requestId(), drag.revision(), drag.callbackScope(), drag.axis(), drag.positive(), clippedDelta, false),
          new CustomPacketPayload[0]);
       drag = drag.withSentSteps(drag.sentSteps() + clippedDelta);
       session.operationDrag = drag;
@@ -146,7 +148,7 @@ final class OperationDragController {
       if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
          int releaseSteps = drag.faceHit() == null
             ? drag.deferredClick().releaseSteps(releasedAtNanos, FACE_SHORT_PRESS_NANOS) : 0;
-         PacketDistributor.sendToServer(new OperationExtendPayload(drag.axis(), drag.positive(), releaseSteps, true),
+         PacketDistributor.sendToServer(new OperationExtendPayload(drag.requestId(), drag.revision(), drag.callbackScope(), drag.axis(), drag.positive(), releaseSteps, true),
             new CustomPacketPayload[0]);
       }
       clearCapture(session, drag);
@@ -154,7 +156,14 @@ final class OperationDragController {
 
    static void cancel(ClientInputSession session) {
       OperationDrag drag = session.operationDrag;
-      if (drag != null) clearCapture(session, drag);
+      if (drag == null) return;
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft != null && minecraft.getConnection() != null
+         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
+         PacketDistributor.sendToServer(new OperationExtendPayload(drag.requestId(), drag.revision(),
+            drag.callbackScope(), drag.axis(), drag.positive(), 0, true));
+      }
+      clearCapture(session, drag);
    }
 
    static boolean acceptsCapture(ClientInputSession session, OperationDrag drag) {

@@ -14,11 +14,12 @@ public final class CancelInputSemantics {
       int key,
       boolean clientReady,
       boolean quitChannelAvailable,
+      boolean sessionCancellable,
       boolean submissionPending,
       boolean operationRestorePending,
       boolean previewRestorePending
    ) {
-      if (action != PRESS || key != CANCEL_KEY || !clientReady || !quitChannelAvailable) {
+      if (action != PRESS || key != CANCEL_KEY || !clientReady || !quitChannelAvailable || !sessionCancellable) {
          return Decision.IGNORED;
       }
       if (submissionPending) {
@@ -28,12 +29,7 @@ public final class CancelInputSemantics {
    }
 
    /**
-    * Decides the in-world Escape press.
-    *
-    * <p>The vanilla pause screen opens before the mod receives the key, so this
-    * decision runs from the screen-opening hook instead of the key handler. An
-    * active session wins over the pause screen. Every other case keeps the
-    * vanilla pause.
+    * Escape always keeps vanilla screen behavior and never cancels a session.
     */
    public static Decision decideEscape(
       boolean clientReady,
@@ -43,28 +39,21 @@ public final class CancelInputSemantics {
       boolean operationRestorePending,
       boolean previewRestorePending
    ) {
-      if (!clientReady || !quitChannelAvailable || !sessionCancellable) {
-         return Decision.IGNORED;
-      }
-      if (submissionPending) {
-         return new Decision(Command.REPORT_SUBMISSION_PENDING, false, false);
-      }
-      return new Decision(Command.REQUEST_CANCEL, operationRestorePending, previewRestorePending);
+      return Decision.IGNORED;
    }
 
    /**
     * The vanilla drop key is bound to the cancel key by default, and the
     * keyboard handler queues that vanilla click before this handler runs. An
-    * accepted session cancel must remove the queued click, or the same physical
+    * captured session cancel must remove the queued click, or the same physical
     * press also drops the held item. A rebound drop key keeps its own meaning.
     */
-   public static boolean consumesVanillaDrop(
+   public static boolean capturesVanillaDrop(
       Decision decision,
-      boolean cancellationAccepted,
       boolean cancelKeyBoundToVanillaDrop
    ) {
-      return decision.command() == Command.REQUEST_CANCEL
-         && cancellationAccepted
+      return decision.command() != Command.IGNORE
+         && decision.command() != Command.REPORT_SUBMISSION_PENDING
          && cancelKeyBoundToVanillaDrop;
    }
 

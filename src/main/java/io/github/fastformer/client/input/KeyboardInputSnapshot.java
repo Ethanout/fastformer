@@ -11,18 +11,24 @@ record KeyboardInputSnapshot(
    long occurredAtNanos,
    boolean altDown,
    boolean controlDown,
-   QuickShapeSubmissionSnapshot quickShapeSubmission
+   QuickShapeSubmissionSnapshot quickShapeSubmission,
+   CancelInputSemantics.Decision cancellation
 ) {
    KeyboardInputSnapshot(int key, int scanCode, int action, int modifiers, long occurredAtNanos,
       boolean altDown, boolean controlDown) {
-      this(key, scanCode, action, modifiers, occurredAtNanos, altDown, controlDown, null);
+      this(key, scanCode, action, modifiers, occurredAtNanos, altDown, controlDown, null, null);
    }
 
    KeyboardInputSnapshot withQuickShapeSubmission(
       QuickShapeSubmissionSnapshot snapshot
    ) {
       return new KeyboardInputSnapshot(key, scanCode, action, modifiers, occurredAtNanos,
-         altDown, controlDown, snapshot);
+         altDown, controlDown, snapshot, cancellation);
+   }
+
+   KeyboardInputSnapshot withCancellation(CancelInputSemantics.Decision decision) {
+      return new KeyboardInputSnapshot(key, scanCode, action, modifiers, occurredAtNanos,
+         altDown, controlDown, quickShapeSubmission, decision);
    }
 
    static KeyboardInputSnapshot capture(

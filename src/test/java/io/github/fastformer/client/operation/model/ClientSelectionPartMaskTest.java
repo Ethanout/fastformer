@@ -1,4 +1,4 @@
-package io.github.fastformer.client.operation.model;
+package io.github.fastformer.workspace.model;
 
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import java.util.Map;

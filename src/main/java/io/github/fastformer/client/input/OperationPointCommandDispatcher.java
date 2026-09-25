@@ -14,10 +14,27 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 final class OperationPointCommandDispatcher {
    private OperationPointCommandDispatcher() { }
 
+   static void dispatch(Minecraft minecraft, ClientInputSession session, OperationPointCommandEvent event) {
+      if (!(event instanceof OperationPointCommandEvent.Press press)) return;
+      var value = press.snapshot();
+      long requestId = value.occurredAtNanos() & Long.MAX_VALUE;
+      if (requestId == 0L) requestId = 1L;
+      if (value.insertEdge()) {
+         if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationInsertPointPayload.TYPE.id())) {
+            PacketDistributor.sendToServer(new OperationInsertPointPayload(
+               requestId, value.revision(), value.callbackScope(), value.eye(), value.view()), new CustomPacketPayload[0]);
+         }
+      } else if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationSelectPointPayload.TYPE.id())) {
+         PacketDistributor.sendToServer(new OperationSelectPointPayload(
+            requestId, value.revision(), value.callbackScope(), value.pointIndex(), value.eye(), value.view()), new CustomPacketPayload[0]);
+      }
+   }
+
    static boolean insertEdge(Minecraft minecraft) {
       if (FastPlaceClientPreview.operationPrismEdgeInsertion() == null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationInsertPointPayload.TYPE.id())) return false;
-      PacketDistributor.sendToServer(OperationInsertPointPayload.INSTANCE, new CustomPacketPayload[0]);
+      ClientInputSession session = FastPlaceClientInput.currentSession();
+      session.captureOperationPointCommand(OperationPointCommandPress.insert(System.nanoTime()));
       return true;
    }
 
@@ -37,7 +54,7 @@ final class OperationPointCommandDispatcher {
       if (!ClientOperationController.operationPrism()) return false;
       int index = FastPlaceClientPreview.operationPointUnderCrosshairIndex();
       if (index < 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationSelectPointPayload.TYPE.id())) return false;
-      PacketDistributor.sendToServer(new OperationSelectPointPayload(index), new CustomPacketPayload[0]);
+      FastPlaceClientInput.currentSession().captureOperationPointCommand(OperationPointCommandPress.select(System.nanoTime()));
       return true;
    }
 }

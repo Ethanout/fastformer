@@ -6,9 +6,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
-import net.neoforged.neoforge.client.RenderTypeHelper;
+import io.github.fastformer.client.render.type.PreviewRenderTypes;
 import net.minecraft.util.RandomSource;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -17,7 +16,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 
-import io.github.fastformer.client.operation.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.PartLabelInteraction;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
@@ -61,11 +60,9 @@ public final class WorkspacePreviewRenderer {
                entry.getKey().getZ() - camera.z
             );
             net.minecraft.world.level.block.state.BlockState state = entry.getValue().state();
-            RenderType chunkType = ItemBlockRenderTypes.getRenderType(state, false);
-            RenderType entityType = RenderTypeHelper.getEntityRenderType(chunkType, false);
             if (previewLevel != null) {
                renderer.renderBatched(
-                  state, entry.getKey(), previewLevel, poseStack, buffers.getBuffer(entityType), true,
+                  state, entry.getKey(), previewLevel, poseStack, buffers.getBuffer(PreviewRenderTypes.WORKSPACE_BLOCKS), true,
                   RandomSource.create(entry.getKey().asLong())
                );
             }

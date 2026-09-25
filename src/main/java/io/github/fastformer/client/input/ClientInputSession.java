@@ -4,6 +4,7 @@ import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.OperationPointDrag;
 import io.github.fastformer.client.session.ClientTickMailbox;
+import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import java.util.function.Consumer;
 import java.util.function.BooleanSupplier;
 
@@ -15,8 +16,13 @@ public final class ClientInputSession {
       new ClientTickMailbox<>(event -> { });
    private final PhysicalInputMailbox physicalEvents = new PhysicalInputMailbox();
    final ShortPressTracker undoPress = new ShortPressTracker();
+   final QuickShapeUndoGesture quickShapeUndo = new QuickShapeUndoGesture();
    final SelectionPointerCapture selectionPointer = new SelectionPointerCapture();
-   final PhysicalPressGate buildingRightPress = new PhysicalPressGate();
+   final OperationPointDragCapture operationPointPointer = new OperationPointDragCapture();
+   final GeometryGizmoCapture geometryGizmoCapture = new GeometryGizmoCapture();
+   private final boolean[] quickShapeButtons = new boolean[3];
+   private final boolean[] geometryPointerButtons = new boolean[2];
+
    final PointerGestureState pointerGesture = new PointerGestureState();
    final ClientInputStateMachine routing = new ClientInputStateMachine();
    final ModifierGestureState modifier = new ModifierGestureState();
@@ -26,8 +32,10 @@ public final class ClientInputSession {
    OperationPointDrag operationPointDrag;
    int operationClickCapturedButton = -1;
    GeometryGizmoDrag geometryGizmoDrag;
+   OperationTransformCapture operationTransformCapture;
+   record OperationTransformCapture(long gestureId, long revision,
+      io.github.fastformer.network.payload.operation.OperationCallbackScope scope) { }
    boolean undoPressCaptured;
-   int geometryClickCapturedButton = -1;
    boolean radialChordDown;
    final PathCloseGesture pathClose = new PathCloseGesture();
    long lastOperationPointLeftClickAt;
@@ -36,6 +44,22 @@ public final class ClientInputSession {
    int lastOperationPointRightClickIndex = -1;
    boolean operationSessionWasActive;
    boolean suppressedPausePausedSound;
+
+   boolean captureQuickShapeButton(int button) {
+      if (button < 0 || button >= this.quickShapeButtons.length || this.quickShapeButtons[button]) return false;
+      this.quickShapeButtons[button] = true;
+      return true;
+   }
+
+   boolean releaseQuickShapeButton(int button) {
+      if (button < 0 || button >= this.quickShapeButtons.length || !this.quickShapeButtons[button]) return false;
+      this.quickShapeButtons[button] = false;
+      return true;
+   }
+
+   boolean hasQuickShapeButtons() {
+      return this.quickShapeButtons[0] || this.quickShapeButtons[1] || this.quickShapeButtons[2];
+   }
 
    public boolean blocksDraftLoad() {
       boolean activeOperation = switch (this.routing.state()) {
@@ -46,18 +70,22 @@ public final class ClientInputSession {
          || this.physicalEvents.hasUnfinishedEvents() || this.submissionEvents.hasUnfinishedEvents()
          || this.selectionPointer.active()
          || this.pointerGesture.kind() != PointerGestureState.Kind.NONE
-         || this.clickGestureToken != 0L || this.undoPressCaptured || this.modifier.held();
+         || this.clickGestureToken != 0L || this.undoPressCaptured || this.quickShapeUndo.captured()
+         || hasQuickShapeButtons() || this.geometryGizmoCapture.captured() || hasGeometryPointerButtons() || this.modifier.held();
    }
 
    public void reset() {
+      cancelQueuedGeometryInput();
+      java.util.Arrays.fill(this.quickShapeButtons, false);
+      this.quickShapeUndo.cancel();
       this.quickShapeSubmission.cancel();
       this.submissionEvents.invalidate();
       this.physicalEvents.invalidate();
       this.selectionPointer.clear();
+      this.operationPointPointer.clear();
       this.routing.reset();
       this.pointerGesture.cancel();
       this.undoPress.cancel();
-      this.buildingRightPress.release();
       this.modifier.reset();
       this.pointerGestureToken = 0L;
       this.clickGestureToken = 0L;
@@ -66,7 +94,6 @@ public final class ClientInputSession {
       this.operationClickCapturedButton = -1;
       this.geometryGizmoDrag = null;
       this.undoPressCaptured = false;
-      this.geometryClickCapturedButton = -1;
       this.radialChordDown = false;
       this.pathClose.reset();
       this.lastOperationPointLeftClickAt = 0L;
@@ -78,30 +105,45 @@ public final class ClientInputSession {
    }
 
    boolean cancel() {
-      if (!this.routing.cancel() && !canCancelPendingRemotePoint()) return false;
+      if (!this.routing.cancel() && !canCancelPendingSessionStart()) return false;
       this.quickShapeSubmission.cancel();
       discardPhysicalEvents();
       return true;
    }
 
-   boolean canCancelPendingRemotePoint() {
-      return this.physicalEvents.hasPendingRemotePoints() && this.routing.state() == ClientInputStateMachine.State.IDLE;
+   boolean canCancelPendingSessionStart() {
+      return (this.physicalEvents.hasPendingRemotePoints() || this.physicalEvents.hasPendingStarts())
+         && this.routing.state() == ClientInputStateMachine.State.IDLE;
+   }
+
+   boolean ownsQuickShapeStart() {
+      return this.physicalEvents.hasPendingStarts();
    }
 
    void discardPhysicalEvents() {
+      cancelQueuedGeometryInput();
+      java.util.Arrays.fill(this.quickShapeButtons, false);
+      this.quickShapeUndo.cancel();
       this.physicalEvents.invalidate();
       this.selectionPointer.clear();
+      this.operationPointPointer.clear();
+      this.undoPress.cancel();
+      this.undoPressCaptured = false;
    }
 
    /** Releases all pointer-owned state without touching the active draft. */
    void cancelPointerState() {
+      cancelQueuedGeometryInput();
+      java.util.Arrays.fill(this.quickShapeButtons, false);
+      this.quickShapeUndo.cancel();
       this.selectionPointer.clear();
+      this.operationPointPointer.clear();
       this.pointerGesture.cancel();
       this.operationDrag = null;
       this.operationPointDrag = null;
       this.operationClickCapturedButton = -1;
       this.geometryGizmoDrag = null;
-      this.geometryClickCapturedButton = -1;
+      this.operationTransformCapture = null;
       this.undoPress.cancel();
       this.undoPressCaptured = false;
       this.clickGestureToken = 0L;
@@ -181,6 +223,33 @@ public final class ClientInputSession {
       this.physicalEvents.postPointerRelease(event);
    }
 
+   void postQuickShapeUndo(QuickShapeUndoGesture.Event event) {
+      this.physicalEvents.postQuickShapeUndo(event);
+   }
+
+   void postQuickShapePointer(QuickShapePointerPress event) {
+      this.physicalEvents.postQuickShapePointer(event);
+   }
+
+   void postStartPlacement(StartPlacementPayload.Target target) {
+      this.physicalEvents.postStartPlacement(target);
+   }
+
+   void postGeometryGizmo(GeometryGizmoCapture.Event event) {
+      this.physicalEvents.postGeometryGizmo(event);
+   }
+
+   private void cancelQueuedGeometryInput() {
+      java.util.Arrays.fill(this.geometryPointerButtons, false);
+      if (this.geometryGizmoDrag != null && this.geometryGizmoCapture.owns(this.geometryGizmoDrag.captureToken())) {
+         long token = this.geometryGizmoDrag.captureToken();
+         this.pointerGesture.finish(token);
+         if (this.pointerGestureToken == token) this.pointerGestureToken = 0;
+         this.geometryGizmoDrag = null;
+      }
+      this.geometryGizmoCapture.cancel();
+   }
+
    void drainPhysicalEvents(BooleanSupplier contextActive,
       Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
       Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints) {
@@ -193,8 +262,143 @@ public final class ClientInputSession {
       Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
       Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
       Consumer<PointerReleaseSnapshot> pointerReleases) {
-      this.physicalEvents.drain(contextActive, this::discardPhysicalEvents,
-         keys, scrolls, selectionPointer, remotePoints, pointerReleases);
+      drainPhysicalEvents(contextActive, keys, scrolls, selectionPointer, remotePoints, pointerReleases,
+         event -> { throw new IllegalStateException("A quick-shape pointer consumer is required"); });
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive,
+      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
+      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
+      Consumer<PointerReleaseSnapshot> pointerReleases, Consumer<QuickShapePointerPress> quickShapePointer) {
+      drainPhysicalEvents(contextActive, keys, scrolls, selectionPointer, remotePoints, pointerReleases, quickShapePointer,
+         event -> { throw new IllegalStateException("A quick-shape undo consumer is required"); });
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive,
+      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
+      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
+      Consumer<PointerReleaseSnapshot> pointerReleases, Consumer<QuickShapePointerPress> quickShapePointer,
+      Consumer<QuickShapeUndoGesture.Event> quickShapeUndo) {
+      drainPhysicalEvents(contextActive, keys, scrolls, selectionPointer, remotePoints, pointerReleases,
+         quickShapePointer, quickShapeUndo,
+         event -> { throw new IllegalStateException("A start placement consumer is required"); });
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive,
+      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
+      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
+      Consumer<PointerReleaseSnapshot> pointerReleases, Consumer<QuickShapePointerPress> quickShapePointer,
+      Consumer<QuickShapeUndoGesture.Event> quickShapeUndo,
+      Consumer<StartPlacementPayload.Target> starts) {
+      drainPhysicalEvents(contextActive, keys, scrolls, selectionPointer, remotePoints, pointerReleases,
+         quickShapePointer, quickShapeUndo, starts,
+         event -> { throw new IllegalStateException("A geometry gizmo consumer is required"); });
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive,
+      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
+      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
+      Consumer<PointerReleaseSnapshot> pointerReleases, Consumer<QuickShapePointerPress> quickShapePointer,
+      Consumer<QuickShapeUndoGesture.Event> quickShapeUndo,
+      Consumer<StartPlacementPayload.Target> starts, Consumer<GeometryGizmoCapture.Event> geometryGizmos) {
+      drainPhysicalEvents(contextActive, keys, scrolls, selectionPointer, remotePoints, pointerReleases,
+         quickShapePointer, quickShapeUndo, starts, geometryGizmos,
+         event -> { throw new IllegalStateException("A geometry interaction consumer is required"); },
+         event -> { throw new IllegalStateException("An operation point drag consumer is required"); });
+   }
+
+   void postGeometryPointer(GeometryInputController.PointerPress event) {
+      this.physicalEvents.postGeometryPointer(event);
+   }
+
+   void postOperationPointDrag(OperationPointDragEvent event) {
+      this.physicalEvents.postOperationPointDrag(event);
+   }
+
+   void postOperationPointCommand(OperationPointCommandEvent event) {
+      this.physicalEvents.postOperationPointCommand(event);
+   }
+
+   void captureOperationPointCommand(OperationPointCommandPress press) {
+      postOperationPointCommand(new OperationPointCommandEvent.Press(press));
+   }
+
+   void captureOperationPointDrag(OperationPointDragPress snapshot) {
+      var superseded = this.operationPointPointer.superseded();
+      if (superseded != null) postOperationPointDrag(superseded);
+      postOperationPointDrag(new OperationPointDragEvent.Press(this.operationPointPointer.capture(snapshot)));
+   }
+
+   void captureGeometryPointerButton(int button) {
+      this.geometryPointerButtons[button] = true;
+   }
+
+   boolean ownsGeometryPointerButton(int button) {
+      return button >= 0 && button < this.geometryPointerButtons.length && this.geometryPointerButtons[button];
+   }
+
+   boolean hasGeometryPointerButtons() {
+      return this.geometryPointerButtons[0] || this.geometryPointerButtons[1];
+   }
+
+   boolean releaseGeometryPointerButton(int button) {
+      if (!ownsGeometryPointerButton(button)) return false;
+      this.geometryPointerButtons[button] = false;
+      return true;
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive,
+      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
+      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
+      Consumer<PointerReleaseSnapshot> pointerReleases, Consumer<QuickShapePointerPress> quickShapePointer,
+      Consumer<QuickShapeUndoGesture.Event> quickShapeUndo,
+      Consumer<StartPlacementPayload.Target> starts, Consumer<GeometryGizmoCapture.Event> geometryGizmos,
+      Consumer<GeometryInputController.PointerPress> geometryPointers) {
+      drainPhysicalEvents(contextActive, keys, scrolls, selectionPointer, remotePoints, pointerReleases,
+         quickShapePointer, quickShapeUndo, starts, geometryGizmos, geometryPointers,
+         event -> { throw new IllegalStateException("An operation point drag consumer is required"); });
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive,
+      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
+      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
+      Consumer<PointerReleaseSnapshot> pointerReleases, Consumer<QuickShapePointerPress> quickShapePointer,
+      Consumer<QuickShapeUndoGesture.Event> quickShapeUndo,
+      Consumer<StartPlacementPayload.Target> starts, Consumer<GeometryGizmoCapture.Event> geometryGizmos,
+      Consumer<GeometryInputController.PointerPress> geometryPointers,
+      Consumer<OperationPointDragEvent> operationPointDrags) {
+      drainPhysicalEvents(contextActive, keys, scrolls, selectionPointer, remotePoints, pointerReleases,
+         quickShapePointer, quickShapeUndo, starts, geometryGizmos, geometryPointers, operationPointDrags,
+         event -> { throw new IllegalStateException("An operation point command consumer is required"); });
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive,
+      Consumer<KeyboardInputSnapshot> keys, Consumer<ScrollInputSnapshot> scrolls,
+      Consumer<SelectionPointerEvent> selectionPointer, Consumer<RemoteSelectionPointRequest> remotePoints,
+      Consumer<PointerReleaseSnapshot> pointerReleases, Consumer<QuickShapePointerPress> quickShapePointer,
+      Consumer<QuickShapeUndoGesture.Event> quickShapeUndo,
+      Consumer<StartPlacementPayload.Target> starts, Consumer<GeometryGizmoCapture.Event> geometryGizmos,
+      Consumer<GeometryInputController.PointerPress> geometryPointers,
+      Consumer<OperationPointDragEvent> operationPointDrags,
+      Consumer<OperationPointCommandEvent> operationPointCommands) {
+      drainPhysicalEvents(contextActive, new PhysicalInputSink() {
+         public void accept(KeyboardInputSnapshot event) { keys.accept(event); }
+         public void accept(ScrollInputSnapshot event) { scrolls.accept(event); }
+         public void accept(SelectionPointerEvent event) { selectionPointer.accept(event); }
+         public void accept(RemoteSelectionPointRequest event) { remotePoints.accept(event); }
+         public void accept(PointerReleaseSnapshot event) { pointerReleases.accept(event); }
+         public void accept(QuickShapeUndoGesture.Event event) { quickShapeUndo.accept(event); }
+         public void accept(QuickShapePointerPress event) { quickShapePointer.accept(event); }
+         public void accept(StartPlacementPayload.Target event) { starts.accept(event); }
+         public void accept(GeometryGizmoCapture.Event event) { geometryGizmos.accept(event); }
+         public void accept(GeometryInputController.PointerPress event) { geometryPointers.accept(event); }
+         public void accept(OperationPointDragEvent event) { operationPointDrags.accept(event); }
+         public void accept(OperationPointCommandEvent event) { operationPointCommands.accept(event); }
+      });
+   }
+
+   void drainPhysicalEvents(BooleanSupplier contextActive, PhysicalInputSink sink) {
+      this.physicalEvents.drain(contextActive, this::discardPhysicalEvents, sink);
    }
 
    void drainSubmissionEvents() {

@@ -9,6 +9,25 @@ import org.junit.jupiter.api.Test;
 
 class OperationPointInputControllerTest {
    @Test
+   void queuedCancelCannotClearReplacementDrag() {
+      var session = capture();
+      long previous = session.pointerGestureToken;
+      session.operationPointPointer.dispatched(7L, 11L, previous);
+      long replacement = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
+      session.pointerGestureToken = replacement;
+      session.operationPointDrag = new OperationPointDrag(1, 0, BlockPos.ZERO, BlockPos.ZERO,
+         null, Vec3.ZERO, null, 0, Vec3.ZERO, OperationPointDragConstraint.FREE, 20L, replacement);
+      var current = session.operationPointDrag;
+      session.lastOperationPointLeftClickAt = 30L;
+
+      OperationPointInputController.dispatch(null, session, new OperationPointDragEvent.Cancel(7L));
+
+      assertSame(current, session.operationPointDrag);
+      assertTrue(session.pointerGesture.owns(replacement, PointerGestureState.Kind.OPERATION_POINT));
+      assertEquals(30L, session.lastOperationPointLeftClickAt);
+   }
+
+   @Test
    void cancelReleasesOwnedCaptureAndClickHistoryOnlyOnce() {
       var session = capture();
       session.lastOperationPointLeftClickAt = 100L;

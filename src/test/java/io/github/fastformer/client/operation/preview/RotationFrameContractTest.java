@@ -1,12 +1,12 @@
-package io.github.fastformer.client.operation.preview;
+package io.github.fastformer.workspace.preview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.client.operation.model.WorkspaceTransform;
-import io.github.fastformer.client.operation.selection.OccupiedBlockBounds;
-import io.github.fastformer.client.operation.transform.VoxelRotation;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.workspace.transform.VoxelRotation;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.LinkedHashMap;

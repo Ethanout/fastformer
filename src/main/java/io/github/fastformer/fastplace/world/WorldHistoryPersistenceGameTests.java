@@ -157,14 +157,17 @@ public final class WorldHistoryPersistenceGameTests {
          WorldHistoryManager.tickWorld(server);
          helper.assertTrue(!WorldHistoryManager.busy(owner), "multi-undo is pending");
          helper.assertTrue(helper.getLevel().getBlockState(pos).is(undo ? Blocks.STONE : Blocks.DIAMOND_BLOCK),
-            "next page was not applied");
+            "next page was not applied: block=" + helper.getLevel().getBlockState(pos)
+               + ", source=" + WorldHistoryManager.historyOrderForTest(owner, undo)
+               + ", target=" + WorldHistoryManager.historyOrderForTest(owner, !undo)
+               + ", writesAllowed=" + PersistentRecoveryJournal.writesAllowed());
          helper.assertTrue(WorldHistoryManager.historyOrderForTest(owner, undo).isEmpty(), "source order is not empty");
          helper.assertTrue(WorldHistoryManager.historyOrderForTest(owner, !undo).equals(undo ? List.of(older, newest) : List.of(newest, older)),
             "target order differs from the applied sequence");
       });
    }
 
-   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000)
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000, batch = "history_page_permission")
    public static void managerLoadsOlderHistoryPageBeforeMultiUndo(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       FastPlaceSettings initialSettings = FastPlaceSettings.load(player);
@@ -245,7 +248,10 @@ public final class WorldHistoryPersistenceGameTests {
          helper.assertTrue(!WorldHistoryManager.busy(owner), "older history undo is still pending");
          helper.assertTrue(
             helper.getLevel().getBlockState(pos).is(Blocks.STONE),
-            "multi-undo did not restore the oldest before-state"
+            "multi-undo did not restore the oldest before-state: block=" + helper.getLevel().getBlockState(pos)
+               + ", undo=" + WorldHistoryManager.historyOrderForTest(owner, true)
+               + ", redo=" + WorldHistoryManager.historyOrderForTest(owner, false)
+               + ", writesAllowed=" + PersistentRecoveryJournal.writesAllowed()
          );
          helper.assertTrue(
             WorldHistoryManager.historyOrderForTest(owner, true).isEmpty(),

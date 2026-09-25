@@ -10,6 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.ColorResolver;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -121,6 +122,18 @@ public final class PreviewBlockOcclusion {
       @Override
       public LevelLightEngine getLightEngine() {
          return base == null ? null : base.getLightEngine();
+      }
+
+      // The world light engine still sees the source blocks and has no preview blocks.
+      // Keep ghost lighting stable while retaining model AO and directional shading.
+      @Override
+      public int getBrightness(LightLayer layer, BlockPos pos) {
+         return 15;
+      }
+
+      @Override
+      public int getRawBrightness(BlockPos pos, int skyDarken) {
+         return 15;
       }
 
       @Override

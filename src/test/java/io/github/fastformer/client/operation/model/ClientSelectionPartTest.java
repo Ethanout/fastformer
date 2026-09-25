@@ -1,4 +1,4 @@
-package io.github.fastformer.client.operation.model;
+package io.github.fastformer.workspace.model;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -143,7 +143,7 @@ class ClientSelectionPartTest {
          1, ClientSelectionPart.Source.WORLD,
          volume(new AABB(0, 0, 0, 3, 2, 2)), Map.of(),
          moved.transform(), false, Map.of(),
-         new io.github.fastformer.client.operation.selection.SelectionBaseline(
+         new io.github.fastformer.workspace.selection.SelectionBaseline(
             original.selection(), WorkspaceTransform.IDENTITY, Map.of()),
          ClientSelectionPart.Editability.LOCKED
       ).withTranslation(Vec3.ZERO);

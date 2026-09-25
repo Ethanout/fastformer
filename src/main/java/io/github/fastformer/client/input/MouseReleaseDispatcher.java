@@ -55,7 +55,7 @@ final class MouseReleaseDispatcher {
             yield true;
          }
          case GEOMETRY_CAPTURE -> {
-            session.geometryClickCapturedButton = -1;
+            session.releaseGeometryPointerButton(button);
             yield true;
          }
          case UNDO_PRESS -> finishUndoPress(minecraft, session, releasedAtNanos);
@@ -79,7 +79,7 @@ final class MouseReleaseDispatcher {
          dragButton(ClientOperationController.selectionGestures().face()),
          dragButton(session.geometryGizmoDrag),
          session.operationClickCapturedButton,
-         session.geometryClickCapturedButton,
+         session.ownsGeometryPointerButton(button) ? button : -1,
          session.undoPressCaptured
       ));
    }

@@ -1,7 +1,7 @@
 package io.github.fastformer.client.operation.workspace;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboard;
-import io.github.fastformer.client.operation.preview.Composition;
+import io.github.fastformer.workspace.preview.Composition;
 import java.util.List;
 
 /** Whole-copy clipboard result. A refusal keeps the previous clipboard. */
