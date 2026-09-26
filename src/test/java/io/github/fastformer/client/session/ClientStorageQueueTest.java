@@ -7,6 +7,50 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ClientStorageQueueTest {
    @Test
+   void rejectedWorkDoesNotInvalidateAnAcceptedFileWrite() throws Exception {
+      var queue = new ClientStorageQueue();
+      var release = new CountDownLatch(1);
+      var completed = new AtomicInteger();
+      var prepared = new AtomicInteger();
+      var file = java.nio.file.Path.of("queue-test-" + java.util.UUID.randomUUID());
+      Object ticket = io.github.fastformer.client.operation.clipboard.OperationClipboardStore.reserve(file);
+      try {
+         assertTrue(queue.submit(() -> {
+            assertTrue(release.await(5, TimeUnit.SECONDS));
+            return io.github.fastformer.client.operation.clipboard.OperationClipboardStore.current(file, ticket);
+         }, (current, error) -> {
+            assertNull(error);
+            assertTrue(current);
+            completed.incrementAndGet();
+         }));
+         for (int i = 0; i < 2; i++) {
+            assertTrue(queue.submit(() -> true, (value, error) -> completed.incrementAndGet()));
+         }
+         assertFalse(queue.submitPrepared(() -> {
+            prepared.incrementAndGet();
+            io.github.fastformer.client.operation.clipboard.OperationClipboardStore.reserve(file);
+            return new ClientStorageQueue.Task<>(() -> true, (value, error) -> fail("Rejected work completed"));
+         }));
+         assertEquals(0, prepared.get());
+         release.countDown();
+         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+         while (completed.get() != 3 && System.nanoTime() < deadline) { queue.drain(); Thread.yield(); }
+         assertEquals(3, completed.get());
+      } finally { release.countDown(); }
+   }
+
+   @Test
+   void preparationFailureReturnsItsAdmissionSlot() {
+      var queue = new ClientStorageQueue();
+      for (int i = 0; i < 4; i++) {
+         assertThrows(IllegalArgumentException.class, () -> queue.submitPrepared(() -> {
+            throw new IllegalArgumentException("Invalid snapshot");
+         }));
+      }
+      assertTrue(queue.submit(() -> true, (value, error) -> {}));
+   }
+
+   @Test
    void slowDiskDoesNotBlockCallerAndUndrainedResultsKeepAdmissionBounded() throws Exception {
       var queue = new ClientStorageQueue();
       var started = new CountDownLatch(1);

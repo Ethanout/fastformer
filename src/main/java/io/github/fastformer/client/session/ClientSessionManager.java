@@ -174,14 +174,16 @@ public final class ClientSessionManager {
       if (draft == null) return;
       SessionKey key = currentKey;
       Path file = draftFileFor(key);
-      Object ticket = OperationClipboardStore.reserve(file);
-      boolean queued = storage.submit(() -> {
-         OperationClipboardStore.save(file, ClientOperationDraftCodec.encode(draft), ticket);
-         return true;
-      }, (saved, error) -> {
-         if (!OperationClipboardStore.current(file, ticket)) return;
-         if (error == null) draftLoadStates.put(key, ClientDraftLoadState.READY);
-         else { LOGGER.warn("Unable to save the FastFormer client operation draft", error); showDraftMessage("fastformer.message.operation_draft_save_failed"); }
+      boolean queued = storage.submitPrepared(() -> {
+         Object ticket = OperationClipboardStore.reserve(file);
+         return new ClientStorageQueue.Task<>(() -> {
+            OperationClipboardStore.save(file, ClientOperationDraftCodec.encode(draft), ticket);
+            return true;
+         }, (saved, error) -> {
+            if (!OperationClipboardStore.current(file, ticket)) return;
+            if (error == null) draftLoadStates.put(key, ClientDraftLoadState.READY);
+            else { LOGGER.warn("Unable to save the FastFormer client operation draft", error); showDraftMessage("fastformer.message.operation_draft_save_failed"); }
+         });
       });
       if (!queued) showDraftMessage("fastformer.message.operation_draft_save_failed");
    }
@@ -240,44 +242,48 @@ public final class ClientSessionManager {
       var store = receiptStore(key);
       var receipt = new OperationSubmissionReceipt(transferId, originWhenNoIdentity, identity,
          ResourceLocation.parse(key.dimension()), OperationSubmissionOutcome.IN_FLIGHT, System.currentTimeMillis());
-      if (store.readOnly() || !store.canAccept(transferId) || !store.record(receipt)) return false;
-      var receipts = store.all();
+      if (store.readOnly() || !store.canAccept(transferId)) return false;
+      if (store.find(transferId).map(existing -> existing.outcome().applied()).orElse(false)) return false;
       Path receiptFile = receiptFileFor(key), draftFile = draftFileFor(key);
-      Object receiptTicket = OperationClipboardStore.reserve(receiptFile), draftTicket = OperationClipboardStore.reserve(draftFile);
-      boolean queued = storage.submit(() -> {
-         var submission = io.github.fastformer.client.placement.ClientPlacementRouter.prepareWorkspace(plan, transferId);
-         OperationClipboardStore.save(receiptFile, OperationSubmissionReceiptCodec.encode(receipts), receiptTicket);
-         OperationClipboardStore.save(draftFile, ClientOperationDraftCodec.encode(draft), draftTicket);
-         return submission;
-      }, (submission, error) -> {
-         boolean durable = error == null && OperationClipboardStore.current(receiptFile, receiptTicket)
-            && OperationClipboardStore.current(draftFile, draftTicket);
-         if (durable) { store.confirmSaved(receipts); draftLoadStates.put(key, ClientDraftLoadState.READY); }
-         if (current != session || !java.util.Objects.equals(currentKey, key) || !owned.getAsBoolean()) {
-            recordUnsentSubmission(store, receipt, receiptFile);
-            return;
-         }
-         if (!durable) {
-            recordUnsentSubmission(store, receipt, receiptFile);
-            LOGGER.warn("Unable to persist the workspace submission", error);
-            showDraftMessage("fastformer.message.operation_draft_save_failed");
-         }
-         complete.accept(durable ? submission : null);
+      return storage.submitPrepared(() -> {
+         if (!store.record(receipt)) throw new IllegalStateException("The submission receipt cannot be recorded");
+         var receipts = store.all();
+         Object receiptTicket = OperationClipboardStore.reserve(receiptFile), draftTicket = OperationClipboardStore.reserve(draftFile);
+         return new ClientStorageQueue.Task<>(() -> {
+            var submission = io.github.fastformer.client.placement.ClientPlacementRouter.prepareWorkspace(plan, transferId);
+            OperationClipboardStore.save(receiptFile, OperationSubmissionReceiptCodec.encode(receipts), receiptTicket);
+            OperationClipboardStore.save(draftFile, ClientOperationDraftCodec.encode(draft), draftTicket);
+            return submission;
+         }, (submission, error) -> {
+            boolean durable = error == null && OperationClipboardStore.current(receiptFile, receiptTicket)
+               && OperationClipboardStore.current(draftFile, draftTicket);
+            if (durable) { store.confirmSaved(receipts); draftLoadStates.put(key, ClientDraftLoadState.READY); }
+            if (current != session || !java.util.Objects.equals(currentKey, key) || !owned.getAsBoolean()) {
+               recordUnsentSubmission(store, receipt, receiptFile);
+               return;
+            }
+            if (!durable) {
+               recordUnsentSubmission(store, receipt, receiptFile);
+               LOGGER.warn("Unable to persist the workspace submission", error);
+               showDraftMessage("fastformer.message.operation_draft_save_failed");
+            }
+            complete.accept(durable ? submission : null);
+         });
       });
-      if (!queued) store.remove(transferId);
-      return queued;
    }
 
    private void recordUnsentSubmission(OperationSubmissionReceiptStore store, OperationSubmissionReceipt receipt, Path file) {
       store.record(receipt.withOutcome(OperationSubmissionOutcome.FAILED_RETRYABLE, System.currentTimeMillis()));
       var receipts = store.all();
-      Object ticket = OperationClipboardStore.reserve(file);
-      storage.submit(() -> {
-         OperationClipboardStore.save(file, OperationSubmissionReceiptCodec.encode(receipts), ticket);
-         return true;
-      }, (saved, failure) -> {
-         if (failure == null && OperationClipboardStore.current(file, ticket)) store.confirmSaved(receipts);
-         else if (failure != null) LOGGER.warn("Unable to save the unsent submission receipt", failure);
+      storage.submitPrepared(() -> {
+         Object ticket = OperationClipboardStore.reserve(file);
+         return new ClientStorageQueue.Task<>(() -> {
+            OperationClipboardStore.save(file, OperationSubmissionReceiptCodec.encode(receipts), ticket);
+            return true;
+         }, (saved, failure) -> {
+            if (failure == null && OperationClipboardStore.current(file, ticket)) store.confirmSaved(receipts);
+            else if (failure != null) LOGGER.warn("Unable to save the unsent submission receipt", failure);
+         });
       });
    }
 

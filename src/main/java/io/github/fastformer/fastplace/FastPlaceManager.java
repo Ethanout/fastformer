@@ -175,6 +175,15 @@ public final class FastPlaceManager {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int previousPointCount = session.points().size();
       FastPlaceGeometry.Modes modes = effectiveModes(settings, session);
+      if (previousPointCount == 0 && hit != null) {
+         boolean embedded = settings.pointMode() == PointMode.RAYCAST
+            && modes.raycastPlacement() == RaycastPlacement.EMBEDDED;
+         PlacementContextSnapshot placement = PlacementContextSnapshot.capture(
+            player.level(), player, player.getMainHandItem(), hit, embedded
+         );
+         session.capturePlacementContext(placement);
+         surfaceBlock = placement.placementPosition();
+      }
       BlockPos point = FastPlaceGeometry.resolveCandidate(
          session.points(),
          session.polygonClosed(),
@@ -188,13 +197,6 @@ public final class FastPlaceManager {
          session.freeScrollOffset(),
          modes
       );
-      if (previousPointCount == 0 && hit != null) {
-         boolean embedded = settings.pointMode() == PointMode.RAYCAST
-            && modes.raycastPlacement() == RaycastPlacement.EMBEDDED;
-         session.capturePlacementContext(PlacementContextSnapshot.capture(
-            player.level(), player, player.getMainHandItem(), hit, embedded
-         ));
-      }
       dispatchQuickShape(player, session, settings.faceMode(), new QuickShapeWorkflow.Event.ConfirmPoint(
          point, eye, view, modifierHeld));
    }

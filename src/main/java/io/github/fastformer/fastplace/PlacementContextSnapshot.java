@@ -73,6 +73,10 @@ public record PlacementContextSnapshot(
       return new FrozenBlockPlaceContext(level, player, stack, this);
    }
 
+   public BlockPos placementPosition() {
+      return replacingClickedBlock ? hitBlock : hitBlock.relative(clickedFace);
+   }
+
    private static boolean finite(Vec3 value) {
       return value != null && Double.isFinite(value.x) && Double.isFinite(value.y) && Double.isFinite(value.z);
    }

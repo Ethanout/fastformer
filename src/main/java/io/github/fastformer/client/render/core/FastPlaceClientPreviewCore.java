@@ -1390,7 +1390,15 @@ public class FastPlaceClientPreviewCore {
 
    private static MutableComponent buildingBottomHint() {
       if (!PREVIEW_STATE.building().active()) {
-         return null;
+         Minecraft minecraft = Minecraft.getInstance();
+         if (minecraft.player == null || minecraft.screen != null || QuickReplaceMode.active()
+            || !PREVIEW_STATE.building().enabled()) return null;
+         String key = io.github.fastformer.client.render.hud.IdleInteractionHint.key(
+            minecraft.player.getMainHandItem().isEmpty(), PlaceableItems.isPlaceable(minecraft.player.getMainHandItem()),
+            raycastBlocks(minecraft.player).getType() == Type.BLOCK, InteractionContext.nearVanillaBlock(minecraft)
+         );
+         return key == null ? null : Component.translatable(key,
+            keyName(minecraft.options.keyUse), keyName(minecraft.options.keyAttack)).withStyle(ChatFormatting.GRAY);
       }
       QuickShapeStage stage = effectiveStage(PREVIEW_STATE.building());
       if (stage == QuickShapeStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.POLYGON && !PREVIEW_STATE.building().polygonClosed()) {
@@ -1791,8 +1799,11 @@ public class FastPlaceClientPreviewCore {
       if (event.getStage() == Stage.AFTER_PARTICLES) {
           Minecraft minecraft = Minecraft.getInstance();
           LocalPlayer player = minecraft.player;
-          if (QuickReplaceMode.active() && QuickReplaceMode.canReplace(minecraft) && minecraft.level != null && player != null) {
-             renderQuickReplaceGhost(event, minecraft, player);
+          if (QuickReplaceMode.active()) {
+             if (QuickReplaceMode.canReplace(minecraft) && minecraft.level != null && player != null) {
+                renderQuickReplaceGhost(event, minecraft, player);
+             }
+             return;
           }
           boolean emptyBuildingPreview = snapshot.enabled()
              && player != null
@@ -1837,11 +1848,8 @@ public class FastPlaceClientPreviewCore {
             Vec3 eye = player.getEyePosition();
             Vec3 view = player.getViewVector(1.0F);
             BlockPos candidate = buildingCandidatePoint(snapshot, player);
-            if (snapshot.points().isEmpty() && candidate != null) {
-               renderBuildingEndpointFallback(
-                  event.getPoseStack(), minecraft.renderBuffers().bufferSource(),
-                  event.getCamera().getPosition(), 0, List.of(candidate), BuildingShellVisibility.NONE
-               );
+            if (!snapshot.active() && snapshot.points().isEmpty() && candidate != null) {
+               renderInitialBlockPreview(event, minecraft, player);
                return;
             }
             BlockPos hoveredPoint = snapshot.points().isEmpty()
@@ -2024,8 +2032,9 @@ public class FastPlaceClientPreviewCore {
          if (firstHit.getType() != Type.BLOCK) {
             return null;
          }
-         return PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
-            ? firstHit.getBlockPos() : firstHit.getBlockPos().relative(firstHit.getDirection());
+         if (player.getMainHandItem().isEmpty()
+            || PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())) return firstHit.getBlockPos();
+         return PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), firstHit, false).placementPosition();
       }
       if (snapshot.polygonHeightConfirmed()) {
          return snapshot.points().isEmpty() ? null : snapshot.points().getLast();
@@ -2226,6 +2235,22 @@ public class FastPlaceClientPreviewCore {
          }
       }
       return cachedBuildingPreviewBlocks;
+   }
+
+   private static void renderInitialBlockPreview(RenderLevelStageEvent event, Minecraft minecraft, LocalPlayer player) {
+      var preview = io.github.fastformer.client.render.model.InitialBlockPreview.resolve(
+         player, raycastBlocks(player), PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
+      );
+      if (preview == null) return;
+      PoseStack pose = event.getPoseStack();
+      BufferSource buffers = minecraft.renderBuffers().bufferSource();
+      Vec3 camera = event.getCamera().getPosition();
+      ShapeShellRenderer.renderFaces(pose, buffers.getBuffer(GHOST_FACES), camera, preview.mesh().faces(), 0.24F * worldPreviewOpacity);
+      buffers.endBatch(GHOST_FACES);
+      ShapeShellRenderer.renderEdges(pose, buffers.getBuffer(PENDING_XRAY_LINES), camera, preview.mesh().edges(), 0.35F * worldPreviewOpacity);
+      buffers.endBatch(PENDING_XRAY_LINES);
+      ShapeShellRenderer.renderEdges(pose, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, preview.mesh().edges(), 0.92F * worldPreviewOpacity);
+      buffers.endBatch(GHOST_OUTLINE_LINES);
    }
 
    private static void applyBuildingPreviewResults() {
@@ -3026,15 +3051,19 @@ public class FastPlaceClientPreviewCore {
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       VertexConsumer xray = buffers.getBuffer(PENDING_XRAY_LINES);
-      VertexConsumer visible = buffers.getBuffer(PENDING_LINES);
       for (PendingPreviewGrid.Segment edge : mesh.gridEdges()) {
          Vec3 from = new Vec3(edge.from().x(), edge.from().y(), edge.from().z());
          Vec3 to = new Vec3(edge.to().x(), edge.to().y(), edge.to().z());
          renderAlternatingDashedLine(poseStack, xray, from, to, PENDING_XRAY_ALPHA, offset);
+      }
+      buffers.endBatch(PENDING_XRAY_LINES);
+      VertexConsumer visible = buffers.getBuffer(PENDING_LINES);
+      for (PendingPreviewGrid.Segment edge : mesh.gridEdges()) {
+         Vec3 from = new Vec3(edge.from().x(), edge.from().y(), edge.from().z());
+         Vec3 to = new Vec3(edge.to().x(), edge.to().y(), edge.to().z());
          renderAlternatingDashedLine(poseStack, visible, from, to, PENDING_GRID_ALPHA, offset);
       }
       poseStack.popPose();
-      buffers.endBatch(PENDING_XRAY_LINES);
       buffers.endBatch(PENDING_LINES);
    }
 

@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
 public enum ControlPointStyle {
-   START(0.05F, 0.95F, 1.0F, 0.78F),
+   START(0.15F, 0.55F, 1.0F, 0.78F),
    CONTROL(1.0F, 0.78F, 0.12F, 0.76F),
    HOVER(0.12F, 1.0F, 0.3F, 0.92F),
    AUXILIARY(0.92F, 0.92F, 0.92F, 0.82F),

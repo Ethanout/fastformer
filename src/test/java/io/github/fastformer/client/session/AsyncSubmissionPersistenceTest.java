@@ -28,6 +28,47 @@ class AsyncSubmissionPersistenceTest {
       exercise(true);
    }
 
+   @Test void fullQueueRejectsSubmissionWithoutInvalidatingTheAcceptedDraft() throws Exception {
+      var manager = ClientSessionManager.instance();
+      var published = new AtomicBoolean();
+      OperationWorkspacePlan plan = null;
+      ClientSessionManager.SessionKey key = null;
+      var keys = new ArrayList<ClientSessionManager.SessionKey>();
+      UUID accepted = null;
+      for (int index = 0; index < 3; index++) {
+         UUID player = UUID.randomUUID();
+         accepted = UUID.randomUUID();
+         String connection = "saturation-" + player;
+         key = new ClientSessionManager.SessionKey(connection, "minecraft:overworld", player);
+         keys.add(key);
+         var session = manager.activateScope(player, connection, "minecraft:overworld");
+         manager.installDraftFile(key, directory.resolve("draft-" + index));
+         manager.installReceiptFile(key, directory.resolve("receipts-" + index));
+         Map<BlockPos, ClientBlockSnapshot> blocks = Map.of();
+         var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);
+         assertTrue(session.operationWorkspace().addParts(List.of(part)));
+         plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));
+         assertTrue(manager.persistSubmittedDraft(null, OperationSubmissionOrigin.LOCAL_ONLY, accepted, plan, () -> true, submission -> {
+            assertNotNull(submission);
+            published.set(true);
+         }));
+      }
+      UUID rejected = UUID.randomUUID();
+      assertFalse(manager.persistSubmittedDraft(null, OperationSubmissionOrigin.LOCAL_ONLY, rejected, plan, () -> true,
+         submission -> fail("Rejected submission completed")));
+      assertTrue(manager.receiptStore(key).find(rejected).isEmpty());
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+      while (!published.get() && System.nanoTime() < deadline) { manager.drainStorageResults(); Thread.yield(); }
+      assertTrue(published.get());
+      assertEquals(OperationSubmissionOutcome.IN_FLIGHT, manager.receiptStore(key).find(accepted).orElseThrow().outcome());
+      while (System.nanoTime() < deadline) {
+         manager.drainStorageResults();
+         if (keys.stream().noneMatch(savedKey -> manager.receiptStore(savedKey).dirty())) break;
+         Thread.yield();
+      }
+      assertTrue(keys.stream().noneMatch(savedKey -> manager.receiptStore(savedKey).dirty()));
+   }
+
    private void exercise(boolean cancelled) throws Exception {
       var manager = ClientSessionManager.instance();
       UUID player = UUID.randomUUID(), transfer = UUID.randomUUID();

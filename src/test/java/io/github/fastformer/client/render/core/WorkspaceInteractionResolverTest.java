@@ -119,11 +119,16 @@ class WorkspaceInteractionResolverTest {
    }
 
    @Test
-   void selectionCreationPointUsesHitSurface() {
+   void selectionCreationPointUsesHitBlock() {
       BlockPos hitBlock = new BlockPos(3, 4, 5);
       BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(hitBlock), Direction.UP, hitBlock, false);
 
-      assertEquals(hitBlock.above(), WorkspaceInteractionResolver.selectionCreationPoint(hit));
+      for (Direction face : Direction.values()) {
+         hit = new BlockHitResult(Vec3.atCenterOf(hitBlock), face, hitBlock, false);
+         assertEquals(hitBlock, WorkspaceInteractionResolver.selectionCreationPoint(hit));
+      }
+      assertEquals(null, WorkspaceInteractionResolver.selectionCreationPoint(
+         BlockHitResult.miss(Vec3.ZERO, Direction.UP, BlockPos.ZERO)));
    }
 
    @Test

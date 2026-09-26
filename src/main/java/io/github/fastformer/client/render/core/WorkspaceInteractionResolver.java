@@ -263,7 +263,7 @@ final class WorkspaceInteractionResolver {
 
    static BlockPos selectionCreationPoint(BlockHitResult hit) {
       return hit != null && hit.getType() == Type.BLOCK
-         ? hit.getBlockPos().relative(hit.getDirection())
+         ? hit.getBlockPos()
          : null;
    }
 
