@@ -33,6 +33,10 @@ public final class ChunkedPayloadTransfer {
 
    public int bytes() { return bytes; }
 
+   boolean hasChunk(int index) {
+      return index >= 0 && index < chunkCount && chunks[index] != null;
+   }
+
    /** Adds a chunk and returns the complete payload once every chunk arrived. */
    public byte[] accept(int index, byte[] data) throws IOException {
       if (index < 0 || index >= chunkCount || data == null || data.length == 0) {

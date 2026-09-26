@@ -70,17 +70,6 @@ final class HistoryReplayTask {
    private UUID operationId;
    private WorldOperationMetrics metrics;
 
-   HistoryReplayTask(HistoryMemoryCache history, boolean undo, int requested, PlacementUpdateMode updateMode) {
-      this(new HistoryAccess() {
-         public PageState requestPage(WorldTaskContext context, boolean undo, int remaining) {
-            return PageState.EXHAUSTED;
-         }
-
-         public void commit(WorldTaskContext context, HistoryMemoryCache history, boolean undo) {
-         }
-      }, history, undo, requested, updateMode);
-   }
-
    HistoryReplayTask(
       HistoryAccess historyAccess, HistoryMemoryCache history, boolean undo, int requested, PlacementUpdateMode updateMode
    ) {

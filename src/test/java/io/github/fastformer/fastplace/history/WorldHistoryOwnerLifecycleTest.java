@@ -66,11 +66,11 @@ class WorldHistoryOwnerLifecycleTest {
             if (activeTask) {
                var activeField = owner.getClass().getDeclaredField("active");
                activeField.setAccessible(true);
-               var constructor = activeField.getType().getDeclaredConstructor(
-                  HistoryMemoryCache.class, boolean.class, int.class, PlacementUpdateMode.class
-               );
-               constructor.setAccessible(true);
-               activeField.set(owner, constructor.newInstance(history, true, 2, PlacementUpdateMode.NORMAL));
+               var accessField = WorldHistoryManager.class.getDeclaredField("HISTORY_ACCESS");
+               accessField.setAccessible(true);
+               activeField.set(owner, new HistoryReplayTask(
+                  (HistoryReplayTask.HistoryAccess) accessField.get(null), history, true, 2, PlacementUpdateMode.NORMAL
+               ));
             }
             if (completedPage) {
                load.complete(List.of(older));

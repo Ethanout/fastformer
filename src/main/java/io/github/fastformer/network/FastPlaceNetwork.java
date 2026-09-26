@@ -643,6 +643,7 @@ public final class FastPlaceNetwork {
 
    public static void clearServer() {
       serverEpoch++;
+      DECODES.clear();
       PlayerPreviewSync.clearServer();
       INCOMING_TRANSFERS.clear();
       WORKSPACE_CALLBACK_SCOPES.clear();

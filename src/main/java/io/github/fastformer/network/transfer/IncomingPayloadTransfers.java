@@ -163,8 +163,9 @@ public final class IncomingPayloadTransfers {
       if (transfer.chunkCount() != chunkCount) {
          throw new IOException(payloadName + " transfer metadata changed");
       }
-      if (data == null || retainedBytes(null) + data.length > globalByteLimit
-         || retainedBytes(owner) + data.length > ownerByteLimit) {
+      int additionalBytes = data == null || transfer.hasChunk(chunkIndex) ? 0 : data.length;
+      if (data == null || retainedBytes(null) + additionalBytes > globalByteLimit
+         || retainedBytes(owner) + additionalBytes > ownerByteLimit) {
          throw new IOException("Upload memory budget exceeded");
       }
       byte[] completed = transfer.accept(chunkIndex, data);

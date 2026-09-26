@@ -11,6 +11,21 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class IncomingPayloadTransfersTest {
+   @Test
+   void duplicateChunksDoNotConsumeOwnerOrGlobalBudget() throws IOException {
+      var transfers = new IncomingPayloadTransfers(ignored -> {}, 8, 6);
+      UUID owner = UUID.randomUUID(), other = UUID.randomUUID();
+      UUID workspace = UUID.randomUUID(), shape = UUID.randomUUID(), otherTransfer = UUID.randomUUID();
+      var chunk = new OperationWorkspaceApplyPayload(workspace, 0, 2, new byte[] {1, 2, 3});
+      assertNull(transfers.acceptWorkspace(owner, chunk));
+      assertNull(transfers.acceptShape(owner, new ShapePlacementPayload(shape, 0, 2, new byte[] {4, 5, 6})));
+      assertNull(transfers.acceptWorkspace(other, new OperationWorkspaceApplyPayload(otherTransfer, 0, 2, new byte[] {7, 8})));
+      assertNull(transfers.acceptWorkspace(owner, chunk));
+      transfers.forgetShape(owner);
+      assertArrayEquals(new byte[] {1, 2, 3, 9}, transfers.acceptWorkspace(owner,
+         new OperationWorkspaceApplyPayload(workspace, 1, 2, new byte[] {9})));
+   }
+
    @Test void ownerBudgetIncludesBothKindsAndGlobalBudgetIncludesAllOwners() throws IOException {
       var transfers = new IncomingPayloadTransfers(ignored -> {}, 8, 6);
       UUID first = UUID.randomUUID(), second = UUID.randomUUID();

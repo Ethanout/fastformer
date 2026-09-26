@@ -8,6 +8,64 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class WorkspaceDecodeQueueTest {
    @Test
+   void serverResetDropsOldCallbacksWithoutReleasingNewTransfers() throws Exception {
+      var queue = new WorkspaceDecodeQueue();
+      var callbacks = new LinkedBlockingQueue<Runnable>();
+      UUID owner = UUID.randomUUID(), transfer = UUID.randomUUID();
+      try {
+         assertTrue(queue.submit(owner, transfer, () -> null, callbacks::add,
+            (value, error) -> fail("retired server callback ran")));
+         Runnable retired = callbacks.poll(5, TimeUnit.SECONDS);
+         assertNotNull(retired);
+         queue.clear();
+         assertFalse(queue.busy(owner));
+         var completed = new AtomicInteger();
+         assertTrue(queue.submit(owner, transfer, () -> null, callbacks::add,
+            (value, error) -> completed.incrementAndGet()));
+         Runnable current = callbacks.poll(5, TimeUnit.SECONDS);
+         assertNotNull(current);
+         retired.run();
+         assertTrue(queue.contains(owner, transfer), "old completion released new request");
+         current.run();
+         assertEquals(1, completed.get());
+         assertFalse(queue.busy(owner));
+      } finally {
+         queue.clear();
+      }
+   }
+
+   @Test
+   void fatalDecodeFailureReleasesOwnerAndAllCapacity() throws Exception {
+      assertFatalFailureReleasesCapacity(false);
+   }
+
+   @Test
+   void fatalServerDispatchFailureReleasesOwnerAndAllCapacity() throws Exception {
+      assertFatalFailureReleasesCapacity(true);
+   }
+
+   private void assertFatalFailureReleasesCapacity(boolean failDispatch) throws Exception {
+      var queue = new WorkspaceDecodeQueue();
+      UUID owner = UUID.randomUUID();
+      var failures = new LinkedBlockingQueue<Throwable>();
+      var fatal = new AssertionError("simulated fatal failure");
+      assertTrue(queue.submit(owner, UUID.randomUUID(), () -> {
+         Thread.currentThread().setUncaughtExceptionHandler((thread, error) -> failures.add(error));
+         if (!failDispatch) throw fatal;
+         return null;
+      }, callback -> { throw fatal; }, (value, error) -> fail("unexpected completion")));
+      assertSame(fatal, failures.poll(5, TimeUnit.SECONDS));
+      assertFalse(queue.busy(owner));
+
+      var callbacks = new LinkedBlockingQueue<Runnable>();
+      for (int i = 0; i < 3; i++) {
+         assertTrue(queue.submit(i == 0 ? owner : UUID.randomUUID(), UUID.randomUUID(),
+            () -> null, callbacks::add, (value, error) -> assertNull(error)));
+         assertNotNull(callbacks.poll(5, TimeUnit.SECONDS));
+      }
+   }
+
+   @Test
    void waitingServerCompletionsRemainBoundedAndOwnersCannotDecodeTwice() throws Exception {
       var queue = new WorkspaceDecodeQueue();
       var callbacks = new LinkedBlockingQueue<Runnable>();
