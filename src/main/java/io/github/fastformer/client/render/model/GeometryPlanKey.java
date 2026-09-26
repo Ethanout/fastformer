@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render.model;
 
-import io.github.fastformer.fastplace.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryHit;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

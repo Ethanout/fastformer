@@ -4,7 +4,7 @@ import io.github.fastformer.client.input.ClientInteractionFeedback;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
-import io.github.fastformer.fastplace.FastPlaceGeometry;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectContext;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
 import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;

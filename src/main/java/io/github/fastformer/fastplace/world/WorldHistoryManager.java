@@ -1,13 +1,13 @@
 package io.github.fastformer.fastplace.world;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import io.github.fastformer.fastplace.FastPlaceManager;
-import io.github.fastformer.fastplace.FastPlaceMessages;
-import io.github.fastformer.fastplace.FastPlaceSettings;
-import io.github.fastformer.fastplace.GeometryManager;
-import io.github.fastformer.fastplace.OperationManager;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
-import io.github.fastformer.fastplace.ServerInputDispatcher;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.session.GeometryManager;
+import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.task.WorldOperationTask;

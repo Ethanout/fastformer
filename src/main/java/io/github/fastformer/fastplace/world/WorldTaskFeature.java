@@ -1,9 +1,9 @@
 package io.github.fastformer.fastplace.world;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.FastPlaceManager;
-import io.github.fastformer.fastplace.FastPlaceMessages;
-import io.github.fastformer.fastplace.OperationManager;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.session.OperationManager;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;

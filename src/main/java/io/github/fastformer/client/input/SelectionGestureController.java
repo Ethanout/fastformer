@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.workspace.transform.RepeatStrideSemantics;
+
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.workspace.transform.RepeatDragQuantizer;
 import io.github.fastformer.client.interaction.InteractionPressBinding;

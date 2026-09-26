@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.placement.plan;
 
-import io.github.fastformer.fastplace.FastPlaceGeometry;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;

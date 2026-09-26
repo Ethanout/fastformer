@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render;
 
-import io.github.fastformer.fastplace.FastPlaceActivity;
+import io.github.fastformer.fastplace.session.FastPlaceActivity;
 
 /**
  * Decides what the HUD shows while a workspace submission waits for the server.

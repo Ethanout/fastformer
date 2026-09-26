@@ -1,7 +1,7 @@
 package io.github.fastformer.client.render.geometry;
 
 import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.FastPlaceGeometry;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;

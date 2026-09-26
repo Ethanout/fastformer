@@ -16,7 +16,7 @@ import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
 import io.github.fastformer.client.gizmo.GizmoViewScale;
-import io.github.fastformer.fastplace.LongRangeBlockRaycast;
+import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.client.interaction.PartFrameInteraction;

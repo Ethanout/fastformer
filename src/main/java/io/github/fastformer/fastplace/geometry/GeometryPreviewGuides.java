@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
-import io.github.fastformer.fastplace.ConePlaneMode;
-import io.github.fastformer.fastplace.PolyhedronSizeMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
 import java.util.ArrayList;
 import java.util.List;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGenerator;

@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render.core;
 
-import io.github.fastformer.fastplace.LongRangeBlockRaycast;
+import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;

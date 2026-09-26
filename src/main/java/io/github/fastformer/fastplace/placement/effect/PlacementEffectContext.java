@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.placement.effect;
 
-import io.github.fastformer.fastplace.FastPlaceGeometry;
-import io.github.fastformer.fastplace.PlacementContextSnapshot;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import java.util.List;
 import net.minecraft.core.BlockPos;

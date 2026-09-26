@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;

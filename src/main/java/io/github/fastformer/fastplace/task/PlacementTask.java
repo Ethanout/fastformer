@@ -1,11 +1,11 @@
 package io.github.fastformer.fastplace.task;
 
 import io.github.fastformer.fastplace.world.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.FastPlaceMessages;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.JournalPreparation;
-import io.github.fastformer.fastplace.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeBatch;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
@@ -27,10 +27,8 @@ import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import java.util.ArrayDeque;
 import java.util.AbstractCollection;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;

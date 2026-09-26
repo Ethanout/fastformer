@@ -1,8 +1,8 @@
 package io.github.fastformer.network.client;
 
-import io.github.fastformer.fastplace.FaceRasterizationMode;
-import io.github.fastformer.fastplace.OperationConflictMode;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.client.session.ClientSessionManager;
 import io.github.fastformer.client.session.ClientTickMailbox;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;

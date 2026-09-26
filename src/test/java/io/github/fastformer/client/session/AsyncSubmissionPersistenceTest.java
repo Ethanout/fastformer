@@ -1,7 +1,7 @@
 package io.github.fastformer.client.session;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
-import io.github.fastformer.fastplace.OperationWorkspacePlan;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.model.*;
 import java.nio.file.*;

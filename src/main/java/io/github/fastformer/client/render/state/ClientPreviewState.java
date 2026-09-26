@@ -4,7 +4,7 @@ import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import java.util.Optional;
 
-import io.github.fastformer.fastplace.FastPlaceActivity;
+import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
 import io.github.fastformer.network.payload.preview.ActivityStatePayload;

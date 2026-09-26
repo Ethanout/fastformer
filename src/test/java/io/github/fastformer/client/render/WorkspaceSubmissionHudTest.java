@@ -6,18 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.FastPlaceActivity;
+import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceSubmissionHudTest {
    @Test
    void pendingTaskDoesNotOfferTheCancelKeyThatInputRejects() {
       assertFalse(WorkspaceSubmissionHud.showsCancelHint(
-         io.github.fastformer.fastplace.FastPlaceActivity.OPERATION_TASK, true));
+         io.github.fastformer.fastplace.session.FastPlaceActivity.OPERATION_TASK, true));
       assertTrue(WorkspaceSubmissionHud.showsCancelHint(
-         io.github.fastformer.fastplace.FastPlaceActivity.OPERATION_TASK, false));
+         io.github.fastformer.fastplace.session.FastPlaceActivity.OPERATION_TASK, false));
       assertFalse(WorkspaceSubmissionHud.showsCancelHint(
-         io.github.fastformer.fastplace.FastPlaceActivity.RESTORE_TASK, false));
+         io.github.fastformer.fastplace.session.FastPlaceActivity.RESTORE_TASK, false));
    }
 
    @Test

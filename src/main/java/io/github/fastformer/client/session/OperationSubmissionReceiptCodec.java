@@ -4,7 +4,6 @@ import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;

@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.FastPlaceGeometry;
-import io.github.fastformer.fastplace.FillMode;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.PointMode;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;

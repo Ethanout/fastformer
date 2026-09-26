@@ -4,7 +4,7 @@ import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import io.github.fastformer.fastplace.FastPlaceMessages;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

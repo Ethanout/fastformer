@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.github.fastformer.fastplace.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.fastplace.world.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import java.util.Collection;

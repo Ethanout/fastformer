@@ -1,5 +1,19 @@
 package io.github.fastformer.fastplace.command;
 
+import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.GeometryManager;
+import io.github.fastformer.server.session.OperationManager;
+
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
@@ -16,11 +30,9 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.network.FastPlaceNetwork;
-import io.github.fastformer.fastplace.*;
 import io.github.fastformer.network.payload.settings.OpenSettingsPayload;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;

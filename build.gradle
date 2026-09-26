@@ -37,6 +37,18 @@ base {
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
+sourceSets {
+    gameTest {
+        java.setSrcDirs(['src/gametest/java'])
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations {
+    gameTestImplementation.extendsFrom implementation
+    gameTestRuntimeOnly.extendsFrom runtimeOnly
+}
+
 minecraft.accessTransformers.file rootProject.file('src/main/resources/META-INF/accesstransformer.cfg')
 //minecraft.accessTransformers.entry public net.minecraft.client.Minecraft textureManager # textureManager
 
@@ -60,6 +72,7 @@ runs {
         workingDirectory project.layout.projectDirectory.dir('run').dir(name)
 
         modSource project.sourceSets.main
+        modSource project.sourceSets.gameTest
     }
 
     client {
@@ -195,6 +208,9 @@ tasks.named('jar', Jar).configure {
 }
 
 apply from: 'gradle/release.gradle'
+apply from: 'gradle/architecture.gradle'
+
+tasks.named('check') { dependsOn tasks.named('gameTestClasses') }
 
 // Gradle test workers cannot reliably load classes from this checkout's non-ASCII path.
 def asciiTestRoot = new File(
@@ -244,11 +260,11 @@ tasks.register('verifyModJar') {
     inputs.file(tasks.named('jar').flatMap { it.archiveFile })
     doLast {
         def requiredEntries = [
-                'io/github/fastformer/fastplace/FastPlaceMessages.class',
-                'io/github/fastformer/fastplace/FastPlaceManager.class',
-                'io/github/fastformer/fastplace/FastPlaceGeometry.class',
+                'io/github/fastformer/fastplace/text/FastPlaceMessages.class',
+                'io/github/fastformer/server/session/FastPlaceManager.class',
+                'io/github/fastformer/fastplace/geometry/generation/FastPlaceGeometry.class',
                 'io/github/fastformer/fastplace/workflow/ConvexPolyhedronWorkflow.class',
-                'io/github/fastformer/fastplace/FastPlaceActivity.class',
+                'io/github/fastformer/fastplace/session/FastPlaceActivity.class',
                 'io/github/fastformer/fastplace/world/ReversibleBlockSnapshot.class',
                 'io/github/fastformer/fastplace/world/WorldHistoryManager.class',
                 'io/github/fastformer/fastplace/world/WorldChangeBatch.class',
@@ -306,7 +322,7 @@ tasks.register('deployTo233') {
         )
 
         new java.util.zip.ZipFile(targetFile).withCloseable { zip ->
-            if (zip.getEntry('io/github/fastformer/fastplace/FastPlaceMessages.class') == null) {
+            if (zip.getEntry('io/github/fastformer/fastplace/text/FastPlaceMessages.class') == null) {
                 throw new GradleException('Deployed mod jar is missing FastPlaceMessages.class')
             }
         }

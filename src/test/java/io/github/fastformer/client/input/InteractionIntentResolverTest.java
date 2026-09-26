@@ -1,8 +1,5 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.input.InteractionContext;
-import io.github.fastformer.client.input.InteractionIntentResolver;
-import io.github.fastformer.client.input.OperationInteractionIntent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 

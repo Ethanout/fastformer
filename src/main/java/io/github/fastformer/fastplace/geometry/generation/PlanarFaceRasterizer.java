@@ -1,6 +1,5 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.FaceRasterizationMode;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;

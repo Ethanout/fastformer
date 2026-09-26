@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 
 import io.github.fastformer.fastplace.selection.OperationStageMode;

@@ -1,9 +1,9 @@
 package io.github.fastformer.network.payload.geometry;
 
-import io.github.fastformer.fastplace.GeometryMode;
-import io.github.fastformer.fastplace.ConePlaneMode;
-import io.github.fastformer.fastplace.FillMode;
-import io.github.fastformer.fastplace.PolyhedronSizeMode;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;

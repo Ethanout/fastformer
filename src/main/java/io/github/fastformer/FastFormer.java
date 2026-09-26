@@ -16,6 +16,5 @@ public final class FastFormer {
       container.registerConfig(ModConfig.Type.SERVER, HistoryStorageConfig.SPEC);
       FastPlaceNetwork.register(modBus);
       FastPlaceEvents.register();
-      modBus.addListener(FastFormerGameTests::register);
    }
 }

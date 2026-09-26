@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.netty.buffer.Unpooled;
-import io.github.fastformer.fastplace.FaceRasterizationMode;
-import io.github.fastformer.fastplace.OperationConflictMode;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import java.util.List;

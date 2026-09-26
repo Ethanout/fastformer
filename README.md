@@ -38,7 +38,7 @@
 
 ## 开发说明
 
-详细设计记录在 `docs/` 下，待办事项和已知问题分别见 `TODO.md` 和 `issues.md`。  
+设计记录见 [文档索引](docs/README.md)，当前任务见 [TODO](docs/plan/current_todo.md)，代码目录说明见 [源码结构](docs/source-layout.md)。
 由于代码变动较快，提交 issue 时请附上：
 
 - 复现步骤

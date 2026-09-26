@@ -64,7 +64,7 @@ class OperationPointDragCaptureTest {
             net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, 0.0, null, null
          ), 1L, io.github.fastformer.network.payload.operation.OperationCallbackScope.unscoped(), 0,
          net.minecraft.core.BlockPos.ZERO, null, net.minecraft.world.phys.Vec3.ZERO, null, 0.0,
-         net.minecraft.world.phys.Vec3.ZERO, io.github.fastformer.fastplace.OperationPointDragConstraint.FREE,
+         net.minecraft.world.phys.Vec3.ZERO, io.github.fastformer.fastplace.selection.OperationPointDragConstraint.FREE,
          net.minecraft.world.phys.Vec3.ZERO, new net.minecraft.world.phys.Vec3(0.0, 0.0, 1.0));
    }
 }

@@ -59,7 +59,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: .\gradlew.bat classes --no-daemon
       - shell: pwsh
-        run: ./scripts/Test-RecoveryRestart.ps1 -RunDirectory run/ci-recovery-${{ matrix.scenario }} -Scenario ${{ matrix.scenario }}
+        run: ./tools/recovery/Test-RecoveryRestart.ps1 -RunDirectory run/ci-recovery-${{ matrix.scenario }} -Scenario ${{ matrix.scenario }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,8 +1,13 @@
 package io.github.fastformer.fastplace.session;
 
-import io.github.fastformer.fastplace.*;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.GeometryPoint;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+
 import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.fastplace.GeometryPoints;
+import io.github.fastformer.fastplace.geometry.GeometryPoints;
 import java.util.List;
 import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;

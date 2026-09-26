@@ -7,6 +7,8 @@
 - `plan/future_ideas.md`：未来想法。内容不等于实现授权。
 - `plan/feature_todo/`：按日期或版本记录特性、重构和验收范围。
 - `plan/current_todo.md`：当前任务的临时清单。完成或取消后删除对应条目。
+- `plan/design_questions.md`：需要核对的设计问题与暂定方案。根目录不再另设问题清单。
+- `plan/proposals/`：尚未实施的设计草案。
 
 ## 原则
 
@@ -19,6 +21,7 @@
 
 - `changelog/`：按日期保存实施与验证记录。
 - `history-storage.md`：世界修改历史的存储说明。
+- `source-layout.md`：源码职责、测试目录和依赖检查。
 
 ## 权威规则
 

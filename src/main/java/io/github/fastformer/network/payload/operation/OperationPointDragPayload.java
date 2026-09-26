@@ -1,6 +1,6 @@
 package io.github.fastformer.network.payload.operation;
 
-import io.github.fastformer.fastplace.OperationPointDragConstraint;
+import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

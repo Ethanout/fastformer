@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.workspace.submission.OperationWorkspaceValidator;
+
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;

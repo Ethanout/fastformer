@@ -19,7 +19,6 @@ import net.minecraft.world.phys.Vec3;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.PartLabelInteraction;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
 
 /** Renders client workspace blocks and the small labels attached to them. */
 public final class WorkspacePreviewRenderer {

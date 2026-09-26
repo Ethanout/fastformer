@@ -1,6 +1,6 @@
 package io.github.fastformer.network.payload.preview;
 
-import io.github.fastformer.fastplace.FastPlaceActivity;
+import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;

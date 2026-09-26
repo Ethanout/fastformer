@@ -4,7 +4,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import net.minecraft.world.phys.Vec3;
 
 public record OperationSelectPointPayload(long requestId, long revision, OperationCallbackScope callbackScope, int index, Vec3 eye, Vec3 view) implements CustomPacketPayload {

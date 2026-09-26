@@ -77,7 +77,7 @@ public final class SelectionTransformCalculator {
                // that same whole box, so one step extends the repeat interval by the cells that
                // fit in the whole. A gesture without whole-group repeats keeps its block-valued
                // step, because the input did not quantize it by a group box.
-               int cellsPerStep = io.github.fastformer.client.input.RepeatStrideSemantics
+               int cellsPerStep = io.github.fastformer.workspace.transform.RepeatStrideSemantics
                   .repeatsWholeGroup(operation, baseline)
                   ? WorkspaceSelectionBounds.wholeStepCells(wholeBounds, cellBounds, axis)
                   : 1;

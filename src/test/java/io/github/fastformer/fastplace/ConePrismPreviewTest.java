@@ -1,5 +1,8 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;

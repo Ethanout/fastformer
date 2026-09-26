@@ -2,8 +2,7 @@ package io.github.fastformer.fastplace.geometry.generation;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.FaceRasterizationMode;
-import io.github.fastformer.fastplace.FillMode;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;

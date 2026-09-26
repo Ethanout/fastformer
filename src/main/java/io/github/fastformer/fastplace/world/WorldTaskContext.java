@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.world;
 
-import io.github.fastformer.fastplace.FastPlaceMessages;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;

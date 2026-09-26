@@ -1,16 +1,16 @@
 package io.github.fastformer.network.payload.preview;
 
-import io.github.fastformer.fastplace.FastPlaceSettings;
-import io.github.fastformer.fastplace.FaceRasterizationMode;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.FastPlaceGeometry;
-import io.github.fastformer.fastplace.FillMode;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.PointMode;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
-import io.github.fastformer.fastplace.PlacementContextSnapshot;
+import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import java.util.ArrayList;

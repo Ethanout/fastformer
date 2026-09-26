@@ -1,6 +1,13 @@
 package io.github.fastformer.fastplace.workflow;
 
-import io.github.fastformer.fastplace.*;
+import io.github.fastformer.fastplace.geometry.FillMode;
+
+import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.GeometryPoints;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;

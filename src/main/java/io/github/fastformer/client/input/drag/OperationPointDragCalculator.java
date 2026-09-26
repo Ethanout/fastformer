@@ -1,7 +1,7 @@
 package io.github.fastformer.client.input.drag;
 
 import io.github.fastformer.client.input.math.ClientInputMath;
-import io.github.fastformer.fastplace.OperationPointDragConstraint;
+import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import net.minecraft.core.BlockPos;

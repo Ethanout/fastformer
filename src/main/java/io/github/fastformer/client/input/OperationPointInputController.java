@@ -4,7 +4,7 @@ import io.github.fastformer.client.operation.controller.ClientOperationControlle
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.client.input.drag.OperationPointDrag;
 import io.github.fastformer.client.input.drag.OperationPointDragCalculator;
-import io.github.fastformer.fastplace.OperationPointDragConstraint;
+import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
 import io.github.fastformer.network.payload.operation.OperationPointClickPayload;

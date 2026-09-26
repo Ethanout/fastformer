@@ -1,11 +1,5 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -47,7 +41,7 @@ class BlockGenerationResultTest {
          java.util.List.of(),
          java.util.Optional.empty(),
          0,
-         io.github.fastformer.fastplace.ConePlaneMode.RADIUS,
+         io.github.fastformer.fastplace.geometry.cone.ConePlaneMode.RADIUS,
          1.0,
          1.0,
          1.0,
@@ -58,23 +52,23 @@ class BlockGenerationResultTest {
 
       assertEquals(
          BlockGenerationResult.Status.CONSTRAINTS_FAILED,
-         PolyhedronGenerator.generateResult(incompleteSphere, io.github.fastformer.fastplace.FillMode.SOLID, 100).status()
+         PolyhedronGenerator.generateResult(incompleteSphere, io.github.fastformer.fastplace.geometry.FillMode.SOLID, 100).status()
       );
       assertEquals(
          BlockGenerationResult.Status.CONSTRAINTS_FAILED,
          ArbitraryConvexPolyhedronGenerator.generateResult(
             java.util.List.of(net.minecraft.world.phys.Vec3.ZERO),
-            io.github.fastformer.fastplace.FillMode.SOLID,
+            io.github.fastformer.fastplace.geometry.FillMode.SOLID,
             100
          ).status()
       );
       assertEquals(
          BlockGenerationResult.Status.CONSTRAINTS_FAILED,
-         ConePrismGenerator.generateResult(incompleteCone, io.github.fastformer.fastplace.FillMode.SOLID, 100).status()
+         ConePrismGenerator.generateResult(incompleteCone, io.github.fastformer.fastplace.geometry.FillMode.SOLID, 100).status()
       );
       assertEquals(
          BlockGenerationResult.Status.CONSTRAINTS_FAILED,
-         ConePrismGenerator.generateResult(null, io.github.fastformer.fastplace.FillMode.SOLID, 100).status()
+         ConePrismGenerator.generateResult(null, io.github.fastformer.fastplace.geometry.FillMode.SOLID, 100).status()
       );
    }
 
@@ -107,17 +101,17 @@ class BlockGenerationResultTest {
 
    @Test
    void geometryResultBoundaryKeepsTypedFailureStatus() {
-      var modes = new io.github.fastformer.fastplace.FastPlaceGeometry.Modes(
+      var modes = new io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.Modes(
          io.github.fastformer.fastplace.quickshape.PointMode.RAYCAST,
          io.github.fastformer.fastplace.quickshape.RaycastPlacement.EMBEDDED,
          io.github.fastformer.fastplace.quickshape.LineMode.AXIS,
          io.github.fastformer.fastplace.quickshape.FaceMode.COORDINATE_PLANE,
          io.github.fastformer.fastplace.quickshape.VolumeMode.FREE,
-         io.github.fastformer.fastplace.FillMode.SOLID,
+         io.github.fastformer.fastplace.geometry.FillMode.SOLID,
          0.0,
          false
       );
-      BlockGenerationResult result = io.github.fastformer.fastplace.FastPlaceGeometry.blocksResult(
+      BlockGenerationResult result = io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.blocksResult(
          java.util.List.of(BlockPos.ZERO, new BlockPos(2, 0, 0)),
          modes,
          false,
@@ -131,21 +125,21 @@ class BlockGenerationResultTest {
 
    @Test
    void geometryResultBoundaryRejectsMissingInputAndZeroBudget() {
-      var modes = new io.github.fastformer.fastplace.FastPlaceGeometry.Modes(
+      var modes = new io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.Modes(
          io.github.fastformer.fastplace.quickshape.PointMode.RAYCAST,
          io.github.fastformer.fastplace.quickshape.RaycastPlacement.EMBEDDED,
          io.github.fastformer.fastplace.quickshape.LineMode.AXIS,
          io.github.fastformer.fastplace.quickshape.FaceMode.COORDINATE_PLANE,
          io.github.fastformer.fastplace.quickshape.VolumeMode.FREE,
-         io.github.fastformer.fastplace.FillMode.SOLID,
+         io.github.fastformer.fastplace.geometry.FillMode.SOLID,
          0.0,
          false
       );
 
-      BlockGenerationResult missing = io.github.fastformer.fastplace.FastPlaceGeometry.blocksResult(
+      BlockGenerationResult missing = io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.blocksResult(
          java.util.List.of(), modes, false, io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE, 10
       );
-      BlockGenerationResult noBudget = io.github.fastformer.fastplace.FastPlaceGeometry.blocksResult(
+      BlockGenerationResult noBudget = io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.blocksResult(
          java.util.List.of(BlockPos.ZERO), modes, false, io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE, 0
       );
 

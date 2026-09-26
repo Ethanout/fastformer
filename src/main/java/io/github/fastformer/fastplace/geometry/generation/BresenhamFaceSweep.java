@@ -13,7 +13,6 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.TreeSet;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.Vec3;
 
 /** Builds one canonical digital plane constrained by four exact Bresenham edges. */
 final class BresenhamFaceSweep {

@@ -1,8 +1,8 @@
 package io.github.fastformer.network.payload.settings;
 
-import io.github.fastformer.fastplace.FaceRasterizationMode;
-import io.github.fastformer.fastplace.OperationConflictMode;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

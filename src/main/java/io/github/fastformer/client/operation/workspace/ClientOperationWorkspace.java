@@ -2,7 +2,6 @@ package io.github.fastformer.client.operation.workspace;
 
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.IdentityHashMap;

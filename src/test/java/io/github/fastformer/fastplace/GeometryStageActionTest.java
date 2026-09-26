@@ -1,5 +1,9 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;
@@ -14,7 +18,6 @@ import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
 import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
-import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;

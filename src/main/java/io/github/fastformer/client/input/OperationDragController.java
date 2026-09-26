@@ -3,7 +3,7 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.DeferredDragClick;
 import io.github.fastformer.client.input.drag.DragAxisFrame;
-import io.github.fastformer.fastplace.LongRangeBlockRaycast;
+import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.FastPlaceClientPreview;

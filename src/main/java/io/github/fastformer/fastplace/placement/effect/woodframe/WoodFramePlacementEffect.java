@@ -1,8 +1,7 @@
 package io.github.fastformer.fastplace.placement.effect.woodframe;
 
-import io.github.fastformer.fastplace.FastPlaceSettings;
-import io.github.fastformer.fastplace.FillMode;
-import io.github.fastformer.fastplace.SmartWoodFrame;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffect;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectContext;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;

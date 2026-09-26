@@ -3,7 +3,6 @@ package io.github.fastformer.fastplace.world;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;

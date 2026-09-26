@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.task;
 
-import io.github.fastformer.fastplace.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import java.util.Collection;

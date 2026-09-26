@@ -19,7 +19,7 @@ public final class IncomingPayloadTransfers {
 
    public IncomingPayloadTransfers() { this(ignored -> { }); }
    public IncomingPayloadTransfers(java.util.function.Consumer<ExpiredTransfer> onEvicted) {
-      this(onEvicted, 128L * 1024 * 1024, io.github.fastformer.fastplace.OperationWorkspacePlanCodec.MAX_COMPRESSED_BYTES);
+      this(onEvicted, 128L * 1024 * 1024, io.github.fastformer.network.codec.OperationWorkspacePlanCodec.MAX_COMPRESSED_BYTES);
    }
    IncomingPayloadTransfers(java.util.function.Consumer<ExpiredTransfer> onEvicted, long globalByteLimit, long ownerByteLimit) {
       if (globalByteLimit <= 0 || ownerByteLimit <= 0 || ownerByteLimit > globalByteLimit) throw new IllegalArgumentException("Invalid upload memory budget");

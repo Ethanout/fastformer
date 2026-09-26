@@ -1,5 +1,11 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.geometry.FillMode;
+
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.fastplace.session.*;

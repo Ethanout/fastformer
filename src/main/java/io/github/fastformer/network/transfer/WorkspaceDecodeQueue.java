@@ -1,6 +1,6 @@
 package io.github.fastformer.network.transfer;
 
-import io.github.fastformer.fastplace.OperationWorkspacePlan;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;

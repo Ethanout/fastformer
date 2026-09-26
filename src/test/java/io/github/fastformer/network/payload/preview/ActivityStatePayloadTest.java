@@ -2,7 +2,7 @@ package io.github.fastformer.network.payload.preview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.FastPlaceActivity;
+import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import io.netty.buffer.Unpooled;
 import java.util.UUID;

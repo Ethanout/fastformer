@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.selection;
 
-import io.github.fastformer.fastplace.TranslatableText;
+import io.github.fastformer.fastplace.text.TranslatableText;
 
 public enum OperationMode implements TranslatableText {
    MOVE("fastformer.operation.mode.move"),

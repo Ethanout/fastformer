@@ -1,7 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.FillMode;
-import java.util.LinkedHashSet;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;

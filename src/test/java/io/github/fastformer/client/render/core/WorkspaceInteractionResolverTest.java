@@ -2,7 +2,6 @@ package io.github.fastformer.client.render.core;
 
 import io.github.fastformer.client.input.OperationInteractionIntent;
 import io.github.fastformer.client.interaction.PartLabelInteraction;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.client.interaction.PartInteractionBounds;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;

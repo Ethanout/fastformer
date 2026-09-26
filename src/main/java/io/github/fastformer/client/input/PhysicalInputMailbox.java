@@ -3,7 +3,6 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.session.ClientTickMailbox;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 
 /** Owns queued physical input and releases pending requests on dispatch or invalidation. */
 final class PhysicalInputMailbox {

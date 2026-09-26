@@ -2,7 +2,7 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.GeometryMode;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.PointerGesture;
 import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;

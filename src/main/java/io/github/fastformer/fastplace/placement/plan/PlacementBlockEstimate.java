@@ -1,8 +1,8 @@
 package io.github.fastformer.fastplace.placement.plan;
 
-import io.github.fastformer.fastplace.FastPlaceGeometry;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.FillMode;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;

@@ -1,7 +1,6 @@
 package io.github.fastformer.network.transfer;
 
-import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;
-import java.io.ByteArrayOutputStream;
+import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
 import java.io.IOException;
 import java.util.UUID;
 

@@ -1,8 +1,8 @@
 package io.github.fastformer.fastplace.session;
 
-import io.github.fastformer.fastplace.GeometryMode;
-import io.github.fastformer.fastplace.GeometryPoint;
-import io.github.fastformer.fastplace.PolyhedronSizeMode;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.GeometryPoint;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
 import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;

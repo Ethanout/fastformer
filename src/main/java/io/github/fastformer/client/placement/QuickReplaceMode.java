@@ -1,8 +1,8 @@
 package io.github.fastformer.client.placement;
 
-import io.github.fastformer.fastplace.PlaceableItems;
-import io.github.fastformer.fastplace.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.LongRangeBlockRaycast;
+import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;

@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.OperationWorkspacePlan;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.MemoryAdmission;
 import io.github.fastformer.fastplace.world.MemoryAdmissionStatus;
 import io.github.fastformer.fastplace.world.MemoryReservation;

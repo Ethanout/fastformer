@@ -4,7 +4,7 @@ import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.GizmoDragCalculator;
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
-import io.github.fastformer.fastplace.GeometryMode;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
 import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;

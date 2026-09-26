@@ -6,7 +6,6 @@ import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -230,7 +229,7 @@ public final class ClientSessionManager {
     */
    public boolean persistSubmittedDraft(
       OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID transferId,
-      io.github.fastformer.fastplace.OperationWorkspacePlan plan, java.util.function.BooleanSupplier owned,
+      io.github.fastformer.workspace.submission.OperationWorkspacePlan plan, java.util.function.BooleanSupplier owned,
       java.util.function.Consumer<io.github.fastformer.client.placement.ClientPlacementRouter.WorkspaceSubmission> complete
    ) {
       if (this.current == null || this.currentKey == null || transferId == null) return false;

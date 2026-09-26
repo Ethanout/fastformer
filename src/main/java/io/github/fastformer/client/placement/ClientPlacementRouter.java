@@ -3,8 +3,8 @@ package io.github.fastformer.client.placement;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
 import io.github.fastformer.network.payload.placement.QuickShapeConfirmPayload;
 
-import io.github.fastformer.fastplace.OperationWorkspacePlan;
-import io.github.fastformer.fastplace.OperationWorkspacePlanCodec;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.network.payload.operation.OperationApplyPayload;
 import io.github.fastformer.network.payload.operation.OperationWorkspaceApplyPayload;
 import io.github.fastformer.network.payload.placement.QuickReplacePayload;

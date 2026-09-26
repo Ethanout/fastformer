@@ -1,6 +1,5 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.FaceRasterizationMode;
 import java.math.BigInteger;
 import java.util.AbstractSet;
 import java.util.ArrayList;

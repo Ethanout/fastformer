@@ -1,8 +1,8 @@
 package io.github.fastformer.client.ui;
 
-import io.github.fastformer.fastplace.FaceRasterizationMode;
-import io.github.fastformer.fastplace.OperationConflictMode;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.network.payload.settings.FaceRasterizationSettingPayload;
 import io.github.fastformer.network.payload.settings.MiddleConfirmSettingPayload;
 import io.github.fastformer.network.payload.settings.SettingsActionPayload;

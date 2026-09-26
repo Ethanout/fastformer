@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.world;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import java.io.FileOutputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;

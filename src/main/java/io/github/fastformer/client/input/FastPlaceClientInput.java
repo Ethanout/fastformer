@@ -14,11 +14,6 @@ import io.github.fastformer.client.operation.controller.ClientOperationControlle
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.client.render.interaction.OperationPointerKind;
 import io.github.fastformer.client.render.interaction.OperationPointerTarget;
-import io.github.fastformer.client.input.math.ClientInputMath;
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
-import io.github.fastformer.client.input.drag.GizmoDragCalculator;
-import io.github.fastformer.client.input.drag.OperationDrag;
-import io.github.fastformer.client.input.drag.OperationPointDrag;
 import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
@@ -26,34 +21,23 @@ import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.session.ClientSessionManager;
 import io.github.fastformer.client.ui.GeometryRadialScreen;
 import io.github.fastformer.network.payload.geometry.CycleStageModePayload;
-import io.github.fastformer.network.payload.geometry.ClosePathPayload;
 import io.github.fastformer.network.payload.settings.ModifierStatePayload;
 import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
-import io.github.fastformer.network.payload.operation.OperationExtendPayload;
-import io.github.fastformer.network.payload.operation.OperationTransformPayload;
 import io.github.fastformer.network.payload.placement.QuitFastPlacePayload;
 import io.github.fastformer.network.payload.operation.OperationPointPayload;
 import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
 import io.github.fastformer.network.payload.operation.OperationInsertPointPayload;
-import io.github.fastformer.network.payload.operation.OperationSelectPointPayload;
 import io.github.fastformer.network.payload.geometry.ScrollCandidatePayload;
 import io.github.fastformer.network.payload.placement.UndoFastPlacePayload;
-import io.github.fastformer.network.payload.world.WorldRedoPayload;
-import io.github.fastformer.network.payload.world.WorldUndoPayload;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.fastplace.PlaceableItems;
-import io.github.fastformer.fastplace.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -61,7 +45,6 @@ import net.neoforged.neoforge.client.event.InputEvent.InteractionKeyMappingTrigg
 import net.neoforged.neoforge.client.event.InputEvent.Key;
 import net.neoforged.neoforge.client.event.InputEvent.MouseButton.Pre;
 import net.neoforged.neoforge.client.event.InputEvent.MouseScrollingEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent.Post;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
@@ -1525,7 +1508,7 @@ public final class FastPlaceClientInput {
    /** Collects the live session flags. The order of the state lives in ObservedInputState. */
    private static ObservedInputState.Sessions observedSessions() {
       return new ObservedInputState.Sessions(
-         FastPlaceClientPreview.activity() == io.github.fastformer.fastplace.FastPlaceActivity.RESTORE_TASK,
+         FastPlaceClientPreview.activity() == io.github.fastformer.fastplace.session.FastPlaceActivity.RESTORE_TASK,
          FastPlaceClientPreview.taskActive(),
          FastPlaceClientPreview.operationActive(),
          ClientOperationController.active(),

@@ -1,6 +1,5 @@
 package io.github.fastformer.client.render;
 
-import io.github.fastformer.client.render.PreviewOpacityController;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

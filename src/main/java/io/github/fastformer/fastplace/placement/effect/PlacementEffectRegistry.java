@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.placement.effect;
 
-import io.github.fastformer.fastplace.FastPlaceSettings;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;

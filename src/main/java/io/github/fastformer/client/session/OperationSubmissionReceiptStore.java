@@ -3,7 +3,6 @@ package io.github.fastformer.client.session;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

@@ -6,7 +6,7 @@ import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.preview.Composition;
 import io.github.fastformer.workspace.preview.CompositionBatch;
 import io.github.fastformer.workspace.preview.CompositionBudget;
-import io.github.fastformer.fastplace.OperationWorkspacePlan;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

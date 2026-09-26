@@ -1,5 +1,10 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 
 import io.github.fastformer.fastplace.selection.OperationStageMode;
@@ -10,7 +15,6 @@ import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionStage;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 
-import io.github.fastformer.fastplace.*;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;

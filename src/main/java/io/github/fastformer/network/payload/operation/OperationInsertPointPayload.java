@@ -1,10 +1,8 @@
 package io.github.fastformer.network.payload.operation;
 
-import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import net.minecraft.world.phys.Vec3;
 
 public record OperationInsertPointPayload(long requestId, long revision, OperationCallbackScope callbackScope, Vec3 eye, Vec3 view) implements CustomPacketPayload {

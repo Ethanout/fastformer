@@ -4,8 +4,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.world.level.Level;
 
 /** Owns asynchronous journal creation and late-completion cleanup. */
 public final class WorldJournalPreparation {

@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.quickshape;
 
-import io.github.fastformer.fastplace.FastPlaceGeometry;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.BlockHitResult;

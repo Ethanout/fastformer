@@ -47,7 +47,7 @@ public record BuildingPreviewSessionPayload(
       PolygonVolumeShape polygonVolumeShape,
       List<BlockPos> points,
       BlockPos freeScrollOffset,
-      io.github.fastformer.fastplace.PlacementContextSnapshot placementContext
+      io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot placementContext
    ) {
       this(0L, new BuildingPreviewSession(
          enabled, middleConfirmEnabled, active, ctrlHeld, polygonClosed,

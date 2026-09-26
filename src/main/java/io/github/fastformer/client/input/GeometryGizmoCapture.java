@@ -1,7 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
-import io.github.fastformer.fastplace.GeometryMode;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import java.util.UUID;
 import net.minecraft.world.phys.Vec3;

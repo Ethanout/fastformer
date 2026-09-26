@@ -1,6 +1,5 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.FaceRasterizationMode;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -15,7 +14,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.Vec3;
 
 /** Fills a rectangle from the pointwise sweep of two Bresenham edges and a single-valued height field. */
 final class BoundaryInterpolatedFaceRasterizer {

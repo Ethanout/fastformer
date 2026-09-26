@@ -1,6 +1,5 @@
 package io.github.fastformer.client.render;
 
-import io.github.fastformer.client.render.PreviewBlockOcclusion;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;

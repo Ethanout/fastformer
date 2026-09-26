@@ -1,9 +1,9 @@
 package io.github.fastformer.fastplace.session;
 
-import io.github.fastformer.fastplace.GeometryMode;
-import io.github.fastformer.fastplace.GeometryPoints;
-import io.github.fastformer.fastplace.ConePlaneMode;
-import io.github.fastformer.fastplace.ConePrismStage;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.GeometryPoints;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
 import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import net.minecraft.world.phys.Vec3;
 

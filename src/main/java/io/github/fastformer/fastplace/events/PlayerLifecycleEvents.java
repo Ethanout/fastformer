@@ -1,8 +1,8 @@
 package io.github.fastformer.fastplace.events;
 
-import io.github.fastformer.fastplace.FastPlaceManager;
-import io.github.fastformer.fastplace.FastPlaceMessages;
-import io.github.fastformer.fastplace.FastPlaceSettings;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.world.WorldHistoryManager;
 import io.github.fastformer.fastplace.world.WorldTaskFeature;

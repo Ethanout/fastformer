@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.FillMode;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;

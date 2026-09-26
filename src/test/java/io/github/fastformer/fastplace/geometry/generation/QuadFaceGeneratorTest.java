@@ -3,7 +3,7 @@ package io.github.fastformer.fastplace.geometry.generation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.FillMode;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import java.util.List;
 import java.util.ArrayDeque;
 import java.util.HashSet;

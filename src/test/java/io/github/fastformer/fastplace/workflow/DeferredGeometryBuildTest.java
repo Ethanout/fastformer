@@ -3,8 +3,8 @@ package io.github.fastformer.fastplace.workflow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-import io.github.fastformer.fastplace.FillMode;
-import io.github.fastformer.fastplace.GeometryMode;
+import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.session.GeometrySession;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;

@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.world;
 
 
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;

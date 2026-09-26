@@ -1,13 +1,15 @@
 package io.github.fastformer.fastplace.task;
 
+import io.github.fastformer.server.session.OperationManager;
+
 import io.github.fastformer.fastplace.world.JournalPreparation;
-import io.github.fastformer.fastplace.OperationConflictMode;
-import io.github.fastformer.fastplace.OperationExecutionSemantics;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationExecutionSemantics;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.PlacementUpdateMode;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationMemory;
@@ -29,7 +31,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;

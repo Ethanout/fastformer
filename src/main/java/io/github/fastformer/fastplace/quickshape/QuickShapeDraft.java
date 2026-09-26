@@ -2,7 +2,7 @@ package io.github.fastformer.fastplace.quickshape;
 
 import io.github.fastformer.fastplace.session.SessionValue;
 
-import io.github.fastformer.fastplace.PlacementContextSnapshot;
+import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import java.util.ArrayList;
 import java.util.Collections;

@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.quickshape;
 
-import io.github.fastformer.fastplace.TranslatableText;
+import io.github.fastformer.fastplace.text.TranslatableText;
 
 
 public enum QuickShapeStage implements TranslatableText {

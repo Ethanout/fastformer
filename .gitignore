@@ -44,7 +44,7 @@ repo/
 !**/src/**/repo/
 
 ### Local recovery backups ###
-recovery/
+/recovery/
 
 ### Local diagnostics ###
 logs/

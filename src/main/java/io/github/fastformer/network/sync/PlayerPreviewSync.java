@@ -1,11 +1,11 @@
 package io.github.fastformer.network.sync;
 
-import io.github.fastformer.fastplace.FastPlaceActivity;
-import io.github.fastformer.fastplace.FastPlaceManager;
-import io.github.fastformer.fastplace.FastPlaceSettings;
-import io.github.fastformer.fastplace.GeometryManager;
-import io.github.fastformer.fastplace.OperationManager;
-import io.github.fastformer.fastplace.PlaceableItems;
+import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.session.GeometryManager;
+import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 import io.github.fastformer.fastplace.session.GeometrySession;

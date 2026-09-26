@@ -1,0 +1,50 @@
+abstract class VerifySourceLayout extends DefaultTask {
+    @InputFiles @PathSensitive(PathSensitivity.RELATIVE)
+    abstract ConfigurableFileCollection getJavaSources()
+
+    @TaskAction void verify() {
+        def violations = []
+        javaSources.files.each { source ->
+            String text = source.getText('UTF-8')
+            def declaration = text =~ /(?m)^package ([\w.]+);/
+            if (!declaration.find()) {
+                violations.add("Missing package: ${source.name}")
+                return
+            }
+            String packageName = declaration.group(1)
+            String path = source.path.replace('\\', '/')
+            if (!path.endsWith(packageName.replace('.', '/') + '/' + source.name)) {
+                violations.add("Package path mismatch: ${path}")
+            }
+            boolean main = path.contains('/src/main/java/')
+            boolean gameTest = path.contains('/src/gametest/java/')
+            if (main && packageName == 'io.github.fastformer' && source.name != 'FastFormer.java') {
+                violations.add("Unexpected type in mod entry package: ${path}")
+            }
+            if (main && packageName == 'io.github.fastformer.fastplace') {
+                violations.add("Feature type must belong to a responsibility package: ${path}")
+            }
+            if (main && (source.name.contains('GameTests') || source.name == 'RecoveryProcessTests.java')) {
+                violations.add("Test harness in production source: ${path}")
+            }
+            if (main && (text =~ /\b(?:[\w]+GameTests|RecoveryProcessTests)\b/).find()) {
+                violations.add("Production source depends on test harness: ${path}")
+            }
+            boolean shared = packageName.startsWith('io.github.fastformer.workspace') ||
+                    packageName.startsWith('io.github.fastformer.network.codec') ||
+                    packageName.startsWith('io.github.fastformer.fastplace.geometry')
+            if (main && shared && (text =~ /(?:io\.github\.fastformer|net\.minecraft)\.client\./).find()) {
+                violations.add("Shared source depends on client runtime: ${path}")
+            }
+            if (gameTest && !(source.name.contains('GameTests') || source.name == 'RecoveryProcessTests.java')) {
+                violations.add("Unexpected production type in test source: ${path}")
+            }
+        }
+        if (!violations.isEmpty()) throw new GradleException(violations.join('\n'))
+    }
+}
+
+tasks.register('verifySourceLayout', VerifySourceLayout) {
+    javaSources.from(sourceSets.main.allJava, sourceSets.test.allJava, sourceSets.gameTest.allJava)
+}
+tasks.named('check') { dependsOn tasks.named('verifySourceLayout') }
