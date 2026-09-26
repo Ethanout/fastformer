@@ -1,15 +1,15 @@
 package io.github.fastformer.workspace.preview;
 
-import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
-import io.github.fastformer.workspace.transform.VoxelRotation;
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.workspace.geometry.WorkspaceGeometryBudget;
+import io.github.fastformer.workspace.geometry.WorkspaceGeometryCost;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
-import io.github.fastformer.fastplace.geometry.WorkspaceGeometryBudget;
-import io.github.fastformer.fastplace.geometry.WorkspaceGeometryCost;
+import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.workspace.transform.VoxelRotation;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -1,40 +1,37 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
-
+import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
 import io.github.fastformer.fastplace.geometry.GeometryHit;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionHit;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
 import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.server.input.ServerInputDispatcher;
-
-import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.fastplace.workflow.*;
 import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionHit;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.PointerGesture;
-import java.util.List;
-import net.minecraft.network.chat.Component;
+import io.github.fastformer.server.input.ServerInputDispatcher;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public final class GeometryManager {
    private static final Map<UUID, GeometrySession> SESSIONS = new HashMap<>();

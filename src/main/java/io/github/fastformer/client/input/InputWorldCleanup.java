@@ -1,5 +1,6 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.render.FastPlaceClientPreview;

@@ -3,15 +3,15 @@ package io.github.fastformer.network.payload.geometry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.PointerGesture;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
-import java.util.UUID;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.phys.Vec3;
 import io.netty.buffer.Unpooled;
+import java.util.UUID;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class GeometryInteractionPayloadTest {

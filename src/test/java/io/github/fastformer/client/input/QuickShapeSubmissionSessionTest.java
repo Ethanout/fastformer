@@ -1,6 +1,9 @@
 package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionIntentTest;
 import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
 import io.github.fastformer.fastplace.quickshape.LineMode;

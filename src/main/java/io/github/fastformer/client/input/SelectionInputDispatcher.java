@@ -2,8 +2,12 @@ package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.SelectionDraftPress;
+import io.github.fastformer.client.operation.input.SelectionPointerCapture;
+import io.github.fastformer.client.operation.input.SelectionPointerEvent;
 import net.minecraft.client.Minecraft;
 
 final class SelectionInputDispatcher {

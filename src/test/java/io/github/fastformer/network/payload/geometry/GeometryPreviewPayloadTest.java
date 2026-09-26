@@ -3,18 +3,18 @@ package io.github.fastformer.network.payload.geometry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.netty.buffer.Unpooled;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
-import io.netty.buffer.Unpooled;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 

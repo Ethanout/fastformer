@@ -1,14 +1,13 @@
 package io.github.fastformer;
 
-
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
 import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
-import io.github.fastformer.fastplace.world.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
-import io.github.fastformer.fastplace.world.WorldHistoryManager;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
@@ -192,7 +191,7 @@ public final class FastFormerGameTests {
    @net.neoforged.bus.api.SubscribeEvent
    public static void register(RegisterGameTestsEvent event) {
       event.register(FastFormerGameTests.class);
-      event.register(io.github.fastformer.fastplace.world.JournalRecoveryGameTests.class);
+      event.register(io.github.fastformer.fastplace.recovery.JournalRecoveryGameTests.class);
       event.register(io.github.fastformer.server.session.TaskCommitFailureGameTests.class);
    }
 

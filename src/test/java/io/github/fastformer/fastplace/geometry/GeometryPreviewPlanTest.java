@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.fastformer.fastplace.geometry.text.GeometryStageDisplay;
+import io.github.fastformer.fastplace.geometry.text.GeometryTextBlock;
 import java.util.List;
-import net.minecraft.network.chat.Component;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 

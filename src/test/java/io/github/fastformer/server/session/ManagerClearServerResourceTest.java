@@ -1,31 +1,26 @@
 package io.github.fastformer.server.session;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
-
-import io.github.fastformer.fastplace.selection.OperationMode;
-
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.MemoryReservationAttempt;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
-import io.github.fastformer.fastplace.world.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.MemoryReservation;
-import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
-import io.github.fastformer.fastplace.world.WorldJournalPreparation;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
+import io.github.fastformer.fastplace.world.memory.MemoryReservation;
+import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.Collection;

@@ -1,6 +1,5 @@
 package io.github.fastformer.workspace.submission;
 
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
 
 /**
  * What the server did with one workspace admission.

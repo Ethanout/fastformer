@@ -1,10 +1,11 @@
 package io.github.fastformer.fastplace.world;
 
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.fastplace.recovery.RecoveryJournalTestAccess;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.AfterEach;
@@ -14,7 +15,7 @@ class WorldTaskFeatureTest {
    @AfterEach
    void clearFeatureState() {
       WorldTaskFeature.clear();
-      PersistentRecoveryJournal.resetWriteGateForTest();
+      RecoveryJournalTestAccess.resetWriteGate();
    }
 
    @Test

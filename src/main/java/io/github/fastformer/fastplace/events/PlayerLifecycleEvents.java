@@ -1,14 +1,14 @@
 package io.github.fastformer.fastplace.events;
 
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.world.WorldHistoryManager;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.WorldTaskFeature;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.network.sync.PlayerPreviewSync;
+import io.github.fastformer.server.session.FastPlaceManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
@@ -16,10 +16,10 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent.Clone;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerChangedDimensionEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
-import net.neoforged.neoforge.event.level.LevelEvent;
 
 /** Registers player and server lifecycle boundaries. */
 public final class PlayerLifecycleEvents {
@@ -100,7 +100,7 @@ public final class PlayerLifecycleEvents {
       FastPlaceNetwork.clearServer();
       // The ledger belongs to one server instance. A different save must never answer
       // with a result that belongs to this one.
-      io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.clearServer(event.getServer());
+      io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());
    }
@@ -109,7 +109,7 @@ public final class PlayerLifecycleEvents {
       FastPlaceManager.clearServer();
       WorldHistoryManager.clearServer();
       FastPlaceNetwork.clearServer();
-      io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.clearServer(event.getServer());
+      io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());
    }

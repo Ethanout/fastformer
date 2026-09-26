@@ -2,6 +2,8 @@ package io.github.fastformer.fastplace.geometry;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 

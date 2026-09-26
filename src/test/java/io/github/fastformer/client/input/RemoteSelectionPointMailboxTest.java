@@ -1,7 +1,10 @@
 package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
 import io.github.fastformer.network.payload.operation.OperationPointPayload;
 import java.util.ArrayList;
 import java.util.List;

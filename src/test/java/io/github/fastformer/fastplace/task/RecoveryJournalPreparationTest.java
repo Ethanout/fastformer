@@ -1,11 +1,10 @@
 package io.github.fastformer.fastplace.task;
 
-import io.github.fastformer.fastplace.world.WorldJournalPreparation;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.world.JournalPreparation;
+import io.github.fastformer.fastplace.recovery.JournalPreparation;
+import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import org.junit.jupiter.api.Test;

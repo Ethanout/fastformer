@@ -1,25 +1,23 @@
 package io.github.fastformer.fastplace.workflow;
 
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.FillMode;
-
+import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
 import io.github.fastformer.fastplace.geometry.GeometryHit;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
-
-import io.github.fastformer.fastplace.world.*;
+import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.fastplace.geometry.GeometryStage;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
 import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.world.*;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
-import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.GeometryStage;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.PointerGesture;
-import java.util.List;
 
 public interface GeometryWorkflow {
    GeometryMode mode();

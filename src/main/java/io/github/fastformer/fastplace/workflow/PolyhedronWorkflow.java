@@ -1,32 +1,30 @@
 package io.github.fastformer.fastplace.workflow;
 
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.FillMode;
-
+import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
 import io.github.fastformer.fastplace.geometry.GeometryHit;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPoints;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-
-import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewGuides;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
-import io.github.fastformer.fastplace.geometry.GeometryStageDisplay;
 import io.github.fastformer.fastplace.geometry.generation.PolyhedronGenerator;
 import io.github.fastformer.fastplace.geometry.generation.PolyhedronParameters;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.fastplace.geometry.text.GeometryStageDisplay;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.world.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.phys.Vec3;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Set;
 
 public final class PolyhedronWorkflow implements GeometryWorkflow {
    private static final int DETAILED_PREVIEW_SCAN_LIMIT = 16000;

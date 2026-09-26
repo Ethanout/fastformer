@@ -1,19 +1,15 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
-
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-
-import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
+import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
+import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.fastplace.world.*;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

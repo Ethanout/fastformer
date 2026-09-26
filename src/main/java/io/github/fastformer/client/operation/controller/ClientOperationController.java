@@ -1,51 +1,51 @@
 package io.github.fastformer.client.operation.controller;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.client.placement.ClientPlacementRouter;
+import com.mojang.logging.LogUtils;
+import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.operation.clipboard.ClipboardCopy;
 import io.github.fastformer.client.operation.clipboard.OperationClipboard;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardCodec;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardState;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.operation.clipboard.PastePlacement;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.client.interaction.SelectionInteractionScene;
-import io.github.fastformer.client.operation.selection.ClientSelectionState;
 import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
-import io.github.fastformer.workspace.preview.Composition;
-import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.client.operation.selection.ClientSelectionSession;
+import io.github.fastformer.client.operation.selection.ClientSelectionState;
+import io.github.fastformer.client.operation.selection.SelectionDraftEvent;
+import io.github.fastformer.client.operation.selection.SelectionDraftResult;
 import io.github.fastformer.client.operation.workspace.ClientOperationEventStack;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
+import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.session.ClientPlayerSession;
 import io.github.fastformer.client.session.ClientSessionManager;
 import io.github.fastformer.client.session.OperationDraftIdentity;
-import io.github.fastformer.client.operation.selection.SelectionDraftEvent;
-import io.github.fastformer.client.operation.selection.SelectionDraftResult;
 import io.github.fastformer.client.session.OperationDraftSettlement;
 import io.github.fastformer.client.session.OperationSubmissionOrigin;
 import io.github.fastformer.client.session.OperationSubmissionReceipt;
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
 import io.github.fastformer.network.payload.operation.OperationWorkspaceReceiptPayload;
 import io.github.fastformer.network.payload.operation.OperationWorkspaceResultPayload;
-import com.mojang.logging.LogUtils;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.workspace.preview.Composition;
+import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.AABB;
@@ -107,11 +107,11 @@ public final class ClientOperationController {
       return selectionSession().gestures();
    }
 
-   public static void updateVisualHover(io.github.fastformer.client.input.OperationInteractionIntent intent) {
+   public static void updateVisualHover(io.github.fastformer.client.interaction.intent.OperationInteractionIntent intent) {
       selectionSession().updateHover(intent);
    }
 
-   public static io.github.fastformer.client.input.OperationInteractionIntent visualHoverIntent() {
+   public static io.github.fastformer.client.interaction.intent.OperationInteractionIntent visualHoverIntent() {
       return selectionSession().hoveredIntent();
    }
 

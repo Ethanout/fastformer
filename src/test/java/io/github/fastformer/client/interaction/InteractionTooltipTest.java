@@ -2,7 +2,7 @@ package io.github.fastformer.client.interaction;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.TransformFrame;
 import java.util.List;

@@ -1,14 +1,14 @@
 package io.github.fastformer.client.operation.selection;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.client.interaction.SelectionInteractionScene;
+import io.github.fastformer.client.input.drag.SelectionGestureState;
 import io.github.fastformer.client.interaction.InteractionHover;
 import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.InteractionVisibility;
-import io.github.fastformer.client.input.drag.SelectionGestureState;
-import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.interaction.SelectionInteractionScene;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
+import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.session.ClientTickMailbox;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;

@@ -1,12 +1,12 @@
 package io.github.fastformer.client.controlpoint;
 
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointFeedback;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.geometry.ControlPoint;
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
-import io.github.fastformer.fastplace.geometry.ControlPointFeedback;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
+import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;

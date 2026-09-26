@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;

@@ -1,16 +1,18 @@
 package io.github.fastformer.client.input;
 
-import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
 import io.github.fastformer.client.render.state.ClientPreviewState;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import io.github.fastformer.network.payload.preview.*;
+import java.util.List;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
-import java.util.List;
-import java.util.UUID;
+import org.junit.jupiter.api.Test;
 
 class QuickShapeUndoMailboxTest {
    private static final long LIMIT = 250_000_000L;

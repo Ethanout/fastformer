@@ -10,8 +10,8 @@ import org.junit.jupiter.api.Test;
 class FastPlaceClientPreviewCoreTest {
    @Test
    void cachedShellAppliesPreviewOpacityExactlyOnce() {
-      assertEquals(0.40F, FastPlaceClientPreviewCore.previewAlpha(0.80F, 0.50F), 1.0E-6F);
-      assertEquals(0.80F, FastPlaceClientPreviewCore.previewAlpha(0.80F, 1.0F), 1.0E-6F);
+      assertEquals(0.40F, BuildingShellRenderer.previewAlpha(0.80F, 0.50F), 1.0E-6F);
+      assertEquals(0.80F, BuildingShellRenderer.previewAlpha(0.80F, 1.0F), 1.0E-6F);
    }
 
    @Test
@@ -22,7 +22,7 @@ class FastPlaceClientPreviewCoreTest {
       assertEquals(
          Set.of(confirmed, candidate),
          FastPlaceClientPreviewCore.endpointFallbackBlocks(
-            1, List.of(confirmed, candidate), FastPlaceClientPreviewCore.BuildingShellVisibility.NONE
+            1, List.of(confirmed, candidate), BuildingShellRenderer.BuildingShellVisibility.NONE
          )
       );
    }
@@ -37,7 +37,7 @@ class FastPlaceClientPreviewCoreTest {
          FastPlaceClientPreviewCore.endpointFallbackBlocks(
             1,
             List.of(confirmed, candidate),
-            new FastPlaceClientPreviewCore.BuildingShellVisibility(true, false)
+            new BuildingShellRenderer.BuildingShellVisibility(true, false)
          )
       );
    }
@@ -50,7 +50,7 @@ class FastPlaceClientPreviewCoreTest {
       assertEquals(
          Set.of(first, second),
          FastPlaceClientPreviewCore.endpointFallbackBlocks(
-            2, List.of(first, second), FastPlaceClientPreviewCore.BuildingShellVisibility.NONE
+            2, List.of(first, second), BuildingShellRenderer.BuildingShellVisibility.NONE
          )
       );
       assertEquals(
@@ -58,7 +58,7 @@ class FastPlaceClientPreviewCoreTest {
          FastPlaceClientPreviewCore.endpointFallbackBlocks(
             2,
             List.of(first, second),
-            new FastPlaceClientPreviewCore.BuildingShellVisibility(true, false)
+            new BuildingShellRenderer.BuildingShellVisibility(true, false)
          )
       );
    }

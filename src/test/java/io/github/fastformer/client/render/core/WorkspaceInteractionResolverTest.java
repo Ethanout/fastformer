@@ -1,14 +1,17 @@
 package io.github.fastformer.client.render.core;
 
-import io.github.fastformer.client.input.OperationInteractionIntent;
-import io.github.fastformer.client.interaction.PartLabelInteraction;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import io.github.fastformer.client.interaction.PartInteractionBounds;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.client.interaction.PartLabelInteraction;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,9 +22,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WorkspaceInteractionResolverTest {
    private static io.github.fastformer.client.interaction.SelectionInteractionScene scene(ClientSelectionPart part) {
@@ -46,7 +46,7 @@ class WorkspaceInteractionResolverTest {
       var hit = WorkspaceInteractionResolver.resolvePartTarget(
          scene, eye, new Vec3(0, 0, -1), false, Set.of(), false).orElseThrow();
       assertEquals(7, hit.partId());
-      assertEquals(io.github.fastformer.client.input.OperationInteractionIntent.PartSurface.LABEL, hit.surface());
+      assertEquals(io.github.fastformer.client.interaction.intent.OperationInteractionIntent.PartSurface.LABEL, hit.surface());
       assertEquals(10.0, hit.distance(), 1.0E-9);
       assertTrue(WorkspaceInteractionResolver.resolvePartTarget(
          scene, eye.add(0.23, 0, 0), new Vec3(0, 0, -1), false, Set.of(), false).isEmpty());
@@ -93,7 +93,7 @@ class WorkspaceInteractionResolverTest {
             .filter(value -> value.operation() == AxisGizmo.Operation.MOVE)
             .findFirst().orElseThrow();
          Vec3 target = gizmo.handleCenter(handle);
-         var context = new io.github.fastformer.client.input.InteractionContext(
+         var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
             null, null, target.add(0, 0, 10), new Vec3(0, 0, -1), camera, false, false, false
          );
          var provider = WorkspaceInteractionResolver.providers().get(1);
@@ -251,7 +251,7 @@ class WorkspaceInteractionResolverTest {
          scene(part), eye, view, true, Set.of(), false
       ).orElseThrow();
       assertEquals(1, hit.partId());
-      assertEquals(io.github.fastformer.client.input.OperationInteractionIntent.PartSurface.FRAME, hit.surface());
+      assertEquals(io.github.fastformer.client.interaction.intent.OperationInteractionIntent.PartSurface.FRAME, hit.surface());
       assertTrue(WorkspaceInteractionResolver.resolvePartTarget(
          scene(part), eye, view, true, Set.of(new BlockPos(0, 1, 1)), false
       ).isEmpty());

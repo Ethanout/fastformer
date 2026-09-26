@@ -1,39 +1,37 @@
 package io.github.fastformer.fastplace.workflow;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
-
-import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryPoints;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
-
-import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
+import io.github.fastformer.fastplace.geometry.GeometryActionContext;
 import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
 import io.github.fastformer.fastplace.geometry.GeometryConstraints;
+import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
+import io.github.fastformer.fastplace.geometry.GeometryPoints;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewGuides;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
-import io.github.fastformer.fastplace.geometry.GeometryStageDisplay;
-import io.github.fastformer.fastplace.geometry.GeometryTextBlock;
 import io.github.fastformer.fastplace.geometry.TransformFrame;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGenerator;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
+import io.github.fastformer.fastplace.geometry.text.GeometryStageDisplay;
+import io.github.fastformer.fastplace.geometry.text.GeometryTextBlock;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.world.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.phys.Vec3;
-import java.util.List;
-import java.util.Set;
-import java.util.ArrayList;
-import java.util.Optional;
 
 public final class ConePrismWorkflow implements GeometryWorkflow {
    private static final double CENTERLINE_HIT_RADIUS = 0.75;
@@ -426,17 +424,17 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
    private static List<AxisGizmo.Handle> coneHandles(boolean local) {
       ArrayList<AxisGizmo.Handle> handles = new ArrayList<>();
       for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
-         handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, axis, AxisGizmo.Direction.POSITIVE, io.github.fastformer.fastplace.geometry.ControlPointRole.GIZMO_HANDLE));
-         handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, axis, AxisGizmo.Direction.NEGATIVE, io.github.fastformer.fastplace.geometry.ControlPointRole.GIZMO_HANDLE));
-         handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.SCALE, axis, AxisGizmo.Direction.POSITIVE, io.github.fastformer.fastplace.geometry.ControlPointRole.GIZMO_HANDLE));
-         handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.SCALE, axis, AxisGizmo.Direction.NEGATIVE, io.github.fastformer.fastplace.geometry.ControlPointRole.GIZMO_HANDLE));
+         handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, axis, AxisGizmo.Direction.POSITIVE, io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE));
+         handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, axis, AxisGizmo.Direction.NEGATIVE, io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE));
+         handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.SCALE, axis, AxisGizmo.Direction.POSITIVE, io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE));
+         handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.SCALE, axis, AxisGizmo.Direction.NEGATIVE, io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE));
       }
       if (local) {
          handles.add(new AxisGizmo.Handle(
             AxisGizmo.Operation.ROTATE,
             AxisGizmo.Axis.Y,
             AxisGizmo.Direction.BIDIRECTIONAL,
-            io.github.fastformer.fastplace.geometry.ControlPointRole.GIZMO_HANDLE
+            io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE
          ));
       }
       return List.copyOf(handles);

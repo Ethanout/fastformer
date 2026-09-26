@@ -2,17 +2,19 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import net.minecraft.core.BlockPos;
+import io.github.fastformer.client.interaction.InteractionObject;
+import io.github.fastformer.client.interaction.InteractionPressBinding;
+import io.github.fastformer.client.interaction.SelectionInteractionScene;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.SelectionPointerPress;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.client.interaction.SelectionInteractionScene;
-import io.github.fastformer.client.interaction.InteractionPressBinding;
-import io.github.fastformer.client.interaction.InteractionObject;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.Optional;
+import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 class SelectionPointerPressTest {

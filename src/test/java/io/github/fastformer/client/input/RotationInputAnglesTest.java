@@ -1,6 +1,8 @@
 package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.input.state.ModifierGestureState;
 import io.github.fastformer.workspace.transform.PixelPerfectAngles;
 import org.junit.jupiter.api.Test;
 

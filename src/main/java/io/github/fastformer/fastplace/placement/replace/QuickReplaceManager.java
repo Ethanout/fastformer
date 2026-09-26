@@ -1,17 +1,16 @@
 package io.github.fastformer.fastplace.placement.replace;
 
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.server.input.ServerInputDispatcher;
-
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.*;
-
+import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.GeometryManager;
+import io.github.fastformer.server.session.OperationManager;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;

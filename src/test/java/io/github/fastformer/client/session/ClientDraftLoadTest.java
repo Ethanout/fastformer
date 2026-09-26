@@ -1,13 +1,12 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
+import io.github.fastformer.client.operation.selection.ClientSelectionSession;
+import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -219,7 +218,7 @@ class ClientDraftLoadTest {
       receipts.record(new OperationSubmissionReceipt(
          transferId, OperationSubmissionOrigin.LOCAL_ONLY, null,
          net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"),
-         io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.APPLIED, 1L
+         io.github.fastformer.workspace.submission.OperationSubmissionOutcome.APPLIED, 1L
       ));
 
       assertEquals(
@@ -248,7 +247,7 @@ class ClientDraftLoadTest {
       receipts.record(new OperationSubmissionReceipt(
          transferId, OperationSubmissionOrigin.LOCAL_ONLY, null,
          net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"),
-         io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.IN_PROGRESS, 1L
+         io.github.fastformer.workspace.submission.OperationSubmissionOutcome.IN_PROGRESS, 1L
       ));
 
       assertEquals(
@@ -273,7 +272,7 @@ class ClientDraftLoadTest {
       receipts.record(new OperationSubmissionReceipt(
          UUID.randomUUID(), OperationSubmissionOrigin.LOCAL_ONLY, null,
          net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"),
-         io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.APPLIED, 1L
+         io.github.fastformer.workspace.submission.OperationSubmissionOutcome.APPLIED, 1L
       ));
 
       assertEquals(

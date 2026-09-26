@@ -1,29 +1,31 @@
 package io.github.fastformer.server.session;
 
+import com.mojang.logging.LogUtils;
+import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.fastplace.recovery.JournalPreparation;
+import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
-
-import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-
-import io.github.fastformer.fastplace.world.*;
-
 import io.github.fastformer.fastplace.session.DimensionSessionStore;
 import io.github.fastformer.fastplace.session.OperationSession;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.MemoryReservationAttempt;
 import io.github.fastformer.fastplace.task.OperationTaskResult;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
+import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.task.WorldOperationTask;
-import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.fastplace.world.*;
+import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
+import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +39,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
-import io.github.fastformer.network.FastPlaceNetwork;
 import org.slf4j.Logger;
 
 public final class OperationManager {
@@ -432,13 +433,13 @@ public final class OperationManager {
     *
     * @return the recorded state, or {@code UNKNOWN} when the ledger holds none
     */
-   public static io.github.fastformer.network.payload.operation.OperationSubmissionOutcome recordedOutcome(
+   public static io.github.fastformer.workspace.submission.OperationSubmissionOutcome recordedOutcome(
       ServerPlayer player, UUID transferId
    ) {
       if (player == null || transferId == null) {
-         return io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.UNKNOWN;
+         return io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN;
       }
-      return io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.outcomeFor(
+      return io.github.fastformer.server.submission.WorkspaceSubmissionLedger.outcomeFor(
          player.getServer(), player.getUUID(), player.serverLevel().dimension().location(), transferId
       );
    }
@@ -459,10 +460,10 @@ public final class OperationManager {
       }
       net.minecraft.server.MinecraftServer server = player.getServer();
       net.minecraft.resources.ResourceLocation dimension = player.serverLevel().dimension().location();
-      var recorded = io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.outcomeFor(
+      var recorded = io.github.fastformer.server.submission.WorkspaceSubmissionLedger.outcomeFor(
          server, player.getUUID(), dimension, transferId
       );
-      if (recorded != io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.UNKNOWN) {
+      if (recorded != io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN) {
          // This transfer already reached the server. A replay can arrive when a client
          // retries an upload that the server already accepted. Running the work again
          // would write the same blocks a second time, so the server starts no new task and
@@ -511,7 +512,7 @@ public final class OperationManager {
       net.minecraft.resources.ResourceLocation dimension, UUID transferId
    ) {
       try {
-         io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.begin(
+         io.github.fastformer.server.submission.WorkspaceSubmissionLedger.begin(
             server, owner, dimension, transferId
          );
       } catch (RuntimeException exception) {

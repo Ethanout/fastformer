@@ -1,17 +1,17 @@
 package io.github.fastformer.client.interaction;
 
-import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GizmoTextComponent;
 import io.github.fastformer.fastplace.geometry.TransformFrame;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.Map;
+import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 

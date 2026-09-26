@@ -1,5 +1,6 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.gesture.PathClosePress;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.network.payload.geometry.ClosePathPayload;
 import net.minecraft.client.Minecraft;

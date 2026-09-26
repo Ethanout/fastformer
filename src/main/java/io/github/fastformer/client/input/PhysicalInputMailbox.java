@@ -1,5 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.operation.input.OperationPointCommandEvent;
+import io.github.fastformer.client.operation.input.OperationPointDragEvent;
+import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
+import io.github.fastformer.client.operation.input.SelectionPointerEvent;
+import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
+import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
 import io.github.fastformer.client.session.ClientTickMailbox;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import java.util.function.BooleanSupplier;

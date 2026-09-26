@@ -1,22 +1,20 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
-
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.server.input.ServerInputDispatcher;
-
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.world.WorldHistoryManager;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.PointerGesture;
-import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
+import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
 import io.github.fastformer.network.payload.geometry.GeometryPointPayload;
 import io.github.fastformer.network.payload.geometry.GeometryUndoPayload;
 import io.github.fastformer.network.sync.PlayerPreviewSync;
+import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.GeometryManager;
+import io.github.fastformer.server.session.OperationManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;

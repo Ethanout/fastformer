@@ -1,9 +1,12 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
+import io.github.fastformer.fastplace.geometry.interaction.HoverFeedback;
+import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.phys.Vec3;
 
 public record AxisGizmo(
    Vec3 center,

@@ -1,21 +1,18 @@
 package io.github.fastformer.fastplace.world;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
-
-import io.github.fastformer.fastplace.selection.OperationMode;
-
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-
 import io.github.fastformer.FastFormer;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.fastplace.task.*;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.task.*;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.List;

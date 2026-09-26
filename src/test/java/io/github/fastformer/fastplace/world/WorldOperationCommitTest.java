@@ -1,13 +1,16 @@
 package io.github.fastformer.fastplace.world;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.fastformer.fastplace.history.WorldChangeBatch;
+import io.github.fastformer.fastplace.recovery.JournalPreparation;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.List;
-import java.util.Map;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 

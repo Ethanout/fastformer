@@ -1,6 +1,10 @@
 package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.input.gesture.PathClosePress;
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.render.state.ClientPreviewState;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import io.github.fastformer.network.payload.preview.*;

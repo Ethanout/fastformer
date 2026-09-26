@@ -1,5 +1,6 @@
 package io.github.fastformer.network.payload.operation;
 
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;

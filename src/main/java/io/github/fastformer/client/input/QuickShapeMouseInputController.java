@@ -1,10 +1,14 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
+import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
+import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
-import net.minecraft.client.Minecraft;
 import io.github.fastformer.network.payload.placement.QuickShapePointerPayload;
+import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Owns quick-shape mouse confirmation and path-close decisions. */

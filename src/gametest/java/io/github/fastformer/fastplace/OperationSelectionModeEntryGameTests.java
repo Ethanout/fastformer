@@ -1,13 +1,11 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.server.session.OperationManager;
-
-import io.github.fastformer.server.input.ServerInputDispatcher;
-
 import io.github.fastformer.FastFormer;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.world.WorldHistoryManager;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.session.OperationManager;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;

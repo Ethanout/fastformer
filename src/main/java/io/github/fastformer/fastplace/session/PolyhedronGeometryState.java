@@ -2,11 +2,11 @@ package io.github.fastformer.fastplace.session;
 
 import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPoint;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import java.util.List;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 
 final class PolyhedronGeometryState extends GeometryShapeState {
    static final double[] IDENTITY_ROTATION = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};

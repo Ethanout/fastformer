@@ -3,10 +3,29 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.OperationPointDrag;
+import io.github.fastformer.client.input.gesture.PathCloseGesture;
+import io.github.fastformer.client.input.gesture.ShortPressTracker;
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.input.state.ClientSemanticEvent;
+import io.github.fastformer.client.input.state.ModifierGestureState;
+import io.github.fastformer.client.input.state.PointerGestureState;
+import io.github.fastformer.client.operation.input.OperationPointCommandEvent;
+import io.github.fastformer.client.operation.input.OperationPointCommandPress;
+import io.github.fastformer.client.operation.input.OperationPointDragCapture;
+import io.github.fastformer.client.operation.input.OperationPointDragEvent;
+import io.github.fastformer.client.operation.input.OperationPointDragPress;
+import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
+import io.github.fastformer.client.operation.input.SelectionDraftPress;
+import io.github.fastformer.client.operation.input.SelectionPointPress;
+import io.github.fastformer.client.operation.input.SelectionPointerCapture;
+import io.github.fastformer.client.operation.input.SelectionPointerEvent;
+import io.github.fastformer.client.operation.input.SelectionPointerPress;
+import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
+import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
 import io.github.fastformer.client.session.ClientTickMailbox;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;
-import java.util.function.Consumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /** Transient input state owned by one player environment, never persisted with a draft. */
 public final class ClientInputSession {

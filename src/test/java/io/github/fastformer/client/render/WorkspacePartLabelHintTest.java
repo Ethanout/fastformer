@@ -2,7 +2,7 @@ package io.github.fastformer.client.render;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import net.minecraft.core.BlockPos;

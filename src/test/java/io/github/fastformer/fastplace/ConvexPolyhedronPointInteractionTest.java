@@ -1,14 +1,5 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-
-import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -16,11 +7,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
+import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.HoverFeedback;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.interaction.HoverFeedback;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.fastplace.world.*;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -55,7 +52,7 @@ class ConvexPolyhedronPointInteractionTest {
       assertIterableEquals(List.of(0, 1, 2), plan.interactionTargets().stream().map(GeometryInteractionTarget::index).toList());
       assertTrue(plan.interactionTargets().stream().allMatch(target -> target.type() == GeometryInteractionTarget.TargetType.CONTROL_POINT));
       assertTrue(plan.interactionTargets().stream().allMatch(target ->
-         target.action(io.github.fastformer.fastplace.geometry.PointerGesture.LEFT_CLICK) == GeometryInteractionAction.SELECT_CONTROL_POINT
+         target.action(io.github.fastformer.fastplace.geometry.interaction.PointerGesture.LEFT_CLICK) == GeometryInteractionAction.SELECT_CONTROL_POINT
       ));
    }
 

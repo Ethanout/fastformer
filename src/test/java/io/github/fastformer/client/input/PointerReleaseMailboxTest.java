@@ -1,8 +1,9 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
-
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 

@@ -4,7 +4,7 @@ import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPoints;
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import net.minecraft.world.phys.Vec3;
 
 final class ConePrismGeometryState extends GeometryShapeState {

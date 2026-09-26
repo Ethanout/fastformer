@@ -2,15 +2,21 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.fastformer.client.input.drag.DeferredDragClick;
+import io.github.fastformer.client.input.drag.DragAxisFrame;
+import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.input.state.PointerGestureState;
+import io.github.fastformer.client.interaction.SelectionDragCapture;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.SelectionDraftPress;
+import io.github.fastformer.client.operation.input.SelectionPointerEvent;
+import io.github.fastformer.client.operation.input.SelectionPointerPress;
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
-import io.github.fastformer.client.input.drag.DragAxisFrame;
-import io.github.fastformer.client.input.drag.DeferredDragClick;
-import io.github.fastformer.client.interaction.SelectionDragCapture;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

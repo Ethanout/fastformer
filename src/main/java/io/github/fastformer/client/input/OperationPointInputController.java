@@ -1,17 +1,21 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.client.input.drag.OperationPointDrag;
 import io.github.fastformer.client.input.drag.OperationPointDragCalculator;
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.input.state.PointerGestureState;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.OperationPointDragEvent;
+import io.github.fastformer.client.operation.input.OperationPointDragPress;
+import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
+import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.network.payload.operation.OperationPointClickPayload;
+import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 

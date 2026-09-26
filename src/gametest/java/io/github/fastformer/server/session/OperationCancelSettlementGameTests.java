@@ -1,22 +1,20 @@
 package io.github.fastformer.server.session;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.workspace.submission.WorkspaceAdmission;
-
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-
 import io.github.fastformer.FastFormer;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
-import io.github.fastformer.fastplace.world.WorldHistoryManager;
-import io.github.fastformer.fastplace.world.WorldJournalPreparation;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
-import io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger;
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.workspace.submission.WorkspaceAdmission;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

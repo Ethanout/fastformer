@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render.model;
 
-import io.github.fastformer.fastplace.geometry.ControlPoint;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;

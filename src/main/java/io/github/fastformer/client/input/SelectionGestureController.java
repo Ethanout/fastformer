@@ -1,21 +1,23 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.workspace.transform.RepeatStrideSemantics;
-
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
-import io.github.fastformer.workspace.transform.RepeatDragQuantizer;
-import io.github.fastformer.client.interaction.InteractionPressBinding;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.drag.DeferredDragClick;
 import io.github.fastformer.client.input.drag.DragAxisFrame;
+import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.GizmoDragCalculator;
 import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.client.input.math.ClientInputMath;
+import io.github.fastformer.client.input.state.PointerGestureState;
+import io.github.fastformer.client.interaction.InteractionPressBinding;
+import io.github.fastformer.client.interaction.SelectionDragCapture;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.SelectionPointerPress;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.client.interaction.SelectionDragCapture;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.transform.RepeatDragQuantizer;
+import io.github.fastformer.workspace.transform.RepeatStrideSemantics;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;

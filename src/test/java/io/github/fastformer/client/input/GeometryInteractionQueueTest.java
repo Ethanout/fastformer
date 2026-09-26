@@ -2,12 +2,14 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.fastformer.client.input.gesture.PathCloseGesture;
+import io.github.fastformer.client.input.gesture.PathClosePress;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.PointerGesture;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
 import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
-import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
 import io.github.fastformer.network.payload.geometry.GeometryPointPayload;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
+import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import java.util.ArrayList;
 import java.util.List;

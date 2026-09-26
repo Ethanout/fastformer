@@ -1,10 +1,13 @@
 package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.SelectionScrollMove;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;

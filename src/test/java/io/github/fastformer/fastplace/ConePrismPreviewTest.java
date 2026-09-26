@@ -1,19 +1,16 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-
-import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.ControlPointShape;
+import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointShape;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.fastplace.world.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;

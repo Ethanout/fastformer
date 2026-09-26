@@ -1,24 +1,21 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-
-import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
-import io.github.fastformer.fastplace.geometry.ControlPointShape;
+import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewGuides;
+import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointShape;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.fastplace.world.*;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.world.phys.Vec3;

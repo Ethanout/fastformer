@@ -1,28 +1,26 @@
 package io.github.fastformer.fastplace.workflow;
 
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.FillMode;
-
+import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
 import io.github.fastformer.fastplace.geometry.GeometryHit;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
-
-import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.geometry.ControlPoint;
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
-import io.github.fastformer.fastplace.geometry.GeometryStageDisplay;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.TransformFrame;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GizmoTextComponent;
-import io.github.fastformer.fastplace.geometry.PointerGesture;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.generation.ArbitraryConvexPolyhedronGenerator;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
+import io.github.fastformer.fastplace.geometry.text.GeometryStageDisplay;
+import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.world.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;

@@ -1,55 +1,51 @@
 package io.github.fastformer.server.input;
 
-import io.github.fastformer.server.input.ServerInputState.OperationTransformIdentity;
-import io.github.fastformer.server.input.ServerInputState.OperationExtendIdentity;
-import io.github.fastformer.server.input.ServerInputState.OperationPointGesture;
-
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.fastplace.session.InteractionState;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.server.session.OperationManager;
-import io.github.fastformer.fastplace.interaction.SpecialItemHandlers;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
-
-import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPointerSequence;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
-import io.github.fastformer.fastplace.geometry.PointerGesture;
-import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
-import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
+import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.fastplace.interaction.SpecialItemHandlers;
+import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
+import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.session.InteractionState;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.fastplace.world.*;
+import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
+import io.github.fastformer.network.payload.geometry.GeometryInteractionPayload;
 import io.github.fastformer.network.payload.geometry.GeometryPointPayload;
 import io.github.fastformer.network.payload.geometry.GeometryUndoPayload;
-import io.github.fastformer.network.payload.operation.OperationPointPayload;
-import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
-import io.github.fastformer.network.payload.operation.OperationPointClickPayload;
-import io.github.fastformer.network.payload.operation.OperationSelectPointPayload;
-import io.github.fastformer.network.payload.operation.OperationInsertPointPayload;
 import io.github.fastformer.network.payload.operation.OperationExtendPayload;
+import io.github.fastformer.network.payload.operation.OperationInsertPointPayload;
+import io.github.fastformer.network.payload.operation.OperationPointClickPayload;
+import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
+import io.github.fastformer.network.payload.operation.OperationPointPayload;
+import io.github.fastformer.network.payload.operation.OperationSelectPointPayload;
 import io.github.fastformer.network.payload.placement.PlacementActionPayload;
 import io.github.fastformer.network.payload.placement.QuickShapeConfirmPayload;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import io.github.fastformer.network.sync.PlayerPreviewSync;
+import io.github.fastformer.server.input.ServerInputState.OperationExtendIdentity;
+import io.github.fastformer.server.input.ServerInputState.OperationPointGesture;
+import io.github.fastformer.server.input.ServerInputState.OperationTransformIdentity;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.GeometryManager;
+import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -749,9 +745,9 @@ public final class ServerInputDispatcher {
    public static io.github.fastformer.workspace.submission.WorkspaceAdmission applyWorkspace(
       ServerPlayer player, UUID transferId, OperationWorkspacePlan plan
    ) {
-      io.github.fastformer.network.payload.operation.OperationSubmissionOutcome recorded =
+      io.github.fastformer.workspace.submission.OperationSubmissionOutcome recorded =
          OperationManager.recordedOutcome(player, transferId);
-      if (recorded != io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.UNKNOWN) {
+      if (recorded != io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN) {
          return io.github.fastformer.workspace.submission.WorkspaceAdmission.replayed(recorded);
       }
       if (interactionBlocked(player) || !canOperate(player) || nearNormalBlockReach(player)) {

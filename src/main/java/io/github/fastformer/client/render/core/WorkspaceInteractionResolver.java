@@ -1,25 +1,25 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.PointerDragSnapshotView;
-import io.github.fastformer.client.input.InteractionContext;
-import io.github.fastformer.client.input.InteractionIntentProvider;
-import io.github.fastformer.client.input.InteractionIntentResolver;
-import io.github.fastformer.client.input.OperationInteractionIntent;
-import io.github.fastformer.client.interaction.InteractionGeometry;
-import io.github.fastformer.client.interaction.SelectionInteractionScene;
-import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
 import io.github.fastformer.client.interaction.InteractionComponents;
+import io.github.fastformer.client.interaction.InteractionGeometry;
 import io.github.fastformer.client.interaction.InteractionVisibility;
+import io.github.fastformer.client.interaction.PartFrameInteraction;
+import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
+import io.github.fastformer.client.interaction.SelectionInteractionScene;
+import io.github.fastformer.client.interaction.intent.InteractionContext;
+import io.github.fastformer.client.interaction.intent.InteractionIntentProvider;
+import io.github.fastformer.client.interaction.intent.InteractionIntentResolver;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.client.gizmo.GizmoViewScale;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.client.interaction.PartFrameInteraction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
@@ -30,8 +30,8 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.HitResult.Type;
+import net.minecraft.world.phys.Vec3;
 
 /** Resolves operation pointer targets against the persistent client workspace. */
 final class WorkspaceInteractionResolver {

@@ -1,34 +1,29 @@
 package io.github.fastformer.server.session;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
-
-import io.github.fastformer.fastplace.selection.OperationMode;
-
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.fastplace.recovery.JournalPreparation;
+import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.OperationTaskResult;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
 import io.github.fastformer.fastplace.task.WorldOperationTask;
-import io.github.fastformer.fastplace.world.JournalPreparation;
-import io.github.fastformer.fastplace.world.MemoryReservation;
-import io.github.fastformer.fastplace.world.WorldHistoryManager;
-import io.github.fastformer.fastplace.world.WorldJournalPreparation;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.fastplace.world.memory.MemoryReservation;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Map;

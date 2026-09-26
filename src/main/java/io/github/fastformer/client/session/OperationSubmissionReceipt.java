@@ -1,6 +1,6 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;

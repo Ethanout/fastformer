@@ -1,13 +1,13 @@
 package io.github.fastformer.fastplace.placement.plan;
 
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.world.MemoryReservation;
+import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;

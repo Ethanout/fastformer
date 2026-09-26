@@ -1,14 +1,14 @@
 package io.github.fastformer.fastplace.task;
 
-import io.github.fastformer.fastplace.world.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.world.WorldChangeBatch;
+import io.github.fastformer.fastplace.history.WorldChangeBatch;
+import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
-import java.util.UUID;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;

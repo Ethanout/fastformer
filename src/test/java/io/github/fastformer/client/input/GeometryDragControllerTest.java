@@ -3,10 +3,12 @@ package io.github.fastformer.client.input;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import org.junit.jupiter.api.Test;
+
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.world.phys.Vec3;
+import org.junit.jupiter.api.Test;
 
 class GeometryDragControllerTest {
    @Test

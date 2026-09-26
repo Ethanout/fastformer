@@ -5,6 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.fastplace.history.WorldHistoryManagerTestAccess;
+import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +58,7 @@ class ShortTransactionRecoveryOwnershipTest {
       );
 
       assertEquals(ShortWriteTransaction.Outcome.RECOVERY_PENDING, outcome);
-      assertEquals(1, WorldHistoryManager.recoveryCaptureCountForTest(owner));
+      assertEquals(1, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
       assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
       assertTrue(outcome.consumedInteraction());
    }
@@ -75,7 +79,7 @@ class ShortTransactionRecoveryOwnershipTest {
 
       assertNotEquals(ShortWriteTransaction.Outcome.RECOVERY_PENDING, outcome);
       assertEquals(ShortWriteTransaction.Outcome.RECOVERY_BLOCKED, outcome);
-      assertEquals(0, WorldHistoryManager.recoveryCaptureCountForTest(owner));
+      assertEquals(0, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
       // The write lock and the capture stay with the caller, so another writer
       // cannot enter the half-written world.
       assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
@@ -101,7 +105,7 @@ class ShortTransactionRecoveryOwnershipTest {
          ShortWriteTransaction.Outcome.RECOVERY_BLOCKED,
          ShortWriteTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, null, Map.of())
       );
-      assertEquals(0, WorldHistoryManager.recoveryCaptureCountForTest(owner));
+      assertEquals(0, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
       assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
    }
 

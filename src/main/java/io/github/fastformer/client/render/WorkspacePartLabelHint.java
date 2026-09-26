@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render;
 
-import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import net.minecraft.network.chat.Component;
 
 /**

@@ -2,7 +2,7 @@ package io.github.fastformer.client.render.hud;
 
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.GizmoTextContext;
+import io.github.fastformer.fastplace.geometry.text.GizmoTextContext;
 import net.minecraft.network.chat.Component;
 
 /** Builds human-readable Gizmo values without depending on rendering state. */

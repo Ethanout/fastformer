@@ -1,5 +1,9 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
+import io.github.fastformer.fastplace.world.snapshot.PackedBlockSnapshotMap;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import java.util.ArrayDeque;
 import java.util.ArrayList;

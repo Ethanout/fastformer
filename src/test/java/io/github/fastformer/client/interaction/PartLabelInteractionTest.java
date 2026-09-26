@@ -2,7 +2,7 @@ package io.github.fastformer.client.interaction;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.render.WorkspacePartLabelHint;
 import java.util.UUID;

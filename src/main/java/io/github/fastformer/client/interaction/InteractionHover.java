@@ -1,8 +1,8 @@
 package io.github.fastformer.client.interaction;
 
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import java.util.List;
 import java.util.Objects;
-import io.github.fastformer.client.input.OperationInteractionIntent;
 
 /** Visual pointer state. Transitions contain data and cannot edit the selection. */
 public final class InteractionHover {

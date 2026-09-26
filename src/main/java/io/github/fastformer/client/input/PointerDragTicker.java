@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.policy.DragAdvanceSemantics;
+import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import net.minecraft.client.Minecraft;

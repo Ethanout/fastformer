@@ -5,6 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.fastformer.fastplace.history.WorldChangeBatch;
+import io.github.fastformer.fastplace.recovery.JournalPreparation;
+import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;

@@ -1,9 +1,11 @@
 package io.github.fastformer.client.session;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.model.*;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -11,7 +13,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
-import static org.junit.jupiter.api.Assertions.*;
 
 class AsyncSubmissionPersistenceTest {
    @TempDir Path directory;

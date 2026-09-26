@@ -1,7 +1,10 @@
 package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
+
 import io.github.fastformer.client.input.drag.OperationPointDrag;
+import io.github.fastformer.client.input.state.PointerGestureState;
+import io.github.fastformer.client.operation.input.OperationPointDragEvent;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

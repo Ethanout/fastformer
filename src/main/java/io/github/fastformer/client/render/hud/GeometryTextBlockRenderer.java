@@ -1,7 +1,7 @@
 package io.github.fastformer.client.render.hud;
 
-import io.github.fastformer.fastplace.geometry.GeometryTextBlock;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.fastplace.geometry.text.GeometryTextBlock;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

@@ -1,15 +1,15 @@
 package io.github.fastformer.network;
 
 import io.github.fastformer.FastFormer;
+import io.github.fastformer.fastplace.history.WorkspaceReplayGameTests;
+import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import io.github.fastformer.workspace.submission.WorkspaceAdmission;
-import io.github.fastformer.fastplace.world.WorkspaceReplayGameTests;
-import io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger;
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

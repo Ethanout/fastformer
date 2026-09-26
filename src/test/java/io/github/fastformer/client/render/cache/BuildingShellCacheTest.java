@@ -2,16 +2,16 @@ package io.github.fastformer.client.render.cache;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.model.BuildingSpecialBlock;
-import io.github.fastformer.fastplace.geometry.ControlPointStyle;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointStyle;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;

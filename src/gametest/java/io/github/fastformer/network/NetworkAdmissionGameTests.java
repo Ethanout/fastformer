@@ -1,11 +1,11 @@
 package io.github.fastformer.network;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.server.session.OperationManager;
-import io.github.fastformer.fastplace.world.WorldHistoryManager;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.network.payload.operation.OperationWorkspaceApplyPayload;
 import io.github.fastformer.network.payload.placement.ShapePlacementPayload;
 import io.github.fastformer.network.payload.settings.SettingsActionPayload;
+import io.github.fastformer.server.session.OperationManager;
 import java.lang.reflect.Proxy;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;

@@ -1,5 +1,6 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.network.payload.geometry.ScrollCandidatePayload;

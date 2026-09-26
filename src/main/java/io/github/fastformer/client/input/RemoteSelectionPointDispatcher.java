@@ -1,6 +1,8 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
 import io.github.fastformer.network.payload.operation.OperationPointPayload;
 import java.util.function.Consumer;
 

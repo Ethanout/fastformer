@@ -1,13 +1,14 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
-import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.GizmoDragCalculator;
+import io.github.fastformer.client.input.math.ClientInputMath;
+import io.github.fastformer.client.input.state.PointerGestureState;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.network.payload.operation.OperationTransformPayload;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.Vec3;

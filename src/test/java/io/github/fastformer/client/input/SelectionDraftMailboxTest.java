@@ -2,7 +2,10 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.SelectionDraftPress;
+import io.github.fastformer.client.operation.input.SelectionPointerEvent;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import java.util.List;

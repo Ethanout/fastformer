@@ -1,5 +1,6 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.policy.CancelInputSemantics;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
 
 /** Physical key data captured before semantic dispatch. */

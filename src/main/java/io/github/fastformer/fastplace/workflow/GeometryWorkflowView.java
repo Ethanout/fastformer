@@ -1,16 +1,14 @@
 package io.github.fastformer.fastplace.workflow;
 
 import io.github.fastformer.fastplace.geometry.FillMode;
-
 import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-
-import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.world.*;
 import java.util.List;
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 

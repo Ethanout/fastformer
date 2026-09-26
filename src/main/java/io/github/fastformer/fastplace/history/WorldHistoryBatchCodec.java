@@ -1,6 +1,5 @@
 package io.github.fastformer.fastplace.history;
 
-import io.github.fastformer.fastplace.world.WorldChangeBatch;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;

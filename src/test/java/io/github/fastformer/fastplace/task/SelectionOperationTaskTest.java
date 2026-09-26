@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.fastplace.world.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.ReversibleBlockSnapshot;
 import java.util.Collection;
 import java.util.List;
 import net.minecraft.core.BlockPos;

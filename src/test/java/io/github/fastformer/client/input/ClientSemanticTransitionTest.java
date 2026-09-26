@@ -2,6 +2,9 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.input.state.ClientSemanticEvent;
+import io.github.fastformer.client.input.state.InteractionTransition;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 

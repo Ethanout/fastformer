@@ -1,5 +1,11 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.text.GeometryStageDisplay;
+import io.github.fastformer.fastplace.geometry.text.GeometryStatusText;
+import io.github.fastformer.fastplace.geometry.text.GeometryTextBlock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;

@@ -2,6 +2,8 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import org.junit.jupiter.api.Test;
 
 class SubmissionCompletedEventTest {

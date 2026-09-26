@@ -1,18 +1,17 @@
 package io.github.fastformer.workspace.submission;
 
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-
 import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.workspace.WorkspaceLimits;
+import io.github.fastformer.workspace.geometry.WorkspaceGeometryBudget;
+import io.github.fastformer.workspace.geometry.WorkspaceGeometryCost;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.Composition;
 import io.github.fastformer.workspace.preview.CompositionBudget;
 import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.geometry.WorkspaceGeometryBudget;
-import io.github.fastformer.fastplace.geometry.WorkspaceGeometryCost;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;

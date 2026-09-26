@@ -1,30 +1,33 @@
 package io.github.fastformer.client.render.core;
 
-import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
-import static io.github.fastformer.client.render.core.FastPlaceClientPreviewCore.*;
 import static io.github.fastformer.client.gizmo.GizmoRenderer.operationGizmoAlpha;
+import static io.github.fastformer.client.render.core.FastPlaceClientPreviewCore.*;
+import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.fastformer.client.gizmo.GizmoRenderer;
-import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.client.input.PointerDragSnapshotView;
-import io.github.fastformer.client.input.OperationInteractionIntent;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
-import io.github.fastformer.client.operation.selection.ClientSelectionState;
 import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.gizmo.OperationGizmoPresentation;
-import io.github.fastformer.client.interaction.PartLabelInteraction;
-import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
+import io.github.fastformer.client.input.FastPlaceClientInput;
+import io.github.fastformer.client.input.PointerDragSnapshotView;
 import io.github.fastformer.client.interaction.InteractionComponents;
 import io.github.fastformer.client.interaction.InteractionTooltip;
+import io.github.fastformer.client.interaction.PartLabelInteraction;
+import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.selection.ClientSelectionState;
 import io.github.fastformer.client.render.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspacePreviewRenderer;
 import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.geometry.*;
 import io.github.fastformer.fastplace.geometry.generation.*;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
 import java.util.*;
 import java.util.concurrent.*;
 import net.minecraft.client.Minecraft;
@@ -35,8 +38,6 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.*;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
 /** Renders operation selection volumes and workspace editing guides. */

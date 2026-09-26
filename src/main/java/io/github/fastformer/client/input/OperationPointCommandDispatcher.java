@@ -1,6 +1,8 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.input.OperationPointCommandEvent;
+import io.github.fastformer.client.operation.input.OperationPointCommandPress;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.network.payload.operation.OperationInsertPointPayload;
 import io.github.fastformer.network.payload.operation.OperationPointPayload;

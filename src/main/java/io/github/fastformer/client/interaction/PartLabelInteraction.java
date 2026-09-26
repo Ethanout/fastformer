@@ -1,6 +1,6 @@
 package io.github.fastformer.client.interaction;
 
-import io.github.fastformer.client.input.OperationInteractionIntent;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.render.WorkspacePartLabelHint;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;

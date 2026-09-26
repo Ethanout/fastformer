@@ -1,11 +1,12 @@
 package io.github.fastformer.client.render.model;
 
-import io.github.fastformer.fastplace.geometry.ControlPointStyle;
+import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointStyle;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 
 class InitialBlockPreviewTest {
    @Test

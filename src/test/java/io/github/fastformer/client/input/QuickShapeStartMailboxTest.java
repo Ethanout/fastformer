@@ -2,6 +2,7 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;

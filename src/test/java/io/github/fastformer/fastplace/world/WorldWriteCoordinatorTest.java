@@ -1,18 +1,19 @@
 package io.github.fastformer.fastplace.world;
 
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.UUID;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.fastplace.recovery.RecoveryJournalTestAccess;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -227,7 +228,7 @@ class WorldWriteCoordinatorTest {
 
       WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, Level.OVERWORLD, owner);
       assertNotNull(lease);
-      WorldWriteCoordinator.releaseAfterUnusedJournal(lease, new PersistentRecoveryJournal(blockedJournal), null);
+      WorldWriteCoordinator.releaseAfterUnusedJournal(lease, RecoveryJournalTestAccess.open(blockedJournal), null);
       assertTrue(WorldWriteCoordinator.busy(server, Level.OVERWORLD));
       assertNull(WorldWriteCoordinator.acquire(server, Level.OVERWORLD, owner));
       assertNull(WorldWriteCoordinator.acquire(server, Level.NETHER, owner));
@@ -254,7 +255,7 @@ class WorldWriteCoordinatorTest {
       assertNotNull(lease);
       WorldWriteCoordinator.releaseAfterUnusedJournal(lease, null, pending);
       WorldWriteCoordinator.clear(server);
-      pending.complete(Optional.of(new PersistentRecoveryJournal(blockedJournal)));
+      pending.complete(Optional.of(RecoveryJournalTestAccess.open(blockedJournal)));
 
       assertFalse(WorldWriteCoordinator.busy(server, Level.OVERWORLD));
       Files.delete(blockerContent);
@@ -308,7 +309,7 @@ class WorldWriteCoordinatorTest {
 
       // The callback discovers a real file that it cannot delete. The pending
       // cleanup must not release the successor lease either.
-      pending.complete(Optional.of(new PersistentRecoveryJournal(blockedJournal)));
+      pending.complete(Optional.of(RecoveryJournalTestAccess.open(blockedJournal)));
       assertTrue(WorldWriteCoordinator.heldBy(server, Level.OVERWORLD, owner));
       assertTrue(WorldWriteCoordinator.release(successor));
 
@@ -330,7 +331,7 @@ class WorldWriteCoordinatorTest {
 
       WorldWriteCoordinator.Lease first = WorldWriteCoordinator.acquire(server, Level.OVERWORLD, owner);
       assertNotNull(first);
-      WorldWriteCoordinator.releaseAfterUnusedJournal(first, new PersistentRecoveryJournal(blockedJournal), null);
+      WorldWriteCoordinator.releaseAfterUnusedJournal(first, RecoveryJournalTestAccess.open(blockedJournal), null);
       // The pending cleanup still owns the durable proof, so the lease stays.
       assertTrue(WorldWriteCoordinator.heldBy(server, Level.OVERWORLD, owner));
       assertFalse(WorldWriteCoordinator.release(first));

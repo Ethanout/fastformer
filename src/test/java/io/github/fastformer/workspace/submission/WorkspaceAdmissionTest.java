@@ -6,8 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger;
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
+import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import org.junit.jupiter.api.Test;
 
 /**

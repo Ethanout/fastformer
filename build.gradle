@@ -203,7 +203,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('jar', Jar).configure {
-    exclude 'io/github/fastformer/fastplace/world/RecoveryProcessTests*.class'
+    exclude 'io/github/fastformer/fastplace/history/RecoveryProcessTests*.class'
     exclude '**/*GameTests*.class'
 }
 
@@ -265,14 +265,14 @@ tasks.register('verifyModJar') {
                 'io/github/fastformer/fastplace/geometry/generation/FastPlaceGeometry.class',
                 'io/github/fastformer/fastplace/workflow/ConvexPolyhedronWorkflow.class',
                 'io/github/fastformer/fastplace/session/FastPlaceActivity.class',
-                'io/github/fastformer/fastplace/world/ReversibleBlockSnapshot.class',
-                'io/github/fastformer/fastplace/world/WorldHistoryManager.class',
-                'io/github/fastformer/fastplace/world/WorldChangeBatch.class',
-                 'io/github/fastformer/fastplace/world/PersistentRecoveryJournal.class',
+                'io/github/fastformer/fastplace/world/snapshot/ReversibleBlockSnapshot.class',
+                'io/github/fastformer/fastplace/history/WorldHistoryManager.class',
+                'io/github/fastformer/fastplace/history/WorldChangeBatch.class',
+                 'io/github/fastformer/fastplace/recovery/PersistentRecoveryJournal.class',
                  'io/github/fastformer/fastplace/task/TaskCancellationResult.class',
                  'io/github/fastformer/fastplace/world/WorldWriteCoordinator.class',
                  'io/github/fastformer/fastplace/world/WorldOperationCommit.class',
-                 'io/github/fastformer/fastplace/world/WorldOperationMemory.class',
+                 'io/github/fastformer/fastplace/world/memory/WorldOperationMemory.class',
                  'io/github/fastformer/fastplace/world/WorldTaskContext.class',
                  'io/github/fastformer/fastplace/world/WorldTaskFeature.class',
                 'io/github/fastformer/fastplace/geometry/GeometryAction.class',

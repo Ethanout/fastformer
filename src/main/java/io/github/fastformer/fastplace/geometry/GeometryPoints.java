@@ -2,10 +2,9 @@ package io.github.fastformer.fastplace.geometry;
 
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-
 import io.github.fastformer.fastplace.world.*;
-
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;

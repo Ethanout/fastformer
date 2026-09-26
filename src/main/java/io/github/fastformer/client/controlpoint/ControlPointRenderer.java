@@ -1,12 +1,13 @@
 package io.github.fastformer.client.controlpoint;
 
 import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.fastformer.client.render.WorkspacePreviewRenderer;
 import io.github.fastformer.client.render.geometry.DashedBoxRenderer;
-import io.github.fastformer.fastplace.geometry.ControlPoint;
-import io.github.fastformer.fastplace.geometry.ControlPointStyle;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointStyle;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;

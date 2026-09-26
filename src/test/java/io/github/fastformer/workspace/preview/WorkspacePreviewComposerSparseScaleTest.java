@@ -1,16 +1,17 @@
 package io.github.fastformer.workspace.preview;
 
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.WorkspaceGeometryCost;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.workspace.geometry.WorkspaceGeometryCost;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Regression tests for BUG-G: a sparse prism that shrinks to a single empty sample must return

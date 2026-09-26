@@ -36,7 +36,11 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && shared && (text =~ /(?:io\.github\.fastformer|net\.minecraft)\.client\./).find()) {
                 violations.add("Shared source depends on client runtime: ${path}")
             }
-            if (gameTest && !(source.name.contains('GameTests') || source.name == 'RecoveryProcessTests.java')) {
+            if (main && packageName.startsWith('io.github.fastformer.workspace') &&
+                    (text =~ /io\.github\.fastformer\.network\./).find()) {
+                violations.add("Workspace model depends on network transport: ${path}")
+            }
+            if (gameTest && !(source.name.contains('GameTests') || source.name.endsWith('TestAccess.java') || source.name == 'RecoveryProcessTests.java')) {
                 violations.add("Unexpected production type in test source: ${path}")
             }
         }

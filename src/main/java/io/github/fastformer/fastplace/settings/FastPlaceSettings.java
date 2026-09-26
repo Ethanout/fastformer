@@ -1,36 +1,31 @@
 package io.github.fastformer.fastplace.settings;
 
 import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.server.session.OperationManager;
-
+import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-
-import io.github.fastformer.fastplace.quickshape.QuickShapeModeRules;
-
-import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
-import io.github.fastformer.fastplace.quickshape.QuickShapeMode;
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.fastplace.quickshape.PointMode;
+import io.github.fastformer.fastplace.quickshape.QuickShapeMode;
+import io.github.fastformer.fastplace.quickshape.QuickShapeModeRules;
+import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-
+import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-
 import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
+import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.resources.ResourceLocation;
-import java.util.HashSet;
-import java.util.Set;
+import net.minecraft.server.level.ServerPlayer;
 
 public final class FastPlaceSettings {
    private static final String KEY = "fastformer";

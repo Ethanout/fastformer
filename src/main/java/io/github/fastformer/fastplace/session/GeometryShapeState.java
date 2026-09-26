@@ -2,7 +2,7 @@ package io.github.fastformer.fastplace.session;
 
 import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPoint;
-import io.github.fastformer.fastplace.geometry.ControlPointRole;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;

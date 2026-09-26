@@ -10,7 +10,7 @@ import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

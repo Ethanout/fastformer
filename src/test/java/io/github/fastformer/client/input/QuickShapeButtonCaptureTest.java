@@ -1,7 +1,9 @@
 package io.github.fastformer.client.input;
 
-import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import org.junit.jupiter.api.Test;
 
 class QuickShapeButtonCaptureTest {
    @Test

@@ -1,23 +1,20 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-
-import io.github.fastformer.fastplace.world.*;
-
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.fastplace.world.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
@@ -136,8 +133,8 @@ class GeometryStageActionTest {
       GeometryInteractionTarget target = plan.interactionTargets().getFirst();
       assertEquals(GeometryInteractionTarget.TargetType.CLOSE_PATH, target.type());
       assertEquals(0, target.index());
-      assertTrue(target.action(io.github.fastformer.fastplace.geometry.PointerGesture.RIGHT_CLICK) == GeometryInteractionAction.CLOSE_PATH);
-      assertTrue(target.action(io.github.fastformer.fastplace.geometry.PointerGesture.RIGHT_DOUBLE_CLICK) == GeometryInteractionAction.CLOSE_PATH);
+      assertTrue(target.action(io.github.fastformer.fastplace.geometry.interaction.PointerGesture.RIGHT_CLICK) == GeometryInteractionAction.CLOSE_PATH);
+      assertTrue(target.action(io.github.fastformer.fastplace.geometry.interaction.PointerGesture.RIGHT_DOUBLE_CLICK) == GeometryInteractionAction.CLOSE_PATH);
    }
 
    @Test

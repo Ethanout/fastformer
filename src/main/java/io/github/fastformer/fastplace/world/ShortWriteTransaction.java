@@ -1,18 +1,20 @@
 package io.github.fastformer.fastplace.world;
 
+import com.mojang.logging.LogUtils;
+import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
-import com.mojang.logging.LogUtils;
 
 /**
  * Applies a small set of block changes as one short world transaction.

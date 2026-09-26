@@ -1,6 +1,6 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.network.payload.operation.OperationSubmissionOutcome;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;

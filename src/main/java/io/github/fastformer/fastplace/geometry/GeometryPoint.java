@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.world.*;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 

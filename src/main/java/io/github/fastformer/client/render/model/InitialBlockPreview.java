@@ -2,9 +2,9 @@ package io.github.fastformer.client.render.model;
 
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
 import io.github.fastformer.client.render.ShapeShellMesh;
+import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointStyle;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.geometry.ControlPointStyle;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

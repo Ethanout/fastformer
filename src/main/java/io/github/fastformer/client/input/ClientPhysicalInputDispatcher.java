@@ -1,8 +1,14 @@
 package io.github.fastformer.client.input;
-import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 
-import net.minecraft.client.Minecraft;
+import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
+import io.github.fastformer.client.operation.input.OperationPointCommandEvent;
+import io.github.fastformer.client.operation.input.OperationPointDragEvent;
+import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
+import io.github.fastformer.client.operation.input.SelectionPointerEvent;
+import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
+import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;
+import net.minecraft.client.Minecraft;
 
 /** Routes a captured batch without owning another copy of input state. */
 final class ClientPhysicalInputDispatcher implements PhysicalInputSink {

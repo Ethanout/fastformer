@@ -1,27 +1,30 @@
 package io.github.fastformer.network;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.session.OperationSession;
-import io.github.fastformer.server.session.OperationManager;
-import io.github.fastformer.fastplace.session.GeometrySession;
-import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.fastplace.placement.replace.QuickReplaceManager;
+import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.fastplace.session.GeometrySession;
+import io.github.fastformer.fastplace.session.OperationSession;
+import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.network.client.ClientPayloadDispatcher;
+import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.network.payload.geometry.*;
 import io.github.fastformer.network.payload.operation.*;
 import io.github.fastformer.network.payload.placement.*;
 import io.github.fastformer.network.payload.preview.*;
 import io.github.fastformer.network.payload.settings.*;
 import io.github.fastformer.network.payload.world.*;
-import io.github.fastformer.network.client.ClientPayloadDispatcher;
 import io.github.fastformer.network.sync.PlayerPreviewSync;
 import io.github.fastformer.network.transfer.IncomingPayloadTransfers;
+import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import java.io.IOException;
+import java.util.UUID;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,8 +33,6 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
-import java.util.UUID;
-import java.io.IOException;
 
 public final class FastPlaceNetwork {
    private static final org.slf4j.Logger LOGGER = LogUtils.getLogger();
@@ -684,8 +685,8 @@ public final class FastPlaceNetwork {
       }
       // The record happens before the send. An offline player never receives the packet,
       // so the ledger must hold the answer first.
-      io.github.fastformer.network.payload.operation.OperationSubmissionOutcome recorded =
-         io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.finish(
+      io.github.fastformer.workspace.submission.OperationSubmissionOutcome recorded =
+         io.github.fastformer.server.submission.WorkspaceSubmissionLedger.finish(
             server, owner, dimension, transferId, accepted, retryable, recoveryCreated
          );
       // Remove the scope even when the send cannot happen. A retained entry would grow
@@ -735,15 +736,15 @@ public final class FastPlaceNetwork {
       if (!admission.sendsResult()) {
          return;
       }
-      io.github.fastformer.network.payload.operation.OperationSubmissionOutcome outcome =
+      io.github.fastformer.workspace.submission.OperationSubmissionOutcome outcome =
          admission.deliveredOutcome();
       if (admission.kind() == io.github.fastformer.workspace.submission.WorkspaceAdmission.Kind.REJECTED) {
          // No state exists for a refused admission in the common case, so record the
          // retryable failure and let a later reconnect query answer it instead of UNKNOWN.
          // The ledger decides the delivered state: it may already hold something stronger
          // for this transfer, because a gate can refuse before the replay check.
-         io.github.fastformer.network.payload.operation.OperationSubmissionOutcome recorded =
-            io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.finish(
+         io.github.fastformer.workspace.submission.OperationSubmissionOutcome recorded =
+            io.github.fastformer.server.submission.WorkspaceSubmissionLedger.finish(
                player.getServer(), player.getUUID(), player.serverLevel().dimension().location(),
                transferId, false, true, false
             );
@@ -763,7 +764,7 @@ public final class FastPlaceNetwork {
     */
    private static void deliverWorkspaceResult(
       ServerPlayer player, UUID transferId,
-      io.github.fastformer.network.payload.operation.OperationSubmissionOutcome outcome,
+      io.github.fastformer.workspace.submission.OperationSubmissionOutcome outcome,
       OperationCallbackScope remembered,
       java.util.List<Integer> failedIds, java.util.List<net.minecraft.core.BlockPos> failedTargets
    ) {
@@ -843,18 +844,18 @@ public final class FastPlaceNetwork {
     * task is the authority on whether the work still runs. A task that already stopped
     * leaves no running work, so the result is unknown rather than pending forever.</p>
     */
-   private static io.github.fastformer.network.payload.operation.OperationSubmissionOutcome answerFor(
+   private static io.github.fastformer.workspace.submission.OperationSubmissionOutcome answerFor(
       net.minecraft.server.MinecraftServer server, UUID owner,
       net.minecraft.resources.ResourceLocation dimension, UUID transferId
    ) {
-      var recorded = io.github.fastformer.fastplace.world.WorkspaceSubmissionLedger.outcomeFor(
+      var recorded = io.github.fastformer.server.submission.WorkspaceSubmissionLedger.outcomeFor(
          server, owner, dimension, transferId
       );
-      if (recorded == io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.IN_PROGRESS
+      if (recorded == io.github.fastformer.workspace.submission.OperationSubmissionOutcome.IN_PROGRESS
          && !io.github.fastformer.server.session.OperationManager.transferActive(owner, transferId)) {
          // The task that owned this transfer is gone and no final state was recorded,
          // which happens when the server stopped before the task settled.
-         return io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.UNKNOWN;
+         return io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN;
       }
       return recorded;
    }
@@ -893,7 +894,7 @@ public final class FastPlaceNetwork {
          return;
       }
       if (io.github.fastformer.server.session.OperationManager.recordedOutcome(player, transferId)
-         != io.github.fastformer.network.payload.operation.OperationSubmissionOutcome.UNKNOWN) {
+         != io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN) {
          // The transfer already reached the ledger. The task state is the authority.
          return;
       }
