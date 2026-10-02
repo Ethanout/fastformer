@@ -129,7 +129,7 @@ class WorkspaceContentPreparerTest {
    }
 
    @Test
-   void unchangedAndRestoredSelectionsAreNotWorldWritesButRemainCopyable() {
+   void returnedFixedSelectionsRemainComponentsAndCopyable() {
       var blocks = Map.of(BlockPos.ZERO, snapshot());
       var selection = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, OperationSelectionVolume.cuboid(
          BlockPos.ZERO, BlockPos.ZERO, null, null),
@@ -138,10 +138,26 @@ class WorkspaceContentPreparerTest {
       var moved = selection.withTranslation(new Vec3(2, 0, 0));
       assertTrue(!moved.isOriginalSelection());
       var restored = moved.withTranslation(Vec3.ZERO);
-      assertTrue(WorkspaceContentPreparer.submissionParts(List.of(selection, restored)).isEmpty());
+      assertEquals(1, WorkspaceContentPreparer.submissionParts(List.of(selection, restored)).size());
       assertEquals(1, WorkspaceContentPreparer.submissionParts(List.of(moved)).size());
       assertInstanceOf(ClipboardPreparation.Copied.class,
          WorkspaceContentPreparer.clipboardParts(List.of(restored)));
+   }
+
+   @Test
+   void explicitConfirmationIncludesAdjustableContentAndPreservesUnsubmittedParts() {
+      var workspace = new ClientOperationWorkspace();
+      var original = part(1, Map.of(BlockPos.ZERO, snapshot()), false, Map.of());
+      var other = part(2, Map.of(BlockPos.ZERO.east(20), snapshot()), false, Map.of());
+      workspace.addParts(List.of(original, other));
+      workspace.selectOnly(1);
+      var before = workspace.draftState();
+      var submitted = WorkspaceContentPreparer.confirmedParts(List.copyOf(workspace.selectedParts()));
+      assertEquals(List.of(1), submitted.stream().map(io.github.fastformer.workspace.submission.OperationWorkspacePlan.Part::id).toList());
+      assertEquals(original.blocks(), submitted.getFirst().blocks());
+      assertEquals(before, workspace.draftState());
+      assertEquals(List.of(other), SelectionDeletionPlan.remaining(workspace, java.util.Set.of(1)).parts());
+      assertEquals(2, WorkspaceContentPreparer.confirmedParts(workspace.parts()).size());
    }
 
    @Test

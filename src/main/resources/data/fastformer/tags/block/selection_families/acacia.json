@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:acacia_planks",
+    "minecraft:acacia_stairs",
+    "minecraft:acacia_slab",
+    "minecraft:acacia_fence",
+    "minecraft:acacia_fence_gate",
+    "minecraft:acacia_door",
+    "minecraft:acacia_trapdoor",
+    "minecraft:acacia_button",
+    "minecraft:acacia_pressure_plate"
+  ]
+}

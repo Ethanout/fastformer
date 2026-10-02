@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.text;
 
+import io.github.fastformer.fastplace.geometry.GeometryPalette;
+
 import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -20,7 +22,7 @@ public final class GeometryStatusText {
       MutableComponent text = Component.empty();
       boolean hasText = false;
       if (stageVisible && GeometryTextBlock.hasContent(stage)) {
-         text.append(stage.copy().withStyle(ChatFormatting.WHITE));
+         text.append(stage.copy().withStyle(GeometryPalette.text().style()));
          hasText = true;
       }
 
@@ -34,14 +36,14 @@ public final class GeometryStatusText {
             hasText = true;
          } else if (GeometryTextBlock.hasContent(variant)) {
             appendSeparator(text, hasText);
-            text.append(variant.copy().withStyle(ChatFormatting.GRAY));
+            text.append(variant.copy().withStyle(GeometryPalette.muted().style()));
             hasText = true;
          }
       }
 
       if (valueVisible && GeometryTextBlock.hasContent(safeDisplay.value())) {
          appendSeparator(text, hasText);
-         text.append(safeDisplay.value().copy().withStyle(ChatFormatting.WHITE));
+         text.append(safeDisplay.value().copy().withStyle(GeometryPalette.text().style()));
       }
       return text;
    }
@@ -52,8 +54,8 @@ public final class GeometryStatusText {
             text.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
          }
          GeometryStageDisplay.Mode mode = modes.get(index);
-         ChatFormatting color = mode.selected() ? ChatFormatting.GREEN : ChatFormatting.GRAY;
-         text.append(mode.label().copy().withStyle(color));
+         text.append(mode.label().copy().withStyle(
+            mode.selected() ? GeometryPalette.accent().style() : GeometryPalette.muted().style()));
       }
    }
 

@@ -25,6 +25,107 @@ public final class QuickShapePointerGameTests {
 
    private static final long HISTORY_INITIALIZATION_TIMEOUT_MILLIS = 10_000L;
 
+   @GameTest(template = "fastformergametests.empty", batch = "embedded_middle_finish", timeoutTicks = 6000)
+   public static void middleStartedDraftFinishesWithMiddleNearBlocks(GameTestHelper helper) {
+      var player = idleStartPlayer(helper);
+      var settings = FastPlaceSettings.load(player);
+      settings.setMode(player, PointMode.RAYCAST);
+      settings.setMode(player, LineMode.FREE_SCROLL);
+      settings.setMode(player, FaceMode.COORDINATE_PLANE);
+      settings.setMiddleConfirmEnabled(player, true);
+      FastPlaceManager.setModifierHeld(player, false);
+      PlayerPreviewSync.syncSettings(player);
+      var eye = player.getEyePosition();
+      var view = player.getViewVector(1);
+      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(
+         player.level(), player, eye, view).hit();
+      boolean[] submitted = {false};
+      helper.succeedWhen(() -> {
+         java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
+         if (!submitted[0]) {
+            helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
+            helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history initialization");
+            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
+               player.getServer(), player.serverLevel().dimension()), "waiting for world write");
+            ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(51L,
+               new StartPlacementPayload.Target(PlayerPreviewSync.buildingRevision(player),
+                  PlayerPreviewSync.callbackScope(player), RaycastPlacement.EMBEDDED, hit, eye, view)));
+            var draft = FastPlaceManager.session(player).orElseThrow();
+            helper.assertTrue(draft.points().getFirst().equals(hit.getBlockPos()), "middle start did not embed its first point");
+            helper.assertFalse(draft.modifierHeld(), "embedded start latched Alt on the draft");
+            helper.assertFalse(FastPlaceManager.modifierHeld(player), "embedded start latched player Alt");
+            draft.setFreeScrollOffset(new BlockPos(2, 0, 0));
+            player.setPos(hit.getBlockPos().getCenter().add(0, 1, 0));
+            PlayerPreviewSync.syncPreview(player, draft);
+            var nearEye = player.getEyePosition();
+            var nearView = player.getViewVector(1);
+            var nearHit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(
+               player.level(), player, nearEye, nearView).hit();
+            var candidate = FastPlaceManager.candidateContext(player).resolve(nearHit, nearEye, nearView);
+            ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
+               PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player),
+               QuickShapePointerPayload.Action.MIDDLE, candidate, nearEye, nearView, false, 52));
+            helper.assertFalse(FastPlaceManager.active(player), "middle did not finish a middle-started draft near a block");
+            submitted[0] = true;
+         }
+         FastPlaceManager.tickWorld(helper.getLevel().getServer());
+         helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for placement");
+         helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos()).is(Blocks.GOLD_BLOCK), "middle finish did not place the shape");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "alt_quick_shape_pointer", timeoutTicks = 6000)
+   public static void altMiddleFinishesLine(GameTestHelper helper) {
+      assertAltMiddleFinishes(helper, false);
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "alt_quick_shape_pointer", timeoutTicks = 6000)
+   public static void altMiddleFinishesFace(GameTestHelper helper) {
+      assertAltMiddleFinishes(helper, true);
+   }
+
+   private static void assertAltMiddleFinishes(GameTestHelper helper, boolean face) {
+      var player = idleStartPlayer(helper);
+      player.setXRot(-90);
+      var settings = FastPlaceSettings.load(player);
+      settings.setMode(player, face ? LineMode.AXIS : LineMode.FREE_SCROLL);
+      settings.setMode(player, FaceMode.COORDINATE_PLANE);
+      settings.setMiddleConfirmEnabled(player, true);
+      BlockPos first = helper.absolutePos(new BlockPos(1, 5, 1));
+      FastPlaceManager.addPoint(player, first, first);
+      var draft = FastPlaceManager.session(player).orElseThrow();
+      if (face) draft.addPoint(first.offset(3, 0, 0), player.getEyePosition(), player.getViewVector(1));
+      draft.setFreeScrollOffset(new BlockPos(0, 0, 3));
+      FastPlaceManager.setModifierHeld(player, true);
+      PlayerPreviewSync.syncPreview(player, draft);
+      var eye = player.getEyePosition();
+      var view = player.getViewVector(1);
+      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
+      var candidate = FastPlaceManager.candidateContext(player).resolve(hit, eye, view);
+      var request = new QuickShapePointerPayload(PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player),
+         QuickShapePointerPayload.Action.MIDDLE, candidate, eye, view, true, 1);
+      boolean[] submitted = {false};
+      helper.succeedWhen(() -> {
+         // GameTest ticks run without the normal delay; allow asynchronous history writes to finish.
+         java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
+         if (!submitted[0]) {
+            helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
+            helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history initialization");
+            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
+               player.getServer(), player.serverLevel().dimension()), "waiting for the other test's world write");
+            ServerInputDispatcher.quickShapePointer(player, request);
+            helper.assertFalse(FastPlaceManager.active(player), "Alt-middle did not finish the draft: points=" + draft.points()
+               + ", candidate=" + candidate + ", modifier=" + draft.modifierHeld()
+               + ", faceMode=" + FastPlaceSettings.load(player).faceMode()
+               + ", revision=" + PlayerPreviewSync.buildingRevision(player) + "/" + request.revision());
+            submitted[0] = true;
+         }
+         FastPlaceManager.tickWorld(helper.getLevel().getServer());
+         helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for placement");
+         helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "Alt-middle did not place the shape");
+      });
+   }
+
    @GameTest(template = "fastformergametests.empty", batch = "quick_shape_pointer", timeoutTicks = 600)
    public static void capturedPointSurvivesViewChangeAndRejectsReplay(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();

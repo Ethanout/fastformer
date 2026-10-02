@@ -1,37 +1,51 @@
 package io.github.fastformer.fastplace.geometry.controlpoint;
 
+import io.github.fastformer.fastplace.geometry.GeometryPalette;
+
+/** Point colors per theme. */
 public enum ControlPointStyle {
-   START(0.15F, 0.55F, 1.0F, 0.78F),
-   CONTROL(1.0F, 0.78F, 0.12F, 0.76F),
-   HOVER(0.12F, 1.0F, 0.3F, 0.92F),
-   AUXILIARY(0.92F, 0.92F, 0.92F, 0.82F),
-   GIZMO(1.0F, 1.0F, 1.0F, 0.72F);
+   START(0x268CFF, 0.78F, 0xF4F1EA, 0.78F),
+   CONTROL(0xFFC71F, 0.76F, 0xD9B36A, 0.78F),
+   HOVER(0x1FFF4D, 0.92F, 0xD9B36A, 0.92F),
+   AUXILIARY(0xEBEBEB, 0.82F, 0xF4F1EA, 0.78F),
+   GIZMO(0xFFFFFF, 0.72F, 0xF4F1EA, 0.78F);
 
-   private final float red;
-   private final float green;
-   private final float blue;
-   private final float alpha;
+   private final GeometryPalette.Color classic;
+   private final float classicAlpha;
+   private final GeometryPalette.Color humanist;
+   private final float humanistAlpha;
 
-   ControlPointStyle(float red, float green, float blue, float alpha) {
-      this.red = red;
-      this.green = green;
-      this.blue = blue;
-      this.alpha = alpha;
+   ControlPointStyle(int classic, float classicAlpha, int humanist, float humanistAlpha) {
+      this.classic = new GeometryPalette.Color(classic);
+      this.classicAlpha = classicAlpha;
+      this.humanist = new GeometryPalette.Color(humanist);
+      this.humanistAlpha = humanistAlpha;
+   }
+
+   private GeometryPalette.Color color() {
+      String key = switch (this) {
+         case START -> "start";
+         case CONTROL -> "control";
+         case HOVER -> "hover";
+         case AUXILIARY, GIZMO -> "ink";
+      };
+      return io.github.fastformer.fastplace.geometry.GeometryPalette.color(key,
+         GeometryPalette.humanist() ? this.humanist : this.classic);
    }
 
    public float red() {
-      return this.red;
+      return color().red();
    }
 
    public float green() {
-      return this.green;
+      return color().green();
    }
 
    public float blue() {
-      return this.blue;
+      return color().blue();
    }
 
    public float alpha() {
-      return this.alpha;
+      return GeometryPalette.humanist() ? this.humanistAlpha : this.classicAlpha;
    }
 }

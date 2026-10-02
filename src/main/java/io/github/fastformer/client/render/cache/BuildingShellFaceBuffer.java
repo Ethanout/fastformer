@@ -38,9 +38,7 @@ public final class BuildingShellFaceBuffer {
          return;
       }
 
-      Matrix4f transform = new Matrix4f(pose.last().pose()).translate(
-         (float)(this.origin.x - camera.x), (float)(this.origin.y - camera.y), (float)(this.origin.z - camera.z)
-      );
+      Matrix4f transform = ShellBufferTransform.modelView(RenderSystem.getModelViewMatrix(), pose.last().pose(), this.origin, camera);
       float[] previousColor = RenderSystem.getShaderColor().clone();
       type.setupRenderState();
       try {

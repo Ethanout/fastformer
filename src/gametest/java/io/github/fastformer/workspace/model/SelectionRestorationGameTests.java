@@ -29,7 +29,8 @@ public final class SelectionRestorationGameTests {
       helper.assertTrue(!rotated.isOriginalSelection(), "different facing restored selection identity");
       helper.assertTrue(!rotated.canAdjustGeometry(), "transformed facing allowed face editing");
       var restored = rotated.withTransform(WorkspaceTransform.IDENTITY);
-      helper.assertTrue(original.equals(restored), "inverse rotation did not restore the selection");
+      helper.assertFalse(restored.canAdjustGeometry(), "inverse rotation unlocked the fixed selection");
+      helper.assertTrue(restored.transform().equals(WorkspaceTransform.IDENTITY), "inverse rotation changed the transform");
       helper.succeed();
    }
 
@@ -50,18 +51,19 @@ public final class SelectionRestorationGameTests {
       helper.assertTrue(!changed.isOriginalSelection(), "different chest contents restored selection identity");
       helper.assertTrue(changed.baseline().sourceSnapshot().get(BlockPos.ZERO).equals(before), "baseline changed with the world");
       var restored = changed.withBlocks(Map.of(BlockPos.ZERO, before));
-      helper.assertTrue(original.equals(restored), "original chest contents did not restore selection identity");
+      helper.assertFalse(restored.isOriginalSelection(), "original chest contents unlocked the fixed selection");
+      helper.assertTrue(restored.baseline().sourceSnapshot().get(BlockPos.ZERO).equals(before), "fixed selection lost its baseline");
       helper.assertTrue(chest.getItem(0).getCount() == 2, "client model changed the world chest");
       helper.succeed();
    }
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
-   public static void symmetricStoneRotationRestoresAllSelectionCapabilities(GameTestHelper helper) {
+   public static void symmetricStoneRotationKeepsSelectionFixed(GameTestHelper helper) {
       var original = selection(new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null));
       var restored = original.withTransform(original.transform().withRotation(new Vec3(0, Math.PI, 0)));
-      helper.assertTrue(original.equals(restored), "symmetric rotation retained a transformed part");
-      helper.assertTrue(restored.canAdjustGeometry(), "restored selection cannot edit faces");
-      helper.assertTrue(!restored.masksSourceBlocks(), "restored selection still masks its source");
+      helper.assertFalse(restored.isOriginalSelection(), "symmetric rotation unlocked the selection");
+      helper.assertFalse(restored.canAdjustGeometry(), "fixed selection allowed face editing");
+      helper.assertTrue(restored.masksSourceBlocks(), "fixed transformed selection lost its source mask");
       helper.succeed();
    }
 

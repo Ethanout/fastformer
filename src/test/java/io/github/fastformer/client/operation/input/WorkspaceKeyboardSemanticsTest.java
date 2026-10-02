@@ -52,6 +52,10 @@ class WorkspaceKeyboardSemanticsTest {
 
    @Test
    void physicalKeyPressesProduceWorkspaceCommands() {
+      assertEquals(WorkspaceKeyboardSemantics.Command.DESELECT_ALL,
+         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 68, true));
+      assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
+         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 68, false));
       assertEquals(WorkspaceKeyboardSemantics.Command.COPY,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 67, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.PASTE,
@@ -62,7 +66,7 @@ class WorkspaceKeyboardSemanticsTest {
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 90, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.REMOVE_SELECTED,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 261, true));
-      assertEquals(WorkspaceKeyboardSemantics.Command.MARK_SELECTED_FOR_DELETION,
+      assertEquals(WorkspaceKeyboardSemantics.Command.DELETE_SELECTION,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 259, false));
       assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
          WorkspaceKeyboardSemantics.fromPhysicalKey(0, 67, true));
@@ -91,7 +95,7 @@ class WorkspaceKeyboardSemanticsTest {
    void acceptedCommandsNameTheirCommand() {
       assertEquals(WorkspaceKeyboardSemantics.Command.COPY, decideOn(WorkspaceKeyboardSemantics.Command.COPY).command());
       assertTrue(decideOn(WorkspaceKeyboardSemantics.Command.REMOVE_SELECTED).accepted());
-      assertTrue(decideOn(WorkspaceKeyboardSemantics.Command.MARK_SELECTED_FOR_DELETION).accepted());
+      assertTrue(decideOn(WorkspaceKeyboardSemantics.Command.DELETE_SELECTION).accepted());
    }
 
    @Test

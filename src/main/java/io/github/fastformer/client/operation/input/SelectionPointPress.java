@@ -17,7 +17,13 @@ public record SelectionPointPress(
 
    public boolean matches(UUID currentOwner, ClientOperationWorkspace workspace) {
       return owner.equals(currentOwner) && !workspace.locked()
-         && partId > 0 && workspace.activeId() == partId
+         && partId > 0 && targetsCurrentPart(workspace)
          && workspace.part(partId).isPresent() && workspace.interactionId(partId) == instanceId;
+   }
+
+   private boolean targetsCurrentPart(ClientOperationWorkspace workspace) {
+      return button == 2
+         ? workspace.selections().topPart().filter(part -> part.id() == partId).isPresent()
+         : workspace.activeId() == partId;
    }
 }

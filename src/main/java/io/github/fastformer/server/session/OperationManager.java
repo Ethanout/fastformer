@@ -287,7 +287,8 @@ public final class OperationManager {
       OperationSession session = SESSIONS.get(player.getUUID());
       if (session == null) {
          FastPlaceSettings settings = FastPlaceSettings.load(player);
-         settings.setOperationSelectionMode(player, settings.operationSelectionMode().next());
+         // Interactive tool choice belongs to the client. Server point sessions remain cuboids.
+         settings.setOperationSelectionMode(player, OperationSelectionMode.CUBOID);
          FastPlaceNetwork.syncSettings(player);
          return;
       }
@@ -626,7 +627,7 @@ public final class OperationManager {
             handover == TaskCancellationResult.CANCELLED_BEFORE_WRITE,
             handover == TaskCancellationResult.ROLLBACK_STARTED,
             workspaceTask.failedPartIds(),
-            workspaceTask.failedTargetPositions()
+            workspaceTask.failedTargetPositions(), workspaceTask.failureReason()
          );
       }
       return handover;
@@ -767,7 +768,7 @@ public final class OperationManager {
                result == OperationTaskResult.COMPLETE || result == OperationTaskResult.EMPTY,
                retryableWorkspaceFailure,
                recoveryCreated,
-               workspaceTask.failedPartIds(), workspaceTask.failedTargetPositions()
+               workspaceTask.failedPartIds(), workspaceTask.failedTargetPositions(), workspaceTask.failureReason()
             );
          }
          if (result == OperationTaskResult.COMPLETE) {
@@ -813,7 +814,7 @@ public final class OperationManager {
                workspaceTask.dimension().location(),
                context.onlinePlayer(),
                workspaceTask.transferId(), false, retryableWorkspaceFailure, recoveryCreated,
-               workspaceTask.failedPartIds(), workspaceTask.failedTargetPositions()
+               workspaceTask.failedPartIds(), workspaceTask.failedTargetPositions(), workspaceTask.failureReason()
             );
          }
          LOGGER.error("FastFormer operation task failed for {} and was transferred to recovery", owner, exception);

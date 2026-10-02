@@ -26,7 +26,7 @@ final class QuickShapeStartController {
       if (idle == null) return false;
       if (!session.captureQuickShapeButton(button)) return true;
       session.postStartPlacement(new StartPlacementPayload.Target(idle.revision(), idle.callbackScope(),
-         BuildingInputSemantics.raycastPlacement(alt), hit,
+         BuildingInputSemantics.initialPlacement(alt, button == MouseButtonInputSemantics.MIDDLE_BUTTON), hit,
          minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F)));
       return true;
    }

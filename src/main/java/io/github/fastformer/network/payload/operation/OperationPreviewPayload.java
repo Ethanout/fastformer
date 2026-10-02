@@ -117,9 +117,13 @@ public record OperationPreviewPayload(
    }
 
    public static OperationPreviewPayload inactive(long revision) {
+      return inactive(revision, OperationSelectionMode.CUBOID);
+   }
+
+   public static OperationPreviewPayload inactive(long revision, OperationSelectionMode selectionMode) {
       return new OperationPreviewPayload(
          false, false, false, false, List.of(), null, null, BlockPos.ZERO, BlockPos.ZERO,
-         OperationSelectionMode.CUBOID, 0, -1, 0, OperationMode.MOVE,
+         selectionMode, 0, -1, 0, OperationMode.MOVE,
          OperationStageMode.TRANSFORM, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO,
          Vec3.ZERO, false, false, false, revision, unscopedCallbackScope()
       );

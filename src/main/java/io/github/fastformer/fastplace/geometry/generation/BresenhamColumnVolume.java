@@ -193,7 +193,8 @@ final class BresenhamColumnVolume {
                formalShell,
                hullVertices,
                columnAxis,
-               staging
+               staging,
+               rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL
             );
             if (candidate == null) {
                continue;
@@ -211,7 +212,9 @@ final class BresenhamColumnVolume {
          }
          if (bestSafeCandidate != null) {
             Result staged = boundaryOnly
-               ? bestSafeCandidate.boundaryResult(maxBlocks, staging)
+               ? bestSafeCandidate.boundaryResult(
+                  maxBlocks, staging, rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL
+               )
                : bestSafeCandidate.solidResult(maxBlocks, staging);
             return staged.complete() ? publish(staged, observer) : staged;
          }
@@ -361,7 +364,9 @@ final class BresenhamColumnVolume {
          } else {
             return FaceShellResult.failed(attempt.status());
          }
-         for (BlockPos block : clipToOwnedBoundary(faceFrame, fill, outline)) {
+         Set<BlockPos> faceBlocks = rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL
+            ? fill : clipToOwnedBoundary(faceFrame, fill, outline);
+         for (BlockPos block : faceBlocks) {
             if (!shell.contains(block) && shell.size() >= maxBlocks) {
                return FaceShellResult.failed(BresenhamFaceSweep.Status.LIMIT_EXCEEDED);
             }
@@ -432,9 +437,18 @@ final class BresenhamColumnVolume {
       Set<BlockPos> shell,
       List<Vec3> hullVertices,
       int columnAxis,
-      BlockGenerationObserver observer
+      BlockGenerationObserver observer,
+      boolean shellOwned
    ) {
       ColumnAccumulator accumulator = new ColumnAccumulator(columnAxis, observer);
+      if (shellOwned) {
+         // The face samples own every column endpoint. No second analytic solid
+         // may extend or shorten the surface after the edges have been fixed.
+         for (BlockPos block : shell) {
+            accumulator.addSeed(block, true);
+         }
+         return accumulator;
+      }
       boolean targetComplete = ArbitraryConvexPolyhedronGenerator.visitSolidSpans(
          hullVertices,
          columnAxis,
@@ -973,6 +987,10 @@ final class BresenhamColumnVolume {
       }
 
       Result boundaryResult(int maxBlocks, BlockGenerationObserver observer) {
+         return this.boundaryResult(maxBlocks, observer, false);
+      }
+
+      Result boundaryResult(int maxBlocks, BlockGenerationObserver observer, boolean preserveFaces) {
          this.overlays.removeIf(this::coveredBySpan);
          ColumnBlockSet solid = new ColumnBlockSet(
             this.axis, this.firstKeyAxis, this.secondKeyAxis, this.spans, this.overlays, this.blockCount()
@@ -980,6 +998,18 @@ final class BresenhamColumnVolume {
          BoundaryColumnBlockSet blocks = BoundaryColumnBlockSet.create(solid, maxBlocks, this.observer);
          if (blocks == null) {
             return limitResult(maxBlocks, observer);
+         }
+         if (preserveFaces) {
+            // Edge constraints can require a thick seam. Keep its inner samples
+            // in hollow mode too, without changing the solid's outer boundary.
+            Set<BlockPos> surface = new LinkedHashSet<>(this.shell);
+            if (surface.size() > maxBlocks) return limitResult(maxBlocks, observer);
+            for (BlockPos block : blocks) {
+               observer.checkCancelled();
+               surface.add(block);
+               if (surface.size() > maxBlocks) return limitResult(maxBlocks, observer);
+            }
+            return new Result(Collections.unmodifiableSet(surface), true, Collections.unmodifiableSet(this.shell));
          }
          return new Result(
             blocks,

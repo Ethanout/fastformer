@@ -41,6 +41,10 @@ public final class PlayerLifecycleEvents {
       if (event.getOriginal() instanceof ServerPlayer oldPlayer
          && event.getEntity() instanceof ServerPlayer newPlayer) {
          FastPlaceSettings.copy(oldPlayer, newPlayer);
+         newPlayer.getPersistentData().putBoolean("fastformerReachInitialized", oldPlayer.getPersistentData().getBoolean("fastformerReachInitialized"));
+         newPlayer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE).setBaseValue(oldPlayer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE).getBaseValue());
+         newPlayer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ENTITY_INTERACTION_RANGE).setBaseValue(oldPlayer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ENTITY_INTERACTION_RANGE).getBaseValue());
+         PlayerPreviewSync.syncReachSettings(newPlayer);
          // Rebind the retained UUID-owned workflow to the replacement instance.
          FastPlaceManager.syncCurrentPreview(newPlayer);
       }
@@ -54,6 +58,7 @@ public final class PlayerLifecycleEvents {
          // old environment ends, so old coordinates are never used in the new
          // dimension.
          FastPlaceManager.handleDimensionChange(player, event.getFrom(), event.getTo());
+         PlayerPreviewSync.syncReachSettings(player);
       }
    }
 
@@ -74,11 +79,13 @@ public final class PlayerLifecycleEvents {
 
    private static void onPlayerLogout(PlayerLoggedOutEvent event) {
       if (event.getEntity() instanceof ServerPlayer player) {
+         io.github.fastformer.server.input.ServerReachGate.remove(player);
          FastPlaceManager.detachPlayer(player);
       }
    }
 
    private static void onServerStarted(ServerStartedEvent event) {
+      io.github.fastformer.server.input.ServerReachGate.clear();
       FastPlaceManager.clearServer();
       WorldHistoryManager.clearServer();
       WorldTaskFeature.clear();
@@ -90,6 +97,7 @@ public final class PlayerLifecycleEvents {
    }
 
    private static void onServerStopping(ServerStoppingEvent event) {
+      io.github.fastformer.server.input.ServerReachGate.clear();
       for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
          FastPlaceManager.remove(player);
       }

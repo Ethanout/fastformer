@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:birch_planks",
+    "minecraft:birch_stairs",
+    "minecraft:birch_slab",
+    "minecraft:birch_fence",
+    "minecraft:birch_fence_gate",
+    "minecraft:birch_door",
+    "minecraft:birch_trapdoor",
+    "minecraft:birch_button",
+    "minecraft:birch_pressure_plate"
+  ]
+}

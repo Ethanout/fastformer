@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:warped_planks",
+    "minecraft:warped_stairs",
+    "minecraft:warped_slab",
+    "minecraft:warped_fence",
+    "minecraft:warped_fence_gate",
+    "minecraft:warped_door",
+    "minecraft:warped_trapdoor"
+  ]
+}

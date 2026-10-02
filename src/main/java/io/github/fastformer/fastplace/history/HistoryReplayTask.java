@@ -69,6 +69,14 @@ final class HistoryReplayTask {
    private final WorldBatchFeedback batchFeedback;
    private UUID operationId;
    private WorldOperationMetrics metrics;
+   private final BitSet conflicts = new BitSet();
+   private BitSet confirmedConflicts = new BitSet();
+   private UUID conflictToken;
+   private io.github.fastformer.network.payload.world.HistoryConflictResponsePayload.Choice conflictChoice;
+   private HistoryConflictResolution conflictResolution = new HistoryConflictResolution();
+   private int conflictReminderTicks;
+   private int conflictDisplayIndex;
+   private ResourceKey<Level> conflictPlayerDimension;
 
    HistoryReplayTask(
       HistoryAccess historyAccess, HistoryMemoryCache history, boolean undo, int requested, PlacementUpdateMode updateMode
@@ -138,12 +146,13 @@ final class HistoryReplayTask {
             this.phase == Phase.RESOLVE,
             this.phase == Phase.FAILED
          )) {
+            clearConflictPrompt(context);
             this.cancelJournalPreparation();
             if (!this.recovery) {
                this.releaseAfterCancelledJournal(context);
             }
             context.actionBar(FastPlaceMessages.text(
-               "fastformer.message.restore_failed_retry"
+               this.phase == Phase.CONFLICT ? "fastformer.message.cancelled" : "fastformer.message.restore_failed_retry"
             ));
             return true;
          }
@@ -160,6 +169,19 @@ final class HistoryReplayTask {
             return false;
          }
          this.dimensionNoticeSent = false;
+         if (this.phase == Phase.CONFLICT) {
+            var player = context.onlinePlayer();
+            if (player == null || !player.level().dimension().equals(conflictPlayerDimension)) {
+               clearConflictPrompt(context);
+               return true;
+            }
+            sendConflictHighlights(context);
+            if (conflictReminderTicks-- <= 0) {
+               context.actionBar(FastPlaceMessages.text("fastformer.message.history_conflict_confirm", conflicts.cardinality()));
+               conflictReminderTicks = 40;
+            }
+            return false;
+         }
          if (!this.ensureMemoryReservation()) {
             context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
             return false;
@@ -175,6 +197,7 @@ final class HistoryReplayTask {
             case ROLLBACK -> rollbackBatch(context, level, budget);
             case RESOLVE -> resolveJournal(context);
             case FAILED -> retryBlockedWrite(context, level);
+            case CONFLICT -> Step.YIELD;
          };
          if (step != Step.NEXT) {
             return step == Step.FINISHED;
@@ -227,6 +250,10 @@ final class HistoryReplayTask {
          this.index = 0;
          this.phase = Phase.CHECK;
          this.applied = null;
+         this.conflicts.clear();
+         this.confirmedConflicts.clear();
+         this.conflictChoice = null;
+         this.conflictResolution = new HistoryConflictResolution();
       }
       return Step.NEXT;
    }
@@ -285,19 +312,15 @@ final class HistoryReplayTask {
       }
       while (this.index < this.batch.size() && budget.tryConsume()) {
          if (this.batch.match(level, this.index, this.undo) == 0) {
-            this.retainRecovery = this.recovery;
-            LOGGER.warn(
-               "FastFormer history conflict operation={} phase={} position={} metrics={}",
-               this.operationId,
-               this.phase,
-               this.batch.position(this.index).toShortString(),
-               this.metrics.summary()
-            );
-            if (!this.recovery) {
-               this.releaseLease(context);
+            if (this.confirmedConflicts.get(this.index)) {
+               boolean skip = conflictChoice == io.github.fastformer.network.payload.world.HistoryConflictResponsePayload.Choice.SKIP;
+               if (!conflictResolution.capture(level, batch, index, skip)) {
+                  context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
+                  return Step.FINISHED;
+               }
+            } else {
+               conflicts.set(this.index);
             }
-            context.actionBar(FastPlaceMessages.text("fastformer.message.history_conflict"));
-            return Step.FINISHED;
          }
          this.index++;
       }
@@ -305,6 +328,21 @@ final class HistoryReplayTask {
          return Step.NEXT;
       }
       this.index = 0;
+      if (!conflicts.isEmpty()) {
+         this.phase = Phase.CONFLICT;
+         this.releaseLease(context);
+         this.conflictResolution = new HistoryConflictResolution();
+         this.releaseMemoryReservation();
+         this.conflictToken = UUID.randomUUID();
+         var player = context.onlinePlayer();
+         if (player == null || !player.connection.hasChannel(io.github.fastformer.network.payload.world.HistoryConflictPayload.TYPE)) return Step.FINISHED;
+         conflictPlayerDimension = player.level().dimension();
+         conflictDisplayIndex = 0;
+         sendConflictHighlights(context);
+         context.actionBar(FastPlaceMessages.text("fastformer.message.history_conflict_confirm", conflicts.cardinality()));
+         conflictReminderTicks = 40;
+         return Step.YIELD;
+      }
       this.applied = new BitSet(this.batch.size());
       this.phase = Phase.JOURNAL;
       return Step.NEXT;
@@ -335,7 +373,7 @@ final class HistoryReplayTask {
 
    private Step applyBatch(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
       while (this.index < this.batch.size() && budget.tryConsume()) {
-         int match = this.batch.match(level, this.index, this.undo);
+         int match = this.conflictResolution.match(level, this.batch, this.index, this.undo);
          if (match == 2) {
             this.index++;
             continue;
@@ -392,6 +430,10 @@ final class HistoryReplayTask {
             return Step.NEXT;
          }
          commitBatch(context);
+         WorldHistoryEvents.send(context, this.batch, this.undo
+            ? io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind.UNDO
+            : io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind.REDO,
+            !this.conflictResolution.hasSkippedCells());
          this.journal = null;
          this.journalPreparation.reset();
       }
@@ -440,7 +482,7 @@ final class HistoryReplayTask {
          if (HistoryRecoveryPolicy.ownsPartialRollback(
             partialIndexMatches, partialFingerprintMatches, normalTargetMatches
          )) {
-            boolean rolledBack = this.batch.apply(level, appliedIndex, inverseUndo, PlacementUpdateMode.CLIENT_ONLY.flags());
+            boolean rolledBack = this.conflictResolution.rollback(level, this.batch, appliedIndex, this.undo, PlacementUpdateMode.CLIENT_ONLY.flags());
             this.metrics.writeAttempt(rolledBack);
             if (!rolledBack) {
                Optional<ReversibleBlockSnapshot> partial = ReversibleBlockSnapshot.capture(
@@ -496,7 +538,7 @@ final class HistoryReplayTask {
          return;
       }
       int processed = switch (this.phase) {
-         case CHECK, JOURNAL, APPLY -> Math.clamp(this.index, 0, this.batch.size());
+         case CHECK, CONFLICT, JOURNAL, APPLY -> Math.clamp(this.index, 0, this.batch.size());
          case ROLLBACK, FAILED, RESOLVE -> Math.clamp(this.batch.size() - 1 - this.index, 0, this.batch.size());
       };
       if (this.recovery) {
@@ -526,8 +568,8 @@ final class HistoryReplayTask {
             context.server(),
             context.owner(),
             this.batch.dimension(),
-            this.batch.sourceSnapshots(this.undo),
-            this.batch.targetSnapshots(this.undo),
+            this.conflictResolution.snapshots(this.batch, this.undo, false),
+            this.conflictResolution.snapshots(this.batch, this.undo, true),
             this.operationId
          ));
       if (preparation == JournalPreparation.PENDING) {
@@ -597,7 +639,7 @@ final class HistoryReplayTask {
 
    private static WorldOperationPhase metricsPhase(Phase phase) {
       return switch (phase) {
-         case CHECK -> WorldOperationPhase.SNAPSHOT;
+         case CHECK, CONFLICT -> WorldOperationPhase.SNAPSHOT;
          case JOURNAL -> WorldOperationPhase.JOURNAL;
          case APPLY -> WorldOperationPhase.WRITE;
          case ROLLBACK -> WorldOperationPhase.ROLLBACK;
@@ -613,6 +655,46 @@ final class HistoryReplayTask {
          this.phase = Phase.ROLLBACK;
          this.index = this.batch.size() - 1;
       }
+   }
+
+   boolean respondToConflict(WorldTaskContext context, UUID token,
+      io.github.fastformer.network.payload.world.HistoryConflictResponsePayload.Choice choice) {
+      if (this.phase != Phase.CONFLICT || !java.util.Objects.equals(token, conflictToken) || token == null) return false;
+      clearConflictPrompt(context);
+      if (choice == io.github.fastformer.network.payload.world.HistoryConflictResponsePayload.Choice.CANCEL) requestCancel();
+      else {
+         this.confirmedConflicts.or(conflicts);
+         this.conflicts.clear();
+         this.conflictResolution = new HistoryConflictResolution();
+         this.conflictChoice = choice;
+         this.index = 0;
+         this.phase = Phase.CHECK;
+      }
+      return true;
+   }
+
+   void clearConflictPrompt(WorldTaskContext context) {
+      if (conflictToken == null) return;
+      var player = context.onlinePlayer();
+      if (player != null && player.connection.hasChannel(io.github.fastformer.network.payload.world.HistoryConflictPayload.TYPE))
+         net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+            new io.github.fastformer.network.payload.world.HistoryConflictPayload(conflictToken, batch.dimension().location(), 0, java.util.List.of()));
+      conflictToken = null;
+   }
+
+   private void sendConflictHighlights(WorldTaskContext context) {
+      if (conflictToken == null || conflictDisplayIndex < 0) return;
+      var player = context.onlinePlayer();
+      if (player == null) return;
+      var positions = new java.util.ArrayList<net.minecraft.core.BlockPos>();
+      int next = conflicts.nextSetBit(conflictDisplayIndex);
+      while (next >= 0 && positions.size() < io.github.fastformer.network.payload.world.HistoryConflictPayload.MAX_POSITIONS) {
+         positions.add(batch.position(next));
+         next = conflicts.nextSetBit(next + 1);
+      }
+      conflictDisplayIndex = next;
+      if (!positions.isEmpty()) net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player,
+         new io.github.fastformer.network.payload.world.HistoryConflictPayload(conflictToken, batch.dimension().location(), conflicts.cardinality(), positions));
    }
 
    private void blockApplyFailure(int failedIndex, boolean duringRollback) {
@@ -633,8 +715,9 @@ final class HistoryReplayTask {
          return false;
       }
       int failedIndex = this.blockedApplyIndex;
-      boolean direction = this.blockedDuringRollback ? !this.undo : this.undo;
-      int match = this.batch.match(level, failedIndex, direction);
+      int match = this.blockedDuringRollback
+         ? this.conflictResolution.rollbackMatch(level, batch, failedIndex, undo)
+         : this.conflictResolution.match(level, batch, failedIndex, undo);
       if (match == 0) {
          return false;
       }
@@ -727,6 +810,7 @@ final class HistoryReplayTask {
 
    private enum Phase {
       CHECK,
+      CONFLICT,
       JOURNAL,
       APPLY,
       ROLLBACK,

@@ -17,6 +17,32 @@ import org.junit.jupiter.api.Test;
 
 class SelectionGizmoInteractionTest {
    @Test
+   void denseMultipleSelectionShowsOnlyTheGroupGizmo() {
+      var session = new ClientSelectionSession();
+      var selection = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(3, 3, 3), BlockPos.ZERO, BlockPos.ZERO);
+      session.workspace().addParts(java.util.stream.IntStream.range(0, 24).mapToObj(index -> part(selection)).toList());
+      session.publishInteractionScene();
+      var scene = session.interactionScene();
+      assertEquals(24, scene.groupGizmo().require(InteractionComponents.GROUP_GIZMO).members().size());
+      for (var member : scene.parts().values()) {
+         assertFalse(SelectionGizmoInteraction.partGizmoVisible(scene, member.gizmo(), true));
+      }
+      var gizmo = SelectionGizmoInteraction.resolveGroup(scene.groupGizmo(), new GizmoViewScale(1, 0.1));
+      assertEquals(1.35, gizmo.axisLength(), 1.0E-6);
+      var handle = gizmo.handles().stream().filter(candidate -> candidate.operation() == AxisGizmo.Operation.MOVE
+         && candidate.axis() == AxisGizmo.Axis.X && candidate.direction() == AxisGizmo.Direction.POSITIVE).findFirst().orElseThrow();
+      var endpoint = gizmo.handleCenter(handle);
+      var hit = gizmo.hitTest(endpoint.add(0, 0, 6), new net.minecraft.world.phys.Vec3(0, 0, -1), 32);
+      assertNotNull(hit);
+      assertEquals(handle.key(), hit.handle().key());
+      session.workspace().selectOnly(1);
+      session.publishInteractionScene();
+      var singleScene = session.interactionScene();
+      assertNull(singleScene.groupGizmo());
+      assertTrue(SelectionGizmoInteraction.partGizmoVisible(singleScene, singleScene.parts().get(1).gizmo(), true));
+   }
+
+   @Test
    void commonGeometryUsesPublishedAirInclusiveBounds() {
       var session = new ClientSelectionSession();
       var left = part(OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(3, 3, 3), BlockPos.ZERO, BlockPos.ZERO));

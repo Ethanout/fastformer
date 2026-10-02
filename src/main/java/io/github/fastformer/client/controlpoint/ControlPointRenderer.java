@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
 /** Draws confirmed and candidate control points from a completed display list. */
 public final class ControlPointRenderer {
    private static final double CONTROL_POINT_OUTLINE_INFLATE = 0.003;
-   private static final float OCCLUDED_POINT_ALPHA = 0.38F;
+   private static final float OCCLUDED_POINT_ALPHA = io.github.fastformer.client.render.PreviewStyle.OCCLUDED_ALPHA;
    private final float worldPreviewOpacity;
    private final double dashOffset;
    private final double dashLength;

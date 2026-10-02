@@ -122,11 +122,12 @@ public final class FastPlaceManager {
          return InteractionState.BUILDING;
       } else if (SpecialItemHandlers.isSpecial(player.getMainHandItem())) {
          return InteractionState.SPECIAL_ITEM;
-      } else if (!PlaceableItems.isPlaceable(player.getMainHandItem())) {
+      } else if (player.getMainHandItem().isEmpty()) {
          return InteractionState.OPERATION;
-      } else {
+      } else if (PlaceableItems.isPlaceable(player.getMainHandItem())) {
          return InteractionState.BUILDING;
       }
+      return InteractionState.VANILLA;
    }
 
    public static boolean operationActive(ServerPlayer player) {
@@ -167,9 +168,9 @@ public final class FastPlaceManager {
    }
 
    /** Starts a draft with the physical press ray, rather than the server's later camera state. */
-   public static void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean modifierHeld, Vec3 eye, Vec3 view) {
-      MODIFIER_HELD.put(player.getUUID(), modifierHeld);
-      addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit, modifierHeld, eye, view);
+   public static void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean embedded, Vec3 eye, Vec3 view) {
+      addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit,
+         modifierHeld(player), eye, view, embedded ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE);
    }
 
    private static void addPoint(
@@ -181,11 +182,19 @@ public final class FastPlaceManager {
    private static void addPoint(
       ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld, Vec3 eye, Vec3 view
    ) {
+      addPoint(player, hitBlock, surfaceBlock, hit, modifierHeld, eye, view, null);
+   }
+
+   private static void addPoint(
+      ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld,
+      Vec3 eye, Vec3 view, RaycastPlacement initialPlacement
+   ) {
       QuickShapeDraft session = SESSIONS.computeIfAbsent(player.getUUID(), ignored -> new QuickShapeDraft());
       session.setModifierHeld(modifierHeld);
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int previousPointCount = session.points().size();
       FastPlaceGeometry.Modes modes = effectiveModes(settings, session);
+      if (previousPointCount == 0 && initialPlacement != null) modes = modes.withRaycastPlacement(initialPlacement);
       if (previousPointCount == 0 && hit != null) {
          boolean embedded = settings.pointMode() == PointMode.RAYCAST
             && modes.raycastPlacement() == RaycastPlacement.EMBEDDED;
@@ -1297,6 +1306,7 @@ public final class FastPlaceManager {
    }
 
    public static void syncCurrentPreview(ServerPlayer player) {
+      io.github.fastformer.network.sync.PlayerPreviewSync.syncInteractionUpdates(player);
       if (OperationManager.active(player)) {
          OperationManager.session(player).ifPresent(session -> FastPlaceNetwork.syncOperation(player, session));
       } else if (GeometryManager.active(player)) {

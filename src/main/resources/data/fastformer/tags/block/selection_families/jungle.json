@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:jungle_planks",
+    "minecraft:jungle_stairs",
+    "minecraft:jungle_slab",
+    "minecraft:jungle_fence",
+    "minecraft:jungle_fence_gate",
+    "minecraft:jungle_door",
+    "minecraft:jungle_trapdoor",
+    "minecraft:jungle_button",
+    "minecraft:jungle_pressure_plate"
+  ]
+}

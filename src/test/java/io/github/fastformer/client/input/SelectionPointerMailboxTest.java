@@ -49,6 +49,91 @@ class SelectionPointerMailboxTest {
    }
 
    @Test
+   void deselectedFixedPartCanBeSelectedAgainWithoutStartingANewDraft() {
+      var workspace = ClientOperationController.workspace();
+      assertTrue(workspace.beginEdit());
+      workspace.updatePart(workspace.part(1).orElseThrow().fixed());
+      workspace.finishEdit();
+      var parts = List.copyOf(workspace.parts());
+      ClientOperationController.deselectAllWorkspaceParts();
+      postPress(1, 0, false, 10);
+      postRelease(0, 20);
+      drain();
+      assertEquals(Set.of(1), workspace.selectedIds());
+      assertEquals(parts, workspace.parts());
+      assertFalse(ClientOperationController.selectionDraftActive());
+      assertPointerSettled();
+   }
+
+   @Test
+   void movingBackWithinTheSameGestureKeepsSelectionFixed() {
+      var workspace = ClientOperationController.workspace();
+      var original = workspace.part(1).orElseThrow();
+      assertTrue(workspace.beginEdit());
+      var token = workspace.activeEditToken();
+      ClientOperationController.updateTransformGesture(token, List.of(original), false,
+         AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, 2, Double.NaN);
+      assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
+      ClientOperationController.updateTransformGesture(token, List.of(original), false,
+         AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, 0, Double.NaN);
+      assertEquals(original.transform(), workspace.part(1).orElseThrow().transform());
+      assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
+      ClientOperationController.finishTransformGesture(token);
+      assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
+      assertTrue(ClientOperationController.undo());
+      assertTrue(workspace.part(1).orElseThrow().canAdjustGeometry());
+   }
+
+   @Test
+   void selectionControlsKeepTheirClicksWhileNewLocationsStartDrafts() {
+      var part = ClientOperationController.workspace().part(1).orElseThrow();
+      var face = new OperationInteractionIntent.Face(1, part.selection().bounds(), null, true);
+      var gizmo = new OperationInteractionIntent.Gizmo(1, false, null, null);
+      var label = new OperationInteractionIntent.Part(1, 1);
+      var location = new OperationInteractionIntent.CreateSelection(new BlockPos(8, 0, 0));
+      for (int button : List.of(0, 1)) {
+         assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(face, button));
+         assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(gizmo, button));
+         assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(label, button));
+         assertTrue(FastPlaceClientInput.acceptsSelectionDraftTarget(location, button));
+      }
+      assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(location, 2));
+      assertTrue(ClientOperationController.fixActiveSelection());
+      assertTrue(FastPlaceClientInput.acceptsSelectionDraftTarget(location, 2));
+   }
+
+   @Test
+   void retainedSessionStillExpandsItsRemainingUnmovedSelectionWithMiddle() {
+      assertTrue(ClientOperationController.cancelLastSelection());
+      assertTrue(ClientOperationController.selectionSessionActive());
+      assertFalse(ClientOperationController.canStartSelectionDraft());
+      assertTrue(ClientOperationController.workspace().parts().getFirst().canAdjustGeometry());
+   }
+
+   @Test
+   void cancelRemovesOneSelectionAndExitsAfterTheLast() {
+      var workspace = ClientOperationController.workspace();
+      int active = workspace.activeId();
+      assertTrue(ClientOperationController.cancelLastSelection());
+      assertEquals(1, workspace.size());
+      assertTrue(workspace.part(active).isEmpty());
+      assertTrue(ClientOperationController.selectionSessionActive());
+      assertTrue(ClientOperationController.cancelLastSelection());
+      assertTrue(workspace.isEmpty());
+      assertFalse(ClientOperationController.selectionSessionActive());
+   }
+
+   @Test
+   void newClickPreservesExistingSelectionsBeforeStartingDraft() {
+      assertTrue(ClientOperationController.handleCreateClick(0, new BlockPos(8, 0, 0)));
+      assertTrue(ClientOperationController.workspace().parts().stream().allMatch(ClientSelectionPart::canAdjustGeometry));
+      assertTrue(ClientOperationController.selectionDraftActive());
+      assertTrue(ClientOperationController.cancelLastSelection());
+      assertEquals(2, ClientOperationController.workspace().size());
+      assertFalse(ClientOperationController.selectionDraftActive());
+   }
+
+   @Test
    void keyboardMouseAndScrollKeepPostingOrderAcrossTwoCompleteClicks() {
       var order = new ArrayList<String>();
       this.input.postKeyboard(new KeyboardInputSnapshot(65, 1, 1, 0, 10, false, false));
@@ -393,7 +478,7 @@ class SelectionPointerMailboxTest {
       var capture = SelectionDragCapture.create(ClientOperationController.interactionScene().owner(), workspace,
          List.of(part), press.snapshot().button(), this.input.pointerGestureToken);
       var drag = new WorkspaceFaceDrag(part, 0, true, DragAxisFrame.start(Vec3.ZERO, false),
-         new Vec3(1, 0, 0), 0, capture, DeferredDragClick.none(), null, workspace.activeEditToken());
+         new Vec3(1, 0, 0), 0, capture, DeferredDragClick.none(), null, workspace.activeEditToken(), false);
       ClientOperationController.selectionGestures().begin(drag);
       this.input.clickGestureToken = this.input.routing.beginGesture(press.snapshot().button());
       this.input.operationClickCapturedButton = press.snapshot().button();

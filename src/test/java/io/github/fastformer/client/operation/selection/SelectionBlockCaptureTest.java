@@ -8,6 +8,22 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SelectionBlockCaptureTest {
+   @Test void aNewSelectionDoesNotReadHiddenSourceBlocks() {
+      var mask = io.github.fastformer.client.render.mask.SourceMaskRenderFilter.instance();
+      var position = BlockPos.ZERO;
+      mask.publish(java.util.Set.of(position));
+      try {
+         var world = new World();
+         var capture = new SelectionBlockCapture(() -> world);
+         var result = new AtomicReference<java.util.Map<BlockPos, ClientBlockSnapshot>>();
+         capture.start(OperationSelectionVolume.cuboid(position, position, position, position),
+            null, () -> true, result::set, key -> fail(key));
+         while (capture.pending()) capture.tick();
+         assertEquals(0, world.reads);
+         assertNotNull(result.get());
+         assertTrue(result.get().isEmpty());
+      } finally { mask.clear(); }
+   }
    private static final class World implements SelectionBlockCapture.SnapshotSource {
       int reads;
       boolean loaded = true;

@@ -5,7 +5,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-public record SettingsActionPayload(Action action, boolean targetFrozen) implements CustomPacketPayload {
+public record SettingsActionPayload(Action action, boolean fallingDisabled) implements CustomPacketPayload {
    public SettingsActionPayload(Action action) { this(action, false); }
    public static final Type<SettingsActionPayload> TYPE = new Type<>(
       ResourceLocation.fromNamespaceAndPath("fastformer", "settings_action")
@@ -24,7 +24,7 @@ public record SettingsActionPayload(Action action, boolean targetFrozen) impleme
 
    private void write(FriendlyByteBuf buffer) {
       buffer.writeEnum(this.action);
-      buffer.writeBoolean(this.targetFrozen);
+      buffer.writeBoolean(this.fallingDisabled);
    }
 
    @Override
@@ -36,11 +36,11 @@ public record SettingsActionPayload(Action action, boolean targetFrozen) impleme
       CYCLE_PLACEMENT_CONFLICT,
       CYCLE_PLACEMENT_UPDATE,
       TOGGLE_EMPTY_HAND_WRENCH,
-      TOGGLE_GLOBAL_FREEZE,
+      TOGGLE_FALLING_DISABLED,
       DECREASE_WORLD_HISTORY,
       INCREASE_WORLD_HISTORY,
       DECREASE_SESSION_HISTORY,
       INCREASE_SESSION_HISTORY,
-      QUERY_GLOBAL_FREEZE
+      QUERY_FALLING_DISABLED
    }
 }

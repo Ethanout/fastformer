@@ -75,14 +75,14 @@ final class GeometryInputController {
       }
    }
 
-   static boolean queueInteraction(Minecraft minecraft, ClientInputSession session, int action, int button, boolean alt) {
+   static boolean queueInteraction(Minecraft minecraft, ClientInputSession session, int action, int button) {
       if (button < 0 || button > 1) return false;
       if (action == MouseButtonInputSemantics.RELEASE) {
          return session.releaseGeometryPointerButton(button);
       }
       if (action != MouseButtonInputSemantics.PRESS) return false;
       if (session.ownsGeometryPointerButton(button)) return true;
-      if (session.geometryGizmoCapture.captured() || alt || InteractionContext.nearVanillaBlock(minecraft)
+      if (session.geometryGizmoCapture.captured() || InteractionContext.nearVanillaBlock(minecraft)
          || session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || session.pointerGesture.kind() != PointerGestureState.Kind.NONE
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())
@@ -117,6 +117,7 @@ final class GeometryInputController {
    static void dispatchPointer(Minecraft minecraft, ClientInputSession session, PointerPress press) {
       if (session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || !press.matches(FastPlaceClientPreview.geometrySnapshot())) return;
+      session.modifier.consume();
       switch (press) {
          case InteractionPress interaction -> {
             if (NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())) {
@@ -133,9 +134,9 @@ final class GeometryInputController {
    }
 
    static boolean queuePath(Minecraft minecraft, ClientInputSession session, int action, int button,
-      boolean alt, long occurredAtNanos) {
+      long occurredAtNanos) {
       if (action != MouseButtonInputSemantics.PRESS || button != MouseButtonInputSemantics.RIGHT_BUTTON
-         || alt || InteractionContext.nearVanillaBlock(minecraft)
+         || InteractionContext.nearVanillaBlock(minecraft)
          || session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || session.pointerGesture.kind() != PointerGestureState.Kind.NONE || session.geometryGizmoCapture.captured()) return false;
       boolean pointAllowed = minecraft.hitResult instanceof BlockHitResult
@@ -160,7 +161,7 @@ final class GeometryInputController {
       if (payload != null) net.neoforged.neoforge.network.PacketDistributor.sendToServer(payload);
    }
 
-   static boolean queueGizmo(Minecraft minecraft, ClientInputSession session, int action, int button, boolean alt) {
+   static boolean queueGizmo(Minecraft minecraft, ClientInputSession session, int action, int button) {
       if (action == MouseButtonInputSemantics.RELEASE) {
          var release = session.geometryGizmoCapture.release(button, minecraft.player.getEyePosition(),
             minecraft.player.getViewVector(1.0F), net.minecraft.client.gui.screens.Screen.hasControlDown());
@@ -170,7 +171,7 @@ final class GeometryInputController {
       }
       if (action != MouseButtonInputSemantics.PRESS) return false;
       if (session.geometryGizmoCapture.hasPhysicalPress()) return session.geometryGizmoCapture.ownsPhysicalButton(button);
-      if (button < 0 || button > 1 || alt || InteractionContext.nearVanillaBlock(minecraft)
+      if (button < 0 || button > 1 || InteractionContext.nearVanillaBlock(minecraft)
          || session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || session.pointerGesture.kind() != PointerGestureState.Kind.NONE && !session.geometryGizmoCapture.captured()) return false;
       var preview = FastPlaceClientPreview.geometrySnapshot();
@@ -191,6 +192,7 @@ final class GeometryInputController {
                || preview.revision() != press.revision() || !preview.callbackScope().equals(press.scope())
                || !press.draftId().equals(preview.draftId()) || preview.mode() != press.mode()
                || session.pointerGesture.kind() != PointerGestureState.Kind.NONE) return;
+            session.modifier.consume();
             beginGeometryGizmoDrag(session, press.drag());
             session.geometryGizmoCapture.activate(press, session.geometryGizmoDrag.captureToken());
          }

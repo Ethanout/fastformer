@@ -1,0 +1,7 @@
+{
+  "block_tag": "fastformer:placement_fallback/face_attached",
+  "properties": {
+    "face": "$attachment_face",
+    "facing": "$attachment_facing"
+  }
+}

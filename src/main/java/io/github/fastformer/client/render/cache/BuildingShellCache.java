@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.cache;
 
+import io.github.fastformer.fastplace.geometry.GeometryPalette;
+
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
 import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import io.github.fastformer.fastplace.geometry.BlockPositionSets;
@@ -109,12 +111,12 @@ public final class BuildingShellCache {
          }
 
          BuildingSpecialBlock special = this.pending ? null : nextStyles.get(pos);
+         GeometryPalette.Color ink = GeometryPalette.ink();
+         ShapeShellMesh.Color inkColor = new ShapeShellMesh.Color(ink.red(), ink.green(), ink.blue());
          ShapeShellMesh.Color faceColor = special == null
-            ? ShapeShellMesh.Color.WHITE
+            ? inkColor
             : new ShapeShellMesh.Color(special.style().red(), special.style().green(), special.style().blue());
-         ShapeShellMesh.Color outlineColor = this.pending
-            ? ShapeShellMesh.Color.WHITE
-            : ShapeShellMesh.Color.BLACK;
+         ShapeShellMesh.Color outlineColor = inkColor;
          Set<Direction> hiddenFaces = java.util.EnumSet.noneOf(Direction.class);
          if (boxes.size() == 1 && boxes.getFirst().equals(new AABB(pos))) {
             for (Direction direction : Direction.values()) {

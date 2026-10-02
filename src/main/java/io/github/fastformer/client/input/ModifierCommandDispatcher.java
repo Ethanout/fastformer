@@ -26,6 +26,13 @@ final class ModifierCommandDispatcher {
    }
 
    static void cycle(Minecraft minecraft) {
+      if (io.github.fastformer.client.operation.controller.ClientOperationController.cycleDraftMode()) return;
+      if (minecraft.player != null && minecraft.player.getMainHandItem().isEmpty()
+         && !FastPlaceClientPreview.active() && !FastPlaceClientPreview.geometryActive()
+         && !io.github.fastformer.client.placement.QuickReplaceMode.active()) {
+         io.github.fastformer.client.operation.controller.ClientOperationController.cycleIdleSelectionTool();
+         return;
+      }
       if (!NetworkRegistry.hasChannel(minecraft.getConnection(), CycleStageModePayload.TYPE.id())) return;
       BlockPos candidate = FastPlaceClientPreview.lineModeCandidate();
       PacketDistributor.sendToServer(

@@ -52,6 +52,13 @@ public final class TaskLifecycleGameTests {
       WorldTaskContext[] context = {null};
       boolean[] waitingChecked = {false};
       helper.succeedWhen(() -> {
+         // Headless game ticks can exhaust the timeout before async journal I/O gets CPU time.
+         try {
+            Thread.sleep(1L);
+         } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for the resumed writer", exception);
+         }
          if (active[0] == null) {
             positions(origin, 16).forEach(pos -> level.setBlock(pos, Blocks.STONE.defaultBlockState(), 2));
             context[0] = new WorldTaskContext(level.getServer(), UUID.randomUUID());

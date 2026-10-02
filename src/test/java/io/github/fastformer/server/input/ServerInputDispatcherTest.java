@@ -43,8 +43,8 @@ class ServerInputDispatcherTest {
       BlockHitResult air = BlockHitResult.miss(eye.add(0.0, 0.0, 12.0), Direction.NORTH, new BlockPos(0, 64, 12));
       BlockHitResult nearbyBlock = new BlockHitResult(eye.add(0.0, 0.0, 2.0), Direction.NORTH, new BlockPos(0, 64, 2), false);
 
-      assertTrue(ServerInputDispatcher.capturedGeometryConfirmAllowed(air, eye, 4.5));
-      assertFalse(ServerInputDispatcher.capturedGeometryConfirmAllowed(nearbyBlock, eye, 4.5));
+      assertTrue(ServerInputDispatcher.capturedGeometryConfirmAllowed(air, false));
+      assertFalse(ServerInputDispatcher.capturedGeometryConfirmAllowed(nearbyBlock, true));
    }
 
    @Test

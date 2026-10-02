@@ -105,14 +105,21 @@ class QuickShapeWorkflowTest {
    }
 
    @Test
-   void repeatedPointDoesNotConfirmHeightOrSubmit() {
+   void zeroHeightPolygonSubmitsItsFaceWithoutAddingADuplicatePoint() {
       QuickShapeDraft draft = base(FaceMode.POLYGON);
       close(draft, FaceMode.POLYGON);
-      assertEquals(PREVIEW, confirm(draft, FaceMode.POLYGON, BASE.getLast()));
+      assertEquals(SUBMIT, confirm(draft, FaceMode.POLYGON, BASE.getLast()));
       assertFalse(draft.polygonHeightConfirmed());
       assertEquals(3, draft.points().size());
       assertEquals(SUBMIT, confirm(draft, FaceMode.POLYGON, new BlockPos(3, 4, 3)));
       assertTrue(draft.polygonHeightConfirmed());
+   }
+
+   @Test
+   void zeroHeightVolumeSubmitsItsFaceWithoutAddingADuplicatePoint() {
+      QuickShapeDraft draft = base(FaceMode.COORDINATE_PLANE);
+      assertEquals(SUBMIT, confirm(draft, FaceMode.COORDINATE_PLANE, BASE.getLast()));
+      assertEquals(BASE, draft.points());
    }
 
    @Test

@@ -10,6 +10,18 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CommandIdentityCodecTest {
+   @Test void historyEventRetainsOperationDimensionAndCompletion() {
+      var buffer = new FriendlyByteBuf(Unpooled.buffer());
+      try {
+         for (var kind : io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind.values()) {
+            var event = new io.github.fastformer.network.payload.world.WorldHistoryEventPayload(java.util.UUID.randomUUID(),
+               net.minecraft.resources.ResourceLocation.parse("minecraft:the_nether"), kind, false);
+            io.github.fastformer.network.payload.world.WorldHistoryEventPayload.STREAM_CODEC.encode(buffer, event);
+            assertEquals(event, io.github.fastformer.network.payload.world.WorldHistoryEventPayload.STREAM_CODEC.decode(buffer));
+         }
+         assertEquals(0, buffer.readableBytes());
+      } finally { buffer.release(); }
+   }
    @Test void closeAndTransformRoundTripTheirCapturedIdentity() {
       var scope = OperationCallbackScope.unscoped();
       var close = new ClosePathPayload(12, 35, scope, ClosePathPayload.Kind.GEOMETRY);
@@ -23,15 +35,18 @@ class CommandIdentityCodecTest {
          assertEquals(0, buffer.readableBytes());
       } finally { buffer.release(); }
    }
-   @Test void freezeRequestAndAuthorityResponseRoundTrip() {
+   @Test void fallingRequestAndAuthorityResponseRoundTrip() {
       var buffer = new FriendlyByteBuf(Unpooled.buffer());
       try {
-         var request = new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE, true);
-         var response = new FreezeStatePayload(false, false);
+         var request = new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, true);
+         var response = new FallingStatePayload(false, false);
+         var interaction = new InteractionUpdatesPayload(true, false, true);
          SettingsActionPayload.STREAM_CODEC.encode(buffer, request);
-         FreezeStatePayload.STREAM_CODEC.encode(buffer, response);
+         FallingStatePayload.STREAM_CODEC.encode(buffer, response);
+         InteractionUpdatesPayload.STREAM_CODEC.encode(buffer, interaction);
          assertEquals(request, SettingsActionPayload.STREAM_CODEC.decode(buffer));
-         assertEquals(response, FreezeStatePayload.STREAM_CODEC.decode(buffer));
+         assertEquals(response, FallingStatePayload.STREAM_CODEC.decode(buffer));
+         assertEquals(interaction, InteractionUpdatesPayload.STREAM_CODEC.decode(buffer));
       } finally { buffer.release(); }
    }
    @Test void decoderRejectsMalformedRayBeforeDispatch() {

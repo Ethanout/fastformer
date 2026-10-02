@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:oak_planks",
+    "minecraft:oak_stairs",
+    "minecraft:oak_slab",
+    "minecraft:oak_fence",
+    "minecraft:oak_fence_gate",
+    "minecraft:oak_door",
+    "minecraft:oak_trapdoor",
+    "minecraft:oak_button",
+    "minecraft:oak_pressure_plate"
+  ]
+}

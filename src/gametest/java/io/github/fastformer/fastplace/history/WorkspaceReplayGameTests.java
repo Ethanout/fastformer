@@ -43,6 +43,46 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class WorkspaceReplayGameTests {
    private WorkspaceReplayGameTests() {}
 
+   @GameTest(template = "fastformergametests.empty", batch = "selection_delete", timeoutTicks = 1200)
+   public static void selectedDeletionPreservesOtherBlocksAndUndoRestoresSource(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      var level = helper.getLevel();
+      var selected = helper.absolutePos(new BlockPos(2, 3, 2));
+      var untouched = selected.east();
+      level.setBlock(selected, Blocks.GOLD_BLOCK.defaultBlockState(), 18);
+      level.setBlock(untouched, Blocks.DIAMOND_BLOCK.defaultBlockState(), 18);
+      var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, null,
+         Map.of(selected, new ClientBlockSnapshot(level.getBlockState(selected), null)),
+         WorkspaceTransform.IDENTITY.withTranslation(new net.minecraft.world.phys.Vec3(5, 0, 0)), false);
+      var other = new ClientSelectionPart(2, ClientSelectionPart.Source.WORLD, null,
+         Map.of(untouched, new ClientBlockSnapshot(level.getBlockState(untouched), null)), WorkspaceTransform.IDENTITY, false);
+      var deletion = new OperationWorkspacePlan(io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.parts(
+         List.of(part, other), java.util.Set.of(1)));
+      UUID transfer = UUID.randomUUID();
+      int[] phase = {0};
+      helper.succeedWhen(() -> {
+         try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
+         OperationManager.tickWorld(level.getServer());
+         WorldHistoryManager.tickWorld(level.getServer());
+         helper.assertTrue(!admissionBlocked(player), "Waiting for world writes");
+         if (phase[0] == 0) {
+            helper.assertTrue(OperationManager.applyWorkspace(player, transfer, deletion).isQueued(), "Deletion was refused");
+            phase[0] = 1;
+            helper.assertTrue(false, "Deletion is pending");
+         }
+         if (phase[0] == 1) {
+            helper.assertTrue(level.getBlockState(selected).isAir(), "Selected source was not deleted");
+            helper.assertTrue(level.getBlockState(untouched).is(Blocks.DIAMOND_BLOCK), "Unselected block changed");
+            helper.assertTrue(WorldHistoryManager.requestUndo(player, 1), "Deletion undo was refused");
+            phase[0] = 2;
+            helper.assertTrue(false, "Undo is pending");
+         }
+         helper.assertTrue(level.getBlockState(selected).is(Blocks.GOLD_BLOCK), "Undo did not restore the source");
+         helper.assertTrue(level.getBlockState(untouched).is(Blocks.DIAMOND_BLOCK), "Undo changed an unselected block");
+         helper.assertTrue(level.getBlockState(selected.offset(5, 0, 0)).isAir(), "Delete placed the moved preview");
+      });
+   }
+
    @GameTest(template = "fastformergametests.empty", batch = "workspace_replay", timeoutTicks = 200)
    public static void aSecondAdmissionOfRunningWorkReportsNoFailure(GameTestHelper helper) {
       ServerPlayer player = helper.makeMockServerPlayerInLevel();

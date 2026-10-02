@@ -41,14 +41,14 @@ class ClientSelectionPartTest {
    }
 
    @Test
-   void returningToTheFrozenBaselineMakesTheSelectionAdjustableAgain() {
+   void returningToTheFrozenBaselineKeepsTheSelectionFixed() {
       ClientSelectionPart moved = part(new AABB(0, 0, 0, 2, 2, 2))
          .withTranslation(new Vec3(3, 0, 0));
 
       ClientSelectionPart returned = moved.withTranslation(Vec3.ZERO);
 
-      assertTrue(returned.editability() == ClientSelectionPart.Editability.FREE);
-      assertTrue(returned.baseline() == null);
+      assertTrue(returned.editability() == ClientSelectionPart.Editability.LOCKED);
+      assertTrue(returned.baseline() != null);
       assertFalse(returned.transform().hasEffect());
    }
 
@@ -72,18 +72,18 @@ class ClientSelectionPartTest {
    }
 
    @Test
-   void symmetricRotationReturnsToEditableSelectionWithoutIdentityParameters() {
+   void symmetricRotationKeepsTheSelectionFixed() {
       var original = part(new AABB(0, 0, 0, 1, 1, 1));
       assertTrue(original.isOriginalSelection());
       var moved = original.withTranslation(new Vec3(4, 0, 0));
       assertFalse(moved.isOriginalSelection());
       var rotated = moved.withTransform(moved.transform().withRotation(new Vec3(Math.PI, 0, 0)));
       var returned = rotated.withTranslation(Vec3.ZERO);
-      assertEquals(ClientSelectionPart.Editability.FREE, returned.editability());
-      assertFalse(returned.masksSourceBlocks());
-      assertEquals(original.transform(), returned.transform());
+      assertEquals(ClientSelectionPart.Editability.LOCKED, returned.editability());
+      assertTrue(returned.masksSourceBlocks());
+      assertEquals(rotated.transform().rotation(), returned.transform().rotation());
       assertEquals(original.blocks(), returned.blocks());
-      assertTrue(returned.canAdjustGeometry());
+      assertFalse(returned.canAdjustGeometry());
    }
 
    @Test
@@ -97,21 +97,21 @@ class ClientSelectionPartTest {
    }
 
    @Test
-   void equivalentResultRestoresOriginalStorageBeforeTheNextTransform() {
+   void equivalentResultPreservesTheFixedComponentStorage() {
       var original = part(new AABB(0, 0, 0, 1, 1, 1));
       var moved = original.withTranslation(new Vec3(4, 0, 0));
       var shiftedStorage = moved.withBlocks(Map.of(new BlockPos(2, 0, 0), original.blocks().get(BlockPos.ZERO)));
 
       var restored = shiftedStorage.withTranslation(new Vec3(-2, 0, 0));
 
-      assertEquals(ClientSelectionPart.Editability.FREE, restored.editability());
-      assertEquals(original.blocks(), restored.blocks());
+      assertEquals(ClientSelectionPart.Editability.LOCKED, restored.editability());
+      assertEquals(shiftedStorage.blocks(), restored.blocks());
       assertEquals(original.sourceSnapshot(), restored.sourceSnapshot());
-      assertEquals(original.transform(), restored.transform());
+      assertEquals(new Vec3(-2, 0, 0), restored.transform().translation());
       var movedAgain = restored.withTranslation(new Vec3(3, 0, 0));
       assertEquals(ClientSelectionPart.Editability.LOCKED, movedAgain.editability());
       assertEquals(original.blocks(), movedAgain.baseline().sourceSnapshot());
-      assertEquals(original.blocks(), movedAgain.withTranslation(Vec3.ZERO).blocks());
+      assertEquals(shiftedStorage.blocks(), movedAgain.withTranslation(Vec3.ZERO).blocks());
    }
 
    @Test
@@ -130,14 +130,14 @@ class ClientSelectionPartTest {
    }
 
    @Test
-   void emptySelectionRestoresOnlyWhenItsOuterFrameAlsoMatches() {
+   void emptySelectionStaysFixedWhenItsOuterFrameMatches() {
       var original = new ClientSelectionPart(
          1, ClientSelectionPart.Source.WORLD,
          volume(new AABB(0, 0, 0, 2, 2, 2)), Map.of(), WorkspaceTransform.IDENTITY, false
       );
       var moved = original.withTranslation(new Vec3(3, 0, 0));
       var sameFrame = moved.withTranslation(Vec3.ZERO);
-      assertTrue(sameFrame.isOriginalSelection(), "matching empty shape did not restore selection");
+      assertFalse(sameFrame.isOriginalSelection());
 
       var differentFrame = new ClientSelectionPart(
          1, ClientSelectionPart.Source.WORLD,
@@ -151,7 +151,7 @@ class ClientSelectionPartTest {
    }
 
    @Test
-   void restoringContentsUnlocksWithoutAnotherTransformEvent() {
+   void restoringContentsDoesNotUnlock() {
       var original = part(new AABB(0, 0, 0, 1, 1, 1));
       var changed = original.withTranslation(new Vec3(4, 0, 0))
          .withBlocks(Map.of(new BlockPos(1, 0, 0), original.blocks().get(BlockPos.ZERO)))
@@ -160,20 +160,20 @@ class ClientSelectionPartTest {
 
       var restored = changed.withBlocks(original.blocks());
 
-      assertEquals(original, restored);
-      assertTrue(restored.isOriginalSelection());
-      assertTrue(restored.canAdjustGeometry());
-      assertFalse(restored.masksSourceBlocks());
+      assertEquals(original.blocks(), restored.blocks());
+      assertFalse(restored.isOriginalSelection());
+      assertFalse(restored.canAdjustGeometry());
+      assertTrue(restored.masksSourceBlocks());
    }
 
    @Test
-   void contentUpdateComparesWorldPositionsAndNormalizesRestoredStorage() {
+   void contentUpdateRetainsTheOriginalSourceBaseline() {
       var original = part(new AABB(0, 0, 0, 1, 1, 1));
       var moved = original.withTranslation(new Vec3(4, 0, 0));
 
       var restored = moved.withBlocks(Map.of(new BlockPos(-4, 0, 0), original.blocks().get(BlockPos.ZERO)));
 
-      assertEquals(original, restored);
+      assertFalse(restored.isOriginalSelection());
       assertEquals(original.blocks(), restored.withTranslation(new Vec3(2, 0, 0)).baseline().sourceSnapshot());
    }
 
@@ -185,6 +185,28 @@ class ClientSelectionPartTest {
       } catch (ReflectiveOperationException exception) {
          throw new AssertionError(exception);
       }
+   }
+
+   @Test
+   void explicitFixPreventsResizingWithoutMaskingUnmovedWorldBlocks() {
+      var original = part(new AABB(0, 0, 0, 2, 2, 2));
+      var fixed = original.fixed();
+      assertFalse(fixed.canAdjustGeometry());
+      assertFalse(fixed.isOriginalSelection());
+      assertFalse(fixed.masksSourceBlocks());
+      assertEquals(fixed, fixed.withSelection(volume(new AABB(0, 0, 0, 8, 8, 8))));
+      assertTrue(original.canAdjustGeometry());
+   }
+
+   @Test
+   void explicitlyFixedSelectionKeepsItsSourceAfterMovingBack() {
+      var fixed = part(new AABB(0, 0, 0, 2, 2, 2)).fixed();
+      var moved = fixed.withTranslation(new Vec3(4, 0, 0));
+      var returned = moved.withTranslation(Vec3.ZERO);
+
+      assertEquals(fixed.sourceSnapshot(), moved.baseline().sourceSnapshot());
+      assertTrue(returned.masksSourceBlocks());
+      assertFalse(returned.canAdjustGeometry());
    }
 
    private static OperationSelectionVolume volume(AABB bounds) {

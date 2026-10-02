@@ -87,7 +87,7 @@ final class BoundaryInterpolatedFaceRasterizer {
          return NormalPlaneFaceRasterizer.attempt(
             frame,
             domain,
-            boundarySamples.stream().map(block -> project(frame, block)).collect(java.util.stream.Collectors.toSet()),
+            boundarySamples,
             maxBlocks,
             effectiveObserver
          );

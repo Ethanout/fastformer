@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:mangrove_planks",
+    "minecraft:mangrove_stairs",
+    "minecraft:mangrove_slab",
+    "minecraft:mangrove_fence",
+    "minecraft:mangrove_fence_gate",
+    "minecraft:mangrove_door",
+    "minecraft:mangrove_trapdoor",
+    "minecraft:mangrove_button",
+    "minecraft:mangrove_pressure_plate"
+  ]
+}

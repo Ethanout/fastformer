@@ -165,11 +165,8 @@ public final class PreviewGeometrySupport {
    }
 
    public static float[] softLocalAxisColor(AxisGizmo.Axis axis) {
-      return switch (axis) {
-         case X -> new float[]{1.0F, 0.54F, 0.58F};
-         case Y -> new float[]{0.56F, 0.92F, 0.62F};
-         case Z -> new float[]{0.54F, 0.70F, 1.0F};
-      };
+      var color = io.github.fastformer.fastplace.geometry.GeometryPalette.softAxis(axis);
+      return new float[]{color.red(), color.green(), color.blue()};
    }
 
    private static List<GuideLine> closedEdges(List<Vec3> vertices) {

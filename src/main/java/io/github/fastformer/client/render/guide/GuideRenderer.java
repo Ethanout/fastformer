@@ -6,6 +6,8 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import io.github.fastformer.fastplace.geometry.GuidePlane;
 import io.github.fastformer.fastplace.geometry.PlaneAxes;
+import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.render.PreviewStyle;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;
 
@@ -13,9 +15,6 @@ import net.minecraft.world.phys.Vec3;
 public final class GuideRenderer {
    private static final double MIN_PLANE_RADIUS = 2.0;
    private static final double PLANE_DISTANCE_SCALE = 0.08;
-   private static final float PLANE_RED = 0.18F;
-   private static final float PLANE_GREEN = 0.78F;
-   private static final float PLANE_BLUE = 1.0F;
    private static final double EPSILON = 1.0E-7;
 
    private GuideRenderer() {
@@ -81,7 +80,7 @@ public final class GuideRenderer {
       Vec3 to,
       float opacity
    ) {
-      renderLine(poseStack, consumer, from, to, PLANE_RED, PLANE_GREEN, PLANE_BLUE, 0.68F, opacity);
+      renderLine(poseStack, consumer, from, to, GeometryPalette.ink().red(), GeometryPalette.ink().green(), GeometryPalette.ink().blue(), 0.68F, opacity);
    }
 
    public static void renderLine(
@@ -95,18 +94,15 @@ public final class GuideRenderer {
       float alpha,
       float opacity
    ) {
-      Vec3 normal = normalize(to.subtract(from));
-      if (normal.lengthSqr() < EPSILON) {
-         return;
-      }
-      Pose pose = poseStack.last();
-      float visibleAlpha = alpha * opacity;
-      consumer.addVertex(pose, (float)from.x, (float)from.y, (float)from.z)
-         .setColor(red, green, blue, visibleAlpha)
-         .setNormal(pose, (float)normal.x, (float)normal.y, (float)normal.z);
-      consumer.addVertex(pose, (float)to.x, (float)to.y, (float)to.z)
-         .setColor(red, green, blue, visibleAlpha)
-         .setNormal(pose, (float)normal.x, (float)normal.y, (float)normal.z);
+      io.github.fastformer.client.render.geometry.PencilStroke.draw(
+         poseStack, consumer, from, to, red, green, blue, alpha * opacity, false);
+   }
+
+   public static void renderCandidateLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to,
+      GeometryPalette.Color color, float alpha, float opacity) {
+      float candidateAlpha = io.github.fastformer.client.render.theme.VisualThemes.value("candidate_alpha", 0.8F);
+      io.github.fastformer.client.render.geometry.PencilStroke.draw(poseStack, consumer, from, to,
+         color.red(), color.green(), color.blue(), alpha * opacity * candidateAlpha, true);
    }
 
    public static void renderAlternatingDashedLine(
@@ -119,9 +115,16 @@ public final class GuideRenderer {
       double dashLength,
       float opacity
    ) {
+      renderCandidateLine(poseStack, consumer, from, to, GeometryPalette.ink(), alpha, opacity);
+   }
+
+   public static void renderDashedLine(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to,
+      GeometryPalette.Color color, float alpha, double offset, double dashLength, float opacity
+   ) {
       Vec3 vector = to.subtract(from);
       double length = vector.length();
-      if (length < EPSILON) {
+      if (length < EPSILON || dashLength <= 0.0) {
          return;
       }
       Vec3 direction = vector.scale(1.0 / length);
@@ -132,16 +135,16 @@ public final class GuideRenderer {
          if (clippedEnd <= clippedStart) {
             continue;
          }
-         float tone = Math.floorMod(index, 2) == 0 ? 1.0F : 0.0F;
+         float contrast = Math.floorMod(index, 2) == 0 ? 1.0F : PreviewStyle.DASH_GAP_ALPHA;
          renderLine(
             poseStack,
             consumer,
             from.add(direction.scale(clippedStart)),
             from.add(direction.scale(clippedEnd)),
-            tone,
-            tone,
-            tone,
-            alpha,
+            color.red(),
+            color.green(),
+            color.blue(),
+            alpha * contrast,
             opacity
          );
       }
@@ -206,8 +209,8 @@ public final class GuideRenderer {
       int gridSize = (int)Math.ceil(radius);
       int spacing = Math.max(1, (int)Math.ceil((double)gridSize / 24.0));
       int gridLines = (int)Math.ceil((double)gridSize / spacing);
-      float gridAlpha = buildingStyle ? 0.14F : 0.35F;
-      float axisAlpha = buildingStyle ? 0.28F : 0.68F;
+      float gridAlpha = 0.18F;
+      float axisAlpha = 0.42F;
       for (int index = -gridLines; index <= gridLines; index++) {
          Vec3 offset = vertical.scale(index * spacing);
          renderGridLine(
@@ -252,7 +255,7 @@ public final class GuideRenderer {
       if (buildingStyle) {
          renderGridPointContrastLine(poseStack, consumer, from, to, center, spacing, alpha, opacity);
       } else {
-         renderLine(poseStack, consumer, from, to, PLANE_RED, PLANE_GREEN, PLANE_BLUE, alpha, opacity);
+         renderLine(poseStack, consumer, from, to, GeometryPalette.ink().red(), GeometryPalette.ink().green(), GeometryPalette.ink().blue(), alpha, opacity);
       }
    }
 
@@ -324,10 +327,10 @@ public final class GuideRenderer {
       Pose pose = poseStack.last();
       float visibleAlpha = alpha * opacity;
       consumer.addVertex(pose, (float)from.x, (float)from.y, (float)from.z)
-         .setColor(fromTone, fromTone, fromTone, visibleAlpha)
+         .setColor(GeometryPalette.ink().red(), GeometryPalette.ink().green(), GeometryPalette.ink().blue(), visibleAlpha * (0.25F + 0.75F * fromTone))
          .setNormal(pose, (float)normal.x, (float)normal.y, (float)normal.z);
       consumer.addVertex(pose, (float)to.x, (float)to.y, (float)to.z)
-         .setColor(toTone, toTone, toTone, visibleAlpha)
+         .setColor(GeometryPalette.ink().red(), GeometryPalette.ink().green(), GeometryPalette.ink().blue(), visibleAlpha * (0.25F + 0.75F * toTone))
          .setNormal(pose, (float)normal.x, (float)normal.y, (float)normal.z);
    }
 

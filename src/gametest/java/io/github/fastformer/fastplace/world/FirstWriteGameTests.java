@@ -95,12 +95,19 @@ public final class FirstWriteGameTests {
             helper.assertTrue(false, "waiting for journal completion callback");
          }
          helper.assertTrue(current.resumes > 0, "waiting for main-thread journal callback");
-         helper.assertTrue(current.resumes == 1, "journal resumed the task more than once");
+         boolean workspace = current.task instanceof ClientWorkspacePlacementTask;
+         if (workspace && !current.task.hasWrites()) {
+            // A workspace journals the entire composed scene before its first write.
+            current.task.tick(current.context, level, oneCellBudget());
+            if (!current.io.isEmpty()) current.io.removeFirst().run();
+            helper.assertTrue(false, "waiting for all workspace journal segments");
+         }
+         if (!workspace) helper.assertTrue(current.resumes == 1, "journal resumed the task more than once");
          if (!current.recovering) {
             helper.assertTrue(current.task.hasWrites(), "journal callback did not write with an exhausted preparation budget");
             helper.assertTrue(current.task.transaction().beforeCount() == 1, "first-write allowance wrote more than one block");
-            helper.assertTrue(current.task.transaction().expectedCount() == Math.min(256, count),
-               "first write waited for later snapshot segments");
+            helper.assertTrue(current.task.transaction().expectedCount() == (workspace ? count : Math.min(256, count)),
+               "first write used the wrong snapshot boundary");
             helper.assertTrue(WorldHistoryManager.acceptStoppedTask(current.context, current.task).recoveryCreated(),
                "first write did not create cancellation recovery");
             current.recovering = true;

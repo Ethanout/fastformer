@@ -12,5 +12,7 @@ public enum OperationSubmissionOrigin {
     * server owns no selection for it, so no identity can ever confirm it. The
     * receipt scope alone decides where the draft returns.
     */
-   LOCAL_ONLY
+   LOCAL_ONLY,
+   /** A world snapshot selected and owned by the client. */
+   CLIENT_SELECTION
 }

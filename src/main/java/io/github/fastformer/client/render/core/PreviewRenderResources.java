@@ -7,10 +7,15 @@ import java.util.concurrent.*;
 /** Owns GPU caches and worker lifetimes for the preview renderer. */
 final class PreviewRenderResources {
    private PreviewRenderResources() { }
+   static final PlacementModelPreview CONFIRMED_MODELS = new PlacementModelPreview();
+   static final PlacementModelPreview PENDING_MODELS = new PlacementModelPreview();
+   static final PlacementModelPreview INITIAL_MODEL = new PlacementModelPreview();
    static final GhostMeshCache CONFIRMED_GHOST_CACHE = new GhostMeshCache(blocks -> GhostMeshBuilder.build(blocks, true, true, true));
    static final GhostMeshCache CONFIRMED_OUTLINE_CACHE = new GhostMeshCache(blocks -> GhostMeshBuilder.build(blocks, false, true, true));
    static final BuildingShellCache CONFIRMED_BUILDING_SHELL_CACHE = BuildingShellCache.forImmutableSnapshots(false);
    static final BuildingShellCache PENDING_BUILDING_SHELL_CACHE = BuildingShellCache.forImmutableSnapshots(true);
+   static final BuildingShellCache CONFIRMED_FALLBACK_SHELL = BuildingShellCache.forImmutableSnapshots(false);
+   static final BuildingShellCache PENDING_FALLBACK_SHELL = BuildingShellCache.forImmutableSnapshots(true);
    static final BuildingShellEdgeBuffer CONFIRMED_SHELL_EDGES = new BuildingShellEdgeBuffer();
    static final BuildingShellEdgeBuffer PENDING_SHELL_EDGES = new BuildingShellEdgeBuffer();
    static final BuildingShellFaceBuffer CONFIRMED_SHELL_FACES = new BuildingShellFaceBuffer();
@@ -29,7 +34,12 @@ final class PreviewRenderResources {
    }
 
    static void clearShells() {
+      CONFIRMED_MODELS.clear(); PENDING_MODELS.clear(); INITIAL_MODEL.clear();
+      CONFIRMED_FALLBACK_SHELL.clear(); PENDING_FALLBACK_SHELL.clear();
+      io.github.fastformer.client.render.PreviewMaterialRenderer.clear();
       CONFIRMED_BUILDING_SHELL_CACHE.clear(); PENDING_BUILDING_SHELL_CACHE.clear(); BUILDING_SHELL_BLOCKS_CACHE.clear();
+      SmartSelectionRenderer.clear();
+      SmartSelectionIsolationRenderer.clear();
       CONFIRMED_SHELL_FACES.clear(); PENDING_SHELL_FACES.clear(); CONFIRMED_SHELL_EDGES.clear(); PENDING_SHELL_EDGES.clear();
    }
 

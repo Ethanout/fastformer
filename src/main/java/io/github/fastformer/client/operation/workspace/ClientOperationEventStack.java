@@ -128,6 +128,22 @@ public final class ClientOperationEventStack {
       return this.undo.size();
    }
 
+   public Snapshot snapshot() {
+      return new Snapshot(List.copyOf(this.undo), this.retainedWeight);
+   }
+
+   public void restore(Snapshot snapshot) {
+      clear();
+      for (Node node : snapshot.nodes) push(node.inverse(), node.retention());
+   }
+
+   public static final class Snapshot {
+      private final List<Node> nodes;
+      private final long weight;
+      private Snapshot(List<Node> nodes, long weight) { this.nodes = nodes; this.weight = weight; }
+      public long weight() { return this.weight; }
+   }
+
    /** Current weight in retained-reference units. */
    public long retainedWeight() {
       return this.retainedWeight;

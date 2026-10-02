@@ -1,7 +1,6 @@
 package io.github.fastformer.fastplace.geometry.interaction;
 
 public record HoverFeedback(int normalColor, int hoverColor, int activeColor) {
-   public static final int GIZMO_HOVER_COLOR = 0xFFFFFF;
    private static final float AXIS_HOVER_BRIGHTNESS = 0.32F;
 
    public HoverFeedback {
@@ -27,7 +26,8 @@ public record HoverFeedback(int normalColor, int hoverColor, int activeColor) {
    }
 
    public static HoverFeedback pointGizmo(int normalColor) {
-      return new HoverFeedback(normalColor, GIZMO_HOVER_COLOR, GIZMO_HOVER_COLOR);
+      int hover = io.github.fastformer.fastplace.geometry.GeometryPalette.gizmoHover().rgb();
+      return new HoverFeedback(normalColor, hover, hover);
    }
 
    public static int brighten(int color, float amount) {

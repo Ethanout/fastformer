@@ -63,9 +63,14 @@ public final class SelectionGizmoInteraction {
       );
    }
 
+   /** A multiple selection has one transform owner, shared by rendering and picking. */
+   public static boolean partGizmoVisible(SelectionInteractionScene scene, InteractionObject object, boolean selected) {
+      return !scene.smartEditing() && scene.groupGizmo() == null && InteractionVisibility.isVisible(object, selected);
+   }
+
    private static InteractionVisibility partVisibility(ClientSelectionPart part) {
       if (part.editability() == ClientSelectionPart.Editability.FREE) return InteractionVisibility.ALWAYS;
-      return part.transformed() ? InteractionVisibility.WHEN_SELECTED : InteractionVisibility.HIDDEN;
+      return InteractionVisibility.WHEN_SELECTED;
    }
 
    public record Group(Map<Integer, Long> members, boolean scaleEnabled) {
@@ -74,7 +79,7 @@ public final class SelectionGizmoInteraction {
 
    public static InteractionObject captureGroup(UUID owner, Map<Integer, SelectionInteractionScene.Part> parts,
       Set<Integer> selected, InteractionObject previous) {
-      if (selected.size() < 2) return null;
+      if (selected.size() < 2 || parts.values().stream().anyMatch(part -> part.source().smartEditable())) return null;
       AABB bounds = null;
       boolean scaleEnabled = true;
       Map<Integer, Long> members = new LinkedHashMap<>();
@@ -105,7 +110,7 @@ public final class SelectionGizmoInteraction {
          ? new AxisGizmo.Operation[] {AxisGizmo.Operation.MOVE, AxisGizmo.Operation.SCALE, AxisGizmo.Operation.ROTATE}
          : new AxisGizmo.Operation[] {AxisGizmo.Operation.MOVE, AxisGizmo.Operation.ROTATE};
       return AxisGizmo.inFrame(TransformFrame.world(bounds.getCenter()),
-         scale.axisLength() * 1.12, scale.handleRadius() * 1.12, operations)
+         scale.axisLength() * 1.35, scale.handleRadius() * 1.35, operations)
          .withTextComponent(GizmoTextComponent.pointLevel());
    }
 }

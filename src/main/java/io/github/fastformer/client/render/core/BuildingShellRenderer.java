@@ -5,6 +5,8 @@ import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
+import io.github.fastformer.client.render.PreviewStyle;
+import io.github.fastformer.client.render.PreviewMaterialRenderer;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.model.BuildingSpecialBlock;
 import io.github.fastformer.client.render.shell.ShapeShellRenderer;
@@ -34,8 +36,7 @@ final class BuildingShellRenderer {
       Map<BlockPos, BuildingSpecialBlock> specialStyles,
       float worldPreviewOpacity, float breathPulse,
       boolean confirmedLightweight,
-      boolean pendingLightweight,
-      boolean cleanOutlineEdges
+      boolean pendingLightweight
    ) {
       if (confirmedLightweight) {
          CONFIRMED_BUILDING_SHELL_CACHE.clear();
@@ -64,31 +65,42 @@ final class BuildingShellRenderer {
          pendingPreviewLevel, state, stateOverrides, collision, pendingBlocks, pendingBlocks, Map.of(), player.isShiftKeyDown()
       );
 
-      float pendingFaceAlpha = 0.30F + 0.20F * breathPulse;
+      Set<BlockPos> confirmedFallback = CONFIRMED_MODELS.render(poseStack, buffers, camera,
+         confirmedLightweight ? Set.of() : confirmedBlocks, state, stateOverrides,
+         previewAlpha(PreviewMaterialRenderer.confirmedAlpha(), worldPreviewOpacity), false);
+      Set<BlockPos> pendingFallback = PENDING_MODELS.render(poseStack, buffers, camera,
+         pendingLightweight ? Set.of() : pendingBlocks, state, stateOverrides,
+         previewAlpha(PreviewMaterialRenderer.pendingAlpha(breathPulse), worldPreviewOpacity), true);
+      var fallbackConfirmed = CONFIRMED_FALLBACK_SHELL.mesh(player.level(), null, Map.of(), collision,
+         confirmedFallback, confirmedFallback, Map.of(), false);
+      var fallbackPending = PENDING_FALLBACK_SHELL.mesh(player.level(), null, Map.of(), collision,
+         pendingFallback, pendingFallback, Map.of(), false);
       renderBuildingFaces(
          poseStack,
          buffers,
          camera,
-         confirmed.faces(),
-         pending.faces(),
-         previewAlpha(0.80F, worldPreviewOpacity),
-         previewAlpha(pendingFaceAlpha, worldPreviewOpacity)
+         fallbackConfirmed.faces(),
+         fallbackPending.faces(),
+         previewAlpha(PreviewStyle.FACE_ALPHA, worldPreviewOpacity),
+         previewAlpha(PreviewMaterialRenderer.pendingAlpha(breathPulse), worldPreviewOpacity)
       );
+      // Visibility means "the shell mesh exists", so the endpoint fallback stays out of the way.
       BuildingShellVisibility visibility = new BuildingShellVisibility(
          !confirmed.faces().isEmpty(), !pending.faces().isEmpty()
       );
 
-      if (!cleanOutlineEdges) {
-         buffers.endBatch(PENDING_XRAY_LINES);
-         buffers.endBatch(GHOST_OUTLINE_LINES);
-         CONFIRMED_SHELL_EDGES.draw(poseStack, camera, confirmed.edges(), PENDING_XRAY_LINES, 0.16F * worldPreviewOpacity);
-         PENDING_SHELL_EDGES.draw(poseStack, camera, pending.edges(), PENDING_XRAY_LINES, 0.12F * worldPreviewOpacity);
-         CONFIRMED_SHELL_EDGES.draw(poseStack, camera, confirmed.edges(), GHOST_OUTLINE_LINES, 0.92F * worldPreviewOpacity);
-         PENDING_SHELL_EDGES.draw(poseStack, camera, pending.edges(), GHOST_OUTLINE_LINES, 0.82F * worldPreviewOpacity);
-      } else {
-         CONFIRMED_SHELL_EDGES.clear();
-         PENDING_SHELL_EDGES.clear();
-      }
+      // Both stages keep a continuous contour. Only candidates change over time.
+      buffers.endBatch(PENDING_XRAY_LINES);
+      buffers.endBatch(GHOST_OUTLINE_LINES);
+      PENDING_SHELL_EDGES.clear();
+      CONFIRMED_SHELL_EDGES.draw(poseStack, camera, confirmed.edges(), PENDING_XRAY_LINES, PreviewStyle.OUTLINE_ALPHA * worldPreviewOpacity);
+      CONFIRMED_SHELL_EDGES.draw(poseStack, camera, confirmed.edges(), GHOST_OUTLINE_LINES, PreviewStyle.OUTLINE_ALPHA * worldPreviewOpacity);
+      ShapeShellRenderer.renderDashedEdges(poseStack, buffers.getBuffer(DYNAMIC_XRAY_LINES), camera,
+         pending.edges(), worldPreviewOpacity, 0);
+      buffers.endBatch(DYNAMIC_XRAY_LINES);
+      ShapeShellRenderer.renderDashedEdges(poseStack, buffers.getBuffer(DYNAMIC_LINES), camera,
+         pending.edges(), worldPreviewOpacity, 0);
+      buffers.endBatch(DYNAMIC_LINES);
       return visibility;
    }
 

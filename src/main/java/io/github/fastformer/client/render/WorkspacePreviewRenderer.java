@@ -5,9 +5,10 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import io.github.fastformer.client.render.type.PreviewRenderTypes;
+import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.render.guide.GuideRenderer;
 import net.minecraft.util.RandomSource;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -22,8 +23,6 @@ import io.github.fastformer.client.interaction.PartLabelInteraction;
 
 /** Renders client workspace blocks and the small labels attached to them. */
 public final class WorkspacePreviewRenderer {
-   private static final double EPSILON = 1.0E-7;
-   private static final double DASH_LENGTH = 0.25;
 
    private WorkspacePreviewRenderer() {
    }
@@ -42,6 +41,22 @@ public final class WorkspacePreviewRenderer {
       Map<BlockPos, ClientBlockSnapshot> occlusionBlocks,
       float red, float green, float blue, float alpha, float worldOpacity
    ) {
+      renderBlocks(poseStack, buffers, minecraft, camera, blocks, occlusionBlocks, red, green, blue, alpha, worldOpacity, false);
+   }
+
+   public static void renderBlocks(
+      PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
+      Map<BlockPos, ClientBlockSnapshot> blocks, Map<BlockPos, ClientBlockSnapshot> occlusionBlocks,
+      float red, float green, float blue, float alpha, float worldOpacity, boolean dynamic
+   ) {
+      if (minecraft.level != null && FastPlaceClientShaders.previewMaterial() != null) {
+         Map<BlockPos, net.minecraft.world.level.block.state.BlockState> states = new java.util.HashMap<>();
+         occlusionBlocks.forEach((pos, snapshot) -> states.put(pos, snapshot.state()));
+         PreviewMaterialRenderer.draw(poseStack, buffers, minecraft, camera, blocks,
+            PreviewBlockOcclusion.level(minecraft.level, states), red, green, blue, alpha * worldOpacity, dynamic);
+         return;
+      }
+      buffers.endBatch();
       com.mojang.blaze3d.systems.RenderSystem.enableBlend();
       com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
       com.mojang.blaze3d.systems.RenderSystem.setShaderColor(red, green, blue, alpha * worldOpacity);
@@ -50,27 +65,29 @@ public final class WorkspacePreviewRenderer {
          occlusionBlocks.forEach((pos, snapshot) -> states.put(pos, snapshot.state()));
          net.minecraft.world.level.BlockAndTintGetter previewLevel = minecraft.level == null
             ? null : PreviewBlockOcclusion.level(minecraft.level, states);
-         BlockRenderDispatcher renderer = minecraft.getBlockRenderer();
-         for (var entry : blocks.entrySet()) {
-            poseStack.pushPose();
-            poseStack.translate(
-               entry.getKey().getX() - camera.x,
-               entry.getKey().getY() - camera.y,
-               entry.getKey().getZ() - camera.z
-            );
-            net.minecraft.world.level.block.state.BlockState state = entry.getValue().state();
-            if (previewLevel != null) {
-               renderer.renderBatched(
-                  state, entry.getKey(), previewLevel, poseStack, buffers.getBuffer(PreviewRenderTypes.WORKSPACE_BLOCKS), true,
-                  RandomSource.create(entry.getKey().asLong())
-               );
-            }
-            poseStack.popPose();
-         }
+         if (previewLevel != null) renderBlockModels(poseStack, buffers.getBuffer(PreviewRenderTypes.WORKSPACE_BLOCKS),
+            minecraft, camera, blocks, previewLevel);
       } finally {
-         buffers.endBatch();
+         buffers.endBatch(PreviewRenderTypes.WORKSPACE_BLOCKS);
          com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
          com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+      }
+   }
+
+   /** Uses snapshot states and vanilla models for both moving previews and x-ray previews. */
+   public static void renderBlockModels(PoseStack pose, VertexConsumer vertices, Minecraft minecraft, Vec3 origin,
+      Map<BlockPos, ClientBlockSnapshot> blocks, net.minecraft.world.level.BlockAndTintGetter previewLevel) {
+      BlockRenderDispatcher renderer = minecraft.getBlockRenderer();
+      for (var entry : blocks.entrySet()) {
+         pose.pushPose();
+         try {
+            BlockPos position = entry.getKey();
+            pose.translate(position.getX() - origin.x, position.getY() - origin.y, position.getZ() - origin.z);
+            renderer.renderBatched(entry.getValue().state(), position, previewLevel, pose, vertices, true,
+               RandomSource.create(position.asLong()));
+         } finally {
+            pose.popPose();
+         }
       }
    }
 
@@ -103,26 +120,26 @@ public final class WorkspacePreviewRenderer {
       poseStack.pushPose();
       poseStack.translate(position.x - camera.x, position.y - camera.y, position.z - camera.z);
       poseStack.mulPose(minecraft.gameRenderer.getMainCamera().rotation());
-      poseStack.scale(-0.021F, -0.021F, 0.021F);
+      poseStack.scale(-PreviewStyle.LABEL_SCALE, -PreviewStyle.LABEL_SCALE, PreviewStyle.LABEL_SCALE);
       minecraft.font.drawInBatch(
          text, -minecraft.font.width(text) * 0.5F, -minecraft.font.lineHeight - 3.0F,
-         0xFFFFFFFF, false, poseStack.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
-         0xB0203038, LightTexture.FULL_BRIGHT
+         GeometryPalette.paperInk().argb(), false, poseStack.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
+         GeometryPalette.paper().argb(200), LightTexture.FULL_BRIGHT
       );
       poseStack.popPose();
    }
 
    public static void renderPendingDeleteBlocks(
       PoseStack poseStack, BufferSource buffers, Vec3 camera,
-      Collection<BlockPos> blocks, double dashOffset
+      Collection<BlockPos> blocks, double dashOffset, float opacity
    ) {
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
-      VertexConsumer lines = buffers.getBuffer(RenderType.lines());
+      VertexConsumer lines = buffers.getBuffer(PreviewRenderTypes.GHOST_OUTLINE_LINES);
       for (BlockPos pos : blocks) {
          renderDeleteFlowingBox(
             poseStack, lines, Vec3.atCenterOf(pos), new Vec3(0.505, 0.505, 0.505),
-            dashOffset + (pos.getX() + pos.getY() + pos.getZ()) * 0.17, 0.94F
+            dashOffset + (pos.getX() + pos.getY() + pos.getZ()) * 0.17, 0.94F * opacity
          );
       }
       poseStack.popPose();
@@ -155,25 +172,7 @@ public final class WorkspacePreviewRenderer {
    private static void renderRedFlowingDashedLine(
       PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha, double offset
    ) {
-      Vec3 vector = to.subtract(from);
-      double length = vector.length();
-      if (length < EPSILON) {
-         return;
-      }
-      Vec3 direction = vector.scale(1.0 / length);
-      int index = (int)Math.floor(-offset / DASH_LENGTH) - 1;
-      for (double start = index * DASH_LENGTH + offset; start < length; start += DASH_LENGTH, index++) {
-         double clippedStart = Math.max(0.0, start);
-         double clippedEnd = Math.min(length, start + DASH_LENGTH);
-         if (clippedEnd <= clippedStart) {
-            continue;
-         }
-         boolean bright = Math.floorMod(index, 2) == 0;
-         FastPlaceClientPreview.renderLine(
-            poseStack, consumer,
-            from.add(direction.scale(clippedStart)), from.add(direction.scale(clippedEnd)),
-            bright ? 1.0F : 0.38F, bright ? 0.12F : 0.0F, bright ? 0.08F : 0.0F, alpha
-         );
-      }
+      GuideRenderer.renderDashedLine(poseStack, consumer, from, to, GeometryPalette.brick(),
+         alpha, offset, PreviewStyle.DASH_LENGTH, 1.0F);
    }
 }

@@ -7,8 +7,11 @@
     "defaultRequire": 1
   },
   "client": [
+    "BlockUsePredictionMixin",
+    "GameRendererMixin",
     "BlockEntityRenderDispatcherMixin",
     "LevelRendererAccessor",
+    "GuiAccessor",
     "RenderChunkRegionMixin"
   ]
 }

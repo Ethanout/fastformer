@@ -45,6 +45,7 @@ public final class ClientOperationDraftCodec {
    public static CompoundTag encode(ClientOperationDraft draft) {
       CompoundTag root = new CompoundTag();
       root.putInt("Version", draft.version());
+      root.putBoolean("Unsubmitted", draft.submissionId() == null);
       if (draft.identity() != null) {
          root.put("Identity", encodeIdentity(draft.identity()));
       }
@@ -58,6 +59,7 @@ public final class ClientOperationDraftCodec {
       }
       root.put("Workspace", encodeWorkspace(draft.workspace()));
       root.put("Selection", encodeSelectionDraft(draft.selection()));
+      if (draft.remainder() != null) root.put("Remainder", encode(draft.remainder().asDraft()));
       return root;
    }
 
@@ -88,7 +90,10 @@ public final class ClientOperationDraftCodec {
             decodeWorkspace(requiredCompound(root, "Workspace"), blocks),
             decodeSelectionDraft(requiredCompound(root, "Selection")),
             origin,
-            submissionId
+            submissionId,
+            root.contains("Remainder", Tag.TAG_COMPOUND) ? new ClientOperationDraft.Remainder(
+               decodeWorkspace(requiredCompound(root.getCompound("Remainder"), "Workspace"), blocks),
+               decodeSelectionDraft(requiredCompound(root.getCompound("Remainder"), "Selection"))) : null
          );
       } catch (IllegalArgumentException exception) {
          throw new IOException("Client operation draft is inconsistent", exception);
@@ -259,6 +264,7 @@ public final class ClientOperationDraftCodec {
       tag.putString("Mode", selection.selectionMode().name());
       putBlockPositions(tag, "Points", selection.points());
       tag.putInt("PrismBasePointCount", selection.prismBaseCount());
+      tag.putBoolean("SecondPointOnly", selection.secondPointOnly());
       putOptionalBlockPos(tag, "Min", selection.minPoint());
       putOptionalBlockPos(tag, "Max", selection.maxPoint());
       return tag;
@@ -270,7 +276,8 @@ public final class ClientOperationDraftCodec {
          readBlockPositions(tag, "Points"),
          tag.getInt("PrismBasePointCount"),
          readOptionalBlockPos(tag, "Min"),
-         readOptionalBlockPos(tag, "Max")
+         readOptionalBlockPos(tag, "Max"),
+         tag.getBoolean("SecondPointOnly")
       );
    }
 

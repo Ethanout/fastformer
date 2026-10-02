@@ -60,7 +60,7 @@ public record PlacementContextSnapshot(
          placementHit.getLocation(),
          placementHit.getDirection(),
          placementHit.isInside(),
-         vanilla.replacingClickedOnBlock(),
+         embedded || vanilla.replacingClickedOnBlock(),
          player.getYRot(),
          player.getDirection(),
          player.getXRot() < 0.0F ? Direction.UP : Direction.DOWN,

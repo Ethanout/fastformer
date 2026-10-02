@@ -56,6 +56,12 @@ public final class TiltedBoxGenerator {
       if (fillMode == FillMode.OUTLINE) {
          return outline(base, extrusion, maxBlocks, observer, tieBias, rasterizationMode);
       }
+      if (rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL) {
+         // Match the authored outline's integer translation, including negative
+         // fractional heights. Rounding translated cell centers gives another box.
+         base = base.stream().map(BlockPos::containing).map(Vec3::atCenterOf).toList();
+         extrusion = Vec3.atLowerCornerOf(BlockPos.containing(extrusion));
+      }
       Vec3 normal = PlanarFaceGeometry.normal(base);
       if (normal.lengthSqr() < EPSILON
          || extrusion.lengthSqr() < EPSILON

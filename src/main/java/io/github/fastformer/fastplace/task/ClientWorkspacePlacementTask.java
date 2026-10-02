@@ -20,6 +20,10 @@ import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import io.github.fastformer.workspace.submission.OperationWorkspaceValidator;
+import io.github.fastformer.workspace.submission.WorkspaceFailure;
+import io.github.fastformer.workspace.preview.WorkspaceScene;
+import io.github.fastformer.fastplace.world.WorkspaceWriteScope;
+import io.github.fastformer.fastplace.world.WorkspaceTickBarrier;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,6 +46,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 
 /** Validates and atomically applies a fully client-resolved workspace package. */
 public final class ClientWorkspacePlacementTask implements WorldOperationTask {
+   private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+   private WorkspaceFailure failureReason = WorkspaceFailure.UNKNOWN;
+   public WorkspaceFailure failureReason() { return failureReason; }
    private final UUID transferId;
    private final OperationWorkspacePlan plan;
    private final PlacementUpdateMode updateMode;
@@ -51,6 +58,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
    /** The only object that may release this task's dimension lease. */
    private WorldWriteCoordinator.Lease lease;
+   private WorkspaceTickBarrier tickBarrier;
    private MemoryReservation memoryReservation;
    private long blockEntityReserve;
    private boolean memoryThrottled;
@@ -97,6 +105,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
+      if (tickBarrier == null && !desired.isEmpty()) tickBarrier = new WorkspaceTickBarrier(level, desired.keySet());
       this.metrics.phase(phaseMetric());
       while (budget.tryConsume()
          || (phase == Phase.WRITE && !writable.isEmpty() && !hasWrites() && budget.tryConsumeFirstWrite())) {
@@ -119,8 +128,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
                   };
                }
                int unjournaled = transaction.expectedCount() - journaledCount - pendingJournalSlice.size();
-               if (unjournaled > 0 && (captureComplete
-                  || unjournaled >= PersistentRecoveryJournal.segmentCapacity(journaledCount))) {
+               if (unjournaled > 0 && captureComplete) {
                   phase = Phase.JOURNAL;
                } else if (captureComplete && writable.isEmpty() && pendingJournalSlice.isEmpty()) {
                   phase = Phase.FINALIZE;
@@ -134,7 +142,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
                if (preparation == JournalPreparation.FAILED) {
                   return OperationTaskResult.JOURNAL_FAILED;
                }
-               phase = Phase.WRITE;
+               if (journaledCount == transaction.expectedCount()) phase = Phase.WRITE;
             }
             case WRITE -> {
                if (writable.isEmpty()) {
@@ -234,6 +242,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       );
       if (!validated.success()) {
          invalidPartIds = validated.invalidPartIds();
+         reportFailure(WorkspaceFailure.INVALID_PLAN, null);
          return OperationTaskResult.FAILED;
       }
       LinkedHashMap<BlockPos, ClientBlockSnapshot> composed = composeDesiredSnapshots(validated);
@@ -246,6 +255,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       }
       metrics.targetCount(composed.size());
       desired = Collections.unmodifiableMap(composed);
+      tickBarrier = new WorkspaceTickBarrier(level, desired.keySet());
       captureIterator = desired.entrySet().iterator();
       return OperationTaskResult.ACTIVE;
    }
@@ -253,10 +263,11 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    static LinkedHashMap<BlockPos, ClientBlockSnapshot> composeDesiredSnapshots(
       OperationWorkspaceValidator.Result validated
    ) {
-      LinkedHashMap<BlockPos, ClientBlockSnapshot> composed = new LinkedHashMap<>();
       ClientBlockSnapshot air = new ClientBlockSnapshot(Blocks.AIR.defaultBlockState(), null);
-      validated.clears().forEach(pos -> composed.put(pos.immutable(), air));
-      validated.writes().forEach((pos, snapshot) -> composed.put(pos.immutable(), snapshot));
+      var scene = new WorkspaceScene<ClientBlockSnapshot>(snapshot -> !snapshot.state().isAir());
+      scene.clearSources(validated.clears());
+      scene.overlay(1, validated.writes());
+      var composed = scene.desired(air);
       LinkedHashMap<BlockPos, ClientBlockSnapshot> supportFirst = new LinkedHashMap<>();
       orderedPositions(composed.keySet()).forEach(pos -> supportFirst.put(pos, composed.get(pos)));
       return supportFirst;
@@ -272,11 +283,13 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    private boolean captureExpected(ServerLevel level, Map.Entry<BlockPos, ClientBlockSnapshot> entry) {
       if (!validSnapshot(level, entry.getKey(), entry.getValue())) {
+         reportFailure(WorkspaceFailure.INVALID_BLOCK_ENTITY, entry.getKey());
          failedTargetPositions.add(entry.getKey().immutable());
          return false;
       }
       Optional<ReversibleBlockSnapshot> captured = ReversibleBlockSnapshot.capture(level, entry.getKey());
       if (captured.isEmpty()) {
+         reportFailure(WorkspaceFailure.SNAPSHOT_UNAVAILABLE, entry.getKey());
          failedTargetPositions.add(entry.getKey().immutable());
          return false;
       }
@@ -312,6 +325,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       BlockPos pos = entry.getKey();
       ReversibleBlockSnapshot before = transaction.expectedAt(pos);
       if (before == null || !before.matches(level, pos)) {
+         reportFailure(WorkspaceFailure.WORLD_CHANGED, pos);
          failedTargetPositions.add(pos.immutable());
          return false;
       }
@@ -322,8 +336,18 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
          target.state().getFluidState(),
          target.blockEntity() == null ? null : new BlockEntitySnapshot(target.blockEntity())
       );
-      transaction.recordBefore(before);
-      if (!desiredSnapshot.placeAt(level, pos, updateMode.flags())) {
+      transaction.recordBeforeOnce(before);
+      boolean placed;
+      try (var scope = new WorkspaceWriteScope(level, transaction)) {
+         placed = desiredSnapshot.placeAt(level, pos, updateMode.flags());
+         if (scope.conflict() != null) {
+            reportFailure(WorkspaceFailure.CALLBACK_CONFLICT, scope.conflict());
+            failedTargetPositions.add(scope.conflict());
+            placed = false;
+         }
+      }
+      if (!placed) {
+         if (failureReason == WorkspaceFailure.UNKNOWN) reportFailure(WorkspaceFailure.WRITE_DID_NOT_MATCH_TARGET, pos);
          metrics.writeAttempt(false);
          transaction.recordAfter(
             pos,
@@ -338,12 +362,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
          return false;
       }
       transaction.recordAfter(pos, actual.orElseThrow());
-      // The primary block write is already durable. A neighbour refresh is a
-      // best-effort side effect and must not replace the expected snapshot or
-      // turn a successful write into an immediate rollback.
-      if (updateMode == PlacementUpdateMode.NORMAL) {
-         ReversibleBlockSnapshot.refreshTaskOwnedNeighbors(level, pos, transaction);
-      }
+      transaction.recordExpected(pos, actual.orElseThrow());
       return true;
    }
 
@@ -514,12 +533,14 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public void releaseLease(WorldTaskContext context) {
+      releaseTickBarrier();
       WorldWriteCoordinator.release(this.lease);
       this.lease = null;
    }
 
    @Override
    public void releaseAfterCancelledJournal(WorldTaskContext context) {
+      releaseTickBarrier();
       if (operationCommit != null) {
          operationCommit.cancel();
       }
@@ -552,7 +573,12 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public String metricsSummary() {
-      return metrics.summary();
+      return metrics.summary() + ", workspaceFailure=" + failureReason;
+   }
+
+   private void reportFailure(WorkspaceFailure reason, BlockPos pos) {
+      failureReason = reason;
+      LOGGER.warn("Workspace {} failed: reason={}, position={}, phase={}", transferId, reason, pos, phase);
    }
 
    @Override
@@ -605,6 +631,7 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public void releaseMemoryReservation() {
+      releaseTickBarrier();
       if (memoryReservation != null) {
          MemoryReservation reservation = memoryReservation;
          memoryReservation = null;
@@ -617,12 +644,17 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
 
    @Override
    public void releaseCommittedTransactionState() {
+      releaseTickBarrier();
       transaction.releaseWriteState();
       operationCommit = null;
       desired = Map.of();
       writable.clear();
       captureIterator = null;
       finalizationIterator = null;
+   }
+
+   private void releaseTickBarrier() {
+      if (tickBarrier != null) { tickBarrier.close(); tickBarrier = null; }
    }
 
    private WorldOperationPhase phaseMetric() {

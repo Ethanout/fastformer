@@ -17,6 +17,7 @@ public record AxisGizmo(
    GizmoTextComponent textComponent
 ) {
    private static final double EPSILON = 1.0E-7;
+   private static final double HIT_TOLERANCE_SCALE = 1.5;
 
    public AxisGizmo {
       center = center == null ? Vec3.ZERO : center;
@@ -232,7 +233,7 @@ public record AxisGizmo(
       }
       Vec3 rayPoint = eye.add(direction.scale(rayDistance));
       double handleDistance = rayPoint.distanceTo(point);
-      double tolerance = Math.max(this.handleRadius * 0.8, this.axisLength * 0.025);
+      double tolerance = Math.max(this.handleRadius * 0.8, this.axisLength * 0.025) * HIT_TOLERANCE_SCALE;
       if (handleDistance > tolerance) {
          return null;
       }
@@ -241,7 +242,7 @@ public record AxisGizmo(
 
    private Hit hitEndpoint(Handle handle, Vec3 eye, Vec3 direction, double maxDistance) {
       Vec3 handleCenter = this.handleCenter(handle);
-      double radius = this.visualRadius(handle);
+      double radius = this.visualRadius(handle) * HIT_TOLERANCE_SCALE;
       Vec3 toHandle = handleCenter.subtract(eye);
       double alongRay = toHandle.dot(direction);
       if (alongRay < 0.0 || alongRay > maxDistance) {
@@ -281,7 +282,7 @@ public record AxisGizmo(
       Vec3 point = eye.add(direction.scale(rayDistance));
       double radialDistance = point.subtract(this.center).length();
       double ringRadius = this.rotationRingRadius(handle);
-      double tolerance = Math.max(this.handleRadius * 1.25, this.axisLength * 0.025);
+      double tolerance = Math.max(this.handleRadius * 1.25, this.axisLength * 0.025) * HIT_TOLERANCE_SCALE;
       double handleDistance = Math.abs(radialDistance - ringRadius);
       if (handleDistance > tolerance) {
          return null;
@@ -354,11 +355,7 @@ public record AxisGizmo(
    }
 
    public static int axisColor(Axis axis) {
-      return switch (axis) {
-         case X -> 0xFF382E;
-         case Y -> 0x40FF59;
-         case Z -> 0x408CFF;
-      };
+      return GeometryPalette.gizmoAxis(axis).rgb();
    }
 
    public record Hit(Handle handle, Vec3 point, double rayDistance, double handleDistance) {

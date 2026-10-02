@@ -148,9 +148,17 @@ public final class ClientOperationController {
       return workspace().undoSize();
    }
 
+   public static void applyWorldHistoryEvent(io.github.fastformer.network.payload.world.WorldHistoryEventPayload event) {
+      var minecraft = Minecraft.getInstance();
+      if (minecraft == null || minecraft.level == null || !minecraft.level.dimension().location().equals(event.dimension())) return;
+      selectionSession().onWorldHistory(event.kind());
+   }
+
+   public static boolean canRedoWorldHistory() { return workspace().isEmpty() && !selectionSession().hasDraft(); }
+
    /** True while a workspace transform gesture holds an open edit. */
    public static boolean workspaceEditInProgress() {
-      return workspace().editing();
+      return workspace().editing() || DELETE_CAPTURE.pending() || SMART_CAPTURE.pending();
    }
 
    /**
@@ -158,7 +166,16 @@ public final class ClientOperationController {
     * AABB one-point phase before the client workspace contains any blocks.
     */
    public static boolean selectionSessionActive() {
-      return serverPreview.active();
+      return serverPreview.active() || selectionSession().retained();
+   }
+
+   public static void deselectAllWorkspaceParts() {
+      workspace().clearSelectionForNewDraft();
+      selectionSession().publishInteractionScene();
+   }
+
+   public static void enterLocalSelectionSession() {
+      selectionSession().startNewSession();
    }
 
    public static OperationDraftIdentity remoteSelectionIdentity() {
@@ -206,6 +223,11 @@ public final class ClientOperationController {
       return selectionSession().hasDraft();
    }
 
+   public static boolean remoteSelectionPointing() {
+      return serverPreview.active() && !selectionReady(serverPreview)
+         && !active() && !selectionDraftActive() && !selectionSession().retained();
+   }
+
    public static boolean synchronize(OperationPreviewPayload payload) {
       if (payload == null) {
          return false;
@@ -250,15 +272,15 @@ public final class ClientOperationController {
       lastServerPreviewRevision = payload.operationRevision();
       serverPreview = payload;
       if (!payload.active()) {
-         if (shouldClearWorkspaceAfterSnapshot(
+         if (!selectionSession().retained() && shouldClearWorkspaceAfterSnapshot(
             previousServerOperationActive, workspaceSubmissionPending()
          )) {
             clearWorkspace();
          }
          return true;
       }
-      selectionSession().setSelectionMode(payload.operationSelectionMode());
-      if (!workspace().isEmpty() || !selectionReady(payload)) {
+      if (selectionSession().retained()) return true;
+      if (!workspace().isEmpty() || selectionDraftActive() || !selectionReady(payload)) {
          return true;
       }
       OperationSelectionVolume selection = OperationSelectionVolume.create(
@@ -424,20 +446,99 @@ public final class ClientOperationController {
       return key == null ? fallback : key;
    }
 
-   public static boolean markSelectedForDeletion() {
-      if (workspaceSubmissionPending() || workspace().selectedIds().isEmpty() || !workspace().beginEdit()) {
-         return false;
+   public static boolean deleteSelection(Minecraft minecraft, BlockPos candidate) {
+      if (workspaceSubmissionPending() || workspaceEditInProgress() || minecraft == null || minecraft.level == null) return false;
+      adoptRemoteDraft();
+      var selected = workspace().selectedIds();
+      boolean draft = selectionDraftActive();
+      if (selected.isEmpty() && !draft) return false;
+      var parts = new java.util.ArrayList<>(io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.parts(workspace().parts(), selected));
+      if (!draft) return submitDeletion(minecraft, parts, selected, false);
+      var volume = io.github.fastformer.client.operation.selection.SelectionDraftPreview.volume(selectionDraft(), candidate);
+      if (volume == null) return false;
+      var owner = workspace();
+      var session = selectionSession();
+      var before = draftSnapshot();
+      long revision = owner.revision();
+      var protectedSources = io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.protectedSources(owner.parts(), selected);
+      int draftId = owner.partIds().stream().mapToInt(Integer::intValue).max().orElse(0) + 1;
+      return DELETE_CAPTURE.start(volume, null,
+         () -> workspace() == owner && selectionSession() == session && owner.revision() == revision && before.equals(draftSnapshot()), blocks -> {
+            var deletable = new java.util.LinkedHashMap<>(blocks);
+            deletable.keySet().removeAll(protectedSources);
+            if (!deletable.isEmpty()) parts.add(new OperationWorkspacePlan.Part(draftId, ClientSelectionPart.Source.WORLD,
+               deletable, WorkspaceTransform.IDENTITY, true));
+            submitDeletion(minecraft, parts, selected, true);
+         }, ClientOperationController::captureFailed);
+   }
+
+   private static boolean submitDeletion(Minecraft minecraft, List<OperationWorkspacePlan.Part> parts,
+      java.util.Set<Integer> selected, boolean draft) {
+      submittedPartIds = java.util.Set.copyOf(selected);
+      submittedDraft = draft;
+      return submitPartsOrFinishLocal(minecraft, parts);
+   }
+
+   private static boolean submitPartsOrFinishLocal(Minecraft minecraft, List<OperationWorkspacePlan.Part> parts) {
+      if (parts.isEmpty()) {
+         finishSubmittedParts();
+         return true;
       }
-      for (ClientSelectionPart part : List.copyOf(workspace().selectedParts())) {
-         if (part.source() == ClientSelectionPart.Source.CLIPBOARD) {
-            workspace().removePartDuringEdit(part.id());
-         } else {
-            workspace().updatePart(part.withPendingDelete(true));
-         }
-      }
-      boolean changed = workspace().finishEdit();
+      boolean submitted = submitWorkspace(minecraft, parts);
+      if (!submitted) { submittedPartIds = null; submittedDraft = false; captureFailed(lastOperationFailureKey("fastformer.message.operation_submit_invalid")); }
+      return submitted;
+   }
+
+   private static void finishSubmittedParts() {
+      var remaining = io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
+      var draft = selectionDraft();
+      boolean keepDraft = !submittedDraft;
+      clearWorkspace();
+      workspace().restoreDraftState(remaining);
+      if (keepDraft) selectionSession().restoreDraftState(draft);
+      if (!workspace().isEmpty() || selectionDraftActive()) selectionSession().retain();
+      serverPreview = OperationPreviewPayload.inactive(lastServerPreviewRevision, draftSelectionMode());
       synchronizeDerivedWorkspaceState();
-      return changed;
+   }
+
+   public static boolean cancelLastSelection() {
+      if (workspaceSubmissionPending()) return false;
+      if (SMART_CAPTURE.pending()) { SMART_CAPTURE.cancel(); return true; }
+      adoptRemoteDraft();
+      selectionSession().retain();
+      if (workspace().editing()) {
+         SOURCE_CAPTURE.cancel();
+         RESIZE_CAPTURE.cancel();
+         pendingPointAdjustment = null;
+         pendingResizeSelection = null;
+         resizeToken = null;
+         workspace().cancelEdit();
+      }
+      DRAFT_CAPTURE.cancel();
+      if (selectionSession().stack().peek().isEmpty()) {
+         selectionSession().clearTransientInteraction();
+         SOURCE_MASK.clear();
+         serverPreview = OperationPreviewPayload.inactive(lastServerPreviewRevision, draftSelectionMode());
+         synchronizeDerivedWorkspaceState();
+         return true;
+      }
+      if (!workspace().popSelection()) return false;
+      if (selectionSession().stack().peek().isEmpty()) {
+         selectionSession().clearTransientInteraction();
+         SOURCE_MASK.clear();
+         serverPreview = OperationPreviewPayload.inactive(lastServerPreviewRevision, draftSelectionMode());
+      }
+      synchronizeDerivedWorkspaceState();
+      return true;
+   }
+
+   private static void adoptRemoteDraft() {
+      if (!remoteSelectionPointing()) return;
+      selectionSession().restoreDraftState(new ClientSelectionSession.DraftState(serverPreview.operationSelectionMode(),
+         serverPreview.points(), serverPreview.operationPrismBasePointCount(), serverPreview.selectionMin(), serverPreview.selectionMax(),
+         serverPreview.operationSelectionMode() == OperationSelectionMode.CUBOID && serverPreview.points().size() == 1
+            && !serverPreview.hasFirst() && serverPreview.hasSecond()));
+      selectionSession().retain();
    }
 
    public static boolean removeSelectedParts() {
@@ -450,6 +551,7 @@ public final class ClientOperationController {
    }
 
    public static boolean handleCreateClick(int mouseButton, BlockPos point) {
+      if (smartTool()) return handleSmartClick(mouseButton, point, false);
       DraftSnapshot before = draftSnapshot();
       boolean handled = handleCreateClickInternal(mouseButton, point);
       recordDraftEvent(before);
@@ -462,6 +564,7 @@ public final class ClientOperationController {
 
    /** Alt-prefixed creation deliberately bypasses all existing-part hit testing. */
    public static boolean handleAltCreateClick(int mouseButton, BlockPos point) {
+      if (smartTool()) return handleSmartClick(mouseButton, point, true);
       DraftSnapshot before = draftSnapshot();
       boolean handled = handleAltCreateClickInternal(mouseButton, point);
       recordDraftEvent(before);
@@ -476,10 +579,39 @@ public final class ClientOperationController {
       return selectionSession().selectionMode();
    }
 
+   public static ClientSelectionSession.DraftState selectionDraft() {
+      return selectionSession().draftState();
+   }
+
+   public static void cycleIdleSelectionTool() {
+      if (active() || selectionDraftActive() || selectionSessionActive()) return;
+      var next = io.github.fastformer.client.operation.selection.SelectionToolPreference.get().next();
+      io.github.fastformer.client.operation.selection.SelectionToolPreference.set(next);
+      selectionSession().setSelectionMode(next);
+   }
+
+   public static boolean cycleDraftMode() {
+      if (!active() && !selectionDraftActive() && !selectionSessionActive()) return false;
+      if (workspace().locked() || workspace().editing() || SMART_CAPTURE.pending() || DRAFT_CAPTURE.pending()) return true;
+      adoptRemoteDraft();
+      selectionSession().retain();
+      var session = selectionSession();
+      var before = session.draftState();
+      var next = draftSelectionMode().next();
+      session.clearDraft();
+      session.setSelectionMode(next);
+      io.github.fastformer.client.operation.selection.SelectionToolPreference.set(next);
+      workspace().pushEvent(() -> session.restoreDraftEdit(before), ClientOperationEventStack.Retention.of(before.points().size() + 1));
+      synchronizeDerivedWorkspaceState();
+      return true;
+   }
+
    private static boolean handleDraftClick(int mouseButton, BlockPos point, boolean alt) {
-      if (workspaceSubmissionPending() || workspace().size() >= ClientOperationWorkspace.MAX_PARTS) {
+      if (workspaceSubmissionPending() || workspace().locked() || workspace().editing() || DRAFT_CAPTURE.pending()
+         || workspace().size() >= ClientOperationWorkspace.MAX_PARTS) {
          return false;
       }
+      if (point == null) return false;
       var event = SelectionDraftEvent.fromMouse(mouseButton, point, alt);
       var result = selectionSession().onDraftEvent(event);
       if (!result.handled()) {
@@ -494,17 +626,53 @@ public final class ClientOperationController {
       return active() && workspace().part(workspace().activeId()).map(ClientSelectionPart::transformed).orElse(false);
    }
 
+   public static boolean canStartSelectionDraft() {
+      return smartTool() && selectionSessionActive() || selectionDraftActive()
+         || (selectionSession().retained() || active())
+            && selectionSession().stack().topPart().filter(ClientSelectionPart::canAdjustGeometry).isEmpty();
+   }
+
+   public static boolean confirmSelection(Minecraft minecraft, BlockPos candidate) {
+      adoptRemoteDraft();
+      var action = io.github.fastformer.client.operation.input.SelectionConfirmation.decide(
+         workspace(), workspaceSubmissionPending() || SMART_CAPTURE.pending() || DRAFT_CAPTURE.pending());
+      return switch (action) {
+         case BLOCKED -> true;
+         case SUBMIT_ALL -> selectionDraftActive()
+            ? completePreview(candidate, () -> {
+               if (!submitSelectionParts(minecraft)) captureFailed(lastOperationFailureKey("fastformer.message.operation_submit_invalid"));
+            }) : submitSelectionParts(minecraft);
+      };
+   }
+
+   private static boolean completePreview(BlockPos candidate, Runnable afterCapture) {
+      var volume = io.github.fastformer.client.operation.selection.SelectionDraftPreview.volume(selectionDraft(), candidate);
+      return volume != null && captureDraft(volume, true, afterCapture);
+   }
+
+   public static boolean fixActiveSelection() {
+      if (workspaceSubmissionPending() || workspace().editing() || SMART_CAPTURE.pending() || DRAFT_CAPTURE.pending()) return false;
+      var latest = workspace().selections().topPart().filter(ClientSelectionPart::isOriginalSelection).orElse(null);
+      if (latest == null || !workspace().beginEdit()) return false;
+      workspace().updatePart(latest.fixed());
+      workspace().finishEdit();
+      synchronizeDerivedWorkspaceState();
+      return true;
+   }
+
    public static boolean undo() {
+      if (SMART_CAPTURE.pending()) { SMART_CAPTURE.cancel(); return true; }
       if (workspaceSubmissionPending()) {
          return false;
       }
       boolean changed = workspace().undo();
+      if (changed && (!workspace().isEmpty() || selectionSession().hasDraft())) selectionSession().retain();
       synchronizeDerivedWorkspaceState();
       return changed;
    }
 
    public static boolean moveSelected(BlockPos offset) {
-      if (workspaceSubmissionPending() || offset == null || offset.equals(BlockPos.ZERO)
+      if (SMART_CAPTURE.pending() || DRAFT_CAPTURE.pending() || workspaceSubmissionPending() || offset == null || offset.equals(BlockPos.ZERO)
          || workspace().selectedIds().isEmpty() || !workspace().beginEdit()) {
          return false;
       }
@@ -521,15 +689,14 @@ public final class ClientOperationController {
       return part != null && part.canAdjustGeometry();
    }
 
-   /** Checks the source only when an adjustment gesture is actually starting. */
+   /** Checks whether the captured selection can be adjusted in this environment. */
    public static boolean sourceSnapshotMatches(ClientSelectionPart part) {
       return sourceState(part) == SourceState.MATCHES;
    }
 
    /**
-    * Reports why a source check passes or fails. This is the client AABB-adjust start
-    * check against the live client world. The server write-time guard compares the
-    * recorded before-image at write time. Plan validation only composes the supplied data.
+    * Checks adjustment readiness without replacing the captured block states.
+    * The server transaction checks conflicts when the workspace is written.
     */
    public static SourceState sourceState(ClientSelectionPart part) {
       if (part == null || !canAdjustAabbFace(part)) {
@@ -539,21 +706,12 @@ public final class ClientOperationController {
       if (minecraft == null || minecraft.level == null) {
          return SourceState.LEVEL_UNAVAILABLE;
       }
-      if (sourceCheckPart == part && sourceCheckResult != null && System.nanoTime() - sourceCheckCompletedAt < 2_000_000_000L) {
-         SourceState result = sourceCheckResult;
-         sourceCheckPart = null;
-         sourceCheckResult = null;
-         return result;
-      }
-      if (sourceCheckPart != part || !SOURCE_CAPTURE.pending()) {
-         sourceCheckPart = part;
-         sourceCheckResult = null;
-         var owner = workspace();
-         SOURCE_CAPTURE.start(part.selection(), null, () -> workspace() == owner && owner.part(part.id()).orElse(null) == part,
-            blocks -> { sourceCheckResult = blocks.equals(part.blocks()) ? SourceState.MATCHES : SourceState.SOURCE_CHANGED; sourceCheckCompletedAt = System.nanoTime(); },
-            key -> { sourceCheckResult = SourceState.SOURCE_CHANGED; captureFailed(key); });
-      }
-      return SourceState.PENDING;
+      // The part already owns the immutable source snapshot captured when the
+      // selection was created. Reading the live world here changes the meaning
+      // of an adjustment and rejects valid states, such as unsupported fence
+      // connections. The server transaction performs the authoritative
+      // conflict check when it writes the operation.
+      return SourceState.MATCHES;
    }
 
    /** Why a source check passed or failed. */
@@ -654,13 +812,23 @@ public final class ClientOperationController {
          return AabbAdjustDecision.NO_TARGET;
       }
       ClientSelectionPart part = workspace().part(partId).orElse(null);
+      if (workspace().editing()) return AabbAdjustDecision.EDIT_UNAVAILABLE;
       AabbAdjustDecision decision = aabbAdjustDecision(part);
+      if (decision == AabbAdjustDecision.CAPTURE_PENDING) {
+         if (!workspace().beginEdit()) return AabbAdjustDecision.EDIT_UNAVAILABLE;
+         pendingPointAdjustment = new PendingPointAdjustment(workspace(), workspace().activeEditToken(), part, mouseButton, worldPoint.immutable());
+         return AabbAdjustDecision.ADJUSTED;
+      }
       if (!decision.ready()) {
          return decision;
       }
       if (!workspace().beginEdit()) {
          return AabbAdjustDecision.EDIT_UNAVAILABLE;
       }
+      return capturePointAdjustment(part, mouseButton, worldPoint);
+   }
+
+   private static AabbAdjustDecision capturePointAdjustment(ClientSelectionPart part, int mouseButton, BlockPos worldPoint) {
       Vec3 translation = part.transform().translation();
       BlockPos localPoint = new BlockPos(
          Mth.floor(worldPoint.getX() - translation.x),
@@ -685,7 +853,27 @@ public final class ClientOperationController {
          synchronizeDerivedWorkspaceState();
       }, key -> { owner.cancelEdit(token); captureFailed(key); });
       if (!started) owner.cancelEdit(token);
-      return started ? AabbAdjustDecision.CAPTURE_PENDING : AabbAdjustDecision.UNCHANGED;
+      return started ? AabbAdjustDecision.ADJUSTED : AabbAdjustDecision.UNCHANGED;
+   }
+
+   private static void continuePointAdjustment() {
+      var pending = pendingPointAdjustment;
+      if (pending == null) return;
+      if (workspace() != pending.owner() || !pending.owner().ownsEdit(pending.token())
+         || pending.owner().part(pending.part().id()).orElse(null) != pending.part()) {
+         pending.owner().cancelEdit(pending.token());
+         pendingPointAdjustment = null;
+         return;
+      }
+      var decision = aabbAdjustDecision(pending.part());
+      if (decision == AabbAdjustDecision.CAPTURE_PENDING) return;
+      pendingPointAdjustment = null;
+      if (decision.ready()) capturePointAdjustment(pending.part(), pending.button(), pending.point());
+      else {
+         pending.owner().cancelEdit(pending.token());
+         String key = aabbAdjustFailureKey(decision);
+         if (key != null) captureFailed(key);
+      }
    }
 
    public static void updateAabbFaceGesture(
@@ -763,7 +951,11 @@ public final class ClientOperationController {
          return null;
       }
       if (totalSteps == 0) {
-         baseline.forEach(workspace()::updatePart);
+         baseline.forEach(part -> {
+            boolean alreadyFixed = workspace().part(part.id())
+               .map(current -> current.editability() == ClientSelectionPart.Editability.LOCKED).orElse(false);
+            workspace().updatePart(alreadyFixed ? part.fixed() : part);
+         });
          synchronizeDerivedWorkspaceState();
          return null;
       }
@@ -794,16 +986,29 @@ public final class ClientOperationController {
    }
 
    public static boolean submitWorkspace(Minecraft minecraft) {
+      submittedPartIds = null;
+      submittedDraft = false;
+      return submitWorkspace(minecraft, WorkspaceContentPreparer.submissionParts(workspace().parts()));
+   }
+
+   private static boolean submitSelectionParts(Minecraft minecraft) {
+      var chosen = workspace().parts();
+      submittedPartIds = chosen.stream().map(ClientSelectionPart::id).collect(java.util.stream.Collectors.toSet());
+      submittedDraft = true;
+      var parts = WorkspaceContentPreparer.confirmedParts(chosen);
+      return submitPartsOrFinishLocal(minecraft, parts);
+   }
+
+   private static boolean submitWorkspace(Minecraft minecraft, List<OperationWorkspacePlan.Part> parts) {
       lastOperationFailureKey = null;
       if (workspaceSubmissionPending() || workspace().editing()
-         || minecraft == null || minecraft.getConnection() == null || workspace().isEmpty()) {
+         || minecraft == null || minecraft.getConnection() == null || workspace().isEmpty() && !selectionDraftActive()) {
          lastOperationFailureKey = workspaceSubmissionPending()
             ? "fastformer.message.operation_submit_pending"
             : "fastformer.message.operation_submit_invalid";
          return false;
       }
       try {
-         List<OperationWorkspacePlan.Part> parts = WorkspaceContentPreparer.submissionParts(workspace().parts());
          if (parts.isEmpty()) {
             lastOperationFailureKey = "fastformer.message.operation_submit_no_content";
             return false;
@@ -821,18 +1026,19 @@ public final class ClientOperationController {
          // The server preview is still active here. It turns inactive when the server
          // queues the task, so this is the last moment that can read the identity.
          OperationDraftIdentity identity = OperationDraftIdentity.from(serverPreview);
-         boolean localOnly = parts.stream()
+         boolean localOnly = !selectionDraftActive() && workspace().parts().stream()
             .allMatch(part -> part.source() == ClientSelectionPart.Source.CLIPBOARD);
          OperationSubmissionOrigin origin = localOnly
-            ? OperationSubmissionOrigin.LOCAL_ONLY : OperationSubmissionOrigin.SERVER_SELECTION;
-         if (localOnly) {
+            ? OperationSubmissionOrigin.LOCAL_ONLY : selectionSession().clientOwned()
+               ? OperationSubmissionOrigin.CLIENT_SELECTION : OperationSubmissionOrigin.SERVER_SELECTION;
+         if (origin != OperationSubmissionOrigin.SERVER_SELECTION) {
             identity = null;
          }
          if (origin == OperationSubmissionOrigin.SERVER_SELECTION && identity == null) {
             // A server selection that vanished cannot be confirmed after a reconnect, and
             // a draft without it could never return. Do not send work that cannot be
             // recovered.
-            lastOperationFailureKey = "fastformer.message.operation_source_changed";
+            lastOperationFailureKey = "fastformer.message.operation_submit_state_changed";
             WORKSPACE_SUBMISSION.clear();
             workspace().setLocked(false);
             io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(transferId);
@@ -840,6 +1046,14 @@ public final class ClientOperationController {
             return false;
          }
          WORKSPACE_SUBMISSION.begin(transferId, identity, selectionSession().interactionOwnerId());
+         var playerSession = ClientSessionManager.instance().currentSession();
+         if (playerSession != null) {
+            var remainder = submittedPartIds == null ? null
+               : io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
+            playerSession.setSubmissionRemainder(remainder == null || remainder.parts().isEmpty() && (submittedDraft || !selectionDraftActive()) ? null
+               : new io.github.fastformer.client.session.ClientOperationDraft.Remainder(
+                  remainder, submittedDraft ? new ClientSelectionSession().draftState() : selectionDraft()));
+         }
          workspace().setLocked(true);
          var owner = workspace();
          var connection = minecraft.getConnection();
@@ -849,20 +1063,20 @@ public final class ClientOperationController {
                && minecraft.getConnection() == connection && minecraft.level == level,
             submission -> {
                if (submission == null) {
-                  WORKSPACE_SUBMISSION.clear(); owner.setLocked(false);
+                  abortSubmission(); owner.setLocked(false);
                   io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(transferId);
                   synchronizeDerivedWorkspaceState();
                } else {
                   try { submission.send(); }
                   catch (RuntimeException exception) {
-                     WORKSPACE_SUBMISSION.clear(); owner.setLocked(false);
+                     abortSubmission(); owner.setLocked(false);
                      io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(transferId);
                      captureFailed("fastformer.message.operation_submit_unavailable");
                   }
                }
             });
          if (!queued) {
-            WORKSPACE_SUBMISSION.clear(); owner.setLocked(false);
+            abortSubmission(); owner.setLocked(false);
             io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(transferId);
             lastOperationFailureKey = "fastformer.message.operation_submit_storage_failed";
          }
@@ -870,7 +1084,7 @@ public final class ClientOperationController {
       } catch (RuntimeException exception) {
          lastOperationFailureKey = "fastformer.message.operation_submit_storage_failed";
          UUID failedTransferId = WORKSPACE_SUBMISSION.transferId();
-         WORKSPACE_SUBMISSION.clear();
+         abortSubmission();
          workspace().setLocked(false);
          io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(failedTransferId);
          synchronizeDerivedWorkspaceState();
@@ -1057,11 +1271,12 @@ public final class ClientOperationController {
                true
             );
          }
-         clearWorkspace();
+         if (submittedPartIds != null) finishSubmittedParts();
+         else clearWorkspace();
          io.github.fastformer.client.input.FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
          return;
       }
-      if (!shouldRetainWorkspaceAfterFailure(payload.retryable())) {
+      if (!shouldRetainWorkspaceAfterFailure(payload.retryable()) && submittedPartIds == null) {
          // The player cannot send this work again, and the live workspace goes. The durable
          // copy goes with it, so a later reconnect cannot restore work that the server
          // already refused for good.
@@ -1082,6 +1297,9 @@ public final class ClientOperationController {
          return;
       }
       // The workspace stays for editing and for a retry, so the durable copy stays too.
+      clearSubmissionRemainder();
+      submittedPartIds = null;
+      submittedDraft = false;
       settleReceipt(payload.transferId(), OperationSubmissionOutcome.FAILED_RETRYABLE);
       synchronizeDerivedWorkspaceState();
       if (!payload.failedPartIds().isEmpty()) {
@@ -1096,7 +1314,7 @@ public final class ClientOperationController {
       Minecraft minecraft = Minecraft.getInstance();
       if (minecraft != null && minecraft.player != null) {
          minecraft.player.displayClientMessage(
-            Component.translatable("fastformer.message.operation_submit_rejected"), true
+            Component.translatable(payload.failure().messageKey()), true
          );
       }
       io.github.fastformer.client.input.FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
@@ -1111,8 +1329,24 @@ public final class ClientOperationController {
       synchronizeDerivedWorkspaceState();
    }
 
+   private static void clearSubmissionRemainder() {
+      var session = ClientSessionManager.instance().currentSession();
+      if (session != null) session.setSubmissionRemainder(null);
+   }
+
+   private static void abortSubmission() {
+      WORKSPACE_SUBMISSION.clear();
+      clearSubmissionRemainder();
+      submittedPartIds = null;
+      submittedDraft = false;
+   }
+
    public static void clearWorkspace() {
-      DRAFT_CAPTURE.cancel(); SOURCE_CAPTURE.cancel(); RESIZE_CAPTURE.cancel();
+      clearSubmissionRemainder();
+      DRAFT_CAPTURE.cancel(); SOURCE_CAPTURE.cancel(); RESIZE_CAPTURE.cancel(); DELETE_CAPTURE.cancel(); SMART_CAPTURE.cancel();
+      submittedPartIds = null;
+      submittedDraft = false;
+      pendingPointAdjustment = null;
       sourceCheckPart = null; sourceCheckResult = null; resizeToken = null; pendingResizeSelection = null;
       lastOperationFailureKey = null;
       lastTooLargeGesture = null;
@@ -1168,19 +1402,22 @@ public final class ClientOperationController {
    private static OperationSubmissionOrigin outstandingSubmissionOrigin() {
       boolean localOnly = !workspace().parts().isEmpty() && workspace().parts().stream()
          .allMatch(part -> part.source() == ClientSelectionPart.Source.CLIPBOARD);
-      return localOnly ? OperationSubmissionOrigin.LOCAL_ONLY : null;
+      return localOnly ? OperationSubmissionOrigin.LOCAL_ONLY
+         : selectionSession().clientOwned() ? OperationSubmissionOrigin.CLIENT_SELECTION : null;
    }
 
    /** Ends a reconnect boundary once the snapshot that followed it has settled. */
    public static void onClientTick() {
       ClientSessionManager.instance().drainStorageResults();
       long captureDeadline = System.nanoTime() + io.github.fastformer.client.operation.selection.SelectionBlockCapture.NANOS_PER_TICK;
-      DRAFT_CAPTURE.tick(captureDeadline); SOURCE_CAPTURE.tick(captureDeadline); RESIZE_CAPTURE.tick(captureDeadline);
+      DRAFT_CAPTURE.tick(captureDeadline); SOURCE_CAPTURE.tick(captureDeadline); RESIZE_CAPTURE.tick(captureDeadline); DELETE_CAPTURE.tick(captureDeadline);
+      SMART_CAPTURE.tick(captureDeadline);
+      continuePointAdjustment();
       selectionSession().publishInteractionScene();
       WorkspacePreviewComposer.prunePartGeometry();
       if (workspaceSubmissionPending() && WORKSPACE_SUBMISSION.tick()) {
          UUID expiredTransferId = WORKSPACE_SUBMISSION.transferId();
-         WORKSPACE_SUBMISSION.clear();
+         abortSubmission();
          workspace().setLocked(false);
          // Keep the draft available for retry. A late result cannot affect a
          // later submission because its transfer id is no longer current.
@@ -1221,7 +1458,7 @@ public final class ClientOperationController {
    }
 
    public static boolean workspaceSubmissionPending() {
-      return WORKSPACE_SUBMISSION.pending(selectionSession().interactionOwnerId());
+      return DELETE_CAPTURE.pending() || WORKSPACE_SUBMISSION.pending(selectionSession().interactionOwnerId());
    }
 
    private static Optional<OperationClipboard> loadClipboard(Minecraft minecraft) {
@@ -1248,6 +1485,41 @@ public final class ClientOperationController {
    }
 
    private static final io.github.fastformer.client.operation.selection.SelectionBlockCapture DRAFT_CAPTURE = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
+   private static final io.github.fastformer.client.operation.selection.SmartSelectionCapture SMART_CAPTURE = new io.github.fastformer.client.operation.selection.SmartSelectionCapture();
+
+   public static boolean smartTool() { return draftSelectionMode() == OperationSelectionMode.SMART; }
+   public static boolean smartEditing() {
+      return SMART_CAPTURE.pending() || io.github.fastformer.client.operation.selection.SmartSelectionEdits.editing(workspace());
+   }
+   public static boolean smartSampling() { return SMART_CAPTURE.pending(); }
+
+   private static boolean handleSmartClick(int button, BlockPos position, boolean alternative) {
+      if (position == null || workspaceSubmissionPending() || workspaceEditInProgress() || workspace().locked()) return false;
+      selectionSession().retain();
+      if (button == 0) {
+         io.github.fastformer.client.operation.selection.SmartSelectionEdits.remove(workspace(), position, alternative);
+         synchronizeDerivedWorkspaceState();
+         return true;
+      }
+      if (button != 1) return true;
+      if (alternative) {
+         var snapshot = io.github.fastformer.client.operation.selection.SmartSelectionCapture.captureCell(Minecraft.getInstance().level, position);
+         io.github.fastformer.client.operation.selection.SmartSelectionEdits.addCell(workspace(), position, snapshot);
+         synchronizeDerivedWorkspaceState();
+         return true;
+      }
+      var owner = workspace();
+      var session = selectionSession();
+      long revision = owner.revision();
+      return SMART_CAPTURE.start(position, alternative,
+         () -> owner == workspace() && session == selectionSession() && revision == owner.revision() && smartTool(), blocks -> {
+            io.github.fastformer.client.operation.selection.SmartSelectionEdits.add(owner, blocks);
+            synchronizeDerivedWorkspaceState();
+         }, ClientOperationController::captureFailed);
+   }
+   private static final io.github.fastformer.client.operation.selection.SelectionBlockCapture DELETE_CAPTURE = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
+   private static java.util.Set<Integer> submittedPartIds;
+   private static boolean submittedDraft;
    private static final io.github.fastformer.client.operation.selection.SelectionBlockCapture SOURCE_CAPTURE = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
    private static final io.github.fastformer.client.operation.selection.SelectionBlockCapture RESIZE_CAPTURE = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
    private static ClientSelectionPart sourceCheckPart;
@@ -1256,6 +1528,9 @@ public final class ClientOperationController {
    private static OperationSelectionVolume pendingResizeSelection;
    private static ClientOperationWorkspace.EditToken resizeToken;
    private static boolean resizeFinishRequested;
+   private static PendingPointAdjustment pendingPointAdjustment;
+   private record PendingPointAdjustment(ClientOperationWorkspace owner, ClientOperationWorkspace.EditToken token,
+      ClientSelectionPart part, int button, BlockPos point) { }
 
    private static void captureFailed(String key) {
       lastOperationFailureKey = key;
@@ -1279,27 +1554,36 @@ public final class ClientOperationController {
          selection = selection.expandCuboidTo(selectionSession().draftMinPoint())
             .expandCuboidTo(selectionSession().draftMaxPoint());
       }
+      return captureDraft(selection, false, null);
+   }
+
+   private static boolean captureDraft(OperationSelectionVolume selection, boolean recordCompletion, Runnable afterCapture) {
       var capturedSelection = selection;
       var owner = workspace();
       var session = selectionSession();
       var before = draftSnapshot();
       return DRAFT_CAPTURE.start(selection, null,
          () -> workspace() == owner && selectionSession() == session && before.equals(draftSnapshot()), blocks -> {
-            if (owner.addPartsWithoutHistory(List.of(new ClientSelectionPart(0, ClientSelectionPart.Source.WORLD,
-               capturedSelection, blocks, WorkspaceTransform.IDENTITY, false)))) {
+            var part = new ClientSelectionPart(0, ClientSelectionPart.Source.WORLD,
+               capturedSelection, blocks, WorkspaceTransform.IDENTITY, false);
+            if (owner.addPartsWithoutHistory(List.of(part))) {
                session.clearDraft();
+               if (recordCompletion) recordDraftEvent(before);
                synchronizeDerivedWorkspaceState();
+               if (afterCapture != null) afterCapture.run();
             }
          }, ClientOperationController::captureFailed);
    }
 
    private static DraftSnapshot draftSnapshot() {
       return new DraftSnapshot(
+         selectionSession().selectionMode(),
          selectionSession().draftPoints(),
          selectionSession().prismBaseCount(),
          selectionSession().draftMinPoint(),
          selectionSession().draftMaxPoint(),
-         workspace().partIds(),
+         selectionSession().draftState().secondPointOnly(),
+         List.copyOf(workspace().parts()),
          workspace().selectionState()
       );
    }
@@ -1311,16 +1595,15 @@ public final class ClientOperationController {
          return;
       }
       workspace().pushEvent(() -> {
-         workspace().restoreParts(before.partIds());
+         workspace().restorePartStatesWithoutHistory(before.parts());
          selectionSession().restoreDraftEdit(new ClientSelectionSession.DraftState(
-            selectionSession().selectionMode(), before.points(), before.prismBaseCount(), before.minPoint(), before.maxPoint()
+            before.mode(), before.points(), before.prismBaseCount(), before.minPoint(), before.maxPoint(), before.secondPointOnly()
          ));
          workspace().restoreSelectionStateWithoutHistory(before.selection());
       }, ClientOperationEventStack.Retention.of(
-         // The inverse keeps the draft points, the part id set and the
-         // selection alive. The block payloads belong to the workspace parts,
-         // which this event only re-filters.
-         1 + before.points().size() + before.partIds().size() + before.selection().ids().size()
+         1 + before.points().size() + before.parts().size() + before.selection().ids().size(),
+         before.parts().stream().flatMap(part -> java.util.stream.Stream.of(part.blocks(), part.sourceSnapshot()))
+            .map(blocks -> ClientOperationEventStack.SharedPayload.of(blocks, blocks.size())).toList()
       ));
    }
 
@@ -1340,11 +1623,13 @@ public final class ClientOperationController {
    }
 
    private record DraftSnapshot(
+      OperationSelectionMode mode,
       List<BlockPos> points,
       int prismBaseCount,
       BlockPos minPoint,
       BlockPos maxPoint,
-      java.util.Set<Integer> partIds,
+      boolean secondPointOnly,
+      List<ClientSelectionPart> parts,
       ClientOperationWorkspace.SelectionState selection
    ) {
    }

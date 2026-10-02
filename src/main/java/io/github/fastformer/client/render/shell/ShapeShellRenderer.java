@@ -69,6 +69,31 @@ public final class ShapeShellRenderer {
       poseStack.popPose();
    }
 
+   /** Candidate contours use low alpha and the current drawing sheet. */
+   public static void renderDashedEdges(
+      PoseStack poseStack,
+      VertexConsumer consumer,
+      Vec3 camera,
+      List<ShapeShellMesh.StyledEdge> edges,
+      float alpha,
+      double offset
+   ) {
+      renderDynamicEdges(poseStack, consumer, camera, edges,
+         alpha * io.github.fastformer.client.render.theme.VisualThemes.value("candidate_alpha", 0.8F));
+   }
+
+   public static void renderDynamicEdges(PoseStack poseStack, VertexConsumer consumer, Vec3 camera,
+      List<ShapeShellMesh.StyledEdge> edges, float alpha) {
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      for (ShapeShellMesh.StyledEdge edge : edges) {
+         var ink = edge.color();
+         io.github.fastformer.client.render.geometry.PencilStroke.draw(poseStack, consumer,
+            edge.from(), edge.to(), ink.red(), ink.green(), ink.blue(), alpha, true);
+      }
+      poseStack.popPose();
+   }
+
    public static void renderOutlineEdges(
       PoseStack poseStack,
       VertexConsumer consumer,
@@ -76,16 +101,20 @@ public final class ShapeShellRenderer {
       List<GuideLine> confirmed,
       List<GuideLine> pending
    ) {
+      var ink = io.github.fastformer.fastplace.geometry.GeometryPalette.ink();
+      float alpha = io.github.fastformer.client.render.PreviewStyle.OUTLINE_ALPHA;
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       for (GuideLine edge : confirmed) {
          FastPlaceClientPreview.renderLine(
-            poseStack, consumer, edge.from(), edge.to(), 1.0F, 1.0F, 1.0F, 0.92F
+            poseStack, consumer, edge.from(), edge.to(), ink.red(), ink.green(), ink.blue(), alpha
          );
       }
+      // Candidate contours use lower alpha while confirmed contours remain still.
       for (GuideLine edge : pending) {
-         FastPlaceClientPreview.renderLine(
-            poseStack, consumer, edge.from(), edge.to(), 1.0F, 1.0F, 1.0F, 0.82F
+         io.github.fastformer.client.render.guide.GuideRenderer.renderAlternatingDashedLine(
+            poseStack, consumer, edge.from(), edge.to(), alpha, 0.0,
+            io.github.fastformer.client.render.PreviewStyle.DASH_LENGTH, 1.0F
          );
       }
       poseStack.popPose();

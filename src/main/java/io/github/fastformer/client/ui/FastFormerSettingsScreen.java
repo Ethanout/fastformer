@@ -9,6 +9,9 @@ import io.github.fastformer.network.payload.settings.SettingsActionPayload;
 import io.github.fastformer.network.payload.settings.PlacementEffectSettingPayload;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffect;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
+import io.github.fastformer.client.FastFormerClientConfig;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.fastplace.geometry.GeometryPalette;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +34,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private PlacementUpdateMode placementUpdateMode;
    private final Set<ResourceLocation> enabledPlacementEffects;
    private boolean emptyHandWrench;
-   private boolean globalFrozen;
+   private boolean fallingDisabled;
    private int worldUndoHistoryLimit;
    private int sessionUndoHistoryLimit;
    private Button middleConfirmButton;
@@ -40,9 +43,10 @@ public final class FastFormerSettingsScreen extends Screen {
    private Button placementUpdateButton;
    private final Map<ResourceLocation, Button> placementEffectButtons = new HashMap<>();
    private Button emptyHandWrenchButton;
-   private Button globalFreezeButton;
+   private Button fallingRuleButton;
    private Button worldHistoryButton;
    private Button sessionHistoryButton;
+   private Button themeButton;
 
    public FastFormerSettingsScreen(
       boolean middleConfirmEnabled,
@@ -51,7 +55,7 @@ public final class FastFormerSettingsScreen extends Screen {
       PlacementUpdateMode placementUpdateMode,
       List<ResourceLocation> enabledPlacementEffects,
       boolean emptyHandWrench,
-      boolean globalFrozen,
+      boolean fallingDisabled,
       int worldUndoHistoryLimit,
       int sessionUndoHistoryLimit
    ) {
@@ -64,7 +68,7 @@ public final class FastFormerSettingsScreen extends Screen {
          enabledPlacementEffects == null ? List.of() : enabledPlacementEffects
       );
       this.emptyHandWrench = emptyHandWrench;
-      this.globalFrozen = globalFrozen;
+      this.fallingDisabled = fallingDisabled;
       this.worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
       this.sessionUndoHistoryLimit = Math.clamp((long)sessionUndoHistoryLimit, 1, 800);
    }
@@ -76,14 +80,14 @@ public final class FastFormerSettingsScreen extends Screen {
       PlacementUpdateMode placementUpdateMode,
       List<ResourceLocation> enabledPlacementEffects,
       boolean emptyHandWrench,
-      boolean globalFrozen,
+      boolean fallingDisabled,
       int worldUndoHistoryLimit,
       int sessionUndoHistoryLimit
    ) {
       Minecraft.getInstance().setScreen(
          new FastFormerSettingsScreen(
             middleConfirmEnabled, faceRasterizationMode, placementConflictMode,
-            placementUpdateMode, enabledPlacementEffects, emptyHandWrench, globalFrozen,
+            placementUpdateMode, enabledPlacementEffects, emptyHandWrench, fallingDisabled,
             worldUndoHistoryLimit, sessionUndoHistoryLimit
          )
       );
@@ -115,6 +119,11 @@ public final class FastFormerSettingsScreen extends Screen {
             .bounds(leftX, top + 102, 200, 20)
             .build()
       );
+      this.themeButton = this.addRenderableWidget(
+         Button.builder(this.themeLabel(), button -> this.cycleTheme())
+            .bounds(leftX, top + 136, 200, 20)
+            .build()
+      );
       int effectRow = 0;
       this.placementEffectButtons.clear();
       for (PlacementEffect effect : PlacementEffectRegistry.effects()) {
@@ -130,8 +139,8 @@ public final class FastFormerSettingsScreen extends Screen {
          Button.builder(this.emptyHandWrenchLabel(), button -> this.toggleEmptyHandWrench())
             .bounds(rightX, top + staticRow * 34, 200, 20).build()
       );
-      this.globalFreezeButton = this.addRenderableWidget(
-         Button.builder(this.globalFreezeLabel(), button -> this.toggleGlobalFreeze())
+      this.fallingRuleButton = this.addRenderableWidget(
+         Button.builder(this.fallingRuleLabel(), button -> this.toggleFallingRule())
             .bounds(rightX, top + (staticRow + 1) * 34, 200, 20).build()
       );
       this.addRenderableWidget(Button.builder(Component.literal("-"), button -> this.adjustWorldHistory(-10))
@@ -159,11 +168,12 @@ public final class FastFormerSettingsScreen extends Screen {
       int top = this.settingsTop();
       int leftX = this.width / 2 - 206;
       int rightX = this.width / 2 + 6;
-      graphics.drawCenteredString(this.font, this.title, this.width / 2, top - 18, 0xFFFFFFFF);
+      graphics.drawCenteredString(this.font, this.title, this.width / 2, top - 18, GeometryPalette.screenTitle().argb());
       this.labelAt(graphics, "fastformer.settings.middle_confirm", leftX, top - 11);
       this.labelAt(graphics, "fastformer.settings.face_rasterization", leftX, top + 23);
       this.labelAt(graphics, "fastformer.settings.placement_conflict", leftX, top + 57);
       this.labelAt(graphics, "fastformer.settings.placement_update", leftX, top + 91);
+      this.labelAt(graphics, "fastformer.settings.theme", leftX, top + 125);
       int effectRow = 0;
       for (PlacementEffect effect : PlacementEffectRegistry.effects()) {
          this.labelAt(graphics, effect.translationKey(), rightX, top + effectRow * 34 - 11);
@@ -171,7 +181,7 @@ public final class FastFormerSettingsScreen extends Screen {
       }
       int staticRow = this.rightStaticStartRow();
       this.labelAt(graphics, "fastformer.settings.empty_hand_wrench", rightX, top + staticRow * 34 - 11);
-      this.labelAt(graphics, "fastformer.settings.global_freeze", rightX, top + (staticRow + 1) * 34 - 11);
+      this.labelAt(graphics, "fastformer.settings.disable_falling", rightX, top + (staticRow + 1) * 34 - 11);
       this.labelAt(graphics, "fastformer.settings.world_history", rightX, top + (staticRow + 2) * 34 - 11);
       this.labelAt(graphics, "fastformer.settings.session_history", rightX, top + (staticRow + 3) * 34 - 11);
    }
@@ -252,7 +262,7 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private int contentRows() {
-      return Math.max(4, this.rightStaticStartRow() + 4);
+      return Math.max(5, this.rightStaticStartRow() + 4);
    }
 
    private int settingsTop() {
@@ -269,33 +279,43 @@ public final class FastFormerSettingsScreen extends Screen {
       return Component.translatable(this.emptyHandWrench ? "options.on" : "options.off");
    }
 
-   private void toggleGlobalFreeze() {
+   private void toggleFallingRule() {
       Minecraft minecraft = Minecraft.getInstance();
       if (minecraft.getConnection() == null || !NetworkRegistry.hasChannel(minecraft.getConnection(), SettingsActionPayload.TYPE.id())) return;
-      this.globalFreezeButton.active = false;
-      PacketDistributor.sendToServer(new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE, !this.globalFrozen));
+      this.fallingRuleButton.active = false;
+      PacketDistributor.sendToServer(new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, !this.fallingDisabled));
    }
 
-   private int freezePollTicks;
+   private int rulePollTicks;
 
    @Override public void tick() {
       super.tick();
-      if (Minecraft.getInstance().getConnection() == null) { this.globalFreezeButton.active = false; return; }
-      if (freezePollTicks++ % 20 == 0) this.send(SettingsActionPayload.Action.QUERY_GLOBAL_FREEZE);
+      if (Minecraft.getInstance().getConnection() == null) { this.fallingRuleButton.active = false; return; }
+      if (rulePollTicks++ % 20 == 0) this.send(SettingsActionPayload.Action.QUERY_FALLING_DISABLED);
    }
 
-   public static void applyFreezeState(io.github.fastformer.network.payload.settings.FreezeStatePayload payload) {
+   public static void applyFallingState(io.github.fastformer.network.payload.settings.FallingStatePayload payload) {
       if (Minecraft.getInstance().screen instanceof FastFormerSettingsScreen screen) {
-         screen.globalFrozen = payload.frozen();
-         if (screen.globalFreezeButton != null) {
-            screen.globalFreezeButton.setMessage(screen.globalFreezeLabel());
-            screen.globalFreezeButton.active = payload.allowed();
+         screen.fallingDisabled = payload.fallingDisabled();
+         if (screen.fallingRuleButton != null) {
+            screen.fallingRuleButton.setMessage(screen.fallingRuleLabel());
+            screen.fallingRuleButton.active = payload.allowed();
          }
       }
    }
 
-   private Component globalFreezeLabel() {
-      return Component.translatable(this.globalFrozen ? "options.on" : "options.off");
+   private Component fallingRuleLabel() {
+      return Component.translatable(this.fallingDisabled ? "options.on" : "options.off");
+   }
+
+   private Component themeLabel() {
+      return Component.translatable(GeometryPalette.theme().translationKey());
+   }
+
+   private void cycleTheme() {
+      FastFormerClientConfig.setTheme(GeometryPalette.theme().next());
+      FastPlaceClientPreviewCore.onThemeChanged();
+      this.themeButton.setMessage(this.themeLabel());
    }
 
    private Component placementUpdateLabel() {
@@ -330,15 +350,15 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private void label(GuiGraphics graphics, String key, int offsetY) {
-      graphics.drawString(this.font, Component.translatable(key), this.width / 2 - 100, this.height / 2 + offsetY, 0xFFE0E7ED);
+      graphics.drawString(this.font, Component.translatable(key), this.width / 2 - 100, this.height / 2 + offsetY, GeometryPalette.screenLabel().argb());
    }
 
    private void labelAt(GuiGraphics graphics, String key, int y) {
-      graphics.drawString(this.font, Component.translatable(key), this.width / 2 - 100, y, 0xFFE0E7ED);
+      graphics.drawString(this.font, Component.translatable(key), this.width / 2 - 100, y, GeometryPalette.screenLabel().argb());
    }
 
    private void labelAt(GuiGraphics graphics, String key, int x, int y) {
-      graphics.drawString(this.font, Component.translatable(key), x, y, 0xFFE0E7ED);
+      graphics.drawString(this.font, Component.translatable(key), x, y, GeometryPalette.screenLabel().argb());
    }
 
    private static <E extends Enum<E>> E next(E current, E[] values) {

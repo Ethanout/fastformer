@@ -4,7 +4,6 @@ import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.server.input.ServerInputDispatcher;
@@ -12,26 +11,40 @@ import io.github.fastformer.server.session.FastPlaceManager;
 import io.github.fastformer.server.session.GeometryManager;
 import io.github.fastformer.server.session.OperationManager;
 import java.util.Map;
-import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.Property;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 
 /** Authoritative Axiom-style replacement using the held block's placement state. */
 public final class QuickReplaceManager {
+   private static final java.util.Set<java.util.UUID> ACTIVE = new java.util.HashSet<>();
    private QuickReplaceManager() {
    }
 
    public static void forget(java.util.UUID owner) {
+      ACTIVE.remove(owner);
       QuickReplaceDedupe.forget(owner);
    }
 
    public static void clearAll() {
+      ACTIVE.clear();
       QuickReplaceDedupe.clearAll();
+   }
+
+   public static boolean active(ServerPlayer player) {
+      return player != null && ACTIVE.contains(player.getUUID());
+   }
+
+   public static boolean setActive(ServerPlayer player, boolean active) {
+      if (player == null) return false;
+      forget(player.getUUID());
+      if (!active) return false;
+      if (!ServerInputDispatcher.canOperate(player) || WorldHistoryManager.busy(player)
+         || FastPlaceManager.active(player) || OperationManager.active(player) || GeometryManager.active(player)
+         || FastPlaceManager.taskActive(player) || OperationManager.taskActive(player)) return false;
+      ACTIVE.add(player.getUUID());
+      return true;
    }
 
    public static boolean replaceCrosshair(ServerPlayer player) {
@@ -39,22 +52,14 @@ public final class QuickReplaceManager {
          return false;
       }
       ServerLevel level = player.serverLevel();
-      if (!QuickReplaceDedupe.accept(player.getUUID(), level.getGameTime())) {
+      if (!QuickReplaceDedupe.accept(player.getUUID(), player.getServer().getTickCount())) {
          return false;
       }
-      BlockHitResult hit = ServerInputDispatcher.raycastBlocks(player, ServerInputDispatcher.EXTENDED_REACH);
-      if (hit.getType() != HitResult.Type.BLOCK) {
-         return false;
-      }
-      BlockPos pos = hit.getBlockPos().immutable();
-      Optional<BlockState> placement = PlaceableItems.placementState(
-         player.getMainHandItem(), player, replacingContext(level, player, hit)
-      );
-      if (placement.isEmpty()) {
-         return false;
-      }
+      QuickReplaceTarget target = QuickReplaceTarget.resolve(player);
+      if (target == null) return false;
+      BlockPos pos = target.position();
       BlockState beforeState = level.getBlockState(pos);
-      BlockState afterState = copySharedProperties(beforeState, placement.orElseThrow());
+      BlockState afterState = target.state();
       if (beforeState.equals(afterState)) {
          return false;
       }
@@ -79,6 +84,7 @@ public final class QuickReplaceManager {
     */
    private static boolean admitted(ServerPlayer player) {
       return player != null
+         && active(player)
          && !WorldHistoryManager.busy(player)
          && ServerInputDispatcher.canOperate(player)
          && !FastPlaceManager.active(player)
@@ -89,32 +95,4 @@ public final class QuickReplaceManager {
          && PlaceableItems.isPlaceable(player.getMainHandItem());
    }
 
-   static BlockState copySharedProperties(BlockState source, BlockState target) {
-      BlockState result = target;
-      for (Property<?> property : source.getProperties()) {
-         if (result.hasProperty(property)) {
-            result = copyProperty(source, result, property);
-         }
-      }
-      return result;
-   }
-
-   @SuppressWarnings({"rawtypes", "unchecked"})
-   private static BlockState copyProperty(BlockState source, BlockState target, Property property) {
-      Comparable value = source.getValue(property);
-      return property.getPossibleValues().contains(value) ? target.setValue(property, value) : target;
-   }
-
-   private static PlacementContextSnapshot replacingContext(
-      ServerLevel level, ServerPlayer player, BlockHitResult hit
-   ) {
-      PlacementContextSnapshot context = PlacementContextSnapshot.capture(
-         level, player, player.getMainHandItem(), hit, false
-      );
-      return new PlacementContextSnapshot(
-         context.hitBlock(), context.hitLocation(), context.clickedFace(), context.inside(), true,
-         context.rotation(), context.horizontalDirection(), context.verticalDirection(), context.nearestDirections(),
-         context.secondaryUseActive()
-      );
-   }
 }

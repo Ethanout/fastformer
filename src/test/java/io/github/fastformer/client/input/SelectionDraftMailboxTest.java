@@ -33,7 +33,25 @@ class SelectionDraftMailboxTest {
    @AfterEach
    void clear() {
       this.input.reset();
+      io.github.fastformer.client.operation.selection.SelectionToolPreference.set(OperationSelectionMode.CUBOID);
       ClientOperationController.clearWorkspace();
+   }
+
+   @Test
+   void idleToolCycleRemembersSmartWithoutTakingOwnershipUntilSessionEntry() {
+      io.github.fastformer.client.operation.selection.SelectionToolPreference.set(OperationSelectionMode.CUBOID);
+      ClientOperationController.cycleIdleSelectionTool();
+      assertEquals(OperationSelectionMode.SMART, this.selection.selectionMode());
+      assertEquals(OperationSelectionMode.SMART,
+         io.github.fastformer.client.operation.selection.SelectionToolPreference.get());
+      assertFalse(ClientOperationController.selectionSessionActive());
+      assertFalse(ClientOperationController.canStartSelectionDraft());
+      ClientOperationController.enterLocalSelectionSession();
+      assertTrue(ClientOperationController.canStartSelectionDraft());
+      assertEquals(OperationSelectionMode.SMART, this.selection.selectionMode());
+      assertTrue(ClientOperationController.cancelLastSelection());
+      assertFalse(ClientOperationController.selectionSessionActive());
+      assertFalse(ClientOperationController.canStartSelectionDraft());
    }
 
    @Test
@@ -45,6 +63,7 @@ class SelectionDraftMailboxTest {
       drain();
       assertEquals(1, this.selection.workspace().size());
       assertFalse(this.selection.hasDraft());
+      assertTrue(this.selection.workspace().parts().getFirst().canAdjustGeometry());
       assertTrue(ClientOperationController.undo());
       assertTrue(this.selection.workspace().isEmpty());
       assertEquals(List.of(first), this.selection.draftPoints());
@@ -52,15 +71,55 @@ class SelectionDraftMailboxTest {
    }
 
    @Test
-   void altMiddleSequenceKeepsTwoInputPointsAndExpandsTheBounds() {
+   void enterFixLeavesRoomForEveryMouseButtonToStartTheNextDraft() {
+      for (int button : List.of(0, 1, 2)) {
+         ClientOperationController.clearWorkspace();
+         this.selection.setSelectionMode(OperationSelectionMode.CUBOID);
+         ClientOperationController.handleCreateClick(0, BlockPos.ZERO);
+         ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
+         assertTrue(ClientOperationController.fixActiveSelection());
+         assertTrue(ClientOperationController.canStartSelectionDraft());
+         assertFalse(this.selection.workspace().parts().getFirst().canAdjustGeometry());
+         assertTrue(ClientOperationController.handleCreateClick(button, new BlockPos(5, 5, 5)));
+         assertEquals(List.of(new BlockPos(5, 5, 5)), this.selection.draftPoints());
+      }
+   }
+
+   @Test
+   void undoingExplicitFixRestoresTheEditableSelection() {
+      ClientOperationController.handleCreateClick(0, BlockPos.ZERO);
+      ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
+      assertTrue(ClientOperationController.fixActiveSelection());
+      assertTrue(ClientOperationController.undo());
+      assertTrue(this.selection.workspace().parts().getFirst().canAdjustGeometry());
+      assertFalse(ClientOperationController.canStartSelectionDraft());
+   }
+
+   @Test
+   void modeSwitchKeepsExistingCuboidAndUndoRestoresOnlyTheCreationTool() {
+      ClientOperationController.handleCreateClick(0, BlockPos.ZERO);
+      ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
+      var original = this.selection.workspace().parts().getFirst();
+      assertTrue(ClientOperationController.cycleDraftMode());
+      assertEquals(OperationSelectionMode.SMART, this.selection.selectionMode());
+      assertEquals(List.of(original), this.selection.workspace().parts());
+      assertEquals(0, this.selection.draftSize());
+      assertTrue(ClientOperationController.undo());
+      assertEquals(OperationSelectionMode.CUBOID, this.selection.selectionMode());
+      assertFalse(this.selection.hasDraft());
+      assertEquals(original, this.selection.workspace().parts().getFirst());
+   }
+
+   @Test
+   void altMiddleAlsoCompletesTheTwoPointSelection() {
       postClick(2, BlockPos.ZERO, true);
       postClick(2, new BlockPos(2, 2, 2), true);
-      postClick(2, new BlockPos(-3, 4, 1), true);
       drain();
-      assertEquals(List.of(BlockPos.ZERO, new BlockPos(2, 2, 2)), this.selection.draftPoints());
-      assertEquals(new BlockPos(-3, 0, 0), this.selection.draftMinPoint());
-      assertEquals(new BlockPos(2, 4, 2), this.selection.draftMaxPoint());
-      assertTrue(this.selection.workspace().isEmpty());
+      assertFalse(this.selection.hasDraft());
+      var part = this.selection.workspace().latestPart().orElseThrow();
+      assertEquals(BlockPos.ZERO, part.selection().point1());
+      assertEquals(new BlockPos(2, 2, 2), part.selection().point2());
+      assertTrue(part.canAdjustGeometry());
       assertFalse(this.input.blocksDraftLoad());
    }
 

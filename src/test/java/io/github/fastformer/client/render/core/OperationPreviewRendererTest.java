@@ -7,6 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.interaction.InteractionVisibility;
+import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +19,86 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class OperationPreviewRendererTest {
+   @Test
+   void worldSelectionDoesNotDrawDuplicateBlocksBeforeMoving() {
+      var part = ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD);
+      assertFalse(OperationPreviewRenderer.shouldRenderPartBlocks(part));
+      assertFalse(OperationPreviewRenderer.shouldRenderPartBlocks(part.fixed()));
+      var moved = part.withTranslation(new BlockPos(1, 0, 0));
+      assertTrue(OperationPreviewRenderer.shouldRenderPartBlocks(moved));
+      assertTrue(OperationPreviewRenderer.shouldRenderPartBlocks(moved.withTranslation(BlockPos.ZERO)));
+      assertTrue(OperationPreviewRenderer.shouldRenderPartBlocks(
+         ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
+   }
+   @Test
+   void olderSelectionKeepsItsOutlineAndGizmoAfterReturningWithinOneDrag() {
+      assertReturnedSelectionVisible(false);
+   }
+
+   @Test
+   void olderSelectionKeepsItsOutlineAndGizmoAfterMovingBackInAnotherDrag() {
+      assertReturnedSelectionVisible(true);
+   }
+
+   private static void assertReturnedSelectionVisible(boolean separateDrag) {
+      ClientOperationController.clearWorkspace();
+      try {
+         var workspace = ClientOperationController.workspace();
+         var selection = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2), BlockPos.ZERO, new BlockPos(2, 2, 2));
+         var first = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, selection, Map.of(), WorkspaceTransform.IDENTITY, false);
+         var secondSelection = OperationSelectionVolume.cuboid(new BlockPos(10, 0, 0), new BlockPos(12, 2, 2), new BlockPos(10, 0, 0), new BlockPos(12, 2, 2));
+         var second = new ClientSelectionPart(2, ClientSelectionPart.Source.WORLD, secondSelection, Map.of(), WorkspaceTransform.IDENTITY, false);
+         assertTrue(workspace.addParts(List.of(first, second)));
+         workspace.selectOnly(1);
+         first = workspace.part(1).orElseThrow();
+         second = workspace.part(2).orElseThrow();
+         assertTrue(workspace.beginEdit());
+         var token = workspace.activeEditToken();
+         ClientOperationController.updateTransformGesture(token, List.of(first), false,
+            AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, 4, Double.NaN);
+         if (separateDrag) {
+            assertTrue(ClientOperationController.finishTransformGesture(token));
+            first = workspace.part(1).orElseThrow();
+            assertTrue(workspace.beginEdit());
+            token = workspace.activeEditToken();
+         }
+         ClientOperationController.updateTransformGesture(token, List.of(first), false,
+            AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, separateDrag ? -4 : 0, Double.NaN);
+         var returned = ClientOperationController.interactionScene().parts().get(1);
+         assertEquals(selection.bounds(), returned.bounds());
+         assertEquals(WorkspaceTransform.IDENTITY, returned.source().transform());
+         assertFalse(returned.source().canAdjustGeometry());
+         assertTrue(OperationPreviewRenderer.shouldRenderPartOutline(returned, true));
+         assertTrue(OperationPreviewRenderer.shouldRenderPartOutline(returned, false));
+         assertTrue(InteractionVisibility.isVisible(returned.gizmo(), true));
+         assertFalse(InteractionVisibility.isVisible(returned.gizmo(), false));
+         assertTrue(ClientOperationController.finishTransformGesture(token));
+         ClientOperationController.selectWorkspacePart(2, false);
+         assertTrue(OperationPreviewRenderer.shouldRenderPartOutline(ClientOperationController.interactionScene().parts().get(1), false));
+         assertEquals(second, workspace.latestPart().orElseThrow());
+         assertEquals(2, workspace.size());
+      } finally {
+         ClientOperationController.clearWorkspace();
+      }
+   }
+
+   @Test
+   void enterFixedSelectionKeepsItsOutlineAndSelectedGizmoWithoutMoving() {
+      ClientOperationController.clearWorkspace();
+      try {
+         assertTrue(ClientOperationController.handleCreateClick(0, BlockPos.ZERO));
+         assertTrue(ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2)));
+         assertTrue(ClientOperationController.fixActiveSelection());
+         var part = ClientOperationController.interactionScene().parts().get(1);
+         assertTrue(OperationPreviewRenderer.shouldRenderPartOutline(part, false));
+         assertTrue(InteractionVisibility.isVisible(part.gizmo(), true));
+         assertFalse(part.source().canAdjustGeometry());
+         assertFalse(part.source().masksSourceBlocks());
+      } finally {
+         ClientOperationController.clearWorkspace();
+      }
+   }
+
    @Test
    void transformedLockedPartKeepsItsBlockPreview() {
       ClientSelectionPart part = ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)

@@ -10,4 +10,8 @@ public final class BuildingInputSemantics {
    public static RaycastPlacement raycastPlacement(boolean altHeld) {
       return altHeld ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE;
    }
+
+   public static RaycastPlacement initialPlacement(boolean altHeld, boolean middleButton) {
+      return raycastPlacement(altHeld || middleButton);
+   }
 }

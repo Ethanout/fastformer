@@ -197,7 +197,7 @@ class ClientOperationWorkspaceTest {
 
       ClientSelectionPart moved = original.withTranslation(new BlockPos(1, 0, 0));
       assertTrue(moved.masksSourceBlocks());
-      assertFalse(moved.withTranslation(BlockPos.ZERO).masksSourceBlocks());
+      assertTrue(moved.withTranslation(BlockPos.ZERO).masksSourceBlocks());
       assertTrue(original.withPendingDelete(true).masksSourceBlocks());
       assertFalse(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)
          .withTranslation(new BlockPos(1, 0, 0)).masksSourceBlocks());

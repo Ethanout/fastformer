@@ -41,7 +41,7 @@ class SettingsPayloadTest {
       assertEquals(PlacementUpdateMode.CLIENT_ONLY, open.placementUpdateMode());
       assertEquals(List.of(woodFrame), open.enabledPlacementEffects());
       assertEquals(true, open.emptyHandWrench());
-      assertEquals(false, open.globalFrozen());
+      assertEquals(false, open.fallingDisabled());
       assertEquals(300, open.worldUndoHistoryLimit());
       assertEquals(120, open.sessionUndoHistoryLimit());
 

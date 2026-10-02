@@ -28,7 +28,12 @@ public final class PreviewBlockOcclusion {
    }
 
    public static BlockAndTintGetter level(BlockAndTintGetter base, Map<BlockPos, BlockState> states) {
-      return new PreviewLevel(base, BlockPositionMaps.copyOf(states), Blocks.AIR.defaultBlockState());
+      return new PreviewLevel(base, BlockPositionMaps.copyOf(states), Blocks.AIR.defaultBlockState(), false);
+   }
+
+   /** External occluders must not remove the faces that the x-ray view needs to reveal. */
+   public static BlockAndTintGetter isolatedLevel(BlockAndTintGetter base, Map<BlockPos, BlockState> states) {
+      return new PreviewLevel(base, BlockPositionMaps.copyOf(states), Blocks.AIR.defaultBlockState(), true);
    }
 
    public static BlockGetter level(
@@ -59,17 +64,20 @@ public final class PreviewBlockOcclusion {
       private final BlockState defaultState;
       private final Map<BlockPos, BlockState> stateOverrides;
       private final BlockAndTintGetter base;
+      private final boolean isolated;
 
       PreviewLevel(Set<BlockPos> blocks, BlockState defaultState, Map<BlockPos, BlockState> stateOverrides) {
          this.base = null;
+         this.isolated = true;
          this.blocks = blocks;
          this.states = Map.of();
          this.defaultState = defaultState;
          this.stateOverrides = stateOverrides;
       }
 
-      PreviewLevel(BlockAndTintGetter base, Map<BlockPos, BlockState> states, BlockState defaultState) {
+      PreviewLevel(BlockAndTintGetter base, Map<BlockPos, BlockState> states, BlockState defaultState, boolean isolated) {
          this.base = base;
+         this.isolated = isolated;
          this.blocks = states.keySet();
          this.states = states;
          this.defaultState = defaultState;
@@ -86,7 +94,7 @@ public final class PreviewBlockOcclusion {
          if (this.blocks.contains(pos)) {
             return this.states.getOrDefault(pos, this.stateOverrides.getOrDefault(pos, this.defaultState));
          }
-         if (this.base == null) {
+         if (this.base == null || this.isolated) {
             return Blocks.AIR.defaultBlockState();
          }
          // The mask is render only, so the client level still holds the masked source block.

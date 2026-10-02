@@ -24,6 +24,12 @@ public final class WorldChangeTransaction {
    private ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>();
    private PackedBlockSnapshotMap after = new PackedBlockSnapshotMap();
    private long commitBlockEntityReserve = -1L;
+   private final it.unimi.dsi.fastutil.longs.LongOpenHashSet recordedBefore = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+
+   /** Workspace callbacks can reach the same cell before its direct write. */
+   public void recordBeforeOnce(ReversibleBlockSnapshot snapshot) {
+      if (recordedBefore.add(snapshot.pos().asLong())) recordBefore(snapshot);
+   }
 
    public void recordExpected(BlockPos position, ReversibleBlockSnapshot snapshot) {
       if (position == null || snapshot == null || position.asLong() != snapshot.pos().asLong()) {
@@ -167,6 +173,7 @@ public final class WorldChangeTransaction {
       CompletableFuture<Void> recoveryReady = ready == null ? CompletableFuture.completedFuture(null) : ready;
       WorldRecoverySnapshot transferred = new WorldRecoverySnapshot(this.before, this.after, recoveryReady);
       this.before = new ArrayDeque<>();
+      this.recordedBefore.clear();
       this.after = new PackedBlockSnapshotMap();
       this.commitBlockEntityReserve = -1L;
       return transferred;
@@ -175,6 +182,7 @@ public final class WorldChangeTransaction {
    public void releaseWriteState() {
       this.expected.clear();
       this.before.clear();
+      this.recordedBefore.clear();
       this.after.clear();
       this.commitBlockEntityReserve = -1L;
    }

@@ -11,7 +11,10 @@ import java.util.concurrent.CancellationException;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 
-/** Builds the complete exposed unit grid, then merges only collinear runs. */
+/**
+ * Builds the outer contour of a block set: exposed face edges, minus seams shared by two coplanar exposed faces,
+ * with collinear runs merged.
+ */
 public final class PendingPreviewGrid {
    private PendingPreviewGrid() {
    }
@@ -20,7 +23,8 @@ public final class PendingPreviewGrid {
       if (blocks.isEmpty()) {
          return List.of();
       }
-      HashSet<Segment> unitEdges = new HashSet<>();
+      // Two exposed faces with the same normal that share an edge lie in one plane, so that edge is a seam.
+      HashMap<FaceEdge, Integer> faceEdgeCounts = new HashMap<>();
       int checked = 0;
       for (BlockPos pos : blocks) {
          if ((checked++ & 255) == 0 && Thread.currentThread().isInterrupted()) {
@@ -29,12 +33,24 @@ public final class PendingPreviewGrid {
          for (Direction direction : Direction.values()) {
             if (!blocks.contains(pos.relative(direction))) {
                for (Segment edge : faceEdges(pos, direction)) {
-                  unitEdges.add(edge);
+                  faceEdgeCounts.merge(new FaceEdge(edge, direction), 1, Integer::sum);
                }
             }
          }
       }
+      HashSet<Segment> unitEdges = new HashSet<>();
+      for (Map.Entry<FaceEdge, Integer> entry : faceEdgeCounts.entrySet()) {
+         if ((checked++ & 255) == 0 && Thread.currentThread().isInterrupted()) {
+            throw new CancellationException("Superseded preview mesh");
+         }
+         if (entry.getValue() == 1) {
+            unitEdges.add(entry.getKey().segment());
+         }
+      }
       return mergeCollinear(unitEdges);
+   }
+
+   private record FaceEdge(Segment segment, Direction direction) {
    }
 
    private static Segment[] faceEdges(BlockPos pos, Direction direction) {

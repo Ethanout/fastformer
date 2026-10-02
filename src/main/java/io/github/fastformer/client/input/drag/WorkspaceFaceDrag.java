@@ -17,19 +17,26 @@ public record WorkspaceFaceDrag(
    SelectionDragCapture capture,
    DeferredDragClick deferredClick,
    OperationGeometry.RayHit hit,
-   ClientOperationWorkspace.EditToken editToken
+   ClientOperationWorkspace.EditToken editToken,
+   boolean awaitingSource
 ) implements SelectionDrag {
    public int mouseButton() { return capture.mouseButton(); }
 
    public WorkspaceFaceDrag withSentSteps(int value) {
       return new WorkspaceFaceDrag(
-         baseline, axis, positive, frame, normal, value, capture, deferredClick, hit, editToken
+         baseline, axis, positive, frame, normal, value, capture, deferredClick, hit, editToken, awaitingSource
       );
    }
 
    public WorkspaceFaceDrag withDeferredClick(DeferredDragClick value) {
       return new WorkspaceFaceDrag(
-         baseline, axis, positive, frame, normal, sentSteps, capture, value, hit, editToken
+         baseline, axis, positive, frame, normal, sentSteps, capture, value, hit, editToken, awaitingSource
+      );
+   }
+
+   public WorkspaceFaceDrag sourceReady() {
+      return new WorkspaceFaceDrag(
+         baseline, axis, positive, frame, normal, sentSteps, capture, deferredClick, hit, editToken, false
       );
    }
 }

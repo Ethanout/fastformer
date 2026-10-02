@@ -102,22 +102,8 @@ public final class ServerInputDispatcher {
       }
 
       return switch (FastPlaceManager.classify(player)) {
-         case OPERATION -> {
-            if (!OperationManager.active(player)) {
-               OperationManager.startSecond(player, hit.getBlockPos());
-               yield true;
-            }
-            OperationSession session = OperationManager.session(player).orElse(null);
-            if (session != null && session.selectionMode() == OperationSelectionMode.CUBOID) {
-               OperationManager.setSecond(player, hit.getBlockPos());
-               yield true;
-            }
-            if (OperationManager.needsSelectionPoint(player)) {
-               OperationManager.addSelectionPoint(player, hit.getBlockPos());
-               yield true;
-            }
-            yield false;
-         }
+         // Selection points belong to explicit selection commands, not vanilla item callbacks.
+         case OPERATION, VANILLA -> false;
          case GEOMETRY -> rightClickGeometry(player, hit);
          case SPECIAL_ITEM -> SpecialItemHandlers.useOnBlock(player, hit.getBlockPos());
          case BUILDING -> {
@@ -138,27 +124,7 @@ public final class ServerInputDispatcher {
 
       BlockHitResult hit = raycastBlocks(player, EXTENDED_REACH);
       return switch (FastPlaceManager.classify(player)) {
-         case OPERATION -> {
-            if (hit.getType() == HitResult.Type.BLOCK && withinNormalBlockReach(player, hit.getLocation())) {
-               yield false;
-            }
-            if (hit.getType() == HitResult.Type.BLOCK && !OperationManager.active(player)) {
-               OperationManager.startSecond(player, hit.getBlockPos());
-               yield true;
-            }
-            OperationSession session = OperationManager.session(player).orElse(null);
-            if (hit.getType() == HitResult.Type.BLOCK
-               && session != null
-               && session.selectionMode() == OperationSelectionMode.CUBOID) {
-               OperationManager.setSecond(player, hit.getBlockPos());
-               yield true;
-            }
-            if (hit.getType() == HitResult.Type.BLOCK && OperationManager.needsSelectionPoint(player)) {
-               OperationManager.addSelectionPoint(player, hit.getBlockPos());
-               yield true;
-            }
-            yield false;
-         }
+         case OPERATION -> false;
          case BUILDING -> {
             if (hit.getType() == HitResult.Type.BLOCK) {
                if (withinNormalBlockReach(player, hit.getLocation())) {
@@ -178,7 +144,7 @@ public final class ServerInputDispatcher {
             yield true;
          }
          case GEOMETRY -> rightClickGeometry(player, hit);
-         case SPECIAL_ITEM -> false;
+         case SPECIAL_ITEM, VANILLA -> false;
       };
    }
 
@@ -422,8 +388,8 @@ public final class ServerInputDispatcher {
       if (interactionBlocked(player) || !canOperate(player)) {
          return;
       }
-      LongRangeBlockRaycast.Result raycast = LongRangeBlockRaycast.clip(
-         player.level(), player, player.getEyePosition(), player.getViewVector(1.0F)
+      LongRangeBlockRaycast.Result raycast = LongRangeBlockRaycast.clipForSelection(
+         player.level(), player, player.getEyePosition(), player.getViewVector(1.0F), FastPlaceManager.modifierHeld(player)
       );
       BlockHitResult hit = raycast.hit();
       OperationSession session = OperationManager.session(player).orElse(null);
@@ -435,7 +401,7 @@ public final class ServerInputDispatcher {
          && !session.prismBaseClosed()
          && session.points().size() >= 3;
       if (!prismHeight && !prismBasePlane && (hit.getType() != HitResult.Type.BLOCK
-         || withinNormalBlockReach(player, hit) && !FastPlaceManager.modifierHeld(player))) {
+         || session == null && withinNormalBlockReach(player, hit) && !FastPlaceManager.modifierHeld(player))) {
          return;
       }
       BlockPos point = prismHeight
@@ -471,7 +437,7 @@ public final class ServerInputDispatcher {
       } else if (role == OperationPointPayload.Role.SECOND && !OperationManager.active(player)) {
          OperationManager.startSecond(player, point);
       } else if (!OperationManager.active(player)) {
-         return;
+         OperationManager.startFirst(player, point);
       } else if (role == OperationPointPayload.Role.SECOND) {
          OperationManager.setSecond(player, point);
       } else if (OperationManager.needsSelectionPoint(player)) {
@@ -690,7 +656,8 @@ public final class ServerInputDispatcher {
       // Bound the captured ray origin to the player's interaction range before tracing the world.
       if (payload.eye().distanceToSqr(player.getEyePosition()) > player.blockInteractionRange() * player.blockInteractionRange()) return;
       BlockHitResult hit = LongRangeBlockRaycast.clipForPlacement(player.level(), player, payload.eye(), payload.view()).hit();
-      if (hit.getType() == HitResult.Type.BLOCK && withinNormalBlockReach(player, hit.getLocation())) return;
+      if (payload.action() != io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.MIDDLE
+         && hit.getType() == HitResult.Type.BLOCK && withinNormalBlockReach(player, hit.getLocation())) return;
       switch (payload.action()) {
          case CLOSE -> FastPlaceManager.closePolygon(player);
          case UNDO -> throw new IllegalStateException("Undo was already dispatched");
@@ -972,9 +939,13 @@ public final class ServerInputDispatcher {
 
    public static BlockHitResult raycastBlocks(ServerPlayer player, double range) {
       Vec3 start = player.getEyePosition();
-      LongRangeBlockRaycast.Result result = FastPlaceManager.classify(player) == InteractionState.BUILDING
-         ? LongRangeBlockRaycast.clipForPlacement(player.level(), player, start, player.getViewVector(1.0F))
-         : LongRangeBlockRaycast.clip(player.level(), player, start, player.getViewVector(1.0F));
+      Vec3 view = player.getViewVector(1.0F);
+      LongRangeBlockRaycast.Result result = switch (FastPlaceManager.classify(player)) {
+         case BUILDING -> LongRangeBlockRaycast.clipForPlacement(player.level(), player, start, view);
+         case OPERATION -> LongRangeBlockRaycast.clipForSelection(player.level(), player, start, view,
+            FastPlaceManager.modifierHeld(player));
+         default -> LongRangeBlockRaycast.clip(player.level(), player, start, view);
+      };
       BlockHitResult hit = result.hit();
       if (hit.getType() != HitResult.Type.BLOCK || isWithinRaycastRange(start, hit.getLocation(), range)) {
          return hit;
@@ -1021,13 +992,11 @@ public final class ServerInputDispatcher {
    }
 
    private static boolean withinNormalBlockReach(ServerPlayer player, Vec3 eye, Vec3 point) {
-      double reach = player.blockInteractionRange();
-      return point.distanceToSqr(eye) <= reach * reach;
+      return ServerReachGate.vanillaAt(player, point.distanceTo(eye));
    }
 
    private static boolean withinNormalBlockReach(ServerPlayer player, AABB box) {
-      double reach = player.blockInteractionRange();
-      return box.distanceToSqr(player.getEyePosition()) <= reach * reach;
+      return ServerReachGate.vanillaAt(player, Math.sqrt(box.distanceToSqr(player.getEyePosition())));
    }
 
    private static AxisGizmo.Operation gizmoOperation(int operation) {
@@ -1152,7 +1121,7 @@ public final class ServerInputDispatcher {
 
    private static boolean rightClickGeometry(ServerPlayer player, BlockHitResult hit, Vec3 eye, Vec3 view) {
       if (GeometryManager.confirmsOnRightClick(player)) {
-         return capturedGeometryConfirmAllowed(hit, eye, player.blockInteractionRange()) && GeometryManager.fill(player);
+         return capturedGeometryConfirmAllowed(hit, hit != null && hit.getType() == HitResult.Type.BLOCK && withinNormalBlockReach(player, eye, hit.getLocation())) && GeometryManager.fill(player);
       }
       if (hit == null || hit.getType() != HitResult.Type.BLOCK || withinNormalBlockReach(player, eye, hit.getLocation())) {
          return false;
@@ -1166,15 +1135,8 @@ public final class ServerInputDispatcher {
       return true;
    }
 
-   static boolean capturedGeometryConfirmAllowed(BlockHitResult hit, Vec3 eye, double interactionRange) {
-      if (hit == null) {
-         return false;
-      }
-      if (hit.getType() != HitResult.Type.BLOCK) {
-         return true;
-      }
-      return eye != null && Double.isFinite(interactionRange) && interactionRange >= 0.0
-         && hit.getLocation().distanceToSqr(eye) > interactionRange * interactionRange;
+   static boolean capturedGeometryConfirmAllowed(BlockHitResult hit, boolean vanillaOwnsInput) {
+      return hit != null && !vanillaOwnsInput;
    }
 
    private static AxisGizmo.Axis gizmoAxis(int axis) {

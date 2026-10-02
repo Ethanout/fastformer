@@ -43,19 +43,16 @@ public record ClientSelectionPart(
       boolean changed = !value.equals(this.transform);
       SelectionBaseline nextBaseline = this.baseline;
       Editability nextEditability = this.editability;
-      if (changed && nextEditability == Editability.FREE && value.hasEffect()) {
+      if (changed && nextBaseline == null && value.hasEffect()) {
          nextBaseline = new SelectionBaseline(this.selection, this.transform, this.sourceSnapshot);
          nextEditability = Editability.LOCKED;
       }
-      if (nextBaseline != null && (this.source == Source.WORLD
-         ? nextBaseline.matchesBlocks(this.selection, this.blocks, value)
-         : nextBaseline.matches(this.selection, value, this.sourceSnapshot))) {
-         Map<BlockPos, ClientBlockSnapshot> restoredBlocks = this.source == Source.WORLD
-            ? nextBaseline.sourceSnapshot() : this.blocks;
-         return copy(this.id, this.source, nextBaseline.selection(), restoredBlocks, nextBaseline.transform(),
-            this.pendingDelete, this.sourceSnapshot, null, Editability.FREE);
-      }
       return copy(this.id, this.source, this.selection, this.blocks, value, this.pendingDelete, this.sourceSnapshot, nextBaseline, nextEditability);
+   }
+
+   public ClientSelectionPart fixed() {
+      return copy(this.id, this.source, this.selection, this.blocks, this.transform,
+         this.pendingDelete, this.sourceSnapshot, this.baseline, Editability.LOCKED);
    }
 
    public ClientSelectionPart withTranslation(Vec3 value) { return this.withTransform(this.transform.withTranslation(value)); }
@@ -74,10 +71,12 @@ public record ClientSelectionPart(
    }
 
    public boolean canAdjustGeometry() { return this.editability == Editability.FREE && this.source == Source.WORLD && this.selection != null && this.axisAlignedCuboid() && !this.transform.hasEffect(); }
+   public boolean smart() { return this.selection != null && this.selection.mode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.SMART; }
+   public boolean smartEditable() { return smart() && isOriginalSelection(); }
    public boolean transformed() { return this.transform.hasEffect() || this.source == Source.WORLD && this.baseline != null; }
    /** A world selection that has not become an operation component. */
    public boolean isOriginalSelection() {
-      return this.source == Source.WORLD && !this.pendingDelete && this.baseline == null
+      return this.editability == Editability.FREE && this.source == Source.WORLD && !this.pendingDelete && this.baseline == null
          && !this.transform.hasEffect();
    }
    public boolean masksSourceBlocks() { return this.source == Source.WORLD && (this.transformed() || this.pendingDelete); }

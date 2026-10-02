@@ -26,6 +26,10 @@ public record SelectionInteractionScene(UUID owner, Map<Integer, Part> parts, In
       return part == null ? null : part.bounds();
    }
 
+   public boolean smartEditing() {
+      return parts.values().stream().anyMatch(part -> part.source().smartEditable());
+   }
+
    public InteractionObject object(InteractionObject.Id id) {
       if (id == null || !this.owner.equals(id.session())) return null;
       if (this.groupGizmo != null && this.groupGizmo.id().equals(id)) return this.groupGizmo;

@@ -8,6 +8,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.guide.GuideRenderer;
+import io.github.fastformer.client.render.type.HaloLineRenderType;
 import java.util.List;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.Vec3;
@@ -31,14 +32,13 @@ public final class BuildingShellEdgeBuffer {
       if (this.buffer == null) {
          return;
       }
-      Matrix4f transform = new Matrix4f(pose.last().pose()).translate(
-         (float)(this.origin.x - camera.x), (float)(this.origin.y - camera.y), (float)(this.origin.z - camera.z)
-      );
+      Matrix4f transform = ShellBufferTransform.modelView(RenderSystem.getModelViewMatrix(), pose.last().pose(), this.origin, camera);
       float[] previousColor = RenderSystem.getShaderColor().clone();
       type.setupRenderState();
       try {
          RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
          this.buffer.bind();
+         HaloLineRenderType.drawUnder(type, this.buffer, transform, RenderSystem.getProjectionMatrix());
          this.buffer.drawWithShader(transform, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
       } finally {
          VertexBuffer.unbind();

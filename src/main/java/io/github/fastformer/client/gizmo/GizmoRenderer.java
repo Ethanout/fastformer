@@ -151,17 +151,10 @@ public final class GizmoRenderer {
    private void renderColoredDashedLine(
       PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float red, float green, float blue, float alpha
    ) {
-      Vec3 vector = to.subtract(from);
-      double length = vector.length();
-      if (length < EPSILON) {
-         return;
-      }
-      Vec3 direction = vector.scale(1.0 / length);
-      double dashLength = 0.18;
-      for (double start = 0.0; start < length; start += dashLength * 2.0) {
-         double end = Math.min(length, start + dashLength);
-         renderLine(poseStack, consumer, from.add(direction.scale(start)), from.add(direction.scale(end)), red, green, blue, alpha);
-      }
+      int rgb = Math.round(red * 255) << 16 | Math.round(green * 255) << 8 | Math.round(blue * 255);
+      io.github.fastformer.client.render.guide.GuideRenderer.renderDashedLine(
+         poseStack, consumer, from, to, new io.github.fastformer.fastplace.geometry.GeometryPalette.Color(rgb),
+         alpha, 0.0, io.github.fastformer.client.render.PreviewStyle.DASH_LENGTH, opacity);
    }
 
    private void renderGizmoLineHandles(

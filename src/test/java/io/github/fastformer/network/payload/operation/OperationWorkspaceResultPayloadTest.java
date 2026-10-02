@@ -12,6 +12,18 @@ import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;
 
 class OperationWorkspaceResultPayloadTest {
+   @Test void failureCategoriesSurviveCodecAndScopeChanges() {
+      for (var reason : io.github.fastformer.workspace.submission.WorkspaceFailure.values()) {
+         var payload = new OperationWorkspaceResultPayload(UUID.randomUUID(), false, List.of()).withFailure(reason);
+         payload = payload.withCallbackScope(payload.callbackScope());
+         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+         try {
+            OperationWorkspaceResultPayload.STREAM_CODEC.encode(buffer, payload);
+            assertEquals(payload, OperationWorkspaceResultPayload.STREAM_CODEC.decode(buffer));
+            assertEquals(0, buffer.readableBytes());
+         } finally { buffer.release(); }
+      }
+   }
    @Test
    void resultAndFailedPartIdsSurviveCodecRoundTrip() {
       UUID transferId = UUID.randomUUID();

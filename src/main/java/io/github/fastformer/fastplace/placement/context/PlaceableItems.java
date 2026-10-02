@@ -1,7 +1,5 @@
 package io.github.fastformer.fastplace.placement.context;
 
-import io.github.fastformer.fastplace.world.*;
-
 import java.util.Optional;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.player.Player;
@@ -26,7 +24,7 @@ public final class PlaceableItems {
       return Optional.empty();
    }
 
-   /** Resolves the same placement state as the vanilla BlockItem path. */
+   /** Resolves real support, virtual support, data pack rules, then the default state. */
    public static Optional<BlockState> placementState(
       ItemStack stack, Player player, PlacementContextSnapshot snapshot
    ) {
@@ -36,12 +34,12 @@ public final class PlaceableItems {
       BlockPlaceContext original = snapshot.context(player.level(), player, stack);
       BlockPlaceContext updated = blockItem.updatePlacementContext(original);
       BlockPlaceContext orientationContext = updated == null ? original : updated;
-      BlockState state = updated == null ? null : blockItem.getPlacementState(updated);
+      BlockState state = updated == null ? null : VirtualSupportPlacement.supportedState(blockItem, updated);
       if (state == null) {
-         state = blockItem.getBlock().getStateForPlacement(orientationContext);
+         state = VirtualSupportPlacement.resolve(blockItem, original, updated);
       }
       if (state == null) {
-         state = blockItem.getBlock().defaultBlockState();
+         state = PlacementFallbacks.resolve(blockItem.getBlock().defaultBlockState(), orientationContext);
       }
       BlockItemStateProperties properties = stack.getOrDefault(
          DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY

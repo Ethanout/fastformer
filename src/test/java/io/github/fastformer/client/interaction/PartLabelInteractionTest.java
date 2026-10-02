@@ -29,8 +29,9 @@ class PartLabelInteractionTest {
       var hovered = PartLabelInteraction.present(object, context(false, true, false));
       assertEquals(normal.anchor(), hovered.anchor());
       assertEquals(0.025F, normal.appearance().scale());
-      assertEquals(0.025F * 1.36F, hovered.appearance().scale(), 1.0E-6F);
-      assertEquals(0xFF83F5FF, hovered.appearance().textColor());
+      assertEquals(normal.appearance().scale(), hovered.appearance().scale());
+      assertEquals(io.github.fastformer.fastplace.geometry.GeometryPalette.paperInk().argb(), hovered.appearance().textColor());
+      assertNotEquals(normal.appearance().backgroundColor(), hovered.appearance().backgroundColor());
    }
 
    @Test

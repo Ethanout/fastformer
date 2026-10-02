@@ -1,19 +1,19 @@
 package io.github.fastformer.client.placement;
 
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import java.util.Optional;
+import io.github.fastformer.fastplace.placement.replace.QuickReplaceTarget;
+import io.github.fastformer.network.payload.placement.QuickReplaceSessionPayload;
+import io.github.fastformer.network.payload.placement.QuickReplaceStatePayload;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 
 /** Client-side state for Axiom-style direct block replacement. */
 public final class QuickReplaceMode {
    private static boolean active;
+   private static long requestId;
 
    private QuickReplaceMode() {
    }
@@ -23,19 +23,28 @@ public final class QuickReplaceMode {
    }
 
    public static boolean toggle(Minecraft minecraft) {
-      if (minecraft == null || minecraft.player == null) {
+      if (minecraft == null || minecraft.player == null || (!active && !minecraft.player.isCreative())
+         || minecraft.getConnection() == null
+         || !NetworkRegistry.hasChannel(minecraft.getConnection(), QuickReplaceSessionPayload.TYPE.id())
+         || !NetworkRegistry.hasChannel(minecraft.getConnection(), QuickReplaceStatePayload.TYPE.id())) {
          return false;
       }
       active = !active;
+      PacketDistributor.sendToServer(new QuickReplaceSessionPayload(++requestId, active));
       return active;
+   }
+
+   public static void receive(QuickReplaceStatePayload state) {
+      if (state.requestId() == requestId) active = state.active();
    }
 
    public static void clear() {
       active = false;
+      requestId++;
    }
 
    public static boolean canReplace(Minecraft minecraft) {
-      return active && minecraft != null && minecraft.player != null
+      return active && minecraft != null && minecraft.player != null && minecraft.player.isCreative()
          && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem());
    }
 
@@ -43,18 +52,8 @@ public final class QuickReplaceMode {
       if (!canReplace(minecraft) || minecraft.level == null) {
          return null;
       }
-      LocalPlayer player = minecraft.player;
-      BlockHitResult hit = LongRangeBlockRaycast.clipForPlacement(
-         minecraft.level, player, player.getEyePosition(), player.getViewVector(1.0F)
-      ).hit();
-      if (hit == null || hit.getType() != HitResult.Type.BLOCK) {
-         return null;
-      }
-      Optional<BlockState> state = PlaceableItems.placementState(
-         player.getMainHandItem(), player,
-         PlacementContextSnapshot.capture(minecraft.level, player, player.getMainHandItem(), hit, false)
-      );
-      return state.map(value -> new Preview(hit.getBlockPos().immutable(), value)).orElse(null);
+      var target = QuickReplaceTarget.resolve(minecraft.player);
+      return target == null ? null : new Preview(target.position(), target.state());
    }
 
    public record Preview(BlockPos position, BlockState state) {

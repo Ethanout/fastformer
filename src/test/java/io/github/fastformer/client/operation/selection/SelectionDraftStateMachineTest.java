@@ -38,7 +38,8 @@ class SelectionDraftStateMachineTest {
       assertEquals(List.of(BlockPos.ZERO), first.points());
       assertEquals(SECOND, bounds.maxPoint());
       machine.onEvent(click(0, new BlockPos(9, 9, 9), false));
-      assertEquals(SelectionDraftStateMachine.Phase.CUBOID_FIRST, machine.phase());
+      assertEquals(SelectionDraftStateMachine.Phase.CUBOID_BOUNDS, machine.phase());
+      assertEquals(List.of(new BlockPos(9, 9, 9), SECOND), machine.snapshot().points());
       assertEquals(List.of(BlockPos.ZERO, SECOND), bounds.points());
       assertEquals(SECOND, bounds.maxPoint());
    }
@@ -47,8 +48,6 @@ class SelectionDraftStateMachineTest {
    void rejectedEventsKeepTheExactSnapshot() {
       var machine = new SelectionDraftStateMachine();
       var empty = machine.snapshot();
-      assertEquals(SelectionDraftResult.REJECTED, machine.onEvent(click(1, BlockPos.ZERO, false)));
-      assertSame(empty, machine.snapshot());
       assertEquals(SelectionDraftResult.REJECTED, machine.onEvent(null));
       assertSame(empty, machine.snapshot());
       machine.onEvent(click(2, BlockPos.ZERO, true));

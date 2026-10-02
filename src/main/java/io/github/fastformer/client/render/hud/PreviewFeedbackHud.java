@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.hud;
 
+import io.github.fastformer.fastplace.geometry.GeometryPalette;
+
 import io.github.fastformer.client.render.PreviewFeedbackState;
 import io.github.fastformer.client.render.model.AxisFeedback;
 import io.github.fastformer.client.render.model.ScrollFeedbackData;
@@ -18,7 +20,6 @@ import net.minecraft.world.phys.Vec3;
 /** Coordinates transient preview feedback state and its scroll HUD presentation. */
 public final class PreviewFeedbackHud {
    private static final int AXIS_SPACING = 14;
-   private static final int BOTTOM_OFFSET = 88;
 
    private final PreviewFeedbackState state = new PreviewFeedbackState();
    private final Function<AxisGizmo.Axis, Integer> axisColor;
@@ -88,18 +89,21 @@ public final class PreviewFeedbackHud {
    }
 
    public void renderScrollFeedback(
-      GuiGraphics graphics, Minecraft minecraft, ScrollFeedbackData data, boolean persistentFreeScroll, long now
+      GuiGraphics graphics, Minecraft minecraft, ScrollFeedbackData data, boolean persistentFreeScroll, long now,
+      BottomHudLayout bottomLayout
    ) {
       int alpha = feedbackAlpha(minecraft, persistentFreeScroll, now);
       if (alpha <= 0 || data == null) {
          return;
       }
-      int y = graphics.guiHeight() - BOTTOM_OFFSET;
+      if (data.axes().isEmpty() && data.text().isBlank()) return;
+      int y = bottomLayout.nextLine();
+      if (!bottomLayout.visibleAt(y)) return;
       if (!data.axes().isEmpty()) {
          renderAxisFeedback(graphics, minecraft, data.axes(), y, alpha);
       } else if (!data.text().isBlank()) {
          graphics.drawCenteredString(
-            minecraft.font, data.text(), graphics.guiWidth() / 2, y, withAlpha(0xFFFFFFFF, alpha)
+            minecraft.font, data.text(), graphics.guiWidth() / 2, y, withAlpha(GeometryPalette.text().argb(), alpha)
          );
       }
    }

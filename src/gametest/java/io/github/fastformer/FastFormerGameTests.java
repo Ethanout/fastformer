@@ -88,7 +88,9 @@ public final class FastFormerGameTests {
          var surface = io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot.capture(level, player, stack, hit, false);
          helper.assertTrue(embedded.clickedFace() == face, "embedded placement changed entry face");
          helper.assertTrue(embedded.hitLocation().equals(location), "embedded placement changed entry plane");
-         helper.assertTrue(embedded.equals(surface), "placement mode changed orientation inputs");
+         helper.assertTrue(embedded.placementPosition().equals(pos), "embedded placement uses the surface cell");
+         helper.assertTrue(surface.placementPosition().equals(pos.relative(face)), "surface placement moved inside");
+         helper.assertTrue(embedded.horizontalDirection() == surface.horizontalDirection(), "placement mode changed player direction");
       }
       helper.succeed();
    }

@@ -19,9 +19,27 @@ public record ClientOperationDraft(
    ClientOperationWorkspace.DraftState workspace,
    ClientSelectionSession.DraftState selection,
    OperationSubmissionOrigin origin,
-   UUID submissionId
+   UUID submissionId,
+   Remainder remainder
 ) {
    public static final int CURRENT_VERSION = 1;
+
+   public record Remainder(ClientOperationWorkspace.DraftState workspace, ClientSelectionSession.DraftState selection) {
+      public ClientOperationDraft asDraft() {
+         return new ClientOperationDraft(CURRENT_VERSION, null, workspace, selection,
+            OperationSubmissionOrigin.CLIENT_SELECTION, null);
+      }
+   }
+
+   public ClientOperationDraft(int version, OperationDraftIdentity identity,
+      ClientOperationWorkspace.DraftState workspace, ClientSelectionSession.DraftState selection,
+      OperationSubmissionOrigin origin, UUID submissionId) {
+      this(version, identity, workspace, selection, origin, submissionId, null);
+   }
+
+   public ClientOperationDraft withRemainder(Remainder remainder) {
+      return new ClientOperationDraft(version, identity, workspace, selection, origin, submissionId, remainder);
+   }
 
    public ClientOperationDraft {
       if (version != CURRENT_VERSION) {
@@ -63,7 +81,8 @@ public record ClientOperationDraft(
     * require the match. Only an explicit local-only origin skips it.</p>
     */
    public boolean requiresServerIdentity() {
-      return this.origin != OperationSubmissionOrigin.LOCAL_ONLY;
+      return this.origin != OperationSubmissionOrigin.LOCAL_ONLY
+         && this.origin != OperationSubmissionOrigin.CLIENT_SELECTION;
    }
 
    /** True when this draft is the one that a given submission wrote. */

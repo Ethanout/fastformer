@@ -56,14 +56,14 @@ class SelectionInteractionSceneTest {
       session.publishInteractionScene();
       var restored = session.interactionScene().parts().get(1);
       for (var object : List.of(restored.frame(), restored.label(), restored.gizmo())) {
-         assertEquals(InteractionComponents.SelectionRole.ORIGINAL_SELECTION,
+         assertEquals(InteractionComponents.SelectionRole.TRANSFORMED_PART,
             object.require(InteractionComponents.SELECTION_ROLE));
       }
       assertEquals(original.frame().id(), restored.frame().id());
       assertEquals(original.label().id(), restored.label().id());
       assertEquals(original.gizmo().id(), restored.gizmo().id());
       assertEquals(original.bounds(), restored.bounds());
-      assertTrue(restored.source().canAdjustGeometry());
+      assertFalse(restored.source().canAdjustGeometry());
       assertEquals(InteractionComponents.SelectionRole.TRANSFORMED_PART,
          transformed.label().require(InteractionComponents.SELECTION_ROLE));
    }

@@ -274,6 +274,7 @@ public final class WorldHistoryManager {
          return JournalPreparation.PENDING;
       }
       addBatchInMemory(owner, batch);
+      WorldHistoryEvents.send(context, batch, io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind.RECORD, true);
       if (journal != null) journal.historyPublished();
       owner.durableCommit = null;
       return JournalPreparation.READY;
@@ -317,10 +318,20 @@ public final class WorldHistoryManager {
          }
       }
       scheduleNewBatch(context.server(), context.owner(), owner, batch, history);
+      WorldHistoryEvents.send(context, batch, io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind.RECORD, true);
    }
 
    public static boolean requestUndo(ServerPlayer player, int count) {
       return request(player, true, count);
+   }
+
+   public static boolean respondToConflict(ServerPlayer player,
+      io.github.fastformer.network.payload.world.HistoryConflictResponsePayload response) {
+      if (response.choice() != io.github.fastformer.network.payload.world.HistoryConflictResponsePayload.Choice.CANCEL
+         && !ServerInputDispatcher.canOperate(player)) return false;
+      var owner = OWNERS.get(player.getUUID());
+      return owner != null && owner.active != null && owner.active.respondToConflict(
+         new WorldTaskContext(player.getServer(), player.getUUID()), response.token(), response.choice());
    }
 
    public static void resumeDiskCleanup(MinecraftServer server) {
@@ -1008,6 +1019,7 @@ public final class WorldHistoryManager {
           task.recordBatch(budget.consumed(), System.nanoTime() - batchStartedAt);
        }
       if (finished) {
+         task.clearConflictPrompt(context);
          if (task.completedSuccessfully()) {
             task.markMetricsComplete();
          }

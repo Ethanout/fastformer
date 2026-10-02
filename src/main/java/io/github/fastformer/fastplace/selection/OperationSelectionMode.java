@@ -5,7 +5,8 @@ import io.github.fastformer.fastplace.text.TranslatableText;
 public enum OperationSelectionMode implements TranslatableText {
    CUBOID("fastformer.operation.selection.cuboid"),
    PRISM("fastformer.operation.selection.prism"),
-   CONVEX_HULL("fastformer.operation.selection.convex_hull");
+   CONVEX_HULL("fastformer.operation.selection.convex_hull"),
+   SMART("fastformer.operation.selection.smart");
 
    private final String translationKey;
 
@@ -23,7 +24,7 @@ public enum OperationSelectionMode implements TranslatableText {
    }
 
    public OperationSelectionMode next() {
-      return this == CUBOID ? PRISM : CUBOID;
+      return this == CUBOID ? SMART : CUBOID;
    }
 
    public OperationSelectionStage stage(int pointCount) {
@@ -31,7 +32,7 @@ public enum OperationSelectionMode implements TranslatableText {
          return OperationSelectionStage.READY;
       }
       return switch (this) {
-         case CUBOID -> OperationSelectionStage.EXTENT;
+         case CUBOID, SMART -> OperationSelectionStage.EXTENT;
          case CONVEX_HULL -> OperationSelectionStage.HULL;
          case PRISM -> switch (pointCount) {
             case 0, 1 -> OperationSelectionStage.FIRST_EDGE;

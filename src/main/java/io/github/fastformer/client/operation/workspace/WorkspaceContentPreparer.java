@@ -41,6 +41,11 @@ public final class WorkspaceContentPreparer {
          .toList();
    }
 
+   /** Explicit confirmation includes adjustable parts without changing their undo state. */
+   public static List<OperationWorkspacePlan.Part> confirmedParts(List<ClientSelectionPart> parts) {
+      return submissionParts(safeParts(parts).stream().map(ClientSelectionPart::fixed).toList());
+   }
+
    private static List<ClientSelectionPart> safeParts(List<ClientSelectionPart> parts) {
       return parts == null ? List.of() : parts.stream().filter(java.util.Objects::nonNull).toList();
    }

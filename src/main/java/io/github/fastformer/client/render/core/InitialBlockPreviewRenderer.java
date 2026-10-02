@@ -21,11 +21,21 @@ final class InitialBlockPreviewRenderer {
       PoseStack pose = event.getPoseStack();
       BufferSource buffers = minecraft.renderBuffers().bufferSource();
       Vec3 camera = event.getCamera().getPosition();
-      ShapeShellRenderer.renderFaces(pose, buffers.getBuffer(GHOST_FACES), camera, preview.mesh().faces(), 0.24F * opacity);
-      buffers.endBatch(GHOST_FACES);
-      ShapeShellRenderer.renderEdges(pose, buffers.getBuffer(PENDING_XRAY_LINES), camera, preview.mesh().edges(), 0.35F * opacity);
-      buffers.endBatch(PENDING_XRAY_LINES);
-      ShapeShellRenderer.renderEdges(pose, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, preview.mesh().edges(), 0.92F * opacity);
-      buffers.endBatch(GHOST_OUTLINE_LINES);
+      if (!player.getMainHandItem().isEmpty()) {
+         var fallback = PreviewRenderResources.INITIAL_MODEL.render(pose, buffers, camera,
+            java.util.Set.of(preview.position()), preview.state(), java.util.Map.of(),
+            io.github.fastformer.client.render.PreviewMaterialRenderer.pendingAlpha(FastPlaceClientPreviewCore.ghostBreathPulse()) * opacity, true);
+         if (!fallback.isEmpty()) {
+            ShapeShellRenderer.renderFaces(pose, buffers.getBuffer(GHOST_FACES), camera, preview.mesh().faces(),
+               io.github.fastformer.client.render.PreviewMaterialRenderer.pendingAlpha(FastPlaceClientPreviewCore.ghostBreathPulse()) * opacity);
+            buffers.endBatch(GHOST_FACES);
+         }
+      }
+      // First-point candidates use the same faint continuous contour as later stages.
+      double offset = FastPlaceClientPreviewCore.pendingGridDashOffset();
+      ShapeShellRenderer.renderDashedEdges(pose, buffers.getBuffer(DYNAMIC_XRAY_LINES), camera, preview.mesh().edges(), opacity, offset);
+      buffers.endBatch(DYNAMIC_XRAY_LINES);
+      ShapeShellRenderer.renderDashedEdges(pose, buffers.getBuffer(DYNAMIC_LINES), camera, preview.mesh().edges(), opacity, offset);
+      buffers.endBatch(DYNAMIC_LINES);
    }
 }

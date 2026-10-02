@@ -13,6 +13,35 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class ClientPlayerSessionTest {
+   @Test void clientSelectionOwnershipSurvivesInputResetAndReturnToOrigin() {
+      var session = new ClientPlayerSession(UUID.randomUUID());
+      session.selectionSession().retain();
+      var original = ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD);
+      var returned = original.withTranslation(new BlockPos(1, 0, 0)).withTranslation(BlockPos.ZERO);
+      session.operationWorkspace().addParts(java.util.List.of(returned));
+      session.resetInput();
+      org.junit.jupiter.api.Assertions.assertTrue(session.selectionSession().clientOwned());
+      var draft = session.buildSubmittedDraft(null, OperationSubmissionOrigin.CLIENT_SELECTION, UUID.randomUUID());
+      org.junit.jupiter.api.Assertions.assertNotNull(draft);
+      org.junit.jupiter.api.Assertions.assertFalse(draft.requiresServerIdentity());
+      session.detachEnvironment();
+      org.junit.jupiter.api.Assertions.assertFalse(session.selectionSession().clientOwned());
+   }
+   @Test
+   void clientWorldSelectionCanSubmitAndRestoreWithoutServerIdentity() {
+      var session = new ClientPlayerSession(UUID.randomUUID());
+      session.operationWorkspace().addParts(java.util.List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
+      var transfer = UUID.randomUUID();
+      var draft = session.buildSubmittedDraft(null, OperationSubmissionOrigin.CLIENT_SELECTION, transfer);
+      org.junit.jupiter.api.Assertions.assertNotNull(draft);
+      org.junit.jupiter.api.Assertions.assertFalse(draft.requiresServerIdentity());
+      org.junit.jupiter.api.Assertions.assertEquals(OperationSubmissionOrigin.CLIENT_SELECTION, draft.origin());
+      session.suspendOperationDraft(null, OperationSubmissionOrigin.CLIENT_SELECTION, transfer);
+      org.junit.jupiter.api.Assertions.assertTrue(session.restoreSuspendedOperationDraft(null));
+      org.junit.jupiter.api.Assertions.assertTrue(session.selectionSession().retained());
+      org.junit.jupiter.api.Assertions.assertEquals(ClientSelectionPart.Source.WORLD,
+         session.operationWorkspace().parts().getFirst().source());
+   }
    @Test
    void compatibilityWorkspaceAccessUsesTheSelectionOwner() {
       var first = new ClientPlayerSession(UUID.randomUUID());

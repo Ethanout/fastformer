@@ -76,6 +76,7 @@ public record OperationSelectionVolume(
    }
 
    public boolean contains(Vec3 point) {
+      if (this.mode == OperationSelectionMode.SMART) return false; // Membership belongs to the part's block map.
       return this.mode == OperationSelectionMode.CUBOID
          ? this.bounds.contains(point)
          : this.prism != null
@@ -112,6 +113,7 @@ public record OperationSelectionVolume(
    }
 
    public boolean intersects(AABB box) {
+      if (this.mode == OperationSelectionMode.SMART) return false;
       if (!bounds.intersects(box)) return false;
       if (prism != null) return prism.intersects(box);
       return mode != OperationSelectionMode.CONVEX_HULL
@@ -119,6 +121,7 @@ public record OperationSelectionVolume(
    }
 
    public OperationGeometry.RayHit raycast(Vec3 origin, Vec3 direction, double maxDistance) {
+      if (this.mode == OperationSelectionMode.SMART) return null;
       if (this.prism != null) {
          return this.prism.raycast(origin, direction, maxDistance);
       }

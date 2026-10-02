@@ -23,13 +23,13 @@ public final class GeometryRadialScreen extends Screen {
       "fastformer", "textures/gui/geometry_wheel_frame.png"
    );
    private static final List<Slice> SLICES = List.of(
-      new Slice(GeometryMode.WALL, null, Sector.TOP, 0xFF4FA3FF),
-      new Slice(GeometryMode.CONE_PRISM, null, Sector.RIGHT, 0xFFFFA640),
-      new Slice(null, "fastformer.geometry.special.complex", Sector.BOTTOM, 0xFFFF668A),
-      new Slice(GeometryMode.POLYHEDRON, null, Sector.LEFT, 0xFF55C97A)
+      new Slice(GeometryMode.WALL, null, Sector.TOP, 0xFF4FA3FF, 0xFF88A2C4),
+      new Slice(GeometryMode.CONE_PRISM, null, Sector.RIGHT, 0xFFFFA640, 0xFFD9B36A),
+      new Slice(null, "fastformer.geometry.special.complex", Sector.BOTTOM, 0xFFFF668A, 0xFFD0735F),
+      new Slice(GeometryMode.POLYHEDRON, null, Sector.LEFT, 0xFF55C97A, 0xFF9FB87C)
    );
    private static final List<Slice> COMPLEX_SLICES = List.of(
-      new Slice(GeometryMode.CONVEX_POLYHEDRON, null, Sector.TOP, 0xFFFFD24A)
+      new Slice(GeometryMode.CONVEX_POLYHEDRON, null, Sector.TOP, 0xFFFFD24A, 0xFFC9A36A)
    );
 
    private Slice selected;
@@ -119,11 +119,11 @@ public final class GeometryRadialScreen extends Screen {
          this.renderComplexPage(graphics, centerX, centerY);
          return;
       }
-      fillCircle(graphics, centerX, centerY, OUTER_RADIUS, 0xD8242A35);
+      fillCircle(graphics, centerX, centerY, OUTER_RADIUS, pick(0xD8242A35, 0xD8222222));
       if (this.selected != null) {
          fillWedge(graphics, centerX, centerY, OUTER_RADIUS, this.selected.sector(), withAlpha(this.selected.color(), 0xB8));
       }
-      fillCircle(graphics, centerX, centerY, INNER_RADIUS, 0xF0181D25);
+      fillCircle(graphics, centerX, centerY, INNER_RADIUS, pick(0xF0181D25, 0xF01A1A1A));
       blitWheelFrame(graphics, centerX, centerY);
 
       for (Slice slice : SLICES) {
@@ -135,9 +135,9 @@ public final class GeometryRadialScreen extends Screen {
       Component centerLabel = this.selected == null
          ? Component.translatable("fastformer.geometry.radial.title")
          : Component.translatable(this.selected.translationKey());
-      graphics.drawCenteredString(this.font, centerLabel, centerX, centerY - 4, 0xFFFFFFFF);
+      graphics.drawCenteredString(this.font, centerLabel, centerX, centerY - 4, pick(0xFFFFFFFF, 0xFFF2F1EC));
       graphics.drawCenteredString(
-         this.font, Component.translatable("fastformer.geometry.radial.hint"), centerX, centerY + OUTER_RADIUS + 14, 0xFFD5DEE8
+         this.font, Component.translatable("fastformer.geometry.radial.hint"), centerX, centerY + OUTER_RADIUS + 14, pick(0xFFD5DEE8, 0xFFB5B3AD)
       );
    }
 
@@ -164,11 +164,11 @@ public final class GeometryRadialScreen extends Screen {
    }
 
    private void renderComplexPage(GuiGraphics graphics, int centerX, int centerY) {
-      fillCircle(graphics, centerX, centerY, OUTER_RADIUS, 0xE0202530);
+      fillCircle(graphics, centerX, centerY, OUTER_RADIUS, pick(0xE0202530, 0xE0202020));
       if (this.selected != null) {
          fillWedge(graphics, centerX, centerY, OUTER_RADIUS, this.selected.sector(), withAlpha(this.selected.color(), 0xB8));
       }
-      fillCircle(graphics, centerX, centerY, INNER_RADIUS, this.centerHovered ? 0xF06A7688 : 0xF0181D25);
+      fillCircle(graphics, centerX, centerY, INNER_RADIUS, this.centerHovered ? pick(0xF06A7688, 0xF04A4A4A) : pick(0xF0181D25, 0xF01A1A1A));
       blitWheelFrame(graphics, centerX, centerY);
       for (Slice slice : COMPLEX_SLICES) {
          int iconX = centerX + slice.sector().x() * ICON_DISTANCE;
@@ -181,10 +181,10 @@ public final class GeometryRadialScreen extends Screen {
             ? Component.translatable("fastformer.geometry.special.complex")
          : Component.translatable(this.selected.translationKey());
       graphics.drawCenteredString(
-         this.font, label, centerX, centerY - 4, 0xFFFFFFFF
+         this.font, label, centerX, centerY - 4, pick(0xFFFFFFFF, 0xFFF2F1EC)
       );
       graphics.drawCenteredString(
-         this.font, Component.translatable("fastformer.geometry.special.hint"), centerX, centerY + OUTER_RADIUS + 14, 0xFFD5DEE8
+         this.font, Component.translatable("fastformer.geometry.special.hint"), centerX, centerY + OUTER_RADIUS + 14, pick(0xFFD5DEE8, 0xFFB5B3AD)
       );
    }
 
@@ -215,7 +215,7 @@ public final class GeometryRadialScreen extends Screen {
 
    private static void renderModeIcon(GuiGraphics graphics, Slice slice, int centerX, int centerY, boolean selected) {
       int half = ICON_SIZE / 2;
-      int border = selected ? 0xFFFFFFFF : 0xFF7F8A98;
+      int border = selected ? pick(0xFFFFFFFF, 0xFFF2F1EC) : pick(0xFF7F8A98, 0xFF6E6D6A);
       graphics.fill(centerX - half - 2, centerY - half - 2, centerX + half + 2, centerY + half + 2, border);
       graphics.fill(centerX - half, centerY - half, centerX + half, centerY + half, slice.color());
    }
@@ -278,7 +278,15 @@ public final class GeometryRadialScreen extends Screen {
       return alpha << 24 | color & 0x00FFFFFF;
    }
 
-   private record Slice(GeometryMode mode, String specialTranslationKey, Sector sector, int color) {
+   private static int pick(int classic, int humanist) {
+      return io.github.fastformer.fastplace.geometry.GeometryPalette.humanist() ? humanist : classic;
+   }
+
+   private record Slice(GeometryMode mode, String specialTranslationKey, Sector sector, int classicColor, int humanistColor) {
+      int color() {
+         return pick(this.classicColor, this.humanistColor);
+      }
+
       boolean special() {
          return this.mode == null;
       }

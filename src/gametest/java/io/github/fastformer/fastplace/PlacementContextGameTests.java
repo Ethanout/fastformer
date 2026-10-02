@@ -26,6 +26,49 @@ public final class PlacementContextGameTests {
    private PlacementContextGameTests() {}
 
    @GameTest(template = "fastformergametests.empty", batch = "placement_context")
+   public static void embeddedStateUsesTargetNeighborsAndFluid(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      var level = helper.getLevel();
+      BlockPos target = helper.absolutePos(new BlockPos(2, 3, 2));
+      level.setBlock(target, Blocks.STONE.defaultBlockState(), 2);
+      level.setBlock(target.west(), Blocks.STONE.defaultBlockState(), 2);
+      var hit = new BlockHitResult(target.getCenter().add(0, 0.5, 0), Direction.UP, target, false);
+      var stack = new ItemStack(Blocks.OAK_FENCE);
+      var embedded = PlacementContextSnapshot.capture(level, player, stack, hit, true);
+      var surface = PlacementContextSnapshot.capture(level, player, stack, hit, false);
+      var insideState = PlaceableItems.placementState(stack, player, embedded).orElseThrow();
+      var outsideState = PlaceableItems.placementState(stack, player, surface).orElseThrow();
+      helper.assertTrue(insideState.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WEST),
+         "embedded fence ignored its target neighbor");
+      helper.assertTrue(!outsideState.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WEST),
+         "surface fence used the embedded neighbor");
+
+      level.setBlock(target, Blocks.OAK_SLAB.defaultBlockState()
+         .setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED, true), 2);
+      stack = new ItemStack(Blocks.CHAIN);
+      embedded = PlacementContextSnapshot.capture(level, player, stack, hit, true);
+      surface = PlacementContextSnapshot.capture(level, player, stack, hit, false);
+      helper.assertTrue(PlaceableItems.placementState(stack, player, embedded).orElseThrow()
+         .getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED),
+         "embedded chain did not use water in the target cell");
+      helper.assertTrue(!PlaceableItems.placementState(stack, player, surface).orElseThrow()
+         .getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED),
+         "surface chain used water from another cell");
+      player.setItemInHand(InteractionHand.MAIN_HAND, stack);
+      try {
+         FastPlaceManager.addInitialPoint(player, hit, true);
+         var draft = FastPlaceManager.session(player).orElseThrow();
+         helper.assertTrue(draft.points().getFirst().equals(target), "embedded first point differs from state position");
+         helper.assertTrue(PlaceableItems.placementState(stack, player, draft.placementContext()).orElseThrow()
+            .equals(PlaceableItems.placementState(stack, player, embedded).orElseThrow()),
+            "server draft state differs from embedded preview state");
+      } finally {
+         FastPlaceManager.cancel(player);
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "placement_context")
    public static void firstPointAndStateMatchVanillaPlacement(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       player.setPos(helper.absolutePos(new BlockPos(1, 10, 1)).getCenter());
@@ -65,8 +108,9 @@ public final class PlacementContextGameTests {
       FastPlaceManager.cancel(player);
       helper.getLevel().setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
       snapshot = PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, true);
-      helper.assertTrue(snapshot.equals(PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, false)),
-         "embedded placement changed the entry orientation");
+      helper.assertTrue(snapshot.placementPosition().equals(target)
+         && snapshot.context(player.level(), player, player.getMainHandItem()).getClickedPos().equals(target),
+         "embedded state was not calculated at the hit block");
       FastPlaceManager.addInitialPoint(player, hit, true);
       helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().getFirst().equals(target), "embedded point moved outside the hit block");
       FastPlaceManager.cancel(player);

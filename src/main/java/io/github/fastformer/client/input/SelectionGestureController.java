@@ -107,9 +107,16 @@ final class SelectionGestureController {
       var workspace = ClientOperationController.workspace();
       ClientSelectionPart part = workspace.part(target.partId()).orElse(null);
       ClientOperationController.AabbAdjustDecision decision = ClientOperationController.aabbAdjustDecision(part);
-      if (!decision.ready()) {
+      if (!decision.ready() && decision != ClientOperationController.AabbAdjustDecision.CAPTURE_PENDING) {
          return decision;
       }
+      return captureWorkspaceFaceDrag(session, target, press, part, !decision.ready());
+   }
+
+   static ClientOperationController.AabbAdjustDecision captureWorkspaceFaceDrag(ClientInputSession session,
+      OperationInteractionIntent.Face target, SelectionPointerPress press, ClientSelectionPart part, boolean awaitingSource
+   ) {
+      var workspace = ClientOperationController.workspace();
       if (!workspace.selectedIds().contains(part.id())) {
          ClientOperationController.selectWorkspacePart(part.id(), false);
       }
@@ -128,7 +135,7 @@ final class SelectionGestureController {
       );
       ClientOperationController.selectionGestures().begin(new WorkspaceFaceDrag(
          part, axis, positive, DragAxisFrame.start(hit.point(), false), hit.normal(), 0,
-         capture, DeferredDragClick.start(press.pressedAtNanos(), press.shortPressSteps()), hit, editToken
+         capture, DeferredDragClick.start(press.pressedAtNanos(), press.shortPressSteps()), hit, editToken, awaitingSource
       ));
       return ClientOperationController.AabbAdjustDecision.DRAG_STARTED;
    }
@@ -260,6 +267,12 @@ final class SelectionGestureController {
          ClientOperationController.selectionGestures().clear(drag);
          return;
       }
+      if (drag.awaitingSource()) {
+         var decision = ClientOperationController.aabbAdjustDecision(drag.baseline());
+         drag = resolveFaceSource(session, drag, decision);
+         if (drag == null || drag.awaitingSource()) return;
+         original = drag;
+      }
       long now = System.nanoTime();
       Vec3 axisPoint = OperationGeometry.closestPointOnAxisToRay(
          drag.frame().origin(), drag.normal(), minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F)
@@ -278,6 +291,20 @@ final class SelectionGestureController {
          drag = drag.withSentSteps(totalSteps);
       }
       ClientOperationController.selectionGestures().update(original, drag);
+   }
+
+   static WorkspaceFaceDrag resolveFaceSource(ClientInputSession session, WorkspaceFaceDrag drag,
+      ClientOperationController.AabbAdjustDecision decision
+   ) {
+      if (ClientOperationController.selectionGestures().face() != drag) return null;
+      if (decision == ClientOperationController.AabbAdjustDecision.CAPTURE_PENDING) return drag;
+      if (!decision.ready()) {
+         cancelActive(session);
+         ClientInteractionFeedback.showAabbAdjustFailure(Minecraft.getInstance(), decision);
+         return null;
+      }
+      WorkspaceFaceDrag ready = drag.sourceReady();
+      return ClientOperationController.selectionGestures().update(drag, ready) ? ready : null;
    }
 
 }

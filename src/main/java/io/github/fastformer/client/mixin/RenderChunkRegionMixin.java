@@ -1,6 +1,9 @@
 package io.github.fastformer.client.mixin;
 
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
+import io.github.fastformer.client.render.mask.SourceMaskLighting;
+import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.client.renderer.chunk.RenderChunkRegion;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -27,9 +30,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * collection.
  */
 @Mixin(RenderChunkRegion.class)
-public abstract class RenderChunkRegionMixin {
+public abstract class RenderChunkRegionMixin implements BlockAndTintGetter {
    @Unique
    private SourceMaskRenderFilter.Snapshot fastformer$maskSnapshot;
+
+   @Unique
+   private SourceMaskLighting fastformer$maskLighting;
+
+   @Override
+   public int getBrightness(LightLayer layer, BlockPos pos) {
+      var light = getLightEngine().getLayerListener(layer);
+      if (layer != LightLayer.SKY || fastformer$snapshot().isEmpty()) return light.getLightValue(pos);
+      if (fastformer$maskLighting == null) fastformer$maskLighting = new SourceMaskLighting(fastformer$snapshot());
+      return fastformer$maskLighting.skyLight(pos, light::getLightValue);
+   }
+
+   @Override
+   public int getRawBrightness(BlockPos pos, int skyDarken) {
+      return Math.max(getBrightness(LightLayer.BLOCK, pos), getBrightness(LightLayer.SKY, pos) - skyDarken);
+   }
 
    @Inject(method = "getBlockState", at = @At("HEAD"), cancellable = true)
    private void fastformer$hideMaskedBlockState(BlockPos pos, CallbackInfoReturnable<BlockState> callback) {
@@ -54,11 +73,16 @@ public abstract class RenderChunkRegionMixin {
 
    @Unique
    private boolean fastformer$hides(BlockPos pos) {
+      return fastformer$snapshot().hides(pos.asLong());
+   }
+
+   @Unique
+   private SourceMaskRenderFilter.Snapshot fastformer$snapshot() {
       SourceMaskRenderFilter.Snapshot snapshot = this.fastformer$maskSnapshot;
       if (snapshot == null) {
          snapshot = SourceMaskRenderFilter.instance().snapshot();
          this.fastformer$maskSnapshot = snapshot;
       }
-      return snapshot != null && snapshot.hides(pos.asLong());
+      return snapshot;
    }
 }

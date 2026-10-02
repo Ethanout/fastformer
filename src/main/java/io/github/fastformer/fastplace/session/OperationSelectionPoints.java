@@ -10,7 +10,7 @@ final class OperationSelectionPoints {
 
    SelectionPointState forMode(OperationSelectionMode mode) {
       return switch (mode) {
-         case CUBOID -> this.cuboid;
+         case CUBOID, SMART -> this.cuboid;
          case PRISM -> this.prism;
          case CONVEX_HULL -> this.hull;
       };

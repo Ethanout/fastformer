@@ -140,9 +140,25 @@ public final class PlayerPreviewSync {
       syncSettings(player);
    }
 
+   public static void syncReachSettings(ServerPlayer player) {
+      syncInteractionUpdates(player);
+      var payload = new io.github.fastformer.network.payload.settings.ReachSettingsPayload(FastPlaceSettings.load(player).reachThresholds());
+      if (player.connection.hasChannel(payload.type())) PacketDistributor.sendToPlayer(player, payload);
+   }
+
+   public static void syncInteractionUpdates(ServerPlayer player) {
+      var settings = FastPlaceSettings.load(player);
+      var payload = new io.github.fastformer.network.payload.settings.InteractionUpdatesPayload(
+         settings.enabled() && settings.placementUpdateMode().suppressesNeighborUpdates(),
+         settings.enabled() && settings.emptyHandWrench(), settings.enabled() && settings.forcePlacement());
+      if (player.connection.hasChannel(payload.type())) PacketDistributor.sendToPlayer(player, payload);
+   }
+
    public static void syncSettings(ServerPlayer player) {
+      syncReachSettings(player);
       sendPreview(player, BuildingPreviewPayload.inactive(FastPlaceSettings.load(player)));
-      sendOperationPreview(player, OperationPreviewPayload.inactive(nextOperationPreviewRevision(player)));
+      sendOperationPreview(player, OperationPreviewPayload.inactive(nextOperationPreviewRevision(player),
+         FastPlaceSettings.load(player).operationSelectionMode()));
       sendGeometry(player, GeometryPreviewPayload.inactive());
       syncActivity(player);
    }

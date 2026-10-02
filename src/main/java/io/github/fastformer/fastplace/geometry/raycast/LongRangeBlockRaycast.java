@@ -3,12 +3,10 @@ package io.github.fastformer.fastplace.geometry.raycast;
 import io.github.fastformer.fastplace.world.*;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -31,23 +29,33 @@ public final class LongRangeBlockRaycast {
    }
 
    public static Result clipForPlacement(Level level, Entity source, Vec3 start, Vec3 direction) {
-      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, true);
+      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, true, false, ClipContext.Fluid.NONE);
+   }
+
+   public static Result clipForSelection(Level level, Entity source, Vec3 start, Vec3 direction, boolean throughFluids) {
+      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, false, false,
+         throughFluids ? ClipContext.Fluid.NONE : ClipContext.Fluid.ANY);
+   }
+
+   /** Full cells and near-ray tolerance only decide which input mode owns the pointer. */
+   public static Result clipForReachTransition(Level level, Entity source, Vec3 start, Vec3 direction) {
+      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, false, true, ClipContext.Fluid.NONE);
    }
 
    public static Result clip(
       Level level, Entity source, Vec3 start, Vec3 direction, ClipContext.Block blockMode
    ) {
-      return clip(level, source, start, direction, blockMode, false);
+      return clip(level, source, start, direction, blockMode, false, false, ClipContext.Fluid.NONE);
    }
 
    private static Result clip(
       Level level, Entity source, Vec3 start, Vec3 direction, ClipContext.Block blockMode,
-      boolean skipReplaceable
+      boolean skipReplaceable, boolean reachTransition, ClipContext.Fluid fluidMode
    ) {
       long startedAt = System.nanoTime();
       Vec3 ray = direction.lengthSqr() < EPSILON ? Vec3.ZERO : direction.normalize();
       if (ray.lengthSqr() < EPSILON) {
-         BlockHitResult hit = level.clip(context(start, start, blockMode, source, skipReplaceable));
+         BlockHitResult hit = level.clip(context(start, start, blockMode, source, skipReplaceable, reachTransition, fluidMode));
          return new Result(hit, 0.0, 0.0, Limit.ZERO_DIRECTION, 0, System.nanoTime() - startedAt);
       }
 
@@ -58,15 +66,19 @@ public final class LongRangeBlockRaycast {
       double distance = Math.max(0.0, Math.min(bounded.distance(), loaded.distance()));
       Limit limit = loaded.distance() + EPSILON < bounded.distance() ? Limit.UNLOADED_CHUNK : bounded.limit();
       Vec3 end = start.add(ray.scale(distance));
-      BlockHitResult hit = level.clip(context(start, end, blockMode, source, skipReplaceable));
-      hit = firstCellEntry(start, end, hit);
+      BlockHitResult hit = level.clip(context(start, end, blockMode, source, skipReplaceable, reachTransition, fluidMode));
+      if (reachTransition && !hit.isInside()) {
+         hit = NearBlockRaycast.assist(level, source, start, ray, hit, distance, skipReplaceable);
+      }
+      // Keep the actual shape hit. A partial block's cell entry can be on a different face.
       return new Result(hit, distance, world.distance(), limit, loaded.checkedChunks(), System.nanoTime() - startedAt);
    }
 
    private static ClipContext context(
-      Vec3 start, Vec3 end, ClipContext.Block mode, Entity source, boolean skipReplaceable
+      Vec3 start, Vec3 end, ClipContext.Block mode, Entity source, boolean skipReplaceable, boolean reachTransition,
+      ClipContext.Fluid fluidMode
    ) {
-      return new ClipContext(start, end, mode, ClipContext.Fluid.NONE, source) {
+      return new ClipContext(start, end, mode, fluidMode, source) {
          @Override
          public net.minecraft.world.phys.shapes.VoxelShape getBlockShape(
             net.minecraft.world.level.block.state.BlockState state,
@@ -74,46 +86,11 @@ public final class LongRangeBlockRaycast {
          ) {
             return skipReplaceable && state.canBeReplaced()
                ? net.minecraft.world.phys.shapes.Shapes.empty()
-               : super.getBlockShape(state, level, pos);
+               : reachTransition && !state.isAir()
+                  && !super.getBlockShape(state, level, pos).isEmpty()
+                  ? net.minecraft.world.phys.shapes.Shapes.block() : super.getBlockShape(state, level, pos);
          }
       };
-   }
-
-   /** Replaces a collision-shape's interior face with the face where the ray entered its block cell. */
-   static BlockHitResult firstCellEntry(Vec3 start, Vec3 end, BlockHitResult hit) {
-      if (hit == null || !hit.getType().equals(net.minecraft.world.phys.HitResult.Type.BLOCK)) {
-         return hit;
-      }
-      BlockPos pos = hit.getBlockPos();
-      AABB cell = new AABB(pos);
-      Vec3 ray = end.subtract(start);
-      double tEnter = 0.0;
-      Direction face = null;
-      for (Direction.Axis axis : Direction.Axis.values()) {
-         double origin = axis == Direction.Axis.X ? start.x : axis == Direction.Axis.Y ? start.y : start.z;
-         double delta = axis == Direction.Axis.X ? ray.x : axis == Direction.Axis.Y ? ray.y : ray.z;
-         double min = axis == Direction.Axis.X ? cell.minX : axis == Direction.Axis.Y ? cell.minY : cell.minZ;
-         double max = axis == Direction.Axis.X ? cell.maxX : axis == Direction.Axis.Y ? cell.maxY : cell.maxZ;
-         if (origin > min + EPSILON && origin < max - EPSILON) {
-            continue;
-         }
-         if (Math.abs(delta) < EPSILON) {
-            continue;
-         }
-         double t = ((delta > 0.0 ? min : max) - origin) / delta;
-         if (t >= -EPSILON && t <= 1.0 + EPSILON && t >= tEnter - EPSILON) {
-            tEnter = Math.max(0.0, t);
-            face = switch (axis) {
-               case X -> delta > 0.0 ? Direction.WEST : Direction.EAST;
-               case Y -> delta > 0.0 ? Direction.DOWN : Direction.UP;
-               case Z -> delta > 0.0 ? Direction.NORTH : Direction.SOUTH;
-            };
-         }
-      }
-      if (face == null) {
-         return hit;
-      }
-      return new BlockHitResult(start.add(ray.scale(tEnter)), face, pos, hit.isInside());
    }
 
    static LimitDistance dimensionLimit(Level level, Vec3 start, Vec3 direction) {

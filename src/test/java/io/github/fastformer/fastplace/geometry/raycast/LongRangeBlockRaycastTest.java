@@ -9,10 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 
 class LongRangeBlockRaycastTest {
    @Test
@@ -33,17 +29,4 @@ class LongRangeBlockRaycastTest {
       assertEquals(Double.POSITIVE_INFINITY, horizontal.distance());
    }
 
-   @Test
-   void collisionInteriorHitUsesTheBlockCellsFirstEntryFace() {
-      BlockHitResult interior = new BlockHitResult(
-         new Vec3(3.5, 1.5, 1.5), Direction.UP, new BlockPos(3, 1, 1), false
-      );
-
-      BlockHitResult entry = LongRangeBlockRaycast.firstCellEntry(
-         new Vec3(0.5, 1.5, 1.5), new Vec3(10.5, 1.5, 1.5), interior
-      );
-
-      assertEquals(Direction.WEST, entry.getDirection());
-      assertEquals(new Vec3(3.0, 1.5, 1.5), entry.getLocation());
-   }
 }

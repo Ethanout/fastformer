@@ -2,6 +2,7 @@ package io.github.fastformer.fastplace.geometry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
@@ -10,6 +11,39 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class AxisGizmoTest {
+   @Test
+   void moveShaftAcceptsExpandedToleranceButRejectsDistantRays() {
+      var handle = new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X,
+         AxisGizmo.Direction.POSITIVE, ControlPointRole.GIZMO_HANDLE);
+      var gizmo = new AxisGizmo(Vec3.ZERO, 4, 0.25, TransformFrame.world(Vec3.ZERO), List.of(handle));
+      assertNotNull(gizmo.hitTest(new Vec3(2, 0.28, 6), new Vec3(0, 0, -1), 32));
+      assertNull(gizmo.hitTest(new Vec3(2, 0.32, 6), new Vec3(0, 0, -1), 32));
+   }
+
+   @Test
+   void endpointsAcceptExpandedToleranceWithoutChangingVisualSize() {
+      for (var operation : List.of(AxisGizmo.Operation.MOVE, AxisGizmo.Operation.SCALE)) {
+         var handle = new AxisGizmo.Handle(operation, AxisGizmo.Axis.X,
+            AxisGizmo.Direction.POSITIVE, ControlPointRole.GIZMO_HANDLE);
+         var gizmo = new AxisGizmo(Vec3.ZERO, 4, 0.25, TransformFrame.world(Vec3.ZERO), List.of(handle));
+         double radius = gizmo.visualRadius(handle);
+         assertEquals(operation == AxisGizmo.Operation.MOVE ? 0.25 : 0.2, radius, 1.0E-9);
+         Vec3 endpoint = gizmo.handleCenter(handle);
+         assertNotNull(gizmo.hitTest(endpoint.add(0, radius * 1.4, 6), new Vec3(0, 0, -1), 32));
+         assertNull(gizmo.hitTest(endpoint.add(0, radius * 1.6, 6), new Vec3(0, 0, -1), 32));
+      }
+   }
+
+   @Test
+   void rotationRingAcceptsExpandedToleranceButRejectsDistantRays() {
+      var handle = new AxisGizmo.Handle(AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.Z,
+         AxisGizmo.Direction.BIDIRECTIONAL, ControlPointRole.GIZMO_HANDLE);
+      var gizmo = new AxisGizmo(Vec3.ZERO, 4, 0.25, TransformFrame.world(Vec3.ZERO), List.of(handle));
+      double radius = gizmo.rotationRingRadius(handle);
+      assertNotNull(gizmo.hitTest(new Vec3(radius + 0.44, 0, 6), new Vec3(0, 0, -1), 32));
+      assertNull(gizmo.hitTest(new Vec3(radius + 0.5, 0, 6), new Vec3(0, 0, -1), 32));
+   }
+
    @Test
    void moveAxisShaftCanBeHoveredAndDragged() {
       AxisGizmo.Handle moveX = new AxisGizmo.Handle(

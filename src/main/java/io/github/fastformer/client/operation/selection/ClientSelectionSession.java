@@ -26,14 +26,34 @@ public final class ClientSelectionSession {
    private final SelectionGestureState gestures = new SelectionGestureState();
    private final SelectionSessionLifecycle lifecycle = new SelectionSessionLifecycle();
    private SelectionInteractionScene interactionScene = SelectionInteractionScene.empty(this.interactionOwnerId);
-   private final SelectionDraftStateMachine draft = new SelectionDraftStateMachine();
+   private final SelectionDraftStateMachine draft = new SelectionDraftStateMachine(this.workspace.selections());
    private boolean altHeld;
+   private boolean retainAfterCancel;
+   private boolean clientOwned;
+
+   public boolean retained() { return retainAfterCancel; }
+   public void retain() { retainAfterCancel = true; clientOwned = true; }
+   public boolean clientOwned() { return clientOwned; }
 
    public ClientSelectionSession() {
    }
 
    public ClientOperationWorkspace workspace() {
       return this.workspace;
+   }
+
+   public ClientSelectionStack stack() { return this.workspace.selections(); }
+   /** World history changes blocks without reopening or replacing a selection session. */
+   public void onWorldHistory(io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind kind) {
+      if (kind == io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind.RECORD) workspace.clearHistory();
+   }
+
+   public void closeUndoably() {
+      var before = draftState();
+      workspace.closeUndoably(() -> { restoreDraftState(before); retain(); }, before.points().size());
+      clearDraft();
+      clearTransientInteraction();
+      this.draft.setMode(SelectionToolPreference.get());
    }
 
    public SelectionGestureState gestures() {
@@ -110,9 +130,11 @@ public final class ClientSelectionSession {
    }
 
    public void clearLiveInteraction() {
+      this.clientOwned = false;
       this.workspace.clear();
       clearDraft();
       clearTransientInteraction();
+      this.draft.setMode(SelectionToolPreference.get());
    }
 
    public void clearTransientInteraction() {
@@ -124,6 +146,7 @@ public final class ClientSelectionSession {
       this.hoverEvents.invalidate();
       this.interactionScene = SelectionInteractionScene.empty(this.interactionOwnerId);
       this.altHeld = false;
+      this.retainAfterCancel = false;
       publishInteractionScene();
    }
 
@@ -133,6 +156,11 @@ public final class ClientSelectionSession {
 
    public void setSelectionMode(OperationSelectionMode mode) {
       this.draft.setMode(mode);
+   }
+
+   public void startNewSession() {
+      if (workspace.isEmpty() && !hasDraft()) this.draft.setMode(SelectionToolPreference.get());
+      retain();
    }
 
    public boolean altHeld() {
@@ -162,6 +190,7 @@ public final class ClientSelectionSession {
    public SelectionDraftResult onDraftEvent(SelectionDraftEvent event) {
       SelectionDraftResult result = this.draft.onEvent(event);
       if (result != SelectionDraftResult.REJECTED) {
+         this.clientOwned = true;
          this.lifecycle.onEvent(SelectionSessionLifecycle.Event.BEGIN);
       }
       return result;
@@ -185,7 +214,7 @@ public final class ClientSelectionSession {
 
    public List<BlockPos> selectionDraftPoints() {
       DraftState snapshot = this.draft.snapshot();
-      return snapshot.points().size() >= 2
+      return snapshot.selectionMode() == OperationSelectionMode.CUBOID && snapshot.points().size() >= 2
          ? List.of(snapshot.minPoint(), snapshot.maxPoint()) : snapshot.points();
    }
 
@@ -230,6 +259,7 @@ public final class ClientSelectionSession {
    public void restoreDraftState(DraftState draft) {
       this.draft.restore(draft);
       this.altHeld = false;
+      this.retainAfterCancel = false;
    }
 
    public void restoreDraftEdit(DraftState draft) {
@@ -241,8 +271,14 @@ public final class ClientSelectionSession {
       List<BlockPos> points,
       int prismBaseCount,
       BlockPos minPoint,
-      BlockPos maxPoint
+      BlockPos maxPoint,
+      boolean secondPointOnly
    ) {
+      public DraftState(OperationSelectionMode selectionMode, List<BlockPos> points, int prismBaseCount,
+         BlockPos minPoint, BlockPos maxPoint) {
+         this(selectionMode, points, prismBaseCount, minPoint, maxPoint, false);
+      }
+
       public DraftState {
          if (selectionMode == null) {
             throw new IllegalArgumentException("A selection draft requires a mode");
@@ -254,6 +290,12 @@ public final class ClientSelectionSession {
          minPoint = minPoint == null ? null : minPoint.immutable();
          maxPoint = maxPoint == null ? null : maxPoint.immutable();
          prismBaseCount = Math.max(0, prismBaseCount);
+         if (secondPointOnly && (selectionMode != OperationSelectionMode.CUBOID || points.size() != 1)) {
+            throw new IllegalArgumentException("A second-only draft requires one cuboid point");
+         }
       }
+
+      public BlockPos firstPoint() { return points.isEmpty() || secondPointOnly ? null : points.getFirst(); }
+      public BlockPos secondPoint() { return secondPointOnly ? points.getFirst() : points.size() < 2 ? null : points.get(1); }
    }
 }

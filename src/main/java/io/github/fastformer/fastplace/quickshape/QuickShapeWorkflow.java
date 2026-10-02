@@ -44,10 +44,13 @@ public final class QuickShapeWorkflow {
       int previousCount = draft.points().size();
       boolean addPoint = previousCount == 0 || !draft.points().getLast().equals(event.point());
       if (draft.polygonClosed()) {
-         return new Decision(addPoint ? Action.SUBMIT : Action.PREVIEW, addPoint, false, addPoint, false, false);
+         return new Decision(Action.SUBMIT, addPoint, false, addPoint, false, false);
       }
 
       QuickShapeStage previousStage = QuickShapeStage.resolve(previousCount, faceMode, false);
+      if (previousStage == QuickShapeStage.VOLUME && previousCount == 3) {
+         return new Decision(Action.SUBMIT, addPoint, false, false, false, false);
+      }
       boolean polygonFace = faceMode == FaceMode.POLYGON && previousCount >= 2;
       int closingPoints = polygonFace || previousStage != QuickShapeStage.VOLUME ? 3 : 4;
       boolean closed = previousCount >= closingPoints && draft.points().getFirst().equals(event.point());

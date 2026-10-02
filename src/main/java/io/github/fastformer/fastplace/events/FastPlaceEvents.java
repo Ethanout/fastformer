@@ -3,6 +3,8 @@ package io.github.fastformer.fastplace.events;
 import io.github.fastformer.fastplace.command.FastPlaceCommandRegistry;
 import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
+import io.github.fastformer.fastplace.placement.replace.QuickReplaceManager;
+import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.input.ServerInputDispatcher;
@@ -51,7 +53,15 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (BlockTinker.use(player, event.getHitVec())) {
+      if (QuickReplaceManager.active(player)) {
+         if (PlaceableItems.isPlaceable(player.getMainHandItem())) {
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            event.setCanceled(true);
+         }
+         return;
+      }
+      if (io.github.fastformer.fastplace.placement.ForcedPlacement.use(player, event.getHitVec())
+         || BlockTinker.use(player, event.getHitVec())) {
          event.setCancellationResult(InteractionResult.SUCCESS);
          event.setCanceled(true);
          return;
@@ -73,6 +83,7 @@ public final class FastPlaceEvents {
          return;
       }
 
+      if (QuickReplaceManager.active(player)) return;
       if (ServerInputDispatcher.rightClickItem(player)) {
          event.setCancellationResult(InteractionResult.SUCCESS);
          event.setCanceled(true);
@@ -89,6 +100,7 @@ public final class FastPlaceEvents {
          return;
       }
 
+      if (QuickReplaceManager.active(player)) return;
       if (ServerInputDispatcher.leftClickBlock(player, event.getPos())) {
          event.setCanceled(true);
       }
@@ -112,6 +124,7 @@ public final class FastPlaceEvents {
    }
 
    private static void onSwapHands(Hands event) {
+      if (event.getEntity() instanceof ServerPlayer player && QuickReplaceManager.active(player)) return;
       if (event.getEntity() instanceof ServerPlayer player && ServerInputDispatcher.fill(player)) {
          event.setCanceled(true);
          return;
@@ -120,6 +133,8 @@ public final class FastPlaceEvents {
 
    private static void onPlayerTick(Post event) {
       if (event.getEntity() instanceof ServerPlayer player) {
+         io.github.fastformer.fastplace.settings.PlayerReachAttributes.initialize(player);
+         io.github.fastformer.server.input.ServerReachGate.tick(player);
          // A world undo/redo or task-recovery write must finish even if the
          // player toggles FastFormer off while it is running; otherwise the
          // history lock would remain forever and leave a partial world.
@@ -128,6 +143,7 @@ public final class FastPlaceEvents {
             return;
          }
          if (!ServerInputDispatcher.canOperate(player)) {
+            QuickReplaceManager.forget(player.getUUID());
             ServerInputDispatcher.stopBecauseUnavailable(player);
             FastPlaceNetwork.syncActivity(player);
             return;

@@ -319,6 +319,9 @@ public final class ClientSessionManager {
       try {
          Optional<CompoundTag> root = OperationClipboardStore.loadStrict(draftFileFor(this.currentKey));
          if (root.isEmpty()) return OperationDraftSettlement.DurableProbe.absent();
+         if (ClientOperationDraftCodec.readSubmissionId(root.get()) == null && root.get().getBoolean("Unsubmitted")) {
+            return OperationDraftSettlement.DurableProbe.absent();
+         }
          return OperationDraftSettlement.DurableProbe.read(
             ClientOperationDraftCodec.readSubmissionId(root.get())
          );
@@ -339,15 +342,35 @@ public final class ClientSessionManager {
          transferId,
          this.stagedSubmissionId(),
          () -> {
-            if (this.current != null) this.current.discardSuspendedOperationDraft();
+            if (this.current != null) {
+               var draft = this.current.suspendedOperationDraftData();
+               this.current.discardSuspendedOperationDraft();
+               if (draft != null && draft.remainder() != null) {
+                  this.current.stageSuspendedOperationDraft(draft.remainder().asDraft());
+               }
+            }
          }
       );
       OperationDraftSettlement.Ownership durable = OperationDraftSettlement.resolveDurable(
          transferId,
          this.probeDurableDraft(),
-         () -> this.currentKey != null && deleteDraftFile(this.currentKey)
+         () -> this.currentKey != null && settleDraftFile(this.currentKey, transferId)
       );
       return OperationDraftSettlement.combine(staged, durable);
+   }
+
+   private boolean settleDraftFile(SessionKey key, UUID transferId) {
+      try {
+         var root = OperationClipboardStore.loadStrict(draftFileFor(key)).orElse(null);
+         if (root == null || !transferId.equals(ClientOperationDraftCodec.readSubmissionId(root))) return true;
+         if (!root.contains("Remainder", net.minecraft.nbt.Tag.TAG_COMPOUND)) return deleteDraftFile(key);
+         OperationClipboardStore.save(draftFileFor(key), root.getCompound("Remainder"));
+         this.draftLoadStates.remove(key);
+         return true;
+      } catch (IOException | RuntimeException failure) {
+         LOGGER.warn("Unable to preserve the unselected operation draft", failure);
+         return false;
+      }
    }
 
    /**

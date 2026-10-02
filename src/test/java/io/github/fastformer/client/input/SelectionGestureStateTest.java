@@ -63,6 +63,6 @@ class SelectionGestureStateTest {
       var part = workspace.part(1).orElseThrow();
       var capture = SelectionDragCapture.create(session.interactionOwnerId(), workspace, List.of(part), 0, token);
       return new WorkspaceFaceDrag(part, 0, true, DragAxisFrame.start(Vec3.ZERO, false),
-         new Vec3(1, 0, 0), 0, capture, DeferredDragClick.start(0, 1), null, workspace.activeEditToken());
+         new Vec3(1, 0, 0), 0, capture, DeferredDragClick.start(0, 1), null, workspace.activeEditToken(), false);
    }
 }

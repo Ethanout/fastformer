@@ -34,7 +34,6 @@ public final class OperationWorkspaceValidator {
          return Result.failed(List.of());
       }
       List<OperationWorkspacePlan.Part> parts = new ArrayList<>(plan.parts());
-      parts.sort(Comparator.comparingInt(OperationWorkspacePlan.Part::id));
       Set<Integer> ids = new HashSet<>();
       long supplied = 0L;
       List<WorkspaceGeometryCost.Cost> costs = new ArrayList<>();
@@ -62,11 +61,10 @@ public final class OperationWorkspaceValidator {
          return Result.failed(List.of());
       }
 
-      LinkedHashSet<BlockPos> clears = new LinkedHashSet<>();
-      LinkedHashMap<BlockPos, ClientBlockSnapshot> writes = new LinkedHashMap<>();
+      var scene = new io.github.fastformer.workspace.preview.WorkspaceScene<ClientBlockSnapshot>(snapshot -> !snapshot.state().isAir());
       for (OperationWorkspacePlan.Part part : parts) {
          if (part.source() == ClientSelectionPart.Source.WORLD) {
-            part.blocks().keySet().forEach(pos -> clears.add(pos.immutable()));
+            scene.clearSources(part.blocks().keySet());
          }
       }
       for (OperationWorkspacePlan.Part part : parts) {
@@ -80,16 +78,12 @@ public final class OperationWorkspaceValidator {
             return Result.failed(List.of());
          }
          Map<BlockPos, ClientBlockSnapshot> resolved = composed.values();
-         for (Map.Entry<BlockPos, ClientBlockSnapshot> entry : resolved.entrySet()) {
-            if (!entry.getValue().state().isAir()) {
-               writes.put(entry.getKey().immutable(), entry.getValue());
-            }
-         }
-         if (writes.size() > maxBlocks) {
+         scene.overlay(part.id(), resolved);
+         if (scene.blocks().size() > maxBlocks) {
             return Result.failed(List.of());
          }
       }
-      return new Result(true, List.of(), clears, writes);
+      return new Result(true, List.of(), scene.sources(), scene.blocks());
    }
 
    static boolean validTransform(WorkspaceTransform transform) {

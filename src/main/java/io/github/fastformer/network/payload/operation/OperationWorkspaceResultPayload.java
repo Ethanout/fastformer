@@ -8,6 +8,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import io.github.fastformer.workspace.submission.WorkspaceFailure;
 
 public record OperationWorkspaceResultPayload(
    UUID transferId,
@@ -15,7 +16,8 @@ public record OperationWorkspaceResultPayload(
    boolean retryable,
    List<Integer> failedPartIds,
    List<BlockPos> failedTargetPositions,
-   OperationCallbackScope callbackScope
+   OperationCallbackScope callbackScope,
+   WorkspaceFailure failure
 )
    implements CustomPacketPayload {
    private static final int MAX_FAILED_PART_IDS = 4096;
@@ -28,6 +30,11 @@ public record OperationWorkspaceResultPayload(
 
    public OperationWorkspaceResultPayload(UUID transferId, boolean accepted, List<Integer> failedPartIds) {
       this(transferId, accepted, true, failedPartIds, List.of(), unscopedCallbackScope());
+   }
+
+   public OperationWorkspaceResultPayload(UUID transferId, boolean accepted, boolean retryable,
+      List<Integer> failedPartIds, List<BlockPos> failedTargetPositions, OperationCallbackScope callbackScope) {
+      this(transferId, accepted, retryable, failedPartIds, failedTargetPositions, callbackScope, WorkspaceFailure.UNKNOWN);
    }
 
    public OperationWorkspaceResultPayload(
@@ -49,6 +56,7 @@ public record OperationWorkspaceResultPayload(
       if (callbackScope == null) {
          throw new IllegalArgumentException("Workspace callback scope is required");
       }
+      if (failure == null) throw new IllegalArgumentException("Workspace failure category is required");
       failedPartIds = failedPartIds == null ? List.of() : List.copyOf(failedPartIds);
       failedTargetPositions = failedTargetPositions == null ? List.of() : failedTargetPositions.stream().map(BlockPos::immutable).toList();
       if (failedPartIds.size() > MAX_FAILED_PART_IDS || failedPartIds.stream().anyMatch(id -> id < 1)) {
@@ -69,12 +77,17 @@ public record OperationWorkspaceResultPayload(
             FriendlyByteBuf.limitValue(ArrayList::new, MAX_FAILED_TARGET_POSITIONS),
             bufferValue -> bufferValue.readBlockPos()
          ),
-         OperationCallbackScope.STREAM_CODEC.decode(buffer)
+         OperationCallbackScope.STREAM_CODEC.decode(buffer),
+         buffer.readEnum(WorkspaceFailure.class)
       );
    }
 
    public OperationWorkspaceResultPayload withCallbackScope(OperationCallbackScope callbackScope) {
-      return new OperationWorkspaceResultPayload(transferId, accepted, retryable, failedPartIds, failedTargetPositions, callbackScope);
+      return new OperationWorkspaceResultPayload(transferId, accepted, retryable, failedPartIds, failedTargetPositions, callbackScope, failure);
+   }
+
+   public OperationWorkspaceResultPayload withFailure(WorkspaceFailure reason) {
+      return new OperationWorkspaceResultPayload(transferId, accepted, retryable, failedPartIds, failedTargetPositions, callbackScope, reason);
    }
 
    private void write(FriendlyByteBuf buffer) {
@@ -84,6 +97,7 @@ public record OperationWorkspaceResultPayload(
       buffer.writeCollection(this.failedPartIds, FriendlyByteBuf::writeVarInt);
       buffer.writeCollection(this.failedTargetPositions, (buf, pos) -> buf.writeBlockPos(pos));
       OperationCallbackScope.STREAM_CODEC.encode(buffer, this.callbackScope);
+      buffer.writeEnum(failure);
    }
 
    private static OperationCallbackScope unscopedCallbackScope() {

@@ -13,6 +13,11 @@ public final class ClientPlayerSession {
    private final ClientSelectionSession selectionSession = new ClientSelectionSession();
    private final ClientInputSession inputSession = new ClientInputSession();
    private ClientOperationDraft suspendedOperationDraft;
+   private ClientOperationDraft.Remainder submissionRemainder;
+
+   public void setSubmissionRemainder(ClientOperationDraft.Remainder remainder) {
+      this.submissionRemainder = remainder;
+   }
 
    public ClientPlayerSession(UUID playerId) {
       this.playerId = Objects.requireNonNull(playerId, "playerId");
@@ -49,7 +54,8 @@ public final class ClientPlayerSession {
    public ClientOperationDraft buildSubmittedDraft(
       OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID transferId
    ) {
-      if (originWhenNoIdentity == OperationSubmissionOrigin.LOCAL_ONLY) {
+      if (originWhenNoIdentity == OperationSubmissionOrigin.LOCAL_ONLY
+         || originWhenNoIdentity == OperationSubmissionOrigin.CLIENT_SELECTION) {
          identity = null;
       }
       if (operationWorkspace().isEmpty() && !this.selectionSession.hasDraft()) {
@@ -62,17 +68,18 @@ public final class ClientPlayerSession {
             operationWorkspace().draftState(),
             this.selectionSession.draftState(),
             OperationSubmissionOrigin.SERVER_SELECTION,
-            transferId
+            transferId, this.submissionRemainder
          );
       }
-      if (originWhenNoIdentity == OperationSubmissionOrigin.LOCAL_ONLY) {
+      if (originWhenNoIdentity == OperationSubmissionOrigin.LOCAL_ONLY
+         || originWhenNoIdentity == OperationSubmissionOrigin.CLIENT_SELECTION) {
          return new ClientOperationDraft(
             ClientOperationDraft.CURRENT_VERSION,
             null,
             operationWorkspace().draftState(),
             this.selectionSession.draftState(),
-            OperationSubmissionOrigin.LOCAL_ONLY,
-            transferId
+            originWhenNoIdentity,
+            transferId, this.submissionRemainder
          );
       }
       // No identity and no proof that the workspace is client-only. No restore could
@@ -112,6 +119,7 @@ public final class ClientPlayerSession {
    public void suspendOperationDraft(
       OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID submissionId
    ) {
+      if (originWhenNoIdentity == OperationSubmissionOrigin.CLIENT_SELECTION) identity = null;
       operationWorkspace().cancelEdit();
       boolean liveDraft = !operationWorkspace().isEmpty() || this.selectionSession.hasDraft();
       if (!liveDraft) {
@@ -127,19 +135,23 @@ public final class ClientPlayerSession {
             submissionId == null ? null : OperationSubmissionOrigin.SERVER_SELECTION,
             submissionId
          );
-      } else if (originWhenNoIdentity == OperationSubmissionOrigin.LOCAL_ONLY) {
+      } else if (originWhenNoIdentity == OperationSubmissionOrigin.LOCAL_ONLY
+         || originWhenNoIdentity == OperationSubmissionOrigin.CLIENT_SELECTION) {
          this.suspendedOperationDraft = new ClientOperationDraft(
             ClientOperationDraft.CURRENT_VERSION,
             null,
             operationWorkspace().draftState(),
             this.selectionSession.draftState(),
-            OperationSubmissionOrigin.LOCAL_ONLY,
+            originWhenNoIdentity,
             submissionId
          );
       } else {
          // No identity and no proof that the workspace is client-only. Keep the durable
          // copy that was already staged for this scope instead of overwriting it.
          this.suspendedOperationDraft = null;
+      }
+      if (submissionId != null && this.suspendedOperationDraft != null) {
+         this.suspendedOperationDraft = this.suspendedOperationDraft.withRemainder(this.submissionRemainder);
       }
       this.clearLiveInteraction();
    }
@@ -162,13 +174,14 @@ public final class ClientPlayerSession {
          if (identity == null || !identity.equals(suspended.identity())) {
             return false;
          }
-      } else if (!isLocalOnly(suspended)) {
+      } else if (suspended.origin() != OperationSubmissionOrigin.CLIENT_SELECTION && !isLocalOnly(suspended)) {
          // The receipt claimed a client-only workspace, but the stored parts reference
          // world blocks. Such a draft needs a server identity that it does not have.
          return false;
       }
       operationWorkspace().restoreDraftState(suspended.workspace());
       this.selectionSession.restoreDraftState(suspended.selection());
+      if (suspended.origin() == OperationSubmissionOrigin.CLIENT_SELECTION) this.selectionSession.retain();
       return true;
    }
 
@@ -201,6 +214,7 @@ public final class ClientPlayerSession {
    }
 
    private void clearLiveInteraction() {
+      this.submissionRemainder = null;
       inputSession.reset();
       selectionSession.clearLiveInteraction();
    }

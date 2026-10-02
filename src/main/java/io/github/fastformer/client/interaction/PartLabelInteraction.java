@@ -2,6 +2,8 @@ package io.github.fastformer.client.interaction;
 
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.render.WorkspacePartLabelHint;
+import io.github.fastformer.client.render.PreviewStyle;
+import io.github.fastformer.fastplace.geometry.GeometryPalette;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.AABB;
@@ -9,12 +11,14 @@ import net.minecraft.world.phys.Vec3;
 
 /** Adapts selection label semantics to shared geometry and presentation components. */
 public final class PartLabelInteraction {
-   private static final InteractionComponents.HighlightStyle STYLE = new InteractionComponents.HighlightStyle(
-      new InteractionComponents.Appearance(0.025F, 0xFFB9D7E8, 0x50000000),
-      new InteractionComponents.Appearance(0.025F * 1.14F, 0xFFFFD66B, 0xA0603D00),
-      new InteractionComponents.Appearance(0.025F * 1.28F, 0xFF83F5FF, 0xC0004050),
-      0.025F * 0.08F
-   );
+   private static InteractionComponents.HighlightStyle style() {
+      return new InteractionComponents.HighlightStyle(
+         new InteractionComponents.Appearance(PreviewStyle.LABEL_SCALE, GeometryPalette.paperMuted().argb(), GeometryPalette.paper().argb(80)),
+         new InteractionComponents.Appearance(PreviewStyle.LABEL_SCALE, GeometryPalette.paperInk().argb(), GeometryPalette.paper().argb(210)),
+         new InteractionComponents.Appearance(PreviewStyle.LABEL_SCALE, GeometryPalette.paperInk().argb(), GeometryPalette.paper().argb(230)),
+         0.0F
+      );
+   }
 
    private PartLabelInteraction() { }
 
@@ -31,7 +35,7 @@ public final class PartLabelInteraction {
          .with(InteractionComponents.SELECTION_ROLE, role)
          .with(InteractionComponents.TOOLTIP, InteractionTooltip.SELECTION)
          .with(InteractionComponents.PRESS_BINDING, InteractionPressBinding.SELECT)
-         .with(InteractionComponents.HIGHLIGHT, STYLE)
+         .with(InteractionComponents.HIGHLIGHT, style())
          .build();
    }
 
@@ -40,7 +44,7 @@ public final class PartLabelInteraction {
       return new Presentation(
          object.require(InteractionComponents.ANCHOR),
          WorkspacePartLabelHint.text(partId, context.selected(), context.locked(), context.control(), context.intent()),
-         object.require(InteractionComponents.HIGHLIGHT).resolve(context.selected(), context.hovered(), context.pulse()),
+         style().resolve(context.selected(), context.hovered(), context.pulse()),
          object.require(InteractionComponents.SELECTION_ROLE)
       );
    }

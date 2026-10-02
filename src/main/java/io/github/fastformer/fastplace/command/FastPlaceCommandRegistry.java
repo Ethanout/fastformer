@@ -32,8 +32,6 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.ai.attributes.AttributeInstance;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -64,7 +62,15 @@ public final class FastPlaceCommandRegistry {
             .then(actionCommand())
             .then(rotateCommand())
             .then(placementCommand())
-            .then(reachCommand())
+            .then(ReachCommand.create())
+            .then(Commands.literal("forceplace").then(Commands.argument("enabled", BoolArgumentType.bool()).executes(context -> {
+               var player = context.getSource().getPlayerOrException();
+               boolean value = BoolArgumentType.getBool(context, "enabled");
+               FastPlaceSettings.load(player).setForcePlacement(player, value);
+               io.github.fastformer.network.sync.PlayerPreviewSync.syncInteractionUpdates(player);
+               context.getSource().sendSuccess(() -> Component.translatable("fastformer.message.force_placement", value), false);
+               return 1;
+            })))
             .then(undoCommand())
             .then(redoCommand())
             .then(fillModeCommand())
@@ -186,71 +192,6 @@ public final class FastPlaceCommandRegistry {
             FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.placement_update_value", FastPlaceMessages.text(mode)));
             return 1;
          })));
-   }
-
-   private static LiteralArgumentBuilder<CommandSourceStack> reachCommand() {
-      return Commands.literal("reach")
-         .executes(context -> {
-            ServerPlayer player = context.getSource().getPlayerOrException();
-            FastPlaceMessages.chat(
-               player,
-               FastPlaceMessages.text("fastformer.message.reach_status",
-                  GeometryNumbers.fixed(player.blockInteractionRange(), 2),
-                  GeometryNumbers.fixed(player.entityInteractionRange(), 2)
-               )
-            );
-            return 1;
-         })
-         .then(Commands.literal("set").then(Commands.argument("blocks", DoubleArgumentType.doubleArg(0.0, 64.0)).executes(context -> {
-            ServerPlayer player = context.getSource().getPlayerOrException();
-            double value = DoubleArgumentType.getDouble(context, "blocks");
-            if (!validNumber(player, value)) {
-               return 0;
-            }
-            setReachBase(player, value, value);
-            FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.reach_base", value));
-            return 1;
-         })))
-         .then(Commands.literal("reset").executes(context -> {
-            ServerPlayer player = context.getSource().getPlayerOrException();
-            resetReachBase(player, true, true);
-            FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.reach_base_reset"));
-            return 1;
-         }))
-         .then(Commands.literal("block")
-            .then(Commands.literal("set").then(Commands.argument("blocks", DoubleArgumentType.doubleArg(0.0, 64.0)).executes(context -> {
-               ServerPlayer player = context.getSource().getPlayerOrException();
-               double value = DoubleArgumentType.getDouble(context, "blocks");
-               if (!validNumber(player, value)) {
-                  return 0;
-               }
-               setBlockReachBase(player, value);
-               FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.block_reach_base", value));
-               return 1;
-            })))
-            .then(Commands.literal("reset").executes(context -> {
-               ServerPlayer player = context.getSource().getPlayerOrException();
-               resetReachBase(player, true, false);
-               FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.block_reach_base_reset"));
-               return 1;
-            })))
-         .then(Commands.literal("entity")
-            .then(Commands.literal("set").then(Commands.argument("blocks", DoubleArgumentType.doubleArg(0.0, 64.0)).executes(context -> {
-               ServerPlayer player = context.getSource().getPlayerOrException();
-               double value = DoubleArgumentType.getDouble(context, "blocks");
-               if (!validNumber(player, value)) {
-                  return 0;
-               }
-               setEntityReachBase(player, value);
-               FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.entity_reach_base", value));
-               return 1;
-            })))
-            .then(Commands.literal("reset").executes(context -> {
-               ServerPlayer player = context.getSource().getPlayerOrException();
-               resetReachBase(player, false, true);
-               FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.entity_reach_base_reset"));
-               return 1;
-            })));
    }
 
    private static LiteralArgumentBuilder<CommandSourceStack> undoCommand() {
@@ -398,7 +339,7 @@ public final class FastPlaceCommandRegistry {
                settings.placementUpdateMode(),
                settings.enabledPlacementEffects().stream().sorted().toList(),
                settings.emptyHandWrench(),
-               player.getServer().tickRateManager().isFrozen(),
+               io.github.fastformer.fastplace.world.BlockActivityRules.get(player.getServer()).fallingDisabled(),
                settings.worldUndoHistoryLimit(),
                settings.sessionUndoHistoryLimit()
             ),
@@ -767,8 +708,6 @@ public final class FastPlaceCommandRegistry {
          ServerPlayer player = context.getSource().getPlayerOrException();
          OperationSelectionMode mode = switch (StringArgumentType.getString(context, "mode")) {
             case "cuboid" -> OperationSelectionMode.CUBOID;
-            case "prism" -> OperationSelectionMode.PRISM;
-            case "convex_hull" -> OperationSelectionMode.CONVEX_HULL;
             default -> null;
          };
          if (mode == null) {
@@ -908,38 +847,6 @@ public final class FastPlaceCommandRegistry {
          )
       );
       return false;
-   }
-
-   private static void setReachBase(ServerPlayer player, double blockReach, double entityReach) {
-      setBlockReachBase(player, blockReach);
-      setEntityReachBase(player, entityReach);
-   }
-
-   private static void setBlockReachBase(ServerPlayer player, double value) {
-      AttributeInstance attribute = player.getAttribute(Attributes.BLOCK_INTERACTION_RANGE);
-      if (attribute != null) {
-         attribute.setBaseValue(value);
-      }
-   }
-
-   private static void setEntityReachBase(ServerPlayer player, double value) {
-      AttributeInstance attribute = player.getAttribute(Attributes.ENTITY_INTERACTION_RANGE);
-      if (attribute != null) {
-         attribute.setBaseValue(value);
-      }
-   }
-
-   private static void resetReachBase(ServerPlayer player, boolean block, boolean entity) {
-      if (!block && !entity) {
-         return;
-      }
-      AttributeInstance blockAttribute = player.getAttribute(Attributes.BLOCK_INTERACTION_RANGE);
-      double vanillaBlock = blockAttribute == null
-         ? 4.5
-         : blockAttribute.getAttribute().value().getDefaultValue();
-      // FastFormer's reach pair is intentionally symmetric; reset restores the
-      // vanilla block default and applies that same value to entity interaction.
-      setReachBase(player, vanillaBlock, vanillaBlock);
    }
 
 }

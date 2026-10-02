@@ -24,6 +24,117 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceInteractionResolverTest {
+   @Test
+   void fixedSurfaceInFrontOfEditableSelectionWinsAfterDeselecting() {
+      var workspace = io.github.fastformer.client.operation.controller.ClientOperationController.workspace();
+      workspace.clear();
+      try {
+         var volume = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2),
+            BlockPos.ZERO, new BlockPos(2, 2, 2));
+         var front = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
+            volume, Map.of(), WorkspaceTransform.IDENTITY, false).fixed();
+         var back = new ClientSelectionPart(2, ClientSelectionPart.Source.WORLD,
+            OperationSelectionVolume.cuboid(new BlockPos(0, 0, 8), new BlockPos(2, 2, 10), null, null),
+            Map.of(), WorkspaceTransform.IDENTITY, false);
+         assertTrue(workspace.addParts(List.of(front, back)));
+         io.github.fastformer.client.operation.controller.ClientOperationController.deselectAllWorkspaceParts();
+         Vec3 eye = new Vec3(0.5, 0.5, -2);
+         var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
+            null, null, eye, new Vec3(0, 0, 1), eye, false, false, true);
+         var intent = io.github.fastformer.client.interaction.intent.InteractionIntentResolver.resolve(
+            context, WorkspaceInteractionResolver.providers()).orElseThrow();
+         assertEquals(1, ((OperationInteractionIntent.Part) intent).partId());
+         assertTrue(workspace.selectedIds().isEmpty());
+         assertTrue(workspace.part(2).orElseThrow().canAdjustGeometry());
+      } finally {
+         io.github.fastformer.client.operation.controller.ClientOperationController.clearWorkspace();
+         WorkspaceInteractionResolver.clearCache();
+      }
+   }
+
+   @Test
+   void deselectedFixedPartCanBePickedAgainThroughItsFrameOrLabelNearBlocks() {
+      var workspace = io.github.fastformer.client.operation.controller.ClientOperationController.workspace();
+      workspace.clear();
+      try {
+         var first = transformedPart(1).fixed();
+         var second = transformedPart(2).withTranslation(new Vec3(20, 0, 0)).fixed();
+         assertTrue(workspace.addParts(List.of(first, second)));
+         io.github.fastformer.client.operation.controller.ClientOperationController.deselectAllWorkspaceParts();
+         assertTrue(workspace.selectedIds().isEmpty());
+         var bounds = PartInteractionBounds.resolve(first);
+         var center = bounds.getCenter();
+         // Plain edge click, Ctrl+face click, and the displayed label must all remain reachable.
+         for (int target = 0; target < 3; target++) {
+            Vec3 eye = new Vec3(bounds.minX - 2, target == 0 ? bounds.minY + 0.05
+               : center.y + (target == 2 ? 0.22 : -0.4), center.z);
+            var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
+               null, null, eye, new Vec3(1, 0, 0), eye, false, target == 1, true);
+            var intent = WorkspaceInteractionResolver.providers().get(3).resolve(context).orElseThrow();
+            var part = (OperationInteractionIntent.Part) intent;
+            assertEquals(first.id(), part.partId());
+            assertEquals(target == 2 ? OperationInteractionIntent.PartSurface.LABEL
+               : OperationInteractionIntent.PartSurface.FRAME, part.surface());
+            assertTrue(io.github.fastformer.client.operation.input.SelectionPointerPress.capture(
+               part, 0, context.control(), -1,
+               io.github.fastformer.client.operation.controller.ClientOperationController.interactionScene(), workspace
+            ).isPresent());
+         }
+         assertEquals(List.of(first, second), workspace.parts());
+      } finally {
+         io.github.fastformer.client.operation.controller.ClientOperationController.clearWorkspace();
+         WorkspaceInteractionResolver.clearCache();
+      }
+   }
+
+   @Test void facePickingUsesDistanceAndPrefersCoincidentSelectionFaces() {
+      assertTrue(WorkspaceInteractionResolver.facePrecedesWorldBlock(2, 4));
+      assertTrue(WorkspaceInteractionResolver.facePrecedesWorldBlock(2, 2));
+      assertTrue(WorkspaceInteractionResolver.facePrecedesWorldBlock(2.01, 2));
+      assertEquals(false, WorkspaceInteractionResolver.facePrecedesWorldBlock(4, 2));
+   }
+   @Test
+   void unlockedFaceCanBeDraggedNearWorldBlocksEvenWhenAnOlderPartIsNotSelected() {
+      var workspace = io.github.fastformer.client.operation.controller.ClientOperationController.workspace();
+      workspace.clear();
+      try {
+         var selection = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2),
+            BlockPos.ZERO, new BlockPos(2, 2, 2));
+         var first = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
+            selection, Map.of(), WorkspaceTransform.IDENTITY, false);
+         var second = new ClientSelectionPart(2, ClientSelectionPart.Source.WORLD,
+            OperationSelectionVolume.cuboid(new BlockPos(20, 0, 0), new BlockPos(22, 2, 2), null, null),
+            Map.of(), WorkspaceTransform.IDENTITY, false);
+         assertTrue(workspace.addParts(List.of(first, second)));
+         workspace.selectOnly(2);
+         io.github.fastformer.client.operation.controller.ClientOperationController.onClientTick();
+         var eye = new Vec3(1.5, 1.5, 5);
+         var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
+            null, null, eye, new Vec3(0, 0, -1), eye, false, false, true);
+         var faceProvider = WorkspaceInteractionResolver.providers().get(2);
+         var face = (OperationInteractionIntent.Face) faceProvider.resolve(context).orElseThrow();
+         assertEquals(1, face.partId());
+         assertTrue(face.adjustable());
+         assertTrue(workspace.beginEdit());
+         var token = workspace.activeEditToken();
+         io.github.fastformer.client.operation.controller.ClientOperationController.updateAabbFaceGesture(
+            token, first, 2, true, 2);
+         io.github.fastformer.client.operation.controller.ClientOperationController.finishTransformGesture(token);
+         var resized = workspace.part(1).orElseThrow();
+         assertEquals(5.0, resized.selection().bounds().maxZ);
+         assertTrue(resized.canAdjustGeometry());
+         assertEquals(second, workspace.part(2).orElseThrow());
+         assertTrue(workspace.beginEdit());
+         workspace.updatePart(resized.fixed());
+         workspace.finishEdit();
+         io.github.fastformer.client.operation.controller.ClientOperationController.onClientTick();
+         var fixedTarget = (OperationInteractionIntent.Part) faceProvider.resolve(context).orElseThrow();
+         assertEquals(1, fixedTarget.partId());
+      } finally {
+         io.github.fastformer.client.operation.controller.ClientOperationController.clearWorkspace();
+         WorkspaceInteractionResolver.clearCache();
+      }
+   }
    private static io.github.fastformer.client.interaction.SelectionInteractionScene scene(ClientSelectionPart part) {
       var session = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       session.workspace().restoreDraftState(new ClientOperationWorkspace.DraftState(List.of(part), Set.of(), 0));

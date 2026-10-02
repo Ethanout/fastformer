@@ -6,5 +6,6 @@ public enum InteractionState {
    OPERATION,
    BUILDING,
    GEOMETRY,
-   SPECIAL_ITEM;
+   SPECIAL_ITEM,
+   VANILLA;
 }

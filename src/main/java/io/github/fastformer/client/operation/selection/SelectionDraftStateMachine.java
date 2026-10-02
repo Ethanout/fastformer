@@ -8,45 +8,50 @@ import net.minecraft.core.BlockPos;
 
 /** Owns atomic draft snapshots. Preview and undo readers never observe half an edit. */
 final class SelectionDraftStateMachine {
-   private DraftState current = fromPoints(OperationSelectionMode.CUBOID, List.of(), 0);
+   private final ClientSelectionStack stack;
+
+   SelectionDraftStateMachine() { this(new ClientSelectionStack()); }
+
+   SelectionDraftStateMachine(ClientSelectionStack stack) { this.stack = stack; }
 
    DraftState snapshot() {
-      return this.current;
+      return this.stack.draft();
    }
 
    Phase phase() {
-      if (this.current.selectionMode() == OperationSelectionMode.PRISM) {
-         return this.current.prismBaseCount() == 0 ? Phase.PRISM_BASE : Phase.PRISM_HEIGHT;
+      if (snapshot().selectionMode() == OperationSelectionMode.PRISM) {
+         return snapshot().prismBaseCount() == 0 ? Phase.PRISM_BASE : Phase.PRISM_HEIGHT;
       }
-      return switch (this.current.points().size()) {
+      return switch (snapshot().points().size()) {
          case 0 -> Phase.CUBOID_EMPTY;
-         case 1 -> Phase.CUBOID_FIRST;
+         case 1 -> snapshot().secondPointOnly() ? Phase.CUBOID_SECOND : Phase.CUBOID_FIRST;
          default -> Phase.CUBOID_BOUNDS;
       };
    }
 
    SelectionDraftResult onEvent(SelectionDraftEvent event) {
       Transition transition = inspect(event);
-      this.current = transition.next();
+      this.stack.setDraft(transition.next());
       return transition.result();
    }
 
    Transition inspect(SelectionDraftEvent event) {
-      if (event == null || this.current.selectionMode() == OperationSelectionMode.CONVEX_HULL && !event.alt()) {
-         return rejected(this.current);
+      if (event == null || snapshot().selectionMode() == OperationSelectionMode.SMART
+         || snapshot().selectionMode() == OperationSelectionMode.CONVEX_HULL && !event.alt()) {
+         return rejected(snapshot());
       }
-      return phase().onEvent(this.current, event);
+      return phase().onEvent(snapshot(), event);
    }
 
    void setMode(OperationSelectionMode mode) {
-      if (mode != null && mode != this.current.selectionMode()) {
-         this.current = new DraftState(mode, this.current.points(), this.current.prismBaseCount(),
-            this.current.minPoint(), this.current.maxPoint());
+      if (mode != null && mode != snapshot().selectionMode()) {
+         this.stack.setDraft(fromPoints(mode, mode == OperationSelectionMode.CUBOID && snapshot().points().size() >= 2
+            ? List.of(snapshot().minPoint(), snapshot().maxPoint()) : snapshot().points(), 0));
       }
    }
 
    void clear() {
-      this.current = fromPoints(this.current.selectionMode(), List.of(), 0);
+      this.stack.setDraft(fromPoints(snapshot().selectionMode(), List.of(), 0));
    }
 
    void restore(DraftState snapshot) {
@@ -54,30 +59,30 @@ final class SelectionDraftStateMachine {
          clear();
          return;
       }
-      DraftState restored = fromPoints(snapshot.selectionMode(), snapshot.points(), snapshot.prismBaseCount());
-      this.current = withBounds(restored, snapshot.minPoint(), snapshot.maxPoint());
+      DraftState restored = fromPoints(snapshot.selectionMode(), snapshot.points(), snapshot.prismBaseCount(), snapshot.secondPointOnly());
+      this.stack.setDraft(withBounds(restored, snapshot.minPoint(), snapshot.maxPoint()));
    }
 
    void addPoint(BlockPos point) {
-      if (point != null) this.current = append(this.current, point);
+      if (point != null) this.stack.setDraft(append(snapshot(), point));
    }
 
    BlockPos removeLastPoint() {
-      if (this.current.points().isEmpty()) return null;
-      BlockPos removed = this.current.points().getLast();
-      this.current = removeLast(this.current, false);
+      if (snapshot().points().isEmpty()) return null;
+      BlockPos removed = snapshot().points().getLast();
+      this.stack.setDraft(removeLast(snapshot(), false));
       return removed;
    }
 
    boolean expandTo(BlockPos point) {
-      DraftState expanded = expand(this.current, point);
-      if (expanded == this.current) return false;
-      this.current = expanded;
+      DraftState expanded = expand(snapshot(), point);
+      if (expanded == snapshot()) return false;
+      this.stack.setDraft(expanded);
       return true;
    }
 
    void restoreBounds(BlockPos min, BlockPos max) {
-      this.current = withBounds(this.current, min, max);
+      this.stack.setDraft(withBounds(snapshot(), min, max));
    }
 
    private static DraftState withBounds(DraftState draft, BlockPos min, BlockPos max) {
@@ -106,6 +111,10 @@ final class SelectionDraftStateMachine {
    }
 
    private static DraftState fromPoints(OperationSelectionMode mode, List<BlockPos> points, int baseCount) {
+      return fromPoints(mode, points, baseCount, false);
+   }
+
+   private static DraftState fromPoints(OperationSelectionMode mode, List<BlockPos> points, int baseCount, boolean secondOnly) {
       var fixed = points == null ? List.<BlockPos>of() : points.stream()
          .filter(java.util.Objects::nonNull).map(BlockPos::immutable).toList();
       BlockPos min = null;
@@ -114,7 +123,7 @@ final class SelectionDraftStateMachine {
          min = min == null ? point : min(min, point);
          max = max == null ? point : max(max, point);
       }
-      return new DraftState(mode, fixed, baseCount, min, max);
+      return new DraftState(mode, fixed, baseCount, min, max, secondOnly);
    }
 
    private static BlockPos min(BlockPos a, BlockPos b) {
@@ -132,40 +141,38 @@ final class SelectionDraftStateMachine {
    record Transition(DraftState next, SelectionDraftResult result) { }
 
    enum Phase {
-      CUBOID_EMPTY, CUBOID_FIRST, CUBOID_BOUNDS, PRISM_BASE, PRISM_HEIGHT;
+      CUBOID_EMPTY, CUBOID_FIRST, CUBOID_SECOND, CUBOID_BOUNDS, PRISM_BASE, PRISM_HEIGHT;
 
       Transition onEvent(DraftState draft, SelectionDraftEvent event) {
          return switch (this) {
-            case CUBOID_EMPTY, CUBOID_FIRST, CUBOID_BOUNDS -> cuboid(draft, event);
+            case CUBOID_EMPTY, CUBOID_FIRST, CUBOID_SECOND, CUBOID_BOUNDS -> cuboid(draft, event);
             case PRISM_BASE, PRISM_HEIGHT -> prism(draft, event);
          };
       }
 
       private Transition cuboid(DraftState draft, SelectionDraftEvent event) {
-         if (event.button() == SelectionDraftEvent.Button.LEFT) {
-            return new Transition(fromPoints(draft.selectionMode(), List.of(event.point()), 0), SelectionDraftResult.UPDATED);
+         if (this == CUBOID_BOUNDS && event.button() == SelectionDraftEvent.Button.MIDDLE) {
+            DraftState next = expand(draft, event.point());
+            return next == draft ? rejected(draft) : new Transition(next, SelectionDraftResult.READY);
          }
-         if (event.alt() && event.button() == SelectionDraftEvent.Button.MIDDLE) {
-            DraftState next = this == CUBOID_BOUNDS ? expand(draft, event.point()) : append(draft, event.point());
-            return next == draft ? rejected(draft) : new Transition(next, SelectionDraftResult.UPDATED);
+         BlockPos first = draft.firstPoint();
+         BlockPos second = draft.secondPoint();
+         switch (event.button()) {
+            case LEFT -> first = event.point();
+            case RIGHT -> second = event.point();
+            case MIDDLE -> { if (first == null) first = event.point(); else second = event.point(); }
          }
-         return switch (this) {
-            case CUBOID_EMPTY -> event.alt()
-               ? new Transition(append(draft, event.point()), SelectionDraftResult.UPDATED) : rejected(draft);
-            case CUBOID_FIRST -> new Transition(append(draft, event.point()), SelectionDraftResult.READY);
-            case CUBOID_BOUNDS -> {
-               if (!event.alt() || event.button() != SelectionDraftEvent.Button.RIGHT) yield rejected(draft);
-               var points = new ArrayList<>(draft.points());
-               points.set(1, event.point());
-               yield new Transition(fromPoints(draft.selectionMode(), points, draft.prismBaseCount()), SelectionDraftResult.READY);
-            }
-            default -> throw new IllegalStateException("Cuboid event requires a cuboid phase");
-         };
+         boolean complete = first != null && second != null;
+         var points = complete ? List.of(first, second) : List.of(first == null ? second : first);
+         var next = fromPoints(draft.selectionMode(), points, 0,
+            first == null && draft.selectionMode() == OperationSelectionMode.CUBOID);
+         return complete && next.equals(draft) ? rejected(draft)
+            : new Transition(next, complete ? SelectionDraftResult.READY : SelectionDraftResult.UPDATED);
       }
 
       private Transition prism(DraftState draft, SelectionDraftEvent event) {
          if (event.button() == SelectionDraftEvent.Button.LEFT) {
-            return draft.points().isEmpty() ? rejected(draft)
+            return draft.points().isEmpty() ? new Transition(append(draft, event.point()), SelectionDraftResult.UPDATED)
                : new Transition(removeLast(draft, true), SelectionDraftResult.UPDATED);
          }
          if (this == PRISM_BASE && event.button() == SelectionDraftEvent.Button.RIGHT

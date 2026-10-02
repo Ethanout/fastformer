@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:crimson_planks",
+    "minecraft:crimson_stairs",
+    "minecraft:crimson_slab",
+    "minecraft:crimson_fence",
+    "minecraft:crimson_fence_gate",
+    "minecraft:crimson_door",
+    "minecraft:crimson_trapdoor"
+  ]
+}

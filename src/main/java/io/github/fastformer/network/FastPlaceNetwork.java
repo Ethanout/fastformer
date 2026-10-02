@@ -57,11 +57,38 @@ public final class FastPlaceNetwork {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("65").optional();
-      registrar.playToClient(FreezeStatePayload.TYPE, FreezeStatePayload.STREAM_CODEC,
+      PayloadRegistrar registrar = event.registrar("73").optional();
+      registrar.playToClient(WorldHistoryEventPayload.TYPE, WorldHistoryEventPayload.STREAM_CODEC,
          (payload, context) -> {
             var connection = context.connection();
-            context.enqueueWork(() -> ClientPayloadDispatcher.freezeState(payload, connection));
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyWorldHistoryEvent(payload, connection));
+         });
+      registrar.playToServer(QuickReplaceSessionPayload.TYPE, QuickReplaceSessionPayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player) {
+               boolean active = QuickReplaceManager.setActive(player, payload.active());
+               PacketDistributor.sendToPlayer(player, new QuickReplaceStatePayload(payload.requestId(), active));
+            }
+         }));
+      registrar.playToClient(QuickReplaceStatePayload.TYPE, QuickReplaceStatePayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyQuickReplaceState(payload, connection));
+         });
+      registrar.playToClient(InteractionUpdatesPayload.TYPE, InteractionUpdatesPayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyInteractionUpdates(payload, connection));
+         });
+      registrar.playToClient(ReachSettingsPayload.TYPE, ReachSettingsPayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyReachSettings(payload, connection));
+         });
+      registrar.playToClient(FallingStatePayload.TYPE, FallingStatePayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.fallingState(payload, connection));
          });
       registrar.playToClient(QuickShapeSubmissionParametersPayload.TYPE, QuickShapeSubmissionParametersPayload.STREAM_CODEC,
          (payload, context) -> {
@@ -122,6 +149,16 @@ public final class FastPlaceNetwork {
       registrar.playToServer(QuitFastPlacePayload.TYPE, QuitFastPlacePayload.STREAM_CODEC, FastPlaceNetwork::handleQuit);
       registrar.playToServer(UndoFastPlacePayload.TYPE, UndoFastPlacePayload.STREAM_CODEC, FastPlaceNetwork::handleUndo);
       registrar.playToServer(WorldUndoPayload.TYPE, WorldUndoPayload.STREAM_CODEC, FastPlaceNetwork::handleWorldUndo);
+      registrar.playToServer(HistoryConflictResponsePayload.TYPE, HistoryConflictResponsePayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player)
+               io.github.fastformer.fastplace.history.WorldHistoryManager.respondToConflict(player, payload);
+         }));
+      registrar.playToClient(HistoryConflictPayload.TYPE, HistoryConflictPayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyHistoryConflict(payload, connection));
+         });
       registrar.playToServer(WorldRedoPayload.TYPE, WorldRedoPayload.STREAM_CODEC, FastPlaceNetwork::handleWorldRedo);
       registrar.playToClient(
          BuildingPreviewSessionPayload.TYPE,
@@ -210,13 +247,13 @@ public final class FastPlaceNetwork {
                   player, next(settings.placementUpdateMode(), PlacementUpdateMode.values())
                );
                case TOGGLE_EMPTY_HAND_WRENCH -> settings.toggleEmptyHandWrench(player);
-               case TOGGLE_GLOBAL_FREEZE -> {
-                  var manager = player.getServer().tickRateManager();
-                  if (player.hasPermissions(2)) manager.setFrozen(payload.targetFrozen());
+               case TOGGLE_FALLING_DISABLED -> {
+                  var rules = io.github.fastformer.fastplace.world.BlockActivityRules.get(player.getServer());
+                  if (player.hasPermissions(2)) rules.setFallingDisabled(payload.fallingDisabled());
                   else player.displayClientMessage(net.minecraft.network.chat.Component.translatable("commands.generic.permission"), false);
-                  sendFreezeState(player);
+                  sendFallingState(player);
                }
-               case QUERY_GLOBAL_FREEZE -> sendFreezeState(player);
+               case QUERY_FALLING_DISABLED -> sendFallingState(player);
                case DECREASE_WORLD_HISTORY -> settings.setWorldUndoHistoryLimit(player, settings.worldUndoHistoryLimit() - 10);
                case INCREASE_WORLD_HISTORY -> settings.setWorldUndoHistoryLimit(player, settings.worldUndoHistoryLimit() + 10);
                case DECREASE_SESSION_HISTORY -> settings.setSessionUndoHistoryLimit(player, settings.sessionUndoHistoryLimit() - 10);
@@ -227,9 +264,10 @@ public final class FastPlaceNetwork {
       });
    }
 
-   private static void sendFreezeState(ServerPlayer player) {
-      if (player.connection.hasChannel(FreezeStatePayload.TYPE)) {
-         PacketDistributor.sendToPlayer(player, new FreezeStatePayload(player.getServer().tickRateManager().isFrozen(), player.hasPermissions(2)));
+   private static void sendFallingState(ServerPlayer player) {
+      if (player.connection.hasChannel(FallingStatePayload.TYPE)) {
+         PacketDistributor.sendToPlayer(player, new FallingStatePayload(
+            io.github.fastformer.fastplace.world.BlockActivityRules.get(player.getServer()).fallingDisabled(), player.hasPermissions(2)));
       }
    }
 
@@ -681,6 +719,16 @@ public final class FastPlaceNetwork {
       ServerPlayer player, UUID transferId, boolean accepted, boolean retryable, boolean recoveryCreated,
       java.util.List<Integer> failedIds, java.util.List<net.minecraft.core.BlockPos> failedTargets
    ) {
+      sendWorkspaceResult(server, owner, dimension, player, transferId, accepted, retryable, recoveryCreated,
+         failedIds, failedTargets, io.github.fastformer.workspace.submission.WorkspaceFailure.UNKNOWN);
+   }
+
+   public static void sendWorkspaceResult(
+      net.minecraft.server.MinecraftServer server, UUID owner, net.minecraft.resources.ResourceLocation dimension,
+      ServerPlayer player, UUID transferId, boolean accepted, boolean retryable, boolean recoveryCreated,
+      java.util.List<Integer> failedIds, java.util.List<net.minecraft.core.BlockPos> failedTargets,
+      io.github.fastformer.workspace.submission.WorkspaceFailure failure
+   ) {
       if (transferId == null) {
          return;
       }
@@ -700,7 +748,7 @@ public final class FastPlaceNetwork {
       }
       // The packet reports the state that the ledger holds, not the state that the caller
       // wanted to record. The ledger may already hold something stronger.
-      deliverWorkspaceResult(player, transferId, recorded, remembered, failedIds, failedTargets);
+      deliverWorkspaceResult(player, transferId, recorded, remembered, failedIds, failedTargets, failure);
    }
 
    /**
@@ -769,6 +817,17 @@ public final class FastPlaceNetwork {
       OperationCallbackScope remembered,
       java.util.List<Integer> failedIds, java.util.List<net.minecraft.core.BlockPos> failedTargets
    ) {
+      deliverWorkspaceResult(player, transferId, outcome, remembered, failedIds, failedTargets,
+         io.github.fastformer.workspace.submission.WorkspaceFailure.UNKNOWN);
+   }
+
+   private static void deliverWorkspaceResult(
+      ServerPlayer player, UUID transferId,
+      io.github.fastformer.workspace.submission.OperationSubmissionOutcome outcome,
+      OperationCallbackScope remembered,
+      java.util.List<Integer> failedIds, java.util.List<net.minecraft.core.BlockPos> failedTargets,
+      io.github.fastformer.workspace.submission.WorkspaceFailure failure
+   ) {
       if (outcome == null || !outcome.deliverable()) {
          return;
       }
@@ -782,7 +841,7 @@ public final class FastPlaceNetwork {
             player,
             new OperationWorkspaceResultPayload(
                transferId, outcome.applied(), outcome.retryable(), failedIds, failedTargets
-            ).withCallbackScope(callbackScope),
+            ).withCallbackScope(callbackScope).withFailure(failure),
             new CustomPacketPayload[0]
          );
       } catch (RuntimeException exception) {

@@ -1,0 +1,7 @@
+{
+  "block_tag": "fastformer:placement_fallback/ladder",
+  "properties": {
+    "facing": "$player_horizontal_opposite",
+    "waterlogged": "$waterlogged"
+  }
+}

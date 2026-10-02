@@ -93,7 +93,9 @@ class FastPlaceGeometryTest {
       Set<BlockPos> outline = FastPlaceGeometry.blocks(points, modes(FillMode.OUTLINE));
 
       assertTrue(solid.size() > hollow.size());
-      assertEquals(boundary(solid), hollow);
+      assertTrue(hollow.containsAll(boundary(solid)), "hollow lost an exterior block");
+      assertTrue(solid.containsAll(hollow), "hollow changed the solid's exterior");
+      assertTrue(hollow.containsAll(outline), "hollow lost an authored edge at a thick seam");
       assertTrue(solid.containsAll(outline));
    }
 

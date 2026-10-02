@@ -27,13 +27,17 @@ import org.junit.jupiter.api.Test;
 
 class OperationSelectionSessionTest {
    @Test
-   void cuboidMiddleCannotSetAPointBeforeFirstPoint() {
+   void cuboidMiddleFillsEitherMissingPoint() {
       OperationSession session = new OperationSession(OperationSelectionMode.CUBOID);
-      assertFalse(session.addSelectionPoint(BlockPos.ZERO));
-      assertTrue(session.points().isEmpty());
+      assertTrue(session.addSelectionPoint(BlockPos.ZERO));
+      assertTrue(session.hasFirst());
+      assertFalse(session.hasSecond());
+      assertEquals(List.of(BlockPos.ZERO), session.points());
+      session = new OperationSession(OperationSelectionMode.CUBOID);
       session.setSecond(new BlockPos(2, 2, 2));
-      assertFalse(session.addSelectionPoint(new BlockPos(3, 3, 3)));
-      assertFalse(session.hasFirst());
+      assertTrue(session.addSelectionPoint(new BlockPos(3, 3, 3)));
+      assertTrue(session.selectionReady());
+      assertEquals(List.of(new BlockPos(3, 3, 3), new BlockPos(2, 2, 2)), session.points());
       session = new OperationSession(OperationSelectionMode.CUBOID);
       session.setFirst(BlockPos.ZERO);
       assertTrue(session.addSelectionPoint(new BlockPos(4, 4, 4)));
@@ -266,18 +270,18 @@ class OperationSelectionSessionTest {
    }
 
    @Test
-   void selectionModesCycleOnlyBetweenCuboidAndPrism() {
+   void serverCycleDoesNotCreateLegacyPrismSelections() {
       OperationSession session = new OperationSession();
 
       assertEquals(OperationSelectionMode.CUBOID, session.selectionMode());
       session.cycleSelectionMode();
-      assertEquals(OperationSelectionMode.PRISM, session.selectionMode());
+      assertEquals(OperationSelectionMode.CUBOID, session.selectionMode());
       session.cycleSelectionMode();
       assertEquals(OperationSelectionMode.CUBOID, session.selectionMode());
    }
 
    @Test
-   void cyclingSelectionModesPreservesCuboidButClearsPrismState() {
+   void restoringLegacyPrismPreservesCuboidButClearsOldPrismState() {
       OperationSession session = new OperationSession();
       BlockPos cuboidFirst = new BlockPos(1, 2, 3);
       BlockPos cuboidSecond = new BlockPos(8, 4, 2);
@@ -285,7 +289,7 @@ class OperationSelectionSessionTest {
       session.setSecond(cuboidSecond);
       assertTrue(session.selectionReady());
 
-      session.cycleSelectionMode();
+      session.setSelectionMode(OperationSelectionMode.PRISM);
 
       assertEquals(OperationSelectionMode.PRISM, session.selectionMode());
       assertFalse(session.hasFirst());
@@ -312,7 +316,7 @@ class OperationSelectionSessionTest {
       assertEquals(List.of(cuboidFirst, cuboidSecond), session.points());
       assertTrue(session.selectionReady());
 
-      session.cycleSelectionMode();
+      session.setSelectionMode(OperationSelectionMode.PRISM);
 
       assertEquals(OperationSelectionMode.PRISM, session.selectionMode());
       assertTrue(session.points().isEmpty());

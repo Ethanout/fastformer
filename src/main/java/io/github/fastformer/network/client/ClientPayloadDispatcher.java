@@ -158,8 +158,28 @@ public final class ClientPayloadDispatcher {
       EVENTS.drain(ClientPayloadDispatcher::deliver);
    }
 
+   public static void applyHistoryConflict(io.github.fastformer.network.payload.world.HistoryConflictPayload payload, Connection connection) {
+      EVENTS.post(new PendingPayload(payload, connection));
+   }
+
+   public static void applyReachSettings(io.github.fastformer.network.payload.settings.ReachSettingsPayload payload, Connection connection) {
+      EVENTS.post(new PendingPayload(payload, connection));
+   }
+
+   public static void applyInteractionUpdates(io.github.fastformer.network.payload.settings.InteractionUpdatesPayload payload, Connection connection) {
+      EVENTS.post(new PendingPayload(payload, connection));
+   }
+
    public static void endWorldSession() {
       EVENTS.invalidate();
+   }
+
+   public static void applyQuickReplaceState(io.github.fastformer.network.payload.placement.QuickReplaceStatePayload payload, Connection connection) {
+      EVENTS.post(new PendingPayload(payload, connection));
+   }
+
+   public static void applyWorldHistoryEvent(io.github.fastformer.network.payload.world.WorldHistoryEventPayload payload, Connection connection) {
+      EVENTS.post(new PendingPayload(payload, connection));
    }
 
    static int pendingEvents() {
@@ -169,6 +189,31 @@ public final class ClientPayloadDispatcher {
    private static void deliver(PendingPayload event) {
       Connection connection = event.connection();
       switch (event.payload()) {
+         case io.github.fastformer.network.payload.world.WorldHistoryEventPayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
+               "io.github.fastformer.client.operation.controller.ClientOperationController", "applyWorldHistoryEvent",
+               io.github.fastformer.network.payload.world.WorldHistoryEventPayload.class, payload);
+         }
+         case io.github.fastformer.network.payload.placement.QuickReplaceStatePayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
+               "io.github.fastformer.client.placement.QuickReplaceMode", "receive",
+               io.github.fastformer.network.payload.placement.QuickReplaceStatePayload.class, payload);
+         }
+         case io.github.fastformer.network.payload.settings.InteractionUpdatesPayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
+               "io.github.fastformer.client.interaction.ClientInteractionUpdates", "receive",
+               io.github.fastformer.network.payload.settings.InteractionUpdatesPayload.class, payload);
+         }
+         case io.github.fastformer.network.payload.settings.ReachSettingsPayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
+               "io.github.fastformer.client.interaction.ClientReachGate", "receive",
+               io.github.fastformer.network.payload.settings.ReachSettingsPayload.class, payload);
+         }
+         case io.github.fastformer.network.payload.world.HistoryConflictPayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
+               "io.github.fastformer.client.input.HistoryConflictConfirmation", "receive",
+               io.github.fastformer.network.payload.world.HistoryConflictPayload.class, payload);
+         }
          case BuildingPreviewSessionPayload payload -> deliverBuildingSession(payload, connection);
          case QuickShapeSubmissionParametersPayload payload -> deliverQuickShapeSubmissionParameters(payload, connection);
          case BuildingPreviewParametersPayload payload -> deliverBuildingParameters(payload, connection);
@@ -190,9 +235,9 @@ public final class ClientPayloadDispatcher {
       }
    }
 
-   public static void freezeState(io.github.fastformer.network.payload.settings.FreezeStatePayload payload, Connection connection) {
+   public static void fallingState(io.github.fastformer.network.payload.settings.FallingStatePayload payload, Connection connection) {
       if (!ClientSessionManager.instance().acceptsReceiptCallback(connection)) return;
-      invokeStatic(SETTINGS_CLASS, "applyFreezeState", io.github.fastformer.network.payload.settings.FreezeStatePayload.class, payload);
+      invokeStatic(SETTINGS_CLASS, "applyFallingState", io.github.fastformer.network.payload.settings.FallingStatePayload.class, payload);
    }
 
    public static void openSettings(OpenSettingsPayload payload) {
@@ -217,7 +262,7 @@ public final class ClientPayloadDispatcher {
             payload.placementUpdateMode(),
             payload.enabledPlacementEffects(),
             payload.emptyHandWrench(),
-            payload.globalFrozen(),
+            payload.fallingDisabled(),
             payload.worldUndoHistoryLimit(),
             payload.sessionUndoHistoryLimit()
          );

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.interaction.intent;
 
 import io.github.fastformer.client.input.FastPlaceClientInput;
+import io.github.fastformer.client.interaction.ClientReachGate;
 import io.github.fastformer.client.input.state.DisappearanceState;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
@@ -21,11 +22,7 @@ public record InteractionContext(
    boolean nearVanillaBlock
 ) {
    private static final int DISAPPEARANCE_CAPACITY_TICKS = 20;
-   private static final float MAX_CAMERA_SPEED_DEGREES_PER_TICK = 14.0F;
    private static final DisappearanceState DISAPPEARANCE = new DisappearanceState(DISAPPEARANCE_CAPACITY_TICKS);
-   private static float lastYaw;
-   private static float lastPitch;
-   private static boolean cameraInitialized;
 
    public static InteractionContext capture(Minecraft minecraft) {
       LocalPlayer player = minecraft.player;
@@ -58,19 +55,6 @@ public record InteractionContext(
          ClientOperationController.selectionSessionActive(),
          ClientOperationController.selectionDraftActive()
       );
-      // Empty-hand block breaking yields to vanilla when no selection owns the
-      // pointer. The point phase counts as ownership, so it cannot lose the
-      // second-point input. The immediate reach test is used here, because a
-      // click owner must not depend on a fade that the camera can suspend.
-      if (player.getMainHandItem().isEmpty()) {
-         return !operationSelection
-            && vanillaOwnsEmptyHandClick(
-               minecraft.hitResult instanceof BlockHitResult
-                  && withinReach(minecraft, player, player.blockInteractionRange()),
-               minecraft.hitResult instanceof net.minecraft.world.phys.EntityHitResult
-                  && withinReach(minecraft, player, player.entityInteractionRange())
-            );
-      }
       if (operationSelection) {
          return false;
       }
@@ -81,7 +65,7 @@ public record InteractionContext(
       if (FastPlaceClientPreview.operationActive() || ClientOperationController.active()) {
          return false;
       }
-      return DISAPPEARANCE.disappeared();
+      return ClientReachGate.vanilla();
    }
 
    /** Advances the near-vanilla gate once per client tick. */
@@ -91,15 +75,7 @@ public record InteractionContext(
          reset();
          return;
       }
-      float yaw = player.getYRot();
-      float pitch = player.getXRot();
-      float speed = cameraInitialized
-         ? Math.max(angleDelta(yaw, lastYaw), Math.abs(pitch - lastPitch))
-         : 0.0F;
-      lastYaw = yaw;
-      lastPitch = pitch;
-      cameraInitialized = true;
-
+      ClientReachGate.update(minecraft);
       boolean selectionSession = FastPlaceClientPreview.operationActive()
          || io.github.fastformer.client.operation.controller.ClientOperationController.active()
          || io.github.fastformer.client.operation.controller.ClientOperationController.selectionSessionActive();
@@ -107,12 +83,7 @@ public record InteractionContext(
          DISAPPEARANCE.reset();
          return;
       }
-      boolean condition = directNearVanillaBlock(minecraft, player);
-      Object target = FastPlaceClientPreview.previewRaycastTarget(player);
-      // Fast camera movement cannot confirm a deliberate mode transition. It
-      // decays toward visible instead of freezing the previous state.
-      boolean stable = speed <= MAX_CAMERA_SPEED_DEGREES_PER_TICK;
-      DISAPPEARANCE.tick(stable, condition, target);
+      DISAPPEARANCE.tick(true, ClientReachGate.vanilla(), FastPlaceClientPreview.previewRaycastTarget(player));
    }
 
    public static float previewVisibility(Minecraft minecraft) {
@@ -147,14 +118,6 @@ public record InteractionContext(
 
    public static void reset() {
       DISAPPEARANCE.reset();
-      cameraInitialized = false;
-   }
-
-   private static float angleDelta(float first, float second) {
-      float delta = (first - second) % 360.0F;
-      if (delta > 180.0F) delta -= 360.0F;
-      if (delta < -180.0F) delta += 360.0F;
-      return Math.abs(delta);
    }
 
    public static boolean directlyNearVanillaBlock(Minecraft minecraft) {

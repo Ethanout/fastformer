@@ -163,7 +163,8 @@ public final class OperationSession {
    }
 
    public void cycleSelectionMode() {
-      this.setSelectionMode(this.selectionMode.next());
+      // Interactive tool cycling is client-owned. Old server drafts can return to cuboid.
+      this.setSelectionMode(OperationSelectionMode.CUBOID);
    }
 
    public OperationSelectionStage selectionStage() {
@@ -816,7 +817,8 @@ public final class OperationSession {
          return false;
       }
       if (this.selectionMode == OperationSelectionMode.CUBOID && !this.hasFirst()) {
-         return false;
+         this.setFirst(point);
+         return true;
       }
       if (this.selectionPoints().second == null) {
          this.setSecond(point);

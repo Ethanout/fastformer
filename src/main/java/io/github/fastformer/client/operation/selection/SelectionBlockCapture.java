@@ -4,6 +4,8 @@ import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import java.util.Map;
+import java.util.Set;
+import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -57,9 +59,14 @@ public final class SelectionBlockCapture {
       try {
          scanned = ScanSlice.run(job.cursor, CELLS_PER_TICK, deadline, System::nanoTime, pos -> {
             if (!job.selection.intersects(new AABB(pos))) return;
-            if (!job.world.loaded(pos)) throw new IllegalStateException("Selection includes an unloaded chunk");
             ClientBlockSnapshot previous = job.baseline == null ? null : job.baseline.blocks().get(pos);
             if (previous != null) { job.blocks.put(pos, previous); return; }
+            // An empty entry in the baseline is an intentional air cell. Keep
+            // it empty while resizing instead of reading a changed neighbor.
+            if (job.baseline != null && job.baseline.selection() != null
+               && job.baseline.selection().intersects(new AABB(pos))) return;
+            if (job.hiddenSources.contains(pos)) return;
+            if (!job.world.loaded(pos)) throw new IllegalStateException("Selection includes an unloaded chunk");
             if (job.baseline != null && job.baseline.source() != ClientSelectionPart.Source.WORLD) return;
             var snapshot = job.world.read(pos);
             if (snapshot != null) job.blocks.put(pos, snapshot);
@@ -108,10 +115,13 @@ public final class SelectionBlockCapture {
    private record Job(SnapshotSource world, OperationSelectionVolume selection,
       ClientSelectionPart baseline, ScanCursor cursor, BooleanSupplier owned,
       Consumer<Map<BlockPos, ClientBlockSnapshot>> complete, Consumer<String> failed,
+      Set<BlockPos> hiddenSources,
       io.github.fastformer.fastplace.geometry.BlockPositionMaps.Builder<ClientBlockSnapshot> blocks) {
       Job(SnapshotSource world, OperationSelectionVolume selection, ClientSelectionPart baseline,
          ScanCursor cursor, BooleanSupplier owned, Consumer<Map<BlockPos, ClientBlockSnapshot>> complete, Consumer<String> failed) {
-         this(world, selection, baseline, cursor, owned, complete, failed, new io.github.fastformer.fastplace.geometry.BlockPositionMaps.Builder<>());
+         this(world, selection, baseline, cursor, owned, complete, failed,
+            Set.copyOf(SourceMaskRenderFilter.instance().positions()),
+            new io.github.fastformer.fastplace.geometry.BlockPositionMaps.Builder<>());
       }
    }
 }

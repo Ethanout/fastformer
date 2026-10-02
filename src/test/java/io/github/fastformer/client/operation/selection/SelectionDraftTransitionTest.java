@@ -9,11 +9,11 @@ import org.junit.jupiter.api.Test;
 
 class SelectionDraftTransitionTest {
    @Test
-   void ordinaryMiddleWaitsForFirstLeftPoint() {
+   void ordinaryMiddleStartsANewDraft() {
       ClientSelectionSession session = new ClientSelectionSession();
       var before = session.draftState();
-      assertEquals(SelectionDraftResult.REJECTED, click(session, 2, BlockPos.ZERO, false));
-      assertEquals(before, session.draftState());
+      assertEquals(SelectionDraftResult.UPDATED, click(session, 2, BlockPos.ZERO, false));
+      assertNotEquals(before, session.draftState());
       assertEquals(SelectionDraftResult.UPDATED, click(session, 0, BlockPos.ZERO, false));
       assertEquals(SelectionDraftResult.READY, click(session, 2, new BlockPos(2, 2, 2), false));
    }
@@ -49,7 +49,7 @@ class SelectionDraftTransitionTest {
       click(session, 2, BlockPos.ZERO, true);
       click(session, 2, new BlockPos(2, 2, 2), true);
       var points = session.draftPoints();
-      assertEquals(SelectionDraftResult.UPDATED, click(session, 2, new BlockPos(-3, 4, 1), true));
+      assertEquals(SelectionDraftResult.READY, click(session, 2, new BlockPos(-3, 4, 1), true));
       assertEquals(points, session.draftPoints());
       assertEquals(new BlockPos(-3, 0, 0), session.draftMinPoint());
       assertEquals(new BlockPos(2, 4, 2), session.draftMaxPoint());
@@ -73,8 +73,7 @@ class SelectionDraftTransitionTest {
       for (boolean alt : List.of(false, true)) {
          ClientSelectionSession session = new ClientSelectionSession();
          session.setSelectionMode(OperationSelectionMode.PRISM);
-         assertEquals(SelectionDraftResult.REJECTED, click(session, 0, BlockPos.ZERO, alt));
-         click(session, 1, BlockPos.ZERO, alt);
+         assertEquals(SelectionDraftResult.UPDATED, click(session, 0, BlockPos.ZERO, alt));
          click(session, 2, new BlockPos(3, 0, 0), alt);
          click(session, 1, new BlockPos(0, 0, 3), alt);
          assertEquals(SelectionDraftResult.UPDATED, click(session, 1, BlockPos.ZERO, alt));

@@ -134,6 +134,7 @@ public final class ClientInputStateMachine {
 
    public enum State {
       IDLE(Dispatch.VANILLA, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.VANILLA, Dispatch.BLOCKED, false, true),
+      QUICK_REPLACE(Dispatch.VANILLA, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, true),
       BUILDING(Dispatch.BUILDING, Dispatch.BUILDING, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, true, true),
       GEOMETRY(Dispatch.GEOMETRY, Dispatch.GEOMETRY, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, true, true),
       SELECTING(Dispatch.OPERATION, Dispatch.BLOCKED, Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.CANCEL, false, true),

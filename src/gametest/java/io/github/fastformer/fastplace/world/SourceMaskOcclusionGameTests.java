@@ -35,6 +35,24 @@ public final class SourceMaskOcclusionGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = BATCH, timeoutTicks = 100)
+   public static void xrayModelsKeepSnapshotsAndExposeFacesBehindWorldBlocks(GameTestHelper helper) {
+      var position = helper.absolutePos(new BlockPos(1, 1, 1));
+      var blocker = position.east();
+      var state = Blocks.OAK_LOG.defaultBlockState().setValue(
+         net.minecraft.world.level.block.RotatedPillarBlock.AXIS, net.minecraft.core.Direction.Axis.X);
+      helper.getLevel().setBlock(blocker, Blocks.STONE.defaultBlockState(), 2);
+      var normal = PreviewBlockOcclusion.level(helper.getLevel(), Map.of(position, state));
+      var xray = PreviewBlockOcclusion.isolatedLevel(helper.getLevel(), Map.of(position, state));
+      helper.assertTrue(xray.getBlockState(position).equals(state), "X-ray lost the snapshot model orientation");
+      helper.assertTrue(normal.getBlockState(blocker).is(Blocks.STONE), "Normal preview hid a world neighbor");
+      helper.assertTrue(xray.getBlockState(blocker).isAir(), "World blocker culled an x-ray face");
+      helper.assertTrue(net.minecraft.world.level.block.Block.shouldRenderFace(state, xray, position,
+         net.minecraft.core.Direction.EAST, blocker), "The occluded model face is missing");
+      helper.assertTrue(helper.getLevel().getBlockState(blocker).is(Blocks.STONE), "X-ray changed the world");
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = BATCH, timeoutTicks = 100)
    public static void ghostLightingUsesFullBrightness(GameTestHelper helper) {
       ServerLevel level = helper.getLevel();
       BlockPos target = helper.absolutePos(new BlockPos(1, 1, 1));

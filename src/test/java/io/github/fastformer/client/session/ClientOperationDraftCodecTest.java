@@ -21,6 +21,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ClientOperationDraftCodecTest {
    @Test
+   void secondOnlyPointSurvivesStorageAndOlderDraftsStillDecode() throws IOException {
+      var point = new BlockPos(3, 4, 5);
+      var selection = new ClientSelectionSession.DraftState(
+         OperationSelectionMode.CUBOID, List.of(point), 0, point, point, true);
+      var original = new ClientOperationDraft(null,
+         new ClientOperationWorkspace.DraftState(List.of(), Set.of(), 0), selection);
+      var encoded = ClientOperationDraftCodec.encode(original);
+      assertEquals(selection, ClientOperationDraftCodec.decode(encoded, null).selection());
+      encoded.getCompound("Selection").remove("SecondPointOnly");
+      var legacy = ClientOperationDraftCodec.decode(encoded, null).selection();
+      assertEquals(point, legacy.firstPoint());
+      assertEquals(null, legacy.secondPoint());
+   }
+
+   @Test
    void roundTripPreservesSelectionTransformAndSourceData() throws IOException {
       ClientOperationDraft original = sampleDraft();
 

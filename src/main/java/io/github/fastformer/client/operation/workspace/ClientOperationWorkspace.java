@@ -2,6 +2,7 @@ package io.github.fastformer.client.operation.workspace;
 
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.client.operation.selection.ClientSelectionStack;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.IdentityHashMap;
@@ -19,7 +20,9 @@ public final class ClientOperationWorkspace {
    /** Codec compatibility sentinel; the client workspace itself is unbounded. */
    public static final int MAX_PARTS = io.github.fastformer.workspace.WorkspaceLimits.MAX_PARTS;
 
-   private final LinkedHashMap<Integer, ClientSelectionPart> parts = new LinkedHashMap<>();
+   private final ClientSelectionStack selections = new ClientSelectionStack();
+   private final io.github.fastformer.client.operation.selection.SmartSelectionTopologyCache smartTopologies =
+      new io.github.fastformer.client.operation.selection.SmartSelectionTopologyCache();
    private final Map<Integer, Long> interactionIds = new LinkedHashMap<>();
    private long interactionSequence;
    private final LinkedHashSet<Integer> selectedIds = new LinkedHashSet<>();
@@ -37,6 +40,12 @@ public final class ClientOperationWorkspace {
 
    public ClientOperationWorkspace() {
       this(ClientOperationEventStack.DEFAULT_RECORD_LIMIT, ClientOperationEventStack.DEFAULT_WEIGHT_LIMIT);
+   }
+
+   public ClientSelectionStack selections() { return this.selections; }
+
+   public io.github.fastformer.fastplace.selection.SmartSelectionTopology smartTopology(ClientSelectionPart part) {
+      return this.smartTopologies.get(part);
    }
 
    /**
@@ -70,7 +79,7 @@ public final class ClientOperationWorkspace {
       for (ClientSelectionPart addition : additions) {
          int slot = this.allocateId();
          this.interactionSequence = Math.incrementExact(this.interactionSequence);
-         this.parts.put(slot, addition.withId(slot));
+         this.selections.putPart(addition.withId(slot));
          this.interactionIds.put(slot, this.interactionSequence);
          this.selectedIds.add(slot);
          this.activeId = slot;
@@ -84,7 +93,7 @@ public final class ClientOperationWorkspace {
          return false;
       }
       Snapshot before = this.snapshot();
-      this.selectedIds.forEach(this.parts::remove);
+      this.selectedIds.forEach(this.selections::removePart);
       this.selectedIds.forEach(this.interactionIds::remove);
       this.selectedIds.clear();
       this.activeId = 0;
@@ -94,7 +103,7 @@ public final class ClientOperationWorkspace {
    }
 
    public void selectOnly(int id) {
-      if (this.locked || this.editBaseline != null || !this.parts.containsKey(id)) {
+      if (this.locked || this.editBaseline != null || !this.selections.containsPart(id)) {
          return;
       }
       if (this.selectedIds.size() == 1 && this.selectedIds.contains(id) && this.activeId == id) {
@@ -109,7 +118,7 @@ public final class ClientOperationWorkspace {
    }
 
    public void toggleSelected(int id) {
-      if (this.locked || this.editBaseline != null || !this.parts.containsKey(id)) {
+      if (this.locked || this.editBaseline != null || !this.selections.containsPart(id)) {
          return;
       }
       Snapshot before = this.snapshot();
@@ -131,7 +140,7 @@ public final class ClientOperationWorkspace {
       Set<Integer> before = Set.copyOf(this.selectedIds);
       int beforeActive = this.activeId;
       this.selectedIds.clear();
-      this.selectedIds.addAll(new TreeSet<>(this.parts.keySet()));
+      this.selectedIds.addAll(new TreeSet<>(this.selections.partIds()));
       if (!this.selectedIds.isEmpty() && !this.selectedIds.contains(this.activeId)) {
          this.activeId = this.selectedIds.iterator().next();
       }
@@ -143,7 +152,7 @@ public final class ClientOperationWorkspace {
 
    public void activate(int id) {
       if (!this.locked && this.editBaseline == null
-         && this.parts.containsKey(id) && this.selectedIds.contains(id)) {
+         && this.selections.containsPart(id) && this.selectedIds.contains(id)) {
          if (this.activeId == id) {
             return;
          }
@@ -170,8 +179,8 @@ public final class ClientOperationWorkspace {
    }
 
    public void updatePart(ClientSelectionPart part) {
-      if (!this.locked && this.editBaseline != null && part != null && this.parts.containsKey(part.id())) {
-         ClientSelectionPart previous = this.parts.put(part.id(), part);
+      if (!this.locked && this.editBaseline != null && part != null && this.selections.containsPart(part.id())) {
+         ClientSelectionPart previous = this.selections.putPart(part);
          if (!part.equals(previous)) {
             this.changed();
          }
@@ -182,7 +191,7 @@ public final class ClientOperationWorkspace {
       if (this.locked || this.editBaseline == null) {
          return;
       }
-      if (this.parts.remove(id) == null) {
+      if (this.selections.removePart(id) == null) {
          return;
       }
       this.interactionIds.remove(id);
@@ -194,6 +203,19 @@ public final class ClientOperationWorkspace {
    }
 
    public boolean finishEdit() {
+      return finishEdit(null, 0);
+   }
+
+   public void selectOnlyDuringEdit(int id) {
+      if (this.locked || this.editBaseline == null || !this.selections.containsPart(id)) return;
+      this.selectedIds.clear();
+      this.selectedIds.add(id);
+      this.activeId = id;
+      this.changed();
+   }
+
+   /** Commits a workspace edit together with a small related selection-state inverse. */
+   public boolean finishEdit(Runnable restoreSelection, int retainedSelectionPoints) {
       if (this.editBaseline == null) {
          return false;
       }
@@ -203,7 +225,12 @@ public final class ClientOperationWorkspace {
       if (baseline.equals(this.snapshot())) {
          return false;
       }
-      this.record(baseline);
+      if (restoreSelection == null) this.record(baseline);
+      else {
+         var retention = baseline.retention();
+         this.history.push(() -> { this.restore(baseline); restoreSelection.run(); },
+            ClientOperationEventStack.Retention.of(retention.nodeUnits() + Math.max(0, retainedSelectionPoints), retention.sharedPayloads()));
+      }
       return true;
    }
 
@@ -249,6 +276,44 @@ public final class ClientOperationWorkspace {
       return this.history.size();
    }
 
+   public Checkpoint checkpoint() {
+      return new Checkpoint(snapshot(), history.snapshot());
+   }
+
+   public void restoreCheckpoint(Checkpoint checkpoint) {
+      clear();
+      restore(checkpoint.state);
+      history.restore(checkpoint.history);
+      changed();
+   }
+
+   public static final class Checkpoint {
+      private final Snapshot state;
+      private final ClientOperationEventStack.Snapshot history;
+      private Checkpoint(Snapshot state, ClientOperationEventStack.Snapshot history) {
+         this.state = state;
+         this.history = history;
+      }
+      public long weight() {
+         var retention = state.retention();
+         return history.weight() + retention.nodeUnits()
+            + retention.sharedPayloads().stream().mapToLong(ClientOperationEventStack.SharedPayload::units).sum();
+      }
+   }
+
+   /** Ends a local session without discarding the inverse of that action. */
+   public void closeUndoably(Runnable restoreDraft, int draftPoints) {
+      Snapshot before = snapshot();
+      selections.clearParts();
+      selectedIds.clear();
+      interactionIds.clear();
+      activeId = 0;
+      var retained = before.retention();
+      history.push(() -> { restore(before); restoreDraft.run(); },
+         ClientOperationEventStack.Retention.of(retained.nodeUnits() + draftPoints + 1, retained.sharedPayloads()));
+      changed();
+   }
+
    /** Adds a reversible client input event to the same undo entry point. */
    public void pushEvent(Runnable inverse) {
       this.pushEvent(inverse, ClientOperationEventStack.Retention.UNMEASURED);
@@ -269,11 +334,11 @@ public final class ClientOperationWorkspace {
    }
 
    public int size() {
-      return this.parts.size();
+      return this.selections.partCount();
    }
 
    public boolean isEmpty() {
-      return this.parts.isEmpty();
+      return this.selections.partCount() == 0;
    }
 
    public List<ClientSelectionPart> selectedParts() {
@@ -281,8 +346,8 @@ public final class ClientOperationWorkspace {
    }
 
    public void clear() {
-      boolean changed = !this.parts.isEmpty() || !this.selectedIds.isEmpty() || this.editBaseline != null;
-      this.parts.clear();
+      boolean changed = !isEmpty() || !this.selectedIds.isEmpty() || this.editBaseline != null;
+      this.selections.clearParts();
       this.selectedIds.clear();
       this.interactionIds.clear();
       this.history.clear();
@@ -318,11 +383,11 @@ public final class ClientOperationWorkspace {
    }
 
    public Set<Integer> partIds() {
-      return Set.copyOf(new TreeSet<>(this.parts.keySet()));
+      return this.selections.partIds();
    }
 
    public Optional<ClientSelectionPart> part(int id) {
-      return Optional.ofNullable(this.parts.get(id));
+      return Optional.ofNullable(this.selections.part(id));
    }
 
    /** Transient identity survives edits, but a reused display number gets a new identity. */
@@ -334,11 +399,34 @@ public final class ClientOperationWorkspace {
       return identity;
    }
 
+   /** Creation order is stable even when a deleted display number is reused. */
    public List<ClientSelectionPart> parts() {
-      return this.parts.entrySet().stream()
-         .sorted(Map.Entry.comparingByKey())
-         .map(Map.Entry::getValue)
-         .toList();
+      return this.selections.parts();
+   }
+
+   public Optional<ClientSelectionPart> latestPart() {
+      var parts = parts();
+      return parts.isEmpty() ? Optional.empty() : Optional.of(parts.getLast());
+   }
+
+   public boolean popSelection() {
+      if (this.locked || this.editBaseline != null) return false;
+      var top = this.selections.peek().orElse(null);
+      if (top == null) return false;
+      Snapshot before = snapshot();
+      this.selections.pop();
+      if (top instanceof ClientSelectionStack.Pending pending) {
+         this.history.push(() -> this.selections.setDraft(pending.points()),
+            ClientOperationEventStack.Retention.of(pending.points().points().size() + 1));
+      } else if (top instanceof ClientSelectionStack.Complete complete) {
+         this.interactionIds.remove(complete.part().id());
+         this.selectedIds.clear();
+         this.activeId = this.selections.topPart().map(ClientSelectionPart::id).orElse(0);
+         if (this.activeId != 0) this.selectedIds.add(this.activeId);
+         record(before);
+      }
+      changed();
+      return true;
    }
 
    /** Captures only durable draft data. Gesture, lock, and history state stay transient. */
@@ -359,12 +447,12 @@ public final class ClientOperationWorkspace {
          }
       }
       this.clear();
-      this.parts.putAll(restored);
+      this.selections.restoreParts(List.copyOf(restored.values()));
       for (int id : restored.keySet()) {
          this.interactionSequence = Math.incrementExact(this.interactionSequence);
          this.interactionIds.put(id, this.interactionSequence);
       }
-      draft.selectedIds().stream().filter(this.parts::containsKey).forEach(this.selectedIds::add);
+      draft.selectedIds().stream().filter(this.selections::containsPart).forEach(this.selectedIds::add);
       this.activeId = this.selectedIds.contains(draft.activeId()) ? draft.activeId() : 0;
       this.locked = false;
       this.editBaseline = null;
@@ -416,7 +504,7 @@ public final class ClientOperationWorkspace {
    public boolean restoreSelectionStateWithoutHistory(SelectionState state) {
       if (state == null || this.locked || this.editBaseline != null) return false;
       this.selectedIds.clear();
-      state.ids().stream().filter(this.parts::containsKey).forEach(this.selectedIds::add);
+      state.ids().stream().filter(this.selections::containsPart).forEach(this.selectedIds::add);
       this.activeId = this.selectedIds.contains(state.activeId()) ? state.activeId() : 0;
       return true;
    }
@@ -424,12 +512,20 @@ public final class ClientOperationWorkspace {
    /** Restores the part set without creating another history entry. */
    public void restoreParts(Set<Integer> keepIds) {
       if (this.locked || this.editBaseline != null || keepIds == null) return;
-      this.parts.keySet().removeIf(id -> !keepIds.contains(id));
-      this.interactionIds.keySet().retainAll(this.parts.keySet());
-      this.selectedIds.removeIf(id -> !this.parts.containsKey(id));
+      this.selections.retainParts(keepIds);
+      this.interactionIds.keySet().retainAll(this.selections.partIds());
+      this.selectedIds.removeIf(id -> !this.selections.containsPart(id));
       if (!this.selectedIds.contains(this.activeId)) {
          this.activeId = this.selectedIds.stream().reduce((first, second) -> second).orElse(0);
       }
+   }
+
+   /** Restores immutable parts for a composite draft inverse, retaining their interaction identities. */
+   public void restorePartStatesWithoutHistory(List<ClientSelectionPart> parts) {
+      if (this.locked || this.editBaseline != null) return;
+      restoreParts(parts.stream().map(ClientSelectionPart::id).collect(java.util.stream.Collectors.toSet()));
+      this.selections.restoreParts(parts);
+      this.changed();
    }
 
    public int activeId() {
@@ -438,7 +534,7 @@ public final class ClientOperationWorkspace {
 
    private int allocateId() {
       int candidate = 1;
-      while (this.parts.containsKey(candidate)) {
+      while (this.selections.containsPart(candidate)) {
          if (candidate == Integer.MAX_VALUE) {
             throw new IllegalStateException("Workspace part id space exhausted");
          }
@@ -465,12 +561,12 @@ public final class ClientOperationWorkspace {
     */
    private boolean sameState(Snapshot before) {
       if (before.activeId() != this.activeId
-         || before.parts().size() != this.parts.size()
+         || before.parts().size() != this.selections.partCount()
          || !before.selectedIds().equals(this.selectedIds)) {
          return false;
       }
-      for (Map.Entry<Integer, ClientSelectionPart> entry : this.parts.entrySet()) {
-         if (entry.getValue() != before.parts().get(entry.getKey())) {
+      for (ClientSelectionPart part : this.selections.parts()) {
+         if (part != before.parts().get(part.id())) {
             return false;
          }
       }
@@ -488,22 +584,21 @@ public final class ClientOperationWorkspace {
    }
 
    private Snapshot snapshot() {
-      return new Snapshot(Map.copyOf(this.parts), Map.copyOf(this.interactionIds), Set.copyOf(this.selectedIds), this.activeId);
+      return new Snapshot(java.util.Collections.unmodifiableMap(this.selections.partMap()),
+         Map.copyOf(this.interactionIds), Set.copyOf(this.selectedIds), this.activeId);
    }
 
    private void restore(Snapshot snapshot) {
-      this.parts.clear();
       this.interactionIds.clear();
       this.interactionIds.putAll(snapshot.interactionIds());
-      snapshot.parts().entrySet().stream()
-         .sorted(Map.Entry.comparingByKey())
-         .forEach(entry -> this.parts.put(entry.getKey(), entry.getValue()));
+      this.selections.restoreParts(List.copyOf(snapshot.parts().values()));
       this.selectedIds.clear();
       this.selectedIds.addAll(snapshot.selectedIds());
       this.activeId = snapshot.activeId();
    }
 
    private void changed() {
+      this.smartTopologies.retain(this.parts());
       this.revision++;
    }
 

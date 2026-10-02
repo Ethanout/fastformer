@@ -47,6 +47,8 @@ public final class FastPlaceSettings {
    private PlacementUpdateMode placementUpdateMode = PlacementUpdateMode.CLIENT_ONLY;
    private final Set<ResourceLocation> enabledPlacementEffects = new HashSet<>();
    private boolean emptyHandWrench = true;
+   private ReachThresholds reachThresholds = ReachThresholds.DEFAULT;
+   private boolean forcePlacement = true;
    private int maxPlacement = 20972152;
    private int worldUndoHistoryLimit = DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
    private int sessionUndoHistoryLimit = DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
@@ -103,6 +105,11 @@ public final class FastPlaceSettings {
          );
       }
       settings.emptyHandWrench = !tag.contains("emptyHandWrench") || tag.getBoolean("emptyHandWrench");
+      settings.forcePlacement = !tag.contains("forcePlacement") || tag.getBoolean("forcePlacement");
+      int close = tag.contains("reachClose") ? tag.getInt("reachClose") : ReachThresholds.DEFAULT.close();
+      if (!tag.getBoolean("attributeReach") && close == 5) close = 3;
+      int far = tag.contains("reachFar") ? tag.getInt("reachFar") : ReachThresholds.DEFAULT.far();
+      if (ReachThresholds.valid(close, far)) settings.reachThresholds = new ReachThresholds(close, far);
       settings.maxPlacement = tag.contains("maxPlacement")
          ? Math.clamp((long)tag.getInt("maxPlacement"), 1, 20972152)
          : 20972152;
@@ -306,6 +313,20 @@ public final class FastPlaceSettings {
       return this.emptyHandWrench;
    }
 
+   public boolean forcePlacement() { return forcePlacement; }
+
+   public void setForcePlacement(ServerPlayer player, boolean value) {
+      forcePlacement = value;
+      save(player);
+   }
+
+   public ReachThresholds reachThresholds() { return reachThresholds; }
+
+   public void setReachThresholds(ServerPlayer player, ReachThresholds value) {
+      reachThresholds = java.util.Objects.requireNonNull(value);
+      save(player);
+   }
+
    public void toggleEmptyHandWrench(ServerPlayer player) {
       this.emptyHandWrench = !this.emptyHandWrench;
       this.save(player);
@@ -356,6 +377,10 @@ public final class FastPlaceSettings {
          .forEach(id -> effectIds.add(net.minecraft.nbt.StringTag.valueOf(id)));
       tag.put("enabledPlacementEffects", effectIds);
       tag.putBoolean("emptyHandWrench", this.emptyHandWrench);
+      tag.putBoolean("forcePlacement", forcePlacement);
+      tag.putBoolean("attributeReach", true);
+      tag.putInt("reachClose", reachThresholds.close());
+      tag.putInt("reachFar", reachThresholds.far());
       tag.putInt("maxPlacement", this.maxPlacement);
       tag.putInt("undoHistoryLimit", this.worldUndoHistoryLimit);
       tag.putInt("sessionUndoHistoryLimit", this.sessionUndoHistoryLimit);

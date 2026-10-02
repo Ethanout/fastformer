@@ -27,6 +27,7 @@ public final class ObservedInputState {
       if (sessions.placementTask()) {
          return ClientInputStateMachine.State.PLACING;
       }
+      if (sessions.quickReplaceSession()) return ClientInputStateMachine.State.QUICK_REPLACE;
       if (sessions.operationSession()) {
          return sessions.workspaceHasParts() || sessions.selectionConfirmed()
             ? ClientInputStateMachine.State.ADJUSTING
@@ -55,8 +56,14 @@ public final class ObservedInputState {
       boolean workspaceHasParts,
       boolean selectionConfirmed,
       boolean geometrySession,
-      boolean buildingSession
+      boolean buildingSession,
+      boolean quickReplaceSession
    ) {
+      public Sessions(boolean restoringTask, boolean placementTask, boolean operationSession,
+                      boolean workspaceHasParts, boolean selectionConfirmed, boolean geometrySession, boolean buildingSession) {
+         this(restoringTask, placementTask, operationSession, workspaceHasParts, selectionConfirmed,
+            geometrySession, buildingSession, false);
+      }
       /** The flags of a client that shows nothing. */
       public static Sessions idle() {
          return new Sessions(false, false, false, false, false, false, false);

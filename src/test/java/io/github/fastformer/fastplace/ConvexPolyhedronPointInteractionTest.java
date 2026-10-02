@@ -45,7 +45,7 @@ class ConvexPolyhedronPointInteractionTest {
       assertTrue(plan.gizmo().handles().stream().allMatch(handle -> handle.operation() == AxisGizmo.Operation.MOVE));
       assertEquals("${axis} ${operation}", plan.gizmo().textComponent().hoverTemplate().template());
       assertTrue(plan.gizmo().handles().stream().allMatch(
-         handle -> handle.hoverFeedback().hoverColor() == HoverFeedback.GIZMO_HOVER_COLOR
+         handle -> handle.hoverFeedback().hoverColor() == io.github.fastformer.fastplace.geometry.GeometryPalette.gizmoHover().rgb()
       ));
       assertEquals(4, plan.controlPoints().size());
       assertEquals(3, plan.interactionTargets().size());

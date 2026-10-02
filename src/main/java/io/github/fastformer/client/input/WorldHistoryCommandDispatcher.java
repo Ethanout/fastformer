@@ -18,6 +18,7 @@ final class WorldHistoryCommandDispatcher {
          return true;
       }
       if (key == 89 && NetworkRegistry.hasChannel(minecraft.getConnection(), WorldRedoPayload.TYPE.id())) {
+         if (!io.github.fastformer.client.operation.controller.ClientOperationController.canRedoWorldHistory()) return false;
          PacketDistributor.sendToServer(WorldRedoPayload.INSTANCE, new CustomPacketPayload[0]);
          return true;
       }

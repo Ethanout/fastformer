@@ -21,32 +21,34 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 @GameTestHolder(FastFormer.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class NetworkAdmissionGameTests {
-   @GameTest(template = "fastformergametests.empty", batch = "network_freeze_permissions", timeoutTicks = 600)
-   public static void globalFreezeRequiresOperatorAndUsesExplicitTarget(GameTestHelper helper) throws Exception {
+   @GameTest(template = "fastformergametests.empty", batch = "network_falling_permissions", timeoutTicks = 600)
+   public static void fallingRuleRequiresOperatorAndUsesExplicitTarget(GameTestHelper helper) throws Exception {
       ServerPlayer player = createPlayer(helper);
       var server = player.getServer();
-      var ticks = server.tickRateManager();
-      boolean original = ticks.isFrozen();
+      var rules = io.github.fastformer.fastplace.world.BlockActivityRules.get(server);
+      boolean original = rules.fallingDisabled();
+      boolean originallyFrozen = server.tickRateManager().isFrozen();
       boolean operator = server.getPlayerList().isOp(player.getGameProfile());
       try {
          server.getPlayerList().deop(player.getGameProfile());
          helper.assertFalse(player.hasPermissions(2), "test player still has operator permission");
-         ticks.setFrozen(false);
+         rules.setFallingDisabled(false);
          for (GameType mode : new GameType[] {GameType.SURVIVAL, GameType.CREATIVE}) {
             player.setGameMode(mode);
-            receive("handleSettingsAction", new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE, true), player);
-            helper.assertFalse(ticks.isFrozen(), "unprivileged player froze the server in " + mode);
+            receive("handleSettingsAction", new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, true), player);
+            helper.assertFalse(rules.fallingDisabled(), "unprivileged player changed the falling rule in " + mode);
          }
          server.getPlayerList().getOps().add(new net.minecraft.server.players.ServerOpListEntry(player.getGameProfile(), 2, false));
          helper.assertTrue(player.hasPermissions(2), "test operator lacks permission");
-         receive("handleSettingsAction", new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE, true), player);
-         helper.assertTrue(ticks.isFrozen(), "operator could not freeze the server");
-         receive("handleSettingsAction", new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE, true), player);
-         helper.assertTrue(ticks.isFrozen(), "replayed explicit target toggled the state");
-         receive("handleSettingsAction", new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_GLOBAL_FREEZE, false), player);
-         helper.assertFalse(ticks.isFrozen(), "operator could not resume the server");
+         receive("handleSettingsAction", new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, true), player);
+         helper.assertTrue(rules.fallingDisabled(), "operator could not disable falling");
+         receive("handleSettingsAction", new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, true), player);
+         helper.assertTrue(rules.fallingDisabled(), "replayed explicit target toggled the state");
+         receive("handleSettingsAction", new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, false), player);
+         helper.assertFalse(rules.fallingDisabled(), "operator could not enable falling");
+         helper.assertTrue(server.tickRateManager().isFrozen() == originallyFrozen, "falling rule changed tick freeze");
       } finally {
-         ticks.setFrozen(original);
+         rules.setFallingDisabled(original);
          if (!operator) server.getPlayerList().deop(player.getGameProfile());
       }
       helper.succeed();

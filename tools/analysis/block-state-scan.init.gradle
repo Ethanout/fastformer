@@ -1,0 +1,7 @@
+// Run with: gradlew -I tools/analysis/block-state-scan.init.gradle runGameTestServer
+gradle.projectsEvaluated {
+    def scanProject = gradle.rootProject
+    scanProject.sourceSets.gameTest.java.srcDir(scanProject.file('tools/analysis/java'))
+    scanProject.runs.gameTestServer.systemProperty 'fastformer.blockStateReport',
+        scanProject.file('.temp/tinker-state-scan/registry.json').absolutePath
+}

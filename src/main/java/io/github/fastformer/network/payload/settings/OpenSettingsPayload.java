@@ -17,7 +17,7 @@ public record OpenSettingsPayload(
    PlacementUpdateMode placementUpdateMode,
    List<ResourceLocation> enabledPlacementEffects,
    boolean emptyHandWrench,
-   boolean globalFrozen,
+   boolean fallingDisabled,
    int worldUndoHistoryLimit,
    int sessionUndoHistoryLimit
 ) implements CustomPacketPayload {
@@ -72,7 +72,7 @@ public record OpenSettingsPayload(
       buffer.writeVarInt(this.enabledPlacementEffects.size());
       this.enabledPlacementEffects.forEach(id -> buffer.writeUtf(id.toString(), 128));
       buffer.writeBoolean(this.emptyHandWrench);
-      buffer.writeBoolean(this.globalFrozen);
+      buffer.writeBoolean(this.fallingDisabled);
       buffer.writeVarInt(this.worldUndoHistoryLimit);
       buffer.writeVarInt(this.sessionUndoHistoryLimit);
    }

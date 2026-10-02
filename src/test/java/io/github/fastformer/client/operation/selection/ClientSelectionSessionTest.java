@@ -29,8 +29,6 @@ class ClientSelectionSessionTest {
             var button = mode == OperationSelectionMode.PRISM
                ? SelectionDraftEvent.Button.LEFT : SelectionDraftEvent.Button.RIGHT;
 
-            assertEquals(SelectionDraftResult.REJECTED,
-               session.onDraftEvent(new SelectionDraftEvent(button, BlockPos.ZERO, false)));
             assertEquals(SelectionDraftResult.REJECTED, session.onDraftEvent(null));
             session.addDraftPoint(null);
 
@@ -133,7 +131,7 @@ class ClientSelectionSessionTest {
       assertTrue(session.workspace().isEmpty());
       assertTrue(session.draftPoints().isEmpty());
       assertEquals(ClientSelectionState.UNFOCUSED, session.state());
-      assertEquals(OperationSelectionMode.PRISM, session.selectionMode());
+      assertEquals(SelectionToolPreference.get(), session.selectionMode());
    }
 
    @Test
