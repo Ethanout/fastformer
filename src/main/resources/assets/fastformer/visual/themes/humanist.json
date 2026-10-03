@@ -1,6 +1,8 @@
 {
   "version": 1,
   "colors": {
+    "confirmedOutline": "#F4F1EA",
+    "pendingOutline": "#F4F1EA",
     "ink": "#F4F1EA",
     "halo": "#2E2A26",
     "ochre": "#D9B36A",
@@ -25,7 +27,7 @@
     "screenLabel": "#B5B3AD",
     "start": "#88A2C4",
     "control": "#D9B36A",
-    "hover": "#D9B36A"
+    "hover": "#9FB87C"
   },
   "curves": {
     "line_width_by_distance": [[0, 1], [5, 1], [20, 0.65], [64, 0.35]],

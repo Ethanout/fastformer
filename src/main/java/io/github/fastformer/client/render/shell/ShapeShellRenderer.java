@@ -101,7 +101,7 @@ public final class ShapeShellRenderer {
       List<GuideLine> confirmed,
       List<GuideLine> pending
    ) {
-      var ink = io.github.fastformer.fastplace.geometry.GeometryPalette.ink();
+      var ink = io.github.fastformer.fastplace.geometry.GeometryPalette.confirmedOutline();
       float alpha = io.github.fastformer.client.render.PreviewStyle.OUTLINE_ALPHA;
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);

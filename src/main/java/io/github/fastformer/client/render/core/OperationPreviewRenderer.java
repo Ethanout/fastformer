@@ -69,10 +69,13 @@ final class OperationPreviewRenderer {
          for (int i = 1; i < points.size(); i++) renderOperationOutlineLine(pose, buffers.getBuffer(GHOST_OUTLINE_LINES),
             Vec3.atCenterOf(points.get(i - 1)), Vec3.atCenterOf(points.get(i)), 0.8F * opacity);
       }
-      for (var point : draft.points()) LevelRenderer.renderLineBox(pose, buffers.getBuffer(GHOST_OUTLINE_LINES),
-         new AABB(point).inflate(PreviewStyle.OUTLINE_INFLATE), inkRed(), inkGreen(), inkBlue(), PreviewStyle.OUTLINE_ALPHA * opacity);
       buffers.endBatch(GHOST_OUTLINE_LINES);
       pose.popPose();
+      var displayPoints = io.github.fastformer.client.controlpoint.ControlPointPresentation.draft(draft,
+         intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null);
+      new io.github.fastformer.client.controlpoint.ControlPointRenderer(
+         worldPreviewOpacity * opacity, pendingGridDashOffset(), PreviewStyle.DASH_LENGTH
+      ).render(pose, buffers, camera, displayPoints);
    }
 
    static void renderOperationSelection(RenderLevelStageEvent event, Minecraft minecraft, LocalPlayer player, OperationPreviewPayload snapshot) {

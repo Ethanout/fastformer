@@ -4,9 +4,9 @@ import io.github.fastformer.fastplace.geometry.GeometryPalette;
 
 /** Point colors per theme. */
 public enum ControlPointStyle {
-   START(0x268CFF, 0.78F, 0xF4F1EA, 0.78F),
+   START(0x0DF2FF, 0.78F, 0x88A2C4, 0.78F),
    CONTROL(0xFFC71F, 0.76F, 0xD9B36A, 0.78F),
-   HOVER(0x1FFF4D, 0.92F, 0xD9B36A, 0.92F),
+   HOVER(0x1FFF4D, 0.92F, 0x9FB87C, 0.92F),
    AUXILIARY(0xEBEBEB, 0.82F, 0xF4F1EA, 0.78F),
    GIZMO(0xFFFFFF, 0.72F, 0xF4F1EA, 0.78F);
 
@@ -22,7 +22,7 @@ public enum ControlPointStyle {
       this.humanistAlpha = humanistAlpha;
    }
 
-   private GeometryPalette.Color color() {
+   public GeometryPalette.Color color() {
       String key = switch (this) {
          case START -> "start";
          case CONTROL -> "control";

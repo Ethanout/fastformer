@@ -1,6 +1,8 @@
 {
   "version": 1,
   "colors": {
+    "confirmedOutline": "#000000",
+    "pendingOutline": "#FFFFFF",
     "ink": "#FFFFFF",
     "halo": "#000000",
     "ochre": "#1FFF4D",
@@ -23,16 +25,16 @@
     "gizmoHover": "#FFFFFF",
     "screenTitle": "#FFFFFF",
     "screenLabel": "#E0E7ED",
-    "start": "#268CFF",
+    "start": "#0DF2FF",
     "control": "#FFC71F",
     "hover": "#1FFF4D"
   },
   "values": {
-    "halo_alpha": 0.35,
-    "line_width": 1.5,
+    "halo_alpha": 0,
+    "line_width": 0.5,
     "gizmo_width": 2,
-    "gizmo_hover_width": 2.5,
-    "halo_extra_width": 1.25,
+    "gizmo_hover_width": 2,
+    "halo_extra_width": 0,
     "candidate_alpha": 0.8,
     "confirmed_alpha": 0.85,
     "pending_min_alpha": 0.05,

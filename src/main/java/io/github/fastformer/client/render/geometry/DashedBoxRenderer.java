@@ -13,10 +13,15 @@ public final class DashedBoxRenderer {
 
    public static void renderConfirmed(PoseStack pose, VertexConsumer vertices, Vec3 center, Vec3 half,
       float alpha, boolean dynamic) {
+      renderColored(pose, vertices, center, half,
+         io.github.fastformer.fastplace.geometry.GeometryPalette.confirmedOutline(), alpha, dynamic);
+   }
+
+   public static void renderColored(PoseStack pose, VertexConsumer vertices, Vec3 center, Vec3 half,
+      io.github.fastformer.fastplace.geometry.GeometryPalette.Color color, float alpha, boolean dynamic) {
       Vec3[] corners = new Vec3[8];
       for (int i = 0; i < 8; i++) corners[i] = center.add((i & 1) == 0 ? -half.x : half.x,
          (i & 2) == 0 ? -half.y : half.y, (i & 4) == 0 ? -half.z : half.z);
-      var color = io.github.fastformer.fastplace.geometry.GeometryPalette.ink();
       for (int i = 0; i < 8; i++) for (int bit : new int[] {1, 2, 4}) {
          if ((i & bit) == 0) PencilStroke.draw(pose, vertices, corners[i], corners[i | bit],
             color.red(), color.green(), color.blue(), alpha, dynamic);

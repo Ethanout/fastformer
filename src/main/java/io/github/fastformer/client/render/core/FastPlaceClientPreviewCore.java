@@ -1911,9 +1911,6 @@ public class FastPlaceClientPreviewCore {
             // Keep the geometric boundary authoritative when the async shell is
             // unavailable. The fallback also draws the first point face, while
             // outline edges remain in the same world-space coordinate path.
-            renderBuildingEndpointFallback(
-               poseStack, buffers, camera, snapshot.points().size(), previewPoints, shellVisibility
-            );
             if (!confirmedOutlineEdges.isEmpty() || !pendingOutlineEdges.isEmpty()) {
                ShapeShellRenderer.renderOutlineEdges(
                   poseStack,
@@ -1927,9 +1924,8 @@ public class FastPlaceClientPreviewCore {
                   List.of(), pendingOutlineEdges);
                buffers.endBatch(DYNAMIC_LINES);
             }
-            renderBuildingFallbackPoints(
-               poseStack, buffers, camera, buildingPoints, shellBlocks.allBlocks()
-            );
+            BuildingPointPreviewRenderer.render(poseStack, buffers, camera, buildingPoints,
+               previewState, previewStateOverrides, worldPreviewOpacity);
             renderBuildingGuidePlaneGrid(poseStack, buffers.getBuffer(PENDING_LINES), camera, planes);
             buffers.endBatch(PENDING_LINES);
          }
@@ -2375,9 +2371,9 @@ public class FastPlaceClientPreviewCore {
          GhostMesh mesh = GhostMeshBuilder.build(confirmed, true, true, true);
          renderGhostFaces(poseStack, buffers.getBuffer(GHOST_FACES), camera, mesh.faces(), inkRed(), inkGreen(), inkBlue(), PreviewStyle.FACE_ALPHA);
          buffers.endBatch(GHOST_FACES);
-         renderGhostOutline(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, mesh.edges(), inkRed(), inkGreen(), inkBlue(), outlineAlpha);
+         renderGhostOutline(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, mesh.edges(), GeometryPalette.confirmedOutline().red(), GeometryPalette.confirmedOutline().green(), GeometryPalette.confirmedOutline().blue(), outlineAlpha);
          buffers.endBatch(GHOST_OUTLINE_LINES);
-         renderGhostOutline(poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, mesh.edges(), inkRed(), inkGreen(), inkBlue(), outlineAlpha);
+         renderGhostOutline(poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, mesh.edges(), GeometryPalette.confirmedOutline().red(), GeometryPalette.confirmedOutline().green(), GeometryPalette.confirmedOutline().blue(), outlineAlpha);
          buffers.endBatch(PENDING_XRAY_LINES);
       }
       if (candidateVisible) {
@@ -2420,7 +2416,7 @@ public class FastPlaceClientPreviewCore {
          renderGhostFaces(poseStack, buffers.getBuffer(GHOST_FACES), camera, mesh.faces(), inkRed(), inkGreen(), inkBlue(), faceAlpha);
          buffers.endBatch(GHOST_FACES);
       }
-      renderGhostOutline(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, mesh.edges(), inkRed(), inkGreen(), inkBlue(), outlineAlpha);
+      renderGhostOutline(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, mesh.edges(), GeometryPalette.confirmedOutline().red(), GeometryPalette.confirmedOutline().green(), GeometryPalette.confirmedOutline().blue(), outlineAlpha);
       buffers.endBatch(GHOST_OUTLINE_LINES);
    }
 

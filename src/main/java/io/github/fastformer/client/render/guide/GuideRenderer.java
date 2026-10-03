@@ -115,7 +115,7 @@ public final class GuideRenderer {
       double dashLength,
       float opacity
    ) {
-      renderCandidateLine(poseStack, consumer, from, to, GeometryPalette.ink(), alpha, opacity);
+      renderCandidateLine(poseStack, consumer, from, to, GeometryPalette.pendingOutline(), alpha, opacity);
    }
 
    public static void renderDashedLine(

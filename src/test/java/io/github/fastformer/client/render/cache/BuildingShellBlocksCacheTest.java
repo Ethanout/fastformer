@@ -18,7 +18,7 @@ class BuildingShellBlocksCacheTest {
       BlockPos base = BlockPos.ZERO;
       BlockPos oldPoint = new BlockPos(1, 0, 0);
       BlockPos newPoint = new BlockPos(2, 0, 0);
-      BuildingRenderLayers layers = new BuildingRenderLayers(Set.of(base), Set.of(), Set.of(base));
+      BuildingRenderLayers layers = new BuildingRenderLayers(Set.of(base), Set.of(oldPoint, newPoint), Set.of(base, oldPoint, newPoint));
       HashSet<BlockPos> markers = new HashSet<>(Set.of(oldPoint));
       BuildingRenderLayers first = cache.resolve(layers, Set.of(), markers);
       assertSame(first, cache.resolve(layers, Set.of(), Set.of(oldPoint)));
@@ -27,9 +27,9 @@ class BuildingShellBlocksCacheTest {
       markers.add(newPoint);
       BuildingRenderLayers moved = cache.resolve(layers, Set.of(), markers);
       assertNotSame(first, moved);
-      assertEquals(Set.of(oldPoint), first.pendingRenderBlocks());
-      assertEquals(Set.of(newPoint), moved.pendingRenderBlocks());
-      assertEquals(Set.of(base, newPoint), moved.allBlocks());
+      assertEquals(Set.of(newPoint), first.pendingRenderBlocks());
+      assertEquals(Set.of(oldPoint), moved.pendingRenderBlocks());
+      assertEquals(Set.of(base, oldPoint), moved.allBlocks());
       assertThrows(UnsupportedOperationException.class, () -> moved.allBlocks().clear());
    }
 

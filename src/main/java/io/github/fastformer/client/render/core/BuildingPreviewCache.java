@@ -403,8 +403,8 @@ final class BuildingPreviewCache {
          pending.addAll(candidateBlocks);
          Set<BlockPos> all = PreviewGeometrySupport.unionBlocks(split.confirmed(), pending);
          BuildingRenderLayers layers = new BuildingRenderLayers(
-            // Keep point cells in the shell. Removing them makes a one-block
-            // first-point preview render only its control-point/outline lines.
+            // Keep complete placement membership here; shellLayers excludes
+            // control-point cells so their semantic colors remain visible.
             split.confirmed(),
             pending,
             all

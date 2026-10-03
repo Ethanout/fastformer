@@ -116,7 +116,8 @@ public final class BuildingShellCache {
          ShapeShellMesh.Color faceColor = special == null
             ? inkColor
             : new ShapeShellMesh.Color(special.style().red(), special.style().green(), special.style().blue());
-         ShapeShellMesh.Color outlineColor = inkColor;
+         GeometryPalette.Color outline = this.pending ? GeometryPalette.pendingOutline() : GeometryPalette.confirmedOutline();
+         ShapeShellMesh.Color outlineColor = new ShapeShellMesh.Color(outline.red(), outline.green(), outline.blue());
          Set<Direction> hiddenFaces = java.util.EnumSet.noneOf(Direction.class);
          if (boxes.size() == 1 && boxes.getFirst().equals(new AABB(pos))) {
             for (Direction direction : Direction.values()) {

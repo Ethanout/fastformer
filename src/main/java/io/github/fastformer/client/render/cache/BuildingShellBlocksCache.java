@@ -21,9 +21,11 @@ public final class BuildingShellBlocksCache {
          return this.result;
       }
       HashSet<BlockPos> confirmed = new HashSet<>(layers.confirmedRenderBlocks());
-      confirmed.addAll(confirmedMarkers);
+      confirmed.removeAll(confirmedMarkers);
+      confirmed.removeAll(pendingMarkers);
       HashSet<BlockPos> pending = new HashSet<>(layers.pendingRenderBlocks());
-      pending.addAll(pendingMarkers);
+      pending.removeAll(confirmedMarkers);
+      pending.removeAll(pendingMarkers);
       HashSet<BlockPos> environment = new HashSet<>(confirmed);
       environment.addAll(pending);
       BuildingRenderLayers next = new BuildingRenderLayers(confirmed, pending, environment);

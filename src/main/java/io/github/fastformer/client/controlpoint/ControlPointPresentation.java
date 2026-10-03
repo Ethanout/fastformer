@@ -18,6 +18,21 @@ public final class ControlPointPresentation {
    private ControlPointPresentation() {
    }
 
+   public static List<ControlPoint> draft(
+      io.github.fastformer.client.operation.selection.ClientSelectionSession.DraftState draft, BlockPos candidate
+   ) {
+      var result = new ArrayList<ControlPoint>();
+      for (int i = 0; i < draft.points().size(); i++) {
+         var role = i == 0 && !draft.secondPointOnly() ? ControlPointRole.PRIMARY : ControlPointRole.SECONDARY;
+         result.add(ControlPoint.of(draft.points().get(i), role));
+      }
+      if (candidate != null && !draft.points().contains(candidate)) {
+         var role = draft.points().isEmpty() || draft.secondPointOnly() ? ControlPointRole.PRIMARY : ControlPointRole.SECONDARY;
+         result.add(ControlPoint.pending(Vec3.atCenterOf(candidate), role));
+      }
+      return List.copyOf(result);
+   }
+
    public static List<ControlPoint> building(BuildingPreviewPayload snapshot, BlockPos candidate, BlockPos hoveredPoint) {
       if (snapshot.points().isEmpty() && candidate == null) {
          return List.of();
@@ -46,10 +61,8 @@ public final class ControlPointPresentation {
    public static List<ControlPoint> selection(
       OperationPreviewPayload snapshot, BlockPos candidate, boolean edgeInsertionHovered, int hoveredPointIndex
    ) {
-      // Cuboid points are editing metadata only. The selection bounds are the
-      // sole rendered authority, so drawing point1/point2 would create a
-      // second frame and make an adjusted cuboid appear to have two sizes.
-      if (snapshot.operationSelectionMode() == OperationSelectionMode.CUBOID) {
+      // Completed cuboids use their adjusted bounds, not stale input corners.
+      if (snapshot.operationSelectionMode() == OperationSelectionMode.CUBOID && snapshot.hasFirst() && snapshot.hasSecond()) {
          return List.of();
       }
       List<BlockPos> points = snapshot.points();

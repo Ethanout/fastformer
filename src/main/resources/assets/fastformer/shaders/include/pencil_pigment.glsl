@@ -44,7 +44,8 @@ void main() {
     float pigment = (0.8 + 0.2 * tooth) * (0.9 + 0.1 * fibers);
     float core = 1.0 - smoothstep(halfWidth * 0.3, halfWidth * 0.7, abs(acrossPx));
     float crayon = max(roughEdge * pigment, core * 0.9);
-    float coverage = mix(cleanEdge, crayon, sketch);
+    // Classic keeps the solid line quad used by the original vanilla line shader.
+    float coverage = mix(1.0, crayon, sketch);
     if (OccludedDash.x > 0.0) {
         float period = OccludedDash.x + OccludedDash.y;
         float duty = OccludedDash.x / period;

@@ -105,22 +105,9 @@ public final class ControlPointRenderer {
          Vec3 center = point.center();
          Vec3 halfExtents = point.shape().visualHalfExtents(point.center());
          ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
-         LevelRenderer.renderLineBox(
-            poseStack,
-            lines,
-            new AABB(
-               center.x - halfExtents.x,
-               center.y - halfExtents.y,
-               center.z - halfExtents.z,
-               center.x + halfExtents.x,
-               center.y + halfExtents.y,
-               center.z + halfExtents.z
-            ).inflate(CONTROL_POINT_OUTLINE_INFLATE),
-            style.red(),
-            style.green(),
-            style.blue(),
-            style.alpha() * alphaScale * worldPreviewOpacity
-         );
+         DashedBoxRenderer.renderColored(poseStack, lines, center,
+            halfExtents.add(CONTROL_POINT_OUTLINE_INFLATE, CONTROL_POINT_OUTLINE_INFLATE, CONTROL_POINT_OUTLINE_INFLATE),
+            style.color(), style.alpha() * alphaScale * worldPreviewOpacity, false);
       }
       poseStack.popPose();
    }
@@ -146,7 +133,7 @@ public final class ControlPointRenderer {
             point.center(),
             point.shape().visualHalfExtents(point.center()),
             offset,
-            style.alpha() * alphaScale
+            style, style.alpha() * alphaScale
          );
       }
       poseStack.popPose();
@@ -175,8 +162,8 @@ public final class ControlPointRenderer {
    }
 
    private void renderPendingBox(PoseStack poseStack, VertexConsumer lines, Vec3 center,
-      Vec3 halfExtents, double offset, float alpha) {
-      DashedBoxRenderer.render(poseStack, lines, center, halfExtents, null, 0.0,
-         offset, alpha, dashLength, worldPreviewOpacity);
+      Vec3 halfExtents, double offset, ControlPointStyle style, float alpha) {
+      DashedBoxRenderer.renderColored(poseStack, lines, center, halfExtents, style.color(),
+         alpha * worldPreviewOpacity, true);
    }
 }

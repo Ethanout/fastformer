@@ -33,6 +33,8 @@ class ControlPointComponentTest {
 
    @Test
    void feedbackComponentOnlyChangesObjectsThatOptIntoHover() {
+      ControlPoint inactiveStart = ControlPoint.of(new BlockPos(0, 0, 0), ControlPointRole.PRIMARY).withHovered(true);
+      assertEquals(ControlPointStyle.START, inactiveStart.feedback().style(inactiveStart.role(), true));
       ControlPoint ordinary = ControlPoint.secondary(new BlockPos(0, 0, 0)).withHovered(true);
       ControlPoint closeable = ControlPoint.primary(new BlockPos(0, 0, 0), true);
 
