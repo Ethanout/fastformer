@@ -14,6 +14,17 @@ public final class PencilStroke {
 
    public static void draw(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
       float red, float green, float blue, float alpha, boolean dynamic) {
+      draw(pose, vertices, from, to, red, green, blue, alpha, dynamic, false);
+   }
+
+   /** Anchors guide strokes to their local direction while their world geometry moves. */
+   public static void drawMovingGuide(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
+      float red, float green, float blue, float alpha) {
+      draw(pose, vertices, from, to, red, green, blue, alpha, false, true);
+   }
+
+   private static void draw(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
+      float red, float green, float blue, float alpha, boolean dynamic, boolean movingGuide) {
       Vec3 delta = to.subtract(from);
       double length = delta.length();
       if (length < 1.0E-7) return;
@@ -38,7 +49,10 @@ public final class PencilStroke {
       direction = shiftedTo.subtract(shiftedFrom).normalize();
       if (direction.lengthSqr() < 1.0E-14) return;
       // Hash the original endpoints so tiny offsets cannot swap the preferred long end.
-      PencilStrokeEnds ends = PencilStrokeEnds.forLine(from, to,
+      PencilStrokeEnds ends = movingGuide ? PencilStrokeEnds.forMovingLine(from, to,
+         VisualThemes.value("pencil_long_min", 0.15F), VisualThemes.value("pencil_long_max", 0.35F),
+         VisualThemes.value("pencil_short_min", 0.02F), VisualThemes.value("pencil_short_max", 0.15F))
+         : PencilStrokeEnds.forLine(from, to,
          VisualThemes.value("pencil_long_min", 0.15F), VisualThemes.value("pencil_long_max", 0.35F),
          VisualThemes.value("pencil_short_min", 0.02F), VisualThemes.value("pencil_short_max", 0.15F),
          sheet, VisualThemes.value("boil_overshoot_variation", 0.08F)
@@ -52,8 +66,10 @@ public final class PencilStroke {
       if (dominant < 0) side = side.scale(-1);
       // Static marks use a fixed hash sheet for a small permanent pencil bow;
       // animated marks use their current sheet so the bow can breathe.
+      double bowSeed = movingGuide ? BoilJitter.staticBow(Vec3.ZERO, delta.scale(1 / length))
+         : sheet == 0 ? BoilJitter.staticBow(from, to) : BoilJitter.bow(from, to, sheet);
       double bow = VisualThemes.value("boil_bow_px", 0.08F) * (sheet == 0 ? fromScale + toScale : fromJitterScale + toJitterScale) * 0.5
-         * (sheet == 0 ? BoilJitter.staticBow(from, to) : BoilJitter.bow(from, to, sheet));
+         * bowSeed;
       segment(pose, vertices, start, shiftedFrom, direction, red, green, blue, alpha,
          dash.at(-ends.start() / length), dash.at(0));
       int count = bow == 0 ? 1 : 4;

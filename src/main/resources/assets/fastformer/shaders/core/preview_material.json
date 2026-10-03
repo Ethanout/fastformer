@@ -20,6 +20,12 @@
   ],
   "uniforms": [
     {
+      "name": "MarkerTint",
+      "type": "float",
+      "count": 1,
+      "values": [0]
+    },
+    {
       "name": "InverseViewProjection",
       "type": "matrix4x4",
       "count": 16,

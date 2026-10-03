@@ -105,6 +105,12 @@ public final class GuideRenderer {
          color.red(), color.green(), color.blue(), alpha * opacity * candidateAlpha, true);
    }
 
+   public static void renderMovingLine(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
+      float red, float green, float blue, float alpha, float opacity) {
+      io.github.fastformer.client.render.geometry.PencilStroke.drawMovingGuide(
+         pose, vertices, from, to, red, green, blue, alpha * opacity);
+   }
+
    public static void renderAlternatingDashedLine(
       PoseStack poseStack,
       VertexConsumer consumer,

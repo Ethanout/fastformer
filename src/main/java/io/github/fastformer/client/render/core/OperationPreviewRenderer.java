@@ -768,9 +768,12 @@ final class OperationPreviewRenderer {
       Vec3 to = from.add(normal.scale(0.62));
       Vec3 side = normal.cross(Math.abs(normal.y) > 0.9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize().scale(0.08);
       Vec3 base = to.subtract(normal.scale(0.14));
-      renderLine(poseStack, consumer, from, to, inkRed(), inkGreen(), inkBlue(), alpha);
-      renderLine(poseStack, consumer, to, base.add(side), inkRed(), inkGreen(), inkBlue(), alpha);
-      renderLine(poseStack, consumer, to, base.subtract(side), inkRed(), inkGreen(), inkBlue(), alpha);
+      io.github.fastformer.client.render.guide.GuideRenderer.renderMovingLine(
+         poseStack, consumer, from, to, inkRed(), inkGreen(), inkBlue(), alpha, worldPreviewOpacity);
+      io.github.fastformer.client.render.guide.GuideRenderer.renderMovingLine(
+         poseStack, consumer, to, base.add(side), inkRed(), inkGreen(), inkBlue(), alpha, worldPreviewOpacity);
+      io.github.fastformer.client.render.guide.GuideRenderer.renderMovingLine(
+         poseStack, consumer, to, base.subtract(side), inkRed(), inkGreen(), inkBlue(), alpha, worldPreviewOpacity);
    }
 
    private static Vec3 inflateSelectionVertex(Vec3 point, Vec3 center, Vec3 camera) {

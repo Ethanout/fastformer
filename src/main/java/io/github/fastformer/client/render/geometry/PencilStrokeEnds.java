@@ -4,6 +4,20 @@ import net.minecraft.world.phys.Vec3;
 
 /** Stable long/short pairs, independent of which endpoint the caller visits first. */
 record PencilStrokeEnds(double start, double end) {
+   static PencilStrokeEnds forMovingLine(Vec3 from, Vec3 to,
+      double longMin, double longMax, double shortMin, double shortMax) {
+      Vec3 delta = to.subtract(from);
+      double length = delta.length();
+      if (length < 1.0E-7) return new PencilStrokeEnds(0, 0);
+      int axis = dominantAxis(delta);
+      boolean reverse = (axis == 0 ? delta.x : axis == 1 ? delta.y : delta.z) < 0;
+      Vec3 direction = delta.scale((reverse ? -1 : 1) / length);
+      PencilStrokeEnds unit = forLine(Vec3.ZERO, direction, longMin, longMax, shortMin, shortMax);
+      double scale = Math.min(1, length);
+      return reverse ? new PencilStrokeEnds(unit.end() * scale, unit.start() * scale)
+         : new PencilStrokeEnds(unit.start() * scale, unit.end() * scale);
+   }
+
    static PencilStrokeEnds forLine(Vec3 from, Vec3 to, double longMin, double longMax, double shortMin, double shortMax) {
       return forLine(from, to, longMin, longMax, shortMin, shortMax, 0, 0);
    }
@@ -11,8 +25,7 @@ record PencilStrokeEnds(double start, double end) {
    static PencilStrokeEnds forLine(Vec3 from, Vec3 to, double longMin, double longMax, double shortMin, double shortMax,
       int sheet, double variation) {
       Vec3 delta = to.subtract(from);
-      int axis = Math.abs(delta.x) >= Math.abs(delta.y) && Math.abs(delta.x) >= Math.abs(delta.z) ? 0
-         : Math.abs(delta.y) >= Math.abs(delta.z) ? 1 : 2;
+      int axis = dominantAxis(delta);
       double component = axis == 0 ? delta.x : axis == 1 ? delta.y : delta.z;
       // Alternate the preferred end by axis. Three-edge corners may retain an exception.
       boolean longAtStart = (component >= 0) == (axis % 2 == 0);
@@ -28,6 +41,11 @@ record PencilStrokeEnds(double start, double end) {
       double longEnd = (longMin + Math.max(0, longMax - longMin) * random) * scale;
       double shortEnd = (shortMin + Math.max(0, shortMax - shortMin) * random) * scale;
       return longAtStart ? new PencilStrokeEnds(longEnd, shortEnd) : new PencilStrokeEnds(shortEnd, longEnd);
+   }
+
+   private static int dominantAxis(Vec3 delta) {
+      return Math.abs(delta.x) >= Math.abs(delta.y) && Math.abs(delta.x) >= Math.abs(delta.z) ? 0
+         : Math.abs(delta.y) >= Math.abs(delta.z) ? 1 : 2;
    }
 
    private static long mix(long value) {

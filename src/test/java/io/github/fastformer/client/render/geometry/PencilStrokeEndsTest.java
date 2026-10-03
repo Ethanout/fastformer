@@ -8,6 +8,35 @@ import org.junit.jupiter.api.Test;
 
 class PencilStrokeEndsTest {
    @Test
+   void movingGuidesKeepTheirEndsWhileTranslatedAndCameraScaled() {
+      Vec3 delta = new Vec3(1, 0.2, -0.3);
+      PencilStrokeEnds base = movingEnds(Vec3.ZERO, delta);
+      for (int frame = 0; frame < 100; frame++) {
+         Vec3 origin = new Vec3(frame * 0.003, frame * 0.014, -frame * 0.006);
+         PencilStrokeEnds moved = movingEnds(origin, origin.add(delta.scale(1 + frame * 0.001)));
+         assertEquals(base.start(), moved.start(), 1.0E-9);
+         assertEquals(base.end(), moved.end(), 1.0E-9);
+         PencilStrokeEnds reverse = movingEnds(origin.add(delta), origin);
+         assertEquals(base.start(), reverse.end(), 1.0E-9);
+         assertEquals(base.end(), reverse.start(), 1.0E-9);
+      }
+      assertTrue(base.start() > 0);
+      assertTrue(base.end() > 0);
+   }
+
+   @Test
+   void shortMovingGuidesScaleSmoothlyWithoutReseeding() {
+      PencilStrokeEnds base = movingEnds(Vec3.ZERO, new Vec3(0.4, 0, 0));
+      PencilStrokeEnds scaled = movingEnds(new Vec3(5, 6, 7), new Vec3(5.8, 6, 7));
+      assertEquals(base.start() * 2, scaled.start(), 1.0E-9);
+      assertEquals(base.end() * 2, scaled.end(), 1.0E-9);
+   }
+
+   private static PencilStrokeEnds movingEnds(Vec3 from, Vec3 to) {
+      return PencilStrokeEnds.forMovingLine(from, to, 0.15, 0.35, 0.02, 0.15);
+   }
+
+   @Test
    void eachEdgeHasDistinctLongAndShortEndsWithinRequestedRanges() {
       for (int x = -20; x <= 20; x++) {
          Vec3 from = new Vec3(x, 7, -13);

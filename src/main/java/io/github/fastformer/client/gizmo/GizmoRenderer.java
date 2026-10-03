@@ -20,7 +20,7 @@ public final class GizmoRenderer {
 
    private void renderLine(PoseStack poses, VertexConsumer vertices, Vec3 from, Vec3 to,
       float red, float green, float blue, float alpha) {
-      io.github.fastformer.client.render.guide.GuideRenderer.renderLine(
+      io.github.fastformer.client.render.guide.GuideRenderer.renderMovingLine(
          poses, vertices, from, to, red, green, blue, alpha, opacity);
    }
 

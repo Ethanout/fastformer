@@ -16,7 +16,7 @@
 {
   "version": 1,
   "colors": { "ink": "#FFFFFF", "start": "#268CFF", "control": "#FFC71F", "hover": "#1FFF4D" },
-  "values": { "candidate_alpha": 0.8, "confirmed_alpha": 0.85, "pending_min_alpha": 0.05, "pending_max_alpha": 0.30 }
+  "values": { "candidate_alpha": 0.8, "confirmed_alpha": 0.85, "pending_min_alpha": 0.25, "pending_max_alpha": 0.55 }
 }
 ```
 
@@ -55,7 +55,7 @@
 
 - `pencil_lines`：连续笔触与颗粒。
 - `shaders/include/pencil_stroke.glsl`、`pencil_pigment.glsl`：普通线与候选线共用的线宽、粗糙边缘和颜料颗粒。资源包可同时覆盖这两个文件。
-- `preview_material`：方块模型的局部后处理。输入为预览颜色、深度、逆视图投影矩阵和相机位置。
+- `preview_material`：方块模型的局部后处理。输入为预览颜色、深度、逆视图投影矩阵和相机位置。`MarkerTint` 为 1 时采用明亮主题色底与淡灰度纹理，用于所有起形控制点；为 0 时保持普通方块材质预览。
 - `preview_model`：预览模型的材质采样。透明像素跳过深度写入，草皮等叠层使用透明混合。`preview_material` 接收预乘颜色，合成前还原颜色。
 - `halo_lines`：主线的对比描边。
 - `pending_dashed_lines`、`halo_dashed_lines`：保留现有资源名，内容已改为连续候选线，不再按虚线区分阶段。

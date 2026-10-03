@@ -4,6 +4,7 @@ uniform sampler2D PreviewDepth;
 uniform mat4 InverseViewProjection;
 uniform vec3 CameraPosition;
 uniform vec4 PreviewTint;
+uniform float MarkerTint;
 uniform float HatchStrength;
 uniform float HatchScale;
 uniform float BoilFrame;
@@ -26,6 +27,14 @@ void main() {
     vec3 hatch = 1.0 - smoothstep(vec3(0.10), vec3(0.10) + width, abs(fract(phase) - 0.5));
     float pigment = fract(sin(dot(floor(world * 96.0), vec3(127.1, 311.7, 74.7)) + BoilFrame) * 43758.5453);
     float shade = 1.0 - HatchStrength * (dot(hatch, weights) * 0.65 + (1.0 - pigment) * 0.35);
+    vec3 color = material.rgb * PreviewTint.rgb * shade;
+    if (MarkerTint > 0.5) {
+        // Preserve hue and saturation while lifting muted pigments to a bright base.
+        vec3 pigmentColor = PreviewTint.rgb / max(max(PreviewTint.r, PreviewTint.g), max(PreviewTint.b, 0.0001));
+        float textureTone = clamp(dot(material.rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+        float faceShade = 0.86 + 0.14 * normal.y + 0.06 * normal.x;
+        color = pigmentColor * (0.90 + 0.10 * textureTone) * faceShade * mix(1.0, shade, 0.25);
+    }
     gl_FragDepth = depth;
-    fragColor = vec4(material.rgb * PreviewTint.rgb * shade, material.a * PreviewTint.a);
+    fragColor = vec4(color, material.a * PreviewTint.a);
 }

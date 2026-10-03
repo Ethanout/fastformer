@@ -28,14 +28,27 @@ public final class PreviewMaterialRenderer {
    public static float confirmedAlpha() { return VisualThemes.value("confirmed_alpha", 0.85F); }
 
    public static float pendingAlpha(float pulse) {
-      float min = VisualThemes.value("pending_min_alpha", 0.05F);
-      float max = VisualThemes.value("pending_max_alpha", 0.30F);
+      float min = VisualThemes.value("pending_min_alpha", 0.25F);
+      float max = VisualThemes.value("pending_max_alpha", 0.55F);
       return min + (max - min) * Math.clamp(pulse, 0, 1);
    }
 
    public static void draw(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
       Map<BlockPos, ClientBlockSnapshot> blocks, BlockAndTintGetter previewLevel,
       float red, float green, float blue, float alpha, boolean dynamic) {
+      draw(pose, buffers, minecraft, camera, blocks, previewLevel, red, green, blue, alpha, dynamic, false);
+   }
+
+   /** Semantic markers use bright pigment over a faint model texture. */
+   public static void drawMarker(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
+      Map<BlockPos, ClientBlockSnapshot> blocks, BlockAndTintGetter previewLevel,
+      float red, float green, float blue, float alpha, boolean dynamic) {
+      draw(pose, buffers, minecraft, camera, blocks, previewLevel, red, green, blue, alpha, dynamic, true);
+   }
+
+   private static void draw(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
+      Map<BlockPos, ClientBlockSnapshot> blocks, BlockAndTintGetter previewLevel,
+      float red, float green, float blue, float alpha, boolean dynamic, boolean marker) {
       if (blocks.isEmpty() || alpha <= 0) return;
       var shader = io.github.fastformer.client.render.style.VisualStyleHooks.shader(FastPlaceClientShaders.previewMaterial(),
          io.github.fastformer.client.render.style.VisualStyleContext.Pass.MATERIAL, dynamic);
@@ -63,6 +76,7 @@ public final class PreviewMaterialRenderer {
          shader.safeGetUniform("InverseViewProjection").set(inverse);
          shader.safeGetUniform("CameraPosition").set((float)camera.x, (float)camera.y, (float)camera.z);
          shader.safeGetUniform("PreviewTint").set(red, green, blue, alpha);
+         shader.safeGetUniform("MarkerTint").set(marker ? 1F : 0F);
          shader.safeGetUniform("HatchStrength").set(VisualThemes.value("hatch_strength", 0));
          shader.safeGetUniform("HatchScale").set(VisualThemes.value("hatch_scale", 12));
          shader.safeGetUniform("BoilFrame").set((float)io.github.fastformer.client.render.geometry.BoilClock.sheet(dynamic));

@@ -7,7 +7,6 @@ import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.shell.ShapeShellRenderer;
 import io.github.fastformer.client.render.type.PreviewRenderTypes;
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +19,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 
-/** Uses the placement model for the origin marker and shared control points as fallback. */
+/** Uses tinted placement models for every building point and shared controls as fallback. */
 final class BuildingPointPreviewRenderer {
    private BuildingPointPreviewRenderer() { }
 
@@ -31,7 +30,7 @@ final class BuildingPointPreviewRenderer {
       for (ControlPoint point : points) {
          BlockPos pos = BlockPos.containing(point.center());
          BlockState at = overrides.getOrDefault(pos, state);
-         if (point.role() != ControlPointRole.PRIMARY || minecraft.level == null || minecraft.player == null
+         if (minecraft.level == null || minecraft.player == null
             || at == null || at.getRenderShape() != RenderShape.MODEL
             || minecraft.getBlockRenderer().getBlockModel(at) == minecraft.getModelManager().getMissingModel()
             || io.github.fastformer.client.render.FastPlaceClientShaders.previewMaterial() == null) {
@@ -40,7 +39,7 @@ final class BuildingPointPreviewRenderer {
          }
          var style = point.feedback().style(point.role(), point.hovered());
          var level = PreviewBlockOcclusion.level(minecraft.level, Map.of(pos, at));
-         PreviewMaterialRenderer.draw(pose, buffers, minecraft, camera,
+         PreviewMaterialRenderer.drawMarker(pose, buffers, minecraft, camera,
             Map.of(pos, new ClientBlockSnapshot(at, null)), level,
             style.red(), style.green(), style.blue(), style.alpha() * opacity, !point.confirmed());
          var boxes = at.getShape(level, pos, CollisionContext.of(minecraft.player)).toAabbs().stream()
