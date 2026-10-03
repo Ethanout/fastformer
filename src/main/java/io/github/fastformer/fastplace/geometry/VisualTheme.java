@@ -5,10 +5,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /** Immutable, validated resource-pack values. Missing fields use the bundled defaults. */
-public record VisualTheme(Map<String, Integer> colors, Map<String, Float> values) {
-   public static final VisualTheme EMPTY = new VisualTheme(Map.of(), Map.of());
+public record VisualTheme(Map<String, Integer> colors, Map<String, Float> values, Map<String, DistanceCurve> curves) {
+   public static final VisualTheme EMPTY = new VisualTheme(Map.of(), Map.of(), Map.of());
 
    public VisualTheme {
+      curves = Map.copyOf(curves);
       colors = Map.copyOf(colors);
       values = Map.copyOf(values);
    }
@@ -37,6 +38,9 @@ public record VisualTheme(Map<String, Integer> colors, Map<String, Float> values
       float min = values.getOrDefault("pending_min_alpha", 0.05F);
       float max = values.getOrDefault("pending_max_alpha", 0.30F);
       if (min > max) throw new IllegalArgumentException("Pending minimum alpha exceeds maximum alpha");
-      return new VisualTheme(colors, values);
+      Map<String, DistanceCurve> curves = new HashMap<>();
+      if (json.has("curves")) json.getAsJsonObject("curves").entrySet().forEach(entry ->
+         curves.put(entry.getKey(), DistanceCurve.parse(entry.getValue().getAsJsonArray())));
+      return new VisualTheme(colors, values, curves);
    }
 }

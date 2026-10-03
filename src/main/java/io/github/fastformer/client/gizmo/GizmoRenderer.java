@@ -318,7 +318,43 @@ public final class GizmoRenderer {
       Vec3 center = gizmo.handleCenter(handle);
       double radius = gizmo.visualRadius(handle);
       float[] brightColor = gizmoHandleColor(handle);
-      renderSolidBox(poseStack, consumer, center, radius, brightColor[0], brightColor[1], brightColor[2], alpha);
+      if (io.github.fastformer.fastplace.geometry.GeometryPalette.humanist()) {
+         renderPencilBox(poseStack, consumer, center, radius,
+            brightColor[0], brightColor[1], brightColor[2], alpha);
+      } else {
+         renderSolidBox(poseStack, consumer, center, radius,
+            brightColor[0], brightColor[1], brightColor[2], alpha);
+      }
+   }
+
+   /** Humanist scale handles use the same hand-drawn edge language as the other gizmo parts. */
+   private void renderPencilBox(
+      PoseStack poseStack, VertexConsumer consumer, Vec3 center, double radius,
+      float red, float green, float blue, float alpha
+   ) {
+      double x0 = center.x - radius;
+      double y0 = center.y - radius;
+      double z0 = center.z - radius;
+      double x1 = center.x + radius;
+      double y1 = center.y + radius;
+      double z1 = center.z + radius;
+      Vec3 p000 = new Vec3(x0, y0, z0);
+      Vec3 p001 = new Vec3(x0, y0, z1);
+      Vec3 p010 = new Vec3(x0, y1, z0);
+      Vec3 p011 = new Vec3(x0, y1, z1);
+      Vec3 p100 = new Vec3(x1, y0, z0);
+      Vec3 p101 = new Vec3(x1, y0, z1);
+      Vec3 p110 = new Vec3(x1, y1, z0);
+      Vec3 p111 = new Vec3(x1, y1, z1);
+      Vec3[][] edges = {
+         {p000, p001}, {p000, p010}, {p000, p100},
+         {p001, p011}, {p001, p101}, {p010, p011},
+         {p010, p110}, {p100, p101}, {p100, p110},
+         {p011, p111}, {p101, p111}, {p110, p111}
+      };
+      for (Vec3[] edge : edges) {
+         renderLine(poseStack, consumer, edge[0], edge[1], red, green, blue, alpha);
+      }
    }
 
    private void renderSolidBox(

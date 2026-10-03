@@ -106,7 +106,13 @@ public final class FastPlaceClientShaders {
       shader.safeGetUniform("OccludedDash").set(0F, 0F);
       shader.safeGetUniform("OccludedOpacity").set(1F);
       shader.safeGetUniform("PencilGrain").set(VisualThemes.value("pencil_grain", 0));
-      shader.safeGetUniform("PencilNearWidth").set(VisualThemes.value("pencil_near_width", 1.15F));
+      shader.safeGetUniform("PencilNearWidth").set(VisualThemes.value("pencil_near_width", 1.35F));
+      var curve = VisualThemes.curve("line_width_by_distance").points();
+      shader.safeGetUniform("WidthCurveCount").set(curve.size());
+      for (int i = 0; i < curve.size(); i++) {
+         var point = curve.get(i);
+         shader.safeGetUniform("WidthCurve" + i).set(point.distance(), point.value(), point.tangent(), 0F);
+      }
       float frame = io.github.fastformer.client.render.geometry.BoilClock.sheet(dynamic);
       shader.safeGetUniform("BoilFrame").set(frame);
       var camera = net.minecraft.client.Minecraft.getInstance().gameRenderer.getMainCamera();

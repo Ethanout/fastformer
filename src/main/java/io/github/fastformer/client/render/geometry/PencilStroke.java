@@ -28,18 +28,21 @@ public final class PencilStroke {
          return;
       }
       int sheet = BoilClock.sheet(dynamic);
-      double fromScale = sheet == 0 ? 0 : worldPerPixel(pose, from);
-      double toScale = sheet == 0 ? 0 : worldPerPixel(pose, to);
-      double jitter = VisualThemes.value("boil_jitter_px", 0.25F);
-      Vec3 shiftedFrom = from.add(BoilJitter.cornerOffset(from, sheet, fromScale, jitter));
-      Vec3 shiftedTo = to.add(BoilJitter.cornerOffset(to, sheet, toScale, jitter));
+      double fromScale = worldPerPixel(pose, from);
+      double toScale = worldPerPixel(pose, to);
+      double fromJitterScale = fromScale * jitterMultiplier(pose, from);
+      double toJitterScale = toScale * jitterMultiplier(pose, to);
+      double jitter = VisualThemes.value("boil_jitter_px", 0.1875F);
+      Vec3 shiftedFrom = from.add(BoilJitter.cornerOffset(from, sheet, fromJitterScale, jitter));
+      Vec3 shiftedTo = to.add(BoilJitter.cornerOffset(to, sheet, toJitterScale, jitter));
       direction = shiftedTo.subtract(shiftedFrom).normalize();
       if (direction.lengthSqr() < 1.0E-14) return;
       // Hash the original endpoints so tiny offsets cannot swap the preferred long end.
       PencilStrokeEnds ends = PencilStrokeEnds.forLine(from, to,
          VisualThemes.value("pencil_long_min", 0.15F), VisualThemes.value("pencil_long_max", 0.35F),
          VisualThemes.value("pencil_short_min", 0.02F), VisualThemes.value("pencil_short_max", 0.15F),
-         sheet, VisualThemes.value("boil_overshoot_variation", 0.08F));
+         sheet, VisualThemes.value("boil_overshoot_variation", 0.08F)
+            * (jitterMultiplier(pose, from) + jitterMultiplier(pose, to)) * 0.5);
       Vec3 start = shiftedFrom.subtract(direction.scale(ends.start()));
       Vec3 end = shiftedTo.add(direction.scale(ends.end()));
       Vec3 side = direction.cross(Math.abs(direction.y) < 0.9 ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0)).normalize();
@@ -47,7 +50,10 @@ public final class PencilStroke {
       double dominant = Math.abs(side.x) >= Math.abs(side.y) && Math.abs(side.x) >= Math.abs(side.z) ? side.x
          : Math.abs(side.y) >= Math.abs(side.z) ? side.y : side.z;
       if (dominant < 0) side = side.scale(-1);
-      double bow = VisualThemes.value("boil_bow_px", 0.08F) * (fromScale + toScale) * 0.5 * BoilJitter.bow(from, to, sheet);
+      // Static marks use a fixed hash sheet for a small permanent pencil bow;
+      // animated marks use their current sheet so the bow can breathe.
+      double bow = VisualThemes.value("boil_bow_px", 0.08F) * (sheet == 0 ? fromScale + toScale : fromJitterScale + toJitterScale) * 0.5
+         * (sheet == 0 ? BoilJitter.staticBow(from, to) : BoilJitter.bow(from, to, sheet));
       segment(pose, vertices, start, shiftedFrom, direction, red, green, blue, alpha,
          dash.at(-ends.start() / length), dash.at(0));
       int count = bow == 0 ? 1 : 4;
@@ -61,6 +67,12 @@ public final class PencilStroke {
       }
       segment(pose, vertices, shiftedTo, end, direction, red, green, blue, alpha,
          dash.at(1), dash.at(1 + ends.end() / length));
+   }
+
+   private static double jitterMultiplier(PoseStack pose, Vec3 point) {
+      var transform = new org.joml.Matrix4f(com.mojang.blaze3d.systems.RenderSystem.getModelViewMatrix()).mul(pose.last().pose());
+      var view = transform.transformPosition((float)point.x, (float)point.y, (float)point.z, new org.joml.Vector3f());
+      return VisualThemes.curve("jitter_by_distance").at(view.length());
    }
 
    private static double worldPerPixel(PoseStack pose, Vec3 point) {

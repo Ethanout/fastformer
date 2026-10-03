@@ -35,6 +35,10 @@ public final class VisualThemes {
       return current().values().getOrDefault(name, fallback);
    }
 
+   public static io.github.fastformer.fastplace.geometry.DistanceCurve curve(String name) {
+      return current().curves().getOrDefault(name, io.github.fastformer.fastplace.geometry.DistanceCurve.CONSTANT);
+   }
+
    private static VisualTheme current() {
       return themes.getOrDefault(GeometryPalette.theme(), VisualTheme.EMPTY);
    }

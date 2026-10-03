@@ -17,6 +17,10 @@ final class BoilJitter {
       return sheet == 0 ? 0 : signed(seed(from.add(to).scale(0.5), sheet));
    }
 
+   static double staticBow(Vec3 from, Vec3 to) {
+      return signed(seed(from.add(to).scale(0.5), 1));
+   }
+
    private static long seed(Vec3 point, int sheet) {
       return mix(Math.round(point.x * 4096)) ^ Long.rotateLeft(mix(Math.round(point.y * 4096)), 21)
          ^ Long.rotateLeft(mix(Math.round(point.z * 4096)), 42) ^ mix(sheet);
