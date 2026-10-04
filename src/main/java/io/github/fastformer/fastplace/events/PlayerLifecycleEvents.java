@@ -80,12 +80,14 @@ public final class PlayerLifecycleEvents {
    private static void onPlayerLogout(PlayerLoggedOutEvent event) {
       if (event.getEntity() instanceof ServerPlayer player) {
          io.github.fastformer.server.input.ServerReachGate.remove(player);
+         io.github.fastformer.server.session.ServerIdleSession.remove(player);
          FastPlaceManager.detachPlayer(player);
       }
    }
 
    private static void onServerStarted(ServerStartedEvent event) {
       io.github.fastformer.server.input.ServerReachGate.clear();
+      io.github.fastformer.server.session.ServerIdleSession.clear();
       FastPlaceManager.clearServer();
       WorldHistoryManager.clearServer();
       WorldTaskFeature.clear();
@@ -98,6 +100,7 @@ public final class PlayerLifecycleEvents {
 
    private static void onServerStopping(ServerStoppingEvent event) {
       io.github.fastformer.server.input.ServerReachGate.clear();
+      io.github.fastformer.server.session.ServerIdleSession.clear();
       for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
          FastPlaceManager.remove(player);
       }

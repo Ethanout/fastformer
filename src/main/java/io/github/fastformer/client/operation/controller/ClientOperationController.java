@@ -456,6 +456,10 @@ public final class ClientOperationController {
       if (!draft) return submitDeletion(minecraft, parts, selected, false);
       var volume = io.github.fastformer.client.operation.selection.SelectionDraftPreview.volume(selectionDraft(), candidate);
       if (volume == null) return false;
+      // The server selection may close while the client scans the preview box.
+      // Retain the draft so the later workspace submission stays client-owned
+      // and does not fail the input-state identity check.
+      selectionSession().retain();
       var owner = workspace();
       var session = selectionSession();
       var before = draftSnapshot();

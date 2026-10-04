@@ -56,5 +56,6 @@ public final class ModifierGestureState {
    }
 
    public record Release(boolean routed, boolean cycleEligible, boolean shortPress) {
+      public boolean cyclesMode() { return cycleEligible && shortPress; }
    }
 }

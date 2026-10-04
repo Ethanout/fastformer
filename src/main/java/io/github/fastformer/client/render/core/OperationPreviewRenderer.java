@@ -213,7 +213,7 @@ final class OperationPreviewRenderer {
          ? face : null;
       OperationGeometry.RayHit displayedWorkspaceFaceHit = hoveredFace == null
          ? WORKSPACE_FACE_INTERPOLATOR.update(null, System.nanoTime())
-         : WORKSPACE_FACE_INTERPOLATOR.update(hoveredFace.hit(), System.nanoTime());
+         : WORKSPACE_FACE_INTERPOLATOR.update(hoveredFace.hit(), System.nanoTime(), hoveredFace.partId());
       int hoveredPartId = hoveredGizmo != null && !hoveredGizmo.common()
          ? hoveredGizmo.partId()
          : hoveredFace != null ? hoveredFace.partId()

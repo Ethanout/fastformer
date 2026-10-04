@@ -1,7 +1,7 @@
 {
   "version": 1,
   "colors": {
-    "confirmedOutline": "#000000",
+    "confirmedOutline": "#FFFFFF",
     "pendingOutline": "#FFFFFF",
     "ink": "#FFFFFF",
     "halo": "#000000",
@@ -32,8 +32,8 @@
   "values": {
     "halo_alpha": 0,
     "line_width": 0.5,
-    "gizmo_width": 2,
-    "gizmo_hover_width": 2,
+    "gizmo_width": 0.5,
+    "gizmo_hover_width": 0.5,
     "halo_extra_width": 0,
     "candidate_alpha": 0.8,
     "confirmed_alpha": 0.85,

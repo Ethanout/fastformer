@@ -14,17 +14,33 @@ public final class PencilStroke {
 
    public static void draw(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
       float red, float green, float blue, float alpha, boolean dynamic) {
-      draw(pose, vertices, from, to, red, green, blue, alpha, dynamic, false);
+      draw(pose, vertices, from, to, red, green, blue, alpha, dynamic, false, -1);
    }
 
    /** Anchors guide strokes to their local direction while their world geometry moves. */
    public static void drawMovingGuide(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
       float red, float green, float blue, float alpha) {
-      draw(pose, vertices, from, to, red, green, blue, alpha, false, true);
+      drawMovingGuide(pose, vertices, from, to, red, green, blue, alpha, -1);
+   }
+
+   public static void drawMovingGuide(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
+      float red, float green, float blue, float alpha, double shortOvershoot) {
+      drawMovingGuide(pose, vertices, from, to, red, green, blue, alpha, shortOvershoot, 1.0);
+   }
+
+   public static void drawMovingGuide(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
+      float red, float green, float blue, float alpha, double shortOvershoot, double overshootScale) {
+      draw(pose, vertices, from, to, red, green, blue, alpha, false, true, shortOvershoot, overshootScale);
    }
 
    private static void draw(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
-      float red, float green, float blue, float alpha, boolean dynamic, boolean movingGuide) {
+      float red, float green, float blue, float alpha, boolean dynamic, boolean movingGuide, double shortOvershoot) {
+      draw(pose, vertices, from, to, red, green, blue, alpha, dynamic, movingGuide, shortOvershoot, 1.0);
+   }
+
+   private static void draw(PoseStack pose, VertexConsumer vertices, Vec3 from, Vec3 to,
+      float red, float green, float blue, float alpha, boolean dynamic, boolean movingGuide,
+      double shortOvershoot, double overshootScale) {
       Vec3 delta = to.subtract(from);
       double length = delta.length();
       if (length < 1.0E-7) return;
@@ -51,14 +67,17 @@ public final class PencilStroke {
       // Hash the original endpoints so tiny offsets cannot swap the preferred long end.
       PencilStrokeEnds ends = movingGuide ? PencilStrokeEnds.forMovingLine(from, to,
          VisualThemes.value("pencil_long_min", 0.15F), VisualThemes.value("pencil_long_max", 0.35F),
-         VisualThemes.value("pencil_short_min", 0.02F), VisualThemes.value("pencil_short_max", 0.15F))
+         shortOvershoot >= 0 ? shortOvershoot : VisualThemes.value("pencil_short_min", 0.02F),
+         shortOvershoot >= 0 ? shortOvershoot : VisualThemes.value("pencil_short_max", 0.15F))
          : PencilStrokeEnds.forLine(from, to,
          VisualThemes.value("pencil_long_min", 0.15F), VisualThemes.value("pencil_long_max", 0.35F),
          VisualThemes.value("pencil_short_min", 0.02F), VisualThemes.value("pencil_short_max", 0.15F),
          sheet, VisualThemes.value("boil_overshoot_variation", 0.08F)
             * (jitterMultiplier(pose, from) + jitterMultiplier(pose, to)) * 0.5);
-      Vec3 start = shiftedFrom.subtract(direction.scale(ends.start()));
-      Vec3 end = shiftedTo.add(direction.scale(ends.end()));
+      double startOvershoot = ends.start() * overshootScale;
+      double endOvershoot = ends.end() * overshootScale;
+      Vec3 start = shiftedFrom.subtract(direction.scale(startOvershoot));
+      Vec3 end = shiftedTo.add(direction.scale(endOvershoot));
       Vec3 side = direction.cross(Math.abs(direction.y) < 0.9 ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0)).normalize();
       // Canonicalize the bow direction when the same edge is visited in reverse.
       double dominant = Math.abs(side.x) >= Math.abs(side.y) && Math.abs(side.x) >= Math.abs(side.z) ? side.x
@@ -71,7 +90,7 @@ public final class PencilStroke {
       double bow = VisualThemes.value("boil_bow_px", 0.08F) * (sheet == 0 ? fromScale + toScale : fromJitterScale + toJitterScale) * 0.5
          * bowSeed;
       segment(pose, vertices, start, shiftedFrom, direction, red, green, blue, alpha,
-         dash.at(-ends.start() / length), dash.at(0));
+         dash.at(-startOvershoot / length), dash.at(0));
       int count = bow == 0 ? 1 : 4;
       Vec3 previous = shiftedFrom;
       for (int i = 1; i <= count; i++) {
@@ -82,7 +101,7 @@ public final class PencilStroke {
          previous = next;
       }
       segment(pose, vertices, shiftedTo, end, direction, red, green, blue, alpha,
-         dash.at(1), dash.at(1 + ends.end() / length));
+         dash.at(1), dash.at(1 + endOvershoot / length));
    }
 
    private static double jitterMultiplier(PoseStack pose, Vec3 point) {

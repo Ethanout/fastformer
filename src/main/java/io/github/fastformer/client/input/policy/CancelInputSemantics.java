@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input.policy;
 
+import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
+
 /** Pure policy for the FastFormer cancel key. */
 public final class CancelInputSemantics {
    public static final int PRESS = 1;
@@ -7,6 +9,14 @@ public final class CancelInputSemantics {
    public static final int ESCAPE_KEY = 256;
 
    private CancelInputSemantics() {
+   }
+
+   public static boolean canYieldToVanilla(State observed, State routed, boolean pendingInteraction) {
+      return observed == State.IDLE && routed == State.IDLE && !pendingInteraction;
+   }
+
+   public static boolean manualEntry(int action, int key, State state, boolean mainHandEmpty) {
+      return action == PRESS && key == CANCEL_KEY && state == State.IDLE_MANUAL && mainHandEmpty;
    }
 
    public static Decision decide(
@@ -53,13 +63,14 @@ public final class CancelInputSemantics {
       boolean cancelKeyBoundToVanillaDrop
    ) {
       return decision.command() != Command.IGNORE
-         && decision.command() != Command.REPORT_SUBMISSION_PENDING
          && cancelKeyBoundToVanillaDrop;
    }
 
    public enum Command {
       IGNORE,
       REPORT_SUBMISSION_PENDING,
+      SUSPEND_IDLE,
+      ENTER_MANUAL,
       REQUEST_CANCEL
    }
 

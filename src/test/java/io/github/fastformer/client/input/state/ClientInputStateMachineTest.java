@@ -44,11 +44,15 @@ class ClientInputStateMachineTest {
       ClientInputStateMachine.Dispatch B = ClientInputStateMachine.Dispatch.BLOCKED;
       ClientInputStateMachine.Dispatch C = ClientInputStateMachine.Dispatch.CANCEL;
       ClientInputStateMachine.Dispatch V = ClientInputStateMachine.Dispatch.VANILLA;
+      ClientInputStateMachine.Dispatch X = ClientInputStateMachine.Dispatch.VANILLA_ONLY;
       ClientInputStateMachine.Dispatch F = ClientInputStateMachine.Dispatch.BUILDING;
       ClientInputStateMachine.Dispatch G = ClientInputStateMachine.Dispatch.GEOMETRY;
       ClientInputStateMachine.Dispatch O = ClientInputStateMachine.Dispatch.OPERATION;
       ClientInputStateMachine.Dispatch[][] expected = {
          {V, B, V, V, V, B, V, B},
+         {X, B, X, X, X, B, B, B},
+         {X, B, X, X, X, B, B, B},
+         {X, B, X, X, X, B, B, B},
          {V, B, V, V, V, B, B, B},
          {F, F, F, F, F, B, B, C},
          {G, G, G, G, G, B, B, C},
@@ -293,6 +297,21 @@ class ClientInputStateMachineTest {
       assertTrue(state.completeSubmission(13, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
          ClientInputStateMachine.State.PLACING));
       assertEquals(ClientInputStateMachine.State.PLACING, state.state());
+   }
+
+   @Test
+   void selectingCanSubmitDeletionWithoutFirstCreatingAWorkspacePart() {
+      var state = new ClientInputStateMachine();
+      state.observe(ClientInputStateMachine.State.SELECTING);
+      assertFalse(state.submit(3L));
+      var transfer = java.util.UUID.randomUUID();
+      assertTrue(state.submit(transfer));
+      assertEquals(ClientInputStateMachine.State.SUBMITTING, state.state());
+      assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, state.dispatch(ClientInputStateMachine.InputKind.POINTER));
+      assertFalse(state.submit(java.util.UUID.randomUUID()));
+      assertTrue(state.completeSubmission(transfer, ClientInputStateMachine.SubmissionEvent.FAILED,
+         ClientInputStateMachine.State.SELECTING));
+      assertEquals(ClientInputStateMachine.State.SELECTING, state.state());
    }
 
    @Test
@@ -553,6 +572,9 @@ class ClientInputStateMachineTest {
       ClientInputStateMachine machine = new ClientInputStateMachine();
       switch (state) {
          case IDLE -> { }
+         case IDLE_MANUAL -> machine.onEvent(new ClientSemanticEvent.ConfigureActivation(io.github.fastformer.fastplace.session.SessionActivationMode.MANUAL));
+         case IDLE_WAITING_FOR_FAR_ENTRY -> machine.onEvent(new ClientSemanticEvent.SuspendIdle(false));
+         case IDLE_WAITING_FOR_FAR_EXIT -> machine.onEvent(new ClientSemanticEvent.SuspendIdle(true));
          case SUBMITTING -> {
             machine.observe(ClientInputStateMachine.State.BUILDING);
             assertTrue(machine.submit(1L));

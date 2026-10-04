@@ -517,7 +517,11 @@ public final class ServerInputDispatcher {
          FastPlaceManager.cycleStageMode(player, hasLineCandidate ? trustedLineCandidate(player, lineCandidate) : null);
          return true;
       }
-      OperationManager.cycleMode(player);
+      if (PlaceableItems.isPlaceable(player.getMainHandItem())) {
+         FastPlaceManager.cycleStageMode(player);
+      } else {
+         OperationManager.cycleMode(player);
+      }
       return true;
    }
 
@@ -657,8 +661,20 @@ public final class ServerInputDispatcher {
       if (payload.eye().distanceToSqr(player.getEyePosition()) > player.blockInteractionRange() * player.blockInteractionRange()) return;
       BlockHitResult hit = LongRangeBlockRaycast.clipForPlacement(player.level(), player, payload.eye(), payload.view()).hit();
       if (payload.action() != io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.MIDDLE
+         && payload.action() != io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.SUBMIT_CURRENT
          && hit.getType() == HitResult.Type.BLOCK && withinNormalBlockReach(player, hit.getLocation())) return;
       switch (payload.action()) {
+         case SUBMIT_CURRENT -> {
+            QuickShapeDraft draft = FastPlaceManager.session(player).orElse(null);
+            if (draft != null && candidateContext.modifierHeld() == payload.modifierHeld()
+               && draft.points().equals(candidateContext.points())
+               && candidateContext.resolve(hit, payload.eye(), payload.view()).equals(payload.candidate())
+               && io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(
+                  draft.points(), payload.candidate(),
+                  FastPlaceSettings.load(player).faceMode(), draft.polygonClosed())) {
+               FastPlaceManager.fillConfirmed(player);
+            }
+         }
          case CLOSE -> FastPlaceManager.closePolygon(player);
          case UNDO -> throw new IllegalStateException("Undo was already dispatched");
          case POINT -> FastPlaceManager.confirmCapturedPoint(player, payload, hit, candidateContext);
@@ -992,11 +1008,13 @@ public final class ServerInputDispatcher {
    }
 
    private static boolean withinNormalBlockReach(ServerPlayer player, Vec3 eye, Vec3 point) {
-      return ServerReachGate.vanillaAt(player, point.distanceTo(eye));
+      return io.github.fastformer.server.session.ServerIdleSession.state(player).vanillaOwnsInput(
+         ServerReachGate.vanillaAt(player, point.distanceTo(eye)));
    }
 
    private static boolean withinNormalBlockReach(ServerPlayer player, AABB box) {
-      return ServerReachGate.vanillaAt(player, Math.sqrt(box.distanceToSqr(player.getEyePosition())));
+      return io.github.fastformer.server.session.ServerIdleSession.state(player).vanillaOwnsInput(
+         ServerReachGate.vanillaAt(player, Math.sqrt(box.distanceToSqr(player.getEyePosition()))));
    }
 
    private static AxisGizmo.Operation gizmoOperation(int operation) {

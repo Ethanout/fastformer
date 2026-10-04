@@ -16,7 +16,7 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.registries.DataPackRegistryEvent;
 
-/** Explicit wood families keep material changes separate from end-grain rotation. */
+/** Data-defined wood variants toggle bark coverage and stripping without rotating the block. */
 public record TinkerWoodFamily(Block log, Block stripped, Block bark, Optional<Block> strippedBark) {
    public static final ResourceKey<Registry<TinkerWoodFamily>> REGISTRY = ResourceKey.createRegistryKey(
       ResourceLocation.fromNamespaceAndPath(FastFormer.MOD_ID, "tinker_wood"));
@@ -50,10 +50,22 @@ public record TinkerWoodFamily(Block log, Block stripped, Block bark, Optional<B
    }
 
    BlockState apply(BlockState state, BlockHitResult hit) {
-      if ((state.is(log) || state.is(stripped)) && hit.getDirection().getAxis() == state.getValue(BlockStateProperties.AXIS)) {
-         return state.cycle(BlockStateProperties.AXIS);
-      }
-      Block next = state.is(log) ? stripped : state.is(bark) ? log : bark;
+      boolean endGrain = hit.getDirection().getAxis() == state.getValue(BlockStateProperties.AXIS);
+      Block next = endGrain ? toggleBark(state.getBlock()) : toggleStripping(state.getBlock());
       return next.withPropertiesOf(state);
+   }
+
+   private Block toggleBark(Block block) {
+      if (block == log) return bark;
+      if (block == bark) return log;
+      if (block == stripped) return strippedBark.orElse(block);
+      return strippedBark.orElse(null) == block ? stripped : block;
+   }
+
+   private Block toggleStripping(Block block) {
+      if (block == log) return stripped;
+      if (block == stripped) return log;
+      if (block == bark) return strippedBark.orElse(block);
+      return strippedBark.orElse(null) == block ? bark : block;
    }
 }

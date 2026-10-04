@@ -167,12 +167,12 @@ class ClientInputSessionTest {
 
       var nether = activate(manager, playerId, "server", "nether");
       assertNotSame(oldInput, nether.inputSession());
-      assertEquals(ClientInputStateMachine.State.IDLE, oldInput.routing.state());
+      assertEquals(ClientInputStateMachine.State.IDLE_MANUAL, oldInput.routing.state());
       assertEquals(PointerGestureState.Kind.NONE, oldInput.pointerGesture.kind());
       nether.inputSession().routing.observe(ClientInputStateMachine.State.BUILDING);
       assertSame(overworld, activate(manager, playerId, "server", "overworld"));
-      assertEquals(ClientInputStateMachine.State.IDLE, oldInput.routing.state());
-      assertEquals(ClientInputStateMachine.State.IDLE, nether.inputSession().routing.state());
+      assertEquals(ClientInputStateMachine.State.IDLE_MANUAL, oldInput.routing.state());
+      assertEquals(ClientInputStateMachine.State.IDLE_MANUAL, nether.inputSession().routing.state());
    }
 
    @Test
@@ -185,7 +185,7 @@ class ClientInputSessionTest {
       first.selectionSession().addDraftPoint(BlockPos.ZERO);
       first.inputSession().routing.observe(ClientInputStateMachine.State.BUILDING);
       var second = activate(manager, UUID.randomUUID(), "a", "overworld");
-      assertEquals(ClientInputStateMachine.State.IDLE, first.inputSession().routing.state());
+      assertEquals(ClientInputStateMachine.State.IDLE_MANUAL, first.inputSession().routing.state());
       assertTrue(first.selectionSession().hasDraft());
       second.inputSession().modifier.press(100, true, true);
       var third = activate(manager, playerId, "b", "overworld");

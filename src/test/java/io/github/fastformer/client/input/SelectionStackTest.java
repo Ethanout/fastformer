@@ -84,6 +84,7 @@ class SelectionStackTest {
    @BeforeEach void reset() {
       ClientOperationController.onDisconnected();
       FastPlaceClientInput.inputSession().reset();
+      FastPlaceClientInput.inputSession().routing.onEvent(io.github.fastformer.client.input.state.ClientSemanticEvent.EnterManual.INSTANCE);
    }
 
    @AfterEach void clear() { reset(); }

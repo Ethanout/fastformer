@@ -27,12 +27,12 @@ public final class ServerReachGate {
 
    public static void tick(ServerPlayer player) {
       if (io.github.fastformer.fastplace.placement.replace.QuickReplaceManager.active(player)) {
-         STATES.remove(player);
+         remove(player);
          return;
       }
       var settings = FastPlaceSettings.load(player);
       if (!player.isCreative() || !settings.enabled()) {
-         STATES.remove(player);
+         remove(player);
          return;
       }
       var hit = LongRangeBlockRaycast.clipForReachTransition(player.level(), player, player.getEyePosition(), player.getViewVector(1)).hit();

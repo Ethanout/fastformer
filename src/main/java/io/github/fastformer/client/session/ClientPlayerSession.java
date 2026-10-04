@@ -11,7 +11,7 @@ import java.util.UUID;
 public final class ClientPlayerSession {
    private final UUID playerId;
    private final ClientSelectionSession selectionSession = new ClientSelectionSession();
-   private final ClientInputSession inputSession = new ClientInputSession();
+   private final ClientInputSession inputSession;
    private ClientOperationDraft suspendedOperationDraft;
    private ClientOperationDraft.Remainder submissionRemainder;
 
@@ -20,7 +20,12 @@ public final class ClientPlayerSession {
    }
 
    public ClientPlayerSession(UUID playerId) {
+      this(playerId, io.github.fastformer.fastplace.session.SessionActivationMode.AUTOMATIC);
+   }
+
+   public ClientPlayerSession(UUID playerId, io.github.fastformer.fastplace.session.SessionActivationMode mode) {
       this.playerId = Objects.requireNonNull(playerId, "playerId");
+      this.inputSession = new ClientInputSession(mode);
    }
 
    public UUID playerId() {

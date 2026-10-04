@@ -7,8 +7,7 @@ public final class ReachTransition {
    private boolean vanilla;
 
    public boolean update(double distance, ReachThresholds thresholds) {
-      vanilla = thresholds.vanillaAt(vanilla, distance);
-      return vanilla;
+      return update(distance, thresholds, thresholds.far());
    }
 
    public boolean update(double distance, ReachThresholds thresholds, double currentReach) {

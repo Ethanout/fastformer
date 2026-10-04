@@ -42,6 +42,7 @@ public record InteractionContext(
    }
 
    public static boolean nearVanillaBlock(Minecraft minecraft) {
+      if (FastPlaceClientInput.idleSessionSuspended()) return true;
       LocalPlayer player = minecraft.player;
       if (player == null) {
          return false;
@@ -65,7 +66,7 @@ public record InteractionContext(
       if (FastPlaceClientPreview.operationActive() || ClientOperationController.active()) {
          return false;
       }
-      return ClientReachGate.vanilla();
+      return FastPlaceClientInput.idleSessionState().vanillaOwnsInput(ClientReachGate.vanilla());
    }
 
    /** Advances the near-vanilla gate once per client tick. */
@@ -83,7 +84,8 @@ public record InteractionContext(
          DISAPPEARANCE.reset();
          return;
       }
-      DISAPPEARANCE.tick(true, ClientReachGate.vanilla(), FastPlaceClientPreview.previewRaycastTarget(player));
+      DISAPPEARANCE.tick(true, FastPlaceClientInput.idleSessionState().vanillaOwnsInput(ClientReachGate.vanilla()),
+         FastPlaceClientPreview.previewRaycastTarget(player));
    }
 
    public static float previewVisibility(Minecraft minecraft) {
@@ -96,6 +98,8 @@ public record InteractionContext(
     * layer share the same transition instead of stepping independently.
     */
    public static float previewVisibility(Minecraft minecraft, float partialTick) {
+      if (FastPlaceClientInput.idleSessionSuspended()) return 0.0F;
+      if (FastPlaceClientInput.idleSessionState() == io.github.fastformer.fastplace.session.IdleSessionState.MANUAL_FF) return 1.0F;
       if (shouldForceFullPreviewVisibility(
          minecraft.player != null,
          FastPlaceClientPreview.operationActive(),

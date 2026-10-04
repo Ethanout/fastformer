@@ -47,6 +47,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private Button worldHistoryButton;
    private Button sessionHistoryButton;
    private Button themeButton;
+   private Button activationModeButton;
 
    public FastFormerSettingsScreen(
       boolean middleConfirmEnabled,
@@ -121,8 +122,15 @@ public final class FastFormerSettingsScreen extends Screen {
       );
       this.themeButton = this.addRenderableWidget(
          Button.builder(this.themeLabel(), button -> this.cycleTheme())
-            .bounds(leftX, top + 136, 200, 20)
+            .bounds(leftX, top + 136, 96, 20)
             .build()
+      );
+      this.activationModeButton = this.addRenderableWidget(
+         Button.builder(this.activationModeLabel(), button -> {
+            FastFormerClientConfig.setActivationMode(FastFormerClientConfig.activationMode().next());
+            this.activationModeButton.setMessage(this.activationModeLabel());
+         }).bounds(leftX + 104, top + 136, 96, 20)
+            .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("fastformer.settings.activation_hint"))).build()
       );
       int effectRow = 0;
       this.placementEffectButtons.clear();
@@ -174,6 +182,7 @@ public final class FastFormerSettingsScreen extends Screen {
       this.labelAt(graphics, "fastformer.settings.placement_conflict", leftX, top + 57);
       this.labelAt(graphics, "fastformer.settings.placement_update", leftX, top + 91);
       this.labelAt(graphics, "fastformer.settings.theme", leftX, top + 125);
+      this.labelAt(graphics, "fastformer.settings.activation", leftX + 104, top + 125);
       int effectRow = 0;
       for (PlacementEffect effect : PlacementEffectRegistry.effects()) {
          this.labelAt(graphics, effect.translationKey(), rightX, top + effectRow * 34 - 11);
@@ -193,6 +202,10 @@ public final class FastFormerSettingsScreen extends Screen {
       if (minecraft.getConnection() != null && NetworkRegistry.hasChannel(minecraft.getConnection(), MiddleConfirmSettingPayload.TYPE.id())) {
          PacketDistributor.sendToServer(new MiddleConfirmSettingPayload(this.middleConfirmEnabled), new CustomPacketPayload[0]);
       }
+   }
+
+   private Component activationModeLabel() {
+      return Component.translatable(FastFormerClientConfig.activationMode().translationKey());
    }
 
    private Component middleConfirmLabel() {

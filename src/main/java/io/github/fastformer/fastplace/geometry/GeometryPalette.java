@@ -90,7 +90,7 @@ public final class GeometryPalette {
    private static Swatches s() { return theme().swatches(); }
 
    public static Color ink() { return io.github.fastformer.fastplace.geometry.GeometryPalette.color("ink", s().ink()); }
-   public static Color confirmedOutline() { return color("confirmedOutline", humanist() ? new Color(0xF4F1EA) : new Color(0x000000)); }
+   public static Color confirmedOutline() { return color("confirmedOutline", s().ink()); }
    public static Color pendingOutline() { return color("pendingOutline", s().ink()); }
    public static Color halo() { return io.github.fastformer.fastplace.geometry.GeometryPalette.color("halo", s().halo()); }
    public static float haloAlpha() { return io.github.fastformer.fastplace.geometry.GeometryPalette.value("halo_alpha", s().haloAlpha()); }

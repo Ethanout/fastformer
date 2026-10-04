@@ -12,7 +12,7 @@ import net.minecraft.world.phys.Vec3;
 /** A pointer action addresses the draft and candidate seen at physical press time. */
 public record QuickShapePointerPayload(long revision, OperationCallbackScope scope, Action action,
    BlockPos candidate, Vec3 eye, Vec3 view, boolean modifierHeld, long requestId) implements CustomPacketPayload {
-   public enum Action { POINT, CLOSE, MIDDLE, UNDO }
+   public enum Action { POINT, CLOSE, MIDDLE, UNDO, SUBMIT_CURRENT }
 
    public static final Type<QuickShapePointerPayload> TYPE = new Type<>(
       ResourceLocation.fromNamespaceAndPath("fastformer", "quick_shape_pointer"));

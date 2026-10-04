@@ -51,7 +51,11 @@ final class QuickShapeMouseInputController {
       if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) != ClientInputStateMachine.Dispatch.BUILDING) return false;
       boolean middle = button == MouseButtonInputSemantics.MIDDLE_BUTTON;
       if (!middle && button != MouseButtonInputSemantics.RIGHT_BUTTON) return false;
-      if (!middle && InteractionContext.nearVanillaBlock(minecraft)) return false;
+      var draft = FastPlaceClientPreview.buildingSubmission().orElse(null);
+      var path = PathCloseInputDispatcher.capture(false, occurredAtNanos);
+      boolean overlap = draft != null && io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(
+         draft.data().points(), path.candidate(), draft.data().faceMode(), draft.data().polygonClosed());
+      if (!middle && !overlap && InteractionContext.nearVanillaBlock(minecraft)) return false;
       if (middle && FastPlaceClientPreview.buildingMiddleClickIgnored()) {
          if (action == MouseButtonInputSemantics.PRESS) session.captureQuickShapeButton(button);
          return true;
@@ -59,8 +63,6 @@ final class QuickShapeMouseInputController {
       if (action != MouseButtonInputSemantics.PRESS
          || middle && !FastPlaceClientPreview.middleConfirmEnabled()
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), QuickShapePointerPayload.TYPE.id())) return false;
-      var draft = FastPlaceClientPreview.buildingSubmission().orElse(null);
-      var path = PathCloseInputDispatcher.capture(false, occurredAtNanos);
       if (!session.captureQuickShapeButton(button)) return true;
       if (draft == null || path.candidate() == null) return true;
       session.postQuickShapePointer(new QuickShapePointerPress(draft, path,
@@ -72,7 +74,10 @@ final class QuickShapeMouseInputController {
       if (!press.matches(session.routing, FastPlaceClientPreview.buildingSubmission().orElse(null))) return;
       session.modifier.consume();
       QuickShapePointerPayload.Action action = press.middle() ? QuickShapePointerPayload.Action.MIDDLE
-         : press.path().closes(session.pathClose) ? QuickShapePointerPayload.Action.CLOSE : QuickShapePointerPayload.Action.POINT;
+         : io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(press.draft().data().points(), press.path().candidate(),
+            press.draft().data().faceMode(), press.draft().data().polygonClosed())
+            ? QuickShapePointerPayload.Action.SUBMIT_CURRENT
+            : press.path().closes(session.pathClose) ? QuickShapePointerPayload.Action.CLOSE : QuickShapePointerPayload.Action.POINT;
       ClientPlacementRouter.quickShapePointer(minecraft, press.draft().revision(), press.draft().scope(), action,
          press.path().candidate(), press.eye(), press.view(), press.modifierHeld());
    }

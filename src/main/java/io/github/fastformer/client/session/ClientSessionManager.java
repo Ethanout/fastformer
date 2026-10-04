@@ -124,7 +124,8 @@ public final class ClientSessionManager {
          // this scope are cleared once more before the draft file is read.
          this.cleanupReplayed.remove(nextKey);
       }
-      ClientPlayerSession next = playerSessions.computeIfAbsent(nextKey, ignored -> new ClientPlayerSession(playerId));
+      ClientPlayerSession next = playerSessions.computeIfAbsent(nextKey, ignored -> new ClientPlayerSession(playerId,
+         io.github.fastformer.client.FastFormerClientConfig.activationMode()));
       if (scopeChanged || firstActivation) next.resetInput();
       return current = next;
    }

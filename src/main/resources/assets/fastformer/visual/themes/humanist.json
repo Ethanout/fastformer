@@ -1,9 +1,9 @@
 {
   "version": 1,
   "colors": {
-    "confirmedOutline": "#F4F1EA",
-    "pendingOutline": "#F4F1EA",
-    "ink": "#F4F1EA",
+    "confirmedOutline": "#FFFDF7",
+    "pendingOutline": "#FFFDF7",
+    "ink": "#FFFDF7",
     "halo": "#2E2A26",
     "ochre": "#D9B36A",
     "brick": "#D0735F",
@@ -30,17 +30,20 @@
     "hover": "#9FB87C"
   },
   "curves": {
-    "line_width_by_distance": [[0, 1], [5, 1], [20, 0.65], [64, 0.35]],
+    "line_width_by_distance": [[0, 1.5], [5, 1], [20, 0.65], [64, 0.35]],
     "jitter_by_distance": [[0, 1], [5, 1], [20, 0.5], [64, 0.15]]
   },
   "values": {
-    "halo_alpha": 0.2,
+    "line_white_mix": 0.25,
+    "halo_alpha": 0.5,
     "line_width": 0.8,
     "gizmo_width": 0.8,
     "gizmo_hover_width": 1,
+    "gizmo_short_overshoot": 0.12,
+    "gizmo_overshoot_scale": 0.5,
     "halo_extra_width": 0.5,
-    "candidate_alpha": 0.6,
-    "confirmed_alpha": 0.85,
+    "candidate_alpha": 0.8,
+    "confirmed_alpha": 1,
     "pending_min_alpha": 0.25,
     "pending_max_alpha": 0.55,
     "pencil_grain": 0.9,

@@ -8,6 +8,18 @@ import org.junit.jupiter.api.Test;
 
 class PencilStrokeEndsTest {
    @Test
+   void fixedShortEndSurvivesTranslationScalingAndReversal() {
+      for (Vec3 delta : new Vec3[]{new Vec3(1, 0, 0), new Vec3(0, 0.3, 0), new Vec3(-0.5, 0, 0)}) {
+         Vec3 origin = new Vec3(3.125, 8.3, -12.56);
+         PencilStrokeEnds ends = PencilStrokeEnds.forMovingLine(origin, origin.add(delta), 0.15, 0.35, 0.12, 0.12);
+         assertEquals(0.12 * Math.min(1, delta.length()), Math.min(ends.start(), ends.end()), 1.0E-9);
+         PencilStrokeEnds reverse = PencilStrokeEnds.forMovingLine(origin.add(delta), origin, 0.15, 0.35, 0.12, 0.12);
+         assertEquals(ends.start(), reverse.end(), 1.0E-9);
+         assertEquals(ends.end(), reverse.start(), 1.0E-9);
+      }
+   }
+
+   @Test
    void movingGuidesKeepTheirEndsWhileTranslatedAndCameraScaled() {
       Vec3 delta = new Vec3(1, 0.2, -0.3);
       PencilStrokeEnds base = movingEnds(Vec3.ZERO, delta);

@@ -144,7 +144,7 @@ public class FastPlaceClientPreviewCore {
    private static final int CONFIRMED_FACE_BLOCK_LIMIT = 16000;
    static final float GHOST_FACE_ALPHA_MIN = 0.10F;
    static final float GHOST_FACE_ALPHA_MAX = PreviewStyle.FACE_ALPHA;
-   private static final long FACE_NORMAL_INTERPOLATION_NANOS = 50_000_000L;
+   private static final long FACE_NORMAL_INTERPOLATION_NANOS = 100_000_000L;
    private static final long PREVIEW_FAILURE_LOG_INTERVAL_NANOS = 5_000_000_000L;
    static final float SELECTION_HIGHLIGHT_ALPHA = PreviewStyle.FACE_HOVER_ALPHA;
    static final float GHOST_OUTLINE_ALPHA_MIN = 0.70F;
@@ -942,6 +942,7 @@ public class FastPlaceClientPreviewCore {
 
    @SubscribeEvent
    public static void onRenderGui(Post event) {
+      if (io.github.fastformer.client.input.FastPlaceClientInput.idleSessionSuspended()) return;
       Minecraft minecraft = Minecraft.getInstance();
       GuiGraphics graphics = event.getGuiGraphics();
       if (minecraft.screen instanceof io.github.fastformer.client.ui.FastFormerSettingsScreen
@@ -1730,6 +1731,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static boolean hasVisibleBlueOutline(Minecraft minecraft) {
+      if (io.github.fastformer.client.input.FastPlaceClientInput.idleSessionSuspended()) return false;
       var player = minecraft.player;
       if (player == null || minecraft.level == null || QuickReplaceMode.active()) return false;
       var snapshot = PREVIEW_STATE.building();
@@ -1749,6 +1751,7 @@ public class FastPlaceClientPreviewCore {
 
    @SubscribeEvent
    public static void onRenderLevelStage(RenderLevelStageEvent event) {
+      if (io.github.fastformer.client.input.FastPlaceClientInput.idleSessionSuspended()) return;
       long revision = io.github.fastformer.client.render.theme.VisualThemes.revision();
       if (renderedThemeRevision != revision) {
          onThemeChanged();

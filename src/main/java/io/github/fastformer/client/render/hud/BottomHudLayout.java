@@ -11,6 +11,7 @@ public final class BottomHudLayout {
    private final int itemNameY;
    private final boolean itemNameVisible;
    private final boolean actionBarVisible;
+   private final int actionBarY;
    private int nextLineY;
 
    public BottomHudLayout(int screenHeight, int leftHeight, int rightHeight, boolean canHurtPlayer,
@@ -19,6 +20,8 @@ public final class BottomHudLayout {
       nextLineY = itemNameY;
       this.itemNameVisible = itemNameVisible;
       this.actionBarVisible = actionBarVisible;
+      // Vanilla centers the action bar at height - 68, with a text offset of -4.
+      actionBarY = screenHeight - 72;
    }
 
    public static BottomHudLayout forFrame(GuiGraphics graphics, Minecraft minecraft) {
@@ -40,12 +43,18 @@ public final class BottomHudLayout {
    }
 
    int reserveLines(int count) {
+      int rows = Math.max(1, count);
       int y = nextLineY;
-      nextLineY -= PreviewStyle.HUD_LINE_HEIGHT * Math.max(1, count);
+      int top = y - PreviewStyle.HUD_LINE_HEIGHT * (rows - 1);
+      if (actionBarVisible && top < actionBarY + PreviewStyle.HUD_LINE_HEIGHT
+         && y + PreviewStyle.HUD_LINE_HEIGHT > actionBarY) {
+         y = actionBarY - PreviewStyle.HUD_LINE_HEIGHT;
+      }
+      nextLineY = y - PreviewStyle.HUD_LINE_HEIGHT * rows;
       return y;
    }
 
    public boolean visibleAt(int bottomLineY) {
-      return !actionBarVisible && (!itemNameVisible || bottomLineY < itemNameY);
+      return !itemNameVisible || bottomLineY < itemNameY;
    }
 }

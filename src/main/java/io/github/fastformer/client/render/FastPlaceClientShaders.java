@@ -106,6 +106,7 @@ public final class FastPlaceClientShaders {
       shader.safeGetUniform("OccludedDash").set(0F, 0F);
       shader.safeGetUniform("OccludedOpacity").set(1F);
       shader.safeGetUniform("PencilGrain").set(VisualThemes.value("pencil_grain", 0));
+      shader.safeGetUniform("LineWhiteMix").set(Math.clamp(VisualThemes.value("line_white_mix", 0F), 0F, 1F));
       shader.safeGetUniform("PencilNearWidth").set(VisualThemes.value("pencil_near_width", 1.35F));
       var curve = VisualThemes.curve("line_width_by_distance").points();
       shader.safeGetUniform("WidthCurveCount").set(curve.size());

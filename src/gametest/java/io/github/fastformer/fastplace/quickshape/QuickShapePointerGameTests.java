@@ -25,6 +25,95 @@ public final class QuickShapePointerGameTests {
 
    private static final long HISTORY_INITIALIZATION_TIMEOUT_MILLIS = 10_000L;
 
+   @GameTest(template = "fastformergametests.empty", batch = "manual_activation", timeoutTicks = 600)
+   public static void manualActivationCanStartQuickShapeWithinVanillaReach(GameTestHelper helper) {
+      var player = idleStartPlayer(helper);
+      player.setPos(helper.absolutePos(new BlockPos(1, 4, 1)).getCenter());
+      var settings = FastPlaceSettings.load(player);
+      settings.setMode(player, PointMode.RAYCAST);
+      PlayerPreviewSync.syncSettings(player);
+      var eye = player.getEyePosition();
+      var view = player.getViewVector(1);
+      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
+      io.github.fastformer.server.session.ServerIdleSession.receive(player, new io.github.fastformer.network.payload.settings.IdleSessionPayload(
+         io.github.fastformer.fastplace.session.IdleSessionState.MANUAL_FF, player.level().dimension().location()));
+      helper.succeedWhen(() -> {
+         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+         helper.assertTrue(eye.distanceTo(hit.getLocation()) < 3, "test target was outside close range");
+         ServerInputDispatcher.startPlacement(player, startRequest(player, 90L, hit, eye, view));
+         helper.assertTrue(FastPlaceManager.active(player), "manual FF did not own the near click");
+         helper.assertTrue(io.github.fastformer.server.session.ServerIdleSession.state(player)
+            == io.github.fastformer.fastplace.session.IdleSessionState.MANUAL_FF, "active draft lost manual input ownership");
+         FastPlaceManager.cancel(player);
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "overlap_submission", timeoutTicks = 6000)
+   public static void overlappingRightClickSubmitsPointNearBlocksWithMiddleDisabled(GameTestHelper helper) {
+      checkConfirmedSubmission(helper, true);
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "overlap_submission", timeoutTicks = 6000)
+   public static void confirmedSubmissionDoesNotIncludeScrollCandidate(GameTestHelper helper) {
+      checkConfirmedSubmission(helper, false);
+   }
+
+   private static void checkConfirmedSubmission(GameTestHelper helper, boolean pointer) {
+      var player = idleStartPlayer(helper);
+      var settings = FastPlaceSettings.load(player);
+      settings.setMode(player, LineMode.FREE_SCROLL);
+      settings.setMode(player, FaceMode.COORDINATE_PLANE);
+      settings.setMiddleConfirmEnabled(player, false);
+      var first = helper.absolutePos(new BlockPos(1, 4, 1));
+      FastPlaceManager.addPoint(player, first, first);
+      var draft = FastPlaceManager.session(player).orElseThrow();
+      draft.setFreeScrollOffset(pointer ? BlockPos.ZERO : new BlockPos(3, 0, 0));
+      FastPlaceManager.setModifierHeld(player, false);
+      player.setPos(first.getCenter());
+      PlayerPreviewSync.syncPreview(player, draft);
+      boolean[] submitted = {false};
+      helper.succeedWhen(() -> {
+         java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
+         if (!submitted[0]) {
+            helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
+            helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
+               player.getServer(), player.serverLevel().dimension()), "waiting for world write");
+            if (pointer) {
+               ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
+                  PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player),
+                  QuickShapePointerPayload.Action.SUBMIT_CURRENT, first, player.getEyePosition(), player.getViewVector(1), false, 71));
+            } else FastPlaceManager.fillConfirmed(player);
+            helper.assertFalse(FastPlaceManager.active(player), "confirmed submission did not end the draft");
+            submitted[0] = true;
+         }
+         FastPlaceManager.tickWorld(helper.getLevel().getServer());
+         helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for placement");
+         helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "confirmed point was not placed");
+         helper.assertTrue(helper.getLevel().getBlockState(first.offset(3, 0, 0)).isAir(), "ghost candidate was placed");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "temporary_vanilla", timeoutTicks = 600)
+   public static void temporaryVanillaEndsWhenThePlayerLeavesCreative(GameTestHelper helper) {
+      // GameTestHelper's mock player always reports creative mode.
+      var profile = new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(), "temporary-vanilla");
+      var cookie = net.minecraft.server.network.CommonListenerCookie.createInitial(profile, false);
+      var player = new net.minecraft.server.level.ServerPlayer(helper.getLevel().getServer(), helper.getLevel(), profile, cookie.clientInformation());
+      var connection = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+      new io.netty.channel.embedded.EmbeddedChannel(connection);
+      helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+      player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+      io.github.fastformer.server.session.ServerIdleSession.receive(player, new io.github.fastformer.network.payload.settings.IdleSessionPayload(
+         io.github.fastformer.fastplace.session.IdleSessionState.WAITING_FOR_FAR_ENTRY, player.level().dimension().location()));
+      helper.assertTrue(io.github.fastformer.server.session.ServerIdleSession.state(player).suspended(), "idle creative player did not yield");
+      player.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+      helper.assertFalse(io.github.fastformer.server.session.ServerIdleSession.state(player).suspended(), "temporary state survived game mode change");
+      player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+      helper.assertFalse(io.github.fastformer.server.session.ServerIdleSession.state(player).suspended(), "temporary state came back without Q");
+      helper.succeed();
+   }
+
    @GameTest(template = "fastformergametests.empty", batch = "embedded_middle_finish", timeoutTicks = 6000)
    public static void middleStartedDraftFinishesWithMiddleNearBlocks(GameTestHelper helper) {
       var player = idleStartPlayer(helper);

@@ -43,7 +43,17 @@ public final class ClientInputSession {
    private final boolean[] geometryPointerButtons = new boolean[2];
 
    final PointerGestureState pointerGesture = new PointerGestureState();
-   final ClientInputStateMachine routing = new ClientInputStateMachine();
+   final ClientInputStateMachine routing;
+
+   public ClientInputSession() { this(io.github.fastformer.fastplace.session.SessionActivationMode.AUTOMATIC); }
+
+   public ClientInputSession(io.github.fastformer.fastplace.session.SessionActivationMode mode) {
+      routing = new ClientInputStateMachine(mode, this::syncIdleState);
+   }
+
+   private void syncIdleState(ClientInputStateMachine.State previous, ClientInputStateMachine.State next) {
+      IdleSessionSync.publish(routing.idleState());
+   }
    final ModifierGestureState modifier = new ModifierGestureState();
    long pointerGestureToken;
    long clickGestureToken;
@@ -82,7 +92,7 @@ public final class ClientInputSession {
 
    public boolean blocksDraftLoad() {
       boolean activeOperation = switch (this.routing.state()) {
-         case IDLE, SELECTING, ADJUSTING -> false;
+         case IDLE, IDLE_MANUAL, IDLE_WAITING_FOR_FAR_ENTRY, IDLE_WAITING_FOR_FAR_EXIT, SELECTING, ADJUSTING -> false;
          default -> true;
       };
       return activeOperation

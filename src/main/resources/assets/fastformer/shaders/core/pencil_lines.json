@@ -13,6 +13,7 @@
   ],
   "samplers": [],
   "uniforms": [
+    { "name": "LineWhiteMix", "type": "float", "count": 1, "values": [0] },
     { "name": "WidthCurveCount", "type": "int", "count": 1, "values": [1] },
     {"name": "WidthCurve0", "type": "float", "count": 4, "values": [0, 1, 0, 0]},
     {"name": "WidthCurve1", "type": "float", "count": 4, "values": [0, 1, 0, 0]},

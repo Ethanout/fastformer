@@ -58,6 +58,15 @@ final class TinkerShapeTransform {
       Vec3 outside = local.add(normal.scale(SURFACE_OFFSET));
       boolean fill = inside(outside);
       Vec3 cell = fill ? outside : local.subtract(normal.scale(SURFACE_OFFSET));
+      if (state.getBlock() instanceof StairBlock) {
+         // Sample inside the hit surface so the tread belongs to the base half,
+         // and a riser belongs to its occupied corner, not the empty notch.
+         Vec3 clicked = local.subtract(normal.scale(SURFACE_OFFSET));
+         if (!inside(clicked)) return state;
+         boolean baseAbove = state.getValue(BlockStateProperties.HALF) == Half.TOP;
+         fill = (clicked.y >= 0.5) == baseAbove;
+         cell = new Vec3(clicked.x, baseAbove ? 0.25 : 0.75, clicked.z);
+      }
       if (!inside(cell)) return state;
       int bit = 1 << ((cell.x >= 0.5 ? 1 : 0) | (cell.z >= 0.5 ? 2 : 0) | (cell.y >= 0.5 ? 4 : 0));
       int target = fill ? occupied | bit : occupied & ~bit;

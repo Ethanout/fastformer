@@ -101,6 +101,12 @@ public final class FastPlaceNetwork {
             context.enqueueWork(() -> ClientPayloadDispatcher.acknowledgePlacement(payload, connection));
          });
       registrar.playToServer(ModifierStatePayload.TYPE, ModifierStatePayload.STREAM_CODEC, FastPlaceNetwork::handleModifierState);
+      registrar.playToServer(io.github.fastformer.network.payload.settings.IdleSessionPayload.TYPE,
+         io.github.fastformer.network.payload.settings.IdleSessionPayload.STREAM_CODEC, (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player) {
+               io.github.fastformer.server.session.ServerIdleSession.receive(player, payload);
+            }
+         }));
       registrar.playToServer(MiddleConfirmSettingPayload.TYPE, MiddleConfirmSettingPayload.STREAM_CODEC, FastPlaceNetwork::handleMiddleConfirmSetting);
       registrar.playToServer(FaceRasterizationSettingPayload.TYPE, FaceRasterizationSettingPayload.STREAM_CODEC, FastPlaceNetwork::handleFaceRasterizationSetting);
       registrar.playToServer(SettingsActionPayload.TYPE, SettingsActionPayload.STREAM_CODEC, FastPlaceNetwork::handleSettingsAction);
@@ -491,7 +497,8 @@ public final class FastPlaceNetwork {
          try {
             ServerInputDispatcher.quickShapePointer(player, payload);
          } finally {
-            if (payload.action() == QuickShapePointerPayload.Action.MIDDLE) acknowledgePlacement(player, payload.requestId());
+            if (payload.action() == QuickShapePointerPayload.Action.MIDDLE
+               || payload.action() == QuickShapePointerPayload.Action.SUBMIT_CURRENT) acknowledgePlacement(player, payload.requestId());
          }
       });
    }

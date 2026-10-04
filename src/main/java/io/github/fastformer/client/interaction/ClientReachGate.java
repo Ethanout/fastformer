@@ -16,6 +16,7 @@ public final class ClientReachGate {
    private static ReachThresholds thresholds = ReachThresholds.DEFAULT;
    private static LocalPlayer owner;
    private static Level level;
+   private static boolean withinFar;
 
    private ClientReachGate() { }
 
@@ -32,15 +33,16 @@ public final class ClientReachGate {
    }
 
    public static void update(Minecraft minecraft) {
-      if (io.github.fastformer.client.placement.QuickReplaceMode.active()) { TRANSITION.reset(); return; }
       var player = minecraft.player;
       if (owner != player || level != minecraft.level) {
          TRANSITION.reset();
+         withinFar = false;
          owner = player;
          level = minecraft.level;
       }
       if (player == null || !player.isCreative() || minecraft.getCameraEntity() != player || !FastPlaceClientPreview.enabled()) {
          TRANSITION.reset();
+         withinFar = false;
          return;
       }
       var hit = FastPlaceClientPreview.reachRaycast(player);
@@ -49,12 +51,16 @@ public final class ClientReachGate {
       boolean entityTarget = minecraft.hitResult instanceof EntityHitResult entity
          && player.getEyePosition().distanceTo(entity.getLocation()) <= distance;
       if (entityTarget) distance = player.getEyePosition().distanceTo(minecraft.hitResult.getLocation());
-      TRANSITION.update(distance, thresholds, entityTarget
-         ? player.entityInteractionRange() : player.blockInteractionRange());
+      double reach = entityTarget ? player.entityInteractionRange() : player.blockInteractionRange();
+      withinFar = thresholds.vanillaAt(true, distance, reach);
+      TRANSITION.update(distance, thresholds, reach);
    }
+
+   public static boolean withinFar() { return withinFar; }
 
    public static void reset() {
       TRANSITION.reset();
+      withinFar = false;
       thresholds = ReachThresholds.DEFAULT;
       owner = null;
       level = null;

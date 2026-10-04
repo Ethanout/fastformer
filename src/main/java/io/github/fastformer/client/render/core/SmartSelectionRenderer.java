@@ -28,6 +28,10 @@ import org.joml.Matrix4f;
 /** Smart membership outlines and screen-space ownership marks share one immutable snapshot. */
 final class SmartSelectionRenderer {
    private static final Map<Integer, Entry> CACHE = new HashMap<>();
+   private record LabelKey(int partId, int piece) { }
+   private static final Map<LabelKey, io.github.fastformer.client.render.LinearPositionSmoother> LABELS = new HashMap<>();
+   private static final java.util.Set<LabelKey> VISIBLE_LABELS = new java.util.HashSet<>();
+   private static final long HUD_SMOOTH_NANOS = 50_000_000L;
    private static SelectionScreenProjection projection;
    private static Object levelIdentity;
    private SmartSelectionRenderer() { }
@@ -80,7 +84,11 @@ final class SmartSelectionRenderer {
 
    static void hud(GuiGraphics graphics, Minecraft minecraft,
       io.github.fastformer.client.render.hud.BottomHudLayout bottomLayout) {
-      if (projection == null || minecraft.level != levelIdentity || !ClientOperationController.active()) return;
+      VISIBLE_LABELS.clear();
+      if (projection == null || minecraft.level != levelIdentity || !ClientOperationController.active()) {
+         LABELS.clear();
+         return;
+      }
       boolean alt = FastPlaceClientInput.modifierHeld();
       var workspace = ClientOperationController.workspace();
       Entry farthest = null;
@@ -93,22 +101,29 @@ final class SmartSelectionRenderer {
          int color = GeometryPalette.text().argb(alt ? 55 : selected || part.smartEditable() ? 220 : 110);
          SelectionScreenProjection.Rect whole = null;
          int shown = 0;
+         int pieceIndex = 0;
+         long now = System.nanoTime();
          for (var piece : entry.topology.pieces()) {
+            int index = pieceIndex++;
             var rect = projection.bounds(piece, graphics.guiWidth(), graphics.guiHeight());
             if (rect == null) continue;
             whole = whole == null ? rect : whole.union(rect);
-            if (!alt && shown++ < 24) graphics.drawString(minecraft.font, "#" + part.id(),
-               (int)rect.left() + 3, (int)rect.top() + 3, color, true);
+            if (!alt && rect.intersects(graphics.guiWidth(), graphics.guiHeight()) && shown++ < 24) {
+               label(graphics, minecraft, new LabelKey(part.id(), index), Component.literal("#" + part.id()),
+                  rect.left() + 3, rect.top() + 3, color, now);
+            }
          }
          if (whole != null) {
             corners(graphics, whole, color);
-            if (!alt) graphics.drawString(minecraft.font,
-               Component.translatable("fastformer.hud.smart_group", part.id(), entry.topology.pieces().size()),
-               (int)whole.left(), Math.max(4, (int)whole.top() - 12), color, true);
+            if (!alt) {
+               label(graphics, minecraft, new LabelKey(part.id(), -1),
+                  Component.translatable("fastformer.hud.smart_group", part.id(), entry.topology.pieces().size()),
+                  whole.left(), whole.top() - 12, color, now);
+            }
          }
          if (!alt && selected && !ClientOperationController.smartEditing()) {
             boolean group = ClientOperationController.interactionScene().groupGizmo() != null;
-            if (!group || !groupLocated) locator(graphics, minecraft, part.id());
+            if (!group || !groupLocated) locator(graphics, minecraft, part.id(), now);
             groupLocated |= group;
          }
          if ((selected || part.smartEditable()) && entry.topology.distant()
@@ -117,9 +132,10 @@ final class SmartSelectionRenderer {
       if (farthest != null && !alt) bottomLayout.render(graphics, minecraft,
          Component.translatable("fastformer.hud.smart_distant", farthestId, (int)Math.ceil(farthest.topology.span()))
             .withStyle(GeometryPalette.accent().style()));
+      LABELS.keySet().retainAll(VISIBLE_LABELS);
    }
 
-   private static void locator(GuiGraphics graphics, Minecraft minecraft, int id) {
+   private static void locator(GuiGraphics graphics, Minecraft minecraft, int id, long now) {
       var scene = ClientOperationController.interactionScene();
       var bounds = scene.groupGizmo() == null ? scene.bounds(id)
          : scene.groupGizmo().require(io.github.fastformer.client.interaction.InteractionComponents.WORLD_BOUNDS);
@@ -130,8 +146,19 @@ final class SmartSelectionRenderer {
       int distance = (int)Math.ceil(projection.camera().distanceTo(center));
       Component text = scene.groupGizmo() == null ? Component.translatable("fastformer.hud.smart_gizmo", arrow, id, distance)
          : Component.translatable("fastformer.hud.smart_group_gizmo", arrow, distance);
-      int x = (int)Math.clamp(point.x() - minecraft.font.width(text) * 0.5, 6, Math.max(6, graphics.guiWidth() - minecraft.font.width(text) - 6));
-      graphics.drawString(minecraft.font, text, x, (int)point.y() + (point.onScreen() ? 16 : 0), GeometryPalette.text().argb(), true);
+      label(graphics, minecraft, new LabelKey(scene.groupGizmo() == null ? id : -1, -2), text,
+         point.x() - minecraft.font.width(text) * 0.5, point.y() + (point.onScreen() ? 16 : 0),
+         GeometryPalette.text().argb(), now);
+   }
+
+   private static void label(GuiGraphics graphics, Minecraft minecraft, LabelKey key, Component text,
+      double x, double y, int color, long now) {
+      VISIBLE_LABELS.add(key);
+      var smoother = LABELS.computeIfAbsent(key, ignored -> new io.github.fastformer.client.render.LinearPositionSmoother(HUD_SMOOTH_NANOS));
+      var target = new Vec3(Math.clamp(x, 4, Math.max(4, graphics.guiWidth() - minecraft.font.width(text) - 4)),
+         Math.clamp(y, 4, Math.max(4, graphics.guiHeight() - minecraft.font.lineHeight - 4)), 0);
+      var point = smoother.update(target, now);
+      graphics.drawString(minecraft.font, text, (int)Math.round(point.x), (int)Math.round(point.y), color, true);
    }
 
    private static String direction(SelectionScreenProjection.Point point, int width, int height) {
@@ -141,16 +168,25 @@ final class SmartSelectionRenderer {
    }
 
    private static void corners(GuiGraphics graphics, SelectionScreenProjection.Rect rect, int color) {
-      int left = (int)rect.left(), right = (int)rect.right(), top = (int)rect.top(), bottom = (int)rect.bottom();
-      int length = Math.max(2, Math.min(12, Math.min(right - left, bottom - top) / 3));
-      for (int x : new int[] {left, right}) for (int y : new int[] {top, bottom}) {
-         int dx = x == left ? length : -length, dy = y == top ? length : -length;
+      if (!rect.intersects(graphics.guiWidth(), graphics.guiHeight())) return;
+      int length = (int)Math.max(2, Math.min(12, Math.min(rect.right() - rect.left(), rect.bottom() - rect.top()) / 3));
+      for (double px : new double[] {rect.left(), rect.right()}) for (double py : new double[] {rect.top(), rect.bottom()}) {
+         if (px < -length || px > graphics.guiWidth() + length || py < -length || py > graphics.guiHeight() + length) continue;
+         int x = (int)Math.round(px), y = (int)Math.round(py);
+         int dx = px == rect.left() ? length : -length, dy = py == rect.top() ? length : -length;
          graphics.fill(Math.min(x, x + dx), y, Math.max(x, x + dx) + 1, y + 1, color);
          graphics.fill(x, Math.min(y, y + dy), x + 1, Math.max(y, y + dy) + 1, color);
       }
    }
 
-   static void clear() { CACHE.values().forEach(Entry::close); CACHE.clear(); projection = null; }
+   static void clear() {
+      CACHE.values().forEach(Entry::close);
+      CACHE.clear();
+      LABELS.clear();
+      VISIBLE_LABELS.clear();
+      projection = null;
+   }
+
    private static final class Entry {
       final Map<BlockPos, ClientBlockSnapshot> blocks;
       final Map<BlockPos, BlockState> states = new HashMap<>();

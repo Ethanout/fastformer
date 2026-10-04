@@ -1,5 +1,6 @@
 uniform vec4 ColorModulator;
 uniform float PencilGrain;
+uniform float LineWhiteMix;
 uniform float BoilFrame;
 uniform vec2 OccludedDash;
 uniform float OccludedOpacity;
@@ -21,6 +22,7 @@ float pencilHash(vec3 p) {
 
 void main() {
     vec4 color = vertexColor * ColorModulator;
+    color.rgb = mix(color.rgb, vec3(1.0), clamp(LineWhiteMix, 0.0, 1.0));
     float sketch = clamp(PencilGrain, 0.0, 1.0);
     float halfWidth = strokeHalfWidth;
     float guiScale = max(FFGuiScale, 1.0);

@@ -373,7 +373,7 @@ public final class FastPlaceManager {
          FastPlaceNetwork.syncPreview(player, session);
          return;
       }
-      QuickShapeStage stage = session == null ? QuickShapeStage.POINT : effectiveStage(session, settings);
+      QuickShapeStage stage = session == null ? QuickShapeStage.LINE : effectiveStage(session, settings);
       BlockPos freeScrollCandidateOffset = null;
       if (session != null && stage == QuickShapeStage.LINE && lineCandidate != null) {
          freeScrollCandidateOffset = lineCandidate.subtract(session.points().getFirst());
@@ -533,6 +533,14 @@ public final class FastPlaceManager {
    }
 
    public static void fill(ServerPlayer player) {
+      fill(player, false);
+   }
+
+   public static void fillConfirmed(ServerPlayer player) {
+      fill(player, true);
+   }
+
+   private static void fill(ServerPlayer player, boolean confirmedOnly) {
       QuickShapeDraft session = SESSIONS.get(player.getUUID());
       if (session != null) {
          if (placementBusy(player)) {
@@ -540,7 +548,7 @@ public final class FastPlaceManager {
             return;
          }
          FastPlaceSettings settings = FastPlaceSettings.load(player);
-         List<BlockPos> points = session.submissionPoints(settings.lineMode());
+         List<BlockPos> points = confirmedOnly ? List.copyOf(session.points()) : session.submissionPoints(settings.lineMode());
          if (points.isEmpty()) {
             FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
             FastPlaceNetwork.syncPreview(player, session);

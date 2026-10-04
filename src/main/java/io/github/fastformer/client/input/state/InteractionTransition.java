@@ -30,6 +30,6 @@ public sealed interface InteractionTransition {
       }
    }
 
-   enum Cause { OBSERVATION, CANCEL, SUBMIT, SUBMISSION_COMPLETED, RESET }
+   enum Cause { OBSERVATION, CANCEL, SUBMIT, SUBMISSION_COMPLETED, RESET, IDLE_HANDOFF }
    enum Rejection { INPUT_BLOCKED, REQUEST_ACTIVE, INVALID_REQUEST, STALE_REQUEST }
 }

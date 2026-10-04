@@ -29,10 +29,32 @@ class BottomHudLayoutTest {
       assertTrue(layout.nextLine() + 9 < bottom - 24);
    }
 
-   @Test void actionBarTemporarilyOwnsBottomTextArea() {
+   @Test void actionBarKeepsHintsVisibleAndOnlyMovesOverlappingRows() {
       var layout = layout(true, false, true);
+      int hint = layout.nextLine();
+      int mode = layout.nextLine();
+      assertEquals(181, hint);
+      assertEquals(156, mode);
+      assertTrue(layout.visibleAt(hint));
+      assertTrue(layout.visibleAt(mode));
+      assertEquals(144, layout.nextLine());
+   }
+
+   @Test void wrappedHintMovesAsAWholeAboveActionBar() {
+      var layout = layout(false, false, true);
+      int bottom = layout.reserveLines(3);
+      assertEquals(156, bottom);
+      assertTrue(layout.visibleAt(bottom));
+      assertEquals(120, layout.nextLine());
+   }
+
+   @Test void itemNameOnlyReplacesItsOwnRowWhileActionBarIsVisible() {
+      var layout = layout(false, true, true);
       assertFalse(layout.visibleAt(layout.nextLine()));
-      assertFalse(layout.visibleAt(layout.nextLine()));
+      int mode = layout.nextLine();
+      assertEquals(183, mode);
+      assertTrue(layout.visibleAt(mode));
+      assertEquals(156, layout.nextLine());
    }
 
    private static BottomHudLayout layout(boolean survival, boolean itemName, boolean actionBar) {

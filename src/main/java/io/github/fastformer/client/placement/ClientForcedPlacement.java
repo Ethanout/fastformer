@@ -28,10 +28,12 @@ public final class ClientForcedPlacement {
    }
 
    public static boolean consumes(LocalPlayer player, InteractionHand hand, BlockHitResult hit) {
+      if (io.github.fastformer.client.input.FastPlaceClientInput.idleSessionSuspended()) return false;
       return hand == InteractionHand.MAIN_HAND && player.isCreative()
          && ClientInteractionUpdates.forcePlacement(player) && !QuickReplaceMode.active()
          && !FastPlaceClientPreview.operationActive() && PlaceableItems.isPlaceable(player.getMainHandItem())
-         && ClientReachGate.vanillaAt(player, player.getEyePosition().distanceTo(hit.getLocation()));
+         && io.github.fastformer.client.input.FastPlaceClientInput.idleSessionState().vanillaOwnsInput(
+            ClientReachGate.vanillaAt(player, player.getEyePosition().distanceTo(hit.getLocation())));
    }
 
    public static boolean accept(LocalPlayer player) {

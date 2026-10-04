@@ -27,6 +27,7 @@ class RemoteSelectionPointMailboxTest {
       ClientOperationController.onDisconnected();
       input = FastPlaceClientInput.inputSession();
       input.reset();
+      input.routing.onEvent(io.github.fastformer.client.input.state.ClientSemanticEvent.EnterManual.INSTANCE);
    }
    @AfterEach void clear() { input.reset(); ClientOperationController.onDisconnected(); }
 

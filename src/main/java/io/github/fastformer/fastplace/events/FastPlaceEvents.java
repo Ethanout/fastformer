@@ -67,6 +67,7 @@ public final class FastPlaceEvents {
          return;
       }
 
+      if (io.github.fastformer.server.session.ServerIdleSession.state(player).suspended()) return;
       if (ServerInputDispatcher.rightClickBlock(player, event.getHitVec())) {
          event.setCancellationResult(InteractionResult.SUCCESS);
          event.setCanceled(true);
@@ -77,6 +78,8 @@ public final class FastPlaceEvents {
       if (!(event.getEntity() instanceof ServerPlayer player) || event.getHand() != InteractionHand.MAIN_HAND) {
          return;
       }
+
+      if (io.github.fastformer.server.session.ServerIdleSession.state(player).suspended()) return;
 
       if (ServerInputDispatcher.interactionBlocked(player)) {
          event.setCanceled(true);
@@ -95,6 +98,8 @@ public final class FastPlaceEvents {
          return;
       }
 
+      if (io.github.fastformer.server.session.ServerIdleSession.state(player).suspended()) return;
+
       if (ServerInputDispatcher.interactionBlocked(player)) {
          event.setCanceled(true);
          return;
@@ -107,6 +112,8 @@ public final class FastPlaceEvents {
    }
 
    private static void onItemToss(ItemTossEvent event) {
+      if (event.getPlayer() instanceof ServerPlayer player
+         && io.github.fastformer.server.session.ServerIdleSession.state(player).suspended()) return;
       if (event.getPlayer() instanceof ServerPlayer player
          && (FastPlaceManager.active(player)
             || OperationManager.active(player)
@@ -124,6 +131,8 @@ public final class FastPlaceEvents {
    }
 
    private static void onSwapHands(Hands event) {
+      if (event.getEntity() instanceof ServerPlayer player
+         && io.github.fastformer.server.session.ServerIdleSession.state(player).suspended()) return;
       if (event.getEntity() instanceof ServerPlayer player && QuickReplaceManager.active(player)) return;
       if (event.getEntity() instanceof ServerPlayer player && ServerInputDispatcher.fill(player)) {
          event.setCanceled(true);
@@ -135,6 +144,7 @@ public final class FastPlaceEvents {
       if (event.getEntity() instanceof ServerPlayer player) {
          io.github.fastformer.fastplace.settings.PlayerReachAttributes.initialize(player);
          io.github.fastformer.server.input.ServerReachGate.tick(player);
+         io.github.fastformer.server.session.ServerIdleSession.state(player);
          // A world undo/redo or task-recovery write must finish even if the
          // player toggles FastFormer off while it is running; otherwise the
          // history lock would remain forever and leave a partial world.

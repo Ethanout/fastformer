@@ -124,7 +124,10 @@ public final class BlockTinker {
       BlockState torch = TinkerTorchCycle.apply(state);
       if (torch != null) return torch.equals(state) ? Map.of() : Map.of(pos.immutable(), torch);
       var wood = TinkerWoodFamily.find(level.registryAccess(), block);
-      if (wood.isPresent()) return Map.of(pos.immutable(), wood.orElseThrow().apply(state, hit));
+      if (wood.isPresent()) {
+         BlockState changed = wood.orElseThrow().apply(state, hit);
+         return changed.equals(state) ? Map.of() : Map.of(pos.immutable(), changed);
+      }
       var family = TinkerShapeFamilies.find(level.registryAccess(), block);
       if (family.isPresent() && !state.hasBlockEntity()) {
          BlockState changed = TinkerShapeTransform.apply(family.orElseThrow(), state, hit);

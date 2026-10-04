@@ -20,8 +20,10 @@ public final class GizmoRenderer {
 
    private void renderLine(PoseStack poses, VertexConsumer vertices, Vec3 from, Vec3 to,
       float red, float green, float blue, float alpha) {
-      io.github.fastformer.client.render.guide.GuideRenderer.renderMovingLine(
-         poses, vertices, from, to, red, green, blue, alpha, opacity);
+      io.github.fastformer.client.render.geometry.PencilStroke.drawMovingGuide(
+         poses, vertices, from, to, red, green, blue, alpha * opacity,
+         io.github.fastformer.client.render.theme.VisualThemes.value("gizmo_short_overshoot", 0.12F),
+         io.github.fastformer.client.render.theme.VisualThemes.value("gizmo_overshoot_scale", 0.5F));
    }
 
    private void addGhostQuad(PoseStack poses, VertexConsumer vertices, Vec3 a, Vec3 b, Vec3 c, Vec3 d,
@@ -52,7 +54,7 @@ public final class GizmoRenderer {
       renderGizmoScaleHandles(poseStack, buffers, camera, scaleGizmo, alphaScale);
    }
 
-   /** Draws only the scale solids of one gizmo; the world gizmo already drew every axis. */
+   /** Draws local scale handles without repeating the world axes. */
    private void renderGizmoScaleHandles(
       PoseStack poseStack, BufferSource buffers, Vec3 camera, AxisGizmo gizmo, float alphaScale
    ) {
@@ -61,14 +63,7 @@ public final class GizmoRenderer {
       }
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
-      VertexConsumer solids = buffers.getBuffer(GIZMO_SOLIDS);
-      for (AxisGizmo.Handle handle : gizmo.handles()) {
-         if (handle.operation() == AxisGizmo.Operation.SCALE) {
-            float[] color = gizmoHandleColor(handle);
-            renderScaleHandle(poseStack, solids, gizmo, handle, color, gizmoHandleAlpha(handle) * alphaScale);
-         }
-      }
-      buffers.endBatch(GIZMO_SOLIDS);
+      renderScaleHandlePasses(poseStack, buffers, gizmo, alphaScale);
       poseStack.popPose();
    }
 
@@ -108,14 +103,7 @@ public final class GizmoRenderer {
       renderGizmoLineHandles(poseStack, hoverLines, gizmo, true, alphaScale);
       buffers.endBatch(GIZMO_HOVER_LINES);
 
-      VertexConsumer solids = buffers.getBuffer(GIZMO_SOLIDS);
-      for (AxisGizmo.Handle handle : gizmo.handles()) {
-         if (handle.operation() == AxisGizmo.Operation.SCALE) {
-            float[] color = gizmoHandleColor(handle);
-            renderScaleHandle(poseStack, solids, gizmo, handle, color, gizmoHandleAlpha(handle) * alphaScale);
-         }
-      }
-      buffers.endBatch(GIZMO_SOLIDS);
+      renderScaleHandlePasses(poseStack, buffers, gizmo, alphaScale);
       poseStack.popPose();
    }
 
@@ -288,6 +276,15 @@ public final class GizmoRenderer {
       float[] color,
       float alpha
    ) {
+      Vec3 tip = gizmo.handleCenter(handle);
+      Vec3[] rim = moveArrowRim(gizmo, handle);
+      for (int i = 0; i < rim.length; i++) {
+         renderLine(poseStack, consumer, tip, rim[i], color[0], color[1], color[2], alpha);
+         renderLine(poseStack, consumer, rim[i], rim[(i + 1) % rim.length], color[0], color[1], color[2], alpha);
+      }
+   }
+
+   private static Vec3[] moveArrowRim(AxisGizmo gizmo, AxisGizmo.Handle handle) {
       Vec3 direction = gizmo.axisVector(handle.axis());
       if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
          direction = direction.scale(-1.0);
@@ -300,34 +297,29 @@ public final class GizmoRenderer {
       PlaneAxes axes = PlaneAxes.fromNormal(direction);
       Vec3 u = axes.horizontal().scale(radius * 1.35);
       Vec3 v = axes.vertical().scale(radius * 1.35);
-      Vec3[] rim = {base.add(u), base.add(v), base.subtract(u), base.subtract(v)};
-      for (int i = 0; i < rim.length; i++) {
-         renderLine(poseStack, consumer, tip, rim[i], color[0], color[1], color[2], alpha);
-         renderLine(poseStack, consumer, rim[i], rim[(i + 1) % rim.length], color[0], color[1], color[2], alpha);
+      return new Vec3[]{base.add(u), base.add(v), base.subtract(u), base.subtract(v)};
+   }
+
+   private void renderScaleHandlePasses(PoseStack pose, BufferSource buffers, AxisGizmo gizmo, float alphaScale) {
+      var passes = new net.minecraft.client.renderer.RenderType[]{GIZMO_SOLIDS, GIZMO_LINES, GIZMO_HOVER_LINES};
+      for (var pass : passes) {
+         VertexConsumer vertices = buffers.getBuffer(pass);
+         for (AxisGizmo.Handle handle : gizmo.handles()) {
+            if (handle.operation() != AxisGizmo.Operation.SCALE) continue;
+            boolean highlighted = handle.hovered() || handle.active();
+            if (pass != GIZMO_SOLIDS && highlighted != (pass == GIZMO_HOVER_LINES)) continue;
+            float[] color = gizmoHandleColor(handle);
+            float alpha = gizmoHandleAlpha(handle) * alphaScale;
+            if (pass == GIZMO_SOLIDS) renderSolidBox(pose, vertices, gizmo.handleCenter(handle), gizmo.visualRadius(handle),
+               color[0], color[1], color[2], alpha);
+            else renderPencilBox(pose, vertices, gizmo.handleCenter(handle), gizmo.visualRadius(handle),
+               color[0], color[1], color[2], alpha);
+         }
+         buffers.endBatch(pass);
       }
    }
 
-   private void renderScaleHandle(
-      PoseStack poseStack,
-      VertexConsumer consumer,
-      AxisGizmo gizmo,
-      AxisGizmo.Handle handle,
-      float[] color,
-      float alpha
-   ) {
-      Vec3 center = gizmo.handleCenter(handle);
-      double radius = gizmo.visualRadius(handle);
-      float[] brightColor = gizmoHandleColor(handle);
-      if (io.github.fastformer.fastplace.geometry.GeometryPalette.humanist()) {
-         renderPencilBox(poseStack, consumer, center, radius,
-            brightColor[0], brightColor[1], brightColor[2], alpha);
-      } else {
-         renderSolidBox(poseStack, consumer, center, radius,
-            brightColor[0], brightColor[1], brightColor[2], alpha);
-      }
-   }
-
-   /** Humanist scale handles use the same hand-drawn edge language as the other gizmo parts. */
+   /** Scale handle edges follow the active theme's stroke style. */
    private void renderPencilBox(
       PoseStack poseStack, VertexConsumer consumer, Vec3 center, double radius,
       float red, float green, float blue, float alpha

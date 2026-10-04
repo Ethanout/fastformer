@@ -7,6 +7,20 @@ import org.junit.jupiter.api.Test;
 
 class ModifierGestureStateTest {
    @Test
+   void idleShortPressCanCycleWithoutRoutingASubmodeToTheServer() {
+      var state = new ModifierGestureState();
+      state.press(100, true, false);
+      var release = state.release(200, 250);
+      assertFalse(release.routed());
+      assertTrue(release.cyclesMode());
+      state.press(100, true, false);
+      assertFalse(state.release(400, 250).cyclesMode());
+      state.press(100, true, false);
+      state.consume();
+      assertFalse(state.release(200, 250).cyclesMode());
+   }
+
+   @Test
    void consumedAltCannotTriggerShortPressOnRelease() {
       ModifierGestureState state = new ModifierGestureState();
       state.press(100L, true, true);

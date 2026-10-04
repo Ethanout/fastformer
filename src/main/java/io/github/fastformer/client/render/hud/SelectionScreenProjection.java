@@ -10,6 +10,9 @@ import org.joml.Vector4f;
 /** Projects camera-relative boxes, clipping edges at the near plane before division. */
 public record SelectionScreenProjection(Matrix4f matrix, Vec3 camera) {
    public record Rect(double left, double top, double right, double bottom) {
+      public boolean intersects(int width, int height) {
+         return right >= 0 && bottom >= 0 && left <= width && top <= height;
+      }
       public Rect union(Rect other) {
          return new Rect(Math.min(left, other.left), Math.min(top, other.top),
             Math.max(right, other.right), Math.max(bottom, other.bottom));
@@ -44,9 +47,10 @@ public record SelectionScreenProjection(Matrix4f matrix, Vec3 camera) {
          left = Math.min(left, x); right = Math.max(right, x);
          top = Math.min(top, y); bottom = Math.max(bottom, y);
       }
-      if (right < 0 || bottom < 0 || left > width || top > height || !Double.isFinite(left)) return null;
-      return new Rect(Math.clamp(left - 5, 6, width - 6), Math.clamp(top - 5, 6, height - 6),
-         Math.clamp(right + 5, 6, width - 6), Math.clamp(bottom + 5, 6, height - 6));
+      if (!Double.isFinite(left) || !Double.isFinite(top) || !Double.isFinite(right) || !Double.isFinite(bottom)) return null;
+      // Keep the projected rectangle outside the viewport. The HUD renderer clips it,
+      // which lets one frame connect separated pieces through the screen edge.
+      return new Rect(left - 5, top - 5, right + 5, bottom + 5);
    }
 
    public Point point(Vec3 point, int width, int height) {

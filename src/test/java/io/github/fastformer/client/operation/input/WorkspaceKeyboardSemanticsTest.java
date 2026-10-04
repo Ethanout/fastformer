@@ -356,6 +356,9 @@ class WorkspaceKeyboardSemanticsTest {
       ClientInputStateMachine machine = new ClientInputStateMachine();
       switch (state) {
          case IDLE -> { }
+         case IDLE_MANUAL -> machine.onEvent(new io.github.fastformer.client.input.state.ClientSemanticEvent.ConfigureActivation(io.github.fastformer.fastplace.session.SessionActivationMode.MANUAL));
+         case IDLE_WAITING_FOR_FAR_ENTRY -> machine.onEvent(new io.github.fastformer.client.input.state.ClientSemanticEvent.SuspendIdle(false));
+         case IDLE_WAITING_FOR_FAR_EXIT -> machine.onEvent(new io.github.fastformer.client.input.state.ClientSemanticEvent.SuspendIdle(true));
          case SUBMITTING -> {
             machine.observe(ClientInputStateMachine.State.BUILDING);
             assertTrue(machine.submit(UUID.randomUUID()));

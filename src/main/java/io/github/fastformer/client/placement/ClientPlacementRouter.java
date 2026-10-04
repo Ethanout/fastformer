@@ -42,7 +42,8 @@ public final class ClientPlacementRouter {
       net.minecraft.world.phys.Vec3 view, boolean modifierHeld) {
       var type = io.github.fastformer.network.payload.placement.QuickShapePointerPayload.TYPE;
       if (!supports(minecraft, type)) return false;
-      boolean submitting = action == io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.MIDDLE;
+      boolean submitting = action == io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.MIDDLE
+         || action == io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.SUBMIT_CURRENT;
       long requestId = NEXT_ACTION_ID.incrementAndGet();
       if (submitting) {
          if (!supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) return false;

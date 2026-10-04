@@ -17,10 +17,12 @@ class SelectionScreenProjectionTest {
    @Test void nearPlaneCrossingsClipToFiniteScreenCoordinates() {
       var rectangle = projection.bounds(new AABB(-1, -1, -1, 1, 1, 1), 800, 500);
       assertNotNull(rectangle);
-      assertEquals(6, rectangle.left());
-      assertEquals(794, rectangle.right());
-      assertEquals(6, rectangle.top());
-      assertEquals(494, rectangle.bottom());
+      assertTrue(Double.isFinite(rectangle.left()));
+      assertTrue(Double.isFinite(rectangle.right()));
+      assertTrue(Double.isFinite(rectangle.top()));
+      assertTrue(Double.isFinite(rectangle.bottom()));
+      assertTrue(rectangle.left() < 0 || rectangle.right() > 800
+         || rectangle.top() < 0 || rectangle.bottom() > 500);
    }
    @Test void locatorAlwaysStaysOnScreenEvenBehindTheCamera() {
       for (Vec3 position : new Vec3[] {new Vec3(100, 0, -1), new Vec3(0, 0, 10), new Vec3(-100, 50, 5)}) {
@@ -30,5 +32,17 @@ class SelectionScreenProjectionTest {
          assertTrue(point.y() > 0 && point.y() < 500);
       }
       assertTrue(projection.point(new Vec3(0, 0, -10), 800, 500).onScreen());
+   }
+
+   @Test void offscreenPieceStillExtendsTheGroupFrame() {
+      var visible = projection.bounds(new AABB(-1, -1, -10, 1, 1, -9), 800, 500);
+      var distant = projection.bounds(new AABB(100, -1, -10, 101, 1, -9), 800, 500);
+      assertNotNull(distant);
+      assertFalse(distant.intersects(800, 500));
+      var group = visible.union(distant);
+      assertEquals(visible.left(), group.left());
+      assertEquals(distant.right(), group.right());
+      assertTrue(group.right() > 800);
+      assertTrue(group.intersects(800, 500));
    }
 }

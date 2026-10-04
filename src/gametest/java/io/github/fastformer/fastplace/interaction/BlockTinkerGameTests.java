@@ -53,8 +53,51 @@ public final class BlockTinkerGameTests {
                BlockState stairs = TinkerShapeTransform.apply(family, full.defaultBlockState(), outerHit);
                helper.assertTrue(stairs.is(family.stairs().orElseThrow()), "full block lost its material family");
                helper.assertTrue(TinkerShapeTransform.occupancy(stairs) == (255 & ~(1 << cell)), "click changed more than its corner");
-               var innerHit = new BlockHitResult(center.subtract(normal.scale(0.25)), face, BlockPos.ZERO, false);
+               var innerHit = new BlockHitResult(new Vec3(x, 0.5, z),
+                  (cell & 4) != 0 ? Direction.UP : Direction.DOWN, BlockPos.ZERO, false);
                helper.assertTrue(TinkerShapeTransform.apply(family, stairs, innerHit).is(full), "recess click did not fill the same corner");
+            }
+         }
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "tinker")
+   public static void stairsRemoveRaisedCornersAndAddAboveBaseClicks(GameTestHelper helper) {
+      var family = TinkerShapeFamilies.find(helper.getLevel().registryAccess(), Blocks.OAK_STAIRS).orElseThrow();
+      for (Half half : Half.values()) for (Direction facing : Direction.Plane.HORIZONTAL) {
+         var state = Blocks.OAK_STAIRS.defaultBlockState()
+            .setValue(BlockStateProperties.HALF, half)
+            .setValue(BlockStateProperties.HORIZONTAL_FACING, facing)
+            .setValue(BlockStateProperties.WATERLOGGED, true);
+         int before = TinkerShapeTransform.occupancy(state);
+         int raisedOffset = half == Half.BOTTOM ? 4 : 0;
+         double raisedY = half == Half.BOTTOM ? 0.75 : 0.25;
+         double baseY = half == Half.BOTTOM ? 0.25 : 0.75;
+         for (int corner = 0; corner < 4; corner++) {
+            int bit = 1 << (corner + raisedOffset);
+            double x = (corner & 1) == 0 ? 0.25 : 0.75;
+            double z = (corner & 2) == 0 ? 0.25 : 0.75;
+            if ((before & bit) == 0) {
+               Direction side = x < 0.5 ? Direction.WEST : Direction.EAST;
+               var click = hitAt(BlockPos.ZERO, side, x < 0.5 ? 0 : 1, baseY, z);
+               var result = TinkerShapeTransform.apply(family, state, click);
+               helper.assertTrue(TinkerShapeTransform.occupancy(result) == (before | bit), "base side click did not add the opposite corner: " + half + " " + facing);
+               helper.assertTrue(result.getValue(BlockStateProperties.WATERLOGGED), "base click lost water");
+            } else {
+               for (Direction face : Direction.Plane.HORIZONTAL) {
+                  Vec3 center = new Vec3(x, raisedY, z);
+                  Vec3 neighbor = center.add(Vec3.atLowerCornerOf(face.getNormal()).scale(0.5));
+                  if (neighbor.x < 0 || neighbor.x > 1 || neighbor.z < 0 || neighbor.z > 1) continue;
+                  int neighborBit = 1 << ((neighbor.x >= 0.5 ? 1 : 0) | (neighbor.z >= 0.5 ? 2 : 0) | raisedOffset);
+                  if ((before & neighborBit) != 0) continue;
+                  var click = new BlockHitResult(center.add(Vec3.atLowerCornerOf(face.getNormal()).scale(0.25)), face, BlockPos.ZERO, false);
+                  var result = TinkerShapeTransform.apply(family, state, click);
+                  helper.assertTrue(TinkerShapeTransform.occupancy(result) == (before & ~bit), "riser click added a corner instead of removing it: " + half + " " + facing);
+                  helper.assertTrue(result.getValue(BlockStateProperties.WATERLOGGED), "riser click lost water");
+                  var stairsOnly = TinkerShapeTransform.stairsOnly(state, click);
+                  helper.assertTrue(TinkerShapeTransform.occupancy(stairsOnly) == (before & ~bit), "unmapped stairs used a different click rule");
+               }
             }
          }
       }
@@ -148,32 +191,52 @@ public final class BlockTinkerGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "tinker")
-   public static void woodSidesCycleMaterialsAndEndsRotateEveryAxis(GameTestHelper helper) {
+   public static void woodEndGrainAndSidesToggleIndependentlyWithoutRotating(GameTestHelper helper) {
       var registry = helper.getLevel().registryAccess().registryOrThrow(TinkerWoodFamily.REGISTRY);
       helper.assertTrue(registry.size() == 10, "built-in wood families were not loaded");
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
       for (var family : registry) {
          for (Direction.Axis axis : Direction.Axis.values()) {
-            var original = family.log().defaultBlockState().setValue(BlockStateProperties.AXIS, axis);
-            var side = axis == Direction.Axis.X ? Direction.NORTH : Direction.EAST;
-            var current = original;
-            for (var next : List.of(family.stripped(), family.bark(), family.log())) {
-               helper.getLevel().setBlock(pos, current, FLAGS);
-               current = BlockTinker.resolve(helper.getLevel(), hitAt(pos, side, 0.5, 0.5, 0.5)).get(pos);
-               helper.assertTrue(current != null && current.is(next), "wood side cycle lost its material family");
-               helper.assertTrue(current.getValue(BlockStateProperties.AXIS) == axis, "wood cycle changed axis");
+            var strippedBark = family.strippedBark().orElseThrow();
+            for (Direction face : Direction.values()) {
+               if (face.getAxis() == axis) {
+                  assertWoodToggle(helper, pos, family.log(), family.bark(), axis, face);
+                  assertWoodToggle(helper, pos, family.stripped(), strippedBark, axis, face);
+               } else {
+                  assertWoodToggle(helper, pos, family.log(), family.stripped(), axis, face);
+                  assertWoodToggle(helper, pos, family.bark(), strippedBark, axis, face);
+               }
             }
-            for (Block block : List.of(family.log(), family.stripped())) {
-               var state = block.defaultBlockState().setValue(BlockStateProperties.AXIS, axis);
-               helper.getLevel().setBlock(pos, state, FLAGS);
-               var rotated = BlockTinker.resolve(helper.getLevel(), hitAt(pos,
-                  Direction.fromAxisAndDirection(axis, Direction.AxisDirection.POSITIVE), 0.5, 0.5, 0.5)).get(pos);
-               helper.assertTrue(rotated.is(block) && rotated.getValue(BlockStateProperties.AXIS) != axis, "end-grain click changed material instead of axis");
+         }
+      }
+      helper.succeed();
+   }
+
+   private static void assertWoodToggle(GameTestHelper helper, BlockPos pos, Block first, Block second,
+      Direction.Axis axis, Direction face) {
+      var original = first.defaultBlockState().setValue(BlockStateProperties.AXIS, axis);
+      helper.getLevel().setBlock(pos, original, FLAGS);
+      var hit = hitAt(pos, face, 0.5, 0.5, 0.5);
+      var changed = BlockTinker.resolve(helper.getLevel(), hit).get(pos);
+      helper.assertTrue(changed != null && changed.is(second), "wood toggle chose the wrong variant: " + face);
+      helper.assertTrue(changed.getValue(BlockStateProperties.AXIS) == axis, "wood toggle rotated the block");
+      helper.getLevel().setBlock(pos, changed, FLAGS);
+      helper.assertTrue(original.equals(BlockTinker.resolve(helper.getLevel(), hit).get(pos)), "wood toggle was not reversible");
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "tinker")
+   public static void missingStrippedBarkDoesNotChangeAnotherWoodProperty(GameTestHelper helper) {
+      var family = new TinkerWoodFamily(Blocks.OAK_LOG, Blocks.STRIPPED_OAK_LOG, Blocks.OAK_WOOD, Optional.empty());
+      for (Direction.Axis axis : Direction.Axis.values()) {
+         var stripped = Blocks.STRIPPED_OAK_LOG.defaultBlockState().setValue(BlockStateProperties.AXIS, axis);
+         var bark = Blocks.OAK_WOOD.defaultBlockState().setValue(BlockStateProperties.AXIS, axis);
+         for (Direction face : Direction.values()) {
+            var hit = hitAt(BlockPos.ZERO, face, 0.5, 0.5, 0.5);
+            if (face.getAxis() == axis) {
+               helper.assertTrue(family.apply(stripped, hit).equals(stripped), "missing stripped wood removed stripping");
+            } else {
+               helper.assertTrue(family.apply(bark, hit).equals(bark), "missing stripped wood changed bark coverage");
             }
-            helper.getLevel().setBlock(pos, family.bark().defaultBlockState().setValue(BlockStateProperties.AXIS, axis), FLAGS);
-            var barkEnd = BlockTinker.resolve(helper.getLevel(), hitAt(pos,
-               Direction.fromAxisAndDirection(axis, Direction.AxisDirection.POSITIVE), 0.5, 0.5, 0.5)).get(pos);
-            helper.assertTrue(barkEnd.is(family.log()), "all-bark block invented an end-grain face");
          }
       }
       helper.succeed();

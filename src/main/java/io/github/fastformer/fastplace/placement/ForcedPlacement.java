@@ -18,11 +18,13 @@ public final class ForcedPlacement {
    private ForcedPlacement() { }
 
    public static boolean use(ServerPlayer player, BlockHitResult hit) {
+      if (io.github.fastformer.server.session.ServerIdleSession.state(player).suspended()) return false;
       var settings = FastPlaceSettings.load(player);
       if (!player.isCreative() || !settings.enabled() || !settings.forcePlacement()
          || !PlaceableItems.isPlaceable(player.getMainHandItem())
          || OperationManager.active(player)
-         || !ServerReachGate.vanillaAt(player, player.getEyePosition().distanceTo(hit.getLocation()))) return false;
+         || !io.github.fastformer.server.session.ServerIdleSession.state(player).vanillaOwnsInput(
+            ServerReachGate.vanillaAt(player, player.getEyePosition().distanceTo(hit.getLocation())))) return false;
       if (ServerInputDispatcher.interactionBlocked(player)) return true;
       var level = player.serverLevel();
       var snapshot = PlacementContextSnapshot.capture(level, player, player.getMainHandItem(), hit, false);
