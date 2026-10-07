@@ -27,16 +27,16 @@ class IdleModeHudTest {
       }
    }
 
-   @Test void heldBlockShowsQuickShapeLineStage() {
+   @Test void heldBlockShowsModesWithoutAStagePrompt() {
       var status = FastPlaceClientPreviewCore.idleBottomStatus(false, true);
-      assertEquals("fastformer.stage.line", key(status));
+      assertEquals("fastformer.hud.quick_shape_label", key(status));
       var modes = status.getSiblings().stream()
          .filter(component -> component.getContents() instanceof TranslatableContents).toList();
       assertEquals(java.util.List.of("fastformer.mode.line.axis", "fastformer.mode.line.free_scroll", "fastformer.mode.line.raycast"),
          modes.stream().map(IdleModeHudTest::key).toList());
       assertEquals(1, modes.stream().filter(component -> component.getStyle().getColor() != null
          && component.getStyle().getColor().getValue() == GeometryPalette.accent().rgb()).count());
-      assertNull(FastPlaceClientPreviewCore.idleBottomStatus(false, false));
+      assertEquals("fastformer.hud.selection_label", key(FastPlaceClientPreviewCore.idleBottomStatus(false, false)));
    }
 
    private static String key(Component component) {

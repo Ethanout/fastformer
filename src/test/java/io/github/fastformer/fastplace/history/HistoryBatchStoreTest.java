@@ -17,6 +17,47 @@ class HistoryBatchStoreTest {
    @TempDir Path root;
 
    @Test
+   void recoveryReferencesHoldRetiredBatchesAndIntentAcrossRestart() {
+      UUID owner = UUID.randomUUID();
+      UUID retired = UUID.randomUUID();
+      UUID current = UUID.randomUUID();
+      var references = new java.util.concurrent.atomic.AtomicReference<>(Set.of(retired));
+      var store = new HistoryBatchStore(root, Runnable::run, 1, 32, 4096, 4096, 8, 8, 4096, ignored -> references.get());
+      store.publishBatch(owner, retired, new byte[]{1}).join();
+      store.publishBatch(owner, current, new byte[]{2}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(retired), List.of())).join();
+      store.stageRetirements(owner, Set.of(retired)).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(current), List.of())).join();
+      assertEquals(0, store.cleanupUnreferencedBatches(owner, Set.of(retired)).join());
+      assertTrue(store.verifyBatch(owner, retired).join());
+      assertEquals(Set.of(retired), store.retiredBatches(owner).join());
+
+      var reopened = new HistoryBatchStore(root, Runnable::run, 1, 32, 4096, 4096, 8, 8, 4096, ignored -> references.get());
+      assertEquals(0, reopened.resumeRetiredCleanup().join().deletedBatches());
+      assertEquals(Set.of(retired), reopened.retiredBatches(owner).join());
+      references.set(Set.of());
+      assertEquals(1, reopened.resumeRetiredCleanup().join().deletedBatches());
+      assertFalse(reopened.verifyBatch(owner, retired).join());
+      assertTrue(reopened.verifyBatch(owner, current).join());
+      assertTrue(reopened.retiredBatches(owner).join().isEmpty());
+   }
+
+   @Test
+   void failedReferenceScanCannotDeleteHistoryOrRetirementIntent() {
+      UUID owner = UUID.randomUUID();
+      UUID retired = UUID.randomUUID();
+      var store = new HistoryBatchStore(root, Runnable::run, 1, 32, 4096, 4096, 8, 8, 4096,
+         ignored -> { throw new java.io.UncheckedIOException(new java.io.IOException("invalid journal")); });
+      store.publishBatch(owner, retired, new byte[]{1}).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(retired), List.of())).join();
+      store.stageRetirements(owner, Set.of(retired)).join();
+      store.publishIndex(owner, new HistoryOrderIndex(List.of(), List.of())).join();
+      assertThrows(CompletionException.class, () -> store.cleanupUnreferencedBatches(owner, Set.of(retired)).join());
+      assertTrue(store.verifyBatch(owner, retired).join());
+      assertEquals(Set.of(retired), store.retiredBatches(owner).join());
+   }
+
+   @Test
    void cleanupExpiredBatchesUpdatesIndexBeforeDeletingOldHistory() throws Exception {
       HistoryBatchStore store = new HistoryBatchStore(root, Runnable::run, 1, 32, 4096, 4096, 8, 8);
       UUID owner = UUID.randomUUID();

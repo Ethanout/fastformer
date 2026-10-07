@@ -27,13 +27,45 @@ import sun.misc.Unsafe;
 /**
  * Whole-group repeat model for a common (multi-part) stack gesture.
  *
- * <p>The unit of one repeat step is the whole selection box, placed copies and the air
- * inside the envelope included. The record {@code repeatStride} keeps the base cell extent,
- * so a step extends the repeat interval by the cells that fit in the whole.
+ * <p>The unit of one repeat step is the base group envelope, including selected air.
+ * The record {@code repeatStride} keeps this extent between gestures.
  *
  * <p>See docs/plan/bugs/2026-09-16-group-repeat.md for the remaining gaps.
  */
 class GroupRepeatTest {
+   @Test
+   void releasedScaleKeepsItsSourceAndShrinksOneSavedCellAtATime() {
+      try {
+         ClientOperationController.onDisconnected();
+         var source = cuboidPart(1, BlockPos.ZERO, 5, 0, 0);
+         assertTrue(ClientOperationController.workspace().addParts(List.of(source)));
+         var original = ClientOperationController.workspace().part(1).orElseThrow();
+         int history = ClientOperationController.workspace().undoSize();
+         for (int steps : new int[]{3, -1}) {
+            assertTrue(ClientOperationController.workspace().beginEdit());
+            var edit = ClientOperationController.workspace().activeEditToken();
+            var baseline = ClientOperationController.workspace().selectedParts();
+            assertNull(ClientOperationController.updateTransformGesture(edit, baseline, false,
+               AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, steps, Double.NaN));
+            assertTrue(ClientOperationController.finishTransformGesture(edit));
+         }
+         var adjusted = ClientOperationController.workspace().part(1).orElseThrow();
+         assertEquals(2, adjusted.transform().repeats().max().getX());
+         assertEquals(5, adjusted.transform().repeatStride().getX());
+         assertEquals(original.selection(), adjusted.selection());
+         assertEquals(original.blocks(), adjusted.blocks());
+         assertEquals(original.sourceSnapshot(), adjusted.sourceSnapshot());
+         assertEquals(15, resolved(adjusted).size());
+         assertEquals(history + 2, ClientOperationController.workspace().undoSize());
+         assertTrue(ClientOperationController.workspace().undo());
+         assertEquals(3, ClientOperationController.workspace().part(1).orElseThrow().transform().repeats().max().getX());
+         assertTrue(ClientOperationController.workspace().undo());
+         assertEquals(original, ClientOperationController.workspace().part(1).orElseThrow());
+      } finally {
+         ClientOperationController.onDisconnected();
+      }
+   }
+
    @Test
    void rejectedCommonRotationReturnsOneMessagePerEditAndKeepsTheWorkspace() {
       try {
@@ -137,7 +169,7 @@ class GroupRepeatTest {
       ClientOperationController.onDisconnected();
    }
 
-   /** Second step over the same group. One drag step adds one whole copy of the group. */
+   /** A later gesture adds one base group, keeping the copies already placed. */
    @Test
    void commonSecondStackRepeatsTheWholeGroupAndKeepsBothParts() {
       ClientOperationController.onDisconnected();
@@ -154,11 +186,11 @@ class GroupRepeatTest {
 
       ClientSelectionPart updatedFirst = ClientOperationController.workspace().part(1).orElseThrow();
       ClientSelectionPart updatedSecond = ClientOperationController.workspace().part(2).orElseThrow();
-      // The whole now spans x=0..23, so one step adds two base cells at the same stride.
+      // Releasing the earlier gesture does not change its twelve-block repeat unit.
       assertEquals(12, updatedFirst.transform().repeatStride().getX());
       assertEquals(12, updatedSecond.transform().repeatStride().getX());
-      assertEquals(3, updatedFirst.transform().repeats().max().getX());
-      assertEquals(3, updatedSecond.transform().repeats().max().getX());
+      assertEquals(2, updatedFirst.transform().repeats().max().getX());
+      assertEquals(2, updatedSecond.transform().repeats().max().getX());
       Set<BlockPos> firstBlocks = resolved(updatedFirst);
       Set<BlockPos> secondBlocks = resolved(updatedSecond);
       // Copies placed by the first stack stay where they are.
@@ -166,11 +198,11 @@ class GroupRepeatTest {
       assertTrue(firstBlocks.containsAll(xRange(12, 16)));
       assertTrue(secondBlocks.containsAll(xRange(10, 11)));
       assertTrue(secondBlocks.containsAll(xRange(22, 23)));
-      // The new content is the whole group placed one whole extent further on.
+      // Exactly one base group is added.
       assertTrue(firstBlocks.containsAll(xRange(24, 28)));
-      assertTrue(firstBlocks.containsAll(xRange(36, 40)));
       assertTrue(secondBlocks.containsAll(xRange(34, 35)));
-      assertTrue(secondBlocks.containsAll(xRange(46, 47)));
+      assertEquals(15, firstBlocks.size());
+      assertEquals(6, secondBlocks.size());
       ClientOperationController.onDisconnected();
    }
 

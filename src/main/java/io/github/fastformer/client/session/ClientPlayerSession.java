@@ -20,12 +20,8 @@ public final class ClientPlayerSession {
    }
 
    public ClientPlayerSession(UUID playerId) {
-      this(playerId, io.github.fastformer.fastplace.session.SessionActivationMode.AUTOMATIC);
-   }
-
-   public ClientPlayerSession(UUID playerId, io.github.fastformer.fastplace.session.SessionActivationMode mode) {
       this.playerId = Objects.requireNonNull(playerId, "playerId");
-      this.inputSession = new ClientInputSession(mode);
+      this.inputSession = new ClientInputSession();
    }
 
    public UUID playerId() {

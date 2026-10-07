@@ -163,6 +163,13 @@ final class SelectionGestureController {
       if (drag != null) {
          if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_GIZMO)
             && drag.capture().matches(ClientOperationController.interactionScene().owner(), ClientOperationController.workspace(), session.pointerGestureToken)) {
+            if (drag.operation() == AxisGizmo.Operation.ROTATE) {
+               double radians = RotationInputAngles.selectionFinish(drag.rotationRadians(), drag.quarterSnap());
+               String failure = ClientOperationController.updateTransformGesture(drag.editToken(), drag.baseline(),
+                  drag.common(), drag.operation(), drag.axis(), 1, GizmoDragCalculator.rotationSteps(radians), radians,
+                  drag.axisVector(), drag.center());
+               ClientInteractionFeedback.show(Minecraft.getInstance(), failure);
+            }
             ClientOperationController.finishTransformGesture(drag.editToken());
             if (session.modifier.held()) {
                session.modifier.consume();
@@ -216,7 +223,7 @@ final class SelectionGestureController {
       double rotationRadians = Double.NaN;
       if (drag.operation() == AxisGizmo.Operation.ROTATE) {
          int rawSteps = GizmoDragCalculator.geometryRotationSteps(geometry, eye, view);
-         rotationRadians = RotationInputAngles.resolve(rawSteps, control, session.modifier);
+         rotationRadians = RotationInputAngles.selectionPreview(rawSteps, control);
          totalSteps = GizmoDragCalculator.rotationSteps(rotationRadians);
       } else {
          double rawOffset = GizmoDragCalculator.operationEndpointOffset(geometry, eye, view);
@@ -225,15 +232,18 @@ final class SelectionGestureController {
             : (int)Math.round(rawOffset);
          totalSteps = Math.clamp(totalSteps, -128, 128);
       }
-      if (totalSteps == drag.sentSteps()) {
+      if (totalSteps == drag.sentSteps()
+         && (drag.operation() != AxisGizmo.Operation.ROTATE || control == drag.quarterSnap())) {
          return;
       }
       int direction = drag.direction() == AxisGizmo.Direction.NEGATIVE ? -1 : 1;
       String failureKey = ClientOperationController.updateTransformGesture(
-         drag.editToken(), drag.baseline(), drag.common(), drag.operation(), drag.axis(), direction, totalSteps, rotationRadians
+         drag.editToken(), drag.baseline(), drag.common(), drag.operation(), drag.axis(), direction, totalSteps, rotationRadians,
+         drag.axisVector(), drag.center()
       );
       ClientInteractionFeedback.show(minecraft, failureKey);
-      ClientOperationController.selectionGestures().update(drag, drag.withSentSteps(totalSteps));
+      ClientOperationController.selectionGestures().update(drag, drag.operation() == AxisGizmo.Operation.ROTATE
+         ? drag.withRotation(totalSteps, rotationRadians, control) : drag.withSentSteps(totalSteps));
       if (session.modifier.held()) {
          session.modifier.consume();
       }
@@ -244,8 +254,7 @@ final class SelectionGestureController {
    }
 
    /**
-    * Travel that adds one repeat group. The whole selection box is the unit, so
-    * input quantization matches the writer in ClientOperationController.
+    * Travel that adjusts one saved repeat cell. Release does not change the unit.
     */
    private static int workspaceRepeatUnit(WorkspaceGizmoDrag drag) {
       return RepeatStrideSemantics.stride(

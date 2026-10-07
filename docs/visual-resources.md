@@ -64,6 +64,7 @@
 - `halo_lines`：主线的对比描边。
 - `pending_dashed_lines`、`halo_dashed_lines`：保留现有资源名，内容已改为连续候选线，不再按虚线区分阶段。
 - `smart_selection_composite`：智能选区穿透编辑的合成。
+- `smart_selection_surface`：智能选区实际外表面的素描排线，保留轮廓和分组。排线固定在世界坐标，不随镜头移动，不穿透世界方块。主题参数 `smart_surface_hatch_scale` 控制密度，`smart_surface_hatch_opacity` 控制透明度。资源包可以覆盖该着色器。
 
 覆盖着色器时保留声明的顶点格式、采样器和 uniform 接口。
 `preview_material` 通过世界位置与表面法线固定排线。`BoilFrame` 是画稿编号，动态预览为 1～N，静态预览为零。

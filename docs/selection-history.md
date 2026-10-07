@@ -45,9 +45,91 @@ Enter 提交或 Delete 删除后，Ctrl+Z 只撤销世界方块修改，不恢�
 部分删除保留未选中的选区及其源方块。剩余选区后续提交时重新采样世界基准。
 世界撤销和重做不会替换这些选区。
 
+滚轮移动选区时，同一批选区沿同一方向的连续滚动自动合并为一条本地历史。相邻滚动间隔不超过 0.25 秒，一次 Ctrl+Z 撤回整组移动。
+换方向、换选区、插入其他编辑或撤销后另开记录。间隔按鼠标事件发生时间计算，不受输入队列延迟影响。
+客户端 `fastformer-client.toml` 的 `[selection] scrollHistoryMergeMillis = 250` 可调整间隔，设为 0 关闭合并。
+
 存在方块冲突时，Enter 强制覆盖，Ctrl+Enter 只撤销无冲突部分，Q 取消。
 
 世界历史仍使用原来的持久化存储。部分删除等待期间会保存剩余选区，供断线后恢复。
+
+## 扳手历史压缩
+
+最近 5 条任意世界操作保持独立。更早的连续扳手记录可在后台合并，不跨越其他操作，也不改变顺序。
+只有同维度、同距离档位、分组键一致且位置相连的记录才合并。默认按面相连，配置可允许边／角相邻。
+形状编辑按材质族和实际修改的上／下半部分组。完整方块、楼梯、台阶之间可合并，不受点击面及 shape／facing 属性集合变化影响。
+默认允许同一半部的增加和删除合并；上下半部不同或同时修改两半时分开。其他操作默认按方块类型、修改属性、类型转换及点击面分组。
+同一方块保留最早的完整快照和最后的完整快照。中间快照不连续时保留原记录，完全抵消的组从历史移除。
+
+上限按操作时玩家眼睛到命中点的距离分档：5 格以内最多 8 次，超过 5 格且不超过 20 格最多 16 次，超过 20 格最多 32 次。
+设置页的“扳手历史压缩”控件可调整三个上限和两个距离分界。点击中间切换项目，两侧按钮调整数值。
+每档上限范围为 1–256，设为 1 关闭该档合并。距离分界范围为 1–256 格，近距离分界必须小于远距离分界。
+距离档位随原始操作保存，不随玩家移动而改变。不同档位不合并。修改分界只影响之后的操作，不拆开已有组。
+旧版默认上限 32 更新为三个默认档位；旧版自定义上限保留为三档相同值。没有扳手标记的记录保持原状。
+
+撤回先逐条处理最近 5 条独立记录，之后遇到已合并的记录才一次撤回整组。重做沿用同一组，不重新分组。
+
+后台只读取快照。服务端线程检查历史版本、顺序和设置后才更新记录。
+撤回、重做、新写入、加载、裁剪或断线使旧结果失效。合并后的批次先写入磁盘，再发布新索引并清理旧文件。
+恢复日志仍引用的旧批次及其移除凭据保留到世界完整保存、日志清理之后。启动恢复不会把已合并、已裁剪或已清空的重做记录重新加入历史。
+
+### 配置文件
+
+使用 NeoForge 的 `fastformer-server.toml`。当前开发客户端位于 `run/client/config/fastformer-server.toml`；发布版使用服务器或存档实际加载的同名文件。
+首次加载世界时，NeoForge 自动补齐缺少的配置字段，保留已有值。
+
+```toml
+[wrenchHistory]
+enabled = true
+protectedRecords = 5
+maxCells = 4096
+maxWorkMiB = 8
+includeDiagonalNeighbors = false
+
+[wrenchHistory.grouping]
+shapeKeyParts = ["material", "edited_half"]
+generalKeyParts = ["face", "block_type", "properties", "conversion"]
+ignoredProperties = []
+shapeEditTag = "fastformer:history/shape_edit"
+noMergeTag = "fastformer:history/no_merge"
+materialTagPrefixes = ["fastformer:selection_families/"]
+
+[wrenchHistory.defaults]
+nearLimit = 8
+middleLimit = 16
+farLimit = 32
+nearDistance = 5
+farDistance = 20
+```
+
+`shapeKeyParts` 可选 `material`（材质族）、`edited_half`（实际修改半部）、`edit_direction`（增加／删除／混合）、`face`（点击面）。
+`generalKeyParts` 可选 `face`、`block_type`、`properties`、`conversion`。删除某项即可取消该维度的区分；空列表仅保留形状／普通操作的大类。
+`ignoredProperties` 排除指定属性名，只影响分组，不改变扳手行为。
+
+### 方块标签
+
+- `shapeEditTag`：修改前或修改后命中此标签，才尝试按形状分组。默认引用原版楼梯和台阶标签，支持完整方块与它们之间的转换。
+- `noMergeTag`：任一修改位置的原状态或目标状态命中此标签，整条记录保持独立，并隔开前后的合并组。默认标签为空。
+- `materialTagPrefixes`：查找原状态和目标状态共有的材质标签。多个标签匹配时，按完整标签名排序取第一个。默认复用智能选区的 `selection_families` 标签。
+
+没有共有材质标签时，使用 `tinker_shape` 数据包材质族；同类型方块仍可独立识别形状变化。形状未变化或无法确认材质关系时使用普通分组。
+
+数据包文件使用 `data/<命名空间>/tags/block/<标签路径>.json`。例如禁止橡木楼梯合并：
+
+`data/fastformer/tags/block/history/no_merge.json`
+
+```json
+{
+  "replace": false,
+  "values": ["minecraft:oak_stairs"]
+}
+```
+
+`replace: false` 扩展标签，`replace: true` 替换标签。自定义材质标签可包含完整方块、楼梯和台阶，再把该标签的命名空间及路径前缀加入 `materialTagPrefixes`。
+执行 `/reload` 重载数据包。标签和分组配置只影响之后记录的分组键，已有记录保留原键。
+
+分组键配置只影响随后产生的记录，不重写旧记录。空间、保护条数和处理预算可作用于尚未合并的旧记录；配置变化使旧后台结果失效。
+默认值供尚未保存个人配置的玩家使用。已有的个人设置优先，仍可在设置页调整。保护条数至少为 1，保留双击恢复所需的最新记录。
 
 ## 快速替换
 

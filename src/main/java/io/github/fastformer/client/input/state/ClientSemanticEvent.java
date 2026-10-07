@@ -16,13 +16,6 @@ public sealed interface ClientSemanticEvent {
 
    enum Cancel implements ClientSemanticEvent { INSTANCE }
    enum Reset implements ClientSemanticEvent { INSTANCE }
-   record SuspendIdle(boolean withinFar) implements ClientSemanticEvent { }
-   record ObserveReach(boolean withinFar) implements ClientSemanticEvent { }
-   enum ResumeIdle implements ClientSemanticEvent { INSTANCE }
-   record ConfigureActivation(io.github.fastformer.fastplace.session.SessionActivationMode mode) implements ClientSemanticEvent {
-      public ConfigureActivation { Objects.requireNonNull(mode); }
-   }
-   enum EnterManual implements ClientSemanticEvent { INSTANCE }
 
    record StartPlacement(long requestId) implements ClientSemanticEvent { }
 

@@ -4,7 +4,6 @@ import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
-import io.github.fastformer.client.quickshape.input.BuildingInputSemantics;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;
 import net.minecraft.client.Minecraft;
@@ -15,9 +14,9 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 final class QuickShapeStartController {
    private QuickShapeStartController() { }
 
-   static boolean capture(Minecraft minecraft, ClientInputSession session, int action, int button,
-      boolean alt, BlockHitResult hit) {
-      if (action != MouseButtonInputSemantics.PRESS || button < 0 || button > 2 || hit == null
+   static boolean capture(Minecraft minecraft, ClientInputSession session, BlockHitResult hit, long anchorToken,
+      int button, boolean embedded) {
+      if (hit == null
          || session.routing.state() != ClientInputStateMachine.State.IDLE || ClientOperationController.active()
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), StartPlacementPayload.TYPE.id())
          || !NetworkRegistry.hasChannel(minecraft.getConnection(),
@@ -26,8 +25,9 @@ final class QuickShapeStartController {
       if (idle == null) return false;
       if (!session.captureQuickShapeButton(button)) return true;
       session.postStartPlacement(new StartPlacementPayload.Target(idle.revision(), idle.callbackScope(),
-         BuildingInputSemantics.initialPlacement(alt, button == MouseButtonInputSemantics.MIDDLE_BUTTON), hit,
-         minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F)));
+         hit,
+         minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), anchorToken, embedded,
+         button == MouseButtonInputSemantics.MIDDLE_BUTTON));
       return true;
    }
 

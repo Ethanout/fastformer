@@ -6,6 +6,9 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.network.payload.settings.FaceRasterizationSettingPayload;
 import io.github.fastformer.network.payload.settings.MiddleConfirmSettingPayload;
 import io.github.fastformer.network.payload.settings.SettingsActionPayload;
+import io.github.fastformer.network.payload.settings.TinkerHistorySettingPayload;
+import io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits;
+import net.minecraft.client.gui.components.Tooltip;
 import io.github.fastformer.network.payload.settings.PlacementEffectSettingPayload;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffect;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
@@ -37,6 +40,9 @@ public final class FastFormerSettingsScreen extends Screen {
    private boolean fallingDisabled;
    private int worldUndoHistoryLimit;
    private int sessionUndoHistoryLimit;
+   private TinkerHistoryMergeLimits tinkerHistoryMergeLimits;
+   private TinkerHistoryMergeLimits.Setting tinkerHistorySetting = TinkerHistoryMergeLimits.Setting.NEAR_LIMIT;
+   private Button tinkerHistoryButton;
    private Button middleConfirmButton;
    private Button faceRasterizationButton;
    private Button placementConflictButton;
@@ -47,7 +53,6 @@ public final class FastFormerSettingsScreen extends Screen {
    private Button worldHistoryButton;
    private Button sessionHistoryButton;
    private Button themeButton;
-   private Button activationModeButton;
 
    public FastFormerSettingsScreen(
       boolean middleConfirmEnabled,
@@ -58,7 +63,8 @@ public final class FastFormerSettingsScreen extends Screen {
       boolean emptyHandWrench,
       boolean fallingDisabled,
       int worldUndoHistoryLimit,
-      int sessionUndoHistoryLimit
+      int sessionUndoHistoryLimit,
+      TinkerHistoryMergeLimits tinkerHistoryMergeLimits
    ) {
       super(Component.translatable("fastformer.settings.title"));
       this.middleConfirmEnabled = middleConfirmEnabled;
@@ -72,6 +78,7 @@ public final class FastFormerSettingsScreen extends Screen {
       this.fallingDisabled = fallingDisabled;
       this.worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
       this.sessionUndoHistoryLimit = Math.clamp((long)sessionUndoHistoryLimit, 1, 800);
+      this.tinkerHistoryMergeLimits = tinkerHistoryMergeLimits == null ? TinkerHistoryMergeLimits.DEFAULTS : tinkerHistoryMergeLimits;
    }
 
    public static void open(
@@ -83,13 +90,14 @@ public final class FastFormerSettingsScreen extends Screen {
       boolean emptyHandWrench,
       boolean fallingDisabled,
       int worldUndoHistoryLimit,
-      int sessionUndoHistoryLimit
+      int sessionUndoHistoryLimit,
+      TinkerHistoryMergeLimits tinkerHistoryMergeLimits
    ) {
       Minecraft.getInstance().setScreen(
          new FastFormerSettingsScreen(
             middleConfirmEnabled, faceRasterizationMode, placementConflictMode,
             placementUpdateMode, enabledPlacementEffects, emptyHandWrench, fallingDisabled,
-            worldUndoHistoryLimit, sessionUndoHistoryLimit
+            worldUndoHistoryLimit, sessionUndoHistoryLimit, tinkerHistoryMergeLimits
          )
       );
    }
@@ -98,6 +106,7 @@ public final class FastFormerSettingsScreen extends Screen {
    protected void init() {
       int centerX = this.width / 2;
       int top = this.settingsTop();
+      int spacing = this.rowSpacing();
       int leftX = centerX - 206;
       int rightX = centerX + 6;
       this.middleConfirmButton = this.addRenderableWidget(
@@ -107,37 +116,37 @@ public final class FastFormerSettingsScreen extends Screen {
       );
       this.faceRasterizationButton = this.addRenderableWidget(
          Button.builder(this.faceRasterizationLabel(), button -> this.cycleFaceRasterization())
-            .bounds(leftX, top + 34, 200, 20)
+            .bounds(leftX, top + spacing, 200, 20)
             .build()
       );
       this.placementConflictButton = this.addRenderableWidget(
          Button.builder(this.placementConflictLabel(), button -> this.cyclePlacementConflict())
-            .bounds(leftX, top + 68, 200, 20)
+            .bounds(leftX, top + 2 * spacing, 200, 20)
             .build()
       );
       this.placementUpdateButton = this.addRenderableWidget(
          Button.builder(this.placementUpdateLabel(), button -> this.cyclePlacementUpdate())
-            .bounds(leftX, top + 102, 200, 20)
+            .bounds(leftX, top + 3 * spacing, 200, 20)
             .build()
       );
       this.themeButton = this.addRenderableWidget(
          Button.builder(this.themeLabel(), button -> this.cycleTheme())
-            .bounds(leftX, top + 136, 96, 20)
+            .bounds(leftX, top + 4 * spacing, 200, 20)
             .build()
       );
-      this.activationModeButton = this.addRenderableWidget(
-         Button.builder(this.activationModeLabel(), button -> {
-            FastFormerClientConfig.setActivationMode(FastFormerClientConfig.activationMode().next());
-            this.activationModeButton.setMessage(this.activationModeLabel());
-         }).bounds(leftX + 104, top + 136, 96, 20)
-            .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("fastformer.settings.activation_hint"))).build()
-      );
       int effectRow = 0;
+      this.addRenderableWidget(Button.builder(Component.literal("-"), button -> this.adjustTinkerHistory(-1))
+         .bounds(leftX, top + 5 * spacing, 20, 20).build());
+      this.tinkerHistoryButton = this.addRenderableWidget(Button.builder(this.tinkerHistoryLabel(), button -> this.cycleTinkerHistorySetting())
+         .bounds(leftX + 24, top + 5 * spacing, 152, 20).build());
+      this.tinkerHistoryButton.setTooltip(Tooltip.create(Component.translatable("fastformer.settings.tinker_history.help")));
+      this.addRenderableWidget(Button.builder(Component.literal("+"), button -> this.adjustTinkerHistory(1))
+         .bounds(leftX + 180, top + 5 * spacing, 20, 20).build());
       this.placementEffectButtons.clear();
       for (PlacementEffect effect : PlacementEffectRegistry.effects()) {
          Button button = this.addRenderableWidget(
             Button.builder(this.placementEffectLabel(effect.id()), ignored -> this.togglePlacementEffect(effect.id()))
-               .bounds(rightX, top + effectRow * 34, 200, 20).build()
+               .bounds(rightX, top + effectRow * spacing, 200, 20).build()
          );
          this.placementEffectButtons.put(effect.id(), button);
          effectRow++;
@@ -145,27 +154,27 @@ public final class FastFormerSettingsScreen extends Screen {
       int staticRow = this.rightStaticStartRow();
       this.emptyHandWrenchButton = this.addRenderableWidget(
          Button.builder(this.emptyHandWrenchLabel(), button -> this.toggleEmptyHandWrench())
-            .bounds(rightX, top + staticRow * 34, 200, 20).build()
+            .bounds(rightX, top + staticRow * spacing, 200, 20).build()
       );
       this.fallingRuleButton = this.addRenderableWidget(
          Button.builder(this.fallingRuleLabel(), button -> this.toggleFallingRule())
-            .bounds(rightX, top + (staticRow + 1) * 34, 200, 20).build()
+            .bounds(rightX, top + (staticRow + 1) * spacing, 200, 20).build()
       );
       this.addRenderableWidget(Button.builder(Component.literal("-"), button -> this.adjustWorldHistory(-10))
-         .bounds(rightX, top + (staticRow + 2) * 34, 20, 20).build());
+         .bounds(rightX, top + (staticRow + 2) * spacing, 20, 20).build());
       this.worldHistoryButton = this.addRenderableWidget(Button.builder(this.worldHistoryLabel(), button -> {})
-         .bounds(rightX + 24, top + (staticRow + 2) * 34, 152, 20).build());
+         .bounds(rightX + 24, top + (staticRow + 2) * spacing, 152, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("+"), button -> this.adjustWorldHistory(10))
-         .bounds(rightX + 180, top + (staticRow + 2) * 34, 20, 20).build());
+         .bounds(rightX + 180, top + (staticRow + 2) * spacing, 20, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("-"), button -> this.adjustSessionHistory(-10))
-         .bounds(rightX, top + (staticRow + 3) * 34, 20, 20).build());
+         .bounds(rightX, top + (staticRow + 3) * spacing, 20, 20).build());
       this.sessionHistoryButton = this.addRenderableWidget(Button.builder(this.sessionHistoryLabel(), button -> {})
-         .bounds(rightX + 24, top + (staticRow + 3) * 34, 152, 20).build());
+         .bounds(rightX + 24, top + (staticRow + 3) * spacing, 152, 20).build());
       this.addRenderableWidget(Button.builder(Component.literal("+"), button -> this.adjustSessionHistory(10))
-         .bounds(rightX + 180, top + (staticRow + 3) * 34, 20, 20).build());
+         .bounds(rightX + 180, top + (staticRow + 3) * spacing, 20, 20).build());
       this.addRenderableWidget(
          Button.builder(Component.translatable("gui.done"), button -> this.onClose())
-            .bounds(centerX - 100, top + this.contentRows() * 34 + 6, 200, 20)
+            .bounds(centerX - 100, top + this.contentRows() * spacing + 6, 200, 20)
             .build()
       );
    }
@@ -174,25 +183,27 @@ public final class FastFormerSettingsScreen extends Screen {
    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
       super.render(graphics, mouseX, mouseY, partialTick);
       int top = this.settingsTop();
+      int spacing = this.rowSpacing();
       int leftX = this.width / 2 - 206;
       int rightX = this.width / 2 + 6;
       graphics.drawCenteredString(this.font, this.title, this.width / 2, top - 18, GeometryPalette.screenTitle().argb());
       this.labelAt(graphics, "fastformer.settings.middle_confirm", leftX, top - 11);
-      this.labelAt(graphics, "fastformer.settings.face_rasterization", leftX, top + 23);
-      this.labelAt(graphics, "fastformer.settings.placement_conflict", leftX, top + 57);
-      this.labelAt(graphics, "fastformer.settings.placement_update", leftX, top + 91);
-      this.labelAt(graphics, "fastformer.settings.theme", leftX, top + 125);
-      this.labelAt(graphics, "fastformer.settings.activation", leftX + 104, top + 125);
+      this.labelAt(graphics, "fastformer.settings.face_rasterization", leftX, top + spacing - 11);
+      this.labelAt(graphics, "fastformer.settings.placement_conflict", leftX, top + 2 * spacing - 11);
+      this.labelAt(graphics, "fastformer.settings.placement_update", leftX, top + 3 * spacing - 11);
+      this.labelAt(graphics, "fastformer.settings.theme", leftX, top + 4 * spacing - 11);
+      this.labelAt(graphics, "fastformer.settings.activation", leftX + 104, top + 4 * spacing - 11);
+      this.labelAt(graphics, "fastformer.settings.tinker_history_merge", leftX, top + 5 * spacing - 11);
       int effectRow = 0;
       for (PlacementEffect effect : PlacementEffectRegistry.effects()) {
-         this.labelAt(graphics, effect.translationKey(), rightX, top + effectRow * 34 - 11);
+         this.labelAt(graphics, effect.translationKey(), rightX, top + effectRow * spacing - 11);
          effectRow++;
       }
       int staticRow = this.rightStaticStartRow();
-      this.labelAt(graphics, "fastformer.settings.empty_hand_wrench", rightX, top + staticRow * 34 - 11);
-      this.labelAt(graphics, "fastformer.settings.disable_falling", rightX, top + (staticRow + 1) * 34 - 11);
-      this.labelAt(graphics, "fastformer.settings.world_history", rightX, top + (staticRow + 2) * 34 - 11);
-      this.labelAt(graphics, "fastformer.settings.session_history", rightX, top + (staticRow + 3) * 34 - 11);
+      this.labelAt(graphics, "fastformer.settings.empty_hand_wrench", rightX, top + staticRow * spacing - 11);
+      this.labelAt(graphics, "fastformer.settings.disable_falling", rightX, top + (staticRow + 1) * spacing - 11);
+      this.labelAt(graphics, "fastformer.settings.world_history", rightX, top + (staticRow + 2) * spacing - 11);
+      this.labelAt(graphics, "fastformer.settings.session_history", rightX, top + (staticRow + 3) * spacing - 11);
    }
 
    private void toggleMiddleConfirm() {
@@ -202,10 +213,6 @@ public final class FastFormerSettingsScreen extends Screen {
       if (minecraft.getConnection() != null && NetworkRegistry.hasChannel(minecraft.getConnection(), MiddleConfirmSettingPayload.TYPE.id())) {
          PacketDistributor.sendToServer(new MiddleConfirmSettingPayload(this.middleConfirmEnabled), new CustomPacketPayload[0]);
       }
-   }
-
-   private Component activationModeLabel() {
-      return Component.translatable(FastFormerClientConfig.activationMode().translationKey());
    }
 
    private Component middleConfirmLabel() {
@@ -275,11 +282,15 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private int contentRows() {
-      return Math.max(5, this.rightStaticStartRow() + 4);
+      return Math.max(6, this.rightStaticStartRow() + 4);
    }
 
    private int settingsTop() {
-      return Math.max(36, this.height / 2 - (this.contentRows() * 34 + 20) / 2);
+      return Math.max(36, this.height / 2 - (this.contentRows() * this.rowSpacing() + 20) / 2);
+   }
+
+   private int rowSpacing() {
+      return Math.clamp((this.height - 62) / this.contentRows(), 24, 34);
    }
 
    private void toggleEmptyHandWrench() {
@@ -339,6 +350,26 @@ public final class FastFormerSettingsScreen extends Screen {
       this.worldUndoHistoryLimit = Math.clamp((long)this.worldUndoHistoryLimit + amount, 1, 800);
       this.worldHistoryButton.setMessage(this.worldHistoryLabel());
       this.send(amount < 0 ? SettingsActionPayload.Action.DECREASE_WORLD_HISTORY : SettingsActionPayload.Action.INCREASE_WORLD_HISTORY);
+   }
+
+   private void adjustTinkerHistory(int amount) {
+      this.tinkerHistoryMergeLimits = this.tinkerHistoryMergeLimits.with(this.tinkerHistorySetting,
+         this.tinkerHistoryMergeLimits.value(this.tinkerHistorySetting) + amount);
+      this.tinkerHistoryButton.setMessage(this.tinkerHistoryLabel());
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft.getConnection() != null && NetworkRegistry.hasChannel(minecraft.getConnection(), TinkerHistorySettingPayload.TYPE.id())) {
+         PacketDistributor.sendToServer(new TinkerHistorySettingPayload(this.tinkerHistorySetting,
+            this.tinkerHistoryMergeLimits.value(this.tinkerHistorySetting)));
+      }
+   }
+
+   private void cycleTinkerHistorySetting() {
+      this.tinkerHistorySetting = this.tinkerHistorySetting.next();
+      this.tinkerHistoryButton.setMessage(this.tinkerHistoryLabel());
+   }
+
+   private Component tinkerHistoryLabel() {
+      return Component.translatable(this.tinkerHistorySetting.translationKey(), this.tinkerHistoryMergeLimits.value(this.tinkerHistorySetting));
    }
 
    private Component worldHistoryLabel() {

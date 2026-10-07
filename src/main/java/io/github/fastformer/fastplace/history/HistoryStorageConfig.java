@@ -1,6 +1,12 @@
 package io.github.fastformer.fastplace.history;
 
 import net.neoforged.neoforge.common.ModConfigSpec;
+import net.neoforged.fml.event.config.ModConfigEvent;
+import java.util.List;
+import java.util.Set;
+import java.util.Locale;
+import java.util.stream.Collectors;
+import io.github.fastformer.fastplace.history.TinkerHistoryGroupingRules.KeyPart;
 
 /** Per-world server settings for completed operation history. */
 public final class HistoryStorageConfig {
@@ -8,6 +14,24 @@ public final class HistoryStorageConfig {
    private static final ModConfigSpec.IntValue OWNER_DISK_MIB;
    private static final ModConfigSpec.IntValue TOTAL_DISK_MIB;
    private static final ModConfigSpec.IntValue RETENTION_DAYS;
+   private static final ModConfigSpec.BooleanValue COMPACTION_ENABLED;
+   private static final ModConfigSpec.IntValue PROTECTED_RECORDS;
+   private static final ModConfigSpec.IntValue MAX_CELLS;
+   private static final ModConfigSpec.IntValue MAX_WORK_MIB;
+   private static final ModConfigSpec.BooleanValue DIAGONAL_NEIGHBORS;
+   private static final ModConfigSpec.IntValue NEAR_LIMIT;
+   private static final ModConfigSpec.IntValue MIDDLE_LIMIT;
+   private static final ModConfigSpec.IntValue FAR_LIMIT;
+   private static final ModConfigSpec.IntValue NEAR_DISTANCE;
+   private static final ModConfigSpec.IntValue FAR_DISTANCE;
+   private static final ModConfigSpec.ConfigValue<List<? extends String>> SHAPE_PARTS;
+   private static final ModConfigSpec.ConfigValue<List<? extends String>> GENERAL_PARTS;
+   private static final ModConfigSpec.ConfigValue<List<? extends String>> IGNORED_PROPERTIES;
+   private static final ModConfigSpec.ConfigValue<String> SHAPE_TAG;
+   private static final ModConfigSpec.ConfigValue<String> NO_MERGE_TAG;
+   private static final ModConfigSpec.ConfigValue<List<? extends String>> MATERIAL_TAG_PREFIXES;
+   private static volatile HistoryCompactionPolicy compactionPolicy = HistoryCompactionPolicy.DEFAULTS;
+   private static volatile TinkerHistoryMergeLimits defaultMergeLimits = TinkerHistoryMergeLimits.DEFAULTS;
 
    static {
       ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -18,6 +42,45 @@ public final class HistoryStorageConfig {
          .worldRestart().defineInRange("totalDiskMiB", 8192, 1, 1048576);
       RETENTION_DAYS = builder.comment("Remove indexed history older than this many days during startup cleanup; 0 disables expiry.")
          .worldRestart().defineInRange("retentionDays", 0, 0, 36500);
+      builder.pop();
+      builder.push("wrenchHistory");
+      var defaults = HistoryCompactionPolicy.DEFAULTS;
+      COMPACTION_ENABLED = builder.comment("Enable background compaction of old wrench records.").define("enabled", defaults.enabled());
+      PROTECTED_RECORDS = builder.comment("Keep this many recent world records independent. At least one protects double-click restoration.")
+         .defineInRange("protectedRecords", defaults.protectedRecords(), 1, 64);
+      MAX_CELLS = builder.comment("Maximum accumulated cell count per worker merge.")
+         .defineInRange("maxCells", defaults.maxCells(), 1, 65536);
+      MAX_WORK_MIB = builder.comment("Maximum source history size per worker merge, in MiB.")
+         .defineInRange("maxWorkMiB", (int)(defaults.maxBytes() / (1024 * 1024)), 1, 64);
+      DIAGONAL_NEIGHBORS = builder.comment("Allow edge and corner neighbors as well as face neighbors.")
+         .define("includeDiagonalNeighbors", defaults.includeDiagonalNeighbors());
+      builder.push("defaults");
+      var limits = TinkerHistoryMergeLimits.DEFAULTS;
+      NEAR_LIMIT = builder.comment("Default original-action limit for close edits. Player settings take precedence.")
+         .defineInRange("nearLimit", limits.near(), 1, TinkerHistoryMetadata.MAX_LIMIT);
+      MIDDLE_LIMIT = builder.defineInRange("middleLimit", limits.middle(), 1, TinkerHistoryMetadata.MAX_LIMIT);
+      FAR_LIMIT = builder.defineInRange("farLimit", limits.far(), 1, TinkerHistoryMetadata.MAX_LIMIT);
+      NEAR_DISTANCE = builder.comment("Default eye-to-hit boundary for close edits, in blocks.")
+         .defineInRange("nearDistance", limits.nearDistance(), 1, 255);
+      FAR_DISTANCE = builder.comment("Default boundary between middle and far edits. Must exceed nearDistance.")
+         .defineInRange("farDistance", limits.farDistance(), 2, 256);
+      builder.pop();
+      builder.push("grouping");
+      SHAPE_PARTS = parts(builder, "shapeKeyParts", defaults.grouping().shapeParts(),
+         TinkerHistoryGroupingRules.SHAPE_PARTS,
+         "Shape key dimensions: material, edited_half, edit_direction, face. Empty groups all shape edits. Changes affect new records.");
+      GENERAL_PARTS = parts(builder, "generalKeyParts", defaults.grouping().generalParts(),
+         TinkerHistoryGroupingRules.GENERAL_PARTS,
+         "Other edit key dimensions: face, block_type, properties, conversion. Empty groups all other edits.");
+      IGNORED_PROPERTIES = builder.comment("Exclude these state property names from general grouping. This does not change wrench behavior.")
+         .defineListAllowEmpty("ignoredProperties", List.<String>of(), value -> value instanceof String name && name.matches("[a-z0-9_]{1,64}"));
+      SHAPE_TAG = builder.comment("Before or after must match this block tag for shape grouping.")
+         .define("shapeEditTag", defaults.grouping().tags().shapeEdits().location().toString(), HistoryStorageConfig::validTagName);
+      NO_MERGE_TAG = builder.comment("Keep records independent when any changed block matches this tag before or after the edit.")
+         .define("noMergeTag", defaults.grouping().tags().noMerge().location().toString(), HistoryStorageConfig::validTagName);
+      MATERIAL_TAG_PREFIXES = builder.comment("Shared block tag prefixes for shape materials. The first tag in lexical order wins. Missing tags use tinker_shape families.")
+         .defineListAllowEmpty("materialTagPrefixes", defaults.grouping().tags().materialPrefixes(), HistoryStorageConfig::validTagName);
+      builder.pop();
       builder.pop();
       SPEC = builder.build();
    }
@@ -35,5 +98,39 @@ public final class HistoryStorageConfig {
 
    public static int retentionDays() {
       return RETENTION_DAYS.get();
+   }
+
+   public static HistoryCompactionPolicy compactionPolicy() { return compactionPolicy; }
+   public static TinkerHistoryMergeLimits defaultMergeLimits() { return defaultMergeLimits; }
+
+   public static void onConfig(ModConfigEvent event) {
+      if (event.getConfig().getSpec() != SPEC) return;
+      if (!SPEC.isLoaded()) {
+         compactionPolicy = HistoryCompactionPolicy.DEFAULTS;
+         defaultMergeLimits = TinkerHistoryMergeLimits.DEFAULTS;
+         return;
+      }
+      var tags = new TinkerHistoryTags(TinkerHistoryTags.blockTag(SHAPE_TAG.get()), TinkerHistoryTags.blockTag(NO_MERGE_TAG.get()),
+         List.copyOf(MATERIAL_TAG_PREFIXES.get()));
+      var rules = new TinkerHistoryGroupingRules(parseParts(SHAPE_PARTS.get()), parseParts(GENERAL_PARTS.get()), Set.copyOf(IGNORED_PROPERTIES.get()), tags);
+      compactionPolicy = new HistoryCompactionPolicy(COMPACTION_ENABLED.get(), PROTECTED_RECORDS.get(), MAX_CELLS.get(),
+         MAX_WORK_MIB.get().longValue() * 1024 * 1024, DIAGONAL_NEIGHBORS.get(), rules);
+      defaultMergeLimits = new TinkerHistoryMergeLimits(NEAR_LIMIT.get(), MIDDLE_LIMIT.get(), FAR_LIMIT.get(), NEAR_DISTANCE.get(), FAR_DISTANCE.get());
+   }
+
+   private static ModConfigSpec.ConfigValue<List<? extends String>> parts(ModConfigSpec.Builder builder, String name,
+      Set<KeyPart> defaults, Set<KeyPart> allowed, String comment) {
+      var names = allowed.stream().map(part -> part.name().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+      return builder.comment(comment).defineListAllowEmpty(name,
+         defaults.stream().map(part -> part.name().toLowerCase(Locale.ROOT)).sorted().toList(),
+         value -> value instanceof String part && names.contains(part));
+   }
+
+   private static Set<KeyPart> parseParts(List<? extends String> names) {
+      return names.stream().map(name -> KeyPart.valueOf(name.toUpperCase(Locale.ROOT))).collect(Collectors.toUnmodifiableSet());
+   }
+
+   private static boolean validTagName(Object value) {
+      return value instanceof String name && net.minecraft.resources.ResourceLocation.tryParse(name) != null;
    }
 }

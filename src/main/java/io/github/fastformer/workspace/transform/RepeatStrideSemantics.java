@@ -10,11 +10,8 @@ import net.minecraft.world.phys.AABB;
  * Resolves the handle travel that adds one repeat group during a stack (SCALE)
  * drag.
  *
- * <p>One drag step repeats the whole current selection, so the stride is the
- * extent of the whole selection box along the handle axis. That box holds the
- * copies that earlier stacks placed and the air inside the selection envelope.
- * The controller also reads {@link WorkspaceSelectionBounds}. This keeps the
- * input distance tied to the selection envelope rather than occupied blocks.
+ * <p>Placed copies do not change the repeat unit. A single part keeps its saved
+ * stride. A common handle uses the base group envelope, including selected air.
  */
 public final class RepeatStrideSemantics {
    private RepeatStrideSemantics() {
@@ -47,31 +44,28 @@ public final class RepeatStrideSemantics {
          return 1;
       }
       if (common) {
-         return stride(wholeSelectionBox(baseline), axis);
+         return stride(WorkspaceSelectionBounds.baseBox(baseline), axis);
       }
       return baseline.stream()
          .filter(part -> part.id() == partId)
          .findFirst()
-         .map(part -> stride(WorkspaceSelectionBounds.resolve(part), axis))
+         .map(part -> cellStride(part, axis))
          .orElse(1);
    }
 
-   /** Union of the whole selection boxes, placed copies included. */
-   public static AABB wholeSelectionBox(List<ClientSelectionPart> baseline) {
-      if (baseline == null) {
-         return null;
-      }
-      AABB union = null;
-      for (ClientSelectionPart part : baseline) {
-         AABB box = WorkspaceSelectionBounds.resolve(part);
-         if (box != null) {
-            union = WorkspaceSelectionBounds.union(union, box);
-         }
-      }
-      return union;
+   /** Uses the stored lattice when one exists, otherwise the original local envelope. */
+   public static int cellStride(ClientSelectionPart part, AxisGizmo.Axis axis) {
+      if (part == null || axis == null) return 1;
+      int saved = switch (axis) {
+         case X -> part.transform().repeatStride().getX();
+         case Y -> part.transform().repeatStride().getY();
+         case Z -> part.transform().repeatStride().getZ();
+      };
+      return saved == 0 ? stride(WorkspaceSelectionBounds.resolveLocal(part, false), axis)
+         : (int)Math.min(Integer.MAX_VALUE, Math.abs((long)saved));
    }
 
-   /** Whole-selection extent along the axis. Never below one block. */
+   /** Envelope extent along the axis. Never below one block. */
    public static int stride(AABB wholeBox, AxisGizmo.Axis axis) {
       return Math.max(1, WorkspaceSelectionBounds.extent(wholeBox, axis));
    }

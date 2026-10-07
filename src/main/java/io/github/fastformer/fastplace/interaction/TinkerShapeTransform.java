@@ -75,6 +75,7 @@ final class TinkerShapeTransform {
       int bestCost = Integer.MAX_VALUE;
       for (BlockState candidate : candidates) {
          if (occupancy(candidate) != target) continue;
+         if (!preservesWater(state, candidate)) continue;
          int cost = orientationCost(state, candidate);
          if (cost < bestCost) {
             best = candidate;
@@ -100,6 +101,11 @@ final class TinkerShapeTransform {
       return point.x >= 0 && point.x < 1 && point.y >= 0 && point.y < 1 && point.z >= 0 && point.z < 1;
    }
 
+   private static boolean preservesWater(BlockState source, BlockState target) {
+      return !source.hasProperty(BlockStateProperties.WATERLOGGED) || !source.getValue(BlockStateProperties.WATERLOGGED)
+         || target.hasProperty(BlockStateProperties.WATERLOGGED) && target.getValue(BlockStateProperties.WATERLOGGED);
+   }
+
    private static int orientationCost(BlockState source, BlockState candidate) {
       if (!(source.getBlock() instanceof StairBlock) || !(candidate.getBlock() instanceof StairBlock)) return 0;
       int half = source.getValue(BlockStateProperties.HALF) == candidate.getValue(BlockStateProperties.HALF) ? 0 : 4;
@@ -109,7 +115,8 @@ final class TinkerShapeTransform {
 
    private static BlockState slabOnly(TinkerShapeFamily family, BlockState state, BlockHitResult hit) {
       if (state.getBlock() instanceof SlabBlock && state.getValue(BlockStateProperties.SLAB_TYPE) != SlabType.DOUBLE) {
-         return hit.getDirection().getAxis().isVertical() ? family.full().withPropertiesOf(state) : state;
+         BlockState full = family.full().withPropertiesOf(state);
+         return hit.getDirection().getAxis().isVertical() && preservesWater(state, full) ? full : state;
       }
       boolean top = hit.getDirection() == Direction.DOWN || (hit.getDirection().getAxis().isHorizontal()
          && hit.getLocation().y - hit.getBlockPos().getY() < 0.5);

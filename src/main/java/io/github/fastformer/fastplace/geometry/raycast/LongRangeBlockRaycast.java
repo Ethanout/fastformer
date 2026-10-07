@@ -29,33 +29,43 @@ public final class LongRangeBlockRaycast {
    }
 
    public static Result clipForPlacement(Level level, Entity source, Vec3 start, Vec3 direction) {
-      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, true, false, ClipContext.Fluid.NONE);
+      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, true, ClipContext.Fluid.NONE);
    }
 
    public static Result clipForSelection(Level level, Entity source, Vec3 start, Vec3 direction, boolean throughFluids) {
-      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, false, false,
+      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, false,
          throughFluids ? ClipContext.Fluid.NONE : ClipContext.Fluid.ANY);
    }
 
-   /** Full cells and near-ray tolerance only decide which input mode owns the pointer. */
-   public static Result clipForReachTransition(Level level, Entity source, Vec3 start, Vec3 direction) {
-      return clip(level, source, start, direction, ClipContext.Block.OUTLINE, false, true, ClipContext.Fluid.NONE);
+   public static Result clipForIdleEntry(net.minecraft.world.entity.player.Player player, boolean alternative) {
+      Vec3 eye = player.getEyePosition(), view = player.getViewVector(1);
+      boolean placement = io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(player.getMainHandItem());
+      if (alternative && placement) return clipForPlacement(player.level(), player, eye, view);
+      Result target = clipForSelection(player.level(), player, eye, view, alternative);
+      return placement && beyondInteractionRange(player, target.hit())
+         ? clipForPlacement(player.level(), player, eye, view) : target;
+   }
+
+   public static boolean beyondInteractionRange(net.minecraft.world.entity.player.Player player, BlockHitResult hit) {
+      double range = player.blockInteractionRange();
+      return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+         && player.getEyePosition().distanceToSqr(hit.getLocation()) > range * range;
    }
 
    public static Result clip(
       Level level, Entity source, Vec3 start, Vec3 direction, ClipContext.Block blockMode
    ) {
-      return clip(level, source, start, direction, blockMode, false, false, ClipContext.Fluid.NONE);
+      return clip(level, source, start, direction, blockMode, false, ClipContext.Fluid.NONE);
    }
 
    private static Result clip(
       Level level, Entity source, Vec3 start, Vec3 direction, ClipContext.Block blockMode,
-      boolean skipReplaceable, boolean reachTransition, ClipContext.Fluid fluidMode
+      boolean skipReplaceable, ClipContext.Fluid fluidMode
    ) {
       long startedAt = System.nanoTime();
       Vec3 ray = direction.lengthSqr() < EPSILON ? Vec3.ZERO : direction.normalize();
       if (ray.lengthSqr() < EPSILON) {
-         BlockHitResult hit = level.clip(context(start, start, blockMode, source, skipReplaceable, reachTransition, fluidMode));
+         BlockHitResult hit = level.clip(context(start, start, blockMode, source, skipReplaceable, fluidMode));
          return new Result(hit, 0.0, 0.0, Limit.ZERO_DIRECTION, 0, System.nanoTime() - startedAt);
       }
 
@@ -66,16 +76,13 @@ public final class LongRangeBlockRaycast {
       double distance = Math.max(0.0, Math.min(bounded.distance(), loaded.distance()));
       Limit limit = loaded.distance() + EPSILON < bounded.distance() ? Limit.UNLOADED_CHUNK : bounded.limit();
       Vec3 end = start.add(ray.scale(distance));
-      BlockHitResult hit = level.clip(context(start, end, blockMode, source, skipReplaceable, reachTransition, fluidMode));
-      if (reachTransition && !hit.isInside()) {
-         hit = NearBlockRaycast.assist(level, source, start, ray, hit, distance, skipReplaceable);
-      }
+      BlockHitResult hit = level.clip(context(start, end, blockMode, source, skipReplaceable, fluidMode));
       // Keep the actual shape hit. A partial block's cell entry can be on a different face.
       return new Result(hit, distance, world.distance(), limit, loaded.checkedChunks(), System.nanoTime() - startedAt);
    }
 
    private static ClipContext context(
-      Vec3 start, Vec3 end, ClipContext.Block mode, Entity source, boolean skipReplaceable, boolean reachTransition,
+      Vec3 start, Vec3 end, ClipContext.Block mode, Entity source, boolean skipReplaceable,
       ClipContext.Fluid fluidMode
    ) {
       return new ClipContext(start, end, mode, fluidMode, source) {
@@ -86,9 +93,7 @@ public final class LongRangeBlockRaycast {
          ) {
             return skipReplaceable && state.canBeReplaced()
                ? net.minecraft.world.phys.shapes.Shapes.empty()
-               : reachTransition && !state.isAir()
-                  && !super.getBlockShape(state, level, pos).isEmpty()
-                  ? net.minecraft.world.phys.shapes.Shapes.block() : super.getBlockShape(state, level, pos);
+               : super.getBlockShape(state, level, pos);
          }
       };
    }

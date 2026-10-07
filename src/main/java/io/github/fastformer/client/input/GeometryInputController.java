@@ -82,7 +82,7 @@ final class GeometryInputController {
       }
       if (action != MouseButtonInputSemantics.PRESS) return false;
       if (session.ownsGeometryPointerButton(button)) return true;
-      if (session.geometryGizmoCapture.captured() || InteractionContext.nearVanillaBlock(minecraft)
+      if (session.geometryGizmoCapture.captured() || InteractionContext.vanillaOwnsPointer(minecraft)
          || session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || session.pointerGesture.kind() != PointerGestureState.Kind.NONE
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())
@@ -136,7 +136,7 @@ final class GeometryInputController {
    static boolean queuePath(Minecraft minecraft, ClientInputSession session, int action, int button,
       long occurredAtNanos) {
       if (action != MouseButtonInputSemantics.PRESS || button != MouseButtonInputSemantics.RIGHT_BUTTON
-         || InteractionContext.nearVanillaBlock(minecraft)
+         || InteractionContext.vanillaOwnsPointer(minecraft)
          || session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || session.pointerGesture.kind() != PointerGestureState.Kind.NONE || session.geometryGizmoCapture.captured()) return false;
       boolean pointAllowed = minecraft.hitResult instanceof BlockHitResult
@@ -171,7 +171,7 @@ final class GeometryInputController {
       }
       if (action != MouseButtonInputSemantics.PRESS) return false;
       if (session.geometryGizmoCapture.hasPhysicalPress()) return session.geometryGizmoCapture.ownsPhysicalButton(button);
-      if (button < 0 || button > 1 || InteractionContext.nearVanillaBlock(minecraft)
+      if (button < 0 || button > 1 || InteractionContext.vanillaOwnsPointer(minecraft)
          || session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || session.pointerGesture.kind() != PointerGestureState.Kind.NONE && !session.geometryGizmoCapture.captured()) return false;
       var preview = FastPlaceClientPreview.geometrySnapshot();

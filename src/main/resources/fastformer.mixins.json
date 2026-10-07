@@ -8,7 +8,9 @@
   },
   "client": [
     "BlockUsePredictionMixin",
-    "GameRendererMixin",
+    "IdlePlacementPredictionMixin",
+    "BlockBreakPredictionMixin",
+    "LightBlockOutlineMixin",
     "BlockEntityRenderDispatcherMixin",
     "LevelRendererAccessor",
     "GuiAccessor",

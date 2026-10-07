@@ -162,7 +162,11 @@ public final class ClientPayloadDispatcher {
       EVENTS.post(new PendingPayload(payload, connection));
    }
 
-   public static void applyReachSettings(io.github.fastformer.network.payload.settings.ReachSettingsPayload payload, Connection connection) {
+   public static void applyIdleInteraction(io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload payload, Connection connection) {
+      EVENTS.post(new PendingPayload(payload, connection));
+   }
+
+   public static void applyIdleSelectionEntry(io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload payload, Connection connection) {
       EVENTS.post(new PendingPayload(payload, connection));
    }
 
@@ -204,10 +208,15 @@ public final class ClientPayloadDispatcher {
                "io.github.fastformer.client.interaction.ClientInteractionUpdates", "receive",
                io.github.fastformer.network.payload.settings.InteractionUpdatesPayload.class, payload);
          }
-         case io.github.fastformer.network.payload.settings.ReachSettingsPayload payload -> {
+         case io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload payload -> {
             if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
-               "io.github.fastformer.client.interaction.ClientReachGate", "receive",
-               io.github.fastformer.network.payload.settings.ReachSettingsPayload.class, payload);
+               "io.github.fastformer.client.input.FastPlaceClientInput", "receiveIdleInteraction",
+               io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload.class, payload);
+         }
+         case io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
+               "io.github.fastformer.client.input.FastPlaceClientInput", "receiveIdleSelectionEntry",
+               io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload.class, payload);
          }
          case io.github.fastformer.network.payload.world.HistoryConflictPayload payload -> {
             if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
@@ -253,7 +262,8 @@ public final class ClientPayloadDispatcher {
             boolean.class,
             boolean.class,
             int.class,
-            int.class
+            int.class,
+            io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits.class
          ).invoke(
             null,
             payload.middleConfirmEnabled(),
@@ -264,7 +274,8 @@ public final class ClientPayloadDispatcher {
             payload.emptyHandWrench(),
             payload.fallingDisabled(),
             payload.worldUndoHistoryLimit(),
-            payload.sessionUndoHistoryLimit()
+            payload.sessionUndoHistoryLimit(),
+            payload.tinkerHistoryMergeLimits()
          );
       } catch (ReflectiveOperationException exception) {
          throw new IllegalStateException("Unable to open FastFormer settings", exception);

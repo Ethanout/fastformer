@@ -27,7 +27,6 @@ class RemoteSelectionPointMailboxTest {
       ClientOperationController.onDisconnected();
       input = FastPlaceClientInput.inputSession();
       input.reset();
-      input.routing.onEvent(io.github.fastformer.client.input.state.ClientSemanticEvent.EnterManual.INSTANCE);
    }
    @AfterEach void clear() { input.reset(); ClientOperationController.onDisconnected(); }
 
@@ -158,7 +157,7 @@ class RemoteSelectionPointMailboxTest {
 
    @Test void localDraftPreventsLateRemoteSelectionCreation() {
       FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
-      ClientOperationController.handleCreateClick(0, net.minecraft.core.BlockPos.ZERO);
+      ClientOperationController.handleCreateClick(1, net.minecraft.core.BlockPos.ZERO);
       assertTrue(ClientOperationController.selectionDraftActive());
       drain(true);
       assertTrue(sent.isEmpty());

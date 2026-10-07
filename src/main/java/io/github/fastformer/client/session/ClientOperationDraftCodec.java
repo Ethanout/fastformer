@@ -377,6 +377,7 @@ public final class ClientOperationDraftCodec {
       tag.put("Translation", encodeVec3(transform.translation()));
       tag.put("Rotation", encodeVec3(transform.rotation()));
       tag.put("Scale", encodeVec3(transform.scale()));
+      tag.put("Symmetry", transform.symmetry().encode());
       tag.putLong("RepeatMin", transform.repeats().min().asLong());
       tag.putLong("RepeatMax", transform.repeats().max().asLong());
       tag.putLong("RepeatStride", transform.repeatStride().asLong());
@@ -389,7 +390,9 @@ public final class ClientOperationDraftCodec {
          decodeVec3(requiredCompound(tag, "Rotation")),
          new OperationStackRegion(BlockPos.of(tag.getLong("RepeatMin")), BlockPos.of(tag.getLong("RepeatMax"))),
          BlockPos.of(tag.getLong("RepeatStride")),
-         decodeVec3(requiredCompound(tag, "Scale"))
+         decodeVec3(requiredCompound(tag, "Scale")),
+         tag.contains("Symmetry") ? io.github.fastformer.workspace.model.WorkspaceSymmetry.decode(requiredCompound(tag, "Symmetry"))
+            : io.github.fastformer.workspace.model.WorkspaceSymmetry.IDENTITY
       );
    }
 

@@ -10,9 +10,14 @@ public final class ClientBlockTinker {
    private ClientBlockTinker() {}
 
    public static boolean consumes(Player player, InteractionHand hand, BlockHitResult hit) {
-      if (hand != InteractionHand.MAIN_HAND || !ClientInteractionUpdates.wrenchEnabled(player)
-         || FastPlaceClientPreview.active() || FastPlaceClientPreview.operationActive()
-         || FastPlaceClientPreview.geometryActive() || FastPlaceClientPreview.taskActive()) return false;
-      return !BlockTinker.preview(player, hit).isEmpty();
+      return hand == InteractionHand.MAIN_HAND && available(player)
+         && BlockTinker.consumes(player, hit);
+   }
+
+   public static boolean available(Player player) {
+      return BlockTinker.canEdit(player) && ClientInteractionUpdates.wrenchEnabled(player)
+         && io.github.fastformer.client.input.FastPlaceClientInput.vanillaSession()
+         && !FastPlaceClientPreview.active() && !FastPlaceClientPreview.operationActive()
+         && !FastPlaceClientPreview.geometryActive() && !FastPlaceClientPreview.taskActive();
    }
 }

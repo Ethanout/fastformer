@@ -2,7 +2,6 @@ package io.github.fastformer.client.placement;
 
 import io.github.fastformer.client.input.mouse.UsePressSequence;
 import io.github.fastformer.client.interaction.ClientInteractionUpdates;
-import io.github.fastformer.client.interaction.ClientReachGate;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import java.util.Map;
@@ -24,22 +23,20 @@ public final class ClientForcedPlacement {
       if (action == 1) press.press();
       else if (action == 0) press.release();
       if (TRACE && (action == 0 || action == 1)) LOGGER.info("Placement input: physical={}, time={}, vanilla={}",
-         action == 1 ? "press" : "release", System.nanoTime(), ClientReachGate.vanilla());
+         action == 1 ? "press" : "release", System.nanoTime(), io.github.fastformer.client.input.FastPlaceClientInput.vanillaSession());
    }
 
    public static boolean consumes(LocalPlayer player, InteractionHand hand, BlockHitResult hit) {
-      if (io.github.fastformer.client.input.FastPlaceClientInput.idleSessionSuspended()) return false;
       return hand == InteractionHand.MAIN_HAND && player.isCreative()
          && ClientInteractionUpdates.forcePlacement(player) && !QuickReplaceMode.active()
          && !FastPlaceClientPreview.operationActive() && PlaceableItems.isPlaceable(player.getMainHandItem())
-         && io.github.fastformer.client.input.FastPlaceClientInput.idleSessionState().vanillaOwnsInput(
-            ClientReachGate.vanillaAt(player, player.getEyePosition().distanceTo(hit.getLocation())));
+         && io.github.fastformer.client.input.FastPlaceClientInput.vanillaSession();
    }
 
    public static boolean accept(LocalPlayer player) {
       boolean accepted = PRESSES.computeIfAbsent(player, ignored -> new UsePressSequence()).accept();
       if (TRACE) LOGGER.info("Placement input: use={}, time={}, vanilla={}, hit={}",
-         accepted ? "accepted" : "repeated", System.nanoTime(), ClientReachGate.vanilla(),
+         accepted ? "accepted" : "repeated", System.nanoTime(), io.github.fastformer.client.input.FastPlaceClientInput.vanillaSession(),
          net.minecraft.client.Minecraft.getInstance().hitResult == null ? null
             : net.minecraft.client.Minecraft.getInstance().hitResult.getLocation());
       return accepted;

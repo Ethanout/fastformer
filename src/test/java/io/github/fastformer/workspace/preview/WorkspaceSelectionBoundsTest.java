@@ -64,7 +64,7 @@ class WorkspaceSelectionBoundsTest {
          false
       );
 
-      // The whole group is this gesture's repeat unit, so its box holds both copies.
+      // The displayed box holds both copies. The base box keeps the original unit.
       assertEquals(10, WorkspaceSelectionBounds.extent(WorkspaceSelectionBounds.resolve(stacked), AxisGizmo.Axis.X));
       // The cell box is one copy, so a repeat gesture never moves a placed copy.
       assertEquals(5, WorkspaceSelectionBounds.extent(WorkspaceSelectionBounds.resolveBase(stacked), AxisGizmo.Axis.X));
@@ -82,9 +82,6 @@ class WorkspaceSelectionBoundsTest {
 
       assertEquals(24, WorkspaceSelectionBounds.extent(whole, AxisGizmo.Axis.X));
       assertEquals(12, WorkspaceSelectionBounds.extent(base, AxisGizmo.Axis.X));
-      assertEquals(2, WorkspaceSelectionBounds.wholeStepCells(whole, base, AxisGizmo.Axis.X));
-      // A missing box never divides by zero and never returns a free step.
-      assertEquals(1, WorkspaceSelectionBounds.wholeStepCells(null, null, AxisGizmo.Axis.X));
    }
 
    private static ClientSelectionPart cuboidPart(

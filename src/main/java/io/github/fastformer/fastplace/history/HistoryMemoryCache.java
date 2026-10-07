@@ -12,12 +12,16 @@ final class HistoryMemoryCache {
    private ArrayDeque<WorldChangeBatch> redo = new ArrayDeque<>();
    private long undoBytes;
    private long redoBytes;
+   private long revision;
+
+   long revision() { return revision; }
 
    void addNew(WorldChangeBatch batch) {
       undo.addFirst(batch);
       undoBytes += batch.estimatedBytes();
       redo.clear();
       redoBytes = 0L;
+      revision++;
    }
 
    void merge(boolean undoDirection, List<WorldChangeBatch> loaded) {
@@ -35,6 +39,7 @@ final class HistoryMemoryCache {
          redo = target;
          redoBytes = bytes;
       }
+      revision++;
    }
 
    WorldChangeBatch peek(boolean undoDirection) {
@@ -51,7 +56,25 @@ final class HistoryMemoryCache {
          redoBytes -= committed.estimatedBytes();
          undoBytes += committed.estimatedBytes();
       }
+      revision++;
       return committed;
+   }
+
+   void removeNewestUndo() {
+      undoBytes -= undo.removeFirst().estimatedBytes();
+      revision++;
+   }
+
+   void replaceUndo(TinkerHistoryCompactor.Replacement replacement) {
+      var batches = new java.util.ArrayList<>(undo);
+      int end = replacement.start() + replacement.removed().size();
+      if (!batches.subList(replacement.start(), end).stream().map(WorldChangeBatch::operationId).toList()
+         .equals(replacement.removed())) throw new IllegalStateException("Wrench history changed before compaction");
+      batches.subList(replacement.start(), end).clear();
+      replacement.batch().ifPresent(batch -> batches.add(replacement.start(), batch));
+      undo = new ArrayDeque<>(batches);
+      undoBytes = batches.stream().mapToLong(WorldChangeBatch::estimatedBytes).sum();
+      revision++;
    }
 
    List<WorldChangeBatch> snapshot(boolean undoDirection) {
@@ -75,6 +98,7 @@ final class HistoryMemoryCache {
    }
 
    void trim(int limit, long byteLimit) {
+      int previousSize = undo.size() + redo.size();
       int bounded = Math.max(1, limit);
       while (undo.size() > bounded) undoBytes -= undo.removeLast().estimatedBytes();
       while (redo.size() > bounded) redoBytes -= redo.removeLast().estimatedBytes();
@@ -85,6 +109,7 @@ final class HistoryMemoryCache {
             redoBytes -= redo.removeLast().estimatedBytes();
          }
       }
+      if (previousSize != undo.size() + redo.size()) revision++;
    }
 
    private ArrayDeque<WorldChangeBatch> stack(boolean undoDirection) {

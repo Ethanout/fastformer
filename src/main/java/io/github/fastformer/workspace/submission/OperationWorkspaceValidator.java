@@ -99,6 +99,11 @@ public final class OperationWorkspaceValidator {
          || Math.abs(transform.translation().z) > 30_000_000.0) {
          return false;
       }
+      var symmetryOffset = transform.symmetry().offset();
+      if (Math.abs(symmetryOffset.x) > 60_000_000.0 || Math.abs(symmetryOffset.y) > 60_000_000.0
+         || Math.abs(symmetryOffset.z) > 60_000_000.0) {
+         return false;
+      }
       BlockPos min = transform.repeats().min();
       BlockPos max = transform.repeats().max();
       // Widen before the absolute value. Math.abs(int) returns Integer.MIN_VALUE unchanged,

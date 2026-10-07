@@ -18,7 +18,7 @@ final class ScrollInputDispatcher {
          if (route == ClientInputStateMachine.Dispatch.OPERATION
             && !ClientOperationController.workspaceSubmissionPending()
             && move.matches(ClientOperationController.interactionScene().owner(), ClientOperationController.workspace())) {
-            ClientOperationController.moveSelected(move.offset());
+            ClientOperationController.scrollSelected(move.offset(), move.timestampNanos());
          }
          return;
       }

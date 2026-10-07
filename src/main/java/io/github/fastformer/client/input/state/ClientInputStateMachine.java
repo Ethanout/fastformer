@@ -1,8 +1,6 @@
 package io.github.fastformer.client.input.state;
 
 import java.util.Objects;
-import io.github.fastformer.fastplace.session.IdleSessionState;
-import io.github.fastformer.fastplace.session.SessionActivationMode;
 
 /** Owns input routing, cancellation, and the lifetime of a mouse gesture. */
 public final class ClientInputStateMachine {
@@ -13,23 +11,11 @@ public final class ClientInputStateMachine {
    private State submissionOrigin;
    private final ClientRequestTracker requests = new ClientRequestTracker();
    private final java.util.function.BiConsumer<State, State> onTransition;
-   private SessionActivationMode activationMode;
 
    public ClientInputStateMachine() { this((previous, next) -> { }); }
 
    public ClientInputStateMachine(java.util.function.BiConsumer<State, State> onTransition) {
-      this(SessionActivationMode.AUTOMATIC, onTransition);
-   }
-
-   public ClientInputStateMachine(SessionActivationMode mode, java.util.function.BiConsumer<State, State> onTransition) {
       this.onTransition = Objects.requireNonNull(onTransition);
-      this.activationMode = Objects.requireNonNull(mode);
-      this.state = mode == SessionActivationMode.MANUAL ? State.IDLE_MANUAL : State.IDLE;
-   }
-
-   public IdleSessionState idleState() {
-      if (state.idleSuspended()) return state.idleState();
-      return activationMode == SessionActivationMode.MANUAL ? IdleSessionState.MANUAL_FF : IdleSessionState.READY;
    }
 
    public State state() {
@@ -86,21 +72,14 @@ public final class ClientInputStateMachine {
 
    /** Returns a decision without changing state, gestures, or request ownership. */
    public InteractionTransition inspect(ClientSemanticEvent event) {
-      return this.state.onEvent(Objects.requireNonNull(event, "event"), this.requests.current(), this.submissionOrigin, activationMode);
+      return this.state.onEvent(Objects.requireNonNull(event, "event"), this.requests.current(), this.submissionOrigin);
    }
 
    /** The client owner calls this once for each delivered event. */
    public InteractionTransition onEvent(ClientSemanticEvent event) {
-      SessionActivationMode previousMode = activationMode;
-      if (event instanceof ClientSemanticEvent.ConfigureActivation configure) {
-         if (configure.mode() == activationMode) return InteractionTransition.Stay.INSTANCE;
-         activationMode = Objects.requireNonNull(configure.mode());
-      }
       InteractionTransition result = inspect(event);
       if (result instanceof InteractionTransition.Switch change) {
          apply(change);
-      } else if (previousMode != activationMode) {
-         onTransition.accept(state, state);
       }
       return result;
    }
@@ -110,7 +89,7 @@ public final class ClientInputStateMachine {
    }
 
    public boolean routesToVanilla(InputKind input) {
-      return dispatch(input) == Dispatch.VANILLA || dispatch(input) == Dispatch.VANILLA_ONLY;
+      return dispatch(input) == Dispatch.VANILLA;
    }
 
    public long beginGesture() {
@@ -118,7 +97,7 @@ public final class ClientInputStateMachine {
    }
 
    public long beginGesture(int button) {
-      if (dispatch(InputKind.POINTER) == Dispatch.BLOCKED || dispatch(InputKind.POINTER) == Dispatch.VANILLA_ONLY) {
+      if (dispatch(InputKind.POINTER) == Dispatch.BLOCKED) {
          return 0L;
       }
       gesture = ++generation;
@@ -163,9 +142,6 @@ public final class ClientInputStateMachine {
 
    public enum State {
       IDLE(Dispatch.VANILLA, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.VANILLA, Dispatch.BLOCKED, false, true),
-      IDLE_MANUAL(Dispatch.VANILLA_ONLY, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, false),
-      IDLE_WAITING_FOR_FAR_ENTRY(Dispatch.VANILLA_ONLY, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, false),
-      IDLE_WAITING_FOR_FAR_EXIT(Dispatch.VANILLA_ONLY, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, false),
       QUICK_REPLACE(Dispatch.VANILLA, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, true),
       BUILDING(Dispatch.BUILDING, Dispatch.BUILDING, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, true, true),
       GEOMETRY(Dispatch.GEOMETRY, Dispatch.GEOMETRY, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, true, true),
@@ -203,21 +179,9 @@ public final class ClientInputStateMachine {
       }
 
       InteractionTransition onEvent(
-         ClientSemanticEvent event, ClientSemanticEvent.Submit activeRequest, State submissionOrigin, SessionActivationMode mode
+         ClientSemanticEvent event, ClientSemanticEvent.Submit activeRequest, State submissionOrigin
       ) {
          return switch (event) {
-            case ClientSemanticEvent.ConfigureActivation configure -> this == IDLE || idleSuspended()
-               ? idleTransition(configure.mode() == SessionActivationMode.MANUAL ? IdleSessionState.MANUAL_VANILLA : IdleSessionState.READY)
-               : InteractionTransition.Stay.INSTANCE;
-            case ClientSemanticEvent.EnterManual ignored -> this == IDLE_MANUAL
-               ? idleTransition(IdleSessionState.READY) : new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
-            case ClientSemanticEvent.SuspendIdle suspend -> this == IDLE
-               ? idleTransition(mode == SessionActivationMode.MANUAL ? IdleSessionState.MANUAL_VANILLA : IdleSessionState.suspend(suspend.withinFar()))
-               : new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
-            case ClientSemanticEvent.ObserveReach reach -> idleSuspended()
-               ? idleTransition(idleState().observeDistance(reach.withinFar())) : InteractionTransition.Stay.INSTANCE;
-            case ClientSemanticEvent.ResumeIdle ignored -> idleSuspended()
-               ? idleTransition(IdleSessionState.READY) : InteractionTransition.Stay.INSTANCE;
             case ClientSemanticEvent.Observe observation ->
                observation.state() == this || !acceptsObservation(observation.state())
                   ? InteractionTransition.Stay.INSTANCE
@@ -226,7 +190,7 @@ public final class ClientInputStateMachine {
                ? new InteractionTransition.Switch(CANCELLING, InteractionTransition.Cause.CANCEL)
                : new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
             case ClientSemanticEvent.Reset ignored ->
-               new InteractionTransition.Switch(mode == SessionActivationMode.MANUAL ? IDLE_MANUAL : IDLE, InteractionTransition.Cause.RESET);
+               new InteractionTransition.Switch(IDLE, InteractionTransition.Cause.RESET);
             case ClientSemanticEvent.Submit request -> submitTransition(request, activeRequest);
             case ClientSemanticEvent.StartPlacement start -> this == IDLE
                ? validatedSubmission(new ClientSemanticEvent.Submit.Placement(start.requestId()), activeRequest)
@@ -234,28 +198,6 @@ public final class ClientInputStateMachine {
             case ClientSemanticEvent.SubmissionCompleted completion ->
                completionTransition(completion, activeRequest, submissionOrigin);
          };
-      }
-
-      public IdleSessionState idleState() {
-         return switch (this) {
-            case IDLE_MANUAL -> IdleSessionState.MANUAL_VANILLA;
-            case IDLE_WAITING_FOR_FAR_ENTRY -> IdleSessionState.WAITING_FOR_FAR_ENTRY;
-            case IDLE_WAITING_FOR_FAR_EXIT -> IdleSessionState.WAITING_FOR_FAR_EXIT;
-            default -> IdleSessionState.READY;
-         };
-      }
-
-      public boolean idleSuspended() { return idleState().suspended(); }
-
-      private InteractionTransition idleTransition(IdleSessionState state) {
-         State next = switch (state) {
-            case READY, MANUAL_FF -> IDLE;
-            case MANUAL_VANILLA -> IDLE_MANUAL;
-            case WAITING_FOR_FAR_ENTRY -> IDLE_WAITING_FOR_FAR_ENTRY;
-            case WAITING_FOR_FAR_EXIT -> IDLE_WAITING_FOR_FAR_EXIT;
-         };
-         return next == this ? InteractionTransition.Stay.INSTANCE
-            : new InteractionTransition.Switch(next, InteractionTransition.Cause.IDLE_HANDOFF);
       }
 
       private InteractionTransition submitTransition(
@@ -321,7 +263,6 @@ public final class ClientInputStateMachine {
       }
 
       boolean acceptsObservation(State observed) {
-         if (idleSuspended() && observed == IDLE) return false;
          if (this == SUBMITTING) {
             return false;
          }
@@ -362,7 +303,6 @@ public final class ClientInputStateMachine {
       BLOCKED,
       CANCEL,
       VANILLA,
-      VANILLA_ONLY,
       BUILDING,
       GEOMETRY,
       OPERATION

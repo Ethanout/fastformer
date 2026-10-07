@@ -1,11 +1,11 @@
 package io.github.fastformer.client.interaction;
 
 import io.github.fastformer.client.gizmo.GizmoViewScale;
-import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.TransformFrame;
 import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.transform.WorkspaceRotation;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +26,8 @@ public final class SelectionGizmoInteraction {
       }
    }
 
-   public record PartGeometry(AxisGizmo world, AxisGizmo scale) {
-      public List<AxisGizmo> gizmos() { return List.of(world, scale); }
+   public record PartGeometry(AxisGizmo world, AxisGizmo scale, AxisGizmo rotation) {
+      public List<AxisGizmo> gizmos() { return List.of(world, scale, rotation); }
    }
 
    public static InteractionObject createPart(UUID owner, long identity, ClientSelectionPart part, Vec3 center) {
@@ -37,13 +37,7 @@ public final class SelectionGizmoInteraction {
    public static InteractionObject createPart(UUID owner, long identity, ClientSelectionPart part, Vec3 center,
       InteractionComponents.SelectionRole role) {
       TransformFrame world = TransformFrame.world(center);
-      Vec3 rotation = part.transform().rotation();
-      TransformFrame local = rotation.equals(Vec3.ZERO) ? world : TransformFrame.local(
-         center,
-         PreviewGeometrySupport.rotateLocalAxis(AxisGizmo.Axis.X, rotation),
-         PreviewGeometrySupport.rotateLocalAxis(AxisGizmo.Axis.Y, rotation),
-         PreviewGeometrySupport.rotateLocalAxis(AxisGizmo.Axis.Z, rotation)
-      );
+      TransformFrame local = WorkspaceRotation.frame(part.transform(), center);
       return InteractionObject.builder(new InteractionObject.Id(owner, "part_gizmo", identity))
          .with(InteractionComponents.GIZMO_FRAMES, new Frames(world, local))
          .with(InteractionComponents.VISIBILITY, partVisibility(part))
@@ -57,9 +51,11 @@ public final class SelectionGizmoInteraction {
       Frames frames = object.require(InteractionComponents.GIZMO_FRAMES);
       return new PartGeometry(
          AxisGizmo.inFrame(frames.world(), scale.axisLength(), scale.handleRadius(),
-            AxisGizmo.Operation.MOVE, AxisGizmo.Operation.ROTATE).withTextComponent(GizmoTextComponent.pointLevel()),
+            AxisGizmo.Operation.MOVE).withTextComponent(GizmoTextComponent.pointLevel()),
          AxisGizmo.inFrame(frames.localScale(), scale.axisLength(), scale.handleRadius(),
-            AxisGizmo.Operation.SCALE).withTextComponent(GizmoTextComponent.pointLevel())
+            AxisGizmo.Operation.SCALE).withTextComponent(GizmoTextComponent.pointLevel()),
+         AxisGizmo.inFrame(frames.localScale(), scale.axisLength(), scale.handleRadius(),
+            AxisGizmo.Operation.ROTATE).withTextComponent(GizmoTextComponent.pointLevel())
       );
    }
 
@@ -73,7 +69,7 @@ public final class SelectionGizmoInteraction {
       return InteractionVisibility.WHEN_SELECTED;
    }
 
-   public record Group(Map<Integer, Long> members, boolean scaleEnabled) {
+   public record Group(Map<Integer, Long> members, boolean scaleEnabled, TransformFrame rotationFrame) {
       public Group { members = Map.copyOf(members); }
    }
 
@@ -93,7 +89,9 @@ public final class SelectionGizmoInteraction {
       }
       if (bounds == null) return null;
       var id = new InteractionObject.Id(owner, "selection_gizmo", 1);
-      var group = new Group(members, scaleEnabled);
+      int reference = selected.stream().min(java.util.Comparator.comparingLong(member -> parts.get(member).identity())).orElseThrow();
+      TransformFrame frame = WorkspaceRotation.frame(parts.get(reference).source().transform(), bounds.getCenter());
+      var group = new Group(members, scaleEnabled, frame);
       if (previous != null && previous.id().equals(id)
          && bounds.equals(previous.require(InteractionComponents.WORLD_BOUNDS))
          && group.equals(previous.require(InteractionComponents.GROUP_GIZMO))) return previous;
@@ -104,13 +102,19 @@ public final class SelectionGizmoInteraction {
          .with(InteractionComponents.GROUP_GIZMO, group).build();
    }
 
-   public static AxisGizmo resolveGroup(InteractionObject object, GizmoViewScale scale) {
+   public static PartGeometry resolveGroup(InteractionObject object, GizmoViewScale scale) {
       AABB bounds = object.require(InteractionComponents.WORLD_BOUNDS);
-      AxisGizmo.Operation[] operations = object.require(InteractionComponents.GROUP_GIZMO).scaleEnabled()
-         ? new AxisGizmo.Operation[] {AxisGizmo.Operation.MOVE, AxisGizmo.Operation.SCALE, AxisGizmo.Operation.ROTATE}
-         : new AxisGizmo.Operation[] {AxisGizmo.Operation.MOVE, AxisGizmo.Operation.ROTATE};
-      return AxisGizmo.inFrame(TransformFrame.world(bounds.getCenter()),
-         scale.axisLength() * 1.35, scale.handleRadius() * 1.35, operations)
-         .withTextComponent(GizmoTextComponent.pointLevel());
+      var group = object.require(InteractionComponents.GROUP_GIZMO);
+      TransformFrame world = TransformFrame.world(bounds.getCenter());
+      double length = scale.axisLength() * 1.35;
+      double radius = scale.handleRadius() * 1.35;
+      return new PartGeometry(
+         AxisGizmo.inFrame(world, length, radius, AxisGizmo.Operation.MOVE).withTextComponent(GizmoTextComponent.pointLevel()),
+         AxisGizmo.inFrame(world, length, radius, group.scaleEnabled()
+            ? new AxisGizmo.Operation[]{AxisGizmo.Operation.SCALE} : new AxisGizmo.Operation[0])
+            .withTextComponent(GizmoTextComponent.pointLevel()),
+         AxisGizmo.inFrame(group.rotationFrame(), length, radius, AxisGizmo.Operation.ROTATE)
+            .withTextComponent(GizmoTextComponent.pointLevel())
+      );
    }
 }

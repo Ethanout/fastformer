@@ -16,14 +16,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.AbstractFurnaceBlock;
-import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.BaseRailBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.ButtonBlock;
 import net.minecraft.world.level.block.CarvedPumpkinBlock;
-import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.CrossCollisionBlock;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FenceBlock;
@@ -34,15 +31,11 @@ import net.minecraft.world.level.block.LeverBlock;
 import net.minecraft.world.level.block.RedStoneWireBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
-import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.WallBlock;
-import net.minecraft.world.level.block.piston.PistonBaseBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
-import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
-import net.minecraft.world.level.block.state.properties.Half;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.block.state.properties.RedstoneSide;
 import net.minecraft.world.level.block.state.properties.SlabType;
@@ -52,23 +45,16 @@ import net.minecraft.world.phys.BlockHitResult;
 /** Axiom-style empty-hand block manipulation with type-specific semantics. */
 public final class BlockTinker {
    private static final List<Property<?>> GENERIC_FALLBACK = List.of(
-      BlockStateProperties.FACING,
-      BlockStateProperties.HORIZONTAL_FACING,
-      BlockStateProperties.AXIS,
-      BlockStateProperties.HORIZONTAL_AXIS,
-      BlockStateProperties.HALF,
-      BlockStateProperties.ROTATION_16,
       BlockStateProperties.OPEN,
       BlockStateProperties.LIT,
-      BlockStateProperties.POWERED,
-      BlockStateProperties.WATERLOGGED
+      BlockStateProperties.POWERED
    );
 
    private BlockTinker() {
    }
 
    public static boolean use(ServerPlayer player, BlockHitResult hit) {
-      if (player == null || hit == null || !player.isCreative() || player.isShiftKeyDown() || !player.getMainHandItem().isEmpty()
+      if (!canEdit(player) || !withinInteractionRange(player, hit)
          || WorldHistoryManager.busy(player) || FastPlaceManager.active(player)
          || OperationManager.active(player) || GeometryManager.active(player)
          || FastPlaceManager.taskActive(player) || OperationManager.taskActive(player)) {
@@ -79,11 +65,15 @@ public final class BlockTinker {
          return false;
       }
       ServerLevel level = player.serverLevel();
-      Map<BlockPos, BlockState> changes = preview(player, hit);
-      if (changes.isEmpty()) {
-         return false;
-      }
-      return tinker(player, level, changes, settings.placementUpdateMode().flags()).consumedInteraction();
+      TinkerAction action = previewAction(player, hit);
+      if (!action.consumed()) return false;
+      if (action.changes().isEmpty()) return true;
+      boolean wax = action.changes().entrySet().stream()
+         .anyMatch(entry -> TinkerCopperCycle.addsWax(level.getBlockState(entry.getKey()), entry.getValue()));
+      var metadata = io.github.fastformer.fastplace.history.TinkerHistoryMetadata.capture(player, hit, action.changes(), settings.tinkerHistoryMergeLimits());
+      var outcome = tinker(player, level, action.changes(), settings.placementUpdateMode().flags(), metadata);
+      if (outcome == ShortWriteTransaction.Outcome.APPLIED && wax) level.levelEvent(null, 3003, hit.getBlockPos(), 0);
+      return outcome.consumedInteraction() || outcome == ShortWriteTransaction.Outcome.REJECTED_BUSY;
    }
 
    /**
@@ -96,8 +86,13 @@ public final class BlockTinker {
    static ShortWriteTransaction.Outcome tinker(
       ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes, int flags
    ) {
+      return tinker(player, level, changes, flags, null);
+   }
+
+   private static ShortWriteTransaction.Outcome tinker(ServerPlayer player, ServerLevel level,
+      Map<BlockPos, BlockState> changes, int flags, io.github.fastformer.fastplace.history.TinkerHistoryMetadata metadata) {
       ShortWriteTransaction.Outcome outcome = ShortWriteTransaction.apply(
-         player, level, changes, flags, PlacementUpdateMode.CLIENT_ONLY.flags()
+         player, level, changes, flags, PlacementUpdateMode.CLIENT_ONLY.flags(), metadata
       );
       ShortWriteTransaction.report(outcome, player);
       return outcome;
@@ -105,100 +100,92 @@ public final class BlockTinker {
 
    /** Reads the same target and conversion on both sides, without writing to the world. */
    public static Map<BlockPos, BlockState> preview(Player player, BlockHitResult hit) {
-      if (player == null || hit == null || !player.isCreative() || player.isShiftKeyDown() || !player.getMainHandItem().isEmpty()) return Map.of();
-      var level = player.level();
-      var eye = player.getEyePosition();
-      var exact = level.getBlockState(hit.getBlockPos()).getShape(level, hit.getBlockPos())
-         .clip(eye, eye.add(player.getViewVector(1).scale(player.blockInteractionRange())), hit.getBlockPos());
-      return resolve(level, exact == null ? hit : exact);
+      return previewAction(player, hit).changes();
+   }
+
+   public static boolean consumes(Player player, BlockHitResult hit) {
+      return previewAction(player, hit).consumed();
+   }
+
+   public static boolean canEdit(Player player) {
+      return player != null && player.isCreative() && player.getMainHandItem().isEmpty();
+   }
+
+   public static boolean withinInteractionRange(Player player, BlockHitResult hit) {
+      return player != null && hit != null && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+         && !io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.beyondInteractionRange(player, hit);
+   }
+
+   private static TinkerAction previewAction(Player player, BlockHitResult hit) {
+      if (!canEdit(player) || !withinInteractionRange(player, hit)) return TinkerAction.PASS;
+      return resolveAction(player.level(), hit, player.isShiftKeyDown());
    }
 
    static Map<BlockPos, BlockState> resolve(Level level, BlockHitResult hit) {
+      return resolveAction(level, hit, false).changes();
+   }
+
+   static TinkerAction resolveAction(Level level, BlockHitResult hit, boolean shift) {
       BlockPos pos = hit.getBlockPos();
       BlockState state = level.getBlockState(pos);
       Block block = state.getBlock();
       Direction face = hit.getDirection();
       LinkedHashMap<BlockPos, BlockState> changes = new LinkedHashMap<>();
+      var override = TinkerPropertyRule.find(level.registryAccess(), block, shift);
+      if (override.isPresent()) return override.orElseThrow().apply(level, state, hit);
+      BlockState copper = TinkerCopperCycle.apply(state, hit, shift);
+      if (copper != null) return block instanceof DoorBlock
+         ? TinkerStructureRules.doorChange(level, pos, state, copper) : TinkerAction.edit(level, pos, copper);
+      TinkerAction structure = TinkerStructureRules.apply(level, state, hit, shift);
+      if (structure != null) return structure;
+      BlockState property = TinkerStateRules.apply(state, hit, shift);
+      if (property != null) return TinkerAction.edit(level, pos, property);
+      // Unclaimed Shift clicks retain vanilla behavior; copper overrides have already run.
+      if (shift) return TinkerAction.PASS;
       BlockState ground = TinkerGroundCycle.apply(state, face);
-      if (ground != null) return ground.equals(state) ? Map.of() : Map.of(pos.immutable(), ground);
+      if (ground != null) return TinkerAction.edit(level, pos, ground);
       BlockState torch = TinkerTorchCycle.apply(state);
-      if (torch != null) return torch.equals(state) ? Map.of() : Map.of(pos.immutable(), torch);
+      if (torch != null) return TinkerAction.edit(level, pos, torch);
       var wood = TinkerWoodFamily.find(level.registryAccess(), block);
       if (wood.isPresent()) {
          BlockState changed = wood.orElseThrow().apply(state, hit);
-         return changed.equals(state) ? Map.of() : Map.of(pos.immutable(), changed);
+         return TinkerAction.edit(level, pos, changed);
       }
       var family = TinkerShapeFamilies.find(level.registryAccess(), block);
       if (family.isPresent() && !state.hasBlockEntity()) {
          BlockState changed = TinkerShapeTransform.apply(family.orElseThrow(), state, hit);
-         return changed.equals(state) ? Map.of() : Map.of(pos.immutable(), changed);
+         if (changed.equals(state) && TinkerCopperCycle.supports(state)) changed = TinkerCopperCycle.combined(state);
+         return TinkerAction.edit(level, pos, changed);
       }
-      SpecialResult special = specialized(level, pos, state, block, face, hit, changes);
+      SpecialResult special = specialized(level, pos, state, block, face, hit);
       if (special.handled() && special.state() == null) {
-         return Map.of();
+         return TinkerAction.PASS;
       }
       BlockState changed = special.handled() ? special.state()
-         : Block.isShapeFullBlock(state.getShape(level, pos)) ? generic(state, face) : state;
+         : Block.isShapeFullBlock(state.getShape(level, pos)) && !state.hasBlockEntity() ? generic(state) : state;
       if (changed != null && !changed.equals(state)) {
          changes.put(pos.immutable(), changed);
       }
       changes.entrySet().removeIf(entry -> level.getBlockState(entry.getKey()).equals(entry.getValue()));
-      return Map.copyOf(changes);
+      return new TinkerAction(special.handled() || !changes.isEmpty(), Map.copyOf(changes));
    }
 
    private static SpecialResult specialized(
       Level level, BlockPos pos, BlockState state, Block block, Direction face,
-      BlockHitResult hit, Map<BlockPos, BlockState> extra
+      BlockHitResult hit
    ) {
-      if (block instanceof PistonBaseBlock && state.hasProperty(BlockStateProperties.FACING)) {
-         return handled(state.setValue(BlockStateProperties.FACING, face));
-      }
-      if (block instanceof AbstractFurnaceBlock && face.getAxis().isHorizontal()) {
-         Direction facing = state.getValue(BlockStateProperties.HORIZONTAL_FACING);
-         return handled(facing == face && state.hasProperty(BlockStateProperties.LIT)
-            ? state.cycle(BlockStateProperties.LIT)
-            : state.setValue(BlockStateProperties.HORIZONTAL_FACING, face));
-      }
       if (block instanceof CarvedPumpkinBlock && face.getAxis().isHorizontal()) {
          return handled(state.setValue(BlockStateProperties.HORIZONTAL_FACING, face));
-      }
-      if (block instanceof TrapDoorBlock) {
-         return block == Blocks.IRON_TRAPDOOR
-            ? handled(state.cycle(BlockStateProperties.OPEN)) : SpecialResult.REJECTED;
-      }
-      if (block instanceof DoorBlock) {
-         if (DoorBlock.isWoodenDoor(state)) {
-            return SpecialResult.REJECTED;
-         }
-         boolean open = !state.getValue(BlockStateProperties.OPEN);
-         Direction otherDirection = state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.LOWER
-            ? Direction.UP : Direction.DOWN;
-         BlockPos otherPos = pos.relative(otherDirection);
-         BlockState other = level.getBlockState(otherPos);
-         if (other.getBlock() instanceof DoorBlock && other.hasProperty(BlockStateProperties.OPEN)) {
-            extra.put(otherPos.immutable(), other.setValue(BlockStateProperties.OPEN, open));
-         }
-         return handled(state.setValue(BlockStateProperties.OPEN, open));
       }
       if (block instanceof SlabBlock) {
          SlabType type = state.getValue(BlockStateProperties.SLAB_TYPE);
          if (type == SlabType.DOUBLE) {
             return SpecialResult.REJECTED;
          }
-         double relativeY = hit.getLocation().y - pos.getY();
-         return handled(state.setValue(BlockStateProperties.SLAB_TYPE, relativeY > 0.5 ? SlabType.TOP : SlabType.BOTTOM));
+         return handled(state);
       }
       if (block instanceof StairBlock) {
          return handled(TinkerShapeTransform.stairsOnly(state, hit));
-      }
-      if (block instanceof BarrelBlock) {
-         Direction facing = state.getValue(BlockStateProperties.FACING);
-         return handled(facing == face && state.hasProperty(BlockStateProperties.OPEN)
-            ? state.cycle(BlockStateProperties.OPEN)
-            : state.setValue(BlockStateProperties.FACING, face));
-      }
-      if (block instanceof ChestBlock && face.getAxis().isHorizontal()) {
-         return handled(state.setValue(BlockStateProperties.HORIZONTAL_FACING, face));
       }
       if (block instanceof FenceBlock || block instanceof IronBarsBlock || block instanceof CrossCollisionBlock) {
          BooleanProperty property = connectingProperty(ConnectionHitDirection.resolve(hit), false);
@@ -226,16 +213,18 @@ public final class BlockTinker {
          }
       }
       if (block instanceof RedStoneWireBlock) {
-         if (face == Direction.UP) {
+         Direction operation = TinkerSurfaceHit.sideOperation(hit);
+         if (operation.getAxis().isVertical()) {
             boolean dot = horizontalRedstoneProperties().stream()
-               .allMatch(property -> state.getValue(property) == RedstoneSide.NONE);
+               .noneMatch(property -> state.getValue(property) == RedstoneSide.SIDE);
             BlockState result = state;
             for (EnumProperty<RedstoneSide> property : horizontalRedstoneProperties()) {
-               result = result.setValue(property, dot ? RedstoneSide.SIDE : RedstoneSide.NONE);
+               result = result.setValue(property, state.getValue(property) == RedstoneSide.UP ? RedstoneSide.UP
+                  : dot ? RedstoneSide.SIDE : RedstoneSide.NONE);
             }
             return handled(result);
          }
-         EnumProperty<RedstoneSide> property = redstoneProperty(face);
+         EnumProperty<RedstoneSide> property = redstoneProperty(operation);
          if (property != null) {
             RedstoneSide current = state.getValue(property);
             return handled(state.setValue(property, current == RedstoneSide.NONE ? RedstoneSide.SIDE
@@ -250,20 +239,13 @@ public final class BlockTinker {
          return SpecialResult.REJECTED;
       }
       if (block instanceof BaseRailBlock) {
-         Property<?> property = state.hasProperty(BlockStateProperties.RAIL_SHAPE)
-            ? BlockStateProperties.RAIL_SHAPE : BlockStateProperties.RAIL_SHAPE_STRAIGHT;
-         return handled(cycle(state, property));
+         return handled(TinkerRail.apply(state, hit));
       }
+      if (block == Blocks.NOTE_BLOCK) return SpecialResult.REJECTED;
       return SpecialResult.NOT_MATCHED;
    }
 
-   private static BlockState generic(BlockState state, Direction face) {
-      if (state.hasProperty(BlockStateProperties.FACING)) {
-         return state.setValue(BlockStateProperties.FACING, face);
-      }
-      if (face.getAxis().isHorizontal() && state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
-         return state.setValue(BlockStateProperties.HORIZONTAL_FACING, face);
-      }
+   private static BlockState generic(BlockState state) {
       for (Property<?> property : GENERIC_FALLBACK) {
          if (state.hasProperty(property)) {
             return cycle(state, property);
@@ -276,8 +258,7 @@ public final class BlockTinker {
       return new SpecialResult(true, state);
    }
 
-   @SuppressWarnings({"rawtypes", "unchecked"})
-   private static BlockState cycle(BlockState state, Property property) {
+   private static <T extends Comparable<T>> BlockState cycle(BlockState state, Property<T> property) {
       return state.cycle(property);
    }
 

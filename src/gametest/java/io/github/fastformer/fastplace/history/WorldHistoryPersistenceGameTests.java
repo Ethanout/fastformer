@@ -460,6 +460,50 @@ public final class WorldHistoryPersistenceGameTests {
       });
    }
 
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000, batch = "history_retired_journal")
+   public static void retiredJournalKeepsItsBatchWithoutReinsertingHistory(GameTestHelper helper) {
+      UUID owner = UUID.randomUUID();
+      UUID operation = UUID.randomUUID();
+      var server = helper.getLevel().getServer();
+      BlockPos pos = helper.absolutePos(new BlockPos(2, 2, 2));
+      var before = snapshot(pos, Blocks.STONE);
+      var after = snapshot(pos, Blocks.GOLD_BLOCK);
+      var batch = batch(helper, operation, before, after);
+      var journal = PersistentRecoveryJournal.begin(server, owner, helper.getLevel().dimension(),
+         List.of(before), List.of(after), operation).orElseThrow();
+      helper.assertTrue(journal.finalizeAfter(Map.of()).join(), "journal finalization failed");
+      WorldHistoryPersistence.publishSnapshot(server, owner, List.of(batch), List.of()).join();
+      helper.assertTrue(journal.sealFinalizedForHistory(), "journal did not seal");
+      journal.historyPublished();
+      var directory = journalDirectory(server, operation);
+      WorldHistoryPersistence.publishSnapshot(server, owner, List.of(), List.of()).join();
+      var reopened = historyStore(server);
+      helper.assertTrue(reopened.verifyBatch(owner, operation).join(), "retirement removed a recovery-referenced batch");
+      helper.assertTrue(reopened.retiredBatches(owner).join().contains(operation), "retirement intent disappeared");
+      WorldHistoryPersistence.reconcileCommittedJournal(server, owner, operation).join();
+      helper.assertTrue(reopened.loadIndex(owner).join().orElseThrow().undo().isEmpty(), "recovery revived intentionally removed history");
+      PersistentRecoveryJournal.onLevelSaved(helper.getLevel());
+      helper.succeedWhen(() -> {
+         helper.assertTrue(!java.nio.file.Files.exists(directory), "journal cleanup is pending");
+         reopened.cleanupUnreferencedBatches(owner, java.util.Set.of()).join();
+         helper.assertTrue(!reopened.verifyBatch(owner, operation).join(), "saved journal still retained its retired batch");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "history_missing_journal_batch")
+   public static void missingBatchWithoutRetirementStillRejectsReconciliation(GameTestHelper helper) {
+      UUID owner = UUID.randomUUID();
+      UUID operation = UUID.randomUUID();
+      boolean rejected = false;
+      try {
+         WorldHistoryPersistence.reconcileCommittedJournal(helper.getLevel().getServer(), owner, operation).join();
+      } catch (java.util.concurrent.CompletionException failure) {
+         rejected = failure.getCause() instanceof java.io.IOException;
+      }
+      helper.assertTrue(rejected, "missing batch without durable retirement intent was accepted");
+      helper.succeed();
+   }
+
    private static ReversibleBlockSnapshot snapshot(BlockPos pos, net.minecraft.world.level.block.Block block) {
       return new ReversibleBlockSnapshot(pos, block.defaultBlockState(), Fluids.EMPTY.defaultFluidState(), null);
    }

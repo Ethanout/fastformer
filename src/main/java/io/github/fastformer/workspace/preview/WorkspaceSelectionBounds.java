@@ -34,18 +34,6 @@ public final class WorkspaceSelectionBounds {
       return unionBoxes(parts, false);
    }
 
-   /**
-    * Repeat cells that one whole-selection step covers along the axis.
-    *
-    * <p>A repeat gesture keeps the stride field on the base cell extent, so one step that
-    * repeats the whole selection must extend the repeat interval by this many cells. The
-    * result is never below one.
-    */
-   public static int wholeStepCells(AABB wholeBounds, AABB baseBounds, AxisGizmo.Axis axis) {
-      int base = Math.max(1, extent(baseBounds, axis));
-      return Math.max(1, extent(wholeBounds, axis) / base);
-   }
-
    private static AABB unionBoxes(List<ClientSelectionPart> parts, boolean includeRepeats) {
       if (parts == null) {
          return null;
@@ -78,8 +66,22 @@ public final class WorkspaceSelectionBounds {
       WorkspaceTransform transform = includeRepeats
          ? part.transform()
          : part.transform().withoutRepeats();
+      return resolve(part, transform);
+   }
+
+   /** Repeat distances are measured along local handles before rotation and reflection. */
+   public static AABB resolveLocal(ClientSelectionPart part, boolean includeRepeats) {
+      if (part == null) return null;
+      WorkspaceTransform transform = (includeRepeats ? part.transform() : part.transform().withoutRepeats())
+         .withRotation(Vec3.ZERO).withSymmetry(io.github.fastformer.workspace.model.WorkspaceSymmetry.IDENTITY)
+         .withTranslation(Vec3.ZERO);
+      return resolve(part, transform);
+   }
+
+   private static AABB resolve(ClientSelectionPart part, WorkspaceTransform transform) {
       if (part.selection() != null && part.axisAlignedCuboid()
-         && transform.rotation().equals(Vec3.ZERO)) {
+         && transform.rotation().equals(Vec3.ZERO)
+         && transform.symmetry().equals(io.github.fastformer.workspace.model.WorkspaceSymmetry.IDENTITY)) {
          return axisAligned(part.selection().bounds(), transform, geometryFrame(part, transform));
       }
       if (part.selection() != null && part.selection().mode() == OperationSelectionMode.CUBOID) {
@@ -90,6 +92,11 @@ public final class WorkspaceSelectionBounds {
       // the outline and Gizmo instead of dropping the interaction surface.
       if (part.selection() != null && transform.hasEffect()) {
          return rotatedCuboid(part.selection().bounds(), transform, geometryFrame(part, transform));
+      }
+      if (part.selection() == null
+         && !transform.symmetry().equals(io.github.fastformer.workspace.model.WorkspaceSymmetry.IDENTITY)) {
+         OccupiedBlockBounds source = OccupiedBlockBounds.from(part.blocks().keySet()).orElse(null);
+         if (source != null) return rotatedCuboid(source.aabb(), transform, geometryFrame(part, transform));
       }
       Composition<ClientBlockSnapshot> composition = WorkspacePreviewComposer.composeSnapshots(
          part.blocks(), transform, CompositionBudget.INTERACTION
@@ -125,6 +132,7 @@ public final class WorkspaceSelectionBounds {
       AABB source, WorkspaceTransform transform, WorkspacePreviewComposer.GeometryFrame frame
    ) {
       return transform.rotation().equals(Vec3.ZERO)
+         && transform.symmetry().equals(io.github.fastformer.workspace.model.WorkspaceSymmetry.IDENTITY)
          ? axisAligned(source, transform, frame)
          : rotatedCuboid(source, transform, frame);
    }
@@ -225,7 +233,7 @@ public final class WorkspaceSelectionBounds {
          for (VoxelRotation.RotationStep step : steps) {
             point = VoxelRotation.rotatePoint(point, step.pivot(), step.axis(), step.radians());
          }
-         point = point.add(transform.translation());
+         point = transform.symmetry().point(point).add(transform.translation());
          result = union(result, new AABB(point, point));
       }
       return result;

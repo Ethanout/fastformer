@@ -15,7 +15,7 @@ final class InteractionRaycastOwner {
    private long sampledAt;
    private Purpose purpose;
 
-   private enum Purpose { OUTLINE, SELECTION, PLACEMENT, REACH_TRANSITION }
+   private enum Purpose { OUTLINE, SELECTION, PLACEMENT, IDLE, ALTERNATIVE_IDLE }
 
    double distanceOr(double fallback) { return result == null ? fallback : result.distance(); }
 
@@ -31,8 +31,8 @@ final class InteractionRaycastOwner {
       return clip(currentPlayer, throughFluids ? Purpose.OUTLINE : Purpose.SELECTION);
    }
 
-   BlockHitResult clipForReachTransition(LocalPlayer currentPlayer) {
-      return clip(currentPlayer, Purpose.REACH_TRANSITION);
+   BlockHitResult clipForIdleEntry(LocalPlayer currentPlayer, boolean alternative) {
+      return clip(currentPlayer, alternative ? Purpose.ALTERNATIVE_IDLE : Purpose.IDLE);
    }
 
    private BlockHitResult clip(LocalPlayer currentPlayer, Purpose currentPurpose) {
@@ -44,7 +44,7 @@ final class InteractionRaycastOwner {
             case PLACEMENT -> LongRangeBlockRaycast.clipForPlacement(currentPlayer.level(), currentPlayer, eye, view);
             case OUTLINE -> LongRangeBlockRaycast.clip(currentPlayer.level(), currentPlayer, eye, view);
             case SELECTION -> LongRangeBlockRaycast.clipForSelection(currentPlayer.level(), currentPlayer, eye, view, false);
-            case REACH_TRANSITION -> LongRangeBlockRaycast.clipForReachTransition(currentPlayer.level(), currentPlayer, eye, view);
+            case IDLE, ALTERNATIVE_IDLE -> LongRangeBlockRaycast.clipForIdleEntry(currentPlayer, currentPurpose == Purpose.ALTERNATIVE_IDLE);
          };
          player = currentPlayer; level = currentPlayer.level(); purpose = currentPurpose;
          start = eye; direction = view; sampledAt = now;

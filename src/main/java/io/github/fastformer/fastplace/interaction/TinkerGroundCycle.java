@@ -11,7 +11,7 @@ final class TinkerGroundCycle {
 
    static BlockState apply(BlockState state, Direction face) {
       if (state.is(Blocks.GRASS_BLOCK) || state.is(Blocks.PODZOL) || state.is(Blocks.MYCELIUM)) {
-         return face == Direction.UP ? Blocks.DIRT_PATH.defaultBlockState() : cycleSurface(state);
+         return face == Direction.DOWN ? state : face == Direction.UP ? Blocks.DIRT_PATH.defaultBlockState() : cycleSurface(state);
       }
       if (state.is(Blocks.DIRT_PATH) || state.is(Blocks.FARMLAND)) {
          return face == Direction.UP ? cycleCultivation(state) : state;
@@ -25,7 +25,16 @@ final class TinkerGroundCycle {
             ? state.setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.UPPER)
             : Blocks.SHORT_GRASS.defaultBlockState();
       }
+      if (state.is(Blocks.FERN) || state.is(Blocks.LARGE_FERN)) return cyclePlant(state, Blocks.FERN, Blocks.LARGE_FERN);
+      if (state.is(Blocks.SEAGRASS) || state.is(Blocks.TALL_SEAGRASS)) return cyclePlant(state, Blocks.SEAGRASS, Blocks.TALL_SEAGRASS);
       return null;
+   }
+
+   private static BlockState cyclePlant(BlockState state, net.minecraft.world.level.block.Block shortPlant,
+      net.minecraft.world.level.block.Block tallPlant) {
+      if (state.is(shortPlant)) return tallPlant.defaultBlockState().setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.LOWER);
+      return state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.LOWER
+         ? state.setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.UPPER) : shortPlant.defaultBlockState();
    }
 
    private static BlockState cycleSurface(BlockState state) {

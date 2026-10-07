@@ -279,8 +279,9 @@ public final class BlockTinkerGameTests {
          var target = hitAt(pos, face, 0.5, 0.5, 0.5);
          for (int index = 0; index < surfaces.size(); index++) {
             level.setBlock(pos, surfaces.get(index), FLAGS);
-            var expected = face == Direction.UP ? Blocks.DIRT_PATH.defaultBlockState() : surfaces.get((index + 1) % surfaces.size());
-            helper.assertTrue(expected.equals(BlockTinker.resolve(level, target).get(pos)), "surface cycle ignored the clicked face");
+            var expected = face == Direction.UP ? Blocks.DIRT_PATH.defaultBlockState()
+               : face == Direction.DOWN ? null : surfaces.get((index + 1) % surfaces.size());
+            helper.assertTrue(java.util.Objects.equals(expected, BlockTinker.resolve(level, target).get(pos)), "surface cycle ignored the clicked face");
          }
          for (int index = 0; index < dirt.size(); index++) {
             level.setBlock(pos, dirt.get(index), FLAGS);
@@ -336,7 +337,7 @@ public final class BlockTinkerGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "tinker")
    public static void genericRulesSkipIncompleteShapesButKeepFullBlocks(GameTestHelper helper) {
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
-      for (Block block : List.of(Blocks.LADDER, Blocks.END_ROD, Blocks.CHAIN, Blocks.LANTERN, Blocks.AMETHYST_CLUSTER)) {
+      for (Block block : List.of(Blocks.LADDER, Blocks.END_ROD, Blocks.CHAIN, Blocks.LANTERN)) {
          helper.getLevel().setBlock(pos, block.defaultBlockState(), FLAGS);
          for (Direction face : Direction.values()) {
             helper.assertTrue(BlockTinker.resolve(helper.getLevel(), hitAt(pos, face, 0.5, 0.5, 0.5)).isEmpty(), "generic rule changed incomplete block " + block);
@@ -344,8 +345,8 @@ public final class BlockTinkerGameTests {
       }
       var dispenser = Blocks.DISPENSER.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.NORTH);
       helper.getLevel().setBlock(pos, dispenser, FLAGS);
-      helper.assertTrue(BlockTinker.resolve(helper.getLevel(), hitAt(pos, Direction.EAST, 1, 0.5, 0.5)).get(pos)
-         .getValue(BlockStateProperties.FACING) == Direction.EAST, "full block lost generic facing");
+      helper.assertTrue(BlockTinker.resolve(helper.getLevel(), hitAt(pos, Direction.EAST, 1, 0.5, 0.5)).isEmpty(),
+         "generic rule changed an unapproved direction");
       helper.succeed();
    }
 
@@ -440,7 +441,7 @@ public final class BlockTinkerGameTests {
                   int desired = ((original >> shift) & 15) ^ (1 << corner);
                   boolean representable = desired != 6 && desired != 9;
                   var result = TinkerShapeTransform.apply(family, source, target);
-                  int expected = representable ? base | (desired << shift) : original;
+                  int expected = representable && desired != 15 ? base | (desired << shift) : original;
                   helper.assertTrue(TinkerShapeTransform.occupancy(result) == expected, "corner edit changed another corner or created an invalid shape");
                   if (result.hasProperty(BlockStateProperties.WATERLOGGED)) {
                      helper.assertTrue(result.getValue(BlockStateProperties.WATERLOGGED), "corner edit lost water");

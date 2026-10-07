@@ -35,6 +35,8 @@ public final class ClientOperationWorkspace {
    private int activeId;
    private Snapshot editBaseline;
    private long revision;
+   private long editStartRevision;
+   private long lastScrollRevision = -1;
    private EditToken activeEdit;
    private boolean locked;
 
@@ -166,6 +168,7 @@ public final class ClientOperationWorkspace {
          return false;
       }
       this.editBaseline = this.snapshot();
+      this.editStartRevision = this.revision;
       this.activeEdit = new EditToken();
       return true;
    }
@@ -206,6 +209,12 @@ public final class ClientOperationWorkspace {
       return finishEdit(null, 0);
    }
 
+   public void toggleSelectAll() {
+      if (this.selections.partCount() == 0) return;
+      if (this.selectedIds.equals(this.selections.partIds())) clearSelectionForNewDraft();
+      else selectAll();
+   }
+
    public void selectOnlyDuringEdit(int id) {
       if (this.locked || this.editBaseline == null || !this.selections.containsPart(id)) return;
       this.selectedIds.clear();
@@ -216,6 +225,16 @@ public final class ClientOperationWorkspace {
 
    /** Commits a workspace edit together with a small related selection-state inverse. */
    public boolean finishEdit(Runnable restoreSelection, int retainedSelectionPoints) {
+      return finishEdit(restoreSelection, retainedSelectionPoints, null);
+   }
+
+   public boolean finishScrollEdit(BlockPos offset, long timestampNanos, long maxGapNanos) {
+      boolean finished = finishEdit(null, 0, new ScrollEdit(offset.immutable(), timestampNanos, maxGapNanos));
+      if (finished) this.lastScrollRevision = this.revision;
+      return finished;
+   }
+
+   private boolean finishEdit(Runnable restoreSelection, int retainedSelectionPoints, ScrollEdit scroll) {
       if (this.editBaseline == null) {
          return false;
       }
@@ -225,7 +244,14 @@ public final class ClientOperationWorkspace {
       if (baseline.equals(this.snapshot())) {
          return false;
       }
-      if (restoreSelection == null) this.record(baseline);
+      if (scroll != null) {
+         if (this.editStartRevision != this.lastScrollRevision) this.history.endCoalescing();
+         var identities = baseline.selectedIds().stream().collect(java.util.stream.Collectors.toMap(id -> id, baseline.interactionIds()::get));
+         var key = new ScrollMoveKey(Map.copyOf(identities), baseline.activeId(), scroll.offset());
+         var retained = baseline.retention();
+         this.history.pushCoalesced(key, scroll.timestampNanos(), scroll.maxGapNanos(), () -> this.restore(baseline),
+            ClientOperationEventStack.Retention.of(retained.nodeUnits() + identities.size() + 3, retained.sharedPayloads()));
+      } else if (restoreSelection == null) this.record(baseline);
       else {
          var retention = baseline.retention();
          this.history.push(() -> { this.restore(baseline); restoreSelection.run(); },
@@ -399,6 +425,10 @@ public final class ClientOperationWorkspace {
       return identity;
    }
 
+   public Map<Integer, Long> interactionIdentities() {
+      return Map.copyOf(this.interactionIds);
+   }
+
    /** Creation order is stable even when a deleted display number is reused. */
    public List<ClientSelectionPart> parts() {
       return this.selections.parts();
@@ -522,9 +552,19 @@ public final class ClientOperationWorkspace {
 
    /** Restores immutable parts for a composite draft inverse, retaining their interaction identities. */
    public void restorePartStatesWithoutHistory(List<ClientSelectionPart> parts) {
+      restorePartStatesWithoutHistory(parts, this.interactionIdentities());
+   }
+
+   public void restorePartStatesWithoutHistory(List<ClientSelectionPart> parts, Map<Integer, Long> identities) {
       if (this.locked || this.editBaseline != null) return;
       restoreParts(parts.stream().map(ClientSelectionPart::id).collect(java.util.stream.Collectors.toSet()));
       this.selections.restoreParts(parts);
+      this.interactionIds.clear();
+      for (var part : parts) {
+         Long identity = identities.get(part.id());
+         if (identity == null) identity = this.interactionSequence = Math.incrementExact(this.interactionSequence);
+         this.interactionIds.put(part.id(), identity);
+      }
       this.changed();
    }
 
@@ -605,6 +645,9 @@ public final class ClientOperationWorkspace {
    public static final class EditToken {
       private EditToken() { }
    }
+
+   private record ScrollEdit(BlockPos offset, long timestampNanos, long maxGapNanos) { }
+   private record ScrollMoveKey(Map<Integer, Long> targets, int activeId, BlockPos offset) { }
 
    public record SelectionState(Set<Integer> ids, int activeId) { }
 

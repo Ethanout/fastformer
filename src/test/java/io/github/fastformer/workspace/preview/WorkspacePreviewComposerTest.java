@@ -48,6 +48,23 @@ class WorkspacePreviewComposerTest {
    }
 
    @Test
+   void rotatedRepeatsKeepTheOriginalCellsAndRotationPivots() {
+      Map<BlockPos, String> source = new LinkedHashMap<>();
+      for (int x = 0; x < 5; x++) source.put(new BlockPos(x, 0, 0), "block");
+      for (Vec3 angles : java.util.List.of(new Vec3(0, Math.PI / 2, 0), new Vec3(0, Math.atan2(3, 4), 0),
+         new Vec3(0.37, 0.63, -0.29))) {
+         WorkspaceTransform base = WorkspaceTransform.IDENTITY.withRotation(angles);
+         var before = (Composition.Composed<String>)WorkspacePreviewComposer.composeValues(source, base, CompositionBudget.INTERACTION);
+         for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) for (int direction : new int[]{-1, 1}) {
+            var transform = base.withRepeats(OperationStackRegion.origin().repeat(axis, direction, 1), BlockPos.ZERO);
+            var after = (Composition.Composed<String>)WorkspacePreviewComposer.composeValues(source, transform, CompositionBudget.INTERACTION);
+            assertEquals(before.frame().rotationSteps(), after.frame().rotationSteps(), "repetition moved the rotation pivot");
+            assertTrue(after.values().keySet().containsAll(before.values().keySet()), "repetition moved existing cells");
+         }
+      }
+   }
+
+   @Test
    void nearestNeighbourStretchFillsEveryTargetLayer() {
       Map<BlockPos, String> source = Map.of(
          new BlockPos(0, 0, 0), "left",

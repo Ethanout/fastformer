@@ -15,7 +15,7 @@ class SelectionDraftStateMachineTest {
    void inspectionDoesNotPublishTheProposedSnapshot() {
       var machine = new SelectionDraftStateMachine();
       var before = machine.snapshot();
-      var event = click(0, BlockPos.ZERO, false);
+      var event = click(1, BlockPos.ZERO, false);
       var decision = machine.inspect(event);
       assertEquals(SelectionDraftResult.UPDATED, decision.result());
       assertEquals(List.of(BlockPos.ZERO), decision.next().points());
@@ -30,7 +30,7 @@ class SelectionDraftStateMachineTest {
    @Test
    void sequentialEventsAdvanceCuboidPhasesWithoutATickBarrier() {
       var machine = new SelectionDraftStateMachine();
-      machine.onEvent(click(0, BlockPos.ZERO, false));
+      machine.onEvent(click(1, BlockPos.ZERO, false));
       var first = machine.snapshot();
       assertEquals(SelectionDraftResult.READY, machine.onEvent(click(1, SECOND, false)));
       var bounds = machine.snapshot();
@@ -38,8 +38,8 @@ class SelectionDraftStateMachineTest {
       assertEquals(List.of(BlockPos.ZERO), first.points());
       assertEquals(SECOND, bounds.maxPoint());
       machine.onEvent(click(0, new BlockPos(9, 9, 9), false));
-      assertEquals(SelectionDraftStateMachine.Phase.CUBOID_BOUNDS, machine.phase());
-      assertEquals(List.of(new BlockPos(9, 9, 9), SECOND), machine.snapshot().points());
+      assertEquals(SelectionDraftStateMachine.Phase.CUBOID_FIRST, machine.phase());
+      assertEquals(List.of(BlockPos.ZERO), machine.snapshot().points());
       assertEquals(List.of(BlockPos.ZERO, SECOND), bounds.points());
       assertEquals(SECOND, bounds.maxPoint());
    }

@@ -2,6 +2,7 @@ package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.policy.CancelInputSemantics;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
+import org.lwjgl.glfw.GLFW;
 
 /** Physical key data captured before semantic dispatch. */
 record KeyboardInputSnapshot(
@@ -47,6 +48,10 @@ record KeyboardInputSnapshot(
 
    boolean controlKey() {
       return this.key == 341 || this.key == 345;
+   }
+
+   boolean shiftDown() {
+      return (this.modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
    }
 
    private static boolean afterEvent(int eventKey, int action, int modifierKey, boolean physicallyDown) {

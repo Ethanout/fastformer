@@ -103,6 +103,11 @@ public final class ClientOperationController {
       selectionSession().publishInteractionScene();
    }
 
+   public static void toggleAllWorkspaceParts() {
+      workspace().toggleSelectAll();
+      selectionSession().publishInteractionScene();
+   }
+
    public static io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures() {
       return selectionSession().gestures();
    }
@@ -172,6 +177,26 @@ public final class ClientOperationController {
    public static void deselectAllWorkspaceParts() {
       workspace().clearSelectionForNewDraft();
       selectionSession().publishInteractionScene();
+   }
+
+   public static void transformSelected(Minecraft minecraft, boolean flip) {
+      if (minecraft == null || minecraft.player == null || workspaceSubmissionPending() || workspaceEditInProgress()) return;
+      var owner = workspace();
+      var selected = owner.selectedParts();
+      if (selected.isEmpty()) return;
+      var operation = flip
+         ? io.github.fastformer.workspace.model.WorkspaceSymmetry.reflection(
+            io.github.fastformer.workspace.transform.SelectionShortcutCalculator.viewAxis(minecraft.player.getLookAngle()))
+         : io.github.fastformer.workspace.model.WorkspaceSymmetry.quarterTurnY();
+      var result = io.github.fastformer.workspace.transform.SelectionShortcutCalculator.calculate(selected, operation);
+      if (result.failureKey() != null) {
+         captureFailed(result.failureKey());
+         return;
+      }
+      if (!owner.beginEdit()) return;
+      result.parts().forEach(owner::updatePart);
+      owner.finishEdit();
+      synchronizeDerivedWorkspaceState();
    }
 
    public static void enterLocalSelectionSession() {
@@ -404,6 +429,10 @@ public final class ClientOperationController {
       }
    }
 
+   public static boolean duplicateSelected(Minecraft minecraft) {
+      return copySelected() && paste(minecraft);
+   }
+
    public static boolean paste(Minecraft minecraft) {
       lastOperationFailureKey = null;
       if (workspaceSubmissionPending()) {
@@ -611,6 +640,17 @@ public final class ClientOperationController {
    }
 
    private static boolean handleDraftClick(int mouseButton, BlockPos point, boolean alt) {
+      if (mouseButton == 0 && draftSelectionMode() == OperationSelectionMode.CUBOID) {
+         if (workspaceSubmissionPending() || workspace().locked() || workspace().editing()) return false;
+         adoptRemoteDraft();
+         DRAFT_CAPTURE.cancel();
+         boolean changed = selectionSession().undoCuboidPoint();
+         if (changed) {
+            selectionSession().retain();
+            synchronizeDerivedWorkspaceState();
+         }
+         return changed;
+      }
       if (workspaceSubmissionPending() || workspace().locked() || workspace().editing() || DRAFT_CAPTURE.pending()
          || workspace().size() >= ClientOperationWorkspace.MAX_PARTS) {
          return false;
@@ -676,6 +716,14 @@ public final class ClientOperationController {
    }
 
    public static boolean moveSelected(BlockPos offset) {
+      return moveSelected(offset, 0, false);
+   }
+
+   public static boolean scrollSelected(BlockPos offset, long timestampNanos) {
+      return moveSelected(offset, timestampNanos, true);
+   }
+
+   private static boolean moveSelected(BlockPos offset, long timestampNanos, boolean scroll) {
       if (SMART_CAPTURE.pending() || DRAFT_CAPTURE.pending() || workspaceSubmissionPending() || offset == null || offset.equals(BlockPos.ZERO)
          || workspace().selectedIds().isEmpty() || !workspace().beginEdit()) {
          return false;
@@ -684,7 +732,9 @@ public final class ClientOperationController {
       for (ClientSelectionPart part : List.copyOf(workspace().selectedParts())) {
          workspace().updatePart(part.withTranslation(part.transform().translation().add(delta)));
       }
-      boolean changed = workspace().finishEdit();
+      boolean changed = scroll
+         ? workspace().finishScrollEdit(offset, timestampNanos, io.github.fastformer.client.FastFormerClientConfig.scrollHistoryMergeNanos())
+         : workspace().finishEdit();
       synchronizeDerivedWorkspaceState();
       return changed;
    }
@@ -951,6 +1001,15 @@ public final class ClientOperationController {
       int totalSteps,
       double rotationRadians
    ) {
+      return updateTransformGesture(editToken, baseline, common, operation, axis, direction, totalSteps,
+         rotationRadians, io.github.fastformer.workspace.transform.WorkspaceRotation.unitAxis(axis), null);
+   }
+
+   public static String updateTransformGesture(
+      ClientOperationWorkspace.EditToken editToken, List<ClientSelectionPart> baseline, boolean common,
+      AxisGizmo.Operation operation, AxisGizmo.Axis axis, int direction, int totalSteps, double rotationRadians,
+      Vec3 rotationAxis, Vec3 rotationPivot
+   ) {
       if (workspaceSubmissionPending() || !workspace().ownsEdit(editToken)) {
          return null;
       }
@@ -964,7 +1023,7 @@ public final class ClientOperationController {
          return null;
       }
       var result = io.github.fastformer.workspace.transform.SelectionTransformCalculator.calculate(
-         baseline, common, operation, axis, direction, totalSteps, rotationRadians);
+         baseline, common, operation, axis, direction, totalSteps, rotationRadians, rotationAxis, rotationPivot);
       if (result.failureKey() != null) {
          if (editToken.equals(lastTooLargeGesture)) return null;
          lastTooLargeGesture = editToken;
@@ -1588,6 +1647,7 @@ public final class ClientOperationController {
          selectionSession().draftMaxPoint(),
          selectionSession().draftState().secondPointOnly(),
          List.copyOf(workspace().parts()),
+         workspace().interactionIdentities(),
          workspace().selectionState()
       );
    }
@@ -1599,13 +1659,13 @@ public final class ClientOperationController {
          return;
       }
       workspace().pushEvent(() -> {
-         workspace().restorePartStatesWithoutHistory(before.parts());
+         workspace().restorePartStatesWithoutHistory(before.parts(), before.interactionIdentities());
          selectionSession().restoreDraftEdit(new ClientSelectionSession.DraftState(
             before.mode(), before.points(), before.prismBaseCount(), before.minPoint(), before.maxPoint(), before.secondPointOnly()
          ));
          workspace().restoreSelectionStateWithoutHistory(before.selection());
       }, ClientOperationEventStack.Retention.of(
-         1 + before.points().size() + before.parts().size() + before.selection().ids().size(),
+         1 + before.points().size() + before.parts().size() + before.interactionIdentities().size() + before.selection().ids().size(),
          before.parts().stream().flatMap(part -> java.util.stream.Stream.of(part.blocks(), part.sourceSnapshot()))
             .map(blocks -> ClientOperationEventStack.SharedPayload.of(blocks, blocks.size())).toList()
       ));
@@ -1634,6 +1694,7 @@ public final class ClientOperationController {
       BlockPos maxPoint,
       boolean secondPointOnly,
       List<ClientSelectionPart> parts,
+      java.util.Map<Integer, Long> interactionIdentities,
       ClientOperationWorkspace.SelectionState selection
    ) {
    }

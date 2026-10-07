@@ -3,7 +3,7 @@ package io.github.fastformer.fastplace;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.ForcedPlacement;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.settings.PlayerReachAttributes;
+import io.github.fastformer.fastplace.settings.LegacyReachMigration;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -68,15 +68,14 @@ public final class ForcedPlacementGameTests {
          .addOrUpdateTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(
             net.minecraft.resources.ResourceLocation.withDefaultNamespace("creative_mode_entity_range"), 2,
             net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
-      PlayerReachAttributes.initialize(player);
-      helper.assertTrue(Math.abs(player.blockInteractionRange() - 20) < 1.0E-6, "block reach must be 20");
-      helper.assertTrue(Math.abs(player.entityInteractionRange() - 20) < 1.0E-6, "entity reach must be 20");
       var blockRange = player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE);
+      blockRange.setBaseValue(19.5);
+      player.getPersistentData().putBoolean("fastformerReachInitialized", true);
+      LegacyReachMigration.apply(player);
+      helper.assertTrue(Math.abs(player.blockInteractionRange() - 5) < 1.0E-6, "legacy range was not restored");
       blockRange.setBaseValue(15.5);
-      PlayerReachAttributes.initialize(player);
-      helper.assertTrue(Math.abs(player.blockInteractionRange() - 16) < 1.0E-6,
-         "initialization must not overwrite later attribute changes");
-      PlayerReachAttributes.set(player, 20);
+      LegacyReachMigration.apply(player);
+      helper.assertTrue(Math.abs(player.blockInteractionRange() - 16) < 1.0E-6, "migration overwrote another owner's range");
       var hit = new BlockHitResult(Vec3.atLowerCornerOf(floor).add(0.5, 1, 0.5), Direction.UP, floor, false);
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }

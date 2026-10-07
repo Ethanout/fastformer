@@ -19,7 +19,6 @@ final class InputWorldCleanup {
       if (session.operationSessionWasActive) minecraft.options.keyAttack.setDown(false);
       session.reset();
       ClientOperationController.setAltMode(false);
-      InteractionContext.reset();
       FastPlaceClientPreview.clearTransientFeedback();
    }
 }

@@ -47,11 +47,11 @@ public final class FastPlaceSettings {
    private PlacementUpdateMode placementUpdateMode = PlacementUpdateMode.CLIENT_ONLY;
    private final Set<ResourceLocation> enabledPlacementEffects = new HashSet<>();
    private boolean emptyHandWrench = true;
-   private ReachThresholds reachThresholds = ReachThresholds.DEFAULT;
    private boolean forcePlacement = true;
    private int maxPlacement = 20972152;
    private int worldUndoHistoryLimit = DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
    private int sessionUndoHistoryLimit = DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
+   private io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits tinkerHistoryMergeLimits = io.github.fastformer.fastplace.history.HistoryStorageConfig.defaultMergeLimits();
    private double angleDegrees = 0.0;
 
    private FastPlaceSettings() {
@@ -106,10 +106,6 @@ public final class FastPlaceSettings {
       }
       settings.emptyHandWrench = !tag.contains("emptyHandWrench") || tag.getBoolean("emptyHandWrench");
       settings.forcePlacement = !tag.contains("forcePlacement") || tag.getBoolean("forcePlacement");
-      int close = tag.contains("reachClose") ? tag.getInt("reachClose") : ReachThresholds.DEFAULT.close();
-      if (!tag.getBoolean("attributeReach") && close == 5) close = 3;
-      int far = tag.contains("reachFar") ? tag.getInt("reachFar") : ReachThresholds.DEFAULT.far();
-      if (ReachThresholds.valid(close, far)) settings.reachThresholds = new ReachThresholds(close, far);
       settings.maxPlacement = tag.contains("maxPlacement")
          ? Math.clamp((long)tag.getInt("maxPlacement"), 1, 20972152)
          : 20972152;
@@ -120,6 +116,7 @@ public final class FastPlaceSettings {
          ? Math.clamp((long)tag.getInt("sessionUndoHistoryLimit"), 1, MAX_UNDO_HISTORY_LIMIT)
          : DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
       double savedAngle = tag.getDouble("angleDegrees");
+      settings.tinkerHistoryMergeLimits = readTinkerHistoryLimits(tag);
       settings.angleDegrees = GeometryNumbers.finite(savedAngle)
          ? GeometryNumbers.cleanZero(Math.IEEEremainder(savedAngle, 360.0))
          : 0.0;
@@ -313,6 +310,14 @@ public final class FastPlaceSettings {
       return this.emptyHandWrench;
    }
 
+   public io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits tinkerHistoryMergeLimits() { return tinkerHistoryMergeLimits; }
+
+   public void setTinkerHistoryMergeLimit(ServerPlayer player, io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits.Setting setting, int value) {
+      tinkerHistoryMergeLimits = tinkerHistoryMergeLimits.with(setting, value);
+      save(player);
+      WorldHistoryManager.requestCompaction(player);
+   }
+
    public boolean forcePlacement() { return forcePlacement; }
 
    public void setForcePlacement(ServerPlayer player, boolean value) {
@@ -320,12 +325,6 @@ public final class FastPlaceSettings {
       save(player);
    }
 
-   public ReachThresholds reachThresholds() { return reachThresholds; }
-
-   public void setReachThresholds(ServerPlayer player, ReachThresholds value) {
-      reachThresholds = java.util.Objects.requireNonNull(value);
-      save(player);
-   }
 
    public void toggleEmptyHandWrench(ServerPlayer player) {
       this.emptyHandWrench = !this.emptyHandWrench;
@@ -378,12 +377,16 @@ public final class FastPlaceSettings {
       tag.put("enabledPlacementEffects", effectIds);
       tag.putBoolean("emptyHandWrench", this.emptyHandWrench);
       tag.putBoolean("forcePlacement", forcePlacement);
-      tag.putBoolean("attributeReach", true);
-      tag.putInt("reachClose", reachThresholds.close());
-      tag.putInt("reachFar", reachThresholds.far());
       tag.putInt("maxPlacement", this.maxPlacement);
       tag.putInt("undoHistoryLimit", this.worldUndoHistoryLimit);
       tag.putInt("sessionUndoHistoryLimit", this.sessionUndoHistoryLimit);
+      CompoundTag tinkerHistory = new CompoundTag();
+      tinkerHistory.putInt("near", tinkerHistoryMergeLimits.near());
+      tinkerHistory.putInt("middle", tinkerHistoryMergeLimits.middle());
+      tinkerHistory.putInt("far", tinkerHistoryMergeLimits.far());
+      tinkerHistory.putInt("nearDistance", tinkerHistoryMergeLimits.nearDistance());
+      tinkerHistory.putInt("farDistance", tinkerHistoryMergeLimits.farDistance());
+      tag.put("tinkerHistoryMerge", tinkerHistory);
       tag.putDouble("angleDegrees", this.angleDegrees);
       return tag;
    }
@@ -393,6 +396,24 @@ public final class FastPlaceSettings {
       if (root.contains("fastformer", 10)) {
          to.getPersistentData().put("fastformer", root.getCompound("fastformer").copy());
       }
+   }
+
+   private static io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits readTinkerHistoryLimits(CompoundTag tag) {
+      var defaults = io.github.fastformer.fastplace.history.HistoryStorageConfig.defaultMergeLimits();
+      if (tag.contains("tinkerHistoryMerge", Tag.TAG_COMPOUND)) {
+         CompoundTag limits = tag.getCompound("tinkerHistoryMerge");
+         return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(
+            limits.contains("near") ? limits.getInt("near") : defaults.near(),
+            limits.contains("middle") ? limits.getInt("middle") : defaults.middle(),
+            limits.contains("far") ? limits.getInt("far") : defaults.far(),
+            limits.contains("nearDistance") ? limits.getInt("nearDistance") : defaults.nearDistance(),
+            limits.contains("farDistance") ? limits.getInt("farDistance") : defaults.farDistance());
+      }
+      if (tag.contains("tinkerHistoryMergeLimit") && tag.getInt("tinkerHistoryMergeLimit") != 32) {
+         int legacy = tag.getInt("tinkerHistoryMergeLimit");
+         return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(legacy, legacy, legacy);
+      }
+      return defaults;
    }
 
    private static <E extends Enum<E>> E readEnum(CompoundTag tag, String key, E fallback) {

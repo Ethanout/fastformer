@@ -453,16 +453,19 @@ class WorkspaceInteractionResolverTest {
       var worldGizmo = gizmos.get(0);
       var scaleGizmo = gizmos.get(1);
 
-      // A rotation must not turn the move or rotate axes away from the world axes.
+      // Move handles stay in world space.
       assertEquals(new Vec3(1.0, 0.0, 0.0), worldGizmo.axisVector(AxisGizmo.Axis.X));
       assertTrue(worldGizmo.handles().stream().anyMatch(handle -> handle.operation() == AxisGizmo.Operation.MOVE));
-      assertTrue(worldGizmo.handles().stream().anyMatch(handle -> handle.operation() == AxisGizmo.Operation.ROTATE));
+      assertTrue(worldGizmo.handles().stream().noneMatch(handle -> handle.operation() == AxisGizmo.Operation.ROTATE));
       assertTrue(worldGizmo.handles().stream().noneMatch(handle -> handle.operation() == AxisGizmo.Operation.SCALE));
 
-      // Only the scale handles follow the rotated part frame.
+      // Scale handles and rotation rings share the part orientation.
       assertEquals(0.0, scaleGizmo.axisVector(AxisGizmo.Axis.X).x, 1.0E-6);
       assertEquals(-1.0, scaleGizmo.axisVector(AxisGizmo.Axis.X).z, 1.0E-6);
       assertTrue(scaleGizmo.handles().stream().allMatch(handle -> handle.operation() == AxisGizmo.Operation.SCALE));
+      var rotationGizmo = gizmos.get(2);
+      assertEquals(scaleGizmo.frame(), rotationGizmo.frame());
+      assertTrue(rotationGizmo.handles().stream().allMatch(handle -> handle.operation() == AxisGizmo.Operation.ROTATE));
    }
 
    private static List<AxisGizmo> partGizmos(ClientSelectionPart part, Vec3 center,

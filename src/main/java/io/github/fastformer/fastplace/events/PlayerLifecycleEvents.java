@@ -41,10 +41,9 @@ public final class PlayerLifecycleEvents {
       if (event.getOriginal() instanceof ServerPlayer oldPlayer
          && event.getEntity() instanceof ServerPlayer newPlayer) {
          FastPlaceSettings.copy(oldPlayer, newPlayer);
-         newPlayer.getPersistentData().putBoolean("fastformerReachInitialized", oldPlayer.getPersistentData().getBoolean("fastformerReachInitialized"));
-         newPlayer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE).setBaseValue(oldPlayer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE).getBaseValue());
-         newPlayer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ENTITY_INTERACTION_RANGE).setBaseValue(oldPlayer.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ENTITY_INTERACTION_RANGE).getBaseValue());
-         PlayerPreviewSync.syncReachSettings(newPlayer);
+         io.github.fastformer.fastplace.settings.PlayerBlockReach.copy(oldPlayer, newPlayer);
+         io.github.fastformer.server.input.IdleInteractionSnapshots.remove(oldPlayer);
+         PlayerPreviewSync.syncInteractionUpdates(newPlayer);
          // Rebind the retained UUID-owned workflow to the replacement instance.
          FastPlaceManager.syncCurrentPreview(newPlayer);
       }
@@ -58,7 +57,8 @@ public final class PlayerLifecycleEvents {
          // old environment ends, so old coordinates are never used in the new
          // dimension.
          FastPlaceManager.handleDimensionChange(player, event.getFrom(), event.getTo());
-         PlayerPreviewSync.syncReachSettings(player);
+         io.github.fastformer.server.input.IdleInteractionSnapshots.remove(player);
+         PlayerPreviewSync.syncInteractionUpdates(player);
       }
    }
 
@@ -67,6 +67,8 @@ public final class PlayerLifecycleEvents {
          return;
       }
       PlayerPreviewSync.beginClientSession(player);
+      io.github.fastformer.fastplace.settings.LegacyReachMigration.apply(player);
+      io.github.fastformer.fastplace.settings.PlayerBlockReach.initialize(player);
       FastPlaceNetwork.syncSettings(player);
       // Reattach UUID-owned workflows after a reconnect or player replacement.
       FastPlaceManager.syncCurrentPreview(player);
@@ -79,15 +81,13 @@ public final class PlayerLifecycleEvents {
 
    private static void onPlayerLogout(PlayerLoggedOutEvent event) {
       if (event.getEntity() instanceof ServerPlayer player) {
-         io.github.fastformer.server.input.ServerReachGate.remove(player);
-         io.github.fastformer.server.session.ServerIdleSession.remove(player);
+         io.github.fastformer.server.input.IdleInteractionSnapshots.remove(player);
          FastPlaceManager.detachPlayer(player);
       }
    }
 
    private static void onServerStarted(ServerStartedEvent event) {
-      io.github.fastformer.server.input.ServerReachGate.clear();
-      io.github.fastformer.server.session.ServerIdleSession.clear();
+      io.github.fastformer.server.input.IdleInteractionSnapshots.clear();
       FastPlaceManager.clearServer();
       WorldHistoryManager.clearServer();
       WorldTaskFeature.clear();
@@ -99,8 +99,7 @@ public final class PlayerLifecycleEvents {
    }
 
    private static void onServerStopping(ServerStoppingEvent event) {
-      io.github.fastformer.server.input.ServerReachGate.clear();
-      io.github.fastformer.server.session.ServerIdleSession.clear();
+      io.github.fastformer.server.input.IdleInteractionSnapshots.clear();
       for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
          FastPlaceManager.remove(player);
       }

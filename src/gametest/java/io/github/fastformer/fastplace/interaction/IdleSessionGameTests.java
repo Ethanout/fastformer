@@ -2,9 +2,6 @@ package io.github.fastformer.fastplace.interaction;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.history.WorldHistoryManager;
-import io.github.fastformer.fastplace.session.IdleSessionState;
-import io.github.fastformer.network.payload.settings.IdleSessionPayload;
-import io.github.fastformer.server.session.ServerIdleSession;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -30,7 +27,6 @@ public final class IdleSessionGameTests {
       helper.setBlock(new BlockPos(1, 3, 1), Blocks.GRASS_BLOCK);
       player.setPos(pos.getCenter().add(0, 2, 0));
       player.setXRot(90);
-      ServerIdleSession.receive(player, new IdleSessionPayload(IdleSessionState.WAITING_FOR_FAR_EXIT, player.level().dimension().location()));
       var hit = new BlockHitResult(pos.getCenter().add(0, 0.5, 0), Direction.UP, pos, false);
       boolean[] applied = {false};
       helper.succeedWhen(() -> {
@@ -45,7 +41,7 @@ public final class IdleSessionGameTests {
             helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.DIRT_PATH), "wrench did not convert grass to path");
             applied[0] = true;
          }
-         helper.assertTrue(ServerIdleSession.state(player).suspended(), "wrench resumed the session");
+         helper.assertTrue(io.github.fastformer.server.input.IdleInteractionSnapshots.idle(player), "wrench started a session");
          helper.assertFalse(io.github.fastformer.server.session.OperationManager.active(player), "wrench opened a selection");
       });
    }

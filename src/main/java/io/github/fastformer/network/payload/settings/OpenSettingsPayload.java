@@ -9,6 +9,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import java.util.ArrayList;
 import java.util.List;
+import io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits;
 
 public record OpenSettingsPayload(
    boolean middleConfirmEnabled,
@@ -19,7 +20,8 @@ public record OpenSettingsPayload(
    boolean emptyHandWrench,
    boolean fallingDisabled,
    int worldUndoHistoryLimit,
-   int sessionUndoHistoryLimit
+   int sessionUndoHistoryLimit,
+   TinkerHistoryMergeLimits tinkerHistoryMergeLimits
 ) implements CustomPacketPayload {
    public static final Type<OpenSettingsPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("fastformer", "open_settings"));
    public static final StreamCodec<FriendlyByteBuf, OpenSettingsPayload> STREAM_CODEC = CustomPacketPayload.codec(
@@ -30,7 +32,8 @@ public record OpenSettingsPayload(
       this(
          buffer.readBoolean(), buffer.readEnum(FaceRasterizationMode.class),
          buffer.readEnum(OperationConflictMode.class), buffer.readEnum(PlacementUpdateMode.class),
-         readEffectIds(buffer), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt()
+         readEffectIds(buffer), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt(),
+         new TinkerHistoryMergeLimits(buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt())
       );
    }
 
@@ -43,6 +46,16 @@ public record OpenSettingsPayload(
       enabledPlacementEffects = enabledPlacementEffects == null ? List.of() : List.copyOf(enabledPlacementEffects);
       worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
       sessionUndoHistoryLimit = Math.clamp((long)sessionUndoHistoryLimit, 1, 800);
+      tinkerHistoryMergeLimits = tinkerHistoryMergeLimits == null ? TinkerHistoryMergeLimits.DEFAULTS : tinkerHistoryMergeLimits;
+   }
+
+   public OpenSettingsPayload(boolean middleConfirmEnabled, FaceRasterizationMode faceRasterizationMode,
+      OperationConflictMode placementConflictMode, PlacementUpdateMode placementUpdateMode,
+      List<ResourceLocation> enabledPlacementEffects, boolean emptyHandWrench, boolean fallingDisabled,
+      int worldUndoHistoryLimit, int sessionUndoHistoryLimit) {
+      this(middleConfirmEnabled, faceRasterizationMode, placementConflictMode, placementUpdateMode,
+         enabledPlacementEffects, emptyHandWrench, fallingDisabled, worldUndoHistoryLimit, sessionUndoHistoryLimit,
+         TinkerHistoryMergeLimits.DEFAULTS);
    }
 
    public OpenSettingsPayload(boolean middleConfirmEnabled) {
@@ -75,6 +88,11 @@ public record OpenSettingsPayload(
       buffer.writeBoolean(this.fallingDisabled);
       buffer.writeVarInt(this.worldUndoHistoryLimit);
       buffer.writeVarInt(this.sessionUndoHistoryLimit);
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.near());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.middle());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.far());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.nearDistance());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.farDistance());
    }
 
    @Override

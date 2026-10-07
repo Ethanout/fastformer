@@ -292,6 +292,7 @@ public final class WorldHistoryManager {
    private static void addBatchInMemory(OwnerState owner, WorldChangeBatch batch) {
       HistoryMemoryCache history = owner.history();
       history.addNew(batch);
+      owner.compactionRequested = true;
       trim(owner.historyLimit, history);
       HistoryOrderCatalog order = historyOrder(owner);
       order.addNew(batch.operationId());
@@ -299,6 +300,7 @@ public final class WorldHistoryManager {
    }
 
    private static void addBatch(ServerPlayer player, WorldChangeBatch batch) {
+      ownerState(player.getUUID()).compactionLimits = FastPlaceSettings.load(player).tinkerHistoryMergeLimits();
       addBatch(new WorldTaskContext(player.getServer(), player.getUUID()), batch);
    }
 
@@ -307,6 +309,7 @@ public final class WorldHistoryManager {
       OwnerState owner = ownerState(context.owner());
       HistoryMemoryCache history = owner.history();
       history.addNew(batch);
+      owner.compactionRequested = true;
       ServerPlayer player = context.onlinePlayer();
       // Keep all batches in memory while an earlier save is unresolved. The
       // recovery snapshot must still contain the failed batch and any newer work.
@@ -323,6 +326,43 @@ public final class WorldHistoryManager {
 
    public static boolean requestUndo(ServerPlayer player, int count) {
       return request(player, true, count);
+   }
+
+   public static UUID latestOperationId(ServerPlayer player) {
+      var batch = ownerState(player.getUUID()).history().peek(true);
+      return batch == null ? null : batch.operationId();
+   }
+
+   public static boolean recordTinker(ServerPlayer player, ServerLevel level,
+      ArrayDeque<ReversibleBlockSnapshot> before, Map<BlockPos, ReversibleBlockSnapshot> after,
+      TinkerHistoryMetadata metadata) {
+      var batch = WorldChangeBatch.capturePairsByPos(level, before, after);
+      if (batch.isEmpty()) return false;
+      addBatch(player, batch.orElseThrow().withTinker(metadata));
+      return true;
+   }
+
+   /** Cancels an exact inverse of the latest write without adding an undoable reversal. */
+   public static boolean recordRestoration(ServerPlayer player, ServerLevel level,
+      ArrayDeque<ReversibleBlockSnapshot> before, Map<BlockPos, ReversibleBlockSnapshot> after, UUID operationId) {
+      OwnerState owner = ownerState(player.getUUID());
+      WorldChangeBatch original = owner.history().peek(true);
+      if (original == null || !original.operationId().equals(operationId) || !original.dimension().equals(level.dimension())
+         || original.size() != before.size() || original.size() != after.size()) return record(player, level, before, after);
+      Map<BlockPos, ReversibleBlockSnapshot> source = new LinkedHashMap<>();
+      for (var snapshot : before) source.put(snapshot.pos(), snapshot);
+      var originals = original.targetSnapshots(true);
+      var changed = original.sourceSnapshots(true);
+      for (int i = 0; i < original.size(); i++) {
+         if (!changed.get(i).sameContents(source.get(original.position(i)))
+            || !originals.get(i).sameContents(after.get(original.position(i)))) return record(player, level, before, after);
+      }
+      owner.history().removeNewestUndo();
+      historyOrder(owner).remove(operationId);
+      scheduleIndex(player.getServer(), player.getUUID(), owner, owner.history());
+      WorldHistoryEvents.send(new WorldTaskContext(player.getServer(), player.getUUID()), original,
+         io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind.UNDO, true);
+      return true;
    }
 
    public static boolean respondToConflict(ServerPlayer player,
@@ -914,6 +954,8 @@ public final class WorldHistoryManager {
       // the lifetime of this server instance. Reconnect timing must not drop
       // an undo that was accepted while a recovery task was still running.
       owner.detached = true;
+      owner.compaction = null;
+      owner.compactionRequested = false;
       pruneDetachedOwners();
    }
 
@@ -983,6 +1025,7 @@ public final class WorldHistoryManager {
       HistoryReplayTask task = ownerState.active;
       if (task == null) {
          retryPersistence(context, ownerState);
+         compactHistory(context, ownerState);
          ServerPlayer player = context.onlinePlayer();
          return player != null && runDeferredUndo(player);
       }
@@ -1052,6 +1095,65 @@ public final class WorldHistoryManager {
          }
       }
       return true;
+   }
+
+   public static void requestCompaction(ServerPlayer player) {
+      OwnerState owner = ownerState(player.getUUID());
+      owner.compactionLimits = FastPlaceSettings.load(player).tinkerHistoryMergeLimits();
+      owner.compactionRequested = true;
+   }
+
+   private static void compactHistory(WorldTaskContext context, OwnerState owner) {
+      if (owner.detached) {
+         owner.compactionRequested = false;
+         owner.compaction = null;
+         return;
+      }
+      HistoryCompactionPolicy policy = HistoryStorageConfig.compactionPolicy();
+      if (owner.lastCompactionPolicy != policy) {
+         owner.lastCompactionPolicy = policy;
+         owner.compactionRequested = true;
+      }
+      boolean ready = !owner.busy() && owner.pendingPersistence == 0 && !owner.persistenceDirty
+         && owner.durableCommit == null;
+      TinkerHistoryMergeLimits limits = owner.compactionLimits;
+      if (owner.compaction != null) {
+         finishCompaction(context, owner, ready, limits);
+         return;
+      }
+      if (!ready || !owner.compactionRequested) return;
+      owner.compactionRequested = false;
+      owner.compaction = HistoryCompactionJob.start(owner.history(), historyOrder(owner), limits, policy).orElse(null);
+   }
+
+   private static void finishCompaction(WorldTaskContext context, OwnerState owner, boolean ready, TinkerHistoryMergeLimits limits) {
+      if (!owner.compaction.result.isDone()) return;
+      HistoryCompactionJob completed = owner.compaction;
+      owner.compaction = null;
+      if (!ready || !completed.matches(owner.history(), historyOrder(owner), limits)) {
+         owner.compactionRequested = true;
+         return;
+      }
+      try {
+         completed.result.join().ifPresent(change -> applyCompaction(context, owner, change));
+      } catch (java.util.concurrent.CompletionException exception) {
+         LOGGER.warn("Wrench history compaction failed for {}; original history retained", context.owner(), exception);
+      }
+   }
+
+   private static void applyCompaction(WorldTaskContext context, OwnerState owner, TinkerHistoryCompactor.Replacement change) {
+      HistoryOrderCatalog replacementOrder = historyOrder(owner).copy();
+      replacementOrder.replaceUndo(change);
+      owner.history().replaceUndo(change);
+      owner.historyOrder = replacementOrder;
+      if (change.batch().isPresent()) {
+         trackPersistence(context.server(), context.owner(), owner, false, WorldHistoryPersistence.publishNewBatch(
+            context.server(), context.owner(), change.batch().orElseThrow(),
+            replacementOrder.order(true), replacementOrder.order(false)));
+      } else {
+         scheduleIndex(context.server(), context.owner(), owner, owner.history());
+      }
+      owner.compactionRequested = true;
    }
 
    private static boolean runDeferredUndo(ServerPlayer player) {
@@ -1163,6 +1265,7 @@ public final class WorldHistoryManager {
       try {
          WorldHistoryPersistence.LoadedHistory loaded = load.join();
          applyLoadedHistory(owner, loaded);
+         owner.compactionRequested = true;
          owner.historyLoadFailed = false;
       } catch (RuntimeException failure) {
          owner.historyLoadFailed = true;
@@ -1172,6 +1275,7 @@ public final class WorldHistoryManager {
    }
 
    private static void startHistorySnapshotLoad(ServerPlayer player, OwnerState owner) {
+      owner.compactionLimits = FastPlaceSettings.load(player).tinkerHistoryMergeLimits();
       owner.historyLoad = WorldHistoryPersistence.loadSnapshot(
          player.getServer(), player.getUUID(), owner.historyLimit, MAX_BYTES_PER_PLAYER
       );
@@ -1625,6 +1729,10 @@ public final class WorldHistoryManager {
       private HistoryOrderCatalog historyOrder;
       private boolean historyLoadFailed;
       private DurableCommit durableCommit;
+      private boolean compactionRequested;
+      private TinkerHistoryMergeLimits compactionLimits = TinkerHistoryMergeLimits.DEFAULTS;
+      private HistoryCompactionJob compaction;
+      private HistoryCompactionPolicy lastCompactionPolicy;
 
       private long historyBytes() {
          return history == null ? 0L : history.estimatedBytes();
@@ -1663,7 +1771,10 @@ public final class WorldHistoryManager {
             || !pendingCaptures.isEmpty()
             || !pendingRecords.isEmpty()
             || deferredUndo > 0
-            || persistenceDirty;
+            || persistenceDirty
+            || compactionRequested
+            || compaction != null
+            || history != null && !detached && lastCompactionPolicy != HistoryStorageConfig.compactionPolicy();
       }
 
       /**
@@ -1681,6 +1792,7 @@ public final class WorldHistoryManager {
             && !busy()
             && pendingPersistence == 0
             && !persistenceDirty
+            && compaction == null
             && durableCommit == null;
       }
    }

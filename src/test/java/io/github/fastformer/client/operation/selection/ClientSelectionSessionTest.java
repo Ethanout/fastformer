@@ -45,7 +45,7 @@ class ClientSelectionSessionTest {
       var session = new ClientSelectionSession();
       session.onLifecycleEvent(SelectionSessionLifecycle.Event.FOCUS);
       assertEquals(SelectionDraftResult.UPDATED,
-         session.onDraftEvent(new SelectionDraftEvent(SelectionDraftEvent.Button.LEFT, BlockPos.ZERO, false)));
+         session.onDraftEvent(new SelectionDraftEvent(SelectionDraftEvent.Button.RIGHT, BlockPos.ZERO, false)));
       assertEquals(SelectionSessionLifecycle.Phase.POINTING, session.lifecyclePhase());
       assertEquals(List.of(BlockPos.ZERO), session.draftPoints());
    }

@@ -69,7 +69,7 @@ class ClientOperationControllerTest {
          var selected = Set.copyOf(ClientOperationController.workspace().selectedIds());
          ClientOperationController.setAltMode(true);
          assertEquals(selected, ClientOperationController.workspace().selectedIds());
-         assertTrue(ClientOperationController.handleAltCreateClick(0, BlockPos.ZERO));
+         assertTrue(ClientOperationController.handleAltCreateClick(1, BlockPos.ZERO));
          assertEquals(selected, ClientOperationController.workspace().selectedIds());
          assertEquals(1, ClientOperationController.workspace().size());
          assertTrue(ClientOperationController.handleAltCreateClick(1, new BlockPos(2, 2, 2)));
@@ -289,6 +289,19 @@ class ClientOperationControllerTest {
    }
 
    @Test
+   void duplicateStopsAtCopyFailureWithoutCallingPaste() {
+      ClientOperationController.onDisconnected();
+      try {
+         assertFalse(ClientOperationController.duplicateSelected(null));
+         assertEquals("fastformer.message.operation_copy_empty",
+            ClientOperationController.lastOperationFailureKey("fallback"));
+         assertTrue(ClientOperationController.workspace().isEmpty());
+      } finally {
+         ClientOperationController.onDisconnected();
+      }
+   }
+
+   @Test
    void confirmingAReconnectRestoreRebuildsTheSourceMask() {
       ClientOperationController.onDisconnected();
       assertTrue(ClientOperationController.sourceMask().positions().isEmpty());
@@ -318,10 +331,9 @@ class ClientOperationControllerTest {
    }
 
    @Test
-   void secondStackGestureRepeatsTheWholeGroupAndKeepsPlacedCopies() {
+   void secondStackGestureKeepsItsOriginalCellSizeAndPlacedCopies() {
       ClientOperationController.onDisconnected();
-      // Base cell: two blocks wide. The part already holds one stack step, so the current
-      // whole spans x=0..3 and that whole is this gesture's repeat unit.
+      // The displayed part spans x=0..3, but its original repeat unit stays two blocks wide.
       OperationSelectionVolume selection = OperationSelectionVolume.cuboid(
          BlockPos.ZERO, new BlockPos(1, 0, 0), BlockPos.ZERO, new BlockPos(1, 0, 0)
       );
@@ -349,10 +361,11 @@ class ClientOperationControllerTest {
       ClientSelectionPart updated = ClientOperationController.workspace().selectedParts().getFirst();
       // The stride field keeps the cell extent, so the placed copies at x=2 and x=3 stay.
       assertEquals(2, updated.transform().repeatStride().getX());
-      // One step repeats the whole four wide group, which holds two cells.
-      assertEquals(3, updated.transform().repeats().max().getX());
+      // One step adds one original cell.
+      assertEquals(2, updated.transform().repeats().max().getX());
       Set<BlockPos> preview = WorkspacePreviewComposer.resolve(updated).keySet();
-      for (int x = 0; x <= 7; x++) {
+      assertEquals(6, preview.size());
+      for (int x = 0; x <= 5; x++) {
          assertTrue(preview.contains(new BlockPos(x, 0, 0)), "missing x=" + x);
       }
       ClientOperationController.onDisconnected();

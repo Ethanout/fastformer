@@ -59,6 +59,23 @@ final class HistoryOrderCatalog {
       while (this.redo.size() > bounded) this.redo.removeLast();
    }
 
+   void remove(UUID operationId) {
+      undo.remove(operationId);
+      redo.remove(operationId);
+   }
+
+   void replaceUndo(TinkerHistoryCompactor.Replacement replacement) {
+      var ids = new java.util.ArrayList<>(undo);
+      int end = replacement.start() + replacement.removed().size();
+      if (!ids.subList(replacement.start(), end).equals(replacement.removed())) {
+         throw new IllegalStateException("Durable wrench history changed before compaction");
+      }
+      ids.subList(replacement.start(), end).clear();
+      replacement.batch().ifPresent(batch -> ids.add(replacement.start(), batch.operationId()));
+      undo.clear();
+      undo.addAll(ids);
+   }
+
    List<UUID> order(boolean undoDirection) {
       return List.copyOf(undoDirection ? this.undo : this.redo);
    }

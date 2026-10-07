@@ -57,7 +57,7 @@ class SelectionDraftMailboxTest {
    @Test
    void twoOrdinaryClicksCompleteInOrderAndUndoRestoresTheFirstPoint() {
       var first = new BlockPos(2, 3, 4);
-      postClick(0, first, false);
+      postClick(1, first, false);
       postClick(1, new BlockPos(4, 5, 6), false);
       assertFalse(this.selection.hasDraft());
       drain();
@@ -71,11 +71,27 @@ class SelectionDraftMailboxTest {
    }
 
    @Test
+   void leftClicksUndoBothQueuedPointsWithoutAWorldHit() {
+      postClick(1, BlockPos.ZERO, false);
+      postClick(1, new BlockPos(2, 2, 2), false);
+      postClick(0, null, false);
+      postClick(0, null, false);
+      drain();
+      assertTrue(this.selection.workspace().isEmpty());
+      assertFalse(this.selection.hasDraft());
+      assertTrue(ClientOperationController.selectionSessionActive());
+      assertTrue(ClientOperationController.undo());
+      assertEquals(List.of(BlockPos.ZERO), this.selection.draftPoints());
+      assertTrue(ClientOperationController.undo());
+      assertEquals(1, this.selection.workspace().size());
+   }
+
+   @Test
    void enterFixLeavesRoomForEveryMouseButtonToStartTheNextDraft() {
-      for (int button : List.of(0, 1, 2)) {
+      for (int button : List.of(1, 2)) {
          ClientOperationController.clearWorkspace();
          this.selection.setSelectionMode(OperationSelectionMode.CUBOID);
-         ClientOperationController.handleCreateClick(0, BlockPos.ZERO);
+         ClientOperationController.handleCreateClick(1, BlockPos.ZERO);
          ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
          assertTrue(ClientOperationController.fixActiveSelection());
          assertTrue(ClientOperationController.canStartSelectionDraft());
@@ -87,7 +103,7 @@ class SelectionDraftMailboxTest {
 
    @Test
    void undoingExplicitFixRestoresTheEditableSelection() {
-      ClientOperationController.handleCreateClick(0, BlockPos.ZERO);
+      ClientOperationController.handleCreateClick(1, BlockPos.ZERO);
       ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
       assertTrue(ClientOperationController.fixActiveSelection());
       assertTrue(ClientOperationController.undo());
@@ -97,7 +113,7 @@ class SelectionDraftMailboxTest {
 
    @Test
    void modeSwitchKeepsExistingCuboidAndUndoRestoresOnlyTheCreationTool() {
-      ClientOperationController.handleCreateClick(0, BlockPos.ZERO);
+      ClientOperationController.handleCreateClick(1, BlockPos.ZERO);
       ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
       var original = this.selection.workspace().parts().getFirst();
       assertTrue(ClientOperationController.cycleDraftMode());
@@ -126,9 +142,9 @@ class SelectionDraftMailboxTest {
    @Test
    void immutableTargetSurvivesMouseMovementBeforeDispatch() {
       var target = new BlockPos.MutableBlockPos(1, 2, 3);
-      var press = this.input.captureSelectionPress(snapshot(0, target, false));
+      var press = this.input.captureSelectionPress(snapshot(1, target, false));
       target.set(9, 9, 9);
-      release(0);
+      release(1);
       drain();
       assertEquals(new BlockPos(1, 2, 3), this.selection.draftFirst());
       assertEquals(1234, press.snapshot().occurredAtNanos());

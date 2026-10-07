@@ -21,7 +21,7 @@ final class InitialBlockPreviewRenderer {
       PoseStack pose = event.getPoseStack();
       BufferSource buffers = minecraft.renderBuffers().bufferSource();
       Vec3 camera = event.getCamera().getPosition();
-      if (!player.getMainHandItem().isEmpty()) {
+      if (io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(player.getMainHandItem())) {
          var fallback = PreviewRenderResources.INITIAL_MODEL.render(pose, buffers, camera,
             java.util.Set.of(preview.position()), preview.state(), java.util.Map.of(),
             io.github.fastformer.client.render.PreviewMaterialRenderer.pendingAlpha(FastPlaceClientPreviewCore.ghostBreathPulse()) * opacity, true);

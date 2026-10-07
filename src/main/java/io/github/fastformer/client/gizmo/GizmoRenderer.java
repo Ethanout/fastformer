@@ -37,10 +37,7 @@ public final class GizmoRenderer {
    }
 
    /**
-    * Draws the two workspace handle sets. The world gizmo owns the axis shafts,
-    * the move handles, and the rotation rings. The local gizmo contributes only
-    * its scale handles, so the scale axes follow the part rotation while the move
-    * and rotate axes stay in world space.
+    * Draws world movement shafts and the selection's local scale and rotation handles.
     */
    public void renderWorkspaceGizmo(
       PoseStack poseStack,
@@ -48,10 +45,18 @@ public final class GizmoRenderer {
       Vec3 camera,
       AxisGizmo worldGizmo,
       AxisGizmo scaleGizmo,
+      AxisGizmo rotationGizmo,
       float alphaScale
    ) {
       renderGeometryGizmo(poseStack, buffers, camera, worldGizmo, alphaScale);
       renderGizmoScaleHandles(poseStack, buffers, camera, scaleGizmo, alphaScale);
+      poseStack.pushPose();
+      poseStack.translate(-camera.x, -camera.y, -camera.z);
+      renderGizmoLineHandles(poseStack, buffers.getBuffer(GIZMO_LINES), rotationGizmo, false, alphaScale);
+      buffers.endBatch(GIZMO_LINES);
+      renderGizmoLineHandles(poseStack, buffers.getBuffer(GIZMO_HOVER_LINES), rotationGizmo, true, alphaScale);
+      buffers.endBatch(GIZMO_HOVER_LINES);
+      poseStack.popPose();
    }
 
    /** Draws local scale handles without repeating the world axes. */
@@ -112,9 +117,8 @@ public final class GizmoRenderer {
       PoseStack poseStack,
       BufferSource buffers,
       Vec3 camera,
-      Vec3 center,
+      io.github.fastformer.fastplace.geometry.TransformFrame frame,
       double axisLength,
-      Vec3 rotation,
       AxisGizmo.Axis highlightedAxis,
       float alphaScale
    ) {
@@ -122,7 +126,8 @@ public final class GizmoRenderer {
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       VertexConsumer lines = buffers.getBuffer(GIZMO_LINES);
       for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
-         Vec3 localAxis = PreviewGeometrySupport.rotateLocalAxis(axis, rotation);
+         Vec3 localAxis = frame.axis(axis);
+         Vec3 center = frame.origin();
          boolean highlighted = axis == highlightedAxis;
          float[] color = PreviewGeometrySupport.softLocalAxisColor(axis);
          float alpha = (highlighted ? 0.90F : 0.26F) * alphaScale;

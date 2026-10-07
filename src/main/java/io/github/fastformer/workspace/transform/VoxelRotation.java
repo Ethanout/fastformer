@@ -1,6 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.WorkspaceSymmetry;
 import io.github.fastformer.workspace.preview.Composition;
 import io.github.fastformer.workspace.preview.CompositionCounter;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
@@ -12,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -47,6 +47,10 @@ public final class VoxelRotation {
     */
    public interface ValueRotation<T> {
       Function<T, T> forAxis(AxisGizmo.Axis axis, double radians);
+
+      default Function<T, T> forSymmetry(WorkspaceSymmetry symmetry) {
+         return value -> value;
+      }
    }
 
    /** Keeps every stored value unchanged. Position-only callers use this. */
@@ -54,9 +58,19 @@ public final class VoxelRotation {
       return (axis, radians) -> value -> value;
    }
 
-   /** Turns a stored block state with its cell. Only the Y axis has a block-state rotation. */
+   /** Turns representable block orientations with their cells on all three axes. */
    public static ValueRotation<ClientBlockSnapshot> snapshotValues() {
-      return (axis, radians) -> snapshot -> rotateSnapshot(snapshot, axis, radians);
+      return new ValueRotation<>() {
+         @Override
+         public Function<ClientBlockSnapshot, ClientBlockSnapshot> forAxis(AxisGizmo.Axis axis, double radians) {
+            return snapshot -> rotateSnapshot(snapshot, axis, radians);
+         }
+
+         @Override
+         public Function<ClientBlockSnapshot, ClientBlockSnapshot> forSymmetry(WorkspaceSymmetry symmetry) {
+            return snapshot -> new ClientBlockSnapshot(BlockStateRotation.transform(snapshot.state(), symmetry), snapshot.blockEntity());
+         }
+      };
    }
 
    /**
@@ -127,6 +141,20 @@ public final class VoxelRotation {
    }
 
    public record BoundedRotation<T>(RotationResult<T> result, Composition.OverBudget<T> overBudget) {
+   }
+
+   /** Applies captured pivots so adding local copies cannot move existing cells. */
+   public static <T> BoundedRotation<T> replayStage(
+      Map<BlockPos, T> source, List<RotationStep> steps, ValueRotation<T> valueRotation, CompositionCounter counter
+   ) {
+      Map<BlockPos, T> current = source;
+      for (RotationStep step : steps) {
+         AxisRotation<T> rotated = rotate(current, step.pivot(), step.axis(), step.radians(),
+            valueRotation.forAxis(step.axis(), step.radians()), counter);
+         if (rotated.overBudget() != null) return new BoundedRotation<>(null, rotated.overBudget());
+         current = rotated.values();
+      }
+      return new BoundedRotation<>(new RotationResult<>(current, List.copyOf(steps)), null);
    }
 
    private record AxisRotation<T>(Map<BlockPos, T> values, Composition.OverBudget<T> overBudget) {
@@ -331,31 +359,17 @@ public final class VoxelRotation {
    /**
     * Turns one block state by the same angle that turned its cell.
     *
-    * <p>The sign matters. {@link Rotation#CLOCKWISE_90} is
-    * {@code OctahedralGroup.ROT_90_Y_NEG}, and it turns a north facing to east
-    * ({@code Direction.getClockWise}, NORTH to EAST). Rotating a point by a positive angle
-    * about +Y turns north to west, because {@code rotateVector} uses
-    * {@code x' = x cos + z sin} and {@code z' = -x sin + z cos}. The state rotation is
-    * therefore the opposite quarter turn of the position rotation.
-    *
-    * <p>Only the Y axis has a block-state rotation. An X or Z turn, and a Y turn that is
-    * not a quarter turn, keep the state and move only the cell.
+    * <p>Quarter turns use the same axis signs as the cell transform. Other angles keep
+    * the original state because Minecraft cannot represent arbitrary orientations.
     */
    private static ClientBlockSnapshot rotateSnapshot(
       ClientBlockSnapshot snapshot, AxisGizmo.Axis axis, double radians
    ) {
       int quarterTurns = (int)Math.rint(radians / QUARTER_TURN);
-      if (axis != AxisGizmo.Axis.Y || Math.abs(radians - quarterTurns * QUARTER_TURN) > ORTHOGONAL_EPSILON) {
+      if (Math.abs(radians - quarterTurns * QUARTER_TURN) > ORTHOGONAL_EPSILON) {
          return snapshot;
       }
-      int normalized = Math.floorMod(quarterTurns, 4);
-      Rotation rotation = switch (normalized) {
-         case 1 -> Rotation.COUNTERCLOCKWISE_90;
-         case 2 -> Rotation.CLOCKWISE_180;
-         case 3 -> Rotation.CLOCKWISE_90;
-         default -> Rotation.NONE;
-      };
-      BlockState rotated = snapshot.state().rotate(rotation);
+      BlockState rotated = BlockStateRotation.rotate(snapshot.state(), axis, quarterTurns);
       return new ClientBlockSnapshot(rotated, snapshot.blockEntity());
    }
 }

@@ -48,4 +48,20 @@ class KeyboardInputSnapshotTest {
       assertEquals(6, confirm.modifiers());
       assertEquals(123L, confirm.occurredAtNanos());
    }
+
+   @Test
+   void shiftQKeepsItsDropMeaningAfterShiftIsReleased() {
+      var press = KeyboardInputSnapshot.capture(81, 0, 1, 1, 100L, false, false, false, false);
+      var later = KeyboardInputSnapshot.capture(81, 0, 1, 0, 200L, false, false, false, false);
+      assertTrue(press.shiftDown());
+      assertFalse(later.shiftDown());
+   }
+
+   @Test
+   void controlQKeepsItsDropMeaningAfterControlIsReleased() {
+      var press = KeyboardInputSnapshot.capture(81, 0, 1, 2, 100L, false, false, true, false);
+      var release = KeyboardInputSnapshot.capture(341, 0, 0, 0, 200L, false, false, true, false);
+      assertFalse(release.controlDown());
+      assertTrue(press.controlDown());
+   }
 }

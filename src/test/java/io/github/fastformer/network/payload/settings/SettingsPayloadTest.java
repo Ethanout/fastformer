@@ -10,6 +10,7 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import java.util.List;
+import io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits;
 import org.junit.jupiter.api.Test;
 
 class SettingsPayloadTest {
@@ -31,7 +32,7 @@ class SettingsPayloadTest {
          new OpenSettingsPayload(
             false, FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
             OperationConflictMode.KEEP_EXISTING, PlacementUpdateMode.CLIENT_ONLY,
-            List.of(woodFrame), true, false, 300, 120
+            List.of(woodFrame), true, false, 300, 120, new TinkerHistoryMergeLimits(8, 16, 48, 7, 25)
          )
       );
       OpenSettingsPayload open = OpenSettingsPayload.STREAM_CODEC.decode(openBuffer);
@@ -44,6 +45,12 @@ class SettingsPayloadTest {
       assertEquals(false, open.fallingDisabled());
       assertEquals(300, open.worldUndoHistoryLimit());
       assertEquals(120, open.sessionUndoHistoryLimit());
+      assertEquals(new TinkerHistoryMergeLimits(8, 16, 48, 7, 25), open.tinkerHistoryMergeLimits());
+
+      FriendlyByteBuf tinkerBuffer = new FriendlyByteBuf(Unpooled.buffer());
+      var tinker = new TinkerHistorySettingPayload(TinkerHistoryMergeLimits.Setting.NEAR_DISTANCE, 9);
+      TinkerHistorySettingPayload.STREAM_CODEC.encode(tinkerBuffer, tinker);
+      assertEquals(tinker, TinkerHistorySettingPayload.STREAM_CODEC.decode(tinkerBuffer));
 
       FriendlyByteBuf updateBuffer = new FriendlyByteBuf(Unpooled.buffer());
       MiddleConfirmSettingPayload.STREAM_CODEC.encode(updateBuffer, new MiddleConfirmSettingPayload(true));

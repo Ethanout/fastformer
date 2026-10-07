@@ -69,7 +69,7 @@ class SelectionStackTest {
    }
    @Test void qExitsWhenItPopsTheLastSelectionEntry() {
       ClientOperationController.enterLocalSelectionSession();
-      ClientOperationController.handleCreateClick(0, new BlockPos(1, 2, 3));
+      ClientOperationController.handleCreateClick(1, new BlockPos(1, 2, 3));
       assertTrue(ClientOperationController.cancelLastSelection());
       assertFalse(ClientOperationController.selectionSessionActive());
       assertFalse(ClientOperationController.active());
@@ -81,44 +81,70 @@ class SelectionStackTest {
    private static final BlockPos A = new BlockPos(1, 2, 3);
    private static final BlockPos B = new BlockPos(4, 5, 6);
 
+   @Test void entrySetsPointOneAndNextRightCompletesTheCuboid() {
+      assertTrue(FastPlaceClientInput.captureSelectionEntry(A, false, 1));
+      drain();
+      assertTrue(workspace().isEmpty());
+      assertEquals(A, ClientOperationController.selectionDraft().firstPoint());
+      assertNull(ClientOperationController.selectionDraft().secondPoint());
+      post(1, B);
+      drain();
+      var part = workspace().latestPart().orElseThrow();
+      long identity = workspace().interactionId(part.id());
+      assertEquals(A, part.selection().point1());
+      assertEquals(B, part.selection().point2());
+      assertTrue(part.canAdjustGeometry());
+      post(0, null);
+      drain();
+      assertTrue(workspace().isEmpty());
+      assertEquals(A, ClientOperationController.selectionDraft().firstPoint());
+      assertTrue(ClientOperationController.undo());
+      assertEquals(identity, workspace().interactionId(part.id()));
+   }
+
+
    @BeforeEach void reset() {
       ClientOperationController.onDisconnected();
       FastPlaceClientInput.inputSession().reset();
-      FastPlaceClientInput.inputSession().routing.onEvent(io.github.fastformer.client.input.state.ClientSemanticEvent.EnterManual.INSTANCE);
    }
 
    @AfterEach void clear() { reset(); }
 
-   @Test void eachInitialButtonKeepsItsPointRoleUntilTheMissingPointArrives() {
-      for (int firstButton : List.of(0, 1, 2)) {
-         for (int completingButton : firstButton == 1 ? List.of(0, 2) : List.of(1, 2)) {
+   @Test void rightAndMiddleFillThePointsInOrder() {
+      for (int firstButton : List.of(1, 2)) {
+         for (int completingButton : List.of(1, 2)) {
             reset();
             assertTrue(FastPlaceClientInput.captureInitialSelection(firstButton, A, false, false, 1));
             drain();
             var draft = ClientOperationController.selectionDraft();
-            assertEquals(firstButton == 1 ? null : A, draft.firstPoint());
-            assertEquals(firstButton == 1 ? A : null, draft.secondPoint());
+            assertEquals(A, draft.firstPoint());
+            assertNull(draft.secondPoint());
             post(completingButton, B);
             drain();
             var part = workspace().latestPart().orElseThrow();
-            assertEquals(firstButton == 1 ? B : A, part.selection().point1());
-            assertEquals(firstButton == 1 ? A : B, part.selection().point2());
+            assertEquals(A, part.selection().point1());
+            assertEquals(B, part.selection().point2());
             assertTrue(part.canAdjustGeometry());
             assertFalse(ClientOperationController.selectionDraftActive());
          }
       }
    }
 
-   @Test void repeatedRightReplacesOnlyPointTwoAndUndoPreservesItsRole() {
+   @Test void leftReopensTheLatestCuboidThenRemovesItsFirstPoint() {
       assertTrue(ClientOperationController.handleCreateClick(1, A));
       assertTrue(ClientOperationController.handleCreateClick(1, B));
+      assertEquals(B, workspace().latestPart().orElseThrow().selection().point2());
+      assertTrue(ClientOperationController.handleCreateClick(0, null));
       assertTrue(workspace().isEmpty());
-      assertNull(ClientOperationController.selectionDraft().firstPoint());
-      assertEquals(B, ClientOperationController.selectionDraft().secondPoint());
+      assertEquals(A, ClientOperationController.selectionDraft().firstPoint());
+      assertNull(ClientOperationController.selectionDraft().secondPoint());
+      assertTrue(ClientOperationController.handleCreateClick(0, null));
+      assertFalse(ClientOperationController.selectionDraftActive());
+      assertFalse(ClientOperationController.handleCreateClick(0, null));
       assertTrue(ClientOperationController.undo());
-      assertEquals(A, ClientOperationController.selectionDraft().secondPoint());
-      assertTrue(ClientOperationController.handleCreateClick(0, B));
-      assertEquals(A, workspace().latestPart().orElseThrow().selection().point2());
+      assertEquals(A, ClientOperationController.selectionDraft().firstPoint());
+      assertTrue(ClientOperationController.undo());
+      assertEquals(B, workspace().latestPart().orElseThrow().selection().point2());
    }
 
    @Test void cancellingNewestRevealsTheUnchangedAdjustablePreviousSelection() {
@@ -142,7 +168,7 @@ class SelectionStackTest {
       assertEquals(before, workspace().draftState());
       assertFalse(ClientOperationController.selectionDraftActive());
       assertTrue(ClientOperationController.undo());
-      assertTrue(ClientOperationController.selectionDraft().secondPointOnly());
+      assertFalse(ClientOperationController.selectionDraft().secondPointOnly());
       assertEquals(before, workspace().draftState());
    }
 
@@ -171,7 +197,7 @@ class SelectionStackTest {
       var smart = smartPart();
       workspace().addParts(List.of(smart));
       var before = workspace().draftState();
-      assertTrue(ClientOperationController.handleCreateClick(0, B));
+      assertTrue(ClientOperationController.handleCreateClick(1, B));
       assertFalse(workspace().parts().getFirst().smartEditable());
       assertTrue(ClientOperationController.undo());
       assertEquals(before, workspace().draftState());
@@ -208,7 +234,7 @@ class SelectionStackTest {
 
    @Test void controlEnterCompletesTheDraftAndSubmitsEveryGroup() {
       addSelection(0);
-      assertTrue(ClientOperationController.handleCreateClick(0, A));
+      assertTrue(ClientOperationController.handleCreateClick(1, A));
       assertTrue(ClientOperationController.confirmSelection(null, B));
       assertTrue(workspace().isEmpty());
       assertFalse(ClientOperationController.selectionDraftActive());
@@ -249,7 +275,7 @@ class SelectionStackTest {
    @Test void completedAndIncompleteSelectionsShareTheSameStackTop() {
       var first = addSelection(0);
       assertEquals(new ClientSelectionStack.Complete(first), workspace().selections().peek().orElseThrow());
-      assertTrue(ClientOperationController.handleCreateClick(0, A));
+      assertTrue(ClientOperationController.handleCreateClick(1, A));
       var pending = assertInstanceOf(ClientSelectionStack.Pending.class, workspace().selections().peek().orElseThrow());
       assertEquals(A, pending.points().firstPoint());
       assertNull(pending.points().secondPoint());
@@ -274,12 +300,12 @@ class SelectionStackTest {
       assertEquals(second, workspace().selections().topPart().orElseThrow());
       assertTrue(ClientOperationController.undo());
       var pending = assertInstanceOf(ClientSelectionStack.Pending.class, workspace().selections().peek().orElseThrow());
-      assertNull(pending.points().firstPoint());
-      assertEquals(A, pending.points().secondPoint());
+      assertEquals(A, pending.points().firstPoint());
+      assertNull(pending.points().secondPoint());
       assertTrue(ClientOperationController.handleCreateClick(2, B));
       assertEquals(3, workspace().size());
-      assertEquals(B, workspace().latestPart().orElseThrow().selection().point1());
-      assertEquals(A, workspace().latestPart().orElseThrow().selection().point2());
+      assertEquals(A, workspace().latestPart().orElseThrow().selection().point1());
+      assertEquals(B, workspace().latestPart().orElseThrow().selection().point2());
    }
 
    @Test void editingAnOlderPartDoesNotMoveItAboveThePendingStackEntry() {
@@ -302,7 +328,7 @@ class SelectionStackTest {
       assertTrue(ClientOperationController.cancelLastSelection());
       assertTrue(ClientOperationController.cancelLastSelection());
       assertTrue(workspace().selections().peek().isEmpty());
-      assertTrue(ClientOperationController.handleCreateClick(0, B));
+      assertTrue(ClientOperationController.handleCreateClick(1, B));
       assertEquals(B, ClientOperationController.selectionDraft().firstPoint());
    }
 
@@ -333,7 +359,7 @@ class SelectionStackTest {
    }
 
    private static ClientSelectionPart addSelection(int x) {
-      assertTrue(ClientOperationController.handleCreateClick(0, new BlockPos(x, 0, 0)));
+      assertTrue(ClientOperationController.handleCreateClick(1, new BlockPos(x, 0, 0)));
       assertTrue(ClientOperationController.handleCreateClick(1, new BlockPos(x + 2, 2, 2)));
       return workspace().latestPart().orElseThrow();
    }

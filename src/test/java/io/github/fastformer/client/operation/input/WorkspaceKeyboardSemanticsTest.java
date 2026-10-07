@@ -52,7 +52,15 @@ class WorkspaceKeyboardSemanticsTest {
 
    @Test
    void physicalKeyPressesProduceWorkspaceCommands() {
-      assertEquals(WorkspaceKeyboardSemantics.Command.DESELECT_ALL,
+      assertEquals(WorkspaceKeyboardSemantics.Command.ROTATE_SELECTION,
+         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 82, true));
+      assertEquals(WorkspaceKeyboardSemantics.Command.FLIP_SELECTION,
+         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 70, true));
+      assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
+         WorkspaceKeyboardSemantics.fromPhysicalKey(2, 70, true));
+      assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
+         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 70, false));
+      assertEquals(WorkspaceKeyboardSemantics.Command.DUPLICATE,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 68, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 68, false));
@@ -60,7 +68,7 @@ class WorkspaceKeyboardSemanticsTest {
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 67, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.PASTE,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 86, true));
-      assertEquals(WorkspaceKeyboardSemantics.Command.SELECT_ALL,
+      assertEquals(WorkspaceKeyboardSemantics.Command.TOGGLE_SELECT_ALL,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 65, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.UNDO,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 90, true));
@@ -75,6 +83,26 @@ class WorkspaceKeyboardSemanticsTest {
    }
 
    @Test
+   void transformsConsumeBusyPressesAndLeaveVanillaSessionsAlone() {
+      for (var command : new WorkspaceKeyboardSemantics.Command[]{
+         WorkspaceKeyboardSemantics.Command.ROTATE_SELECTION, WorkspaceKeyboardSemantics.Command.FLIP_SELECTION,
+         WorkspaceKeyboardSemantics.Command.DUPLICATE
+      }) {
+         assertTrue(decideOn(command).accepted());
+         assertTrue(WorkspaceKeyboardSemantics.decide(command, BLOCKED, BLOCKED, withParts()).consumesPress());
+         assertFalse(WorkspaceKeyboardSemantics.decide(command, VANILLA, VANILLA, withParts()).consumesPress());
+         var busy = WorkspaceKeyboardSemantics.decide(command, OPERATION, OPERATION,
+            new WorkspaceKeyboardSemantics.WorkspaceFacts(true, 1, true, false));
+         assertEquals(WorkspaceKeyboardSemantics.Rejection.EDIT_IN_PROGRESS, busy.rejection());
+         assertTrue(busy.consumesPress());
+         var pending = WorkspaceKeyboardSemantics.decide(command, OPERATION, OPERATION,
+            new WorkspaceKeyboardSemantics.WorkspaceFacts(true, 1, false, true));
+         assertEquals(WorkspaceKeyboardSemantics.Rejection.SUBMISSION_PENDING, pending.rejection());
+         assertTrue(pending.consumesPress());
+      }
+   }
+
+   @Test
    void workspaceEditsRunOnlyInAnOperationPhase() {
       WorkspaceKeyboardSemantics.Decision otherPhase = WorkspaceKeyboardSemantics.decide(
          WorkspaceKeyboardSemantics.Command.COPY, VANILLA, VANILLA, withParts()
@@ -84,7 +112,7 @@ class WorkspaceKeyboardSemanticsTest {
       assertFalse(otherPhase.handsPressToWorldUndo());
 
       WorkspaceKeyboardSemantics.Decision noContent = WorkspaceKeyboardSemantics.decide(
-         WorkspaceKeyboardSemantics.Command.SELECT_ALL, OPERATION, OPERATION, empty()
+         WorkspaceKeyboardSemantics.Command.TOGGLE_SELECT_ALL, OPERATION, OPERATION, empty()
       );
       assertEquals(WorkspaceKeyboardSemantics.Rejection.WORKSPACE_INACTIVE, noContent.rejection());
       assertFalse(noContent.consumesPress());
@@ -109,6 +137,19 @@ class WorkspaceKeyboardSemanticsTest {
       );
       assertEquals(WorkspaceKeyboardSemantics.Rejection.PHASE_BLOCKED, blocked.rejection());
       assertFalse(blocked.handsPressToWorldUndo());
+   }
+
+   @Test
+   void duplicateRequiresBothWorkspaceOwnershipAndAnAvailablePasteRoute() {
+      assertTrue(decideOn(WorkspaceKeyboardSemantics.Command.DUPLICATE).accepted());
+      var blocked = WorkspaceKeyboardSemantics.decide(
+         WorkspaceKeyboardSemantics.Command.DUPLICATE, OPERATION, BLOCKED, withParts());
+      assertFalse(blocked.accepted());
+      assertTrue(blocked.consumesPress());
+      assertFalse(WorkspaceKeyboardSemantics.decide(
+         WorkspaceKeyboardSemantics.Command.DUPLICATE, VANILLA, OPERATION, empty()).accepted());
+      assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
+         WorkspaceKeyboardSemantics.fromPhysicalKey(2, 68, true));
    }
 
    @Test
@@ -356,9 +397,6 @@ class WorkspaceKeyboardSemanticsTest {
       ClientInputStateMachine machine = new ClientInputStateMachine();
       switch (state) {
          case IDLE -> { }
-         case IDLE_MANUAL -> machine.onEvent(new io.github.fastformer.client.input.state.ClientSemanticEvent.ConfigureActivation(io.github.fastformer.fastplace.session.SessionActivationMode.MANUAL));
-         case IDLE_WAITING_FOR_FAR_ENTRY -> machine.onEvent(new io.github.fastformer.client.input.state.ClientSemanticEvent.SuspendIdle(false));
-         case IDLE_WAITING_FOR_FAR_EXIT -> machine.onEvent(new io.github.fastformer.client.input.state.ClientSemanticEvent.SuspendIdle(true));
          case SUBMITTING -> {
             machine.observe(ClientInputStateMachine.State.BUILDING);
             assertTrue(machine.submit(UUID.randomUUID()));

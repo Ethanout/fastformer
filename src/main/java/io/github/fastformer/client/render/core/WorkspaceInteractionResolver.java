@@ -90,32 +90,7 @@ final class WorkspaceInteractionResolver {
          }
          Vec3 center = interactionBounds.getCenter();
          GizmoViewScale scale = GizmoViewScale.fromDistance(context.camera().distanceTo(center));
-         List<AxisGizmo> gizmos = SelectionGizmoInteraction.resolvePart(object.gizmo(), scale).gizmos();
-         List<AxisGizmo.Hit> hits = new ArrayList<>(gizmos.size());
-         List<AxisGizmo> hitGizmos = new ArrayList<>(gizmos.size());
-         for (AxisGizmo candidate : gizmos) {
-            AxisGizmo.Hit candidateHit = candidate.hitTest(context.eye(), context.view(), REACH);
-            if (candidateHit != null) {
-               hits.add(candidateHit);
-               hitGizmos.add(candidate);
-            }
-         }
-         AxisGizmo.Hit hit = AxisGizmo.preferHit(hits);
-         if (hit != null) {
-            for (int index = 0; index < hits.size(); index++) {
-               if (hits.get(index) != hit) {
-                  continue;
-               }
-               AxisGizmo hitGizmo = hitGizmos.get(index);
-               targets.add(new OperationInteractionIntent.Gizmo(
-                  part.id(),
-                  false,
-                  hitGizmo,
-                  hit
-               ));
-               break;
-            }
-         }
+         addGizmoTarget(targets, part.id(), false, SelectionGizmoInteraction.resolvePart(object.gizmo(), scale), context);
       }
       var groupObject = scene.groupGizmo();
       if (groupObject != null) {
@@ -123,11 +98,7 @@ final class WorkspaceInteractionResolver {
          if (groupAabb != null) {
             Vec3 center = groupAabb.getCenter();
             GizmoViewScale scale = GizmoViewScale.fromDistance(context.camera().distanceTo(center));
-            AxisGizmo gizmo = SelectionGizmoInteraction.resolveGroup(groupObject, scale);
-            AxisGizmo.Hit hit = gizmo.hitTest(context.eye(), context.view(), REACH);
-            if (hit != null) {
-               targets.add(new OperationInteractionIntent.Gizmo(0, true, gizmo, hit));
-            }
+            addGizmoTarget(targets, 0, true, SelectionGizmoInteraction.resolveGroup(groupObject, scale), context);
          }
       }
       return targets.stream()
@@ -136,6 +107,17 @@ final class WorkspaceInteractionResolver {
             .comparingDouble((OperationInteractionIntent.Gizmo target) -> target.hit().rayDistance())
             .thenComparingDouble(target -> target.hit().handleDistance()))
          .map(OperationInteractionIntent.class::cast);
+   }
+
+   private static void addGizmoTarget(List<OperationInteractionIntent.Gizmo> targets, int partId, boolean common,
+      SelectionGizmoInteraction.PartGeometry geometry, InteractionContext context) {
+      List<OperationInteractionIntent.Gizmo> candidates = new ArrayList<>();
+      for (AxisGizmo gizmo : geometry.gizmos()) {
+         AxisGizmo.Hit hit = gizmo.hitTest(context.eye(), context.view(), REACH);
+         if (hit != null) candidates.add(new OperationInteractionIntent.Gizmo(partId, common, gizmo, hit));
+      }
+      AxisGizmo.Hit preferred = AxisGizmo.preferHit(candidates.stream().map(OperationInteractionIntent.Gizmo::hit).toList());
+      candidates.stream().filter(candidate -> candidate.hit() == preferred).findFirst().ifPresent(targets::add);
    }
 
    private static boolean gizmoPrecedesOtherParts(
@@ -290,7 +272,7 @@ final class WorkspaceInteractionResolver {
          ).hit();
          point = draftCandidate(context, hit);
       } else {
-         if (context.nearVanillaBlock()
+         if (context.vanillaOwnsPointer()
             || !FastPlaceClientPreviewCore.operationActive()
             || FastPlaceClientPreviewCore.operationSelectionConfirmed()
             || FastPlaceClientPreviewCore.operationCuboid()

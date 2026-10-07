@@ -15,29 +15,38 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
-/**
- * Input quantization for stack (SCALE) drags. The writer repeats one whole
- * group per step, so the travel that adds a step is the whole selection box.
- */
+/** Scale drags keep their original cell size between gestures. */
 class RepeatStrideSemanticsTest {
    @Test
-   void secondStackTravelsOneWholeGroupPerStep() {
+   void secondStackKeepsItsOriginalStepSize() {
       // A five wide selection that already holds the copy of one earlier stack.
       ClientSelectionPart stacked = stackedCuboid(1, 4, 1, 5);
 
-      // The cell box is one copy. The old input source returned this value, so
-      // the same travel added two groups after a stack.
+      // Placed copies do not change the drag unit.
       assertEquals(5, WorkspaceSelectionBounds.extent(
          WorkspaceSelectionBounds.resolveBase(stacked), AxisGizmo.Axis.X
       ));
-      assertEquals(10, RepeatStrideSemantics.stride(
+      int stride = RepeatStrideSemantics.stride(
          AxisGizmo.Operation.SCALE, false, 1, List.of(stacked), AxisGizmo.Axis.X
-      ));
+      );
+      assertEquals(5, stride);
 
-      // One step per whole group: the drag must travel both copies.
-      assertEquals(0, RepeatDragQuantizer.copiesForOffset(9.99, 10));
-      assertEquals(1, RepeatDragQuantizer.copiesForOffset(10.0, 10));
-      assertEquals(2, RepeatDragQuantizer.copiesForOffset(20.0, 10));
+      assertEquals(0, RepeatDragQuantizer.copiesForOffset(4.99, stride));
+      assertEquals(1, RepeatDragQuantizer.copiesForOffset(5.0, stride));
+      assertEquals(-1, RepeatDragQuantizer.copiesForOffset(-5.0, stride));
+   }
+
+   @Test
+   void aSingleHandleKeepsItsSavedStrideAfterACommonStack() {
+      ClientSelectionPart stacked = stackedCuboid(1, 4, 2, 12);
+      assertEquals(12, RepeatStrideSemantics.stride(AxisGizmo.Operation.SCALE, false, 1, List.of(stacked), AxisGizmo.Axis.X));
+   }
+
+   @Test
+   void commonHandleUsesOneBaseGroupAfterEarlierCopies() {
+      var first = stackedCuboid(1, 4, 2, 13);
+      var second = cuboid(2, 10, 12, first.transform());
+      assertEquals(13, RepeatStrideSemantics.stride(AxisGizmo.Operation.SCALE, true, 0, List.of(first, second), AxisGizmo.Axis.X));
    }
 
    @Test

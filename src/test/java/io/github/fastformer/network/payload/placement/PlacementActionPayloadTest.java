@@ -63,7 +63,7 @@ class PlacementActionPayloadTest {
    void startPlacementPayloadPreservesCapturedTarget() {
       FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
       var scope = new OperationCallbackScope(UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID());
-      var target = new StartPlacementPayload.Target(7L, scope, RaycastPlacement.EMBEDDED,
+      var target = new StartPlacementPayload.Target(7L, scope,
          new BlockHitResult(new Vec3(4.25, 5.5, 6.75), Direction.UP, new BlockPos(4, 5, 6), false),
          new Vec3(1, 2, 3), new Vec3(0, 0, 1));
       StartPlacementPayload.STREAM_CODEC.encode(
@@ -74,7 +74,9 @@ class PlacementActionPayloadTest {
       assertEquals(9L, decoded.requestId());
       assertEquals(target.revision(), decoded.target().revision());
       assertEquals(target.callbackScope(), decoded.target().callbackScope());
-      assertEquals(target.placement(), decoded.target().placement());
+      assertEquals(target.anchorToken(), decoded.target().anchorToken());
+      assertEquals(target.embedded(), decoded.target().embedded());
+      assertEquals(target.submitAfterEntry(), decoded.target().submitAfterEntry());
       assertEquals(target.hit().getBlockPos(), decoded.target().hit().getBlockPos());
       assertEquals(target.hit().getLocation(), decoded.target().hit().getLocation());
       assertEquals(target.eye(), decoded.target().eye());
@@ -82,10 +84,26 @@ class PlacementActionPayloadTest {
    }
 
    @Test
+   void embeddedSubmissionFlagsSurviveTheCodec() {
+      var scope = new OperationCallbackScope(UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID());
+      var target = new StartPlacementPayload.Target(7, scope,
+         new BlockHitResult(Vec3.ZERO, Direction.UP, BlockPos.ZERO, false), Vec3.ZERO, new Vec3(0, 0, 1), 0, true, true);
+      var buffer = new FriendlyByteBuf(Unpooled.buffer());
+      try {
+         StartPlacementPayload.STREAM_CODEC.encode(buffer, new StartPlacementPayload(10, target));
+         var decoded = StartPlacementPayload.STREAM_CODEC.decode(buffer);
+         assertEquals(true, decoded.target().embedded());
+         assertEquals(true, decoded.target().submitAfterEntry());
+      } finally {
+         buffer.release();
+      }
+   }
+
+   @Test
    void startPlacementRejectsIncompleteOrUnsafeCapture() {
       assertThrows(IllegalArgumentException.class, () -> new StartPlacementPayload(0L, null));
       assertThrows(IllegalArgumentException.class, () -> new StartPlacementPayload.Target(0L,
-         OperationCallbackScope.unscoped(), RaycastPlacement.SURFACE,
+         OperationCallbackScope.unscoped(),
          new BlockHitResult(Vec3.ZERO, Direction.UP, BlockPos.ZERO, false), Vec3.ZERO, new Vec3(0, 0, 1)));
    }
 }

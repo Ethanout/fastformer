@@ -37,7 +37,7 @@ public final class OperationInputSemantics {
          snapshot.gizmoHit()
       );
       boolean yieldToVanilla = yieldToVanillaNearBlock(
-         snapshot.nearVanillaBlock(),
+         snapshot.vanillaOwnsPointer(),
          snapshot.modifierOverride() || snapshot.workspaceOwnsPress(),
          snapshot.interactionTargetHit()
       );
@@ -49,7 +49,7 @@ public final class OperationInputSemantics {
       boolean selectionReady,
       boolean adjustmentStarted,
       boolean gizmoHit,
-      boolean nearVanillaBlock,
+      boolean vanillaOwnsPointer,
       boolean modifierOverride,
       boolean interactionTargetHit,
       boolean workspaceOwnsPress

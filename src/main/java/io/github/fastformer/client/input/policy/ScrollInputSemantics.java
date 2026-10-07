@@ -13,7 +13,7 @@ public final class ScrollInputSemantics {
       boolean workspaceActive,
       boolean usesScrollContext,
       boolean modifierYieldsToVanilla,
-      boolean nearVanillaBlock
+      boolean vanillaOwnsPointer
    ) {
       if (inputRoute == ClientInputStateMachine.Dispatch.BLOCKED) {
          return Decision.blocked();
@@ -30,7 +30,7 @@ public final class ScrollInputSemantics {
       if (modifierYieldsToVanilla) {
          return Decision.yieldToVanilla();
       }
-      if (nearVanillaBlock) {
+      if (vanillaOwnsPointer) {
          return Decision.ignored();
       }
       return Decision.candidateScroll(direction(scrollDelta));

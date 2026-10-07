@@ -14,7 +14,6 @@ class SelectionDraftTransitionTest {
       var before = session.draftState();
       assertEquals(SelectionDraftResult.UPDATED, click(session, 2, BlockPos.ZERO, false));
       assertNotEquals(before, session.draftState());
-      assertEquals(SelectionDraftResult.UPDATED, click(session, 0, BlockPos.ZERO, false));
       assertEquals(SelectionDraftResult.READY, click(session, 2, new BlockPos(2, 2, 2), false));
    }
 
@@ -25,7 +24,7 @@ class SelectionDraftTransitionTest {
    @Test
    void invalidButtonsAndMissingTargetsDoNotChangeDraft() {
       ClientSelectionSession session = new ClientSelectionSession();
-      click(session, 0, BlockPos.ZERO, false);
+      click(session, 1, BlockPos.ZERO, false);
       var before = session.draftState();
       for (int button : List.of(-1, 3, 4)) {
          assertEquals(SelectionDraftResult.REJECTED, click(session, button, BlockPos.ZERO, true));
@@ -38,7 +37,7 @@ class SelectionDraftTransitionTest {
    @Test
    void cuboidReadyRetainsDraftUntilPartCreationSucceeds() {
       ClientSelectionSession session = new ClientSelectionSession();
-      assertEquals(SelectionDraftResult.UPDATED, click(session, 0, BlockPos.ZERO, false));
+      assertEquals(SelectionDraftResult.UPDATED, click(session, 1, BlockPos.ZERO, false));
       assertEquals(SelectionDraftResult.READY, click(session, 1, new BlockPos(2, 2, 2), false));
       assertEquals(2, session.draftSize());
    }
@@ -90,7 +89,7 @@ class SelectionDraftTransitionTest {
    @Test
    void capturedTargetDoesNotFollowMutableBlockPosition() {
       BlockPos.MutableBlockPos target = new BlockPos.MutableBlockPos(1, 2, 3);
-      var event = SelectionDraftEvent.fromMouse(0, target, false);
+      var event = SelectionDraftEvent.fromMouse(1, target, false);
       target.set(9, 9, 9);
       ClientSelectionSession session = new ClientSelectionSession();
       session.onDraftEvent(event);

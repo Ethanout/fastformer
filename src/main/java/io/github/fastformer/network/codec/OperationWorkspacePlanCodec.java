@@ -10,6 +10,7 @@ import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.WorkspaceLimits;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.workspace.model.WorkspaceSymmetry;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,7 +34,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** Versioned bounded codec used by chunked workspace apply transfers. */
 public final class OperationWorkspacePlanCodec {
-   public static final int VERSION = 1;
+   public static final int VERSION = 2;
    public static final int MAX_BLOCKS = 2_000_000;
    public static final int MAX_COMPRESSED_BYTES = 64 * 1024 * 1024;
    private static final long MAX_DECODE_BYTES = 256L * 1024L * 1024L;
@@ -102,7 +103,7 @@ public final class OperationWorkspacePlanCodec {
    }
 
    private static OperationWorkspacePlan decode(CompoundTag root, HolderGetter<Block> blocks, long started) throws IOException {
-      if (root == null || root.getInt("Version") != VERSION) {
+      if (root == null || root.getInt("Version") != 1 && root.getInt("Version") != VERSION) {
          throw new IOException("Unsupported workspace plan version");
       }
       ListTag partTags = root.getList("Parts", Tag.TAG_COMPOUND);
@@ -153,19 +154,25 @@ public final class OperationWorkspacePlanCodec {
       putVec3(tag, "Translation", transform.translation());
       putVec3(tag, "Rotation", transform.rotation());
       putVec3(tag, "Scale", transform.scale());
+      tag.put("Symmetry", transform.symmetry().encode());
       tag.putLong("RepeatMin", transform.repeats().min().asLong());
       tag.putLong("RepeatMax", transform.repeats().max().asLong());
       tag.putLong("RepeatStride", transform.repeatStride().asLong());
    }
 
-   private static WorkspaceTransform readTransform(CompoundTag tag) {
-      return new WorkspaceTransform(
-         readVec3(tag, "Translation"),
-         readVec3(tag, "Rotation"),
-         new OperationStackRegion(BlockPos.of(tag.getLong("RepeatMin")), BlockPos.of(tag.getLong("RepeatMax"))),
-         BlockPos.of(tag.getLong("RepeatStride")),
-         tag.contains("Scale") ? readVec3(tag, "Scale") : new Vec3(1.0, 1.0, 1.0)
-      );
+   private static WorkspaceTransform readTransform(CompoundTag tag) throws IOException {
+      try {
+         return new WorkspaceTransform(
+            readVec3(tag, "Translation"),
+            readVec3(tag, "Rotation"),
+            new OperationStackRegion(BlockPos.of(tag.getLong("RepeatMin")), BlockPos.of(tag.getLong("RepeatMax"))),
+            BlockPos.of(tag.getLong("RepeatStride")),
+            tag.contains("Scale") ? readVec3(tag, "Scale") : new Vec3(1.0, 1.0, 1.0),
+            tag.contains("Symmetry") ? WorkspaceSymmetry.decode(tag.getCompound("Symmetry")) : WorkspaceSymmetry.IDENTITY
+         );
+      } catch (IllegalArgumentException exception) {
+         throw new IOException("Invalid workspace transform", exception);
+      }
    }
 
    private static void putVec3(CompoundTag tag, String key, Vec3 value) {

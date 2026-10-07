@@ -48,6 +48,7 @@ public final class WorldChangeBatch {
    private static final int MAX_CODEC_ENTRIES = 16 * 1024 * 1024;
    private final ResourceKey<Level> dimension;
    private final UUID operationId;
+   private final TinkerHistoryMetadata tinker;
    private final long[] positions;
    private final int denseMinX;
    private final int denseMinY;
@@ -91,10 +92,12 @@ public final class WorldChangeBatch {
       int uniformAfterFluidId,
       BlockEntitySnapshot[] beforeEntities,
       BlockEntitySnapshot[] afterEntities,
-      int estimatedBytes
+      int estimatedBytes,
+      TinkerHistoryMetadata tinker
    ) {
       this.dimension = dimension;
       this.operationId = operationId;
+      this.tinker = tinker;
       this.positions = positions;
       this.denseMinX = denseMinX;
       this.denseMinY = denseMinY;
@@ -428,7 +431,8 @@ public final class WorldChangeBatch {
          uniformAfterFluidId,
          beforeEntities,
          afterEntities,
-         estimatedBytes
+         estimatedBytes,
+         null
       ));
    }
 
@@ -467,8 +471,19 @@ public final class WorldChangeBatch {
          this.uniformAfterFluidId,
          this.beforeEntities,
          this.afterEntities,
-         this.estimatedBytes
+         this.estimatedBytes,
+         this.tinker
       );
+   }
+
+   TinkerHistoryMetadata tinker() { return this.tinker; }
+
+   public WorldChangeBatch withTinker(TinkerHistoryMetadata metadata) {
+      return new WorldChangeBatch(dimension, operationId, positions, denseMinX, denseMinY, denseMinZ,
+         denseWidth, denseHeight, denseDepth, blockStates, fluidStates,
+         beforeBlockIds, uniformBeforeBlockId, afterBlockIds, uniformAfterBlockId,
+         beforeFluidIds, uniformBeforeFluidId, afterFluidIds, uniformAfterFluidId,
+         beforeEntities, afterEntities, estimatedBytes, metadata);
    }
 
    /** Encodes the compact in-memory representation without expanding dense positions or uniform palette IDs. */
@@ -481,6 +496,7 @@ public final class WorldChangeBatch {
          root.putUUID("OperationId", this.operationId);
       }
       root.putInt("Size", size());
+      if (this.tinker != null) root.put("Tinker", this.tinker.encode());
       if (this.positions != null) {
          root.putLongArray("Positions", this.positions.clone());
       } else {
@@ -546,7 +562,8 @@ public final class WorldChangeBatch {
          positions.width(), positions.height(), positions.depth(), blockStates, fluidStates,
          beforeBlocks.ids(), beforeBlocks.uniformId(), afterBlocks.ids(), afterBlocks.uniformId(),
          beforeFluids.ids(), beforeFluids.uniformId(), afterFluids.ids(), afterFluids.uniformId(),
-         beforeEntities, afterEntities, estimatedBytes
+         beforeEntities, afterEntities, estimatedBytes,
+         root.contains("Tinker") ? TinkerHistoryMetadata.decode(root) : null
       );
    }
 
@@ -888,7 +905,8 @@ public final class WorldChangeBatch {
    }
 
    public int estimatedBytes() {
-      return this.estimatedBytes;
+      long metadataBytes = tinker == null ? 0 : 48L + tinker.cluster().length() * 2L;
+      return (int)Math.min(Integer.MAX_VALUE, this.estimatedBytes + metadataBytes);
    }
 
    public BlockPos position(int index) {

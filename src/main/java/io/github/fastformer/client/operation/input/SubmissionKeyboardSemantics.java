@@ -21,7 +21,7 @@ public final class SubmissionKeyboardSemantics {
       Command command,
       ClientInputStateMachine.Dispatch submissionRoute,
       boolean canConfirm,
-      boolean nearVanillaBlock
+      boolean vanillaOwnsPointer
    ) {
       if (command == Command.NONE) {
          return Decision.rejected(Rejection.NOT_CONFIRM_KEY);
@@ -32,7 +32,7 @@ public final class SubmissionKeyboardSemantics {
       if (!canConfirm) {
          return Decision.rejected(Rejection.CANDIDATE_UNCONFIRMED);
       }
-      if (nearVanillaBlock) {
+      if (vanillaOwnsPointer) {
          return Decision.rejected(Rejection.VANILLA_TARGET);
       }
       return Decision.acceptedDecision();

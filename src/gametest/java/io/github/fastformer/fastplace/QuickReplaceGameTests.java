@@ -4,7 +4,6 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.placement.replace.QuickReplaceManager;
 import io.github.fastformer.fastplace.placement.replace.QuickReplaceTarget;
-import io.github.fastformer.server.input.ServerReachGate;
 import io.github.fastformer.server.session.FastPlaceManager;
 import io.github.fastformer.server.session.OperationManager;
 import net.minecraft.core.BlockPos;
@@ -87,8 +86,6 @@ public final class QuickReplaceGameTests {
       helper.assertTrue(QuickReplaceManager.setActive(player, true), "Session did not start");
       for (int distance : new int[] {2, 12}) {
          aim(player, pos, distance);
-         ServerReachGate.tick(player);
-         helper.assertTrue(ServerReachGate.vanillaAt(player, distance), "Quick replace changed distance ownership");
          var target = QuickReplaceTarget.resolve(player);
          var ray = (net.minecraft.world.phys.BlockHitResult)player.pick(player.blockInteractionRange(), 1, false);
          helper.assertTrue(target != null && target.position().equals(pos),

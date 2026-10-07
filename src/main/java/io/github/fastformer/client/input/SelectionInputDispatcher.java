@@ -60,7 +60,8 @@ final class SelectionInputDispatcher {
       if (press.alt()) {
          ClientOperationController.setAltMode(true);
          session.modifier.consume();
-         if (press.point() != null) ClientOperationController.handleAltCreateClick(press.button(), press.point());
+         if (press.point() != null || press.button() == 0 && press.mode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID)
+            ClientOperationController.handleAltCreateClick(press.button(), press.point());
       } else {
          ClientOperationController.handleCreateClick(press.button(), press.point());
       }

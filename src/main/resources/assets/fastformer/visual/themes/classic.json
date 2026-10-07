@@ -30,6 +30,8 @@
     "hover": "#1FFF4D"
   },
   "values": {
+    "smart_surface_hatch_scale": 8,
+    "smart_surface_hatch_opacity": 0.16,
     "halo_alpha": 0,
     "line_width": 0.5,
     "gizmo_width": 0.5,

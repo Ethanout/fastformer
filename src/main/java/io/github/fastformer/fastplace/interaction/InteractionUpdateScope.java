@@ -33,14 +33,15 @@ public final class InteractionUpdateScope {
    }
 
    public static <T> T interact(Level level, Player player, Supplier<T> action) {
-      if (player == null || !player.isCreative()) return action.get();
-      if (level.isClientSide) {
-         return Boolean.TRUE.equals(CLIENT_POLICIES.get(player)) ? run(level, action) : action.get();
-      }
-      if (!(player instanceof ServerPlayer serverPlayer)) return action.get();
+      return suppresses(level, player) ? run(level, action) : action.get();
+   }
+
+   public static boolean suppresses(Level level, Player player) {
+      if (player == null || !player.isCreative()) return false;
+      if (level.isClientSide) return Boolean.TRUE.equals(CLIENT_POLICIES.get(player));
+      if (!(player instanceof ServerPlayer serverPlayer)) return false;
       FastPlaceSettings settings = FastPlaceSettings.load(serverPlayer);
-      if (!settings.enabled() || !settings.placementUpdateMode().suppressesNeighborUpdates()) return action.get();
-      return run(level, action);
+      return settings.enabled() && settings.placementUpdateMode().suppressesNeighborUpdates();
    }
 
    public static <T> T run(Level level, Supplier<T> action) {

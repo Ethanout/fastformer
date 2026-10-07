@@ -125,7 +125,7 @@ class SelectionPointerMailboxTest {
 
    @Test
    void newClickPreservesExistingSelectionsBeforeStartingDraft() {
-      assertTrue(ClientOperationController.handleCreateClick(0, new BlockPos(8, 0, 0)));
+      assertTrue(ClientOperationController.handleCreateClick(1, new BlockPos(8, 0, 0)));
       assertTrue(ClientOperationController.workspace().parts().stream().allMatch(ClientSelectionPart::canAdjustGeometry));
       assertTrue(ClientOperationController.selectionDraftActive());
       assertTrue(ClientOperationController.cancelLastSelection());

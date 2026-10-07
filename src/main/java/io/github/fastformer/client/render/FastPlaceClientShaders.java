@@ -22,12 +22,16 @@ public final class FastPlaceClientShaders {
    private static ShaderInstance pencilLines;
    private static ShaderInstance previewMaterial;
    private static ShaderInstance previewModel;
+   private static ShaderInstance smartSelectionSurface;
 
    private FastPlaceClientShaders() {
    }
 
    @SubscribeEvent
    public static void registerShaders(RegisterShadersEvent event) throws IOException {
+      event.registerShader(new ShaderInstance(event.getResourceProvider(),
+         ResourceLocation.fromNamespaceAndPath("fastformer", "smart_selection_surface"),
+         DefaultVertexFormat.POSITION_COLOR), shader -> smartSelectionSurface = shader);
       event.registerShader(new ShaderInstance(event.getResourceProvider(),
          ResourceLocation.fromNamespaceAndPath("fastformer", "preview_model"),
          DefaultVertexFormat.BLOCK), shader -> previewModel = shader);
@@ -124,6 +128,15 @@ public final class FastPlaceClientShaders {
 
    @Nullable
    public static ShaderInstance previewMaterial() { return previewMaterial; }
+
+   public static ShaderInstance smartSelectionSurface() {
+      if (smartSelectionSurface == null) return net.minecraft.client.renderer.GameRenderer.getPositionColorShader();
+      smartSelectionSurface.safeGetUniform("HatchScale").set(Math.max(1F, VisualThemes.value("smart_surface_hatch_scale", 8F)));
+      smartSelectionSurface.safeGetUniform("HatchOpacity").set(Math.clamp(VisualThemes.value("smart_surface_hatch_opacity", 0.2F), 0F, 1F));
+      var ink = io.github.fastformer.fastplace.geometry.GeometryPalette.ink();
+      smartSelectionSurface.safeGetUniform("InkColor").set(ink.red(), ink.green(), ink.blue());
+      return VisualStyleHooks.shader(smartSelectionSurface, VisualStyleContext.Pass.MATERIAL, false);
+   }
 
    @Nullable
    public static ShaderInstance previewModel() {

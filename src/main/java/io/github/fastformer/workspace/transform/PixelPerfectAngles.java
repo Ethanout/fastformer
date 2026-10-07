@@ -2,12 +2,14 @@ package io.github.fastformer.workspace.transform;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
 
 /** Rotation policies used by normal, alternative and control gestures. */
 public final class PixelPerfectAngles {
    private static final double QUARTER_TURN = Math.PI * 0.5;
    private static final List<Double> PIXEL_ANGLES = buildAngles();
+   private static final List<Double> SELECTION_ANGLES = buildSelectionAngles();
 
    private PixelPerfectAngles() {
    }
@@ -25,6 +27,38 @@ public final class PixelPerfectAngles {
 
    public static double free(double radians) {
       return radians;
+   }
+
+   /** Nearest integer slope up to 64, retaining completed turns. */
+   public static double selectionSnap(double radians) {
+      double normalized = normalize(radians);
+      int index = Collections.binarySearch(SELECTION_ANGLES, normalized);
+      if (index >= 0) return radians;
+      int insertion = -index - 1;
+      double lower = SELECTION_ANGLES.get(Math.floorMod(insertion - 1, SELECTION_ANGLES.size()));
+      double upper = SELECTION_ANGLES.get(insertion % SELECTION_ANGLES.size());
+      double nearest = angularDistance(normalized, lower) <= angularDistance(normalized, upper) ? lower : upper;
+      return radians + normalize(nearest - normalized);
+   }
+
+   private static List<Double> buildSelectionAngles() {
+      List<Double> angles = new ArrayList<>();
+      for (int y = -64; y <= 64; y++) {
+         for (int x = -64; x <= 64; x++) {
+            if (gcd(Math.abs(x), Math.abs(y)) == 1) angles.add(Math.atan2(y, x));
+         }
+      }
+      angles.sort(Double::compare);
+      return List.copyOf(angles);
+   }
+
+   private static int gcd(int x, int y) {
+      while (y != 0) {
+         int remainder = x % y;
+         x = y;
+         y = remainder;
+      }
+      return x;
    }
 
    private static List<Double> buildAngles() {

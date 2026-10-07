@@ -5,7 +5,6 @@ import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.ShortWriteTransaction;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.input.ServerReachGate;
 import io.github.fastformer.server.session.OperationManager;
 import java.util.Map;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,13 +17,10 @@ public final class ForcedPlacement {
    private ForcedPlacement() { }
 
    public static boolean use(ServerPlayer player, BlockHitResult hit) {
-      if (io.github.fastformer.server.session.ServerIdleSession.state(player).suspended()) return false;
       var settings = FastPlaceSettings.load(player);
       if (!player.isCreative() || !settings.enabled() || !settings.forcePlacement()
          || !PlaceableItems.isPlaceable(player.getMainHandItem())
-         || OperationManager.active(player)
-         || !io.github.fastformer.server.session.ServerIdleSession.state(player).vanillaOwnsInput(
-            ServerReachGate.vanillaAt(player, player.getEyePosition().distanceTo(hit.getLocation())))) return false;
+         || !io.github.fastformer.server.input.IdleInteractionSnapshots.idle(player)) return false;
       if (ServerInputDispatcher.interactionBlocked(player)) return true;
       var level = player.serverLevel();
       var snapshot = PlacementContextSnapshot.capture(level, player, player.getMainHandItem(), hit, false);
@@ -38,6 +34,8 @@ public final class ForcedPlacement {
       if (TRACE) LOGGER.info("Placement input: server time={}, tick={}, hit={}, target={}, state={}, outcome={}",
          System.nanoTime(), level.getGameTime(), hit.getBlockPos(), pos, state, outcome);
       ShortWriteTransaction.report(outcome, player);
+      if (outcome == ShortWriteTransaction.Outcome.APPLIED)
+         io.github.fastformer.server.input.IdleInteractionSnapshots.placed(player, pos);
       return true;
    }
 }

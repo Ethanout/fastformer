@@ -26,7 +26,7 @@ final class QuickShapeMouseInputController {
       }
       if (action != MouseButtonInputSemantics.PRESS || button != MouseButtonInputSemantics.LEFT_BUTTON
          || session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) != ClientInputStateMachine.Dispatch.BUILDING
-         || InteractionContext.nearVanillaBlock(minecraft)
+         || InteractionContext.vanillaOwnsPointer(minecraft)
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), QuickShapePointerPayload.TYPE.id())) return false;
       var draft = FastPlaceClientPreview.buildingSubmission().orElse(null);
       if (draft == null) return true;
@@ -55,7 +55,7 @@ final class QuickShapeMouseInputController {
       var path = PathCloseInputDispatcher.capture(false, occurredAtNanos);
       boolean overlap = draft != null && io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(
          draft.data().points(), path.candidate(), draft.data().faceMode(), draft.data().polygonClosed());
-      if (!middle && !overlap && InteractionContext.nearVanillaBlock(minecraft)) return false;
+      if (!middle && !overlap && InteractionContext.vanillaOwnsPointer(minecraft)) return false;
       if (middle && FastPlaceClientPreview.buildingMiddleClickIgnored()) {
          if (action == MouseButtonInputSemantics.PRESS) session.captureQuickShapeButton(button);
          return true;

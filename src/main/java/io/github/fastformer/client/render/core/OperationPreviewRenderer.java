@@ -359,8 +359,9 @@ final class OperationPreviewRenderer {
             .withState(hoveredKey, activeKey);
          AxisGizmo scaleGizmo = gizmoGeometry.scale()
             .withState(hoveredKey, activeKey);
+         AxisGizmo rotationGizmo = gizmoGeometry.rotation().withState(hoveredKey, activeKey);
          new GizmoRenderer(worldPreviewOpacity).renderWorkspaceGizmo(
-            poseStack, buffers, camera, worldGizmo, scaleGizmo, (selected || hovered ? 1.0F : 0.52F) * selectionOpacity
+            poseStack, buffers, camera, worldGizmo, scaleGizmo, rotationGizmo, (selected || hovered ? 1.0F : 0.52F) * selectionOpacity
          );
          if (PreviewGeometrySupport.hasNonOrthogonalRotation(part.transform().rotation())) {
             AxisGizmo.Axis highlightedLocalAxis = hoveredGizmo != null
@@ -371,8 +372,8 @@ final class OperationPreviewRenderer {
                : activeKey != null && activeKey.operation() == AxisGizmo.Operation.SCALE
                   ? activeKey.axis() : null;
             new GizmoRenderer(worldPreviewOpacity).renderLocalWorkspaceGizmo(
-               poseStack, buffers, camera, center, scale.axisLength() * 0.82,
-               part.transform().rotation(), highlightedLocalAxis, (hovered ? 1.0F : 0.58F) * selectionOpacity
+               poseStack, buffers, camera, scaleGizmo.frame(), scale.axisLength() * 0.82,
+               highlightedLocalAxis, (hovered ? 1.0F : 0.58F) * selectionOpacity
             );
          }
       }
@@ -398,16 +399,17 @@ final class OperationPreviewRenderer {
             );
             poseStack.popPose();
             GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
-            AxisGizmo common = SelectionGizmoInteraction.resolveGroup(groupObject, scale);
+            var common = SelectionGizmoInteraction.resolveGroup(groupObject, scale);
             AxisGizmo.HandleKey hoveredKey = hoveredGizmo != null && hoveredGizmo.common()
                ? hoveredGizmo.hit().handle().key() : null;
             var inputSession = FastPlaceClientInput.currentSession();
             AxisGizmo.HandleKey activeKey = PointerDragSnapshotView.workspaceGizmoMatches(inputSession, 0, true)
                ? PointerDragSnapshotView.operationKey(inputSession) : null;
-            common = common.withState(hoveredKey, activeKey);
-            new GizmoRenderer(worldPreviewOpacity).renderGeometryGizmo(poseStack, buffers, camera, common, selectionOpacity);
+            var commonWorld = common.world().withState(hoveredKey, activeKey);
+            new GizmoRenderer(worldPreviewOpacity).renderWorkspaceGizmo(poseStack, buffers, camera, commonWorld,
+               common.scale().withState(hoveredKey, activeKey), common.rotation().withState(hoveredKey, activeKey), selectionOpacity);
             if (!altFocused) WorkspacePreviewRenderer.renderHintLabel(poseStack, buffers, minecraft, camera,
-               center.add(0, common.axisLength() * 1.55, 0),
+               center.add(0, commonWorld.axisLength() * 1.55, 0),
                Component.translatable("fastformer.gizmo.group", workspace.selectedIds().size()).getString());
          }
       }

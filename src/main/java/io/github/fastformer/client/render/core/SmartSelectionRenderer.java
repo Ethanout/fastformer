@@ -57,6 +57,8 @@ final class SmartSelectionRenderer {
       }
       var mesh = entry.shell.mesh(entry.preview, null, entry.states, CollisionContext.of(minecraft.player),
          entry.states.keySet(), entry.states.keySet(), Map.of(), minecraft.player.isShiftKeyDown());
+      entry.faces.draw(event.getPoseStack(), event.getCamera().getPosition(), mesh.faces(),
+         PreviewRenderTypes.SMART_SELECTION_SURFACE, alpha);
       var capture = ClientOperationController.selectionGestures().capture();
       if (capture != null && capture.targets().containsKey(part.id())) {
          var buffers = minecraft.renderBuffers().bufferSource();
@@ -195,6 +197,7 @@ final class SmartSelectionRenderer {
       final BuildingShellCache shell = BuildingShellCache.forImmutableSnapshots(true,
          PreviewRenderResources.PREVIEW_MESH_EXECUTOR, failure -> org.slf4j.LoggerFactory.getLogger(SmartSelectionRenderer.class).warn("Smart selection mesh failed", failure));
       final BuildingShellEdgeBuffer edges = new BuildingShellEdgeBuffer();
+      final io.github.fastformer.client.render.cache.BuildingShellFaceBuffer faces = new io.github.fastformer.client.render.cache.BuildingShellFaceBuffer();
       final BuildingShellEdgeBuffer airEdges = new BuildingShellEdgeBuffer();
       final java.util.List<ShapeShellMesh.StyledEdge> airOutline;
       Entry(Map<BlockPos, ClientBlockSnapshot> blocks, Minecraft minecraft, ClientSelectionPart part) {
@@ -206,6 +209,6 @@ final class SmartSelectionRenderer {
             : SmartSelectionTopology.of(blocks.keySet());
          preview = PreviewBlockOcclusion.level(minecraft.level, states);
       }
-      void close() { shell.clear(); edges.clear(); airEdges.clear(); }
+      void close() { shell.clear(); edges.clear(); airEdges.clear(); faces.clear(); }
    }
 }

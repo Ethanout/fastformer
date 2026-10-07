@@ -28,6 +28,8 @@ public final class WorkspaceKeyboardSemantics {
    private static final int KEY_A = 65;
    private static final int KEY_C = 67;
    private static final int KEY_D = 68;
+   private static final int KEY_F = 70;
+   private static final int KEY_R = 82;
    private static final int KEY_V = 86;
    private static final int KEY_Z = 90;
    private static final int KEY_BACKSPACE = 259;
@@ -42,8 +44,10 @@ public final class WorkspaceKeyboardSemantics {
       }
       if (controlDown) {
          return switch (key) {
-            case KEY_A -> Command.SELECT_ALL;
-            case KEY_D -> Command.DESELECT_ALL;
+            case KEY_A -> Command.TOGGLE_SELECT_ALL;
+            case KEY_D -> Command.DUPLICATE;
+            case KEY_R -> Command.ROTATE_SELECTION;
+            case KEY_F -> Command.FLIP_SELECTION;
             case KEY_C -> Command.COPY;
             case KEY_V -> Command.PASTE;
             case KEY_Z -> Command.UNDO;
@@ -75,7 +79,17 @@ public final class WorkspaceKeyboardSemantics {
             : Decision.accepted(command);
       }
       if (keyRoute != ClientInputStateMachine.Dispatch.OPERATION) {
+         if (keyRoute == ClientInputStateMachine.Dispatch.BLOCKED && supplied.workspaceActive()
+            && (command == Command.ROTATE_SELECTION || command == Command.FLIP_SELECTION || command == Command.DUPLICATE)) {
+            return Decision.rejected(Rejection.BLOCKED_INPUT_PHASE);
+         }
          return Decision.rejected(Rejection.PHASE_BLOCKED);
+      }
+      if (command == Command.ROTATE_SELECTION || command == Command.FLIP_SELECTION || command == Command.DUPLICATE) {
+         if (supplied.submissionPending()) return Decision.rejected(Rejection.SUBMISSION_PENDING);
+         if (supplied.editInProgress()) return Decision.rejected(Rejection.EDIT_IN_PROGRESS);
+         if (command == Command.DUPLICATE && pasteRoute == ClientInputStateMachine.Dispatch.BLOCKED)
+            return Decision.rejected(Rejection.BLOCKED_INPUT_PHASE);
       }
       return supplied.workspaceActive()
          ? Decision.accepted(command)
@@ -159,8 +173,10 @@ public final class WorkspaceKeyboardSemantics {
       NONE,
       COPY,
       PASTE,
-      SELECT_ALL,
-      DESELECT_ALL,
+      TOGGLE_SELECT_ALL,
+      DUPLICATE,
+      ROTATE_SELECTION,
+      FLIP_SELECTION,
       DELETE_SELECTION,
       REMOVE_SELECTED,
       UNDO

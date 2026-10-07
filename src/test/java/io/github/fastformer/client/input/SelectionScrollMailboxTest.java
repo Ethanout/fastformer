@@ -43,6 +43,19 @@ class SelectionScrollMailboxTest {
       drain();
       assertEquals(new Vec3(2, 0, 0), translation());
       assertTrue(ClientOperationController.undo());
+      assertEquals(Vec3.ZERO, translation());
+   }
+
+   @Test
+   void queueDelayDoesNotMergeScrollsThatWerePhysicallyFarApart() {
+      var captured = capture().selectionMove();
+      var first = new SelectionScrollMove(captured.owner(), captured.targets(), captured.offset(), 1_000_000_000L);
+      var second = new SelectionScrollMove(captured.owner(), captured.targets(), captured.offset(), 1_250_000_001L);
+      input.postScroll(new ScrollInputSnapshot(1, first));
+      input.postScroll(new ScrollInputSnapshot(1, second));
+      drain();
+      assertEquals(new Vec3(2, 0, 0), translation());
+      assertTrue(ClientOperationController.undo());
       assertEquals(new Vec3(1, 0, 0), translation());
    }
 

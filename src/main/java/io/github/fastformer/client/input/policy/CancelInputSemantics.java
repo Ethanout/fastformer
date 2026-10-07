@@ -11,14 +11,6 @@ public final class CancelInputSemantics {
    private CancelInputSemantics() {
    }
 
-   public static boolean canYieldToVanilla(State observed, State routed, boolean pendingInteraction) {
-      return observed == State.IDLE && routed == State.IDLE && !pendingInteraction;
-   }
-
-   public static boolean manualEntry(int action, int key, State state, boolean mainHandEmpty) {
-      return action == PRESS && key == CANCEL_KEY && state == State.IDLE_MANUAL && mainHandEmpty;
-   }
-
    public static Decision decide(
       int action,
       int key,
@@ -69,8 +61,6 @@ public final class CancelInputSemantics {
    public enum Command {
       IGNORE,
       REPORT_SUBMISSION_PENDING,
-      SUSPEND_IDLE,
-      ENTER_MANUAL,
       REQUEST_CANCEL
    }
 

@@ -341,7 +341,8 @@ public final class FastPlaceCommandRegistry {
                settings.emptyHandWrench(),
                io.github.fastformer.fastplace.world.BlockActivityRules.get(player.getServer()).fallingDisabled(),
                settings.worldUndoHistoryLimit(),
-               settings.sessionUndoHistoryLimit()
+               settings.sessionUndoHistoryLimit(),
+               settings.tinkerHistoryMergeLimits()
             ),
             new net.minecraft.network.protocol.common.custom.CustomPacketPayload[0]
          );

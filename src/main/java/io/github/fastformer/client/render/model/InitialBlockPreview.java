@@ -21,16 +21,16 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 public record InitialBlockPreview(BlockPos position, BlockState state, ShapeShellMesh.Mesh mesh) {
    public static InitialBlockPreview resolve(Player player, BlockHitResult hit, boolean embedded) {
       if (hit.getType() != HitResult.Type.BLOCK) return null;
-      boolean emptyHand = player.getMainHandItem().isEmpty();
+      boolean selection = !PlaceableItems.isPlaceable(player.getMainHandItem());
       var context = PlacementContextSnapshot.capture(
-         player.level(), player, player.getMainHandItem(), hit, embedded || emptyHand
+         player.level(), player, player.getMainHandItem(), hit, embedded || selection
       );
-      BlockPos position = embedded || emptyHand ? hit.getBlockPos() : context.placementPosition();
-      BlockState state = emptyHand ? player.level().getBlockState(position)
+      BlockPos position = embedded || selection ? hit.getBlockPos() : context.placementPosition();
+      BlockState state = selection ? player.level().getBlockState(position)
          : PlaceableItems.placementState(player.getMainHandItem(), player, context).orElse(null);
       if (state == null) return null;
-      var level = emptyHand ? player.level() : PreviewBlockOcclusion.level(Set.of(position), state, Map.of());
-      var shape = emptyHand
+      var level = selection ? player.level() : PreviewBlockOcclusion.level(Set.of(position), state, Map.of());
+      var shape = selection
          ? SelectionTargetShape.resolve(level, position, CollisionContext.of(player), FastPlaceClientInput.modifierHeld())
          : state.getShape(level, position, CollisionContext.of(player));
       var boxes = shape.toAabbs();

@@ -7,7 +7,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 
-public record SelectionScrollMove(UUID owner, Map<Integer, Long> targets, BlockPos offset) {
+public record SelectionScrollMove(UUID owner, Map<Integer, Long> targets, BlockPos offset, long timestampNanos) {
    public SelectionScrollMove {
       targets = Map.copyOf(targets);
       offset = offset.immutable();
@@ -17,7 +17,7 @@ public record SelectionScrollMove(UUID owner, Map<Integer, Long> targets, BlockP
       if (workspace.locked() || workspace.editing() || workspace.selectedIds().isEmpty()
          || offset.equals(BlockPos.ZERO)) return Optional.empty();
       var targets = workspace.selectedIds().stream().collect(Collectors.toMap(id -> id, workspace::interactionId));
-      return Optional.of(new SelectionScrollMove(owner, targets, offset));
+      return Optional.of(new SelectionScrollMove(owner, targets, offset, System.nanoTime()));
    }
 
    public boolean matches(UUID currentOwner, ClientOperationWorkspace workspace) {

@@ -29,6 +29,11 @@ import java.util.function.Consumer;
 
 /** Transient input state owned by one player environment, never persisted with a draft. */
 public final class ClientInputSession {
+   final IdleEntryGesture idleEntry = new IdleEntryGesture();
+   int idleEntryButton = -1;
+   int idleEntrySelectionButton = -1;
+   boolean entryConsumedAlt;
+   IdleSelectionEntryController.Pending idleSelectionEntry;
    final io.github.fastformer.client.quickshape.QuickShapeSubmissionIntent quickShapeSubmission =
       new io.github.fastformer.client.quickshape.QuickShapeSubmissionIntent();
    private final ClientTickMailbox<ClientSemanticEvent.SubmissionCompleted> submissionEvents =
@@ -45,14 +50,8 @@ public final class ClientInputSession {
    final PointerGestureState pointerGesture = new PointerGestureState();
    final ClientInputStateMachine routing;
 
-   public ClientInputSession() { this(io.github.fastformer.fastplace.session.SessionActivationMode.AUTOMATIC); }
-
-   public ClientInputSession(io.github.fastformer.fastplace.session.SessionActivationMode mode) {
-      routing = new ClientInputStateMachine(mode, this::syncIdleState);
-   }
-
-   private void syncIdleState(ClientInputStateMachine.State previous, ClientInputStateMachine.State next) {
-      IdleSessionSync.publish(routing.idleState());
+   public ClientInputSession() {
+      routing = new ClientInputStateMachine();
    }
    final ModifierGestureState modifier = new ModifierGestureState();
    long pointerGestureToken;
@@ -92,7 +91,7 @@ public final class ClientInputSession {
 
    public boolean blocksDraftLoad() {
       boolean activeOperation = switch (this.routing.state()) {
-         case IDLE, IDLE_MANUAL, IDLE_WAITING_FOR_FAR_ENTRY, IDLE_WAITING_FOR_FAR_EXIT, SELECTING, ADJUSTING -> false;
+         case IDLE, SELECTING, ADJUSTING -> false;
          default -> true;
       };
       return activeOperation
@@ -104,6 +103,11 @@ public final class ClientInputSession {
    }
 
    public void reset() {
+      idleEntry.clear();
+      idleSelectionEntry = null;
+      idleEntryButton = -1;
+      idleEntrySelectionButton = -1;
+      entryConsumedAlt = false;
       cancelQueuedGeometryInput();
       java.util.Arrays.fill(this.quickShapeButtons, false);
       this.quickShapeUndo.cancel();
@@ -150,6 +154,10 @@ public final class ClientInputSession {
    }
 
    void discardPhysicalEvents() {
+      idleEntry.clear();
+      idleSelectionEntry = null;
+      idleEntryButton = -1;
+      idleEntrySelectionButton = -1;
       cancelQueuedGeometryInput();
       java.util.Arrays.fill(this.quickShapeButtons, false);
       this.quickShapeUndo.cancel();

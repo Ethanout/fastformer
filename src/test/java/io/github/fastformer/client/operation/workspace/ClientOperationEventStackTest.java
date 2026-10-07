@@ -14,6 +14,50 @@ import org.junit.jupiter.api.Test;
 
 class ClientOperationEventStackTest {
    @Test
+   void coalescingKeepsTheFirstInverseAndItsRetentionOnly() {
+      var stack = new ClientOperationEventStack();
+      var value = new AtomicInteger(3);
+      stack.pushCoalesced("scroll", 0, 250, () -> value.set(0), payloadRetention(7));
+      long weight = stack.retainedWeight();
+      stack.pushCoalesced("scroll", 250, 250, () -> value.set(1), payloadRetention(100));
+      stack.pushCoalesced("scroll", 500, 250, () -> value.set(2), payloadRetention(100));
+      assertEquals(1, stack.size());
+      assertEquals(weight, stack.retainedWeight());
+      assertEquals(1, stack.retainedPayloadCount());
+      assertTrue(stack.undo());
+      assertEquals(0, value.get());
+      assertEquals(0, stack.retainedWeight());
+      assertEquals(0, stack.retainedPayloadCount());
+   }
+
+   @Test
+   void differentKeysGapsOtherEventsAndUndoSeparateGroups() {
+      var stack = new ClientOperationEventStack();
+      var retention = ClientOperationEventStack.Retention.UNMEASURED;
+      stack.pushCoalesced("east", 0, 250, () -> {}, retention);
+      stack.pushCoalesced("east", 251, 250, () -> {}, retention);
+      stack.pushCoalesced("west", 252, 250, () -> {}, retention);
+      assertEquals(3, stack.size());
+      assertTrue(stack.undo());
+      stack.pushCoalesced("east", 253, 250, () -> {}, retention);
+      assertEquals(3, stack.size());
+      stack.push(() -> {});
+      stack.pushCoalesced("east", 254, 250, () -> {}, retention);
+      assertEquals(5, stack.size());
+   }
+
+   @Test
+   void zeroWindowAndOutOfOrderTimesNeverCoalesce() {
+      var stack = new ClientOperationEventStack();
+      var retention = ClientOperationEventStack.Retention.UNMEASURED;
+      stack.pushCoalesced("east", 0, 0, () -> {}, retention);
+      stack.pushCoalesced("east", 0, 0, () -> {}, retention);
+      stack.pushCoalesced("east", 100, 250, () -> {}, retention);
+      stack.pushCoalesced("east", 99, 250, () -> {}, retention);
+      assertEquals(4, stack.size());
+   }
+
+   @Test
    void chainedEventsUndoInReverseOrder() {
       ClientOperationEventStack stack = new ClientOperationEventStack();
       AtomicInteger value = new AtomicInteger();

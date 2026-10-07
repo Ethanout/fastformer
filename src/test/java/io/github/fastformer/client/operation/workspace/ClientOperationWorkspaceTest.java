@@ -60,6 +60,51 @@ class ClientOperationWorkspaceTest {
    }
 
    @Test
+   void toggleAllCyclesFromPartialToAllToNoneWithoutRemovingParts() {
+      var workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1), part(2), part(3)));
+      workspace.selectOnly(2);
+      var parts = workspace.parts();
+      var identities = workspace.interactionIdentities();
+      workspace.clearHistory();
+      workspace.toggleSelectAll();
+      assertEquals(Set.of(1, 2, 3), workspace.selectedIds());
+      workspace.toggleSelectAll();
+      assertTrue(workspace.selectedIds().isEmpty());
+      assertEquals(0, workspace.activeId());
+      workspace.toggleSelectAll();
+      assertEquals(Set.of(1, 2, 3), workspace.selectedIds());
+      assertEquals(parts, workspace.parts());
+      assertEquals(identities, workspace.interactionIdentities());
+      assertEquals(3, workspace.undoSize());
+      assertTrue(workspace.undo());
+      assertTrue(workspace.selectedIds().isEmpty());
+      assertTrue(workspace.undo());
+      assertEquals(Set.of(1, 2, 3), workspace.selectedIds());
+      assertTrue(workspace.undo());
+      assertEquals(Set.of(2), workspace.selectedIds());
+      assertEquals(2, workspace.activeId());
+   }
+
+   @Test
+   void toggleAllLeavesEmptyAndLockedWorkspacesUnchanged() {
+      var workspace = new ClientOperationWorkspace();
+      workspace.toggleSelectAll();
+      assertEquals(0, workspace.undoSize());
+      workspace.addParts(List.of(part(1)));
+      workspace.clearHistory();
+      workspace.setLocked(true);
+      workspace.toggleSelectAll();
+      assertEquals(Set.of(1), workspace.selectedIds());
+      assertEquals(0, workspace.undoSize());
+      workspace.setLocked(false);
+      assertTrue(workspace.beginEdit());
+      workspace.toggleSelectAll();
+      assertEquals(Set.of(1), workspace.selectedIds());
+      assertEquals(0, workspace.undoSize());
+   }
+
+   @Test
    void completeGestureCreatesOneUndoEntryForAllAffectedParts() {
       ClientOperationWorkspace workspace = new ClientOperationWorkspace();
       workspace.addParts(List.of(part(1), part(2)));
@@ -396,6 +441,50 @@ class ClientOperationWorkspaceTest {
       assertFalse(workspace.cancelEdit(stale));
       assertFalse(workspace.finishEdit(stale));
       assertTrue(workspace.ownsEdit(current));
+   }
+
+   @Test
+   void consecutiveScrollMovesUndoTogetherAndKeepHistoryWeightStable() {
+      var workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(0), part(10)));
+      workspace.clearHistory();
+      scroll(workspace, new BlockPos(1, 0, 0), 0);
+      long weight = workspace.historyWeight();
+      scroll(workspace, new BlockPos(1, 0, 0), 250_000_000L);
+      scroll(workspace, new BlockPos(1, 0, 0), 500_000_000L);
+      assertEquals(1, workspace.undoSize());
+      assertEquals(weight, workspace.historyWeight());
+      assertEquals(new Vec3(3, 0, 0), workspace.part(1).orElseThrow().transform().translation());
+      assertEquals(new Vec3(13, 0, 0), workspace.part(2).orElseThrow().transform().translation());
+      assertTrue(workspace.undo());
+      assertEquals(Vec3.ZERO, workspace.part(1).orElseThrow().transform().translation());
+      assertEquals(new Vec3(10, 0, 0), workspace.part(2).orElseThrow().transform().translation());
+   }
+
+   @Test
+   void scrollGroupsSplitOnDirectionSelectionAndNonHistoryStateChanges() {
+      var workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(0), part(10)));
+      workspace.clearHistory();
+      scroll(workspace, new BlockPos(1, 0, 0), 0);
+      scroll(workspace, new BlockPos(-1, 0, 0), 1);
+      assertEquals(2, workspace.undoSize());
+      workspace.activate(1);
+      workspace.activate(2);
+      scroll(workspace, new BlockPos(-1, 0, 0), 2);
+      assertEquals(3, workspace.undoSize());
+      workspace.selectOnly(1);
+      scroll(workspace, new BlockPos(-1, 0, 0), 3);
+      assertEquals(5, workspace.undoSize());
+   }
+
+   private static void scroll(ClientOperationWorkspace workspace, BlockPos offset, long timestamp) {
+      assertTrue(workspace.beginEdit());
+      var delta = Vec3.atLowerCornerOf(offset);
+      for (var part : workspace.selectedParts()) {
+         workspace.updatePart(part.withTranslation(part.transform().translation().add(delta)));
+      }
+      assertTrue(workspace.finishScrollEdit(offset, timestamp, 250_000_000L));
    }
 
    private static ClientSelectionPart part(int marker) {

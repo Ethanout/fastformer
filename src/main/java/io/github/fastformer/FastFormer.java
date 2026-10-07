@@ -15,9 +15,11 @@ public final class FastFormer {
 
    public FastFormer(IEventBus modBus, ModContainer container) {
       container.registerConfig(ModConfig.Type.SERVER, HistoryStorageConfig.SPEC);
+      modBus.addListener(HistoryStorageConfig::onConfig);
       container.registerConfig(ModConfig.Type.CLIENT, io.github.fastformer.client.FastFormerClientConfig.SPEC);
       modBus.addListener(PlacementFallbacks::register);
       modBus.addListener(io.github.fastformer.fastplace.interaction.TinkerShapeFamilies::register);
+      modBus.addListener(io.github.fastformer.fastplace.interaction.TinkerPropertyRule::register);
       modBus.addListener(io.github.fastformer.fastplace.interaction.TinkerWoodFamily::register);
       FastPlaceNetwork.register(modBus);
       FastPlaceEvents.register();

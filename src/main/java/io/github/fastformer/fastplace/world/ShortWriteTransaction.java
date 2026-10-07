@@ -75,9 +75,39 @@ public final class ShortWriteTransaction {
       int writeFlags,
       int restoreFlags
    ) {
+      return apply(player, level, changes, writeFlags, restoreFlags, null);
+   }
+
+   public static Outcome apply(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
+      int writeFlags, int restoreFlags, io.github.fastformer.fastplace.history.TinkerHistoryMetadata metadata) {
       if (player == null || level == null || changes == null || changes.isEmpty()) {
          return Outcome.NOT_APPLICABLE;
       }
+      return applyTargets(player, level, changes.keySet(),
+         position -> WorldWriteSideEffectGuard.setBlock(level, position, changes.get(position), writeFlags),
+         Map.of(), restoreFlags, (before, after) -> metadata == null
+            ? WorldHistoryManager.record(player, level, before, after)
+            : WorldHistoryManager.recordTinker(player, level, before, after, metadata));
+   }
+
+   public static Outcome restore(ServerPlayer player, ServerLevel level,
+      Map<BlockPos, ReversibleBlockSnapshot> originals, Map<BlockPos, ReversibleBlockSnapshot> expected,
+      java.util.UUID originalOperation) {
+      if (player == null || level == null || originals == null || originals.isEmpty()
+         || expected == null || !originals.keySet().equals(expected.keySet())) return Outcome.NOT_APPLICABLE;
+      int flags = io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags();
+      return applyTargets(player, level, originals.keySet(), position -> originals.get(position).restore(level, flags),
+         expected, flags, (before, after) -> WorldHistoryManager.recordRestoration(player, level, before, after, originalOperation));
+   }
+
+   @FunctionalInterface
+   private interface SnapshotRecorder {
+      boolean record(ArrayDeque<ReversibleBlockSnapshot> before, Map<BlockPos, ReversibleBlockSnapshot> after);
+   }
+
+   private static Outcome applyTargets(ServerPlayer player, ServerLevel level, java.util.Set<BlockPos> positions,
+      java.util.function.Predicate<BlockPos> write, Map<BlockPos, ReversibleBlockSnapshot> expected,
+      int restoreFlags, SnapshotRecorder recorder) {
       WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
       WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(context.server(), level.dimension(), context.owner());
       if (lease == null) {
@@ -86,24 +116,28 @@ public final class ShortWriteTransaction {
       ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>();
       Map<BlockPos, ReversibleBlockSnapshot> after = new LinkedHashMap<>();
       try {
-         for (BlockPos pos : changes.keySet()) {
+         for (BlockPos pos : positions) {
+            if (!expected.isEmpty() && !expected.get(pos).matches(level, pos)) {
+               WorldWriteCoordinator.release(lease);
+               return Outcome.NOT_APPLICABLE;
+            }
             Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
             if (snapshot.isEmpty()) {
                return fail(level, context, lease, before, after, restoreFlags, "before-snapshot");
             }
             before.addFirst(snapshot.orElseThrow());
          }
-         for (Map.Entry<BlockPos, BlockState> entry : changes.entrySet()) {
-            if (!WorldWriteSideEffectGuard.setBlock(level, entry.getKey(), entry.getValue(), writeFlags)) {
+         for (BlockPos position : positions) {
+            if (!write.test(position)) {
                return fail(level, context, lease, before, after, restoreFlags, "write");
             }
-            Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, entry.getKey());
+            Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, position);
             if (snapshot.isEmpty()) {
                return fail(level, context, lease, before, after, restoreFlags, "after-snapshot");
             }
-            after.put(entry.getKey(), snapshot.orElseThrow());
+            after.put(position, snapshot.orElseThrow());
          }
-         if (!WorldHistoryManager.record(player, level, before, after)) {
+         if (!recorder.record(before, after)) {
             return fail(level, context, lease, before, after, restoreFlags, "history-record");
          }
          WorldWriteCoordinator.release(lease);

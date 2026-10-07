@@ -29,6 +29,11 @@ public final class WorldWriteSideEffectGuard {
       }
    }
 
+   /** Block callbacks use this scope to leave related cells to the owning transaction. */
+   public static boolean writing(Object level, BlockPos pos) {
+      return suppresses(level, pos);
+   }
+
    static Suppression suppress(Object level, BlockPos pos) {
       ArrayDeque<Target> stack = SUPPRESSED_DROPS.get();
       if (stack == null) {

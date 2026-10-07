@@ -78,6 +78,35 @@ public final class ClientOperationEventStack {
 
    /** Adds one event with a declared retention. */
    public void push(Runnable inverse, Retention retention) {
+      push(inverse, retention, null);
+   }
+
+   /** Extends the latest matching group while retaining only its first inverse. */
+   public void pushCoalesced(Object key, long timestampNanos, long maxGapNanos, Runnable inverse, Retention retention) {
+      if (inverse == null) return;
+      java.util.Objects.requireNonNull(key);
+      Node latest = this.undo.peekLast();
+      if (maxGapNanos > 0 && latest != null && latest.coalescing() != null
+         && latest.coalescing().key().equals(key)) {
+         long elapsed = timestampNanos - latest.coalescing().timestampNanos();
+         if (elapsed >= 0 && elapsed <= maxGapNanos && latest.coalescing().maxGapNanos() == maxGapNanos) {
+            this.undo.removeLast();
+            this.undo.addLast(new Node(latest.inverse(), latest.retention(), new Coalescing(key, timestampNanos, maxGapNanos)));
+            return;
+         }
+      }
+      push(inverse, retention, new Coalescing(key, timestampNanos, maxGapNanos));
+   }
+
+   public void endCoalescing() {
+      Node latest = this.undo.peekLast();
+      if (latest != null && latest.coalescing() != null) {
+         this.undo.removeLast();
+         this.undo.addLast(new Node(latest.inverse(), latest.retention(), null));
+      }
+   }
+
+   private void push(Runnable inverse, Retention retention, Coalescing coalescing) {
       if (inverse == null) {
          return;
       }
@@ -86,7 +115,7 @@ public final class ClientOperationEventStack {
       this.validatePayloadUnits(declared);
       this.retainedWeight += declared.nodeUnits();
       this.retainedWeight += this.retainPayloads(declared);
-      this.undo.addLast(new Node(inverse, declared));
+      this.undo.addLast(new Node(inverse, declared, coalescing));
       this.trim();
    }
 
@@ -112,6 +141,7 @@ public final class ClientOperationEventStack {
       // Release before running, so the accounting stays correct even when an
       // inverse reaches back into the workspace.
       this.release(node);
+      this.endCoalescing();
       node.inverse().run();
       return true;
    }
@@ -307,6 +337,8 @@ public final class ClientOperationEventStack {
       }
    }
 
-   private record Node(Runnable inverse, Retention retention) {
+   private record Coalescing(Object key, long timestampNanos, long maxGapNanos) { }
+
+   private record Node(Runnable inverse, Retention retention, Coalescing coalescing) {
    }
 }

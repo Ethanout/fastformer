@@ -240,6 +240,21 @@ public final class ClientSelectionSession {
       return this.draft.removeLastPoint();
    }
 
+   public boolean undoCuboidPoint() {
+      if (selectionMode() != OperationSelectionMode.CUBOID || workspace.locked() || workspace.editing()) return false;
+      if (hasDraft()) {
+         removeLastDraftPoint();
+         return true;
+      }
+      var part = stack().topPart().filter(value -> value.isOriginalSelection()
+         && value.selection() != null && value.selection().mode() == OperationSelectionMode.CUBOID).orElse(null);
+      if (part == null || part.selection().point1() == null) return false;
+      workspace.restorePartStatesWithoutHistory(workspace.parts().stream().filter(value -> value.id() != part.id()).toList());
+      BlockPos first = part.selection().point1();
+      restoreDraftState(new DraftState(OperationSelectionMode.CUBOID, List.of(first), 0, first, first));
+      return true;
+   }
+
    public void clearDraft() {
       this.draft.clear();
    }

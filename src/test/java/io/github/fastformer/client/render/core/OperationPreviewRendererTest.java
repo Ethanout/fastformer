@@ -86,7 +86,7 @@ class OperationPreviewRendererTest {
    void enterFixedSelectionKeepsItsOutlineAndSelectedGizmoWithoutMoving() {
       ClientOperationController.clearWorkspace();
       try {
-         assertTrue(ClientOperationController.handleCreateClick(0, BlockPos.ZERO));
+         assertTrue(ClientOperationController.handleCreateClick(1, BlockPos.ZERO));
          assertTrue(ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2)));
          assertTrue(ClientOperationController.fixActiveSelection());
          var part = ClientOperationController.interactionScene().parts().get(1);

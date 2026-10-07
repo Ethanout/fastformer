@@ -22,10 +22,20 @@ public record WorkspaceGizmoDrag(
    AxisGizmo.Direction direction,
    SelectionDragCapture capture,
    List<ClientSelectionPart> baseline,
-   ClientOperationWorkspace.EditToken editToken
+   ClientOperationWorkspace.EditToken editToken,
+   double rotationRadians,
+   boolean quarterSnap
 ) implements SelectionDrag {
    public WorkspaceGizmoDrag {
       baseline = List.copyOf(baseline);
+   }
+
+   public WorkspaceGizmoDrag(int partId, boolean common, AxisGizmo.Operation operation, AxisGizmo.Axis axis,
+      Vec3 origin, Vec3 axisVector, int sentSteps, Vec3 center, Vec3 startRadial, Vec3 startTangent,
+      AxisGizmo.Direction direction, SelectionDragCapture capture, List<ClientSelectionPart> baseline,
+      ClientOperationWorkspace.EditToken editToken) {
+      this(partId, common, operation, axis, origin, axisVector, sentSteps, center, startRadial, startTangent,
+         direction, capture, baseline, editToken, 0.0, false);
    }
 
    public int mouseButton() { return capture.mouseButton(); }
@@ -37,7 +47,12 @@ public record WorkspaceGizmoDrag(
    public WorkspaceGizmoDrag withSentSteps(int value) {
       return new WorkspaceGizmoDrag(
          partId, common, operation, axis, origin, axisVector, value, center, startRadial,
-         startTangent, direction, capture, baseline, editToken
+         startTangent, direction, capture, baseline, editToken, rotationRadians, quarterSnap
       );
+   }
+
+   public WorkspaceGizmoDrag withRotation(int steps, double radians, boolean control) {
+      return new WorkspaceGizmoDrag(partId, common, operation, axis, origin, axisVector, steps, center,
+         startRadial, startTangent, direction, capture, baseline, editToken, radians, control);
    }
 }

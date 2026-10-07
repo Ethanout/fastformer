@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class QuickShapeStartMailboxTest {
    private StartPlacementPayload.Target target() {
       var scope = new OperationCallbackScope(UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID());
-      return new StartPlacementPayload.Target(1, scope, RaycastPlacement.SURFACE,
+      return new StartPlacementPayload.Target(1, scope,
          new BlockHitResult(new Vec3(5, 1, 0), Direction.WEST, new BlockPos(5, 1, 0), false),
          new Vec3(0, 1, 0), new Vec3(1, 0, 0));
    }

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
@@ -315,6 +316,7 @@ public final class WorkspacePreviewComposer {
       }
       return !transform.rotation().equals(Vec3.ZERO)
          || !transform.scale().equals(new Vec3(1.0, 1.0, 1.0))
+         || !transform.symmetry().equals(io.github.fastformer.workspace.model.WorkspaceSymmetry.IDENTITY)
          || !transform.repeats().equals(OperationStackRegion.origin());
    }
 
@@ -406,8 +408,8 @@ public final class WorkspacePreviewComposer {
        if (visitedRepeats[0] < transform.repeats().cellCount()) {
           return new Composition.OverBudget<>(Composition.Limit.WORK, budget.maxWorkSteps(), Long.MAX_VALUE);
        }
-       VoxelRotation.BoundedRotation<T> rotation = VoxelRotation.rotateStage(
-          repeated, transform.rotation(), valueRotation, counter
+       VoxelRotation.BoundedRotation<T> rotation = rotateRepeated(
+          scaled.values(), repeated, transform.rotation(), valueRotation, counter, visitedRepeats[0] > 1L
        );
        if (rotation.overBudget() != null) {
           return rotation.overBudget();
@@ -415,13 +417,16 @@ public final class WorkspacePreviewComposer {
        Map<BlockPos, T> rotated = rotation.result().values();
        LinkedHashMap<BlockPos, T> translated = new LinkedHashMap<>();
        Vec3 offset = transform.translation();
+       var symmetry = transform.symmetry();
+       Function<T, T> symmetryValues = valueRotation.forSymmetry(symmetry);
        for (Map.Entry<BlockPos, T> entry : rotated.entrySet()) {
           Composition.OverBudget<T> work = counter.addWork(1L);
           if (work != null) {
              return work;
           }
-          Vec3 center = Vec3.atCenterOf(entry.getKey()).add(offset);
-          translated.put(BlockPos.containing(center.x, center.y, center.z), entry.getValue());
+          Vec3 center = symmetry.point(Vec3.atCenterOf(entry.getKey())).add(offset);
+          T value = symmetry.identityOrientation() ? entry.getValue() : symmetryValues.apply(entry.getValue());
+          translated.put(BlockPos.containing(center.x, center.y, center.z), value);
           Composition.OverBudget<T> output = counter.checkOutput(translated.size());
           if (output != null) {
              return output;
@@ -433,6 +438,19 @@ public final class WorkspacePreviewComposer {
           rotation.result().steps()
        );
        return new Composition.Composed<>(translated, frame);
+   }
+
+   private static <T> VoxelRotation.BoundedRotation<T> rotateRepeated(
+      Map<BlockPos, T> base, Map<BlockPos, T> repeated, Vec3 angles,
+      VoxelRotation.ValueRotation<T> values, CompositionCounter counter, boolean hasCopies
+   ) {
+      if (!hasCopies || angles.equals(Vec3.ZERO)) {
+         return VoxelRotation.rotateStage(repeated, angles, values, counter);
+      }
+      // Derive pivots from the base cell. The repeat envelope grows in local space.
+      var reference = VoxelRotation.rotateStage(base, angles, VoxelRotation.positionOnly(), counter);
+      if (reference.overBudget() != null) return reference;
+      return VoxelRotation.replayStage(repeated, reference.result().steps(), values, counter);
    }
 
    private record ScaleStage<T>(Map<BlockPos, T> values, Composition.OverBudget<T> overBudget) {

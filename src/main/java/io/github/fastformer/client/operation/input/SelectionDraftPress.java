@@ -11,7 +11,8 @@ public record SelectionDraftPress(UUID owner, OperationSelectionMode mode, int b
    public SelectionDraftPress {
       Objects.requireNonNull(owner, "owner");
       Objects.requireNonNull(mode, "mode");
-      if (button < 0 || button > 2 || point == null && !alt) {
+      boolean pointUndo = button == 0 && mode == OperationSelectionMode.CUBOID;
+      if (button < 0 || button > 2 || point == null && !alt && !pointUndo) {
          throw new IllegalArgumentException("A draft press requires a supported button and a target");
       }
       point = point == null ? null : point.immutable();

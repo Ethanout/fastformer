@@ -57,7 +57,7 @@ public final class FastPlaceNetwork {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("73").optional();
+      PayloadRegistrar registrar = event.registrar("78").optional();
       registrar.playToClient(WorldHistoryEventPayload.TYPE, WorldHistoryEventPayload.STREAM_CODEC,
          (payload, context) -> {
             var connection = context.connection();
@@ -80,11 +80,6 @@ public final class FastPlaceNetwork {
             var connection = context.connection();
             context.enqueueWork(() -> ClientPayloadDispatcher.applyInteractionUpdates(payload, connection));
          });
-      registrar.playToClient(ReachSettingsPayload.TYPE, ReachSettingsPayload.STREAM_CODEC,
-         (payload, context) -> {
-            var connection = context.connection();
-            context.enqueueWork(() -> ClientPayloadDispatcher.applyReachSettings(payload, connection));
-         });
       registrar.playToClient(FallingStatePayload.TYPE, FallingStatePayload.STREAM_CODEC,
          (payload, context) -> {
             var connection = context.connection();
@@ -101,15 +96,42 @@ public final class FastPlaceNetwork {
             context.enqueueWork(() -> ClientPayloadDispatcher.acknowledgePlacement(payload, connection));
          });
       registrar.playToServer(ModifierStatePayload.TYPE, ModifierStatePayload.STREAM_CODEC, FastPlaceNetwork::handleModifierState);
-      registrar.playToServer(io.github.fastformer.network.payload.settings.IdleSessionPayload.TYPE,
-         io.github.fastformer.network.payload.settings.IdleSessionPayload.STREAM_CODEC, (payload, context) -> context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer player) {
-               io.github.fastformer.server.session.ServerIdleSession.receive(player, payload);
-            }
+      registrar.playToServer(IdleInteractionCapturePayload.TYPE, IdleInteractionCapturePayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player) io.github.fastformer.server.input.IdleInteractionSnapshots.capture(player, payload);
          }));
+      registrar.playToClient(IdleInteractionSnapshotPayload.TYPE, IdleInteractionSnapshotPayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyIdleInteraction(payload, connection));
+         });
+      registrar.playToServer(TinkerInteractionPayload.TYPE, TinkerInteractionPayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player) ServerInputDispatcher.tinker(player, payload);
+         }));
+      registrar.playToServer(IdleSelectionEntryPayload.TYPE, IdleSelectionEntryPayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (!(context.player() instanceof ServerPlayer player)) return;
+            var point = ServerInputDispatcher.idleSelectionEntry(player, payload);
+            FastPlaceManager.syncCurrentPreview(player);
+            syncActivity(player);
+            PacketDistributor.sendToPlayer(player, new IdleSelectionEntryResultPayload(payload.requestId(),
+               player.level().dimension().location(), point == null ? net.minecraft.core.BlockPos.ZERO : point, point != null));
+         }));
+      registrar.playToClient(IdleSelectionEntryResultPayload.TYPE, IdleSelectionEntryResultPayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyIdleSelectionEntry(payload, connection));
+         });
       registrar.playToServer(MiddleConfirmSettingPayload.TYPE, MiddleConfirmSettingPayload.STREAM_CODEC, FastPlaceNetwork::handleMiddleConfirmSetting);
       registrar.playToServer(FaceRasterizationSettingPayload.TYPE, FaceRasterizationSettingPayload.STREAM_CODEC, FastPlaceNetwork::handleFaceRasterizationSetting);
       registrar.playToServer(SettingsActionPayload.TYPE, SettingsActionPayload.STREAM_CODEC, FastPlaceNetwork::handleSettingsAction);
+      registrar.playToServer(TinkerHistorySettingPayload.TYPE, TinkerHistorySettingPayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player) {
+               FastPlaceSettings.load(player).setTinkerHistoryMergeLimit(player, payload.setting(), payload.value());
+            }
+         }));
       registrar.playToServer(
          PlacementEffectSettingPayload.TYPE,
          PlacementEffectSettingPayload.STREAM_CODEC,

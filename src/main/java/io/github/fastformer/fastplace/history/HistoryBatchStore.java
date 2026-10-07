@@ -34,6 +34,7 @@ public final class HistoryBatchStore {
    private final long maxQueuedBytes;
    private final int maxQueuedOperations;
    private final int maxIndexEntries;
+   private final java.util.function.Function<UUID, Set<UUID>> recoveryReferences;
    private CompletableFuture<Void> tail = CompletableFuture.completedFuture(null);
    private long queuedBytes;
    private int queuedOperations;
@@ -57,8 +58,17 @@ public final class HistoryBatchStore {
          Path root, Executor executor, int formatVersion, long maxBatchPayloadBytes,
          long maxTotalStoredBytes, long maxQueuedBytes, int maxQueuedOperations,
          int maxIndexEntries, long maxOwnerStoredBytes) {
+      this(root, executor, formatVersion, maxBatchPayloadBytes, maxTotalStoredBytes, maxQueuedBytes,
+         maxQueuedOperations, maxIndexEntries, maxOwnerStoredBytes, owner -> Set.of());
+   }
+
+   public HistoryBatchStore(
+         Path root, Executor executor, int formatVersion, long maxBatchPayloadBytes,
+         long maxTotalStoredBytes, long maxQueuedBytes, int maxQueuedOperations,
+         int maxIndexEntries, long maxOwnerStoredBytes, java.util.function.Function<UUID, Set<UUID>> recoveryReferences) {
       this.root = Objects.requireNonNull(root, "root").toAbsolutePath().normalize();
       this.executor = Objects.requireNonNull(executor, "executor");
+      this.recoveryReferences = Objects.requireNonNull(recoveryReferences, "recoveryReferences");
       if (formatVersion < 1 || maxBatchPayloadBytes < 0 || maxTotalStoredBytes < ENVELOPE_BYTES
             || maxQueuedBytes < 0 || maxQueuedOperations < 1 || maxIndexEntries < 0
             || maxOwnerStoredBytes < ENVELOPE_BYTES) {
@@ -161,6 +171,12 @@ public final class HistoryBatchStore {
       return enqueueRead(() -> cleanupRetired(ownerId, candidates));
    }
 
+   /** Durable retirement intent remains available until its recovery journal is removed. */
+   public CompletableFuture<Set<UUID>> retiredBatches(UUID ownerId) {
+      Objects.requireNonNull(ownerId, "ownerId");
+      return enqueueRead(() -> readRetirements(ownerId));
+   }
+
    /** Removes indexed history older than {@code cutoff}, updating the durable
     * order before deleting its batch files. Unindexed batches are retained. */
    public CompletableFuture<Integer> cleanupExpiredBatches(UUID ownerId, Instant cutoff) {
@@ -237,13 +253,19 @@ public final class HistoryBatchStore {
             pendingRetirements.remove(ownerId);
             return 0;
          }
-         int deleted = cleanupUnreferenced(ownerId, pending);
+         Set<UUID> held = new HashSet<>(pending);
+         held.retainAll(recoveryReferences.apply(ownerId));
+         Set<UUID> disposable = new HashSet<>(pending);
+         disposable.removeAll(held);
+         int deleted = cleanupUnreferenced(ownerId, disposable);
          try {
-            Files.deleteIfExists(ownerDirectory(ownerId).resolve(RETIRED_FILE));
+            if (held.isEmpty()) Files.deleteIfExists(ownerDirectory(ownerId).resolve(RETIRED_FILE));
+            else writeRetirementsNow(ownerId, held);
          } catch (IOException failure) {
             throw new UncheckedIOException(failure);
          }
-         pendingRetirements.remove(ownerId);
+         if (held.isEmpty()) pendingRetirements.remove(ownerId);
+         else pendingRetirements.put(ownerId, held);
          return deleted;
    }
 
@@ -304,6 +326,10 @@ public final class HistoryBatchStore {
       Set<UUID> combined = new HashSet<>(readRetirements(ownerId));
       combined.addAll(supplied);
       if (combined.isEmpty()) return;
+      writeRetirementsNow(ownerId, combined);
+   }
+
+   private void writeRetirementsNow(UUID ownerId, Set<UUID> combined) {
       if (combined.size() > maxIndexEntries) {
          throw new UncheckedIOException(new IOException("History cleanup index exceeds its entry quota"));
       }

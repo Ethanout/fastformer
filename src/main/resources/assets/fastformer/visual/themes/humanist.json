@@ -34,6 +34,8 @@
     "jitter_by_distance": [[0, 1], [5, 1], [20, 0.5], [64, 0.15]]
   },
   "values": {
+    "smart_surface_hatch_scale": 8,
+    "smart_surface_hatch_opacity": 0.26,
     "line_white_mix": 0.25,
     "halo_alpha": 0.5,
     "line_width": 0.8,

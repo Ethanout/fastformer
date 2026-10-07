@@ -13,7 +13,6 @@ public final class ClientInteractionUpdates {
       if (player != null) {
          InteractionUpdateScope.setClientPolicy(player, payload.suppressNeighbors());
          POLICIES.put(player, payload);
-         io.github.fastformer.client.input.FastPlaceClientInput.syncIdleSession();
       }
    }
 

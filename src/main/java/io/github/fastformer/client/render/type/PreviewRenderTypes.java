@@ -11,6 +11,17 @@ import net.minecraft.client.renderer.RenderType;
 /** Render pipelines used by client previews, outlines, and gizmos. */
 public final class PreviewRenderTypes {
    private static final double PREVIEW_LINE_WIDTH = PreviewStyle.LINE_WIDTH;
+   public static final RenderType SMART_SELECTION_SURFACE = RenderType.create(
+      "fastformer_smart_selection_surface", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS,
+      1536, false, true,
+      RenderType.CompositeState.builder()
+         .setShaderState(new RenderStateShard.ShaderStateShard(FastPlaceClientShaders::smartSelectionSurface))
+         .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+         .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
+         .setWriteMaskState(RenderStateShard.COLOR_WRITE)
+         .setCullState(RenderStateShard.NO_CULL)
+         .createCompositeState(false)
+   );
    public static final RenderType PREVIEW_MODEL_TARGET = RenderType.create(
       "fastformer_preview_model_target", DefaultVertexFormat.BLOCK, VertexFormat.Mode.QUADS,
       2097152, false, false,

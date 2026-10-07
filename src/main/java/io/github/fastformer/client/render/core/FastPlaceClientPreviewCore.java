@@ -692,7 +692,7 @@ public class FastPlaceClientPreviewCore {
    public static GeometryInteractionHit geometryInteractionHit() {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.nearVanillaBlock(minecraft)) {
+      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
          return null;
       }
       Vec3 eye = player.getEyePosition();
@@ -703,6 +703,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static boolean embeddedModifierReticle() {
+      if (FastPlaceClientInput.vanillaSession()) return false;
       if (PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) && PREVIEW_STATE.geometry().active()) {
          return PREVIEW_STATE.geometry().mode() == GeometryMode.WALL;
       }
@@ -730,7 +731,7 @@ public class FastPlaceClientPreviewCore {
    public static AxisGizmo.Hit geometryGizmoHit() {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.nearVanillaBlock(minecraft)) {
+      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
          return null;
       }
       Vec3 view = player.getViewVector(1.0F);
@@ -757,7 +758,7 @@ public class FastPlaceClientPreviewCore {
 
    private static AxisGizmo geometryGizmo(Vec3 view) {
       Minecraft minecraft = Minecraft.getInstance();
-      if (!PREVIEW_STATE.geometry().active() || minecraft.player == null || InteractionContext.nearVanillaBlock(minecraft)) {
+      if (!PREVIEW_STATE.geometry().active() || minecraft.player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
          return null;
       }
       return geometryPreviewPlan(view).gizmo();
@@ -928,7 +929,7 @@ public class FastPlaceClientPreviewCore {
          return;
       }
       boolean reticleNeeded = SmoothReticlePostEffect.updateTarget(FastPlaceClientInput.modifierReticleMode());
-      if (InteractionContext.nearVanillaBlock(minecraft) || !reticleNeeded) {
+      if (InteractionContext.vanillaOwnsPointer(minecraft) || !reticleNeeded) {
          return;
       }
 
@@ -942,7 +943,6 @@ public class FastPlaceClientPreviewCore {
 
    @SubscribeEvent
    public static void onRenderGui(Post event) {
-      if (io.github.fastformer.client.input.FastPlaceClientInput.idleSessionSuspended()) return;
       Minecraft minecraft = Minecraft.getInstance();
       GuiGraphics graphics = event.getGuiGraphics();
       if (minecraft.screen instanceof io.github.fastformer.client.ui.FastFormerSettingsScreen
@@ -1012,7 +1012,7 @@ public class FastPlaceClientPreviewCore {
             ? Component.translatable(fillKey, fillModeName)
             : Component.translatable(fillKey, fillModeName, keyName(minecraft.options.keySwapOffhand)))
          .withStyle(GeometryPalette.text().style());
-      graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
+      if (!FastPlaceClientInput.vanillaSession()) graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
 
       MutableComponent embeddedHint = buildingRaycastHint();
       if (embeddedHint != null && minecraft.screen == null
@@ -1294,13 +1294,18 @@ public class FastPlaceClientPreviewCore {
    }
 
    static MutableComponent idleBottomStatus(boolean emptyHand, boolean placeable) {
-      if (emptyHand) {
+      if (emptyHand || !placeable) {
          return appendSelectionModes(Component.translatable("fastformer.hud.selection_label")
             .withStyle(GeometryPalette.text().style()),
             io.github.fastformer.client.operation.selection.SelectionToolPreference.get());
       }
-      if (!placeable) return null;
-      return buildingStageStatus(PREVIEW_STATE.building(), QuickShapeStage.LINE);
+      MutableComponent status = Component.translatable("fastformer.hud.quick_shape_label").withStyle(GeometryPalette.text().style());
+      status.append(Component.literal(" | ").withStyle(ChatFormatting.DARK_GRAY));
+      for (LineMode mode : LineMode.values()) {
+         if (mode != LineMode.values()[0]) status.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
+         appendBuildingMode(status, mode, mode == PREVIEW_STATE.building().lineMode());
+      }
+      return status;
    }
 
    private static void appendBuildingMode(MutableComponent status, TranslatableText mode, boolean selected) {
@@ -1308,7 +1313,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static MutableComponent buildingRaycastHint() {
-      if (PREVIEW_STATE.geometry().active()
+      if (!PREVIEW_STATE.building().active() || PREVIEW_STATE.geometry().active()
          || PREVIEW_STATE.operation().active()
          || !buildingRaycastSubmodeAvailable()
          || !PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
@@ -1334,16 +1339,14 @@ public class FastPlaceClientPreviewCore {
          Minecraft minecraft = Minecraft.getInstance();
          if (minecraft.player == null || minecraft.screen != null || QuickReplaceMode.active()
             || !PREVIEW_STATE.building().enabled()) return null;
-         if (minecraft.player.getMainHandItem().isEmpty()) return Component.translatable(
-            io.github.fastformer.client.operation.selection.SelectionToolPreference.get() == OperationSelectionMode.SMART
-               ? "fastformer.hud.idle_smart" : "fastformer.hud.idle_selection",
-            keyName(minecraft.options.keyUse), keyName(minecraft.options.keyAttack)).withStyle(GeometryPalette.muted().style());
-         String key = io.github.fastformer.client.render.hud.IdleInteractionHint.key(
-            minecraft.player.getMainHandItem().isEmpty(), PlaceableItems.isPlaceable(minecraft.player.getMainHandItem()),
-            raycastBlocks(minecraft.player).getType() == Type.BLOCK, InteractionContext.nearVanillaBlock(minecraft)
-         );
-         return key == null ? null : Component.translatable(key,
-            keyName(minecraft.options.keyUse), keyName(minecraft.options.keyAttack)).withStyle(GeometryPalette.muted().style());
+         if (idlePreviewHit(minecraft) != null) {
+            return (PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
+               ? Component.translatable("fastformer.hud.idle_entry_far_placement", keyName(minecraft.options.keyUse), keyName(minecraft.options.keyPickItem))
+               : Component.translatable("fastformer.hud.idle_entry_far", keyName(minecraft.options.keyUse)))
+               .withStyle(GeometryPalette.muted().style());
+         }
+         return Component.translatable("fastformer.hud.idle_entry", keyName(minecraft.options.keyUse))
+            .withStyle(GeometryPalette.muted().style());
       }
       QuickShapeStage stage = effectiveStage(PREVIEW_STATE.building());
       if (stage == QuickShapeStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.POLYGON && !PREVIEW_STATE.building().polygonClosed()) {
@@ -1434,7 +1437,7 @@ public class FastPlaceClientPreviewCore {
       int gizmoAlpha = 255;
       if (axis == null) {
          AxisGizmo gizmo = displayedGizmo;
-         AxisGizmo.Hit hit = gizmo == null || !hudInput.allowNearBlock() && InteractionContext.nearVanillaBlock(minecraft)
+         AxisGizmo.Hit hit = gizmo == null || !hudInput.allowNearBlock() && InteractionContext.vanillaOwnsPointer(minecraft)
             ? null
             : gizmo.hitTest(
                minecraft.player.getEyePosition(),
@@ -1731,9 +1734,13 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static boolean hasVisibleBlueOutline(Minecraft minecraft) {
-      if (io.github.fastformer.client.input.FastPlaceClientInput.idleSessionSuspended()) return false;
       var player = minecraft.player;
       if (player == null || minecraft.level == null || QuickReplaceMode.active()) return false;
+      if (FastPlaceClientInput.vanillaSession()) {
+         var hit = idlePreviewHit(minecraft);
+         var preview = hit == null ? null : InitialBlockPreview.resolve(player, hit, false);
+         return preview != null && !preview.mesh().edges().isEmpty();
+      }
       var snapshot = PREVIEW_STATE.building();
       var pointer = operationInteractionIntent().orElse(null);
       var owner = PreviewRenderOwner.select(snapshot.active(), PREVIEW_STATE.operation().active(),
@@ -1749,9 +1756,18 @@ public class FastPlaceClientPreviewCore {
       return preview != null && !preview.mesh().edges().isEmpty();
    }
 
+   private static BlockHitResult idlePreviewHit(Minecraft minecraft) {
+      var player = minecraft.player;
+      if (player == null || minecraft.level == null || !player.isCreative() || !enabled()
+         || minecraft.screen != null || minecraft.getCameraEntity() != player
+         || !FastPlaceClientInput.modifierHeld() && minecraft.hitResult != null
+            && minecraft.hitResult.getType() == Type.ENTITY) return null;
+      var hit = RAYCAST.clipForIdleEntry(player, FastPlaceClientInput.modifierHeld());
+      return LongRangeBlockRaycast.beyondInteractionRange(player, hit) ? hit : null;
+   }
+
    @SubscribeEvent
    public static void onRenderLevelStage(RenderLevelStageEvent event) {
-      if (io.github.fastformer.client.input.FastPlaceClientInput.idleSessionSuspended()) return;
       long revision = io.github.fastformer.client.render.theme.VisualThemes.revision();
       if (renderedThemeRevision != revision) {
          onThemeChanged();
@@ -1772,10 +1788,13 @@ public class FastPlaceClientPreviewCore {
              }
              return;
           }
-          boolean emptyBuildingPreview = snapshot.enabled()
-             && player != null
-             && (PlaceableItems.isPlaceable(player.getMainHandItem())
-                || !snapshot.active() && player.getMainHandItem().isEmpty());
+          if (FastPlaceClientInput.vanillaSession()) {
+             var hit = idlePreviewHit(minecraft);
+             if (hit != null) InitialBlockPreviewRenderer.render(event, minecraft, player, hit,
+                false, 1.0F);
+             return;
+          }
+          boolean emptyBuildingPreview = false;
           OperationInteractionIntent pointerIntent = player == null ? null : operationInteractionIntent().orElse(null);
           boolean selectionCandidate = pointerIntent instanceof OperationInteractionIntent.CreateSelection;
           if (!(snapshot.active() || emptyBuildingPreview || PREVIEW_STATE.operation().active()
@@ -2138,7 +2157,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static GeometryHit geometryCandidateHit(Minecraft minecraft, LocalPlayer player) {
-      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.nearVanillaBlock(minecraft)) {
+      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
          return null;
       }
       BlockHitResult hit = raycastBlocks(player);
@@ -2158,7 +2177,7 @@ public class FastPlaceClientPreviewCore {
       }
 
       gizmo = cameraScaledGizmo(gizmo, minecraft);
-      if (InteractionContext.nearVanillaBlock(minecraft)) {
+      if (InteractionContext.vanillaOwnsPointer(minecraft)) {
          return gizmo;
       }
       AxisGizmo.Hit hit = gizmo.hitTest(player.getEyePosition(), view, visiblePreviewReach(player));
@@ -2332,7 +2351,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static BlockHitResult reachRaycast(LocalPlayer player) {
-      return RAYCAST.clipForReachTransition(player);
+      return RAYCAST.clip(player, false);
    }
 
    private static BlockHitResult raycastBlocks(LocalPlayer player) {

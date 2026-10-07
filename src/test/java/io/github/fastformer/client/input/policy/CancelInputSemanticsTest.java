@@ -8,25 +8,6 @@ import org.junit.jupiter.api.Test;
 
 class CancelInputSemanticsTest {
    @Test
-   void temporaryVanillaRequiresBothObservedAndRoutedIdleState() {
-      var idle = io.github.fastformer.client.input.state.ClientInputStateMachine.State.IDLE;
-      assertTrue(CancelInputSemantics.canYieldToVanilla(idle, idle, false));
-      assertFalse(CancelInputSemantics.canYieldToVanilla(idle, idle, true));
-      for (var state : io.github.fastformer.client.input.state.ClientInputStateMachine.State.values()) {
-         if (state == idle) continue;
-         assertFalse(CancelInputSemantics.canYieldToVanilla(state, idle, false), state.name());
-         assertFalse(CancelInputSemantics.canYieldToVanilla(idle, state, false), state.name());
-      }
-   }
-
-   @Test
-   void temporaryVanillaHasItsOwnCommandAndConsumesTheDropClick() {
-      var yield = new CancelInputSemantics.Decision(CancelInputSemantics.Command.SUSPEND_IDLE, false, false);
-      assertTrue(CancelInputSemantics.capturesVanillaDrop(yield, true));
-      assertFalse(CancelInputSemantics.capturesVanillaDrop(yield, false));
-      org.junit.jupiter.api.Assertions.assertNotEquals(CancelInputSemantics.Command.REQUEST_CANCEL, yield.command());
-   }
-   @Test
    void cancelRequiresTheConfiguredKeyPressAndAReadyChannel() {
       assertEquals(CancelInputSemantics.Command.IGNORE, decide(0, 81, true, true, false).command());
       assertEquals(CancelInputSemantics.Command.IGNORE, decide(1, 80, true, true, false).command());

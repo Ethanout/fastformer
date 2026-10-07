@@ -43,6 +43,9 @@ public final class BuildingShellFaceBuffer {
       type.setupRenderState();
       try {
          RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
+         // Repeated face textures use a small world-anchored origin to retain precision far from spawn.
+         RenderSystem.getShader().safeGetUniform("ShellOrigin").set(
+            (float)(this.origin.x % 256), (float)(this.origin.y % 256), (float)(this.origin.z % 256));
          this.buffer.bind();
          this.sortForCamera(camera);
          this.buffer.drawWithShader(transform, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());

@@ -15,7 +15,7 @@ public final class MousePressRoutingSemantics {
       if (state.operationUndo()) return LeftTarget.UNDO;
       if (state.operationAlt()) return LeftTarget.OPERATION_ALT;
       if (state.operationAdjust()) return LeftTarget.OPERATION_ADJUST;
-      if (state.cuboidWorldTarget()) return LeftTarget.CUBOID_FIRST_POINT;
+      if (state.cuboidWorldTarget()) return LeftTarget.CUBOID_POINT_UNDO;
       if (state.cuboidFaceTarget()) return LeftTarget.CUBOID_FACE;
       if (state.operationCaptured() || state.operationDragCaptured()) return LeftTarget.OPERATION_CAPTURE;
       if (state.geometryCaptured()) return LeftTarget.GEOMETRY_CAPTURE;
@@ -28,16 +28,16 @@ public final class MousePressRoutingSemantics {
    public static RightTarget rightTarget(RightState state) {
       if (!state.isRightPress()) return RightTarget.NONE;
       if (state.geometrySession()) {
-         if (state.nearVanillaBlock()) return RightTarget.YIELD_TO_VANILLA;
+         if (state.vanillaOwnsPointer()) return RightTarget.YIELD_TO_VANILLA;
          return state.geometryCaptured() ? RightTarget.GEOMETRY_CAPTURE : RightTarget.GEOMETRY_INTERACTION;
       }
       if (!state.operationSession()) return RightTarget.NONE;
       if (state.workspacePointerTarget()) return RightTarget.WORKSPACE_POINTER;
       if (state.workspaceActive()) return RightTarget.WORKSPACE_ADJUST_OR_CAPTURE;
       if (state.selectionConfirmed()) {
-         return state.nearVanillaBlock() ? RightTarget.YIELD_TO_VANILLA : RightTarget.CONFIRMED_GIZMO_CAPTURE;
+         return state.vanillaOwnsPointer() ? RightTarget.YIELD_TO_VANILLA : RightTarget.CONFIRMED_GIZMO_CAPTURE;
       }
-      if (state.nearVanillaBlock() && !state.operationAdjust() && !state.operationAlt() && !state.operationPointTarget()) {
+      if (state.vanillaOwnsPointer() && !state.operationAdjust() && !state.operationAlt() && !state.operationPointTarget()) {
          return RightTarget.YIELD_TO_VANILLA;
       }
       if (state.operationAlt()) return RightTarget.OPERATION_ALT;
@@ -45,7 +45,7 @@ public final class MousePressRoutingSemantics {
       if (state.operationPointTarget()) return RightTarget.OPERATION_POINT;
       if (state.operationEdgeTarget()) return RightTarget.OPERATION_EDGE;
       if (state.operationNextPointTarget()) return RightTarget.OPERATION_NEXT_POINT;
-      if (state.cuboidWorldTarget()) return RightTarget.CUBOID_SECOND_POINT;
+      if (state.cuboidWorldTarget()) return RightTarget.CUBOID_NEXT_POINT;
       if (state.cuboidFaceTarget()) return RightTarget.CUBOID_FACE;
       return state.closePathTarget() ? RightTarget.CLOSE_PATH : RightTarget.NONE;
    }
@@ -83,7 +83,7 @@ public final class MousePressRoutingSemantics {
       int button,
       boolean geometrySession,
       boolean operationSession,
-      boolean nearVanillaBlock,
+      boolean vanillaOwnsPointer,
       boolean geometryCaptured,
       boolean workspacePointerTarget,
       boolean workspaceActive,
@@ -112,7 +112,7 @@ public final class MousePressRoutingSemantics {
       UNDO,
       OPERATION_ALT,
       OPERATION_ADJUST,
-      CUBOID_FIRST_POINT,
+      CUBOID_POINT_UNDO,
       CUBOID_FACE,
       OPERATION_CAPTURE,
       GEOMETRY_CAPTURE,
@@ -133,7 +133,7 @@ public final class MousePressRoutingSemantics {
       OPERATION_POINT,
       OPERATION_EDGE,
       OPERATION_NEXT_POINT,
-      CUBOID_SECOND_POINT,
+      CUBOID_NEXT_POINT,
       CUBOID_FACE,
       CLOSE_PATH
    }

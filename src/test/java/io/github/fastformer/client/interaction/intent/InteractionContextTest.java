@@ -6,21 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 class InteractionContextTest {
-   @Test
-   void ordinaryBuildingPreviewUsesDistanceVisibility() {
-      assertFalse(InteractionContext.shouldForceFullPreviewVisibility(true, false, false, false));
-   }
-
-   @Test
-   void operationAndSelectionSessionsStayFullyVisible() {
-      assertTrue(InteractionContext.shouldForceFullPreviewVisibility(true, true, false, false));
-      assertTrue(InteractionContext.shouldForceFullPreviewVisibility(true, false, true, false));
-      assertTrue(InteractionContext.shouldForceFullPreviewVisibility(true, false, false, true));
-   }
-
-   @Test
-   void missingPlayerUsesSafeFullVisibility() {
-      assertTrue(InteractionContext.shouldForceFullPreviewVisibility(false, false, false, false));
+   @Test void previewsDoNotFadeWithDistance() {
+      assertTrue(InteractionContext.previewVisibility(null, 0) == 1);
+      assertTrue(InteractionContext.previewVisibility(null, 1) == 1);
    }
 
    @Test

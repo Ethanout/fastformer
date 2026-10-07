@@ -15,4 +15,13 @@ final class RotationInputAngles {
       }
       return PixelPerfectAngles.defaultSnap(radians);
    }
+
+   static double selectionPreview(int rawSteps, boolean control) {
+      double radians = rawSteps * Math.PI * 2.0 / 1024.0;
+      return control ? PixelPerfectAngles.defaultSnap(radians) : radians;
+   }
+
+   static double selectionFinish(double radians, boolean control) {
+      return control ? PixelPerfectAngles.defaultSnap(radians) : PixelPerfectAngles.selectionSnap(radians);
+   }
 }

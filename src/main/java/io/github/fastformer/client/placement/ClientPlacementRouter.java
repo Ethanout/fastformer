@@ -116,6 +116,15 @@ public final class ClientPlacementRouter {
          new StartPlacementPayload(requestId, target), requestId);
    }
 
+   public static long startIdleSelection(Minecraft minecraft, long token, net.minecraft.world.phys.Vec3 eye, net.minecraft.world.phys.Vec3 view) {
+      var type = io.github.fastformer.network.payload.placement.IdleSelectionEntryPayload.TYPE;
+      if (!supports(minecraft, type) || !supports(minecraft, io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload.TYPE)) return 0;
+      long requestId = NEXT_ACTION_ID.incrementAndGet();
+      if (!io.github.fastformer.client.input.FastPlaceClientInput.beginStartPlacementRequest(requestId)) return 0;
+      return sendSubmittedAction(minecraft, type,
+         new io.github.fastformer.network.payload.placement.IdleSelectionEntryPayload(requestId, token, eye, view), requestId) ? requestId : 0;
+   }
+
    public static Optional<WorkspaceSubmission> prepareWorkspace(
       Minecraft minecraft, OperationWorkspacePlan plan
    ) throws IOException {

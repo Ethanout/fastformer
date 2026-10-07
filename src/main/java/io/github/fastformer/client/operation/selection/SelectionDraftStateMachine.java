@@ -151,6 +151,10 @@ final class SelectionDraftStateMachine {
       }
 
       private Transition cuboid(DraftState draft, SelectionDraftEvent event) {
+         if (draft.selectionMode() == OperationSelectionMode.CUBOID && event.button() == SelectionDraftEvent.Button.LEFT) {
+            return draft.points().isEmpty() ? rejected(draft)
+               : new Transition(removeLast(draft, false), SelectionDraftResult.UPDATED);
+         }
          if (this == CUBOID_BOUNDS && event.button() == SelectionDraftEvent.Button.MIDDLE) {
             DraftState next = expand(draft, event.point());
             return next == draft ? rejected(draft) : new Transition(next, SelectionDraftResult.READY);
@@ -158,9 +162,9 @@ final class SelectionDraftStateMachine {
          BlockPos first = draft.firstPoint();
          BlockPos second = draft.secondPoint();
          switch (event.button()) {
-            case LEFT -> first = event.point();
-            case RIGHT -> second = event.point();
+            case RIGHT -> { if (first == null && draft.selectionMode() == OperationSelectionMode.CUBOID) first = event.point(); else second = event.point(); }
             case MIDDLE -> { if (first == null) first = event.point(); else second = event.point(); }
+            case LEFT -> first = event.point();
          }
          boolean complete = first != null && second != null;
          var points = complete ? List.of(first, second) : List.of(first == null ? second : first);

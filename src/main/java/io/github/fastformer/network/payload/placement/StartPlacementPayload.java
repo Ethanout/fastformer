@@ -1,6 +1,5 @@
 package io.github.fastformer.network.payload.placement;
 
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.network.payload.operation.OperationCallbackScope;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;
@@ -42,15 +41,21 @@ public record StartPlacementPayload(long requestId, Target target) implements Cu
    }
 
    /** The inactive preview identity and exact raycast target captured by the client. */
-   public record Target(long revision, OperationCallbackScope callbackScope, RaycastPlacement placement,
-      BlockHitResult hit, Vec3 eye, Vec3 view) {
+   public record Target(long revision, OperationCallbackScope callbackScope,
+      BlockHitResult hit, Vec3 eye, Vec3 view, long anchorToken, boolean embedded, boolean submitAfterEntry) {
+      public Target(long revision, OperationCallbackScope scope, BlockHitResult hit, Vec3 eye, Vec3 view) {
+         this(revision, scope, hit, eye, view, 0, false, false);
+      }
+      public Target(long revision, OperationCallbackScope scope, BlockHitResult hit, Vec3 eye, Vec3 view, long anchorToken) {
+         this(revision, scope, hit, eye, view, anchorToken, anchorToken > 0, false);
+      }
       public Target {
          Objects.requireNonNull(callbackScope);
-         Objects.requireNonNull(placement);
          Objects.requireNonNull(hit);
          Objects.requireNonNull(eye);
          Objects.requireNonNull(view);
-         if (revision <= 0L || callbackScope.equals(OperationCallbackScope.unscoped())
+         if (revision <= 0L || anchorToken < 0 || submitAfterEntry && (anchorToken > 0 || !embedded)
+            || callbackScope.equals(OperationCallbackScope.unscoped())
             || hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK
             || !finite(hit.getLocation()) || !finite(eye) || !finite(view) || Math.abs(view.lengthSqr() - 1.0) > 0.001) {
             throw new IllegalArgumentException("Invalid captured placement target");
@@ -61,26 +66,28 @@ public record StartPlacementPayload(long requestId, Target target) implements Cu
       private static Target read(FriendlyByteBuf buffer) {
          long revision = buffer.readVarLong();
          OperationCallbackScope scope = OperationCallbackScope.STREAM_CODEC.decode(buffer);
-         RaycastPlacement placement = buffer.readEnum(RaycastPlacement.class);
          BlockPos position = buffer.readBlockPos();
          Vec3 location = buffer.readVec3();
          Direction direction = buffer.readEnum(Direction.class);
          boolean inside = buffer.readBoolean();
          Vec3 eye = buffer.readVec3();
          Vec3 view = buffer.readVec3();
-         return new Target(revision, scope, placement, new BlockHitResult(location, direction, position, inside), eye, view);
+         return new Target(revision, scope, new BlockHitResult(location, direction, position, inside), eye, view,
+            buffer.readVarLong(), buffer.readBoolean(), buffer.readBoolean());
       }
 
       private void write(FriendlyByteBuf buffer) {
          buffer.writeVarLong(revision);
          OperationCallbackScope.STREAM_CODEC.encode(buffer, callbackScope);
-         buffer.writeEnum(placement);
          buffer.writeBlockPos(hit.getBlockPos());
          buffer.writeVec3(hit.getLocation());
          buffer.writeEnum(hit.getDirection());
          buffer.writeBoolean(hit.isInside());
          buffer.writeVec3(eye);
          buffer.writeVec3(view);
+         buffer.writeVarLong(anchorToken);
+         buffer.writeBoolean(embedded);
+         buffer.writeBoolean(submitAfterEntry);
       }
 
       private static BlockHitResult immutable(BlockHitResult hit) {

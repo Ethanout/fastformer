@@ -149,24 +149,24 @@ final class WorldHistoryPersistence {
    static CompletableFuture<Void> reconcileCommittedJournal(MinecraftServer server, UUID owner, UUID operation) {
       return enqueue(server, owner, 0L, () -> {
          HistoryBatchStore storage = store(server);
-         return storage.verifyBatch(owner, operation).thenCompose(published -> {
-            if (!published) {
-               return CompletableFuture.failedFuture(new IOException(
-                  "Committed journal has no published history batch: " + operation
-               ));
+         return storage.loadIndex(owner).thenCompose(existing -> {
+            HistoryOrderIndex previous = existing.orElse(new HistoryOrderIndex(List.of(), List.of()));
+            if (previous.undo().contains(operation) || previous.redo().contains(operation)) {
+               return CompletableFuture.completedFuture(null);
             }
-            return storage.loadIndex(owner).thenCompose(existing -> {
-               HistoryOrderIndex previous = existing.orElse(new HistoryOrderIndex(List.of(), List.of()));
-               if (previous.undo().contains(operation) || previous.redo().contains(operation)) {
-                  return CompletableFuture.completedFuture(null);
-               }
-               ArrayList<UUID> undo = new ArrayList<>(Math.min(MAX_INDEX_ENTRIES, previous.undo().size() + 1));
-               undo.add(operation);
-               for (UUID id : previous.undo()) {
-                  if (undo.size() >= MAX_INDEX_ENTRIES) break;
-                  undo.add(id);
-               }
-               return storage.publishIndex(owner, new HistoryOrderIndex(undo, List.of()));
+            return storage.retiredBatches(owner).thenCompose(retired -> {
+               if (existing.isPresent() && retired.contains(operation)) return CompletableFuture.completedFuture(null);
+               return storage.verifyBatch(owner, operation).thenCompose(published -> {
+                  if (!published) return CompletableFuture.failedFuture(new IOException(
+                     "Committed journal has no published history batch: " + operation));
+                  ArrayList<UUID> undo = new ArrayList<>(Math.min(MAX_INDEX_ENTRIES, previous.undo().size() + 1));
+                  undo.add(operation);
+                  for (UUID id : previous.undo()) {
+                     if (undo.size() >= MAX_INDEX_ENTRIES) break;
+                     undo.add(id);
+                  }
+                  return storage.publishIndex(owner, new HistoryOrderIndex(undo, List.of()));
+               });
             });
          });
       });
@@ -369,7 +369,9 @@ final class WorldHistoryPersistence {
    }
 
    private static synchronized HistoryBatchStore store(MinecraftServer server) {
-      return STORES.computeIfAbsent(server, current -> new HistoryBatchStore(
+      return STORES.computeIfAbsent(server, current -> {
+         Path recoveryDirectory = current.getWorldPath(LevelResource.ROOT).resolve("fastformer-recovery");
+         return new HistoryBatchStore(
          historyRoot(current),
          executor(),
          FORMAT_VERSION,
@@ -378,8 +380,11 @@ final class WorldHistoryPersistence {
          MAX_QUEUE_BYTES,
          MAX_QUEUE_OPERATIONS,
          MAX_INDEX_ENTRIES,
-         HistoryStorageConfig.ownerDiskBytes()
-      ));
+         HistoryStorageConfig.ownerDiskBytes(),
+         owner -> io.github.fastformer.fastplace.recovery.RecoveryHistoryReferences.operations(
+            recoveryDirectory, owner)
+         );
+      });
    }
 
    private static Path historyRoot(MinecraftServer server) {

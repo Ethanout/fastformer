@@ -10,6 +10,44 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CommandIdentityCodecTest {
+   @Test void idleEntryAndTinkerRoundTripTheCapturedRayAndShape() {
+      var buffer = new FriendlyByteBuf(Unpooled.buffer());
+      var position = new net.minecraft.core.BlockPos(2, 64, 3);
+      var eye = new Vec3(2.5, 66, 3.5);
+      var view = new Vec3(0, -1, 0);
+      var hit = new net.minecraft.world.phys.BlockHitResult(new Vec3(2.5, 65, 3.5), net.minecraft.core.Direction.UP, position, false);
+      var capture = new io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload(123, hit, eye, view);
+      var snapshot = new io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload(123,
+         net.minecraft.resources.ResourceLocation.parse("minecraft:overworld"),
+         new io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot(position,
+            java.util.List.of(new net.minecraft.world.phys.AABB(0, 0, 0, 1, 0.5, 1))));
+      var tinker = new io.github.fastformer.network.payload.placement.TinkerInteractionPayload(123, hit, eye, view);
+      var selection = new io.github.fastformer.network.payload.placement.IdleSelectionEntryPayload(456, 123, eye, view);
+      var result = new io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload(456,
+         net.minecraft.resources.ResourceLocation.parse("minecraft:overworld"), position, true);
+      try {
+         io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload.STREAM_CODEC.encode(buffer, capture);
+         io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload.STREAM_CODEC.encode(buffer, snapshot);
+         io.github.fastformer.network.payload.placement.TinkerInteractionPayload.STREAM_CODEC.encode(buffer, tinker);
+         io.github.fastformer.network.payload.placement.IdleSelectionEntryPayload.STREAM_CODEC.encode(buffer, selection);
+         io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload.STREAM_CODEC.encode(buffer, result);
+         var decodedCapture = io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload.STREAM_CODEC.decode(buffer);
+         assertEquals(capture.token(), decodedCapture.token());
+         assertEquals(eye, decodedCapture.eye());
+         assertEquals(view, decodedCapture.view());
+         assertEquals(position, decodedCapture.hit().getBlockPos());
+         assertEquals(hit.getLocation(), decodedCapture.hit().getLocation());
+         assertEquals(snapshot, io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload.STREAM_CODEC.decode(buffer));
+         var decodedTinker = io.github.fastformer.network.payload.placement.TinkerInteractionPayload.STREAM_CODEC.decode(buffer);
+         assertEquals(tinker.token(), decodedTinker.token());
+         assertEquals(eye, decodedTinker.eye());
+         assertEquals(hit.getLocation(), decodedTinker.hit().getLocation());
+         assertEquals(selection, io.github.fastformer.network.payload.placement.IdleSelectionEntryPayload.STREAM_CODEC.decode(buffer));
+         assertEquals(result, io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload.STREAM_CODEC.decode(buffer));
+         assertEquals(0, buffer.readableBytes());
+      } finally { buffer.release(); }
+      assertThrows(IllegalArgumentException.class, () -> new io.github.fastformer.network.payload.placement.TinkerInteractionPayload(123, hit, eye, new Vec3(0, 0, 0)));
+   }
    @Test void historyEventRetainsOperationDimensionAndCompletion() {
       var buffer = new FriendlyByteBuf(Unpooled.buffer());
       try {

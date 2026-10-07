@@ -79,11 +79,11 @@ class WorkspacePreviewComposerCacheTest {
    }
 
    /**
-    * An X turn still fills the frame cache. It does not rotate a block state, so this cache
-    * fixture can keep a snapshot whose {@code state} is unset.
+    * A non-right angle fills the frame cache without rotating block states. This cache
+    * fixture can therefore keep a snapshot whose {@code state} is unset.
     */
    private static WorkspaceTransform rotated() {
-      return new WorkspaceTransform(Vec3.ZERO, new Vec3(Math.PI * 0.5, 0.0, 0.0), OperationStackRegion.origin());
+      return new WorkspaceTransform(Vec3.ZERO, new Vec3(Math.PI * 0.25, 0.0, 0.0), OperationStackRegion.origin());
    }
 
    private static WorkspaceTransform translated() {

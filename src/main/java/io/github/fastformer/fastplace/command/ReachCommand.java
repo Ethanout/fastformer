@@ -2,56 +2,29 @@ package io.github.fastformer.fastplace.command;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.settings.ReachThresholds;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.network.sync.PlayerPreviewSync;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 
-/** Configures the near threshold and the vanilla interaction attributes. */
 final class ReachCommand {
    private ReachCommand() { }
 
    static LiteralArgumentBuilder<CommandSourceStack> create() {
       return Commands.literal("reach")
-         .then(Commands.literal("close").then(Commands.argument("distance", distance()).executes(context -> {
+         .executes(context -> show(context.getSource()))
+         .then(Commands.argument("distance", IntegerArgumentType.integer()).executes(context -> {
             var player = context.getSource().getPlayerOrException();
-            return setClose(player, IntegerArgumentType.getInteger(context, "distance"));
-         })))
-         .then(Commands.literal("far").then(Commands.argument("distance", distance()).executes(context -> {
-            var player = context.getSource().getPlayerOrException();
-            return set(player, FastPlaceSettings.load(player).reachThresholds().close(), IntegerArgumentType.getInteger(context, "distance"));
-         })))
-         .then(Commands.argument("closeDistance", distance()).then(Commands.argument("farDistance", distance()).executes(context ->
-            set(context.getSource().getPlayerOrException(), IntegerArgumentType.getInteger(context, "closeDistance"),
-               IntegerArgumentType.getInteger(context, "farDistance")))))
-         .then(Commands.literal("reset").executes(context -> set(context.getSource().getPlayerOrException(),
-            ReachThresholds.DEFAULT.close(), ReachThresholds.DEFAULT.far())));
+            player.getAttribute(Attributes.BLOCK_INTERACTION_RANGE).setBaseValue(IntegerArgumentType.getInteger(context, "distance"));
+            return show(context.getSource());
+         }));
    }
 
-   private static IntegerArgumentType distance() {
-      return IntegerArgumentType.integer(0, 64);
-   }
-
-   private static int setClose(ServerPlayer player, int close) {
-      var current = FastPlaceSettings.load(player).reachThresholds();
-      FastPlaceSettings.load(player).setReachThresholds(player, new ReachThresholds(close, Math.max(close + 1, current.far())));
-      PlayerPreviewSync.syncReachSettings(player);
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.reach_status", close, player.blockInteractionRange()));
-      return 1;
-   }
-
-   private static int set(ServerPlayer player, int close, int far) {
-      if (!ReachThresholds.valid(close, far)) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.reach_invalid"));
-         return 0;
-      }
-      FastPlaceSettings.load(player).setReachThresholds(player, new ReachThresholds(close, far));
-      io.github.fastformer.fastplace.settings.PlayerReachAttributes.set(player, far);
-      PlayerPreviewSync.syncReachSettings(player);
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.reach_status", close, far));
+   private static int show(CommandSourceStack source) throws CommandSyntaxException {
+      var attribute = source.getPlayerOrException().getAttribute(Attributes.BLOCK_INTERACTION_RANGE);
+      double value = attribute.getValue(), base = attribute.getBaseValue();
+      source.sendSuccess(() -> Component.translatable("fastformer.message.block_reach", value, base), false);
       return 1;
    }
 }
