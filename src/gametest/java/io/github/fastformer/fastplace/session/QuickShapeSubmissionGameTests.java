@@ -46,7 +46,7 @@ public final class QuickShapeSubmissionGameTests {
       submit(helper, LineMode.FREE_SCROLL, true);
    }
 
-   @GameTest(template = "fastformergametests.empty", batch = "quick_shape_submission", timeoutTicks = 20000)
+   @GameTest(template = "fastformergametests.empty", batch = "quick_shape_submission_point", timeoutTicks = 20000)
    public static void ordinaryEnterWritesOnlyTheConfirmedPoint(GameTestHelper helper) {
       submit(helper, LineMode.AXIS, false);
    }
@@ -86,6 +86,7 @@ public final class QuickShapeSubmissionGameTests {
       FastPlaceManager.addPoint(player, first, first);
       FastPlaceManager.session(player).orElseThrow().setFreeScrollOffset(new BlockPos(3, 0, 0));
       helper.succeedWhen(() -> {
+         java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          if (FastPlaceManager.active(player)) {
             FastPlaceManager.fill(player);
             helper.assertFalse(FastPlaceManager.active(player), "waiting for submission admission");

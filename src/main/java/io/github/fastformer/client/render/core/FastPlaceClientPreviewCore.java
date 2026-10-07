@@ -384,8 +384,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static boolean operationActive() {
-      return PREVIEW_STATE.operation().active()
-         || ClientOperationController.active()
+      return ClientOperationController.active()
          || ClientOperationController.selectionSessionActive();
    }
 

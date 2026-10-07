@@ -96,6 +96,6 @@ final class TinkerHistoryCompactor {
       WorldChangeBatch newest = newestFirst.getFirst();
       return WorldChangeBatch.capturePairsByPos(newest.dimension(), before.values(), after)
          .map(batch -> batch.withOperationId(UUID.randomUUID())
-            .withTinker(new TinkerHistoryMetadata(newest.tinker().cluster(), actions, newest.tinker().distanceBand())));
+            .withTinker(new BlockEditHistoryMetadata(newest.tinker().cluster(), actions, newest.tinker().distanceBand())));
    }
 }

@@ -6,7 +6,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** One physical right press can pair with one later press, never with a held-key repeat. */
 final class IdleEntryGesture {
-   static final long DOUBLE_PRESS_NANOS = 250_000_000L;
+   static final long DOUBLE_PRESS_NANOS = io.github.fastformer.client.input.mouse.MouseButtonInputSemantics.ENTRY_DOUBLE_PRESS_NANOS;
    static final double MAX_VIEW_CHANGE_DEGREES = 2.0;
    static final double MAX_HIT_DISTANCE = 0.5;
    private static final double MIN_VIEW_DOT = Math.cos(Math.toRadians(MAX_VIEW_CHANGE_DEGREES));

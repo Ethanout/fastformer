@@ -66,15 +66,15 @@ public final class QuickReplaceManager {
       // A short transaction checks its own recovery result and keeps the lease
       // when a restore does not complete. Only "no change applies here" leaves
       // the world untouched and unreported.
-      ShortWriteTransaction.Outcome outcome = ShortWriteTransaction.apply(
+      BlockEditTransaction.Outcome outcome = BlockEditTransaction.apply(
          player,
          level,
          Map.of(pos, afterState),
          FastPlaceSettings.load(player).placementUpdateMode().flags(),
          PlacementUpdateMode.CLIENT_ONLY.flags()
       );
-      ShortWriteTransaction.report(outcome, player);
-      return outcome == ShortWriteTransaction.Outcome.APPLIED;
+      BlockEditTransaction.report(outcome, player);
+      return outcome == BlockEditTransaction.Outcome.APPLIED;
    }
 
    /**

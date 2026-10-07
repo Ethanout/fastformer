@@ -9,6 +9,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
@@ -29,8 +31,22 @@ public record PlacementContextSnapshot(
       Direction horizontalDirection,
       Direction verticalDirection,
       List<Direction> nearestDirections,
-      boolean secondaryUseActive
+      boolean secondaryUseActive,
+      CapturedState capturedState
 ) {
+   public record CapturedState(Item item, BlockState state) {
+      public CapturedState {
+         java.util.Objects.requireNonNull(item);
+         java.util.Objects.requireNonNull(state);
+      }
+   }
+
+   public PlacementContextSnapshot(BlockPos hitBlock, Vec3 hitLocation, Direction clickedFace,
+      boolean inside, boolean replacingClickedBlock, float rotation, Direction horizontalDirection,
+      Direction verticalDirection, List<Direction> nearestDirections, boolean secondaryUseActive) {
+      this(hitBlock, hitLocation, clickedFace, inside, replacingClickedBlock, rotation, horizontalDirection,
+         verticalDirection, nearestDirections, secondaryUseActive, null);
+   }
 
    public PlacementContextSnapshot {
       hitBlock = hitBlock.immutable();
@@ -75,6 +91,17 @@ public record PlacementContextSnapshot(
 
    public BlockPos placementPosition() {
       return replacingClickedBlock ? hitBlock : hitBlock.relative(clickedFace);
+   }
+
+   public PlacementContextSnapshot withCapturedState(Item item, BlockState state) {
+      return new PlacementContextSnapshot(hitBlock, hitLocation, clickedFace, inside, replacingClickedBlock,
+         rotation, horizontalDirection, verticalDirection, nearestDirections, secondaryUseActive, new CapturedState(item, state));
+   }
+
+   /** Double-click entry reuses the first interaction's orientation at its captured block. */
+   public PlacementContextSnapshot anchoredAt(BlockPos position) {
+      return new PlacementContextSnapshot(position, hitLocation.add(Vec3.atLowerCornerOf(position.subtract(hitBlock))),
+         clickedFace, inside, true, rotation, horizontalDirection, verticalDirection, nearestDirections, secondaryUseActive, capturedState);
    }
 
    private static boolean finite(Vec3 value) {

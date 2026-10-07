@@ -45,4 +45,23 @@ class SelectionScreenProjectionTest {
       assertTrue(group.right() > 800);
       assertTrue(group.intersects(800, 500));
    }
+
+   @Test void worldAnchorsDoNotBecomeEdgeLocators() {
+      assertNull(projection.project(new Vec3(0, 0, 10), 800, 500));
+      assertNull(projection.project(new Vec3(0, 0, -0.01), 800, 500));
+      var outside = projection.project(new Vec3(100, 0, -10), 800, 500);
+      assertNotNull(outside);
+      assertFalse(outside.onScreen());
+      assertTrue(outside.x() > 800);
+   }
+
+   @Test void cameraTranslationImmediatelyChangesAWorldAnchorProjection() {
+      var anchor = new Vec3(0, 0, -10);
+      var first = projection.project(anchor, 800, 500);
+      var moved = new SelectionScreenProjection(new Matrix4f(projection.matrix()), new Vec3(1, 0, 0));
+      var next = moved.project(anchor, 800, 500);
+      assertEquals(400, first.x(), 0.001);
+      assertTrue(next.x() < first.x());
+      assertEquals(first.y(), next.y());
+   }
 }

@@ -5,9 +5,9 @@ public record TinkerHistoryMergeLimits(int near, int middle, int far, int nearDi
    public static final TinkerHistoryMergeLimits DEFAULTS = new TinkerHistoryMergeLimits(8, 16, 32);
 
    public TinkerHistoryMergeLimits {
-      near = Math.clamp(near, 1, TinkerHistoryMetadata.MAX_LIMIT);
-      middle = Math.clamp(middle, 1, TinkerHistoryMetadata.MAX_LIMIT);
-      far = Math.clamp(far, 1, TinkerHistoryMetadata.MAX_LIMIT);
+      near = Math.clamp(near, 1, BlockEditHistoryMetadata.MAX_LIMIT);
+      middle = Math.clamp(middle, 1, BlockEditHistoryMetadata.MAX_LIMIT);
+      far = Math.clamp(far, 1, BlockEditHistoryMetadata.MAX_LIMIT);
       nearDistance = Math.clamp(nearDistance, 1, 255);
       farDistance = Math.clamp(farDistance, nearDistance + 1, 256);
    }

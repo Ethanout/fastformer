@@ -6,7 +6,7 @@ import com.mojang.serialization.Lifecycle;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.world.ShortWriteTransaction;
+import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -40,8 +40,7 @@ public final class TinkerPlanGameTests {
    public static void boundedEditsConsumeLimitsAndUseAdjacentEdges(GameTestHelper helper) {
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
       for (BlockState source : List.of(Blocks.SNOW.defaultBlockState(), Blocks.SEA_PICKLE.defaultBlockState(),
-         Blocks.TURTLE_EGG.defaultBlockState(), Blocks.WHEAT.defaultBlockState(), Blocks.BEETROOTS.defaultBlockState(),
-         Blocks.NETHER_WART.defaultBlockState(), Blocks.COCOA.defaultBlockState(), Blocks.COMPOSTER.defaultBlockState())) {
+         Blocks.TURTLE_EGG.defaultBlockState())) {
          IntegerProperty property = source.getProperties().stream().filter(IntegerProperty.class::isInstance)
             .map(IntegerProperty.class::cast).filter(value -> !value.getName().equals("hatch")).findFirst().orElseThrow();
          int low = property.getPossibleValues().stream().mapToInt(Integer::intValue).min().orElseThrow();
@@ -55,6 +54,75 @@ public final class TinkerPlanGameTests {
                state.setValue(property, Math.max(low, value - 1)));
             assertState(helper, pos, click(pos, Direction.DOWN, 0.5, 0, 0.5), false, state);
          }
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "tinker")
+   public static void cropAgesCycleFromEveryFaceWithoutChangingOtherProperties(GameTestHelper helper) {
+      var pos = helper.absolutePos(new BlockPos(2, 2, 2));
+      for (Block block : List.of(Blocks.WHEAT, Blocks.CARROTS, Blocks.POTATOES, Blocks.BEETROOTS,
+         Blocks.NETHER_WART, Blocks.COCOA,
+         Blocks.TORCHFLOWER_CROP, Blocks.PITCHER_CROP)) {
+         var source = block.defaultBlockState();
+         var age = (IntegerProperty) source.getProperties().stream().filter(property -> property.getName().equals("age"))
+            .findFirst().orElseThrow();
+         for (int value : age.getPossibleValues()) {
+            var state = source.setValue(age, value);
+            helper.getLevel().setBlock(pos, state, FLAGS);
+            for (Direction face : Direction.values()) for (boolean shift : List.of(false, true)) {
+               assertState(helper, pos, click(pos, face, 0.5, 0.5, 0.5), shift, state.cycle(age));
+            }
+         }
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "tinker")
+   public static void fruitStemsRegressAttachAndReturnToMaturity(GameTestHelper helper) {
+      var pos = helper.absolutePos(new BlockPos(2, 2, 2));
+      for (var pair : List.of(List.of(Blocks.PUMPKIN_STEM, Blocks.ATTACHED_PUMPKIN_STEM),
+         List.of(Blocks.MELON_STEM, Blocks.ATTACHED_MELON_STEM))) {
+         var mature = pair.getFirst().defaultBlockState().setValue(BlockStateProperties.AGE_7, 7);
+         for (int age = 0; age <= 7; age++) {
+            var state = mature.setValue(BlockStateProperties.AGE_7, age);
+            helper.getLevel().setBlock(pos, state, FLAGS);
+            for (Direction face : Direction.values()) {
+               BlockState expected = age < 7 ? state.setValue(BlockStateProperties.AGE_7, age == 0 ? 7 : age - 1)
+                  : face == Direction.UP ? state.setValue(BlockStateProperties.AGE_7, 6)
+                  : face.getAxis().isHorizontal() ? pair.getLast().defaultBlockState()
+                     .setValue(BlockStateProperties.HORIZONTAL_FACING, face) : state;
+               for (boolean shift : List.of(false, true)) {
+                  assertState(helper, pos, click(pos, face, 0.5, 0.5, 0.5), shift, expected);
+               }
+            }
+         }
+         for (Direction facing : Direction.Plane.HORIZONTAL) {
+            var attached = pair.getLast().defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, facing);
+            helper.getLevel().setBlock(pos, attached, FLAGS);
+            for (Direction face : Direction.values()) {
+               assertState(helper, pos, click(pos, face, 0.5, 0.5, 0.5), false, mature);
+            }
+         }
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "tinker")
+   public static void composterFinalStageEmptiesWithoutProducingItems(GameTestHelper helper) {
+      var pos = helper.absolutePos(new BlockPos(2, 2, 2));
+      var full = Blocks.COMPOSTER.defaultBlockState().setValue(BlockStateProperties.LEVEL_COMPOSTER, 8);
+      helper.getLevel().setBlock(pos, full, FLAGS);
+      for (Direction face : Direction.values()) {
+         assertState(helper, pos, click(pos, face, 0.5, 0.5, 0.5), false, Blocks.COMPOSTER.defaultBlockState());
+      }
+      for (int value = 0; value < 8; value++) {
+         var state = full.setValue(BlockStateProperties.LEVEL_COMPOSTER, value);
+         helper.getLevel().setBlock(pos, state, FLAGS);
+         assertState(helper, pos, click(pos, Direction.UP, 0.5, 1, 0.5), false,
+            state.setValue(BlockStateProperties.LEVEL_COMPOSTER, value + 1));
+         assertState(helper, pos, click(pos, Direction.NORTH, 0.5, 0.5, 0), false,
+            state.setValue(BlockStateProperties.LEVEL_COMPOSTER, Math.max(0, value - 1)));
       }
       helper.succeed();
    }
@@ -81,7 +149,7 @@ public final class TinkerPlanGameTests {
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
       for (Block block : List.of(Blocks.CAKE, Blocks.PINK_PETALS, Blocks.SWEET_BERRY_BUSH, Blocks.SNIFFER_EGG,
          Blocks.WATER_CAULDRON, Blocks.POWDER_SNOW_CAULDRON, Blocks.BEEHIVE, Blocks.RESPAWN_ANCHOR,
-         Blocks.LIGHT, Blocks.MELON_STEM, Blocks.TORCHFLOWER_CROP, Blocks.PITCHER_CROP)) {
+         Blocks.LIGHT, Blocks.TORCHFLOWER_CROP, Blocks.PITCHER_CROP)) {
          var state = block.defaultBlockState();
          var property = state.getProperties().stream().filter(IntegerProperty.class::isInstance)
             .map(IntegerProperty.class::cast).findFirst().orElseThrow();
@@ -214,7 +282,7 @@ public final class TinkerPlanGameTests {
       helper.succeedWhen(() -> {
       helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), level.dimension()), "waiting for world writer");
       helper.assertFalse(io.github.fastformer.server.input.ServerInputDispatcher.interactionBlocked(player), "waiting for history");
-      helper.assertTrue(BlockTinker.tinker(player, level, joined.changes(), FLAGS) == ShortWriteTransaction.Outcome.APPLIED, "chest join failed");
+      helper.assertTrue(BlockTinker.tinker(player, level, joined.changes(), FLAGS) == BlockEditTransaction.Outcome.APPLIED, "chest join failed");
       helper.assertTrue(((ChestBlockEntity) level.getBlockEntity(pos)).getItem(0).getCount() == 3
          && ((ChestBlockEntity) level.getBlockEntity(pos.east())).getItem(0).getCount() == 5, "chest edit lost inventory");
       var split = BlockTinker.resolveAction(level, click(pos, Direction.UP, 0.5, 1, 0.5), true);
@@ -240,7 +308,7 @@ public final class TinkerPlanGameTests {
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
       WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 5000);
-      helper.assertTrue(BlockTinker.tinker(player, level, action.changes(), FLAGS) == ShortWriteTransaction.Outcome.APPLIED, "piston transaction failed");
+      helper.assertTrue(BlockTinker.tinker(player, level, action.changes(), FLAGS) == BlockEditTransaction.Outcome.APPLIED, "piston transaction failed");
       var retract = BlockTinker.resolveAction(level, hit, false);
       helper.assertTrue(retract.changes().get(pos).equals(initial) && retract.changes().get(pos.east()).isAir(), "piston retraction changed direction or left its head");
       helper.assertTrue(retract.changes().keySet().iterator().next().equals(pos), "piston write order did not put the base first");

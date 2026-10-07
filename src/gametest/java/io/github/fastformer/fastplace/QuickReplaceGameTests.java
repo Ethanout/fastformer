@@ -33,15 +33,20 @@ public final class QuickReplaceGameTests {
       var pos = helper.absolutePos(new BlockPos(2, 3, 3));
       helper.getLevel().setBlock(pos, Blocks.STONE.defaultBlockState(), 18);
       var player = player(helper, pos, 2);
-      helper.assertTrue(!QuickReplaceManager.replaceCrosshair(player), "Inactive session wrote a block");
-      helper.assertTrue(QuickReplaceManager.setActive(player, true), "Session did not start");
-      helper.assertTrue(QuickReplaceManager.replaceCrosshair(player), "Replacement failed");
-      helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.GOLD_BLOCK), "Replacement missed its target");
-      helper.assertTrue(WorldHistoryManager.requestUndo(player, 1), "Undo was refused");
-      int[] phase = {0};
+      int[] phase = {-1};
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
          WorldHistoryManager.tickWorld(helper.getLevel().getServer());
+         if (phase[0] == -1) {
+            helper.assertTrue(!io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
+               player.getServer(), helper.getLevel().dimension()), "Waiting for the world writer");
+            helper.assertTrue(!QuickReplaceManager.replaceCrosshair(player), "Inactive session wrote a block");
+            helper.assertTrue(QuickReplaceManager.setActive(player, true), "Session did not start");
+            helper.assertTrue(QuickReplaceManager.replaceCrosshair(player), "Replacement failed");
+            helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.GOLD_BLOCK), "Replacement missed its target");
+            helper.assertTrue(WorldHistoryManager.requestUndo(player, 1), "Undo was refused");
+            phase[0] = 0;
+         }
          helper.assertTrue(!WorldHistoryManager.busy(player), "History is pending");
          if (phase[0] == 0) {
             helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.STONE), "Undo lost the original block");

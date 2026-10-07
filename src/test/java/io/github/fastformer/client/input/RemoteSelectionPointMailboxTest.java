@@ -60,6 +60,16 @@ class RemoteSelectionPointMailboxTest {
       assertFalse(ClientOperationController.selectionDraftActive());
    }
 
+   @Test void remoteCuboidContinuationAlsoIgnoresTheSecondPhysicalRightPress() {
+      receiveFirstPoint(BlockPos.ZERO);
+      var target = new OperationInteractionIntent.CreateSelection(new BlockPos(4, 5, 6));
+      assertTrue(FastPlaceClientInput.queueSelectionDraft(null, target, 1, false, 1_000_000_000L));
+      assertTrue(FastPlaceClientInput.queueSelectionDraft(null, target, 1, false, 1_100_000_000L));
+      drain(true);
+      assertEquals(List.of(OperationPointPayload.Role.SECOND), sent);
+      assertTrue(input.cuboidPointPressGuard.capture(0, 1, 1_400_000_000L));
+   }
+
    @Test void cancelledRemoteFirstPointDoesNotStealTheNextLocalDraft() {
       receiveFirstPoint(BlockPos.ZERO);
       assertTrue(ClientOperationController.cancelLastSelection());

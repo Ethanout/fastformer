@@ -34,11 +34,11 @@ public final class IdleTinkerEntryGameTests {
       var position = helper.absolutePos(new BlockPos(2, 2, 2));
       helper.getLevel().setBlock(position, Blocks.GRASS_BLOCK.defaultBlockState(), 2);
       lookDown(player, position, 2);
-      var previousWrite = io.github.fastformer.fastplace.world.ShortWriteTransaction.apply(player, helper.getLevel(),
+      var previousWrite = io.github.fastformer.fastplace.world.BlockEditTransaction.apply(player, helper.getLevel(),
          java.util.Map.of(position.east(2), Blocks.STONE.defaultBlockState()),
          io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags(),
          io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags());
-      helper.assertTrue(previousWrite == io.github.fastformer.fastplace.world.ShortWriteTransaction.Outcome.APPLIED,
+      helper.assertTrue(previousWrite == io.github.fastformer.fastplace.world.BlockEditTransaction.Outcome.APPLIED,
          "prior world edit was not recorded");
       var prior = WorldHistoryManager.latestOperationId(player);
       click(player, 501);

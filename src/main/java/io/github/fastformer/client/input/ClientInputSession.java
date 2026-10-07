@@ -5,6 +5,7 @@ import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.OperationPointDrag;
 import io.github.fastformer.client.input.gesture.PathCloseGesture;
 import io.github.fastformer.client.input.gesture.ShortPressTracker;
+import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.input.state.ModifierGestureState;
@@ -24,13 +25,18 @@ import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
 import io.github.fastformer.client.session.ClientTickMailbox;
 import io.github.fastformer.network.payload.placement.StartPlacementPayload;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import net.minecraft.core.BlockPos;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /** Transient input state owned by one player environment, never persisted with a draft. */
 public final class ClientInputSession {
    final IdleEntryGesture idleEntry = new IdleEntryGesture();
+   final RightClickInertiaGuard distantEntryPressGuard = new RightClickInertiaGuard();
+   final RightClickInertiaGuard cuboidPointPressGuard = new RightClickInertiaGuard();
    int idleEntryButton = -1;
+   boolean distantRemovalPressed;
    int idleEntrySelectionButton = -1;
    boolean entryConsumedAlt;
    IdleSelectionEntryController.Pending idleSelectionEntry;
@@ -103,7 +109,10 @@ public final class ClientInputSession {
    }
 
    public void reset() {
+      distantRemovalPressed = false;
       idleEntry.clear();
+      distantEntryPressGuard.clear();
+      cuboidPointPressGuard.clear();
       idleSelectionEntry = null;
       idleEntryButton = -1;
       idleEntrySelectionButton = -1;
@@ -154,7 +163,10 @@ public final class ClientInputSession {
    }
 
    void discardPhysicalEvents() {
+      distantRemovalPressed = false;
       idleEntry.clear();
+      distantEntryPressGuard.clear();
+      cuboidPointPressGuard.clear();
       idleSelectionEntry = null;
       idleEntryButton = -1;
       idleEntrySelectionButton = -1;
@@ -223,10 +235,19 @@ public final class ClientInputSession {
    }
 
    SelectionPointerEvent.CreatePress captureSelectionPress(SelectionDraftPress snapshot) {
+      if (snapshot.mode() == OperationSelectionMode.CUBOID
+         && !acceptCuboidPointPress(snapshot.button(), snapshot.point(), snapshot.occurredAtNanos())) return null;
       cancelSupersededSelectionPress();
       var press = this.selectionPointer.press(snapshot);
       postSelectionPointer(press);
       return press;
+   }
+
+   boolean acceptCuboidPointPress(int button, BlockPos point, long now) {
+      if (button != MouseButtonInputSemantics.RIGHT_BUTTON || point == null) return true;
+      if (cuboidPointPressGuard.capture(MouseButtonInputSemantics.PRESS, button, now)) return false;
+      cuboidPointPressGuard.arm(now);
+      return true;
    }
 
    SelectionPointerEvent.PointPress captureSelectionPress(SelectionPointPress snapshot) {

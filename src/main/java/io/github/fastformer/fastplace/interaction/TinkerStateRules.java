@@ -23,17 +23,17 @@ final class TinkerStateRules {
       if (block instanceof CandleBlock) return candle(state);
       if (block instanceof CandleCakeBlock || block instanceof CampfireBlock) return light(state);
       if (block instanceof CakeBlock) return state.cycle(BlockStateProperties.BITES);
-      if (block instanceof ComposterBlock) return adjust(state, BlockStateProperties.LEVEL_COMPOSTER, side);
+      if (block instanceof ComposterBlock) return state.getValue(BlockStateProperties.LEVEL_COMPOSTER) == 8
+         ? state.setValue(BlockStateProperties.LEVEL_COMPOSTER, 0) : adjust(state, BlockStateProperties.LEVEL_COMPOSTER, side);
       if (block instanceof PointedDripstoneBlock) return orderedThickness(state);
       if (block instanceof SweetBerryBushBlock) return state.cycle(BlockStateProperties.AGE_3);
       if (block instanceof CaveVines) return state.cycle(BlockStateProperties.BERRIES);
-      if (block instanceof StemBlock || block instanceof TorchflowerCropBlock || block instanceof PitcherCropBlock) {
+      BlockState stem = TinkerStemCycle.apply(state, hit);
+      if (stem != null) return stem;
+      if (block instanceof CropBlock || block instanceof NetherWartBlock
+         || block instanceof CocoaBlock || block instanceof PitcherCropBlock) {
          IntegerProperty age = age(state);
          return age == null ? state : state.cycle(age);
-      }
-      if (block instanceof CropBlock || block instanceof NetherWartBlock || block instanceof CocoaBlock) {
-         IntegerProperty age = age(state);
-         return age == null ? state : adjust(state, age, side);
       }
       if (block instanceof AmethystClusterBlock) return amethyst(state);
       if (block instanceof LayeredCauldronBlock) return state.cycle(BlockStateProperties.LEVEL_CAULDRON);

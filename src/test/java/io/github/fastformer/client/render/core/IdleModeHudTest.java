@@ -3,6 +3,7 @@ package io.github.fastformer.client.render.core;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.selection.SelectionToolPreference;
+import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.fastplace.geometry.GeometryPalette;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import net.minecraft.network.chat.Component;
@@ -10,6 +11,28 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import org.junit.jupiter.api.Test;
 
 class IdleModeHudTest {
+   @Test void cancellingLastPointStopsSelectionHudBeforeServerAcknowledgesExit() {
+      ClientOperationController.onDisconnected();
+      try {
+         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.network.payload.operation.OperationPreviewPayload.inactive(0));
+         ClientOperationController.onClientTick();
+         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.network.payload.operation.OperationPreviewPayload.active(
+            1L, false, true, java.util.List.of(net.minecraft.core.BlockPos.ZERO),
+            net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, OperationSelectionMode.CUBOID,
+            0, -1, 0, io.github.fastformer.fastplace.selection.OperationMode.MOVE,
+            io.github.fastformer.fastplace.selection.OperationStageMode.TRANSFORM,
+            net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO,
+            net.minecraft.world.phys.Vec3.ZERO, false, false, false));
+         assertTrue(FastPlaceClientPreviewCore.operationActive());
+         assertTrue(ClientOperationController.cancelLastSelection());
+         assertFalse(FastPlaceClientPreviewCore.operationActive());
+         assertEquals("fastformer.hud.quick_shape_label", key(FastPlaceClientPreviewCore.idleBottomStatus(false, true)));
+      } finally {
+         ClientOperationController.onDisconnected();
+         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.network.payload.operation.OperationPreviewPayload.inactive());
+      }
+   }
+
    @Test void emptyHandShowsRememberedSelectionTool() {
       var previous = SelectionToolPreference.get();
       try {

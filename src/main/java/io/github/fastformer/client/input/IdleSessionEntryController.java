@@ -23,6 +23,10 @@ final class IdleSessionEntryController {
 
    static boolean capture(Minecraft minecraft, ClientInputSession session, int action, int button,
       long now, boolean alt, boolean control) {
+      if (session.distantEntryPressGuard.capture(action, button, now)) {
+         minecraft.options.keyUse.setDown(false);
+         return true;
+      }
       if (action == MouseButtonInputSemantics.RELEASE && button == session.idleEntryButton) {
          session.idleEntryButton = -1;
          session.releaseQuickShapeButton(button);
@@ -52,7 +56,10 @@ final class IdleSessionEntryController {
       if (alt) {
          session.idleEntry.clear();
          boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry);
-         if (started) session.entryConsumedAlt = true;
+         if (started) {
+            session.entryConsumedAlt = true;
+            protectDistantEntry(session, distant, button, now);
+         }
          return started;
       }
       BlockHitResult anchor = middleEntry ? null : session.idleEntry.secondPress(now, eye, view);
@@ -83,7 +90,9 @@ final class IdleSessionEntryController {
       }
       if (distant) {
          session.idleEntry.clear();
-         return enter(minecraft, session, hit, now, control, 0, button, middleEntry);
+         boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry);
+         if (started) protectDistantEntry(session, true, button, now);
+         return started;
       }
       if (hit.getType() == HitResult.Type.BLOCK
          && NetworkRegistry.hasChannel(minecraft.getConnection(), IdleInteractionCapturePayload.TYPE.id())) {
@@ -93,6 +102,10 @@ final class IdleSessionEntryController {
          PacketDistributor.sendToServer(new IdleInteractionCapturePayload(token, hit, eye, view));
       } else session.idleEntry.clear();
       return false;
+   }
+
+   private static void protectDistantEntry(ClientInputSession session, boolean distant, int button, long now) {
+      if (distant && button == MouseButtonInputSemantics.RIGHT_BUTTON) session.distantEntryPressGuard.arm(now);
    }
 
    private static boolean enter(Minecraft minecraft, ClientInputSession session, BlockHitResult hit,

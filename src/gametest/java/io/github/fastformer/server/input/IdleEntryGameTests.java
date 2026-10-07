@@ -73,6 +73,49 @@ public final class IdleEntryGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "idle_entry", timeoutTicks = 600)
+   public static void doubleClickKeepsTheFirstPlacedStateThroughWorldAndViewChanges(GameTestHelper helper) {
+      var player = player(helper);
+      player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+      player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.OAK_STAIRS));
+      helper.succeedWhen(() -> {
+         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+         helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
+            player.getServer(), player.level().dimension()), "waiting for world writer");
+         var first = hit(player);
+         IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(105, first, player.getEyePosition(), player.getViewVector(1)));
+         var result = player.gameMode.useItemOn(player, player.serverLevel(), player.getMainHandItem(), InteractionHand.MAIN_HAND, first);
+         helper.assertTrue(result.consumesAction(), "first stair placement failed");
+         var placed = first.getBlockPos().above();
+         var expected = helper.getLevel().getBlockState(placed);
+         helper.assertTrue(expected.is(Blocks.OAK_STAIRS), "first interaction did not place stairs");
+         var second = hit(player);
+         player.setYRot(180);
+         player.setXRot(88);
+         helper.getLevel().setBlock(placed, Blocks.STONE.defaultBlockState(), 2);
+         ServerInputDispatcher.startPlacement(player, request(player, 105, second));
+         var draft = FastPlaceManager.session(player).orElseThrow();
+         var placement = draft.placementContext();
+         helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click anchor moved from the first placed block");
+         helper.assertTrue(io.github.fastformer.fastplace.placement.context.PlaceableItems.placementState(
+            player.getMainHandItem(), player, placement).orElseThrow().equals(expected), "second click recalculated the first placed state");
+         helper.assertTrue(io.github.fastformer.fastplace.placement.context.PlaceableItems.placementState(
+            new ItemStack(Items.STONE), player, placement).orElseThrow().is(Blocks.STONE), "changing material reused the old stair state");
+         var payload = new io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload(true, true, true,
+            false, false, false, io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE,
+            draft.points(), BlockPos.ZERO, placement);
+         var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+         try {
+            io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload.STREAM_CODEC.encode(buffer, payload);
+            var decoded = io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload.STREAM_CODEC.decode(buffer);
+            helper.assertTrue(decoded.value().placementContext().equals(placement), "client preview lost the captured block state");
+         } finally {
+            buffer.release();
+         }
+         FastPlaceManager.cancel(player);
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "idle_entry", timeoutTicks = 600)
    public static void changingTheHeldItemInvalidatesTheSnapshot(GameTestHelper helper) {
       var player = player(helper);
       var hit = hit(player);

@@ -53,11 +53,11 @@ class ShortTransactionRecoveryOwnershipTest {
       ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>(List.of(snapshot(pos, "before")));
 
       // An incomplete pair set stays queued, so the recovery queue owns it.
-      ShortWriteTransaction.Outcome outcome = ShortWriteTransaction.handOffRecovery(
+      BlockEditTransaction.Outcome outcome = BlockEditTransaction.handOffRecovery(
          new WorldTaskContext(null, owner), DIMENSION, before, Map.of()
       );
 
-      assertEquals(ShortWriteTransaction.Outcome.RECOVERY_PENDING, outcome);
+      assertEquals(BlockEditTransaction.Outcome.RECOVERY_PENDING, outcome);
       assertEquals(1, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
       assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
       assertTrue(outcome.consumedInteraction());
@@ -73,12 +73,12 @@ class ShortTransactionRecoveryOwnershipTest {
       ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>(List.of(snapshot(pos, "before")));
 
       // A capture without a dimension has no recovery owner.
-      ShortWriteTransaction.Outcome outcome = ShortWriteTransaction.handOffRecovery(
+      BlockEditTransaction.Outcome outcome = BlockEditTransaction.handOffRecovery(
          new WorldTaskContext(null, owner), null, before, Map.of()
       );
 
-      assertNotEquals(ShortWriteTransaction.Outcome.RECOVERY_PENDING, outcome);
-      assertEquals(ShortWriteTransaction.Outcome.RECOVERY_BLOCKED, outcome);
+      assertNotEquals(BlockEditTransaction.Outcome.RECOVERY_PENDING, outcome);
+      assertEquals(BlockEditTransaction.Outcome.RECOVERY_BLOCKED, outcome);
       assertEquals(0, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
       // The write lock and the capture stay with the caller, so another writer
       // cannot enter the half-written world.
@@ -98,12 +98,12 @@ class ShortTransactionRecoveryOwnershipTest {
       // No capture means no recovery work. The lease stays with the caller
       // because the transaction never released it.
       assertEquals(
-         ShortWriteTransaction.Outcome.RECOVERY_BLOCKED,
-         ShortWriteTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, new ArrayDeque<>(), Map.of())
+         BlockEditTransaction.Outcome.RECOVERY_BLOCKED,
+         BlockEditTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, new ArrayDeque<>(), Map.of())
       );
       assertEquals(
-         ShortWriteTransaction.Outcome.RECOVERY_BLOCKED,
-         ShortWriteTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, null, Map.of())
+         BlockEditTransaction.Outcome.RECOVERY_BLOCKED,
+         BlockEditTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, null, Map.of())
       );
       assertEquals(0, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
       assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));

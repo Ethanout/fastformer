@@ -70,10 +70,10 @@ public final class BlockTinker {
       if (action.changes().isEmpty()) return true;
       boolean wax = action.changes().entrySet().stream()
          .anyMatch(entry -> TinkerCopperCycle.addsWax(level.getBlockState(entry.getKey()), entry.getValue()));
-      var metadata = io.github.fastformer.fastplace.history.TinkerHistoryMetadata.capture(player, hit, action.changes(), settings.tinkerHistoryMergeLimits());
+      var metadata = io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromInteraction(player, hit, action.changes(), settings.tinkerHistoryMergeLimits());
       var outcome = tinker(player, level, action.changes(), settings.placementUpdateMode().flags(), metadata);
-      if (outcome == ShortWriteTransaction.Outcome.APPLIED && wax) level.levelEvent(null, 3003, hit.getBlockPos(), 0);
-      return outcome.consumedInteraction() || outcome == ShortWriteTransaction.Outcome.REJECTED_BUSY;
+      if (outcome == BlockEditTransaction.Outcome.APPLIED && wax) level.levelEvent(null, 3003, hit.getBlockPos(), 0);
+      return outcome.consumedInteraction() || outcome == BlockEditTransaction.Outcome.REJECTED_BUSY;
    }
 
    /**
@@ -83,18 +83,18 @@ public final class BlockTinker {
     * failed". A failed change reports itself here, and never continues with the
     * default game interaction as if the tinker did not apply.</p>
     */
-   static ShortWriteTransaction.Outcome tinker(
+   static BlockEditTransaction.Outcome tinker(
       ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes, int flags
    ) {
       return tinker(player, level, changes, flags, null);
    }
 
-   private static ShortWriteTransaction.Outcome tinker(ServerPlayer player, ServerLevel level,
-      Map<BlockPos, BlockState> changes, int flags, io.github.fastformer.fastplace.history.TinkerHistoryMetadata metadata) {
-      ShortWriteTransaction.Outcome outcome = ShortWriteTransaction.apply(
+   private static BlockEditTransaction.Outcome tinker(ServerPlayer player, ServerLevel level,
+      Map<BlockPos, BlockState> changes, int flags, io.github.fastformer.fastplace.history.BlockEditHistoryMetadata metadata) {
+      BlockEditTransaction.Outcome outcome = BlockEditTransaction.apply(
          player, level, changes, flags, PlacementUpdateMode.CLIENT_ONLY.flags(), metadata
       );
-      ShortWriteTransaction.report(outcome, player);
+      BlockEditTransaction.report(outcome, player);
       return outcome;
    }
 

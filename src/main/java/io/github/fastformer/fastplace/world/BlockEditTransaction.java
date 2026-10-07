@@ -17,7 +17,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 
 /**
- * Applies a small set of block changes as one short world transaction.
+ * Applies immediate block edits through the shared world transaction and history contract.
  *
  * <p>A short transaction obeys the same write contract as a large task: it
  * takes the dimension lease before the first write, captures every target, and
@@ -26,7 +26,7 @@ import org.slf4j.Logger;
  * only recovery data to the existing recovery task and keeps the lease, so the
  * world keeps a single writer and the failed positions stay recoverable.</p>
  */
-public final class ShortWriteTransaction {
+public final class BlockEditTransaction {
    private static final Logger LOGGER = LogUtils.getLogger();
 
    /** The result of one short world transaction. */
@@ -59,7 +59,7 @@ public final class ShortWriteTransaction {
       }
    }
 
-   private ShortWriteTransaction() {
+   private BlockEditTransaction() {
    }
 
    /**
@@ -79,7 +79,7 @@ public final class ShortWriteTransaction {
    }
 
    public static Outcome apply(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
-      int writeFlags, int restoreFlags, io.github.fastformer.fastplace.history.TinkerHistoryMetadata metadata) {
+      int writeFlags, int restoreFlags, io.github.fastformer.fastplace.history.BlockEditHistoryMetadata metadata) {
       if (player == null || level == null || changes == null || changes.isEmpty()) {
          return Outcome.NOT_APPLICABLE;
       }

@@ -1,6 +1,6 @@
 package io.github.fastformer.server.input;
 
-import io.github.fastformer.fastplace.world.ShortWriteTransaction;
+import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,9 +30,9 @@ record IdleTinkerSnapshot(Map<BlockPos, ReversibleBlockSnapshot> original,
 
    boolean restore(ServerPlayer player) {
       if (original.isEmpty() || original.entrySet().stream().allMatch(entry -> entry.getValue().sameContents(changed.get(entry.getKey())))) return true;
-      var outcome = ShortWriteTransaction.restore(player, player.serverLevel(), original, changed, operation);
-      ShortWriteTransaction.report(outcome, player);
-      if (outcome == ShortWriteTransaction.Outcome.APPLIED) {
+      var outcome = BlockEditTransaction.restore(player, player.serverLevel(), original, changed, operation);
+      BlockEditTransaction.report(outcome, player);
+      if (outcome == BlockEditTransaction.Outcome.APPLIED) {
          // Chunk updates normally wait until tick end. Selection must read the restored shapes before its entry reply.
          for (BlockPos position : original.keySet()) {
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket(player.serverLevel(), position));
@@ -40,6 +40,6 @@ record IdleTinkerSnapshot(Map<BlockPos, ReversibleBlockSnapshot> original,
             if (entity != null && entity.getUpdatePacket() != null) player.connection.send(entity.getUpdatePacket());
          }
       }
-      return outcome == ShortWriteTransaction.Outcome.APPLIED;
+      return outcome == BlockEditTransaction.Outcome.APPLIED;
    }
 }

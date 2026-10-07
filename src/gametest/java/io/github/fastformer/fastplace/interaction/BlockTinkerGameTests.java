@@ -6,7 +6,7 @@ import com.mojang.serialization.Lifecycle;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.history.WorldHistoryManager;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.world.ShortWriteTransaction;
+import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,6 +35,35 @@ public final class BlockTinkerGameTests {
    private static final int FLAGS = PlacementUpdateMode.CLIENT_ONLY.flags();
 
    private BlockTinkerGameTests() {}
+
+   @GameTest(template = "fastformergametests.empty", batch = "tinker")
+   public static void barrelLidTogglesOpenAndOtherFacesKeepUiUnlessSneaking(GameTestHelper helper) {
+      var level = helper.getLevel();
+      var pos = helper.absolutePos(new BlockPos(2, 2, 2));
+      for (Direction facing : Direction.values()) {
+         for (boolean open : List.of(false, true)) {
+            var state = Blocks.BARREL.defaultBlockState().setValue(BlockStateProperties.FACING, facing)
+               .setValue(BlockStateProperties.OPEN, open);
+            level.setBlock(pos, state, FLAGS);
+            for (Direction face : Direction.values()) {
+               var hit = hitAt(pos, face, 0.5, 0.5, 0.5);
+               for (boolean shift : List.of(false, true)) {
+                  var action = TinkerStructureRules.apply(level, state, hit, shift);
+                  if (face == facing) {
+                     helper.assertTrue(action.consumed() && state.cycle(BlockStateProperties.OPEN).equals(action.changes().get(pos)),
+                        "barrel lid did not toggle its open state");
+                  } else if (shift) {
+                     helper.assertTrue(action.consumed() && state.setValue(BlockStateProperties.FACING, face).equals(action.changes().get(pos)),
+                        "sneaking barrel side click did not change its facing");
+                  } else {
+                     helper.assertTrue(!action.consumed() && action.changes().isEmpty(), "barrel side click blocked its UI");
+                  }
+               }
+            }
+         }
+      }
+      helper.succeed();
+   }
 
    @GameTest(template = "fastformergametests.empty", batch = "tinker")
    public static void shapeConversionsKeepMaterialAndFollowClickedPart(GameTestHelper helper) {
@@ -164,7 +193,7 @@ public final class BlockTinkerGameTests {
       var target = new BlockHitResult(Vec3.atLowerCornerOf(pos).add(0.5, 0.75, 1), Direction.SOUTH, pos, false);
       Map<BlockPos, BlockState> changes = BlockTinker.resolve(level, target);
       helper.assertTrue(changes.get(pos).is(Blocks.OAK_STAIRS), "resolver did not change block type");
-      helper.assertTrue(BlockTinker.tinker(player, level, changes, FLAGS) == ShortWriteTransaction.Outcome.APPLIED, "tinker write failed");
+      helper.assertTrue(BlockTinker.tinker(player, level, changes, FLAGS) == BlockEditTransaction.Outcome.APPLIED, "tinker write failed");
       helper.assertTrue(WorldHistoryManager.requestUndo(player, 1), "undo request failed");
       boolean[] redo = {false};
       helper.succeedWhen(() -> {
@@ -254,7 +283,7 @@ public final class BlockTinkerGameTests {
          net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER);
       for (var cycle : List.of(
          List.of(Blocks.GRASS_BLOCK.defaultBlockState(), Blocks.DIRT_PATH.defaultBlockState(),
-            Blocks.FARMLAND.defaultBlockState().setValue(BlockStateProperties.MOISTURE, 7), Blocks.FARMLAND.defaultBlockState()),
+            Blocks.FARMLAND.defaultBlockState()),
          List.of(Blocks.SHORT_GRASS.defaultBlockState(), lower, upper))) {
          for (int index = 0; index < cycle.size(); index++) {
             level.setBlock(pos, cycle.get(index), FLAGS);
@@ -295,7 +324,7 @@ public final class BlockTinkerGameTests {
             if (face != Direction.UP) {
                helper.assertTrue(changes.isEmpty(), "farmland changed from a side or bottom click");
             } else {
-               var expected = moisture == 0 ? Blocks.GRASS_BLOCK.defaultBlockState() : Blocks.FARMLAND.defaultBlockState();
+               var expected = Blocks.GRASS_BLOCK.defaultBlockState();
                helper.assertTrue(expected.equals(changes.get(pos)), "farmland cycle ignored moisture " + moisture);
             }
          }

@@ -3,7 +3,7 @@ package io.github.fastformer.fastplace.history;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.world.ShortWriteTransaction;
+import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -45,8 +45,8 @@ public final class TinkerHistoryCompactionGameTests {
          var recent = helper.absolutePos(new BlockPos(index, 1, 1));
          level.setBlock(recent, Blocks.AIR.defaultBlockState(), flags);
          protectedPositions.add(recent);
-         helper.assertTrue(ShortWriteTransaction.apply(player, level,
-            Map.of(recent, Blocks.STONE.defaultBlockState()), flags, flags) == ShortWriteTransaction.Outcome.APPLIED,
+         helper.assertTrue(BlockEditTransaction.apply(player, level,
+            Map.of(recent, Blocks.STONE.defaultBlockState()), flags, flags) == BlockEditTransaction.Outcome.APPLIED,
             "protected ordinary edit failed");
       }
       var originalIds = WorldHistoryManager.historyOrderForTest(player.getUUID(), true);

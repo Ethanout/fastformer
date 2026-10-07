@@ -15,6 +15,7 @@ class IdleEntryGestureTest {
    private static final InteractionShapeSnapshot FULL = new InteractionShapeSnapshot(BlockPos.ZERO, List.of(new AABB(0, 0, 0, 1, 1, 1)));
 
    @Test void secondPressRequiresTheTimeWindowAndTheCapturedShape() {
+      assertEquals(200_000_000L, IdleEntryGesture.DOUBLE_PRESS_NANOS);
       var gesture = new IdleEntryGesture();
       assertNull(gesture.secondPress(100, EYE, VIEW));
       gesture.remember(1, 100, FULL, EYE, VIEW, this, null);

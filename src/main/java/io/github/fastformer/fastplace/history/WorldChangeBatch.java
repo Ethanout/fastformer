@@ -48,7 +48,7 @@ public final class WorldChangeBatch {
    private static final int MAX_CODEC_ENTRIES = 16 * 1024 * 1024;
    private final ResourceKey<Level> dimension;
    private final UUID operationId;
-   private final TinkerHistoryMetadata tinker;
+   private final BlockEditHistoryMetadata tinker;
    private final long[] positions;
    private final int denseMinX;
    private final int denseMinY;
@@ -93,7 +93,7 @@ public final class WorldChangeBatch {
       BlockEntitySnapshot[] beforeEntities,
       BlockEntitySnapshot[] afterEntities,
       int estimatedBytes,
-      TinkerHistoryMetadata tinker
+      BlockEditHistoryMetadata tinker
    ) {
       this.dimension = dimension;
       this.operationId = operationId;
@@ -476,9 +476,9 @@ public final class WorldChangeBatch {
       );
    }
 
-   TinkerHistoryMetadata tinker() { return this.tinker; }
+   BlockEditHistoryMetadata tinker() { return this.tinker; }
 
-   public WorldChangeBatch withTinker(TinkerHistoryMetadata metadata) {
+   public WorldChangeBatch withTinker(BlockEditHistoryMetadata metadata) {
       return new WorldChangeBatch(dimension, operationId, positions, denseMinX, denseMinY, denseMinZ,
          denseWidth, denseHeight, denseDepth, blockStates, fluidStates,
          beforeBlockIds, uniformBeforeBlockId, afterBlockIds, uniformAfterBlockId,
@@ -563,7 +563,7 @@ public final class WorldChangeBatch {
          beforeBlocks.ids(), beforeBlocks.uniformId(), afterBlocks.ids(), afterBlocks.uniformId(),
          beforeFluids.ids(), beforeFluids.uniformId(), afterFluids.ids(), afterFluids.uniformId(),
          beforeEntities, afterEntities, estimatedBytes,
-         root.contains("Tinker") ? TinkerHistoryMetadata.decode(root) : null
+         root.contains("Tinker") ? BlockEditHistoryMetadata.decode(root) : null
       );
    }
 

@@ -221,6 +221,7 @@ public final class WorkspaceCallbackScopeGameTests {
       boolean[] started = {false};
       RuntimeException[] phaseFailure = {null};
       helper.succeedWhen(() -> {
+         java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          if (phaseFailure[0] != null) {
             throw phaseFailure[0];
          }

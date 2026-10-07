@@ -7,6 +7,7 @@ public final class MouseButtonInputSemantics {
    public static final int LEFT_BUTTON = 0;
    public static final int RIGHT_BUTTON = 1;
    public static final int MIDDLE_BUTTON = 2;
+   public static final long ENTRY_DOUBLE_PRESS_NANOS = 200_000_000L;
 
    private MouseButtonInputSemantics() {
    }

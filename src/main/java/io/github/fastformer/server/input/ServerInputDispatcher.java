@@ -162,13 +162,18 @@ public final class ServerInputDispatcher {
          || !IdleInteractionSnapshots.validRay(player, target.eye(), target.view())) {
          return;
       }
+      var entry = target.anchorToken() > 0
+         ? IdleInteractionSnapshots.consumeEntry(player, target.anchorToken(), target.eye(), target.view()) : null;
       BlockHitResult hit = target.anchorToken() > 0
-         ? IdleInteractionSnapshots.consume(player, target.anchorToken(), target.eye(), target.view())
+         ? entry == null ? null : entry.hit()
          : LongRangeBlockRaycast.clipForPlacement(player.level(), player, target.eye(), target.view()).hit();
       if (hit != null && hit.getType() == HitResult.Type.BLOCK
          && (target.anchorToken() > 0 || sameHit(hit, target.hit()))) {
-         FastPlaceManager.beginAtInteraction(player, hit, target.eye(), target.view(),
-            target.anchorToken() > 0 || target.embedded());
+         if (entry != null && entry.placement() != null) {
+            FastPlaceManager.beginAtInteraction(player, entry.placement(), target.eye(), target.view());
+         } else {
+            FastPlaceManager.beginAtInteraction(player, hit, target.eye(), target.view(), target.embedded());
+         }
          if (target.submitAfterEntry() && FastPlaceManager.active(player)) FastPlaceManager.fillConfirmed(player);
       }
    }
@@ -184,6 +189,24 @@ public final class ServerInputDispatcher {
          return false;
       }
       return hasActiveSession(player);
+   }
+
+   public static boolean removeDistantBlock(ServerPlayer player,
+      io.github.fastformer.network.payload.placement.DistantBlockRemovePayload payload) {
+      if (!canOperate(player) || interactionBlocked(player) || !player.isCreative()
+         || !player.getMainHandItem().isEmpty() || !IdleInteractionSnapshots.idle(player)
+         || !IdleInteractionSnapshots.validRay(player, payload.eye(), payload.view())) return false;
+      var hit = LongRangeBlockRaycast.clipForSelection(player.level(), player, payload.eye(), payload.view(), payload.throughFluids()).hit();
+      if (!sameHit(hit, payload.hit()) || !LongRangeBlockRaycast.beyondInteractionRange(player, hit)) return false;
+      var level = player.serverLevel();
+      if (level.getBlockState(hit.getBlockPos()).isAir() || !level.mayInteract(player, hit.getBlockPos())) return false;
+      var settings = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player);
+      var changes = java.util.Map.of(hit.getBlockPos(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+      var metadata = io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromInteraction(player, hit, changes, settings.tinkerHistoryMergeLimits());
+      var outcome = io.github.fastformer.fastplace.world.BlockEditTransaction.apply(player, level, changes,
+         settings.placementUpdateMode().flags(), io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags(), metadata);
+      io.github.fastformer.fastplace.world.BlockEditTransaction.report(outcome, player);
+      return outcome == io.github.fastformer.fastplace.world.BlockEditTransaction.Outcome.APPLIED;
    }
 
    public static void middleClick(ServerPlayer player, BlockPos point) {

@@ -342,43 +342,11 @@ public record BuildingPreviewPayload(
    }
 
    private static PlacementContextSnapshot readPlacementContext(FriendlyByteBuf buffer) {
-      if (!buffer.readBoolean()) {
-         return null;
-      }
-      BlockPos hitBlock = buffer.readBlockPos();
-      Vec3 hitLocation = readVec3(buffer);
-      net.minecraft.core.Direction clickedFace = buffer.readEnum(net.minecraft.core.Direction.class);
-      boolean inside = buffer.readBoolean();
-      boolean replacing = buffer.readBoolean();
-      float rotation = buffer.readFloat();
-      net.minecraft.core.Direction horizontal = buffer.readEnum(net.minecraft.core.Direction.class);
-      net.minecraft.core.Direction vertical = buffer.readEnum(net.minecraft.core.Direction.class);
-      List<net.minecraft.core.Direction> nearest = new ArrayList<>(net.minecraft.core.Direction.values().length);
-      for (int index = 0; index < net.minecraft.core.Direction.values().length; index++) {
-         nearest.add(buffer.readEnum(net.minecraft.core.Direction.class));
-      }
-      boolean secondary = buffer.readBoolean();
-      return new PlacementContextSnapshot(
-         hitBlock, hitLocation, clickedFace, inside, replacing, rotation,
-         horizontal, vertical, nearest, secondary
-      );
+      return BuildingPreviewCodec.readPlacementContext(buffer);
    }
 
    private static void writePlacementContext(FriendlyByteBuf buffer, PlacementContextSnapshot snapshot) {
-      buffer.writeBoolean(snapshot != null);
-      if (snapshot == null) {
-         return;
-      }
-      buffer.writeBlockPos(snapshot.hitBlock());
-      writeVec3(buffer, snapshot.hitLocation());
-      buffer.writeEnum(snapshot.clickedFace());
-      buffer.writeBoolean(snapshot.inside());
-      buffer.writeBoolean(snapshot.replacingClickedBlock());
-      buffer.writeFloat(snapshot.rotation());
-      buffer.writeEnum(snapshot.horizontalDirection());
-      buffer.writeEnum(snapshot.verticalDirection());
-      snapshot.nearestDirections().forEach(buffer::writeEnum);
-      buffer.writeBoolean(snapshot.secondaryUseActive());
+      BuildingPreviewCodec.writePlacementContext(buffer, snapshot);
    }
 }
 

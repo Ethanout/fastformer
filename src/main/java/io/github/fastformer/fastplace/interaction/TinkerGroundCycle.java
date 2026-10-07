@@ -45,8 +45,6 @@ final class TinkerGroundCycle {
    }
 
    private static BlockState cycleCultivation(BlockState state) {
-      if (state.is(Blocks.DIRT_PATH)) return Blocks.FARMLAND.defaultBlockState().setValue(BlockStateProperties.MOISTURE, 7);
-      return state.getValue(BlockStateProperties.MOISTURE) > 0
-         ? state.setValue(BlockStateProperties.MOISTURE, 0) : Blocks.GRASS_BLOCK.defaultBlockState();
+      return state.is(Blocks.DIRT_PATH) ? Blocks.FARMLAND.defaultBlockState() : Blocks.GRASS_BLOCK.defaultBlockState();
    }
 }

@@ -335,7 +335,7 @@ public final class WorldHistoryManager {
 
    public static boolean recordTinker(ServerPlayer player, ServerLevel level,
       ArrayDeque<ReversibleBlockSnapshot> before, Map<BlockPos, ReversibleBlockSnapshot> after,
-      TinkerHistoryMetadata metadata) {
+      BlockEditHistoryMetadata metadata) {
       var batch = WorldChangeBatch.capturePairsByPos(level, before, after);
       if (batch.isEmpty()) return false;
       addBatch(player, batch.orElseThrow().withTinker(metadata));

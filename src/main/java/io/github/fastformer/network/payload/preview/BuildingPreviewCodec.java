@@ -53,9 +53,12 @@ final class BuildingPreviewCodec {
          nearest.add(buffer.readEnum(Direction.class));
       }
       boolean secondary = buffer.readBoolean();
+      var captured = buffer.readBoolean() ? new PlacementContextSnapshot.CapturedState(
+         net.minecraft.core.registries.BuiltInRegistries.ITEM.get(buffer.readResourceLocation()),
+         net.minecraft.world.level.block.Block.stateById(buffer.readVarInt())) : null;
       return new PlacementContextSnapshot(
          hitBlock, hitLocation, clickedFace, inside, replacing, rotation,
-         horizontal, vertical, nearest, secondary
+         horizontal, vertical, nearest, secondary, captured
       );
    }
 
@@ -74,5 +77,10 @@ final class BuildingPreviewCodec {
       buffer.writeEnum(snapshot.verticalDirection());
       snapshot.nearestDirections().forEach(buffer::writeEnum);
       buffer.writeBoolean(snapshot.secondaryUseActive());
+      buffer.writeBoolean(snapshot.capturedState() != null);
+      if (snapshot.capturedState() != null) {
+         buffer.writeResourceLocation(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(snapshot.capturedState().item()));
+         buffer.writeVarInt(net.minecraft.world.level.block.Block.getId(snapshot.capturedState().state()));
+      }
    }
 }

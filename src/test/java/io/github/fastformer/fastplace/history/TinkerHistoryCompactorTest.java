@@ -81,7 +81,7 @@ class TinkerHistoryCompactorTest {
          edit(BlockPos.ZERO, "0", "1", "lower", 1),
          edit(new BlockPos(2, 0, 0), "0", "1", "upper", 1),
          edit(new BlockPos(1, 1, 0), "0", "1", "upper", 1),
-         edit(BlockPos.ZERO, "0", "1", "upper", 1).withTinker(new TinkerHistoryMetadata("type", 1)),
+         edit(BlockPos.ZERO, "0", "1", "upper", 1).withTinker(new BlockEditHistoryMetadata("type", 1)),
          edit(BlockPos.ZERO, "0", "1", "upper", 1, Level.NETHER))) {
          assertTrue(TinkerHistoryCompactor.compact(withRecent(List.of(
             edit(BlockPos.ZERO, "1", "2", "upper", 1), older)), 32).isEmpty());
@@ -155,14 +155,14 @@ class TinkerHistoryCompactorTest {
 
    @Test
    void metadataRoundTripsAndRejectsInvalidCounts() throws Exception {
-      var metadata = new TinkerHistoryMetadata("north:upper:shape", 32);
+      var metadata = new BlockEditHistoryMetadata("north:upper:shape", 32);
       CompoundTag root = new CompoundTag();
       root.put("Tinker", metadata.encode());
-      assertEquals(metadata, TinkerHistoryMetadata.decode(root));
+      assertEquals(metadata, BlockEditHistoryMetadata.decode(root));
       root.getCompound("Tinker").putInt("Actions", 0);
-      assertThrows(java.io.IOException.class, () -> TinkerHistoryMetadata.decode(root));
+      assertThrows(java.io.IOException.class, () -> BlockEditHistoryMetadata.decode(root));
       root.putString("Tinker", "invalid");
-      assertThrows(java.io.IOException.class, () -> TinkerHistoryMetadata.decode(root));
+      assertThrows(java.io.IOException.class, () -> BlockEditHistoryMetadata.decode(root));
    }
 
    @Test
@@ -170,26 +170,26 @@ class TinkerHistoryCompactorTest {
       for (var band : TinkerHistoryMergeLimits.DistanceBand.values()) {
          var edits = new ArrayList<WorldChangeBatch>();
          for (int i = 40; i > 0; i--) edits.add(edit(BlockPos.ZERO, "" + (i - 1), "" + i, "same", 1)
-            .withTinker(new TinkerHistoryMetadata("same", 1, band)));
+            .withTinker(new BlockEditHistoryMetadata("same", 1, band)));
          var plan = TinkerHistoryCompactor.compact(withRecent(edits), TinkerHistoryMergeLimits.DEFAULTS).orElseThrow();
          assertEquals(TinkerHistoryMergeLimits.DEFAULTS.limit(band), plan.batch().orElseThrow().tinker().actions());
          assertEquals(band, plan.batch().orElseThrow().tinker().distanceBand());
       }
-      var near = edit(BlockPos.ZERO, "1", "2", "same", 1).withTinker(new TinkerHistoryMetadata("same", 1, TinkerHistoryMergeLimits.DistanceBand.NEAR));
-      var middle = edit(BlockPos.ZERO, "0", "1", "same", 1).withTinker(new TinkerHistoryMetadata("same", 1, TinkerHistoryMergeLimits.DistanceBand.MIDDLE));
+      var near = edit(BlockPos.ZERO, "1", "2", "same", 1).withTinker(new BlockEditHistoryMetadata("same", 1, TinkerHistoryMergeLimits.DistanceBand.NEAR));
+      var middle = edit(BlockPos.ZERO, "0", "1", "same", 1).withTinker(new BlockEditHistoryMetadata("same", 1, TinkerHistoryMergeLimits.DistanceBand.MIDDLE));
       assertTrue(TinkerHistoryCompactor.compact(withRecent(List.of(near, middle)), TinkerHistoryMergeLimits.DEFAULTS).isEmpty());
    }
 
    @Test
    void persistedBandSurvivesReloadAndOldMetadataFallsBackToFar() throws Exception {
       var root = new CompoundTag();
-      var metadata = new TinkerHistoryMetadata("same", 8, TinkerHistoryMergeLimits.DistanceBand.NEAR);
+      var metadata = new BlockEditHistoryMetadata("same", 8, TinkerHistoryMergeLimits.DistanceBand.NEAR);
       root.put("Tinker", metadata.encode());
-      assertEquals(metadata, TinkerHistoryMetadata.decode(root));
+      assertEquals(metadata, BlockEditHistoryMetadata.decode(root));
       root.getCompound("Tinker").remove("DistanceBand");
-      assertEquals(TinkerHistoryMergeLimits.DistanceBand.FAR, TinkerHistoryMetadata.decode(root).distanceBand());
+      assertEquals(TinkerHistoryMergeLimits.DistanceBand.FAR, BlockEditHistoryMetadata.decode(root).distanceBand());
       root.getCompound("Tinker").putString("DistanceBand", "invalid");
-      assertThrows(java.io.IOException.class, () -> TinkerHistoryMetadata.decode(root));
+      assertThrows(java.io.IOException.class, () -> BlockEditHistoryMetadata.decode(root));
    }
 
    private static HistoryMemoryCache cache(List<WorldChangeBatch> newestFirst) {
@@ -255,7 +255,7 @@ class TinkerHistoryCompactorTest {
       net.minecraft.resources.ResourceKey<Level> dimension) {
       var batch = WorldChangeBatch.fromPairsForTest(dimension, List.of(snapshot(position, before)),
          Map.of(position, snapshot(position, after))).orElseThrow().withOperationId(UUID.randomUUID());
-      return cluster == null ? batch : batch.withTinker(new TinkerHistoryMetadata(cluster, count));
+      return cluster == null ? batch : batch.withTinker(new BlockEditHistoryMetadata(cluster, count));
    }
 
    private static ReversibleBlockSnapshot snapshot(BlockPos position, String value) {

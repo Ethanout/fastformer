@@ -187,11 +187,14 @@ public final class FastPlaceManager {
 
    /** Explicit entry anchors point one to the captured interaction, regardless of point mode. */
    public static void beginAtInteraction(ServerPlayer player, BlockHitResult hit, Vec3 eye, Vec3 view, boolean embedded) {
+      beginAtInteraction(player, PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, embedded), eye, view);
+   }
+
+   public static void beginAtInteraction(ServerPlayer player, PlacementContextSnapshot placement, Vec3 eye, Vec3 view) {
       if (active(player)) return;
       QuickShapeDraft draft = new QuickShapeDraft();
       SESSIONS.put(player.getUUID(), draft);
       draft.setModifierHeld(modifierHeld(player));
-      var placement = PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, embedded);
       draft.capturePlacementContext(placement);
       dispatchQuickShape(player, draft, FastPlaceSettings.load(player).faceMode(),
          new QuickShapeWorkflow.Event.ConfirmPoint(placement.placementPosition(), eye, view, draft.modifierHeld()));

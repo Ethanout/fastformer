@@ -23,10 +23,8 @@ final class TinkerStructureRules {
       if (block instanceof PistonBaseBlock) return piston(level, pos, state);
       if (block instanceof ChestBlock) return shift ? chest(level, state, hit) : TinkerAction.PASS;
       if (block instanceof BarrelBlock) {
-         if (!shift) return TinkerAction.PASS;
-         BlockState changed = face == state.getValue(BlockStateProperties.FACING)
-            ? state.cycle(BlockStateProperties.OPEN) : state.setValue(BlockStateProperties.FACING, face);
-         return TinkerAction.edit(level, pos, changed);
+         if (face == state.getValue(BlockStateProperties.FACING)) return TinkerAction.edit(level, pos, state.cycle(BlockStateProperties.OPEN));
+         return shift ? TinkerAction.edit(level, pos, state.setValue(BlockStateProperties.FACING, face)) : TinkerAction.PASS;
       }
       if (block instanceof AbstractFurnaceBlock) {
          Direction facing = state.getValue(BlockStateProperties.HORIZONTAL_FACING);

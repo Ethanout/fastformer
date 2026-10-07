@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 class SelectionDraftMailboxTest {
    private ClientInputSession input;
    private ClientSelectionSession selection;
+   private long nextClickAt;
 
    @BeforeEach
    void prepare() throws ReflectiveOperationException {
@@ -33,6 +34,7 @@ class SelectionDraftMailboxTest {
    @AfterEach
    void clear() {
       this.input.reset();
+      this.nextClickAt = 1234;
       io.github.fastformer.client.operation.selection.SelectionToolPreference.set(OperationSelectionMode.CUBOID);
       ClientOperationController.clearWorkspace();
    }
@@ -52,6 +54,52 @@ class SelectionDraftMailboxTest {
       assertTrue(ClientOperationController.cancelLastSelection());
       assertFalse(ClientOperationController.selectionSessionActive());
       assertFalse(ClientOperationController.canStartSelectionDraft());
+   }
+
+   @Test
+   void cuboidDoubleClickKeepsOnlyTheFirstPointAndConsumesTheSecondRelease() {
+      var owner = this.selection.interactionOwnerId();
+      assertNotNull(this.input.captureSelectionPress(new SelectionDraftPress(owner, OperationSelectionMode.CUBOID,
+         1, BlockPos.ZERO, false, false, 1_000_000_000L)));
+      release(1);
+      assertNull(this.input.captureSelectionPress(new SelectionDraftPress(owner, OperationSelectionMode.CUBOID,
+         1, new BlockPos(2, 2, 2), false, false, 1_100_000_000L)));
+      assertTrue(this.input.cuboidPointPressGuard.capture(0, 1, 1_400_000_000L));
+      drain();
+      assertEquals(List.of(BlockPos.ZERO), this.selection.draftPoints());
+      assertFalse(this.input.selectionPointer.active());
+      assertNotNull(this.input.captureSelectionPress(new SelectionDraftPress(owner, OperationSelectionMode.CUBOID,
+         1, new BlockPos(2, 2, 2), false, false, 1_500_000_000L)));
+      release(1);
+      drain();
+      assertEquals(1, this.selection.workspace().size());
+   }
+
+   @Test
+   void cuboidProtectionLeavesMiddleAndLeftUsable() {
+      postClick(1, BlockPos.ZERO, false);
+      assertNotNull(this.input.captureSelectionPress(new SelectionDraftPress(this.selection.interactionOwnerId(),
+         OperationSelectionMode.CUBOID, 2, new BlockPos(2, 2, 2), false, false, 10_000_000L)));
+      release(2);
+      drain();
+      assertEquals(1, this.selection.workspace().size());
+      assertNotNull(this.input.captureSelectionPress(new SelectionDraftPress(this.selection.interactionOwnerId(),
+         OperationSelectionMode.CUBOID, 0, null, false, false, 20_000_000L)));
+      release(0);
+      drain();
+      assertEquals(List.of(BlockPos.ZERO), this.selection.draftPoints());
+   }
+
+   @Test
+   void smartClicksDoNotUseCuboidProtection() {
+      this.selection.setSelectionMode(OperationSelectionMode.SMART);
+      var owner = this.selection.interactionOwnerId();
+      assertNotNull(this.input.captureSelectionPress(new SelectionDraftPress(owner, OperationSelectionMode.SMART,
+         1, BlockPos.ZERO, false, false, 1)));
+      release(1);
+      assertNotNull(this.input.captureSelectionPress(new SelectionDraftPress(owner, OperationSelectionMode.SMART,
+         1, new BlockPos(2, 2, 2), false, false, 2)));
+      assertFalse(this.input.cuboidPointPressGuard.capture(1, 1, 3));
    }
 
    @Test
@@ -221,7 +269,9 @@ class SelectionDraftMailboxTest {
    }
 
    private void postClick(int button, BlockPos point, boolean alt) {
-      this.input.captureSelectionPress(snapshot(button, point, alt));
+      this.input.captureSelectionPress(new SelectionDraftPress(this.selection.interactionOwnerId(),
+         this.selection.selectionMode(), button, point, alt, true, this.nextClickAt));
+      this.nextClickAt += 300_000_000L;
       release(button);
    }
 

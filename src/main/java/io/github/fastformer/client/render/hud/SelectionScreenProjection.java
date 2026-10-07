@@ -20,6 +20,16 @@ public record SelectionScreenProjection(Matrix4f matrix, Vec3 camera) {
    }
    public record Point(double x, double y, boolean onScreen) { }
 
+   /** World labels have a fixed anchor and disappear behind the near plane instead of moving to an edge. */
+   public Point project(Vec3 point, int width, int height) {
+      Vector4f clip = clip(point);
+      if (near(clip) < 0 || clip.w <= 0.00001F) return null;
+      double x = (clip.x / clip.w + 1) * width * 0.5;
+      double y = (1 - clip.y / clip.w) * height * 0.5;
+      if (!Double.isFinite(x) || !Double.isFinite(y)) return null;
+      return new Point(x, y, x >= 0 && x <= width && y >= 0 && y <= height);
+   }
+
    private Vector4f clip(Vec3 point) {
       Vec3 relative = point.subtract(camera);
       return matrix.transform(new Vector4f((float)relative.x, (float)relative.y, (float)relative.z, 1));

@@ -369,7 +369,7 @@ class SelectionStackTest {
    private static void post(int button, BlockPos point) {
       FastPlaceClientInput.inputSession().captureSelectionPress(new SelectionDraftPress(
          ClientOperationController.interactionScene().owner(), OperationSelectionMode.CUBOID, button,
-         point, false, false, 2));
+         point, false, false, 300_000_001L));
    }
 
    private static void drain() {

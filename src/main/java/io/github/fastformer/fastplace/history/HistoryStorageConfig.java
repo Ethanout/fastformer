@@ -57,9 +57,9 @@ public final class HistoryStorageConfig {
       builder.push("defaults");
       var limits = TinkerHistoryMergeLimits.DEFAULTS;
       NEAR_LIMIT = builder.comment("Default original-action limit for close edits. Player settings take precedence.")
-         .defineInRange("nearLimit", limits.near(), 1, TinkerHistoryMetadata.MAX_LIMIT);
-      MIDDLE_LIMIT = builder.defineInRange("middleLimit", limits.middle(), 1, TinkerHistoryMetadata.MAX_LIMIT);
-      FAR_LIMIT = builder.defineInRange("farLimit", limits.far(), 1, TinkerHistoryMetadata.MAX_LIMIT);
+         .defineInRange("nearLimit", limits.near(), 1, BlockEditHistoryMetadata.MAX_LIMIT);
+      MIDDLE_LIMIT = builder.defineInRange("middleLimit", limits.middle(), 1, BlockEditHistoryMetadata.MAX_LIMIT);
+      FAR_LIMIT = builder.defineInRange("farLimit", limits.far(), 1, BlockEditHistoryMetadata.MAX_LIMIT);
       NEAR_DISTANCE = builder.comment("Default eye-to-hit boundary for close edits, in blocks.")
          .defineInRange("nearDistance", limits.nearDistance(), 1, 255);
       FAR_DISTANCE = builder.comment("Default boundary between middle and far edits. Must exceed nearDistance.")

@@ -109,6 +109,10 @@ public final class FastPlaceNetwork {
          (payload, context) -> context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player) ServerInputDispatcher.tinker(player, payload);
          }));
+      registrar.playToServer(DistantBlockRemovePayload.TYPE, DistantBlockRemovePayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player) ServerInputDispatcher.removeDistantBlock(player, payload);
+         }));
       registrar.playToServer(IdleSelectionEntryPayload.TYPE, IdleSelectionEntryPayload.STREAM_CODEC,
          (payload, context) -> context.enqueueWork(() -> {
             if (!(context.player() instanceof ServerPlayer player)) return;
