@@ -21,9 +21,9 @@ final class TinkerStemCycle {
          if (state.is(family.attached())) return mature(family.stem().defaultBlockState());
          if (!state.is(family.stem())) continue;
          int age = state.getValue(BlockStateProperties.AGE_7);
-         if (age < 7) return state.setValue(BlockStateProperties.AGE_7, age == 0 ? 7 : age - 1);
+         if (age < 7) return state.setValue(BlockStateProperties.AGE_7, age + 1);
          Direction side = TinkerSurfaceHit.sideOperation(hit);
-         if (side == Direction.UP) return state.setValue(BlockStateProperties.AGE_7, 6);
+         if (side == Direction.UP) return state.setValue(BlockStateProperties.AGE_7, 0);
          if (side.getAxis().isHorizontal()) {
             return family.attached().defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, side);
          }

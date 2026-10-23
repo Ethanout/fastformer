@@ -22,6 +22,7 @@ final class IdleDistantBlockRemoval {
       var player = minecraft.player;
       if (action != MouseButtonInputSemantics.PRESS || session.routing.state() != ClientInputStateMachine.State.IDLE
          || player == null || !player.isCreative() || !player.getMainHandItem().isEmpty()
+         || !io.github.fastformer.client.interaction.ClientInteractionUpdates.distantBlockRemoval(player)
          || !FastPlaceClientPreview.enabled() || minecraft.getCameraEntity() != player
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), DistantBlockRemovePayload.TYPE.id())) return false;
       if (!alt && minecraft.hitResult != null && minecraft.hitResult.getType() == net.minecraft.world.phys.HitResult.Type.ENTITY) return false;

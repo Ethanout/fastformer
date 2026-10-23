@@ -40,7 +40,7 @@ public final class QuickReplaceManager {
       if (player == null) return false;
       forget(player.getUUID());
       if (!active) return false;
-      if (!ServerInputDispatcher.canOperate(player) || WorldHistoryManager.busy(player)
+      if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player) || WorldHistoryManager.busy(player)
          || FastPlaceManager.active(player) || OperationManager.active(player) || GeometryManager.active(player)
          || FastPlaceManager.taskActive(player) || OperationManager.taskActive(player)) return false;
       ACTIVE.add(player.getUUID());
@@ -87,6 +87,7 @@ public final class QuickReplaceManager {
          && active(player)
          && !WorldHistoryManager.busy(player)
          && ServerInputDispatcher.canOperate(player)
+         && !ServerInputDispatcher.interactionBlocked(player)
          && !FastPlaceManager.active(player)
          && !OperationManager.active(player)
          && !GeometryManager.active(player)

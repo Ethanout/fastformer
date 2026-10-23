@@ -32,7 +32,7 @@ class SettingsPayloadTest {
          new OpenSettingsPayload(
             false, FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
             OperationConflictMode.KEEP_EXISTING, PlacementUpdateMode.CLIENT_ONLY,
-            List.of(woodFrame), true, false, 300, 120, new TinkerHistoryMergeLimits(8, 16, 48, 7, 25)
+            List.of(woodFrame), true, false, 300, 120, new TinkerHistoryMergeLimits(8, 16, 48, 7, 25), false, false
          )
       );
       OpenSettingsPayload open = OpenSettingsPayload.STREAM_CODEC.decode(openBuffer);
@@ -43,6 +43,8 @@ class SettingsPayloadTest {
       assertEquals(List.of(woodFrame), open.enabledPlacementEffects());
       assertEquals(true, open.emptyHandWrench());
       assertEquals(false, open.fallingDisabled());
+      assertEquals(false, open.skipRepeatedCropStages());
+      assertEquals(false, open.distantBlockRemoval());
       assertEquals(300, open.worldUndoHistoryLimit());
       assertEquals(120, open.sessionUndoHistoryLimit());
       assertEquals(new TinkerHistoryMergeLimits(8, 16, 48, 7, 25), open.tinkerHistoryMergeLimits());

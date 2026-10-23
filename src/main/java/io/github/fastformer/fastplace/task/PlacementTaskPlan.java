@@ -17,8 +17,13 @@ public record PlacementTaskPlan(
    OperationConflictMode conflictMode,
    PlacementUpdateMode updateMode,
    int maxPlacement,
-   ResourceKey<Level> dimension
+   ResourceKey<Level> dimension,
+   boolean airOnly
 ) {
+   public PlacementTaskPlan(BlockState defaultState, Function<Set<BlockPos>, Map<BlockPos, BlockState>> stateResolver,
+      OperationConflictMode conflictMode, PlacementUpdateMode updateMode, int maxPlacement, ResourceKey<Level> dimension) {
+      this(defaultState, stateResolver, conflictMode, updateMode, maxPlacement, dimension, false);
+   }
    public PlacementTaskPlan {
       if (conflictMode == null || updateMode == null || dimension == null) {
          throw new IllegalArgumentException("A placement task plan requires policies and dimension");

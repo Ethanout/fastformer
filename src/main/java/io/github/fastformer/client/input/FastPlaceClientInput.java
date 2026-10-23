@@ -178,6 +178,19 @@ public final class FastPlaceClientInput {
          && minecraft.options.keySwapOffhand.matches(input.key(), input.scanCode())) {
          minecraft.options.keySwapOffhand.consumeClick();
       }
+      if (minecraft.screen == null
+         && minecraft.options.keySwapOffhand.matches(input.key(), input.scanCode())
+         && (inputSession().smartFill().active()
+            || !input.controlDown() && vanillaSession() && !QuickReplaceMode.active() && inputSession().smartFill().canStart(minecraft))) {
+         while (minecraft.options.keySwapOffhand.consumeClick()) { }
+         if (input.action() == 1 && !inputSession().smartFill().active()) {
+            inputSession().smartFill().start(minecraft);
+            synchronizeInputState();
+            // The request already owns this press. A fast preview reply must not
+            // turn the queued copy of the same press into confirmation.
+            return;
+         }
+      }
       if (input.action() == 1 && (input.key() == 257 || input.key() == 335)) {
          input = input.withQuickShapeSubmission(FastPlaceClientPreview.buildingSubmission().orElse(null));
       }
@@ -227,6 +240,11 @@ public final class FastPlaceClientInput {
          return;
       }
       ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY);
+      if (inputSession().smartFill().handleKey(minecraft, event,
+         inputRoute == ClientInputStateMachine.Dispatch.VANILLA && !QuickReplaceMode.active())) {
+         synchronizeInputState();
+         return;
+      }
       boolean buildingSession = inputRoute == ClientInputStateMachine.Dispatch.BUILDING;
       boolean geometrySession = inputRoute == ClientInputStateMachine.Dispatch.GEOMETRY;
       boolean operationSession = inputRoute == ClientInputStateMachine.Dispatch.OPERATION;
@@ -363,6 +381,11 @@ public final class FastPlaceClientInput {
    private static boolean cancelActiveSession(
       Minecraft minecraft, boolean dismissOperationRestore, boolean dismissPreviewRestore
    ) {
+      if (inputSession().smartFill().active()) {
+         inputSession().smartFill().cancel(minecraft);
+         synchronizeInputState();
+         return true;
+      }
       boolean cancellingQuickShape = inputSession().quickShapeSubmission.active()
          || inputSession().ownsQuickShapeStart()
          || inputSession().routing.ownsQuickShapeSubmission();
@@ -551,8 +574,6 @@ public final class FastPlaceClientInput {
       if (event.isUseItem() && event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
          && minecraft.player != null) {
          boolean accepted = ClientForcedPlacement.accept(minecraft.player);
-         if (accepted && minecraft.hitResult instanceof BlockHitResult hit
-            && ClientForcedPlacement.consumes(minecraft.player, event.getHand(), hit)) predictForcedInteraction(minecraft, hit);
          if (!accepted && minecraft.hitResult instanceof BlockHitResult hit
             && ClientForcedPlacement.consumes(minecraft.player, event.getHand(), hit)) {
             event.setSwingHand(false);
@@ -1134,26 +1155,9 @@ public final class FastPlaceClientInput {
       IdleSelectionEntryController.receive(Minecraft.getInstance(), inputSession(), payload);
    }
 
-   public static void capturePlacedInteraction(BlockPos position) {
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.player == null || minecraft.level == null || !vanillaSession()) return;
-      var gesture = inputSession().idleEntry;
-      gesture.validate(minecraft.level, minecraft.player.getMainHandItem());
-      gesture.placed(System.nanoTime(), io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot.capture(minecraft.level, position));
-   }
-
-   private static void predictForcedInteraction(Minecraft minecraft, BlockHitResult hit) {
-      var gesture = inputSession().idleEntry;
-      if (gesture.token() == 0) return;
-      var context = io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot.capture(
-         minecraft.level, minecraft.player, minecraft.player.getMainHandItem(), hit, false);
-      var state = PlaceableItems.placementState(minecraft.player.getMainHandItem(), minecraft.player, context).orElse(null);
-      if (state != null) gesture.placed(System.nanoTime(), new io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot(
-         context.placementPosition(), state.getShape(minecraft.level, context.placementPosition()).toAabbs()));
-   }
-
    public static boolean vanillaSession() {
       return inputSession().routing.state() == ClientInputStateMachine.State.IDLE
+         && !inputSession().smartFill().active()
          && !inputSession().ownsQuickShapeStart()
          && !ClientOperationController.active() && !ClientOperationController.selectionSessionActive()
          && !FastPlaceClientPreview.active() && !FastPlaceClientPreview.operationActive()
@@ -1508,6 +1512,7 @@ public final class FastPlaceClientInput {
         return;
       }
       io.github.fastformer.network.client.ClientPayloadDispatcher.onClientTick();
+      inputSession().smartFill().tick(minecraft);
       inputSession().drainSubmissionEvents();
       IdleSelectionEntryController.dispatch(minecraft, inputSession());
       drainQueuedInput(minecraft);
@@ -1748,7 +1753,7 @@ public final class FastPlaceClientInput {
    }
 
    private static boolean activeSession() {
-      return QuickReplaceMode.active() || FastPlaceClientPreview.active()
+      return inputSession().smartFill().active() || QuickReplaceMode.active() || FastPlaceClientPreview.active()
          || FastPlaceClientPreview.operationActive()
          || FastPlaceClientPreview.geometryActive();
    }
@@ -1778,8 +1783,14 @@ public final class FastPlaceClientInput {
          ClientOperationController.operationSelectionConfirmed(),
          FastPlaceClientPreview.geometryActive(),
          FastPlaceClientPreview.active(),
-         QuickReplaceMode.active()
+         QuickReplaceMode.active(),
+         inputSession().smartFill().active()
       );
+   }
+
+   public static void receiveSmartFill(io.github.fastformer.network.payload.preview.SmartFillPreviewPayload payload) {
+      inputSession().smartFill().receive(payload);
+      synchronizeInputState();
    }
 
    private static OperationInteractionIntent pointerIntent() {

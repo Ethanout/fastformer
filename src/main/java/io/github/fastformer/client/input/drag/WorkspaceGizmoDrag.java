@@ -24,7 +24,7 @@ public record WorkspaceGizmoDrag(
    List<ClientSelectionPart> baseline,
    ClientOperationWorkspace.EditToken editToken,
    double rotationRadians,
-   boolean quarterSnap
+   boolean freeRotation
 ) implements SelectionDrag {
    public WorkspaceGizmoDrag {
       baseline = List.copyOf(baseline);
@@ -47,7 +47,7 @@ public record WorkspaceGizmoDrag(
    public WorkspaceGizmoDrag withSentSteps(int value) {
       return new WorkspaceGizmoDrag(
          partId, common, operation, axis, origin, axisVector, value, center, startRadial,
-         startTangent, direction, capture, baseline, editToken, rotationRadians, quarterSnap
+         startTangent, direction, capture, baseline, editToken, rotationRadians, freeRotation
       );
    }
 

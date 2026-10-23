@@ -182,6 +182,10 @@ public final class ClientPayloadDispatcher {
       EVENTS.post(new PendingPayload(payload, connection));
    }
 
+   public static void applySmartFill(io.github.fastformer.network.payload.preview.SmartFillPreviewPayload payload, Connection connection) {
+      EVENTS.post(new PendingPayload(payload, connection));
+   }
+
    public static void applyWorldHistoryEvent(io.github.fastformer.network.payload.world.WorldHistoryEventPayload payload, Connection connection) {
       EVENTS.post(new PendingPayload(payload, connection));
    }
@@ -193,6 +197,11 @@ public final class ClientPayloadDispatcher {
    private static void deliver(PendingPayload event) {
       Connection connection = event.connection();
       switch (event.payload()) {
+         case io.github.fastformer.network.payload.preview.SmartFillPreviewPayload payload -> {
+            if (ClientSessionManager.instance().acceptsPreviewCallback(payload.callbackScope(), connection)) invokeStatic(
+               "io.github.fastformer.client.input.FastPlaceClientInput", "receiveSmartFill",
+               io.github.fastformer.network.payload.preview.SmartFillPreviewPayload.class, payload);
+         }
          case io.github.fastformer.network.payload.world.WorldHistoryEventPayload payload -> {
             if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
                "io.github.fastformer.client.operation.controller.ClientOperationController", "applyWorldHistoryEvent",
@@ -263,7 +272,9 @@ public final class ClientPayloadDispatcher {
             boolean.class,
             int.class,
             int.class,
-            io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits.class
+            io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits.class,
+            boolean.class,
+            boolean.class
          ).invoke(
             null,
             payload.middleConfirmEnabled(),
@@ -275,7 +286,9 @@ public final class ClientPayloadDispatcher {
             payload.fallingDisabled(),
             payload.worldUndoHistoryLimit(),
             payload.sessionUndoHistoryLimit(),
-            payload.tinkerHistoryMergeLimits()
+            payload.tinkerHistoryMergeLimits(),
+            payload.skipRepeatedCropStages(),
+            payload.distantBlockRemoval()
          );
       } catch (ReflectiveOperationException exception) {
          throw new IllegalStateException("Unable to open FastFormer settings", exception);

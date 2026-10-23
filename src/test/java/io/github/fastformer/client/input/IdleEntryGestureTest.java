@@ -33,16 +33,16 @@ class IdleEntryGestureTest {
       assertNotNull(gesture.secondPress(200, EYE.subtract(0, 0.5, 0), VIEW));
    }
 
-   @Test void viewChangeRejectsAnotherWrenchClickEvenOnTheSameShape() {
+   @Test void closeHitsAllowViewChangeBeyondTheAngleThreshold() {
       var gesture = new IdleEntryGesture();
       gesture.remember(1, 100, FULL, EYE, VIEW, this, null);
       var nearbyView = horizontalView(1.9);
       var changedView = horizontalView(2.1);
       assertNotNull(FULL.clip(EYE, changedView));
       assertNotNull(gesture.secondPress(200, EYE, nearbyView));
-      assertNull(gesture.secondPress(200, EYE, changedView));
+      assertNotNull(gesture.secondPress(200, EYE, changedView));
       gesture.update(1, FULL);
-      assertNull(gesture.secondPress(200, EYE, changedView));
+      assertNotNull(gesture.secondPress(200, EYE, changedView));
    }
 
    @Test void floatingDoesNotCountAsViewMovement() {
@@ -52,14 +52,14 @@ class IdleEntryGestureTest {
       assertNull(gesture.secondPress(200, EYE.add(2, 0, 0), VIEW));
    }
 
-   @Test void hitDistanceIsRequiredEvenWithoutViewRotation() {
+   @Test void stableViewAllowsHitMovementBeyondThePositionThreshold() {
       var gesture = new IdleEntryGesture();
       var eye = new Vec3(0.1, 0.75, -2);
       gesture.remember(1, 100, FULL, eye, VIEW, this, null);
       assertNotNull(gesture.secondPress(200, eye.add(0.5, 0, 0), VIEW));
       var shifted = eye.add(0.501, 0, 0);
       assertNotNull(FULL.clip(shifted, VIEW));
-      assertNull(gesture.secondPress(200, shifted, VIEW));
+      assertNotNull(gesture.secondPress(200, shifted, VIEW));
    }
 
    @Test void replacementShapeReprojectsTheFirstRayBeforeComparingHits() {
@@ -78,7 +78,7 @@ class IdleEntryGestureTest {
       gesture.remember(2, 100, FULL, EYE, VIEW, this, null);
       var pitched = new Vec3(0, -Math.sin(Math.toRadians(3)), Math.cos(Math.toRadians(3)));
       assertNotNull(FULL.clip(EYE, pitched));
-      assertNull(gesture.secondPress(200, EYE, pitched));
+      assertNotNull(gesture.secondPress(200, EYE, pitched));
    }
 
    private static Vec3 horizontalView(double degrees) {
@@ -86,15 +86,14 @@ class IdleEntryGestureTest {
       return new Vec3(Math.sin(angle), 0, Math.cos(angle));
    }
 
-   @Test void wrenchDoubleClickUsesTheChangedShapeAndKeepsItsRestoreIntent() {
-      var slab = new InteractionShapeSnapshot(BlockPos.ZERO, List.of(new AABB(0, 0, 0, 1, 0.5, 1)));
+   @Test void wrenchDoubleClickKeepsTheOriginalShapeAndItsRestoreIntent() {
       var gesture = new IdleEntryGesture();
-      gesture.rememberTinker(3, 100, FULL, slab, EYE.subtract(0, 0.5, 0), VIEW, this, null);
+      gesture.rememberTinker(3, 100, FULL, EYE.subtract(0, 0.5, 0), VIEW, this, null);
       assertTrue(gesture.tinker());
-      assertNull(gesture.secondPress(200, EYE, VIEW));
+      assertNotNull(gesture.secondPress(200, EYE, VIEW));
       assertNotNull(gesture.secondPress(200, EYE.subtract(0, 0.5, 0), VIEW));
       gesture.update(2, FULL);
-      assertNull(gesture.secondPress(200, EYE, VIEW));
+      assertNotNull(gesture.secondPress(200, EYE, VIEW));
       gesture.clear();
       assertFalse(gesture.tinker());
       assertNull(gesture.secondPress(200, EYE, VIEW));
@@ -109,6 +108,16 @@ class IdleEntryGestureTest {
       gesture.update(2, FULL);
       assertNull(gesture.secondPress(200, EYE, VIEW));
       assertEquals(0, gesture.token());
+   }
+
+   @Test void rejectsWhenBothAngleAndHitDistanceExceedTheirThresholds() {
+      var gesture = new IdleEntryGesture();
+      var eye = new Vec3(0.1, 0.75, -2);
+      gesture.remember(1, 100, FULL, eye, VIEW, this, null);
+      var secondEye = eye.add(0.5, 0, 0);
+      var secondView = horizontalView(5);
+      assertNotNull(FULL.clip(secondEye, secondView));
+      assertNull(gesture.secondPress(200, secondEye, secondView));
    }
 
    @Test void movedSnapshotRemainsIndependentOfWorldAndHasNoDistanceHandoff() {

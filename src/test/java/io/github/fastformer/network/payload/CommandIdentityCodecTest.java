@@ -78,7 +78,7 @@ class CommandIdentityCodecTest {
       try {
          var request = new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, true);
          var response = new FallingStatePayload(false, false);
-         var interaction = new InteractionUpdatesPayload(true, false, true);
+         var interaction = new InteractionUpdatesPayload(true, false, true, false, false);
          SettingsActionPayload.STREAM_CODEC.encode(buffer, request);
          FallingStatePayload.STREAM_CODEC.encode(buffer, response);
          InteractionUpdatesPayload.STREAM_CODEC.encode(buffer, interaction);

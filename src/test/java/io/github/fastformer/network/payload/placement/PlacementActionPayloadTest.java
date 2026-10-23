@@ -77,10 +77,29 @@ class PlacementActionPayloadTest {
       assertEquals(target.anchorToken(), decoded.target().anchorToken());
       assertEquals(target.embedded(), decoded.target().embedded());
       assertEquals(target.submitAfterEntry(), decoded.target().submitAfterEntry());
+      assertEquals(target.throughFluids(), decoded.target().throughFluids());
       assertEquals(target.hit().getBlockPos(), decoded.target().hit().getBlockPos());
       assertEquals(target.hit().getLocation(), decoded.target().hit().getLocation());
       assertEquals(target.eye(), decoded.target().eye());
       assertEquals(target.view(), decoded.target().view());
+   }
+
+   @Test
+   void surfaceEntryCanPassThroughFluidsWithoutEmbedding() {
+      var scope = new OperationCallbackScope(UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID());
+      var target = new StartPlacementPayload.Target(7, scope,
+         new BlockHitResult(Vec3.ZERO, Direction.UP, BlockPos.ZERO, false), Vec3.ZERO, new Vec3(0, 0, 1),
+         0, false, false, true);
+      var buffer = new FriendlyByteBuf(Unpooled.buffer());
+      try {
+         StartPlacementPayload.STREAM_CODEC.encode(buffer, new StartPlacementPayload(10, target));
+         var decoded = StartPlacementPayload.STREAM_CODEC.decode(buffer).target();
+         assertEquals(true, decoded.throughFluids());
+         assertEquals(false, decoded.embedded());
+         assertEquals(false, decoded.submitAfterEntry());
+      } finally {
+         buffer.release();
+      }
    }
 
    @Test

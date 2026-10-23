@@ -42,7 +42,12 @@ public record StartPlacementPayload(long requestId, Target target) implements Cu
 
    /** The inactive preview identity and exact raycast target captured by the client. */
    public record Target(long revision, OperationCallbackScope callbackScope,
-      BlockHitResult hit, Vec3 eye, Vec3 view, long anchorToken, boolean embedded, boolean submitAfterEntry) {
+      BlockHitResult hit, Vec3 eye, Vec3 view, long anchorToken, boolean embedded, boolean submitAfterEntry,
+      boolean throughFluids) {
+      public Target(long revision, OperationCallbackScope scope, BlockHitResult hit, Vec3 eye, Vec3 view,
+         long anchorToken, boolean embedded, boolean submitAfterEntry) {
+         this(revision, scope, hit, eye, view, anchorToken, embedded, submitAfterEntry, false);
+      }
       public Target(long revision, OperationCallbackScope scope, BlockHitResult hit, Vec3 eye, Vec3 view) {
          this(revision, scope, hit, eye, view, 0, false, false);
       }
@@ -73,7 +78,7 @@ public record StartPlacementPayload(long requestId, Target target) implements Cu
          Vec3 eye = buffer.readVec3();
          Vec3 view = buffer.readVec3();
          return new Target(revision, scope, new BlockHitResult(location, direction, position, inside), eye, view,
-            buffer.readVarLong(), buffer.readBoolean(), buffer.readBoolean());
+            buffer.readVarLong(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean());
       }
 
       private void write(FriendlyByteBuf buffer) {
@@ -88,6 +93,7 @@ public record StartPlacementPayload(long requestId, Target target) implements Cu
          buffer.writeVarLong(anchorToken);
          buffer.writeBoolean(embedded);
          buffer.writeBoolean(submitAfterEntry);
+         buffer.writeBoolean(throughFluids);
       }
 
       private static BlockHitResult immutable(BlockHitResult hit) {

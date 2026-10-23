@@ -14,6 +14,24 @@ import org.junit.jupiter.api.Test;
 
 class ClientOperationWorkspaceTest {
    @Test
+   void inPlaceDuplicatesAreSelectedAndUndoAsOneOperation() {
+      var workspace = new ClientOperationWorkspace();
+      workspace.addParts(List.of(part(1), part(2)));
+      workspace.selectAll();
+      var originals = List.copyOf(workspace.parts());
+      workspace.clearHistory();
+      assertTrue(workspace.addParts(workspace.selectedParts().stream().map(ClientSelectionPart::duplicate).toList()));
+      assertEquals(4, workspace.size());
+      assertEquals(Set.of(3, 4), workspace.selectedIds());
+      assertEquals(originals.get(0).transform(), workspace.part(3).orElseThrow().transform());
+      assertEquals(originals.get(1).transform(), workspace.part(4).orElseThrow().transform());
+      assertEquals(1, workspace.undoSize());
+      assertTrue(workspace.undo());
+      assertEquals(originals, workspace.parts());
+      assertEquals(Set.of(1, 2), workspace.selectedIds());
+   }
+
+   @Test
    void allocatesUnlimitedSlotsAndReusesTheSmallestHoleWithoutRenumbering() {
       ClientOperationWorkspace workspace = new ClientOperationWorkspace();
       for (int index = 1; index <= 10; index++) {

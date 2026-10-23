@@ -82,10 +82,12 @@ public final class ServerInputDispatcher {
    static boolean interactionBlocked(UUID owner) {
       return FastPlaceManager.taskActive(owner)
          || OperationManager.taskActive(owner)
+         || io.github.fastformer.server.session.SmartFillManager.active(owner)
          || WorldHistoryManager.busy(owner);
    }
 
    public static void stopBecauseUnavailable(ServerPlayer player) {
+      io.github.fastformer.server.session.SmartFillManager.cancel(player);
       boolean taskWasActive = FastPlaceManager.taskActive(player) || OperationManager.taskActive(player);
       FastPlaceManager.cancel(player);
       FastPlaceManager.cancelTask(player);
@@ -166,7 +168,7 @@ public final class ServerInputDispatcher {
          ? IdleInteractionSnapshots.consumeEntry(player, target.anchorToken(), target.eye(), target.view()) : null;
       BlockHitResult hit = target.anchorToken() > 0
          ? entry == null ? null : entry.hit()
-         : LongRangeBlockRaycast.clipForPlacement(player.level(), player, target.eye(), target.view()).hit();
+         : io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, target.eye(), target.view(), target.throughFluids());
       if (hit != null && hit.getType() == HitResult.Type.BLOCK
          && (target.anchorToken() > 0 || sameHit(hit, target.hit()))) {
          if (entry != null && entry.placement() != null) {
@@ -201,6 +203,7 @@ public final class ServerInputDispatcher {
       var level = player.serverLevel();
       if (level.getBlockState(hit.getBlockPos()).isAir() || !level.mayInteract(player, hit.getBlockPos())) return false;
       var settings = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player);
+      if (!settings.distantBlockRemoval()) return false;
       var changes = java.util.Map.of(hit.getBlockPos(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
       var metadata = io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromInteraction(player, hit, changes, settings.tinkerHistoryMergeLimits());
       var outcome = io.github.fastformer.fastplace.world.BlockEditTransaction.apply(player, level, changes,
@@ -576,24 +579,12 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean fill(ServerPlayer player) {
+      if (io.github.fastformer.server.session.SmartFillManager.active(player)) return true;
       if (interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
-      BlockHitResult hit = raycastBlocks(player, EXTENDED_REACH);
-      if (IdleInteractionSnapshots.idle(player)) {
-         return false;
-      }
-      if (PlaceableItems.isPlaceable(player.getMainHandItem()) && !GeometryManager.active(player) && !OperationManager.active(player) && !FastPlaceManager.active(player)) {
-         if (hit.getType() == HitResult.Type.BLOCK) {
-            if (!FastPlaceManager.fillBoundedPlane(player, hit.getBlockPos().relative(hit.getDirection()), hit.getDirection().getAxis())) {
-               FastPlaceManager.cycleFillMode(player);
-            }
-         } else {
-            FastPlaceManager.cycleFillMode(player);
-         }
-      } else {
-         FastPlaceManager.cycleFillMode(player);
-      }
+      if (!FastPlaceManager.active(player) || GeometryManager.active(player) || OperationManager.active(player)) return false;
+      FastPlaceManager.cycleFillMode(player);
       return true;
    }
 
@@ -921,6 +912,10 @@ public final class ServerInputDispatcher {
    }
 
    public static void quit(ServerPlayer player) {
+      if (io.github.fastformer.server.session.SmartFillManager.active(player)) {
+         io.github.fastformer.server.session.SmartFillManager.cancel(player);
+         return;
+      }
       if (FastPlaceManager.active(player)
          || OperationManager.active(player)
          || GeometryManager.active(player)

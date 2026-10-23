@@ -61,8 +61,7 @@ public final class TinkerPlanGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "tinker")
    public static void cropAgesCycleFromEveryFaceWithoutChangingOtherProperties(GameTestHelper helper) {
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
-      for (Block block : List.of(Blocks.WHEAT, Blocks.CARROTS, Blocks.POTATOES, Blocks.BEETROOTS,
-         Blocks.NETHER_WART, Blocks.COCOA,
+      for (Block block : List.of(Blocks.WHEAT, Blocks.BEETROOTS, Blocks.COCOA, Blocks.SWEET_BERRY_BUSH,
          Blocks.TORCHFLOWER_CROP, Blocks.PITCHER_CROP)) {
          var source = block.defaultBlockState();
          var age = (IntegerProperty) source.getProperties().stream().filter(property -> property.getName().equals("age"))
@@ -79,7 +78,32 @@ public final class TinkerPlanGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "tinker")
-   public static void fruitStemsRegressAttachAndReturnToMaturity(GameTestHelper helper) {
+   public static void repeatedCropModelsAdvanceToTheNextVisibleStage(GameTestHelper helper) {
+      var pos = helper.absolutePos(new BlockPos(2, 2, 2));
+      Map<Block, List<Integer>> expectedByAge = Map.of(
+         Blocks.CARROTS, List.of(2, 2, 4, 4, 7, 7, 7, 0),
+         Blocks.POTATOES, List.of(2, 2, 4, 4, 7, 7, 7, 0),
+         Blocks.NETHER_WART, List.of(1, 3, 3, 0));
+      for (var entry : expectedByAge.entrySet()) {
+         var source = entry.getKey().defaultBlockState();
+         var age = (IntegerProperty) source.getBlock().getStateDefinition().getProperty("age");
+         for (int value : age.getPossibleValues()) {
+            var state = source.setValue(age, value);
+            helper.getLevel().setBlock(pos, state, FLAGS);
+            for (Direction face : Direction.values()) for (boolean shift : List.of(false, true)) {
+               assertState(helper, pos, click(pos, face, 0.5, 0.5, 0.5), shift,
+                  state.setValue(age, entry.getValue().get(value)));
+               var hit = click(pos, face, 0.5, 0.5, 0.5);
+               helper.assertTrue(BlockTinker.resolveAction(helper.getLevel(), hit, shift, false).changes().get(pos)
+                  .equals(state.cycle(age)), "disabled stage skipping did not advance one age");
+            }
+         }
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "tinker")
+   public static void fruitStemsGrowAttachAndReturnToMaturity(GameTestHelper helper) {
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
       for (var pair : List.of(List.of(Blocks.PUMPKIN_STEM, Blocks.ATTACHED_PUMPKIN_STEM),
          List.of(Blocks.MELON_STEM, Blocks.ATTACHED_MELON_STEM))) {
@@ -88,8 +112,8 @@ public final class TinkerPlanGameTests {
             var state = mature.setValue(BlockStateProperties.AGE_7, age);
             helper.getLevel().setBlock(pos, state, FLAGS);
             for (Direction face : Direction.values()) {
-               BlockState expected = age < 7 ? state.setValue(BlockStateProperties.AGE_7, age == 0 ? 7 : age - 1)
-                  : face == Direction.UP ? state.setValue(BlockStateProperties.AGE_7, 6)
+               BlockState expected = age < 7 ? state.setValue(BlockStateProperties.AGE_7, age + 1)
+                  : face == Direction.UP ? state.setValue(BlockStateProperties.AGE_7, 0)
                   : face.getAxis().isHorizontal() ? pair.getLast().defaultBlockState()
                      .setValue(BlockStateProperties.HORIZONTAL_FACING, face) : state;
                for (boolean shift : List.of(false, true)) {

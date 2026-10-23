@@ -32,6 +32,8 @@ import java.util.function.Consumer;
 
 /** Transient input state owned by one player environment, never persisted with a draft. */
 public final class ClientInputSession {
+   private final ClientSmartFillSession smartFill = new ClientSmartFillSession();
+   public ClientSmartFillSession smartFill() { return smartFill; }
    final IdleEntryGesture idleEntry = new IdleEntryGesture();
    final RightClickInertiaGuard distantEntryPressGuard = new RightClickInertiaGuard();
    final RightClickInertiaGuard cuboidPointPressGuard = new RightClickInertiaGuard();
@@ -109,6 +111,7 @@ public final class ClientInputSession {
    }
 
    public void reset() {
+      smartFill.clear();
       distantRemovalPressed = false;
       idleEntry.clear();
       distantEntryPressGuard.clear();

@@ -233,7 +233,7 @@ public final class WorkspaceSelectionBounds {
          for (VoxelRotation.RotationStep step : steps) {
             point = VoxelRotation.rotatePoint(point, step.pivot(), step.axis(), step.radians());
          }
-         point = transform.symmetry().point(point).add(transform.translation());
+         point = transform.voxelPoint(point);
          result = union(result, new AABB(point, point));
       }
       return result;

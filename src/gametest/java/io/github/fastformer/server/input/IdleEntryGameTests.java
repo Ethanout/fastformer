@@ -42,6 +42,8 @@ public final class IdleEntryGameTests {
       var hit = hit(player);
       IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(101, hit, player.getEyePosition(), player.getViewVector(1)));
       helper.getLevel().setBlock(hit.getBlockPos(), Blocks.AIR.defaultBlockState(), 2);
+      helper.getLevel().setBlock(hit.getBlockPos().above(), Blocks.STONE.defaultBlockState(), 2);
+      helper.assertTrue(!hit(player).getBlockPos().equals(hit.getBlockPos()), "occluder did not block the ordinary ray");
       ServerInputDispatcher.startPlacement(player, request(player, 101, hit));
       var draft = FastPlaceManager.session(player).orElseThrow();
       helper.assertTrue(draft.points().equals(java.util.List.of(hit.getBlockPos())), "entry did not anchor exactly one point to the snapshot");
@@ -50,23 +52,27 @@ public final class IdleEntryGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "idle_entry", timeoutTicks = 600)
-   public static void successfulPlacementReplacesTheFirstHitShape(GameTestHelper helper) {
+   public static void successfulPlacementKeepsThePreInteractionHitShape(GameTestHelper helper) {
       var player = player(helper);
       helper.succeedWhen(() -> {
       helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
          player.getServer(), player.level().dimension()), "waiting for world writer");
       helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+      player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter().add(0, 2, 0));
+      player.setXRot(90);
       var first = hit(player);
       IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(102, first, player.getEyePosition(), player.getViewVector(1)));
       var result = player.gameMode.useItemOn(player, player.serverLevel(), player.getMainHandItem(), InteractionHand.MAIN_HAND, first);
       helper.assertTrue(result.consumesAction(), "first placement was not consumed");
       var placed = first.getBlockPos().above();
-      helper.assertTrue(helper.getLevel().getBlockState(placed).is(Blocks.OAK_LOG), "first placement did not produce a log");
+      helper.assertTrue(helper.getLevel().getBlockState(placed).is(Blocks.OAK_LOG), "first placement did not produce a log: hit="
+         + first.getBlockPos() + "/" + first.getDirection() + "; above=" + helper.getLevel().getBlockState(placed)
+         + "; allowed=" + player.level().mayInteract(player, placed) + "; reach=" + player.canInteractWithBlock(placed, 0));
       var second = hit(player);
       helper.assertTrue(second.getBlockPos().equals(placed), "second ray did not hit the placed shape");
       ServerInputDispatcher.startPlacement(player, request(player, 102, second));
       helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().equals(java.util.List.of(placed)),
-         "double-click used the old hit instead of the placed shape");
+         "double-click lost the captured placement anchor");
       helper.assertTrue(helper.getLevel().getBlockState(placed.above()).isAir(), "entry placed a second log");
       FastPlaceManager.cancel(player);
       });
@@ -81,13 +87,17 @@ public final class IdleEntryGameTests {
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
          helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
             player.getServer(), player.level().dimension()), "waiting for world writer");
+         player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter().add(0, 2, 0));
+         player.setXRot(90);
          var first = hit(player);
          IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(105, first, player.getEyePosition(), player.getViewVector(1)));
          var result = player.gameMode.useItemOn(player, player.serverLevel(), player.getMainHandItem(), InteractionHand.MAIN_HAND, first);
          helper.assertTrue(result.consumesAction(), "first stair placement failed");
          var placed = first.getBlockPos().above();
          var expected = helper.getLevel().getBlockState(placed);
-         helper.assertTrue(expected.is(Blocks.OAK_STAIRS), "first interaction did not place stairs");
+         helper.assertTrue(expected.is(Blocks.OAK_STAIRS), "first interaction did not place stairs: hit=" + first.getBlockPos()
+            + "/" + first.getDirection() + "; above=" + expected + "; allowed=" + player.level().mayInteract(player, placed)
+            + "; reach=" + player.canInteractWithBlock(placed, 0));
          var second = hit(player);
          player.setYRot(180);
          player.setXRot(88);
@@ -95,7 +105,7 @@ public final class IdleEntryGameTests {
          ServerInputDispatcher.startPlacement(player, request(player, 105, second));
          var draft = FastPlaceManager.session(player).orElseThrow();
          var placement = draft.placementContext();
-         helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click anchor moved from the first placed block");
+         helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click lost the captured placement anchor");
          helper.assertTrue(io.github.fastformer.fastplace.placement.context.PlaceableItems.placementState(
             player.getMainHandItem(), player, placement).orElseThrow().equals(expected), "second click recalculated the first placed state");
          helper.assertTrue(io.github.fastformer.fastplace.placement.context.PlaceableItems.placementState(
@@ -169,7 +179,7 @@ public final class IdleEntryGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "idle_entry")
-   public static void distantEntryUsesCurrentRangeAndPlacementRay(GameTestHelper helper) {
+   public static void distantEntryUsesCurrentRangeAndTheSameOutlineRay(GameTestHelper helper) {
       var player = player(helper);
       var stone = hit(player).getBlockPos();
       helper.getLevel().setBlock(stone.above(), Blocks.SHORT_GRASS.defaultBlockState(), 2);
@@ -182,7 +192,7 @@ public final class IdleEntryGameTests {
       helper.assertFalse(LongRangeBlockRaycast.beyondInteractionRange(player, near), "the range boundary was treated as distant");
       attribute.setBaseValue(1);
       var distant = LongRangeBlockRaycast.clipForIdleEntry(player, false).hit();
-      helper.assertTrue(distant.getBlockPos().equals(stone), "distant placement entry did not use the placement ray");
+      helper.assertTrue(distant.getBlockPos().equals(stone.above()), "distant entry changed the outline ray criterion");
       helper.assertTrue(LongRangeBlockRaycast.beyondInteractionRange(player, distant), "updated vanilla range did not enable direct entry");
       helper.succeed();
    }
@@ -190,5 +200,44 @@ public final class IdleEntryGameTests {
    private static StartPlacementPayload request(ServerPlayer player, long token, net.minecraft.world.phys.BlockHitResult hit) {
       return new StartPlacementPayload(token, new StartPlacementPayload.Target(PlayerPreviewSync.buildingRevision(player),
          PlayerPreviewSync.callbackScope(player), hit, player.getEyePosition(), player.getViewVector(1), token));
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "idle_entry")
+   public static void entryRaysAndSnapshotsShareFluidShapesWhileAltPassesThrough(GameTestHelper helper) {
+      var player = player(helper);
+      var floor = hit(player).getBlockPos();
+      var fluid = floor.above();
+      var level = helper.getLevel();
+      for (var state : java.util.List.of(Blocks.WATER.defaultBlockState(),
+         Blocks.WATER.defaultBlockState().setValue(net.minecraft.world.level.block.LiquidBlock.LEVEL, 5),
+         Blocks.LAVA.defaultBlockState(),
+         Blocks.OAK_SLAB.defaultBlockState().setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED, true))) {
+         level.setBlock(fluid, state, 2);
+         var eye = player.getEyePosition();
+         var view = player.getViewVector(1);
+         var normal = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, false);
+         var snapshot = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(level, fluid).clip(eye, view);
+         helper.assertTrue(normal.getBlockPos().equals(fluid), "normal entry skipped fluid: " + state);
+         helper.assertTrue(snapshot != null && snapshot.getDirection() == normal.getDirection()
+            && snapshot.getLocation().distanceTo(normal.getLocation()) < 1.0E-6,
+            "snapshot and normal entry disagree: " + state);
+         var alt = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, true);
+         helper.assertTrue(alt.getBlockPos().equals(state.is(Blocks.OAK_SLAB) ? fluid : floor),
+            "Alt did not ignore only the fluid shape: " + state);
+         if (state.is(Blocks.OAK_SLAB)) {
+            helper.assertTrue(alt.getLocation().y < normal.getLocation().y, "Alt ignored the solid slab too");
+         }
+      }
+      level.setBlock(fluid, Blocks.WATER.defaultBlockState(), 2);
+      var eye = player.getEyePosition();
+      var view = player.getViewVector(1);
+      var targetHit = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, true);
+      var target = new StartPlacementPayload.Target(PlayerPreviewSync.buildingRevision(player),
+         PlayerPreviewSync.callbackScope(player), targetHit, eye, view, 0, false, false, true);
+      ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(110, target));
+      helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().equals(java.util.List.of(fluid)),
+         "server rejected the Alt surface ray through water");
+      FastPlaceManager.cancel(player);
+      helper.succeed();
    }
 }

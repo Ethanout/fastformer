@@ -103,6 +103,10 @@ public final class BlockTinker {
       return previewAction(player, hit).changes();
    }
 
+   public static Map<BlockPos, BlockState> preview(Player player, BlockHitResult hit, boolean skipRepeatedCropStages) {
+      return previewAction(player, hit, skipRepeatedCropStages).changes();
+   }
+
    public static boolean consumes(Player player, BlockHitResult hit) {
       return previewAction(player, hit).consumed();
    }
@@ -117,8 +121,14 @@ public final class BlockTinker {
    }
 
    private static TinkerAction previewAction(Player player, BlockHitResult hit) {
+      boolean skipRepeatedCropStages = !(player instanceof ServerPlayer serverPlayer)
+         || FastPlaceSettings.load(serverPlayer).skipRepeatedCropStages();
+      return previewAction(player, hit, skipRepeatedCropStages);
+   }
+
+   private static TinkerAction previewAction(Player player, BlockHitResult hit, boolean skipRepeatedCropStages) {
       if (!canEdit(player) || !withinInteractionRange(player, hit)) return TinkerAction.PASS;
-      return resolveAction(player.level(), hit, player.isShiftKeyDown());
+      return resolveAction(player.level(), hit, player.isShiftKeyDown(), skipRepeatedCropStages);
    }
 
    static Map<BlockPos, BlockState> resolve(Level level, BlockHitResult hit) {
@@ -126,6 +136,10 @@ public final class BlockTinker {
    }
 
    static TinkerAction resolveAction(Level level, BlockHitResult hit, boolean shift) {
+      return resolveAction(level, hit, shift, true);
+   }
+
+   static TinkerAction resolveAction(Level level, BlockHitResult hit, boolean shift, boolean skipRepeatedCropStages) {
       BlockPos pos = hit.getBlockPos();
       BlockState state = level.getBlockState(pos);
       Block block = state.getBlock();
@@ -138,7 +152,7 @@ public final class BlockTinker {
          ? TinkerStructureRules.doorChange(level, pos, state, copper) : TinkerAction.edit(level, pos, copper);
       TinkerAction structure = TinkerStructureRules.apply(level, state, hit, shift);
       if (structure != null) return structure;
-      BlockState property = TinkerStateRules.apply(state, hit, shift);
+      BlockState property = TinkerStateRules.apply(state, hit, shift, skipRepeatedCropStages);
       if (property != null) return TinkerAction.edit(level, pos, property);
       // Unclaimed Shift clicks retain vanilla behavior; copper overrides have already run.
       if (shift) return TinkerAction.PASS;

@@ -27,6 +27,7 @@ public final class ObservedInputState {
       if (sessions.placementTask()) {
          return ClientInputStateMachine.State.PLACING;
       }
+      if (sessions.fillSession()) return ClientInputStateMachine.State.FILL_PREVIEW;
       if (sessions.quickReplaceSession()) return ClientInputStateMachine.State.QUICK_REPLACE;
       if (sessions.operationSession()) {
          return sessions.workspaceHasParts() || sessions.selectionConfirmed()
@@ -57,8 +58,15 @@ public final class ObservedInputState {
       boolean selectionConfirmed,
       boolean geometrySession,
       boolean buildingSession,
-      boolean quickReplaceSession
+      boolean quickReplaceSession,
+      boolean fillSession
    ) {
+      public Sessions(boolean restoringTask, boolean placementTask, boolean operationSession,
+                      boolean workspaceHasParts, boolean selectionConfirmed, boolean geometrySession,
+                      boolean buildingSession, boolean quickReplaceSession) {
+         this(restoringTask, placementTask, operationSession, workspaceHasParts, selectionConfirmed,
+            geometrySession, buildingSession, quickReplaceSession, false);
+      }
       public Sessions(boolean restoringTask, boolean placementTask, boolean operationSession,
                       boolean workspaceHasParts, boolean selectionConfirmed, boolean geometrySession, boolean buildingSession) {
          this(restoringTask, placementTask, operationSession, workspaceHasParts, selectionConfirmed,

@@ -18,7 +18,6 @@ final class IdleEntryGesture {
    private boolean tinker;
    private Object environment;
    private net.minecraft.world.item.ItemStack item;
-   private boolean placementCaptured;
 
    void remember(long token, long pressedAt, InteractionShapeSnapshot snapshot, Vec3 eye, Vec3 view, Object environment,
       net.minecraft.world.item.ItemStack item) {
@@ -30,7 +29,6 @@ final class IdleEntryGesture {
       tinker = false;
       this.environment = environment;
       this.item = item == null ? null : item.copy();
-      placementCaptured = false;
    }
 
    void validate(Object environment, net.minecraft.world.item.ItemStack item) {
@@ -42,10 +40,9 @@ final class IdleEntryGesture {
    long token() { return token; }
    boolean tinker() { return tinker; }
 
-   void rememberTinker(long token, long pressedAt, InteractionShapeSnapshot original, InteractionShapeSnapshot changed,
+   void rememberTinker(long token, long pressedAt, InteractionShapeSnapshot original,
       Vec3 eye, Vec3 view, Object environment, net.minecraft.world.item.ItemStack item) {
       remember(token, pressedAt, original, eye, view, environment, item);
-      snapshot = changed;
       tinker = true;
    }
 
@@ -53,21 +50,15 @@ final class IdleEntryGesture {
       if (token > 0 && this.token == token) this.snapshot = snapshot;
    }
 
-   void placed(long now, InteractionShapeSnapshot snapshot) {
-      if (token == 0 || placementCaptured || now < pressedAt || now - pressedAt > 100_000_000L) return;
-      this.snapshot = snapshot;
-      placementCaptured = true;
-   }
-
    BlockHitResult secondPress(long now, Vec3 eye, Vec3 view) {
       if (snapshot == null || now < pressedAt || now - pressedAt > DOUBLE_PRESS_NANOS) return null;
-      if (!(firstView.dot(view.normalize()) >= MIN_VIEW_DOT)) return null;
-      // Both rays use the post-interaction shape, including a newly placed block.
-      var firstHit = snapshot.clip(firstEye, firstView);
+      // Clip only the frozen shape: intervening world blocks do not occlude it.
       var secondHit = snapshot.clip(eye, view);
-      if (firstHit == null || secondHit == null
-         || firstHit.getLocation().distanceToSqr(secondHit.getLocation()) > MAX_HIT_DISTANCE * MAX_HIT_DISTANCE) return null;
-      return secondHit;
+      if (secondHit == null) return null;
+      if (firstView.dot(view.normalize()) >= MIN_VIEW_DOT) return secondHit;
+      var firstHit = snapshot.clip(firstEye, firstView);
+      return firstHit != null && firstHit.getLocation().distanceToSqr(secondHit.getLocation())
+         <= MAX_HIT_DISTANCE * MAX_HIT_DISTANCE ? secondHit : null;
    }
 
    void clear() {
@@ -79,6 +70,5 @@ final class IdleEntryGesture {
       tinker = false;
       environment = null;
       item = null;
-      placementCaptured = false;
    }
 }

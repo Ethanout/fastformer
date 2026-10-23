@@ -39,11 +39,7 @@ public final class LongRangeBlockRaycast {
 
    public static Result clipForIdleEntry(net.minecraft.world.entity.player.Player player, boolean alternative) {
       Vec3 eye = player.getEyePosition(), view = player.getViewVector(1);
-      boolean placement = io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(player.getMainHandItem());
-      if (alternative && placement) return clipForPlacement(player.level(), player, eye, view);
-      Result target = clipForSelection(player.level(), player, eye, view, alternative);
-      return placement && beyondInteractionRange(player, target.hit())
-         ? clipForPlacement(player.level(), player, eye, view) : target;
+      return clipForSelection(player.level(), player, eye, view, alternative);
    }
 
    public static boolean beyondInteractionRange(net.minecraft.world.entity.player.Player player, BlockHitResult hit) {

@@ -386,6 +386,10 @@ public final class PlacementTask {
          this.metrics.snapshotCaptured();
          ReversibleBlockSnapshot captured = snapshot.orElseThrow();
          BlockState previous = captured.state();
+         if (this.plan.airOnly() && !previous.isAir()) {
+            consumed();
+            continue;
+         }
          this.blockEntityReserve = WorldOperationMemory.saturatingAdd(
             this.blockEntityReserve,
             WorldOperationMemory.snapshotNbtReserve(captured)
@@ -802,6 +806,10 @@ public final class PlacementTask {
 
    public void place(WorldTaskContext context, ServerLevel level, BlockPos pos) {
       this.metrics.phase(WorldOperationPhase.WRITE);
+      if (this.plan.airOnly() && !level.getBlockState(pos).isAir()) {
+         this.metrics.writeAttempt(false);
+         return;
+      }
       BlockWriteResult result = setBlockWithUndo(
          context,
          level,

@@ -416,7 +416,6 @@ public final class WorkspacePreviewComposer {
        }
        Map<BlockPos, T> rotated = rotation.result().values();
        LinkedHashMap<BlockPos, T> translated = new LinkedHashMap<>();
-       Vec3 offset = transform.translation();
        var symmetry = transform.symmetry();
        Function<T, T> symmetryValues = valueRotation.forSymmetry(symmetry);
        for (Map.Entry<BlockPos, T> entry : rotated.entrySet()) {
@@ -424,7 +423,7 @@ public final class WorkspacePreviewComposer {
           if (work != null) {
              return work;
           }
-          Vec3 center = symmetry.point(Vec3.atCenterOf(entry.getKey())).add(offset);
+          Vec3 center = transform.voxelPoint(Vec3.atCenterOf(entry.getKey()));
           T value = symmetry.identityOrientation() ? entry.getValue() : symmetryValues.apply(entry.getValue());
           translated.put(BlockPos.containing(center.x, center.y, center.z), value);
           Composition.OverBudget<T> output = counter.checkOutput(translated.size());

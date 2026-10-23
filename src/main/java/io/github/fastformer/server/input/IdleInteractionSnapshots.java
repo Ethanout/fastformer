@@ -28,7 +28,8 @@ public final class IdleInteractionSnapshots {
    private IdleInteractionSnapshots() { }
 
    public static boolean idle(ServerPlayer player) {
-      return !FastPlaceManager.active(player) && !OperationManager.active(player) && !GeometryManager.active(player);
+      return !FastPlaceManager.active(player) && !OperationManager.active(player) && !GeometryManager.active(player)
+         && !io.github.fastformer.server.session.SmartFillManager.active(player);
    }
 
    public static boolean validRay(ServerPlayer player, Vec3 eye, Vec3 view) {
@@ -48,9 +49,9 @@ public final class IdleInteractionSnapshots {
       var level = player.serverLevel();
       var position = request.hit().getBlockPos();
       if (!level.isInWorldBounds(position) || !level.hasChunkAt(position) || !level.getWorldBorder().isWithinBounds(position)) return;
-      var shape = InteractionShapeSnapshot.capture(level, position);
-      var actual = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForSelection(
-         level, player, request.eye(), request.view(), false).hit();
+      var shape = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(level, position);
+      var actual = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(
+         player, request.eye(), request.view(), false);
       if (shape.clip(request.eye(), request.view()) == null || !actual.getBlockPos().equals(position)
          || actual.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) return;
       ItemStack item = player.getMainHandItem().copy();
@@ -71,11 +72,9 @@ public final class IdleInteractionSnapshots {
       var capture = current(player);
       if (capture == null || capture.placed() || player.level().getGameTime() - capture.tick() > 1
          || !position.equals(capture.clicked()) && !position.equals(capture.adjacent())) return;
-      var shape = InteractionShapeSnapshot.capture(player.level(), position);
-      if (shape.boxes().isEmpty()) return;
       var placement = capture.placement() == null ? null : capture.placement().anchoredAt(position)
          .withCapturedState(capture.item().getItem(), player.level().getBlockState(position));
-      var updated = new Capture(capture.token(), capture.level(), capture.tick(), capture.item(), shape,
+      var updated = new Capture(capture.token(), capture.level(), capture.tick(), capture.item(), capture.shape(),
          capture.clicked(), capture.adjacent(), true, capture.tinker(), placement);
       CAPTURES.put(player, updated);
       publish(player, updated);
@@ -113,7 +112,7 @@ public final class IdleInteractionSnapshots {
       var changed = IdleTinkerSnapshot.capture(player.serverLevel(), changes.keySet());
       if (changed == null) { CAPTURES.remove(player); return; }
       var updated = new Capture(capture.token(), capture.level(), capture.tick(), capture.item(),
-         InteractionShapeSnapshot.capture(player.level(), request.hit().getBlockPos()), capture.clicked(), capture.adjacent(), true,
+         capture.shape(), capture.clicked(), capture.adjacent(), true,
          new IdleTinkerSnapshot(originals, changed, io.github.fastformer.fastplace.history.WorldHistoryManager.latestOperationId(player)), capture.placement());
       CAPTURES.put(player, updated);
       publish(player, updated);

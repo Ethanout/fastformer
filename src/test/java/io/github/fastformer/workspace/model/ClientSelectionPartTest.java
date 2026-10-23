@@ -16,6 +16,22 @@ import org.junit.jupiter.api.Test;
 
 class ClientSelectionPartTest {
    @Test
+   void duplicateKeepsTheCurrentTransformButNeverMasksTheWorldSource() {
+      var original = part(new AABB(0, 0, 0, 2, 1, 3)).withTranslation(new Vec3(4, 2, -7));
+      var copy = original.duplicate();
+      assertEquals(original.selection(), copy.selection());
+      assertEquals(original.blocks(), copy.blocks());
+      assertEquals(original.transform(), copy.transform());
+      assertEquals(ClientSelectionPart.Source.CLIPBOARD, copy.source());
+      assertFalse(copy.masksSourceBlocks());
+      assertFalse(copy.pendingDelete());
+      assertTrue(original.masksSourceBlocks());
+      assertEquals(new Vec3(4, 2, -7), original.transform().translation());
+      assertEquals(new Vec3(9, 2, -7), copy.withTranslation(new Vec3(9, 2, -7)).transform().translation());
+      assertEquals(new Vec3(4, 2, -7), original.transform().translation());
+   }
+
+   @Test
    void resizingBeforeTransformMovesTheEditableBaseline() {
       ClientSelectionPart part = part(new AABB(0, 0, 0, 2, 2, 2));
       OperationSelectionVolume resized = volume(new AABB(0, 0, 0, 4, 2, 2));

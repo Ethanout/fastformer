@@ -5,7 +5,7 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.ClientBlockTinker;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot;
+import io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload;
 import io.github.fastformer.network.payload.placement.TinkerInteractionPayload;
@@ -50,12 +50,12 @@ final class IdleSessionEntryController {
       session.idleEntry.validate(minecraft.level, minecraft.player.getMainHandItem());
       var eye = minecraft.player.getEyePosition();
       var view = minecraft.player.getViewVector(1);
-      BlockHitResult hit = LongRangeBlockRaycast.clipForIdleEntry(minecraft.player, alt).hit();
+      BlockHitResult hit = SessionEntryRaycast.clip(minecraft.player, eye, view, alt);
       boolean distant = LongRangeBlockRaycast.beyondInteractionRange(minecraft.player, hit);
       if (middleEntry && !alt && !distant) return false;
       if (alt) {
          session.idleEntry.clear();
-         boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry);
+         boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry, true);
          if (started) {
             session.entryConsumedAlt = true;
             protectDistantEntry(session, distant, button, now);
@@ -67,7 +67,7 @@ final class IdleSessionEntryController {
          long token = session.idleEntry.token();
          boolean restore = session.idleEntry.tinker();
          session.idleEntry.clear();
-         if (!restore) return enter(minecraft, session, anchor, now, control, token, button, true);
+         if (!restore) return enter(minecraft, session, anchor, now, control, token, button, true, false);
          boolean started = IdleSelectionEntryController.begin(minecraft, session, token, eye, view, control, now);
          if (started) {
             session.idleEntryButton = button;
@@ -79,10 +79,8 @@ final class IdleSessionEntryController {
          && ClientBlockTinker.consumes(minecraft.player, InteractionHand.MAIN_HAND, hit)
          && NetworkRegistry.hasChannel(minecraft.getConnection(), TinkerInteractionPayload.TYPE.id())) {
          long token = ++nextToken;
-         var original = InteractionShapeSnapshot.capture(minecraft.level, hit.getBlockPos());
-         var changes = io.github.fastformer.fastplace.interaction.BlockTinker.preview(minecraft.player, hit);
-         var changed = InteractionShapeSnapshot.capture(io.github.fastformer.client.render.PreviewBlockOcclusion.level(minecraft.level, changes), hit.getBlockPos());
-         session.idleEntry.rememberTinker(token, now, original, changed, eye, view, minecraft.level, minecraft.player.getMainHandItem());
+         var original = SessionEntryRaycast.snapshot(minecraft.level, hit.getBlockPos());
+         session.idleEntry.rememberTinker(token, now, original, eye, view, minecraft.level, minecraft.player.getMainHandItem());
          session.idleEntryButton = button;
          minecraft.options.keyUse.setDown(false);
          PacketDistributor.sendToServer(new TinkerInteractionPayload(token, hit, eye, view));
@@ -90,14 +88,14 @@ final class IdleSessionEntryController {
       }
       if (distant) {
          session.idleEntry.clear();
-         boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry);
+         boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry, false);
          if (started) protectDistantEntry(session, true, button, now);
          return started;
       }
       if (hit.getType() == HitResult.Type.BLOCK
          && NetworkRegistry.hasChannel(minecraft.getConnection(), IdleInteractionCapturePayload.TYPE.id())) {
          long token = ++nextToken;
-         session.idleEntry.remember(token, now, InteractionShapeSnapshot.capture(minecraft.level, hit.getBlockPos()),
+         session.idleEntry.remember(token, now, SessionEntryRaycast.snapshot(minecraft.level, hit.getBlockPos()),
             eye, view, minecraft.level, minecraft.player.getMainHandItem());
          PacketDistributor.sendToServer(new IdleInteractionCapturePayload(token, hit, eye, view));
       } else session.idleEntry.clear();
@@ -109,10 +107,10 @@ final class IdleSessionEntryController {
    }
 
    private static boolean enter(Minecraft minecraft, ClientInputSession session, BlockHitResult hit,
-      long now, boolean control, long token, int button, boolean embedded) {
+      long now, boolean control, long token, int button, boolean embedded, boolean throughFluids) {
       if (hit == null || hit.getType() != HitResult.Type.BLOCK) return false;
       boolean started = PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
-         ? QuickShapeStartController.capture(minecraft, session, hit, token, button, embedded)
+         ? QuickShapeStartController.capture(minecraft, session, hit, token, button, embedded, throughFluids)
          : FastPlaceClientInput.captureSelectionEntry(hit.getBlockPos(), control, now);
       if (!started) return false;
       if (!PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())) {

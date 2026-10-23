@@ -15,7 +15,7 @@
 - `principles/design_guidance.md`：设计指导思想和边界。
 - `principles/visual-style.md`：2026-10-01 视觉规范与项目记忆，经典／人文主题的权威规则。
 - `principles/pseudocode/sessions/README.md`：顶层会话树与共同规则。
-- `principles/pseudocode/sessions/`：五种会话的交互说明书及实现索引。
+- `principles/pseudocode/sessions/`：各类会话的交互说明书及实现索引。
 - `principles/interaction_language/interaction_rules.md`：输入归属、选区语义、视觉语言和一致的交互规则。
 
 ## 其他记录
@@ -28,6 +28,7 @@
 - `block-updates.md`：交互的邻居保护、延迟任务策略与禁止方块下坠。
 - `selection-history.md`：选区删除、会话与世界撤销、快速替换和多选控件。
 - `smart-selection.md`：智能选区、材质族标签、剔除与合并、分离部分的屏幕标记。
+- `smart-fill.md`：F 单层平面修补、玩家相交时的预览确认和世界撤回。
 - `visual-resources.md`：主题 JSON、着色器覆盖路径与资源重载。
 
 ## 权威规则

@@ -25,7 +25,7 @@ public record InteractionShapeSnapshot(BlockPos position, List<AABB> boxes) {
    public static InteractionShapeSnapshot capture(BlockGetter level, BlockPos position) {
       var state = level.getBlockState(position);
       VoxelShape shape = state.getShape(level, position);
-      if (shape.isEmpty() && !state.getFluidState().isEmpty()) shape = state.getFluidState().getShape(level, position);
+      if (!state.getFluidState().isEmpty()) shape = Shapes.or(shape, state.getFluidState().getShape(level, position));
       return new InteractionShapeSnapshot(position, shape.toAabbs());
    }
 

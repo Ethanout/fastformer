@@ -949,6 +949,16 @@ public class FastPlaceClientPreviewCore {
          smoothReticleFrame = false;
          return;
       }
+      if (FastPlaceClientInput.currentSession().smartFill().active() && minecraft.player != null) {
+         var fill = FastPlaceClientInput.currentSession().smartFill();
+         graphics.drawString(minecraft.font, Component.translatable(fill.statusKey(), fill.blocks().size()),
+            8, 8, GeometryPalette.text().argb(), true);
+         graphics.drawString(minecraft.font, Component.translatable(fill.ready()
+            ? "fastformer.fill.controls" : "fastformer.fill.cancel"), 8, 20, GeometryPalette.muted().argb(), true);
+         restoreVanillaCrosshairIfNeeded(graphics);
+         smoothReticleFrame = false;
+         return;
+      }
       if (QuickReplaceMode.active() && minecraft.player != null) {
          graphics.drawString(minecraft.font, Component.translatable("fastformer.quick_replace.active"),
             8, 8, GeometryPalette.text().argb(), true);
@@ -1781,6 +1791,10 @@ public class FastPlaceClientPreviewCore {
           Minecraft minecraft = Minecraft.getInstance();
           LocalPlayer player = minecraft.player;
           io.github.fastformer.client.render.HistoryConflictRenderer.render(event, minecraft);
+          if (FastPlaceClientInput.currentSession().smartFill().active()) {
+             SmartFillPreviewRenderer.render(event, minecraft);
+             return;
+          }
           if (QuickReplaceMode.active()) {
              if (QuickReplaceMode.canReplace(minecraft) && minecraft.level != null && player != null) {
                 QuickReplacePreviewRenderer.render(event, minecraft, player);

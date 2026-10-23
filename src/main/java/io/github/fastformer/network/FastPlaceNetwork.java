@@ -58,6 +58,16 @@ public final class FastPlaceNetwork {
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
       PayloadRegistrar registrar = event.registrar("78").optional();
+      registrar.playToServer(SmartFillCommandPayload.TYPE, SmartFillCommandPayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player)
+               io.github.fastformer.server.session.SmartFillManager.handle(player, payload);
+         }));
+      registrar.playToClient(SmartFillPreviewPayload.TYPE, SmartFillPreviewPayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applySmartFill(payload, connection));
+         });
       registrar.playToClient(WorldHistoryEventPayload.TYPE, WorldHistoryEventPayload.STREAM_CODEC,
          (payload, context) -> {
             var connection = context.connection();
@@ -279,6 +289,14 @@ public final class FastPlaceNetwork {
                   player, next(settings.placementUpdateMode(), PlacementUpdateMode.values())
                );
                case TOGGLE_EMPTY_HAND_WRENCH -> settings.toggleEmptyHandWrench(player);
+               case TOGGLE_SKIP_REPEATED_CROP_STAGES -> {
+                  settings.toggleSkipRepeatedCropStages(player);
+                  io.github.fastformer.network.sync.PlayerPreviewSync.syncInteractionUpdates(player);
+               }
+               case TOGGLE_DISTANT_BLOCK_REMOVAL -> {
+                  settings.toggleDistantBlockRemoval(player);
+                  io.github.fastformer.network.sync.PlayerPreviewSync.syncInteractionUpdates(player);
+               }
                case TOGGLE_FALLING_DISABLED -> {
                   var rules = io.github.fastformer.fastplace.world.BlockActivityRules.get(player.getServer());
                   if (player.hasPermissions(2)) rules.setFallingDisabled(payload.fallingDisabled());

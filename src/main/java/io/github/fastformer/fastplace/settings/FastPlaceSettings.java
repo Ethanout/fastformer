@@ -47,6 +47,8 @@ public final class FastPlaceSettings {
    private PlacementUpdateMode placementUpdateMode = PlacementUpdateMode.CLIENT_ONLY;
    private final Set<ResourceLocation> enabledPlacementEffects = new HashSet<>();
    private boolean emptyHandWrench = true;
+   private boolean skipRepeatedCropStages = true;
+   private boolean distantBlockRemoval = true;
    private boolean forcePlacement = true;
    private int maxPlacement = 20972152;
    private int worldUndoHistoryLimit = DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
@@ -105,6 +107,8 @@ public final class FastPlaceSettings {
          );
       }
       settings.emptyHandWrench = !tag.contains("emptyHandWrench") || tag.getBoolean("emptyHandWrench");
+      settings.skipRepeatedCropStages = !tag.contains("skipRepeatedCropStages") || tag.getBoolean("skipRepeatedCropStages");
+      settings.distantBlockRemoval = !tag.contains("distantBlockRemoval") || tag.getBoolean("distantBlockRemoval");
       settings.forcePlacement = !tag.contains("forcePlacement") || tag.getBoolean("forcePlacement");
       settings.maxPlacement = tag.contains("maxPlacement")
          ? Math.clamp((long)tag.getInt("maxPlacement"), 1, 20972152)
@@ -310,6 +314,20 @@ public final class FastPlaceSettings {
       return this.emptyHandWrench;
    }
 
+   public boolean skipRepeatedCropStages() { return this.skipRepeatedCropStages; }
+
+   public boolean distantBlockRemoval() { return this.distantBlockRemoval; }
+
+   public void toggleDistantBlockRemoval(ServerPlayer player) {
+      this.distantBlockRemoval = !this.distantBlockRemoval;
+      this.save(player);
+   }
+
+   public void toggleSkipRepeatedCropStages(ServerPlayer player) {
+      this.skipRepeatedCropStages = !this.skipRepeatedCropStages;
+      this.save(player);
+   }
+
    public io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits tinkerHistoryMergeLimits() { return tinkerHistoryMergeLimits; }
 
    public void setTinkerHistoryMergeLimit(ServerPlayer player, io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits.Setting setting, int value) {
@@ -376,6 +394,8 @@ public final class FastPlaceSettings {
          .forEach(id -> effectIds.add(net.minecraft.nbt.StringTag.valueOf(id)));
       tag.put("enabledPlacementEffects", effectIds);
       tag.putBoolean("emptyHandWrench", this.emptyHandWrench);
+      tag.putBoolean("skipRepeatedCropStages", this.skipRepeatedCropStages);
+      tag.putBoolean("distantBlockRemoval", this.distantBlockRemoval);
       tag.putBoolean("forcePlacement", forcePlacement);
       tag.putInt("maxPlacement", this.maxPlacement);
       tag.putInt("undoHistoryLimit", this.worldUndoHistoryLimit);

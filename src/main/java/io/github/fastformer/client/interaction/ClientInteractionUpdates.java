@@ -25,4 +25,14 @@ public final class ClientInteractionUpdates {
       var policy = POLICIES.get(player);
       return policy != null && policy.forcePlacement();
    }
+
+   public static boolean skipRepeatedCropStages(net.minecraft.world.entity.player.Player player) {
+      var policy = POLICIES.get(player);
+      return policy == null || policy.skipRepeatedCropStages();
+   }
+
+   public static boolean distantBlockRemoval(net.minecraft.world.entity.player.Player player) {
+      var policy = POLICIES.get(player);
+      return policy != null && policy.distantBlockRemoval();
+   }
 }

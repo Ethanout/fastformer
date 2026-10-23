@@ -11,7 +11,7 @@ import net.minecraft.world.phys.BlockHitResult;
 final class TinkerStateRules {
    private TinkerStateRules() {}
 
-   static BlockState apply(BlockState state, BlockHitResult hit, boolean shift) {
+   static BlockState apply(BlockState state, BlockHitResult hit, boolean shift, boolean skipRepeatedCropStages) {
       Block block = state.getBlock();
       Direction side = TinkerSurfaceHit.sideOperation(hit);
       if (block instanceof SeaPickleBlock) return adjust(state, BlockStateProperties.PICKLES, side);
@@ -33,7 +33,7 @@ final class TinkerStateRules {
       if (block instanceof CropBlock || block instanceof NetherWartBlock
          || block instanceof CocoaBlock || block instanceof PitcherCropBlock) {
          IntegerProperty age = age(state);
-         return age == null ? state : state.cycle(age);
+         return age == null ? state : skipRepeatedCropStages ? TinkerCropCycle.advance(state, age) : state.cycle(age);
       }
       if (block instanceof AmethystClusterBlock) return amethyst(state);
       if (block instanceof LayeredCauldronBlock) return state.cycle(BlockStateProperties.LEVEL_CAULDRON);

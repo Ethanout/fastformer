@@ -87,6 +87,9 @@ public final class DistantBlockRemovalGameTests {
       lookDown(player, position, 40);
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.STONE));
       helper.assertFalse(ServerInputDispatcher.removeDistantBlock(player, request(player)), "held-item removal was accepted");
+      player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+      io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).toggleDistantBlockRemoval(player);
+      helper.assertFalse(ServerInputDispatcher.removeDistantBlock(player, request(player)), "disabled distant removal was accepted");
       helper.assertTrue(helper.getLevel().getBlockState(position).is(Blocks.STONE), "rejected request changed the block");
       helper.succeed();
    }

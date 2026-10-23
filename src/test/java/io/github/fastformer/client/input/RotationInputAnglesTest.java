@@ -40,11 +40,13 @@ class RotationInputAnglesTest {
    }
 
    @Test
-   void selectionDragsPreviewFreelyAndSnapOnlyWhenFinished() {
+   void selectionDragsSnapToQuartersUnlessControlIsHeld() {
       double preview = 73 * Math.PI * 2 / 1024;
-      assertEquals(preview, RotationInputAngles.selectionPreview(73, false), 1.0E-12);
-      assertEquals(PixelPerfectAngles.selectionSnap(preview), RotationInputAngles.selectionFinish(preview, false), 1.0E-12);
-      assertEquals(Math.PI / 2, RotationInputAngles.selectionPreview(230, true), 1.0E-12);
-      assertEquals(Math.PI / 2, RotationInputAngles.selectionFinish(1.3, true), 1.0E-12);
+      assertEquals(0, RotationInputAngles.selectionPreview(73, false), 1.0E-12);
+      assertEquals(preview, RotationInputAngles.selectionPreview(73, true), 1.0E-12);
+      assertEquals(Math.PI / 2, RotationInputAngles.selectionPreview(230, false), 1.0E-12);
+      assertEquals(-Math.PI / 2, RotationInputAngles.selectionPreview(-230, false), 1.0E-12);
+      assertEquals(Math.PI / 2, RotationInputAngles.selectionFinish(1.3, false), 1.0E-12);
+      assertEquals(1.3, RotationInputAngles.selectionFinish(1.3, true), 1.0E-12);
    }
 }

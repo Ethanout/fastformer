@@ -430,7 +430,37 @@ public final class ClientOperationController {
    }
 
    public static boolean duplicateSelected(Minecraft minecraft) {
-      return copySelected() && paste(minecraft);
+      lastOperationFailureKey = null;
+      if (workspaceSubmissionPending() || workspaceEditInProgress()) {
+         lastOperationFailureKey = "fastformer.message.operation_paste_pending";
+         return false;
+      }
+      var selected = workspace().selectedParts();
+      if (selected.isEmpty()) {
+         lastOperationFailureKey = "fastformer.message.operation_copy_empty";
+         return false;
+      }
+      if (selected.size() > ClientOperationWorkspace.MAX_PARTS - workspace().size()) {
+         lastOperationFailureKey = "fastformer.message.operation_paste_limit";
+         return false;
+      }
+      // Validate resolved content with the same aggregate budget as copy and paste.
+      var copied = OperationClipboard.fromWorkspace(workspace());
+      if (copied instanceof ClipboardCopy.TooLarge tooLarge) {
+         lastOperationFailureKey = tooLarge.limit() == Composition.Limit.WORK
+            ? "fastformer.message.workspace_work_too_large" : "fastformer.message.workspace_result_too_large";
+         return false;
+      }
+      if (copied instanceof ClipboardCopy.Empty) {
+         lastOperationFailureKey = "fastformer.message.operation_copy_empty";
+         return false;
+      }
+      if (!workspace().addParts(selected.stream().map(ClientSelectionPart::duplicate).toList())) {
+         lastOperationFailureKey = "fastformer.message.operation_paste_unavailable";
+         return false;
+      }
+      synchronizeDerivedWorkspaceState();
+      return true;
    }
 
    public static boolean paste(Minecraft minecraft) {

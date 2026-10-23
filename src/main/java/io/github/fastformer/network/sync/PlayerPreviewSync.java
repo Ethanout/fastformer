@@ -144,7 +144,8 @@ public final class PlayerPreviewSync {
       var settings = FastPlaceSettings.load(player);
       var payload = new io.github.fastformer.network.payload.settings.InteractionUpdatesPayload(
          settings.enabled() && settings.placementUpdateMode().suppressesNeighborUpdates(),
-         settings.enabled() && settings.emptyHandWrench(), settings.enabled() && settings.forcePlacement());
+         settings.enabled() && settings.emptyHandWrench(), settings.enabled() && settings.forcePlacement(),
+         settings.skipRepeatedCropStages(), settings.enabled() && settings.distantBlockRemoval());
       if (player.connection.hasChannel(payload.type())) PacketDistributor.sendToPlayer(player, payload);
    }
 

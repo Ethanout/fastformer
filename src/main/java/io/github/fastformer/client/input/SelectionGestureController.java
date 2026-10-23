@@ -87,7 +87,7 @@ final class SelectionGestureController {
          target.hit().point(), axis, 0, target.gizmo().center(),
          handle.drawsRing() ? radial.normalize() : Vec3.ZERO,
          handle.drawsRing() ? GizmoDragCalculator.rotationTangent(axis, radial.normalize()) : Vec3.ZERO,
-         handle.direction(), capture, targets, editToken
+         handle.direction(), capture, targets, editToken, 0.0, control
       ));
       return true;
    }
@@ -164,7 +164,7 @@ final class SelectionGestureController {
          if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_GIZMO)
             && drag.capture().matches(ClientOperationController.interactionScene().owner(), ClientOperationController.workspace(), session.pointerGestureToken)) {
             if (drag.operation() == AxisGizmo.Operation.ROTATE) {
-               double radians = RotationInputAngles.selectionFinish(drag.rotationRadians(), drag.quarterSnap());
+               double radians = RotationInputAngles.selectionFinish(drag.rotationRadians(), drag.freeRotation());
                String failure = ClientOperationController.updateTransformGesture(drag.editToken(), drag.baseline(),
                   drag.common(), drag.operation(), drag.axis(), 1, GizmoDragCalculator.rotationSteps(radians), radians,
                   drag.axisVector(), drag.center());
@@ -233,7 +233,7 @@ final class SelectionGestureController {
          totalSteps = Math.clamp(totalSteps, -128, 128);
       }
       if (totalSteps == drag.sentSteps()
-         && (drag.operation() != AxisGizmo.Operation.ROTATE || control == drag.quarterSnap())) {
+         && (drag.operation() != AxisGizmo.Operation.ROTATE || control == drag.freeRotation())) {
          return;
       }
       int direction = drag.direction() == AxisGizmo.Direction.NEGATIVE ? -1 : 1;

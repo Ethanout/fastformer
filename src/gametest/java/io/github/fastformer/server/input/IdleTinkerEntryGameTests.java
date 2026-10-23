@@ -29,7 +29,7 @@ public final class IdleTinkerEntryGameTests {
    private IdleTinkerEntryGameTests() { }
 
    @GameTest(template = "fastformergametests.empty", batch = "idle_tinker")
-   public static void doubleClickUsesPostClickShapeAndRestoresOriginalHistory(GameTestHelper helper) {
+   public static void doubleClickUsesOriginalShapeAndRestoresOriginalHistory(GameTestHelper helper) {
       var player = player(helper);
       var position = helper.absolutePos(new BlockPos(2, 2, 2));
       helper.getLevel().setBlock(position, Blocks.GRASS_BLOCK.defaultBlockState(), 2);
@@ -46,10 +46,8 @@ public final class IdleTinkerEntryGameTests {
       var operation = WorldHistoryManager.latestOperationId(player);
       helper.assertTrue(operation != null && !operation.equals(prior), "single wrench click was not recorded");
       var sideEye = position.getCenter().add(0, 0.49, -3);
-      helper.assertTrue(IdleInteractionSnapshots.consume(player, 501, sideEye, new Vec3(0, 0, 1)) == null,
-         "second click used the original full-block shape");
       var restored = ServerInputDispatcher.idleSelectionEntry(player,
-         new IdleSelectionEntryPayload(502, 501, player.getEyePosition(), player.getViewVector(1)));
+         new IdleSelectionEntryPayload(502, 501, sideEye, new Vec3(0, 0, 1)));
       helper.assertTrue(position.equals(restored), "double click did not restore the source before selection entry");
       helper.assertTrue(helper.getLevel().getBlockState(position).is(Blocks.GRASS_BLOCK), "original grass state was not restored");
       helper.assertTrue(java.util.Objects.equals(prior, WorldHistoryManager.latestOperationId(player)), "canceled wrench displaced prior world history");

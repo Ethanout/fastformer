@@ -16,6 +16,26 @@ import org.junit.jupiter.api.Test;
 
 class WorkspaceSelectionBoundsTest {
    @Test
+   void quarterTurnFramesMatchVoxelExtentsAcrossMixedParityAndNegativeCoordinates() {
+      for (int origin : new int[] {-7, 0, 8}) for (int width : new int[] {2, 3}) for (int depth : new int[] {2, 3}) {
+         var blocks = new java.util.LinkedHashMap<BlockPos, String>();
+         for (int x = 0; x < width; x++) for (int z = 0; z < depth; z++) {
+            blocks.put(new BlockPos(origin + x, 0, origin + z), "block");
+         }
+         AABB source = new AABB(origin, 0, origin, origin + width, 1, origin + depth);
+         var symmetry = io.github.fastformer.workspace.model.WorkspaceSymmetry.IDENTITY;
+         for (int turn = 0; turn < 4; turn++) {
+            symmetry = symmetry.then(io.github.fastformer.workspace.model.WorkspaceSymmetry.quarterTurnY(), source.getCenter());
+            var transform = WorkspaceTransform.IDENTITY.withSymmetry(symmetry);
+            var occupied = io.github.fastformer.workspace.selection.OccupiedBlockBounds
+               .from(WorkspacePreviewComposer.resolveValues(blocks, transform).keySet()).orElseThrow().aabb();
+            assertEquals(occupied, WorkspaceSelectionBounds.transformedBox(source, transform, null),
+               "origin=" + origin + ", size=" + width + "x" + depth + ", turn=" + turn);
+         }
+      }
+   }
+
+   @Test
    void halfCellScaleMatchesTheComposedVoxelExtent() {
       var blocks = new java.util.LinkedHashMap<BlockPos, String>();
       for (int x = 0; x < 5; x++) {

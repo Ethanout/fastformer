@@ -97,4 +97,11 @@ public record WorkspaceTransform(
    public WorkspaceTransform withSymmetry(WorkspaceSymmetry value) {
       return new WorkspaceTransform(this.translation, this.rotation, this.repeats, this.repeatStride, this.scale, value);
    }
+
+   /** Final signed-axis transform aligned exactly as voxel-centre sampling does. */
+   public Vec3 voxelPoint(Vec3 point) {
+      Vec3 offset = this.symmetry.offset().add(this.translation);
+      return this.symmetry.vector(point).add(
+         Math.floor(offset.x + 0.5), Math.floor(offset.y + 0.5), Math.floor(offset.z + 0.5));
+   }
 }

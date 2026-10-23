@@ -29,6 +29,22 @@ import org.junit.jupiter.api.Test;
 
 class FastPlaceSettingsTest {
    @Test
+   void cropStageSkippingDefaultsOnAndPersistsWhenDisabled() {
+      assertTrue(FastPlaceSettings.fromTag(new CompoundTag()).skipRepeatedCropStages());
+      CompoundTag tag = new CompoundTag();
+      tag.putBoolean("skipRepeatedCropStages", false);
+      assertFalse(FastPlaceSettings.fromTag(FastPlaceSettings.fromTag(tag).toTag()).skipRepeatedCropStages());
+   }
+
+   @Test
+   void distantRemovalDefaultsOnAndPersistsWhenDisabled() {
+      assertTrue(FastPlaceSettings.fromTag(new CompoundTag()).distantBlockRemoval());
+      CompoundTag tag = new CompoundTag();
+      tag.putBoolean("distantBlockRemoval", false);
+      assertFalse(FastPlaceSettings.fromTag(FastPlaceSettings.fromTag(tag).toTag()).distantBlockRemoval());
+   }
+
+   @Test
    void placementEffectsDefaultToWoodFrameAndRoundTripAsIds() {
       FastPlaceSettings settings = FastPlaceSettings.fromTag(new CompoundTag());
 

@@ -41,6 +41,7 @@ public final class PlayerLifecycleEvents {
       if (event.getOriginal() instanceof ServerPlayer oldPlayer
          && event.getEntity() instanceof ServerPlayer newPlayer) {
          FastPlaceSettings.copy(oldPlayer, newPlayer);
+         io.github.fastformer.server.session.SmartFillManager.forget(oldPlayer.getUUID());
          io.github.fastformer.fastplace.settings.PlayerBlockReach.copy(oldPlayer, newPlayer);
          io.github.fastformer.server.input.IdleInteractionSnapshots.remove(oldPlayer);
          PlayerPreviewSync.syncInteractionUpdates(newPlayer);

@@ -50,6 +50,7 @@ class ClientInputStateMachineTest {
       ClientInputStateMachine.Dispatch[][] expected = {
          {V, B, V, V, V, B, V, B},
          {V, B, V, V, V, B, B, B},
+         {B, B, B, B, B, B, B, C},
          {F, F, F, F, F, B, B, C},
          {G, G, G, G, G, B, B, C},
          {O, B, O, O, O, O, O, C},

@@ -42,7 +42,6 @@ import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -324,6 +323,7 @@ public final class FastPlaceManager {
    }
 
    public static void quit(ServerPlayer player) {
+      SmartFillManager.cancel(player);
       boolean restoring = WorldHistoryManager.restoreActive(player);
       cancel(player);
       if (!restoring) {
@@ -670,65 +670,19 @@ public final class FastPlaceManager {
       }
    }
 
-   public static boolean fillBoundedPlane(ServerPlayer player, BlockPos start) {
-      return fillBoundedPlane(player, start, null);
-   }
-
-   public static boolean fillBoundedPlane(ServerPlayer player, BlockPos start, Direction.Axis preferredAxis) {
-      Optional<BlockState> placeState = PlaceableItems.defaultBlockState(player.getMainHandItem());
-      if (placeState.isEmpty() || !player.level().getBlockState(start).canBeReplaced()) {
-         return false;
-      }
-      if (placementBusy(player)) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
-         return true;
-      }
-
-      Set<BlockPos> best = null;
-      Direction.Axis bestAxis = null;
-      for (Direction.Axis normalAxis : Direction.Axis.values()) {
-         Set<BlockPos> candidate = boundedPlane(player, start, normalAxis, 256);
-         if (candidate != null && betterBoundedPlane(candidate, normalAxis, best, bestAxis, preferredAxis)) {
-            best = candidate;
-            bestAxis = normalAxis;
-         }
-      }
-      if (best == null || best.isEmpty()) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.point_plane_not_found"));
-         return false;
-      }
-
-      int maxPlacement = FastPlaceSettings.load(player).maxPlacement();
-      if (best.size() > maxPlacement) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.point_plane_too_large", maxPlacement));
-         return false;
-      }
-      FastPlaceSettings settings = FastPlaceSettings.load(player);
-      enqueueTask(
-         player,
-         PlacementTask.ready(best, taskPlan(player, settings, placeState.get(), null))
-      );
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.point_plane_queued", best.size()));
-      return true;
-   }
-
-   private static boolean betterBoundedPlane(
-      Set<BlockPos> candidate, Direction.Axis candidateAxis, Set<BlockPos> best, Direction.Axis bestAxis, Direction.Axis preferredAxis
-   ) {
-      if (best == null || candidate.size() < best.size()) {
-         return true;
-      }
-      if (candidate.size() > best.size()) {
-         return false;
-      }
-      if (preferredAxis != null && candidateAxis == preferredAxis && bestAxis != preferredAxis) {
-         return true;
-      }
-      return bestAxis == null || candidateAxis.ordinal() < bestAxis.ordinal();
-   }
-
    public static boolean queuePlacement(ServerPlayer player, Set<BlockPos> blocks, BlockState state) {
       return queuePlacementResult(player, BlockGenerationResult.fromLegacy(blocks), state);
+   }
+
+   /** Air-only fill uses the same task, recovery journal and undo record as placement. */
+   public static boolean queueAirFill(ServerPlayer player, Set<BlockPos> blocks, BlockState state) {
+      var settings = FastPlaceSettings.load(player);
+      if (blocks.isEmpty() || blocks.size() > settings.maxPlacement() || placementBusy(player)) return false;
+      var plan = new PlacementTaskPlan(state, null, io.github.fastformer.workspace.submission.OperationConflictMode.KEEP_EXISTING,
+         settings.placementUpdateMode(), settings.maxPlacement(), player.level().dimension(), true);
+      enqueueTask(player, PlacementTask.ready(blocks, plan));
+      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.fill.queued", blocks.size()));
+      return true;
    }
 
    private static boolean queuePlacementResult(
@@ -817,30 +771,6 @@ public final class FastPlaceManager {
       return true;
    }
 
-   private static Set<BlockPos> boundedPlane(ServerPlayer player, BlockPos start, Direction.Axis normalAxis, int limit) {
-      java.util.LinkedHashSet<BlockPos> visited = new java.util.LinkedHashSet<>();
-      ArrayDeque<BlockPos> open = new ArrayDeque<>();
-      open.add(start);
-      while (!open.isEmpty()) {
-         BlockPos pos = open.removeFirst();
-         if (visited.contains(pos) || !player.level().getBlockState(pos).canBeReplaced()) {
-            continue;
-         }
-         visited.add(pos.immutable());
-         if (visited.size() > limit) {
-            return null;
-         }
-         for (Direction direction : Direction.values()) {
-            if (direction.getAxis() != normalAxis) {
-               open.addLast(pos.relative(direction));
-            }
-         }
-      }
-      // Preserve the breadth-first order used to discover the plane while
-      // avoiding a second full-size copy before the placement task owns it.
-      return java.util.Collections.unmodifiableSet(visited);
-   }
-
    public static void setMaxPlacement(ServerPlayer player, int value) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       settings.setMaxPlacement(player, value);
@@ -848,6 +778,7 @@ public final class FastPlaceManager {
    }
 
    public static boolean remove(ServerPlayer player) {
+      SmartFillManager.forget(player.getUUID());
       SESSIONS.remove(player.getUUID());
       MODIFIER_HELD.remove(player.getUUID());
       PARKED_SESSIONS.forget(player.getUUID());
@@ -888,6 +819,7 @@ public final class FastPlaceManager {
       UUID owner = player.getUUID();
       MODIFIER_HELD.remove(owner);
       QuickReplaceManager.forget(owner);
+      SmartFillManager.forget(owner);
       // Modifier state belongs to the old connection, unlike the workflow
       // points and shape data that remain owned by the player UUID.
       QuickShapeDraft session = SESSIONS.get(owner);
@@ -911,6 +843,7 @@ public final class FastPlaceManager {
          return;
       }
       UUID owner = player.getUUID();
+      SmartFillManager.forget(owner);
       MODIFIER_HELD.remove(owner);
       parkDimensionSession(owner, from);
       OperationManager.parkDimensionSession(owner, from);
@@ -962,6 +895,7 @@ public final class FastPlaceManager {
 
    /** Drops server-bound sessions/tasks before a world instance is replaced. */
    public static void clearServer() {
+      SmartFillManager.clear();
       for (PlacementTask task : TASKS.values()) {
          task.cancel();
          task.releaseMemoryReservation();

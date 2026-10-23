@@ -55,6 +55,12 @@ public record ClientSelectionPart(
          this.pendingDelete, this.sourceSnapshot, this.baseline, Editability.LOCKED);
    }
 
+   /** A copy owns its content and never clears the original world's source blocks. */
+   public ClientSelectionPart duplicate() {
+      return new ClientSelectionPart(0, Source.CLIPBOARD, this.selection, this.blocks, this.transform,
+         false, this.blocks, null, Editability.LOCKED);
+   }
+
    public ClientSelectionPart withTranslation(Vec3 value) { return this.withTransform(this.transform.withTranslation(value)); }
    public ClientSelectionPart withTranslation(BlockPos value) { return this.withTranslation(Vec3.atLowerCornerOf(value)); }
    public ClientSelectionPart withPendingDelete(boolean value) { return copy(this.id, this.source, this.selection, this.blocks, this.transform, value, this.sourceSnapshot, this.baseline, this.editability); }
