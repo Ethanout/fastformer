@@ -13,12 +13,17 @@ final class ScrollInputDispatcher {
 
    static void dispatch(Minecraft minecraft, ClientInputSession session, ScrollInputSnapshot event) {
       var route = session.routing.dispatch(ClientInputStateMachine.InputKind.SCROLL);
-      if (event.selectionMove() != null) {
-         var move = event.selectionMove();
+      if (event.selectionAction() != null) {
+         var action = event.selectionAction();
          if (route == ClientInputStateMachine.Dispatch.OPERATION
             && !ClientOperationController.workspaceSubmissionPending()
-            && move.matches(ClientOperationController.interactionScene().owner(), ClientOperationController.workspace())) {
-            ClientOperationController.scrollSelected(move.offset(), move.timestampNanos());
+            && action.matches(ClientOperationController.interactionScene().owner(), ClientOperationController.workspace())) {
+            switch (action.gesture()) {
+               case io.github.fastformer.client.operation.input.SelectionScrollAction.Move move ->
+                  ClientOperationController.scrollSelected(move.offset(), action.timestampNanos());
+               case io.github.fastformer.client.operation.input.SelectionScrollAction.Stack stack ->
+                  ClientOperationController.scrollStackSelected(stack, action.timestampNanos());
+            }
          }
          return;
       }

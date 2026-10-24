@@ -57,6 +57,7 @@ public final class ForcedPlacementGameTests {
    public static void forcedDoorPlacesBothHalvesAndOneUndoRemovesBoth(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(GameType.CREATIVE);
+      FastPlaceSettings.load(player).toggleVanillaBlockHistory(player);
       io.github.fastformer.fastplace.history.WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
       var level = helper.getLevel();
       var floor = helper.absolutePos(new BlockPos(2, 2, 2));

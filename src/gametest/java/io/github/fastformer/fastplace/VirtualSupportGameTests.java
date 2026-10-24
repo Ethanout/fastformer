@@ -115,7 +115,7 @@ public final class VirtualSupportGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "placement_context")
-   public static void failedVirtualSupportFallsThroughDataRulesToDefault(GameTestHelper helper) {
+   public static void failedVirtualSupportReturnsDefault(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       BlockPos target = helper.absolutePos(new BlockPos(2, 3, 2));
       var cocoaStack = new ItemStack(Blocks.COCOA);
@@ -123,7 +123,7 @@ public final class VirtualSupportGameTests {
       helper.assertTrue(VirtualSupportPlacement.resolve((BlockItem)cocoaStack.getItem(), cocoaContext, cocoaContext) == null,
          "stone support unexpectedly replaced the cocoa log requirement");
       helper.assertTrue(PlaceableItems.placementState(cocoaStack, player, snapshot(target, Direction.EAST)).orElseThrow()
-         .equals(Blocks.COCOA.defaultBlockState()), "failed support and data rules did not return the default state");
+         .equals(Blocks.COCOA.defaultBlockState()), "failed support did not return the default state");
 
       BlockPos outside = new BlockPos(target.getX(), helper.getLevel().getMaxBuildHeight(), target.getZ());
       var ladderStack = new ItemStack(Blocks.LADDER);
@@ -132,8 +132,49 @@ public final class VirtualSupportGameTests {
       helper.assertTrue(VirtualSupportPlacement.resolve((BlockItem)ladderStack.getItem(), ladderContext, ladderContext) == null,
          "virtual support bypassed the world height limit");
       var fallback = PlaceableItems.placementState(ladderStack, player, ladderSnapshot).orElseThrow();
-      helper.assertTrue(fallback.getValue(BlockStateProperties.HORIZONTAL_FACING) == Direction.EAST,
-         "failed virtual support did not reach the ladder data rule");
+      helper.assertTrue(fallback.equals(Blocks.LADDER.defaultBlockState()), "failed virtual support did not return the default state");
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "placement_context")
+   public static void embeddedLeversAndButtonsPreferClickedFaceOverView(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      BlockPos target = helper.absolutePos(new BlockPos(2, 3, 2));
+      for (var block : new Block[] {Blocks.LEVER, Blocks.OAK_BUTTON, Blocks.STONE_BUTTON}) {
+         for (Direction face : Direction.values()) {
+            var snapshot = new PlacementContextSnapshot(target, target.getCenter(), face, false, true, 90,
+               Direction.WEST, Direction.UP, List.of(Direction.UP, Direction.NORTH, Direction.EAST,
+                  Direction.WEST, Direction.SOUTH, Direction.DOWN), false);
+            var state = PlaceableItems.placementState(new ItemStack(block), player, snapshot).orElseThrow();
+            var attachment = face == Direction.UP ? net.minecraft.world.level.block.state.properties.AttachFace.FLOOR
+               : face == Direction.DOWN ? net.minecraft.world.level.block.state.properties.AttachFace.CEILING
+               : net.minecraft.world.level.block.state.properties.AttachFace.WALL;
+            helper.assertTrue(state.getValue(BlockStateProperties.ATTACH_FACE) == attachment,
+               "embedded attachment ignored clicked face: " + face + ": " + state);
+            helper.assertTrue(state.getValue(BlockStateProperties.HORIZONTAL_FACING) == (face.getAxis().isHorizontal() ? face : Direction.WEST),
+               "embedded attachment ignored frozen orientation: " + state);
+         }
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "placement_context")
+   public static void secondSupportUsesHorizontalLookAndOnlyAir(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      var level = helper.getLevel();
+      BlockPos target = helper.absolutePos(new BlockPos(2, 3, 2));
+      for (Direction horizontal : Direction.Plane.HORIZONTAL) {
+         var snapshot = new PlacementContextSnapshot(target, target.getCenter(), Direction.UP, false, true, 0,
+            horizontal, Direction.UP, List.of(Direction.UP, Direction.NORTH, Direction.EAST, Direction.WEST, Direction.SOUTH, Direction.DOWN), false);
+         // Ladders reject floor support; the second attempt must use yaw, even when looking straight up.
+         var state = PlaceableItems.placementState(new ItemStack(Blocks.LADDER), player, snapshot).orElseThrow();
+         helper.assertTrue(state.getValue(BlockStateProperties.HORIZONTAL_FACING) == horizontal.getOpposite(),
+            "ladder did not use horizontal look: " + horizontal + ": " + state);
+         level.setBlock(target.relative(horizontal), Blocks.WATER.defaultBlockState(), PlacementUpdateMode.CLIENT_ONLY.flags());
+         var fallback = PlaceableItems.placementState(new ItemStack(Blocks.LADDER), player, snapshot).orElseThrow();
+         helper.assertTrue(fallback.equals(Blocks.LADDER.defaultBlockState()), "second support replaced non-air: " + fallback);
+         level.setBlock(target.relative(horizontal), Blocks.AIR.defaultBlockState(), PlacementUpdateMode.CLIENT_ONLY.flags());
+      }
       helper.succeed();
    }
 

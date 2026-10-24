@@ -33,8 +33,14 @@ public final class LongRangeBlockRaycast {
    }
 
    public static Result clipForSelection(Level level, Entity source, Vec3 start, Vec3 direction, boolean throughFluids) {
+      return clipForSelection(level, source, start, direction,
+         new InteractionRaycastRules(false, InteractionRaycastRules.passesThroughFluids(source, throughFluids)));
+   }
+
+   /** Explicit rules belong to a captured interaction and must not change when the player moves. */
+   public static Result clipForSelection(Level level, Entity source, Vec3 start, Vec3 direction, InteractionRaycastRules rules) {
       return clip(level, source, start, direction, ClipContext.Block.OUTLINE, false,
-         throughFluids ? ClipContext.Fluid.NONE : ClipContext.Fluid.ANY);
+         rules.throughFluids() ? ClipContext.Fluid.NONE : ClipContext.Fluid.ANY);
    }
 
    public static Result clipForIdleEntry(net.minecraft.world.entity.player.Player player, boolean alternative) {

@@ -14,17 +14,25 @@ public final class VirtualSupportPlacement {
       BlockPos target = orientation.getClickedPos();
       var level = orientation.getLevel();
       if (!level.isInWorldBounds(target)) return null;
-      for (Direction direction : orientation.getNearestLookingDirections()) {
-         BlockPos support = target.relative(direction);
-         if (!level.isInWorldBounds(support)) continue;
-         BlockState state = PlacementSupportQuery.withSupport(level, support, () -> {
-            BlockPlaceContext retry = item.updatePlacementContext(original);
-            if (retry == null || !retry.getClickedPos().equals(target)) return null;
-            return supportedState(item, retry);
-         });
-         if (state != null) return state;
-      }
-      return null;
+      Direction clickedSupport = orientation.getClickedFace().getOpposite();
+      BlockState state = retry(item, original, target, clickedSupport);
+      if (state != null) return state;
+
+      Direction horizontalSupport = orientation.getHorizontalDirection();
+      BlockPos support = target.relative(horizontalSupport);
+      if (horizontalSupport == clickedSupport || !level.isInWorldBounds(support) || !level.getBlockState(support).isAir()) return null;
+      return retry(item, original, target, horizontalSupport);
+   }
+
+   private static BlockState retry(BlockItem item, BlockPlaceContext original, BlockPos target, Direction direction) {
+      var level = original.getLevel();
+      BlockPos support = target.relative(direction);
+      if (!level.isInWorldBounds(support)) return null;
+      return PlacementSupportQuery.withSupport(level, support, () -> {
+         BlockPlaceContext retry = item.updatePlacementContext(original);
+         if (retry == null || !retry.getClickedPos().equals(target)) return null;
+         return supportedState(item, retry);
+      });
    }
 
    /** Preserve creative placement through entities, but do not discard support requirements. */

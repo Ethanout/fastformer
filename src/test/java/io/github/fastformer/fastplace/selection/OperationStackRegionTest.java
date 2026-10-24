@@ -74,6 +74,36 @@ class OperationStackRegionTest {
    }
 
    @Test
+   void scrollingCrossesZeroInBothDirectionsOnEveryAxis() {
+      for (var axis : AxisGizmo.Axis.values()) {
+         for (int side : new int[] {-1, 1}) {
+            var region = OperationStackRegion.origin().repeat(axis, side, 2);
+            region = region.stepAcrossOrigin(axis, -side);
+            assertEquals(OperationStackRegion.origin().repeat(axis, side, 1), region);
+            region = region.stepAcrossOrigin(axis, -side);
+            assertEquals(OperationStackRegion.origin(), region);
+            region = region.stepAcrossOrigin(axis, -side);
+            assertEquals(OperationStackRegion.origin().repeat(axis, -side, 1), region);
+            assertEquals(OperationStackRegion.origin(), region.stepAcrossOrigin(axis, side));
+         }
+      }
+   }
+
+   @Test
+   void scrollingRetractsOppositeCopiesAndKeepsOtherAxesAndLimits() {
+      var base = OperationStackRegion.origin().repeat(AxisGizmo.Axis.X, 1, 3);
+      var both = base.repeat(AxisGizmo.Axis.Y, -1, 2).repeat(AxisGizmo.Axis.Y, 1, 2);
+      assertEquals(base.repeat(AxisGizmo.Axis.Y, -1, 1).repeat(AxisGizmo.Axis.Y, 1, 2),
+         both.stepAcrossOrigin(AxisGizmo.Axis.Y, 1));
+      assertEquals(base.repeat(AxisGizmo.Axis.Y, -1, 2).repeat(AxisGizmo.Axis.Y, 1, 1),
+         both.stepAcrossOrigin(AxisGizmo.Axis.Y, -1));
+      for (int side : new int[] {-1, 1}) {
+         var limit = base.repeat(AxisGizmo.Axis.Y, side, OperationStackRegion.ENDPOINT_LIMIT);
+         assertSame(limit, limit.stepAcrossOrigin(AxisGizmo.Axis.Y, side));
+      }
+   }
+
+   @Test
    void axesFormACartesianProduct() {
       OperationStackRegion region = OperationStackRegion.origin()
          .repeat(AxisGizmo.Axis.X, 1, 1)

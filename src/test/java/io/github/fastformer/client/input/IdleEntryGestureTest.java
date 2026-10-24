@@ -14,6 +14,27 @@ class IdleEntryGestureTest {
    private static final Vec3 VIEW = new Vec3(0, 0, 1);
    private static final InteractionShapeSnapshot FULL = new InteractionShapeSnapshot(BlockPos.ZERO, List.of(new AABB(0, 0, 0, 1, 1, 1)));
 
+   @Test void matchedEntryRetainsBothFirstPressRulesThroughShapeUpdatesAndClear() {
+      for (boolean embedded : new boolean[]{false, true}) {
+         for (boolean throughFluids : new boolean[]{false, true}) {
+            var gesture = new IdleEntryGesture();
+            var rules = new io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules(embedded, throughFluids);
+            gesture.remember(5, 100, FULL, EYE, VIEW, this, null, rules);
+            gesture.update(5, new InteractionShapeSnapshot(BlockPos.ZERO.north(), FULL.boxes()));
+            var match = gesture.secondPress(200, EYE, VIEW);
+            assertNotNull(match);
+            gesture.clear();
+            assertEquals(5, match.token());
+            assertEquals(rules, match.rules());
+            assertFalse(match.tinker());
+            assertEquals(BlockPos.ZERO.north(), match.hit().getBlockPos());
+            gesture.remember(6, 300, FULL, EYE, VIEW, this, null);
+            assertEquals(io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.DEFAULT,
+               gesture.secondPress(400, EYE, VIEW).rules());
+         }
+      }
+   }
+
    @Test void secondPressRequiresTheTimeWindowAndTheCapturedShape() {
       assertEquals(200_000_000L, IdleEntryGesture.DOUBLE_PRESS_NANOS);
       var gesture = new IdleEntryGesture();
@@ -67,7 +88,7 @@ class IdleEntryGestureTest {
       gesture.remember(1, 100, FULL, EYE, VIEW, this, null);
       var placed = new InteractionShapeSnapshot(BlockPos.ZERO.north(), FULL.boxes());
       gesture.update(1, placed);
-      assertEquals(placed.position(), gesture.secondPress(200, EYE, VIEW).getBlockPos());
+      assertEquals(placed.position(), gesture.secondPress(200, EYE, VIEW).hit().getBlockPos());
    }
 
    @Test void viewComparisonHandlesTheYawWrapAndPitchChanges() {
@@ -126,7 +147,7 @@ class IdleEntryGestureTest {
       var gesture = new IdleEntryGesture();
       gesture.remember(2, 100, FULL, EYE, VIEW, this, null);
       gesture.update(2, distant);
-      assertEquals(distant.position(), gesture.secondPress(200, EYE, VIEW).getBlockPos());
+      assertEquals(distant.position(), gesture.secondPress(200, EYE, VIEW).hit().getBlockPos());
       gesture.clear();
       gesture.update(2, FULL);
       assertNull(gesture.secondPress(200, EYE, VIEW));

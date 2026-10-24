@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot;
+import io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -18,9 +19,17 @@ final class IdleEntryGesture {
    private boolean tinker;
    private Object environment;
    private net.minecraft.world.item.ItemStack item;
+   private InteractionRaycastRules rules = InteractionRaycastRules.DEFAULT;
+
+   record Match(long token, BlockHitResult hit, InteractionRaycastRules rules, boolean tinker) { }
 
    void remember(long token, long pressedAt, InteractionShapeSnapshot snapshot, Vec3 eye, Vec3 view, Object environment,
       net.minecraft.world.item.ItemStack item) {
+      remember(token, pressedAt, snapshot, eye, view, environment, item, InteractionRaycastRules.DEFAULT);
+   }
+
+   void remember(long token, long pressedAt, InteractionShapeSnapshot snapshot, Vec3 eye, Vec3 view, Object environment,
+      net.minecraft.world.item.ItemStack item, InteractionRaycastRules rules) {
       this.token = token;
       this.pressedAt = pressedAt;
       this.snapshot = snapshot;
@@ -29,6 +38,7 @@ final class IdleEntryGesture {
       tinker = false;
       this.environment = environment;
       this.item = item == null ? null : item.copy();
+      this.rules = java.util.Objects.requireNonNull(rules);
    }
 
    void validate(Object environment, net.minecraft.world.item.ItemStack item) {
@@ -42,7 +52,7 @@ final class IdleEntryGesture {
 
    void rememberTinker(long token, long pressedAt, InteractionShapeSnapshot original,
       Vec3 eye, Vec3 view, Object environment, net.minecraft.world.item.ItemStack item) {
-      remember(token, pressedAt, original, eye, view, environment, item);
+      remember(token, pressedAt, original, eye, view, environment, item, InteractionRaycastRules.VANILLA_OUTLINE);
       tinker = true;
    }
 
@@ -50,15 +60,15 @@ final class IdleEntryGesture {
       if (token > 0 && this.token == token) this.snapshot = snapshot;
    }
 
-   BlockHitResult secondPress(long now, Vec3 eye, Vec3 view) {
+   Match secondPress(long now, Vec3 eye, Vec3 view) {
       if (snapshot == null || now < pressedAt || now - pressedAt > DOUBLE_PRESS_NANOS) return null;
       // Clip only the frozen shape: intervening world blocks do not occlude it.
       var secondHit = snapshot.clip(eye, view);
       if (secondHit == null) return null;
-      if (firstView.dot(view.normalize()) >= MIN_VIEW_DOT) return secondHit;
+      if (firstView.dot(view.normalize()) >= MIN_VIEW_DOT) return new Match(token, secondHit, rules, tinker);
       var firstHit = snapshot.clip(firstEye, firstView);
       return firstHit != null && firstHit.getLocation().distanceToSqr(secondHit.getLocation())
-         <= MAX_HIT_DISTANCE * MAX_HIT_DISTANCE ? secondHit : null;
+         <= MAX_HIT_DISTANCE * MAX_HIT_DISTANCE ? new Match(token, secondHit, rules, tinker) : null;
    }
 
    void clear() {
@@ -70,5 +80,6 @@ final class IdleEntryGesture {
       tinker = false;
       environment = null;
       item = null;
+      rules = InteractionRaycastRules.DEFAULT;
    }
 }

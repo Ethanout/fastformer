@@ -34,6 +34,11 @@ public final class ClientPayloadDispatcher {
       EVENTS.post(new PendingPayload(payload, sourceConnection));
    }
 
+   public static void applyForwardDash(io.github.fastformer.network.payload.movement.ForwardDashStartPayload payload,
+      Connection sourceConnection) {
+      EVENTS.post(new PendingPayload(payload, sourceConnection));
+   }
+
    public static void applyQuickShapeSubmissionParameters(QuickShapeSubmissionParametersPayload payload, Connection sourceConnection) {
       EVENTS.post(new PendingPayload(payload, sourceConnection));
    }
@@ -232,6 +237,11 @@ public final class ClientPayloadDispatcher {
                "io.github.fastformer.client.input.HistoryConflictConfirmation", "receive",
                io.github.fastformer.network.payload.world.HistoryConflictPayload.class, payload);
          }
+         case io.github.fastformer.network.payload.movement.ForwardDashStartPayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
+               "io.github.fastformer.client.input.ForwardDashController", "receive",
+               io.github.fastformer.network.payload.movement.ForwardDashStartPayload.class, payload);
+         }
          case BuildingPreviewSessionPayload payload -> deliverBuildingSession(payload, connection);
          case QuickShapeSubmissionParametersPayload payload -> deliverQuickShapeSubmissionParameters(payload, connection);
          case BuildingPreviewParametersPayload payload -> deliverBuildingParameters(payload, connection);
@@ -288,7 +298,7 @@ public final class ClientPayloadDispatcher {
             payload.sessionUndoHistoryLimit(),
             payload.tinkerHistoryMergeLimits(),
             payload.skipRepeatedCropStages(),
-            payload.distantBlockRemoval()
+            payload.vanillaBlockHistory()
          );
       } catch (ReflectiveOperationException exception) {
          throw new IllegalStateException("Unable to open FastFormer settings", exception);

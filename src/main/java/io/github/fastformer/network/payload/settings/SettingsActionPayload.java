@@ -43,6 +43,6 @@ public record SettingsActionPayload(Action action, boolean fallingDisabled) impl
       INCREASE_SESSION_HISTORY,
       QUERY_FALLING_DISABLED,
       TOGGLE_SKIP_REPEATED_CROP_STAGES,
-      TOGGLE_DISTANT_BLOCK_REMOVAL
+      TOGGLE_VANILLA_BLOCK_HISTORY
    }
 }

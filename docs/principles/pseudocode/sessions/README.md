@@ -35,6 +35,7 @@
             已选中 focused
             未选中 unfocused
             Alt新建 alt_focused
+            撤点或减选后栈为空: 立即回到空闲，不保留空选区会话
 
             部件与选择集
             变换

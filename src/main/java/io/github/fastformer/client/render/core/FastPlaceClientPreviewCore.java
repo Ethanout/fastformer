@@ -702,7 +702,13 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static boolean embeddedModifierReticle() {
-      if (FastPlaceClientInput.vanillaSession()) return false;
+      if (FastPlaceClientInput.vanillaSession()) {
+         Minecraft minecraft = Minecraft.getInstance();
+         return minecraft.player != null && minecraft.player.isCreative() && enabled() && !QuickReplaceMode.active()
+            && minecraft.getCameraEntity() == minecraft.player
+            && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
+            && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession());
+      }
       if (PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) && PREVIEW_STATE.geometry().active()) {
          return PREVIEW_STATE.geometry().mode() == GeometryMode.WALL;
       }
@@ -928,7 +934,7 @@ public class FastPlaceClientPreviewCore {
          return;
       }
       boolean reticleNeeded = SmoothReticlePostEffect.updateTarget(FastPlaceClientInput.modifierReticleMode());
-      if (InteractionContext.vanillaOwnsPointer(minecraft) || !reticleNeeded) {
+      if (!reticleNeeded) {
          return;
       }
 
@@ -1747,7 +1753,7 @@ public class FastPlaceClientPreviewCore {
       if (player == null || minecraft.level == null || QuickReplaceMode.active()) return false;
       if (FastPlaceClientInput.vanillaSession()) {
          var hit = idlePreviewHit(minecraft);
-         var preview = hit == null ? null : InitialBlockPreview.resolve(player, hit, false);
+         var preview = hit == null ? null : InitialBlockPreview.resolve(player, hit, FastPlaceClientInput.modifierHeld());
          return preview != null && !preview.mesh().edges().isEmpty();
       }
       var snapshot = PREVIEW_STATE.building();
@@ -1772,7 +1778,8 @@ public class FastPlaceClientPreviewCore {
          || !FastPlaceClientInput.modifierHeld() && minecraft.hitResult != null
             && minecraft.hitResult.getType() == Type.ENTITY) return null;
       var hit = RAYCAST.clipForIdleEntry(player, FastPlaceClientInput.modifierHeld());
-      return LongRangeBlockRaycast.beyondInteractionRange(player, hit) ? hit : null;
+      boolean embedded = FastPlaceClientInput.modifierHeld() && PlaceableItems.isPlaceable(player.getMainHandItem());
+      return embedded || LongRangeBlockRaycast.beyondInteractionRange(player, hit) ? hit : null;
    }
 
    @SubscribeEvent
@@ -1804,7 +1811,7 @@ public class FastPlaceClientPreviewCore {
           if (FastPlaceClientInput.vanillaSession()) {
              var hit = idlePreviewHit(minecraft);
              if (hit != null) InitialBlockPreviewRenderer.render(event, minecraft, player, hit,
-                false, 1.0F);
+                FastPlaceClientInput.modifierHeld(), 1.0F);
              return;
           }
           boolean emptyBuildingPreview = false;

@@ -4,6 +4,7 @@ import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.TransformFrame;
 import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
+import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.transform.WorkspaceRotation;
 import java.util.LinkedHashMap;
@@ -65,6 +66,9 @@ public final class SelectionGizmoInteraction {
    }
 
    private static InteractionVisibility partVisibility(ClientSelectionPart part) {
+      if (part.selection() != null && part.selection().mode() == OperationSelectionMode.CUBOID) {
+         return InteractionVisibility.WHEN_SELECTED;
+      }
       if (part.editability() == ClientSelectionPart.Editability.FREE) return InteractionVisibility.ALWAYS;
       return InteractionVisibility.WHEN_SELECTED;
    }

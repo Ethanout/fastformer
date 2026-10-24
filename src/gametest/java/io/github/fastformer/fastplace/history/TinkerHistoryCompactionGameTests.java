@@ -24,11 +24,73 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class TinkerHistoryCompactionGameTests {
    private TinkerHistoryCompactionGameTests() { }
 
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000, batch = "tinker_recompaction")
+   public static void olderGroupsRecompactPersistAndUndoAsOneGroup(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
+      player.setGameMode(GameType.CREATIVE);
+      var level = helper.getLevel();
+      var pos = helper.absolutePos(new BlockPos(2, 2, 2));
+      var recent = pos.east();
+      int flags = PlacementUpdateMode.CLIENT_ONLY.flags();
+      level.setBlock(pos, Blocks.COMPOSTER.defaultBlockState(), flags);
+      level.setBlock(recent, Blocks.AIR.defaultBlockState(), flags);
+      for (int index = 1; index <= 4; index++) {
+         var before = io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+         level.setBlock(pos, Blocks.COMPOSTER.defaultBlockState().setValue(BlockStateProperties.LEVEL_COMPOSTER, index), flags);
+         var after = io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+         helper.assertTrue(WorldHistoryManager.recordTinker(player, level, new java.util.ArrayDeque<>(java.util.List.of(before)),
+            Map.of(pos, after), new BlockEditHistoryMetadata("same", 8, 1)), "old group record failed");
+      }
+      for (int index = 0; index < 34; index++) {
+         var state = index % 2 == 0 ? Blocks.GOLD_BLOCK.defaultBlockState() : Blocks.STONE.defaultBlockState();
+         helper.assertTrue(BlockEditTransaction.apply(player, level, Map.of(recent, state), flags, flags)
+            == BlockEditTransaction.Outcome.APPLIED, "newer ordinary write failed");
+      }
+      var originalIds = WorldHistoryManager.historyOrderForTest(player.getUUID(), true);
+      helper.assertTrue(originalIds.size() == 38, "expected four old groups and 34 newer actions");
+      int[] phase = {0};
+      var load = new AtomicReference<CompletableFuture<WorldHistoryPersistence.LoadedHistory>>();
+      helper.succeedWhen(() -> {
+         java.util.concurrent.locks.LockSupport.parkNanos(2_000_000L);
+         WorldHistoryManager.tickWorld(level.getServer());
+         if (phase[0] == 0) {
+            var ids = WorldHistoryManager.historyOrderForTest(player.getUUID(), true);
+            helper.assertTrue(ids.size() == 35, "waiting for old groups to merge again");
+            helper.assertTrue(ids.subList(0, 34).equals(originalIds.subList(0, 34)), "newer history order changed");
+            load.set(WorldHistoryPersistence.loadSnapshot(level.getServer(), player.getUUID(), 200, 64L * 1024 * 1024));
+            phase[0] = 1;
+         }
+         if (phase[0] == 1) {
+            helper.assertTrue(load.get().isDone(), "waiting for durable recompacted history");
+            var loaded = load.get().join();
+            helper.assertTrue(loaded.undo().size() == 35, "recompaction did not update durable order");
+            helper.assertTrue(loaded.undo().getLast().tinker().actions() == 32, "merged count was not preserved");
+            helper.assertTrue(loaded.undo().getLast().tinker().compressionStage() == 2, "compression stage was not persisted");
+            helper.assertTrue(WorldHistoryManager.requestUndo(player, 35), "group undo refused");
+            phase[0] = 2;
+         }
+         if (phase[0] == 2) {
+            helper.assertTrue(!WorldHistoryManager.busy(player), "waiting for undo");
+            helper.assertTrue(level.getBlockState(pos).getValue(BlockStateProperties.LEVEL_COMPOSTER) == 0, "undo did not restore all four groups");
+            helper.assertTrue(level.getBlockState(recent).isAir(), "newer undo was reordered");
+            helper.assertTrue(WorldHistoryManager.requestRedo(player, 35), "group redo refused");
+            phase[0] = 3;
+         }
+         helper.assertTrue(!WorldHistoryManager.busy(player), "waiting for redo");
+         helper.assertTrue(level.getBlockState(pos).getValue(BlockStateProperties.LEVEL_COMPOSTER) == 4, "redo did not replay the whole old group");
+         helper.assertTrue(level.getBlockState(recent).is(Blocks.STONE), "redo lost newer writes");
+      });
+   }
+
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000, batch = "tinker_compaction")
    public static void backgroundMergePersistsAndReplaysAsOneRecord(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
       player.setGameMode(GameType.CREATIVE);
+      var settings = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player);
+      settings.setTinkerHistoryMergeLimit(player, TinkerHistoryMergeLimits.Setting.RECENT_GROUP, 2);
+      settings.setTinkerHistoryMergeLimit(player, TinkerHistoryMergeLimits.Setting.RECENT_AFTER, 4);
       var level = helper.getLevel();
       var server = level.getServer();
       BlockPos position = helper.absolutePos(new BlockPos(2, 2, 2));

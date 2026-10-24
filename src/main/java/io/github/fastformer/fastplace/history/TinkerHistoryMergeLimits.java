@@ -1,68 +1,73 @@
 package io.github.fastformer.fastplace.history;
 
-/** Per-action distance bands keep historical groups stable when the player moves. */
-public record TinkerHistoryMergeLimits(int near, int middle, int far, int nearDistance, int farDistance) {
-   public static final TinkerHistoryMergeLimits DEFAULTS = new TinkerHistoryMergeLimits(8, 16, 32);
+/** Three chronological tiers. Each tier consumes whole records made by earlier tiers. */
+public record TinkerHistoryMergeLimits(int recentAfter, int recentGroup, int olderAfter, int olderGroup,
+   int oldestAfter, int oldestGroup) {
+   public static final int MAX_AFTER = 65536;
+   public static final TinkerHistoryMergeLimits DEFAULTS = new TinkerHistoryMergeLimits(5, 8, 32, 4, 128, 4);
 
    public TinkerHistoryMergeLimits {
-      near = Math.clamp(near, 1, BlockEditHistoryMetadata.MAX_LIMIT);
-      middle = Math.clamp(middle, 1, BlockEditHistoryMetadata.MAX_LIMIT);
-      far = Math.clamp(far, 1, BlockEditHistoryMetadata.MAX_LIMIT);
-      nearDistance = Math.clamp(nearDistance, 1, 255);
-      farDistance = Math.clamp(farDistance, nearDistance + 1, 256);
+      recentAfter = Math.clamp(recentAfter, 0, MAX_AFTER - 2);
+      olderAfter = Math.clamp(olderAfter, recentAfter + 1, MAX_AFTER - 1);
+      oldestAfter = Math.clamp(oldestAfter, olderAfter + 1, MAX_AFTER);
+      recentGroup = Math.clamp(recentGroup, 1, BlockEditHistoryMetadata.MAX_LIMIT);
+      olderGroup = Math.clamp(olderGroup, 1, BlockEditHistoryMetadata.MAX_LIMIT);
+      oldestGroup = Math.clamp(oldestGroup, 1, BlockEditHistoryMetadata.MAX_LIMIT);
    }
 
-   public TinkerHistoryMergeLimits(int near, int middle, int far) { this(near, middle, far, 5, 20); }
+   public enum Tier {
+      RECENT, OLDER, OLDEST;
+      public int stage() { return ordinal() + 1; }
+      public String translationKey() { return "fastformer.settings.compression." + name().toLowerCase(java.util.Locale.ROOT); }
+      public Setting afterSetting() { return Setting.values()[ordinal() * 2]; }
+      public Setting groupSetting() { return Setting.values()[ordinal() * 2 + 1]; }
+   }
 
-   public enum DistanceBand {
-      NEAR, MIDDLE, FAR;
+   public int after(Tier tier) {
+      return switch (tier) { case RECENT -> recentAfter; case OLDER -> olderAfter; case OLDEST -> oldestAfter; };
+   }
 
-      public static DistanceBand at(double distance) {
-         return at(distance, DEFAULTS);
+   public int groupSize(Tier tier) {
+      return switch (tier) { case RECENT -> recentGroup; case OLDER -> olderGroup; case OLDEST -> oldestGroup; };
+   }
+
+   public int minimumSourceStage(Tier tier) {
+      int stage = 0;
+      for (var previous : Tier.values()) {
+         if (previous == tier) break;
+         if (groupSize(previous) > 1) stage = previous.stage();
       }
-
-      public static DistanceBand at(double distance, TinkerHistoryMergeLimits limits) {
-         return distance <= limits.nearDistance ? NEAR : distance <= limits.farDistance ? MIDDLE : FAR;
-      }
-
-      public DistanceBand next() { return values()[(ordinal() + 1) % values().length]; }
+      return stage;
    }
 
-   public int limit(DistanceBand band) {
-      return switch (band) { case NEAR -> near; case MIDDLE -> middle; case FAR -> far; };
-   }
-
-   public TinkerHistoryMergeLimits with(DistanceBand band, int value) {
-      return new TinkerHistoryMergeLimits(band == DistanceBand.NEAR ? value : near,
-         band == DistanceBand.MIDDLE ? value : middle, band == DistanceBand.FAR ? value : far, nearDistance, farDistance);
-   }
+   public boolean enabled() { return recentGroup > 1 || olderGroup > 1 || oldestGroup > 1; }
 
    public enum Setting {
-      NEAR_LIMIT, MIDDLE_LIMIT, FAR_LIMIT, NEAR_DISTANCE, FAR_DISTANCE;
-
-      public Setting next() { return values()[(ordinal() + 1) % values().length]; }
-      public String translationKey() { return "fastformer.settings.tinker_history." + name().toLowerCase(java.util.Locale.ROOT); }
+      RECENT_AFTER, RECENT_GROUP, OLDER_AFTER, OLDER_GROUP, OLDEST_AFTER, OLDEST_GROUP;
    }
 
    public int value(Setting setting) {
       return switch (setting) {
-         case NEAR_LIMIT -> near;
-         case MIDDLE_LIMIT -> middle;
-         case FAR_LIMIT -> far;
-         case NEAR_DISTANCE -> nearDistance;
-         case FAR_DISTANCE -> farDistance;
+         case RECENT_AFTER -> recentAfter;
+         case RECENT_GROUP -> recentGroup;
+         case OLDER_AFTER -> olderAfter;
+         case OLDER_GROUP -> olderGroup;
+         case OLDEST_AFTER -> oldestAfter;
+         case OLDEST_GROUP -> oldestGroup;
       };
    }
 
    public TinkerHistoryMergeLimits with(Setting setting, int value) {
-      return switch (setting) {
-         case NEAR_LIMIT -> with(DistanceBand.NEAR, value);
-         case MIDDLE_LIMIT -> with(DistanceBand.MIDDLE, value);
-         case FAR_LIMIT -> with(DistanceBand.FAR, value);
-         case NEAR_DISTANCE -> new TinkerHistoryMergeLimits(near, middle, far, Math.clamp(value, 1, farDistance - 1), farDistance);
-         case FAR_DISTANCE -> new TinkerHistoryMergeLimits(near, middle, far, nearDistance, value);
-      };
+      return new TinkerHistoryMergeLimits(
+         setting == Setting.RECENT_AFTER ? Math.clamp(value, 0, olderAfter - 1) : recentAfter,
+         setting == Setting.RECENT_GROUP ? value : recentGroup,
+         setting == Setting.OLDER_AFTER ? Math.clamp(value, recentAfter + 1, oldestAfter - 1) : olderAfter,
+         setting == Setting.OLDER_GROUP ? value : olderGroup,
+         setting == Setting.OLDEST_AFTER ? value : oldestAfter,
+         setting == Setting.OLDEST_GROUP ? value : oldestGroup);
    }
 
-   static TinkerHistoryMergeLimits uniform(int limit) { return new TinkerHistoryMergeLimits(limit, limit, limit); }
+   static TinkerHistoryMergeLimits uniform(int groupSize) {
+      return new TinkerHistoryMergeLimits(0, groupSize, 32, 1, 128, 1);
+   }
 }

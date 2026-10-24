@@ -1,9 +1,9 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.input.SelectionScrollMove;
+import io.github.fastformer.client.operation.input.SelectionScrollAction;
 
 /** A scroll candidate captured at the physical callback boundary. */
-record ScrollInputSnapshot(int direction, SelectionScrollMove selectionMove) {
+record ScrollInputSnapshot(int direction, SelectionScrollAction selectionAction) {
    ScrollInputSnapshot(int direction) {
       this(direction, null);
    }

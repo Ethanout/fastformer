@@ -23,7 +23,7 @@ public record OpenSettingsPayload(
    int sessionUndoHistoryLimit,
    TinkerHistoryMergeLimits tinkerHistoryMergeLimits,
    boolean skipRepeatedCropStages,
-   boolean distantBlockRemoval
+   boolean vanillaBlockHistory
 ) implements CustomPacketPayload {
    public static final Type<OpenSettingsPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("fastformer", "open_settings"));
    public static final StreamCodec<FriendlyByteBuf, OpenSettingsPayload> STREAM_CODEC = CustomPacketPayload.codec(
@@ -35,7 +35,8 @@ public record OpenSettingsPayload(
          buffer.readBoolean(), buffer.readEnum(FaceRasterizationMode.class),
          buffer.readEnum(OperationConflictMode.class), buffer.readEnum(PlacementUpdateMode.class),
          readEffectIds(buffer), buffer.readBoolean(), buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt(),
-         new TinkerHistoryMergeLimits(buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt()),
+         new TinkerHistoryMergeLimits(buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(),
+            buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt()),
          buffer.readBoolean(), buffer.readBoolean()
       );
    }
@@ -59,7 +60,7 @@ public record OpenSettingsPayload(
       boolean skipRepeatedCropStages) {
       this(middleConfirmEnabled, faceRasterizationMode, placementConflictMode, placementUpdateMode,
          enabledPlacementEffects, emptyHandWrench, fallingDisabled, worldUndoHistoryLimit, sessionUndoHistoryLimit,
-         tinkerHistoryMergeLimits, skipRepeatedCropStages, true);
+         tinkerHistoryMergeLimits, skipRepeatedCropStages, false);
    }
 
    public OpenSettingsPayload(boolean middleConfirmEnabled, FaceRasterizationMode faceRasterizationMode,
@@ -110,13 +111,14 @@ public record OpenSettingsPayload(
       buffer.writeBoolean(this.fallingDisabled);
       buffer.writeVarInt(this.worldUndoHistoryLimit);
       buffer.writeVarInt(this.sessionUndoHistoryLimit);
-      buffer.writeVarInt(this.tinkerHistoryMergeLimits.near());
-      buffer.writeVarInt(this.tinkerHistoryMergeLimits.middle());
-      buffer.writeVarInt(this.tinkerHistoryMergeLimits.far());
-      buffer.writeVarInt(this.tinkerHistoryMergeLimits.nearDistance());
-      buffer.writeVarInt(this.tinkerHistoryMergeLimits.farDistance());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.recentAfter());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.recentGroup());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.olderAfter());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.olderGroup());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.oldestAfter());
+      buffer.writeVarInt(this.tinkerHistoryMergeLimits.oldestGroup());
       buffer.writeBoolean(this.skipRepeatedCropStages);
-      buffer.writeBoolean(this.distantBlockRemoval);
+      buffer.writeBoolean(this.vanillaBlockHistory);
    }
 
    @Override

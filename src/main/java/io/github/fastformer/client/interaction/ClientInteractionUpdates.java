@@ -31,8 +31,4 @@ public final class ClientInteractionUpdates {
       return policy == null || policy.skipRepeatedCropStages();
    }
 
-   public static boolean distantBlockRemoval(net.minecraft.world.entity.player.Player player) {
-      var policy = POLICIES.get(player);
-      return policy != null && policy.distantBlockRemoval();
-   }
 }

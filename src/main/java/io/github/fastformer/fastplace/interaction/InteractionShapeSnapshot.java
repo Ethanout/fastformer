@@ -8,6 +8,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
 /** An immutable interaction shape, independent of later world changes. */
 public record InteractionShapeSnapshot(BlockPos position, List<AABB> boxes) {
@@ -23,9 +24,17 @@ public record InteractionShapeSnapshot(BlockPos position, List<AABB> boxes) {
    }
 
    public static InteractionShapeSnapshot capture(BlockGetter level, BlockPos position) {
+      return capture(level, position, false);
+   }
+
+   public static InteractionShapeSnapshot capture(BlockGetter level, BlockPos position, boolean throughFluids) {
+      return capture(level, position, throughFluids, CollisionContext.empty());
+   }
+
+   public static InteractionShapeSnapshot capture(BlockGetter level, BlockPos position, boolean throughFluids, CollisionContext context) {
       var state = level.getBlockState(position);
-      VoxelShape shape = state.getShape(level, position);
-      if (!state.getFluidState().isEmpty()) shape = Shapes.or(shape, state.getFluidState().getShape(level, position));
+      VoxelShape shape = state.getShape(level, position, context);
+      if (!throughFluids && !state.getFluidState().isEmpty()) shape = Shapes.or(shape, state.getFluidState().getShape(level, position));
       return new InteractionShapeSnapshot(position, shape.toAabbs());
    }
 

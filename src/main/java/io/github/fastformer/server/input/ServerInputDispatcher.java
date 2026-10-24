@@ -168,13 +168,15 @@ public final class ServerInputDispatcher {
          ? IdleInteractionSnapshots.consumeEntry(player, target.anchorToken(), target.eye(), target.view()) : null;
       BlockHitResult hit = target.anchorToken() > 0
          ? entry == null ? null : entry.hit()
-         : io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, target.eye(), target.view(), target.throughFluids());
+         : io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, target.eye(), target.view(),
+            new io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules(target.embedded(), target.throughFluids()));
       if (hit != null && hit.getType() == HitResult.Type.BLOCK
          && (target.anchorToken() > 0 || sameHit(hit, target.hit()))) {
          if (entry != null && entry.placement() != null) {
             FastPlaceManager.beginAtInteraction(player, entry.placement(), target.eye(), target.view());
          } else {
-            FastPlaceManager.beginAtInteraction(player, hit, target.eye(), target.view(), target.embedded());
+            boolean embedded = entry == null ? target.embedded() : entry.rules().embedded();
+            FastPlaceManager.beginAtInteraction(player, hit, target.eye(), target.view(), embedded);
          }
          if (target.submitAfterEntry() && FastPlaceManager.active(player)) FastPlaceManager.fillConfirmed(player);
       }
@@ -191,25 +193,6 @@ public final class ServerInputDispatcher {
          return false;
       }
       return hasActiveSession(player);
-   }
-
-   public static boolean removeDistantBlock(ServerPlayer player,
-      io.github.fastformer.network.payload.placement.DistantBlockRemovePayload payload) {
-      if (!canOperate(player) || interactionBlocked(player) || !player.isCreative()
-         || !player.getMainHandItem().isEmpty() || !IdleInteractionSnapshots.idle(player)
-         || !IdleInteractionSnapshots.validRay(player, payload.eye(), payload.view())) return false;
-      var hit = LongRangeBlockRaycast.clipForSelection(player.level(), player, payload.eye(), payload.view(), payload.throughFluids()).hit();
-      if (!sameHit(hit, payload.hit()) || !LongRangeBlockRaycast.beyondInteractionRange(player, hit)) return false;
-      var level = player.serverLevel();
-      if (level.getBlockState(hit.getBlockPos()).isAir() || !level.mayInteract(player, hit.getBlockPos())) return false;
-      var settings = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player);
-      if (!settings.distantBlockRemoval()) return false;
-      var changes = java.util.Map.of(hit.getBlockPos(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
-      var metadata = io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromInteraction(player, hit, changes, settings.tinkerHistoryMergeLimits());
-      var outcome = io.github.fastformer.fastplace.world.BlockEditTransaction.apply(player, level, changes,
-         settings.placementUpdateMode().flags(), io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags(), metadata);
-      io.github.fastformer.fastplace.world.BlockEditTransaction.report(outcome, player);
-      return outcome == io.github.fastformer.fastplace.world.BlockEditTransaction.Outcome.APPLIED;
    }
 
    public static void middleClick(ServerPlayer player, BlockPos point) {
@@ -1001,7 +984,8 @@ public final class ServerInputDispatcher {
    public static void tinker(ServerPlayer player, io.github.fastformer.network.payload.placement.TinkerInteractionPayload payload) {
       if (!canOperate(player) || interactionBlocked(player) || !IdleInteractionSnapshots.idle(player)
          || !IdleInteractionSnapshots.validRay(player, payload.eye(), payload.view())) return;
-      var hit = LongRangeBlockRaycast.clipForSelection(player.level(), player, payload.eye(), payload.view(), false).hit();
+      var hit = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, payload.eye(), payload.view(),
+         io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.VANILLA_OUTLINE);
       if (sameHit(hit, payload.hit())) {
          IdleInteractionSnapshots.tinker(player, payload);
       }

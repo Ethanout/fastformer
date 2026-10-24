@@ -45,6 +45,8 @@
     "gizmo_overshoot_scale": 0.5,
     "halo_extra_width": 0.5,
     "candidate_alpha": 0.8,
+    "unselected_dash_length": 0.25,
+    "unselected_dash_gap": 0.18,
     "confirmed_alpha": 1,
     "pending_min_alpha": 0.25,
     "pending_max_alpha": 0.55,

@@ -22,7 +22,7 @@ public final class ScrollInputSemantics {
          return Decision.ignored();
       }
       if (inputRoute == ClientInputStateMachine.Dispatch.OPERATION && workspaceActive) {
-         return Decision.workspaceMove(direction(scrollDelta));
+         return Decision.workspaceTransform(direction(scrollDelta));
       }
       if (inputRoute == ClientInputStateMachine.Dispatch.VANILLA || !usesScrollContext) {
          return Decision.ignored();
@@ -43,7 +43,7 @@ public final class ScrollInputSemantics {
    public enum Command {
       NONE,
       BLOCK,
-      WORKSPACE_MOVE,
+      WORKSPACE_TRANSFORM,
       CANDIDATE_SCROLL,
       YIELD_TO_VANILLA
    }
@@ -57,8 +57,8 @@ public final class ScrollInputSemantics {
          return new Decision(Command.BLOCK, 0);
       }
 
-      public static Decision workspaceMove(int direction) {
-         return new Decision(Command.WORKSPACE_MOVE, direction);
+      public static Decision workspaceTransform(int direction) {
+         return new Decision(Command.WORKSPACE_TRANSFORM, direction);
       }
 
       public static Decision candidateScroll(int direction) {

@@ -22,7 +22,7 @@ class ScrollInputSemanticsTest {
    }
 
    @Test
-   void workspaceMoveOwnsOperationScrollBeforeCandidateScroll() {
+   void workspaceTransformOwnsOperationScrollBeforeCandidateScroll() {
       ScrollInputSemantics.Decision decision = ScrollInputSemantics.decide(
          -1.0,
          ClientInputStateMachine.Dispatch.OPERATION,
@@ -32,7 +32,7 @@ class ScrollInputSemanticsTest {
          true
       );
 
-      assertEquals(ScrollInputSemantics.Command.WORKSPACE_MOVE, decision.command());
+      assertEquals(ScrollInputSemantics.Command.WORKSPACE_TRANSFORM, decision.command());
       assertEquals(-1, decision.direction());
    }
 

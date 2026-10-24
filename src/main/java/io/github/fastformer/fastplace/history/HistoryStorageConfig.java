@@ -19,11 +19,12 @@ public final class HistoryStorageConfig {
    private static final ModConfigSpec.IntValue MAX_CELLS;
    private static final ModConfigSpec.IntValue MAX_WORK_MIB;
    private static final ModConfigSpec.BooleanValue DIAGONAL_NEIGHBORS;
-   private static final ModConfigSpec.IntValue NEAR_LIMIT;
-   private static final ModConfigSpec.IntValue MIDDLE_LIMIT;
-   private static final ModConfigSpec.IntValue FAR_LIMIT;
-   private static final ModConfigSpec.IntValue NEAR_DISTANCE;
-   private static final ModConfigSpec.IntValue FAR_DISTANCE;
+   private static final ModConfigSpec.IntValue RECENT_AFTER;
+   private static final ModConfigSpec.IntValue RECENT_GROUP;
+   private static final ModConfigSpec.IntValue OLDER_AFTER;
+   private static final ModConfigSpec.IntValue OLDER_GROUP;
+   private static final ModConfigSpec.IntValue OLDEST_AFTER;
+   private static final ModConfigSpec.IntValue OLDEST_GROUP;
    private static final ModConfigSpec.ConfigValue<List<? extends String>> SHAPE_PARTS;
    private static final ModConfigSpec.ConfigValue<List<? extends String>> GENERAL_PARTS;
    private static final ModConfigSpec.ConfigValue<List<? extends String>> IGNORED_PROPERTIES;
@@ -45,25 +46,29 @@ public final class HistoryStorageConfig {
       builder.pop();
       builder.push("wrenchHistory");
       var defaults = HistoryCompactionPolicy.DEFAULTS;
-      COMPACTION_ENABLED = builder.comment("Enable background compaction of old wrench records.").define("enabled", defaults.enabled());
+      COMPACTION_ENABLED = builder.comment("Enable background compaction of micro edits, including recorded vanilla placement/breaking.").define("enabled", defaults.enabled());
       PROTECTED_RECORDS = builder.comment("Keep this many recent world records independent. At least one protects double-click restoration.")
          .defineInRange("protectedRecords", defaults.protectedRecords(), 1, 64);
       MAX_CELLS = builder.comment("Maximum accumulated cell count per worker merge.")
          .defineInRange("maxCells", defaults.maxCells(), 1, 65536);
       MAX_WORK_MIB = builder.comment("Maximum source history size per worker merge, in MiB.")
          .defineInRange("maxWorkMiB", (int)(defaults.maxBytes() / (1024 * 1024)), 1, 64);
-      DIAGONAL_NEIGHBORS = builder.comment("Allow edge and corner neighbors as well as face neighbors.")
+      DIAGONAL_NEIGHBORS = builder.comment("Wrench edits only: allow edge and corner neighbors as well as face neighbors. Vanilla edits use bounds within 5 blocks.")
          .define("includeDiagonalNeighbors", defaults.includeDiagonalNeighbors());
       builder.push("defaults");
       var limits = TinkerHistoryMergeLimits.DEFAULTS;
-      NEAR_LIMIT = builder.comment("Default original-action limit for close edits. Player settings take precedence.")
-         .defineInRange("nearLimit", limits.near(), 1, BlockEditHistoryMetadata.MAX_LIMIT);
-      MIDDLE_LIMIT = builder.defineInRange("middleLimit", limits.middle(), 1, BlockEditHistoryMetadata.MAX_LIMIT);
-      FAR_LIMIT = builder.defineInRange("farLimit", limits.far(), 1, BlockEditHistoryMetadata.MAX_LIMIT);
-      NEAR_DISTANCE = builder.comment("Default eye-to-hit boundary for close edits, in blocks.")
-         .defineInRange("nearDistance", limits.nearDistance(), 1, 255);
-      FAR_DISTANCE = builder.comment("Default boundary between middle and far edits. Must exceed nearDistance.")
-         .defineInRange("farDistance", limits.farDistance(), 2, 256);
+      RECENT_AFTER = builder.comment("Compress recent history after strictly more than this many newer original actions. Player settings take precedence.")
+         .defineInRange("recentAfter", limits.recentAfter(), 0, 65534);
+      RECENT_GROUP = builder.comment("Combine this many compatible records into one. 1 disables this tier; each tier runs once per record.")
+         .defineInRange("recentGroup", limits.recentGroup(), 1, 256);
+      OLDER_AFTER = builder.comment("Older history threshold, in newer original actions. Must exceed recentAfter.")
+         .defineInRange("olderAfter", limits.olderAfter(), 1, 65535);
+      OLDER_GROUP = builder.comment("Records per older-history group. Previously compressed groups count as one record.")
+         .defineInRange("olderGroup", limits.olderGroup(), 1, 256);
+      OLDEST_AFTER = builder.comment("Oldest history threshold, in newer original actions. Must exceed olderAfter.")
+         .defineInRange("oldestAfter", limits.oldestAfter(), 2, 65536);
+      OLDEST_GROUP = builder.comment("Records per oldest-history group. Previously compressed groups count as one record.")
+         .defineInRange("oldestGroup", limits.oldestGroup(), 1, 256);
       builder.pop();
       builder.push("grouping");
       SHAPE_PARTS = parts(builder, "shapeKeyParts", defaults.grouping().shapeParts(),
@@ -71,12 +76,12 @@ public final class HistoryStorageConfig {
          "Shape key dimensions: material, edited_half, edit_direction, face. Empty groups all shape edits. Changes affect new records.");
       GENERAL_PARTS = parts(builder, "generalKeyParts", defaults.grouping().generalParts(),
          TinkerHistoryGroupingRules.GENERAL_PARTS,
-         "Other edit key dimensions: face, block_type, properties, conversion. Empty groups all other edits.");
+         "Other wrench edit key dimensions: face, block_type, properties, conversion. Empty groups all other wrench edits. Vanilla edits ignore these keys.");
       IGNORED_PROPERTIES = builder.comment("Exclude these state property names from general grouping. This does not change wrench behavior.")
          .defineListAllowEmpty("ignoredProperties", List.<String>of(), value -> value instanceof String name && name.matches("[a-z0-9_]{1,64}"));
       SHAPE_TAG = builder.comment("Before or after must match this block tag for shape grouping.")
          .define("shapeEditTag", defaults.grouping().tags().shapeEdits().location().toString(), HistoryStorageConfig::validTagName);
-      NO_MERGE_TAG = builder.comment("Keep records independent when any changed block matches this tag before or after the edit.")
+      NO_MERGE_TAG = builder.comment("Wrench edits only: keep records independent when any changed block matches this tag before or after the edit.")
          .define("noMergeTag", defaults.grouping().tags().noMerge().location().toString(), HistoryStorageConfig::validTagName);
       MATERIAL_TAG_PREFIXES = builder.comment("Shared block tag prefixes for shape materials. The first tag in lexical order wins. Missing tags use tinker_shape families.")
          .defineListAllowEmpty("materialTagPrefixes", defaults.grouping().tags().materialPrefixes(), HistoryStorageConfig::validTagName);
@@ -115,7 +120,8 @@ public final class HistoryStorageConfig {
       var rules = new TinkerHistoryGroupingRules(parseParts(SHAPE_PARTS.get()), parseParts(GENERAL_PARTS.get()), Set.copyOf(IGNORED_PROPERTIES.get()), tags);
       compactionPolicy = new HistoryCompactionPolicy(COMPACTION_ENABLED.get(), PROTECTED_RECORDS.get(), MAX_CELLS.get(),
          MAX_WORK_MIB.get().longValue() * 1024 * 1024, DIAGONAL_NEIGHBORS.get(), rules);
-      defaultMergeLimits = new TinkerHistoryMergeLimits(NEAR_LIMIT.get(), MIDDLE_LIMIT.get(), FAR_LIMIT.get(), NEAR_DISTANCE.get(), FAR_DISTANCE.get());
+      defaultMergeLimits = new TinkerHistoryMergeLimits(RECENT_AFTER.get(), RECENT_GROUP.get(), OLDER_AFTER.get(), OLDER_GROUP.get(),
+         OLDEST_AFTER.get(), OLDEST_GROUP.get());
    }
 
    private static ModConfigSpec.ConfigValue<List<? extends String>> parts(ModConfigSpec.Builder builder, String name,

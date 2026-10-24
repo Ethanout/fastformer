@@ -28,11 +28,13 @@ final class InteractionRaycastOwner {
    }
 
    BlockHitResult clipForSelection(LocalPlayer currentPlayer, boolean throughFluids) {
-      return clip(currentPlayer, throughFluids ? Purpose.OUTLINE : Purpose.SELECTION);
+      return clip(currentPlayer, io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.passesThroughFluids(currentPlayer, throughFluids)
+         ? Purpose.OUTLINE : Purpose.SELECTION);
    }
 
    BlockHitResult clipForIdleEntry(LocalPlayer currentPlayer, boolean alternative) {
-      return clip(currentPlayer, alternative ? Purpose.ALTERNATIVE_IDLE : Purpose.IDLE);
+      return clip(currentPlayer, io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.passesThroughFluids(currentPlayer, alternative)
+         ? Purpose.ALTERNATIVE_IDLE : Purpose.IDLE);
    }
 
    private BlockHitResult clip(LocalPlayer currentPlayer, Purpose currentPurpose) {

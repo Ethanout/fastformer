@@ -32,6 +32,18 @@ public final class SelectionTransformCalculator {
    public static Result calculate(List<ClientSelectionPart> baseline, boolean common,
       AxisGizmo.Operation operation, AxisGizmo.Axis axis, int direction, int totalSteps, double rotationRadians,
       Vec3 rotationAxis, Vec3 rotationPivot) {
+      return calculate(baseline, common, operation, axis, direction, totalSteps, rotationRadians, rotationAxis, rotationPivot, false);
+   }
+
+   /** Uses the handle's stack calculation, with a scroll boundary that can cross the source cell. */
+   public static Result scrollStack(List<ClientSelectionPart> baseline, AxisGizmo.Axis axis, int side, int steps) {
+      return calculate(baseline, baseline.size() > 1, AxisGizmo.Operation.SCALE, axis, side, steps, Double.NaN,
+         WorkspaceRotation.unitAxis(axis), null, true);
+   }
+
+   private static Result calculate(List<ClientSelectionPart> baseline, boolean common,
+      AxisGizmo.Operation operation, AxisGizmo.Axis axis, int direction, int totalSteps, double rotationRadians,
+      Vec3 rotationAxis, Vec3 rotationPivot, boolean crossStackOrigin) {
       if (totalSteps == 0) return new Result(baseline, null);
       int directedSteps = direction * totalSteps;
       double radians = Double.isFinite(rotationRadians) ? rotationRadians : totalSteps * Math.PI * 2.0 / 1024.0;
@@ -84,7 +96,8 @@ public final class SelectionTransformCalculator {
                );
                WorkspaceTransform axisStride = transform.withRepeatStride(axis, cellStride);
                yield axisStride.withRepeats(
-                  transform.repeats().withAxisEndpoint(axis, direction, groupDelta),
+                  crossStackOrigin ? transform.repeats().stepAcrossOrigin(axis, directedSteps)
+                     : transform.repeats().withAxisEndpoint(axis, direction, groupDelta),
                   axisStride.repeatStride()
                );
             }

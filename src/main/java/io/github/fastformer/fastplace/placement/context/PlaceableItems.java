@@ -26,7 +26,7 @@ public final class PlaceableItems {
       return Optional.empty();
    }
 
-   /** Resolves real support, virtual support, data pack rules, then the default state. */
+   /** Resolves real support, clicked-face support, horizontal look support, then the default state. */
    public static Optional<BlockState> placementState(
       ItemStack stack, Player player, PlacementContextSnapshot snapshot
    ) {
@@ -38,13 +38,12 @@ public final class PlaceableItems {
       }
       BlockPlaceContext original = snapshot.context(player.level(), player, stack);
       BlockPlaceContext updated = blockItem.updatePlacementContext(original);
-      BlockPlaceContext orientationContext = updated == null ? original : updated;
       BlockState state = updated == null ? null : VirtualSupportPlacement.supportedState(blockItem, updated);
       if (state == null) {
          state = VirtualSupportPlacement.resolve(blockItem, original, updated);
       }
       if (state == null) {
-         state = PlacementFallbacks.resolve(blockItem.getBlock().defaultBlockState(), orientationContext);
+         state = blockItem.getBlock().defaultBlockState();
       }
       BlockItemStateProperties properties = stack.getOrDefault(
          DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY

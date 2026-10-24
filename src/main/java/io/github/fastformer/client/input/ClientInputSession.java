@@ -35,10 +35,9 @@ public final class ClientInputSession {
    private final ClientSmartFillSession smartFill = new ClientSmartFillSession();
    public ClientSmartFillSession smartFill() { return smartFill; }
    final IdleEntryGesture idleEntry = new IdleEntryGesture();
-   final RightClickInertiaGuard distantEntryPressGuard = new RightClickInertiaGuard();
+   final RightClickInertiaGuard entryPressGuard = new RightClickInertiaGuard();
    final RightClickInertiaGuard cuboidPointPressGuard = new RightClickInertiaGuard();
    int idleEntryButton = -1;
-   boolean distantRemovalPressed;
    int idleEntrySelectionButton = -1;
    boolean entryConsumedAlt;
    IdleSelectionEntryController.Pending idleSelectionEntry;
@@ -112,9 +111,8 @@ public final class ClientInputSession {
 
    public void reset() {
       smartFill.clear();
-      distantRemovalPressed = false;
       idleEntry.clear();
-      distantEntryPressGuard.clear();
+      entryPressGuard.clear();
       cuboidPointPressGuard.clear();
       idleSelectionEntry = null;
       idleEntryButton = -1;
@@ -166,9 +164,8 @@ public final class ClientInputSession {
    }
 
    void discardPhysicalEvents() {
-      distantRemovalPressed = false;
       idleEntry.clear();
-      distantEntryPressGuard.clear();
+      entryPressGuard.clear();
       cuboidPointPressGuard.clear();
       idleSelectionEntry = null;
       idleEntryButton = -1;

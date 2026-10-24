@@ -50,6 +50,7 @@ public final class WorldChangeBatch {
    private final UUID operationId;
    private final BlockEditHistoryMetadata tinker;
    private final long[] positions;
+   private final HistoryBounds bounds;
    private final int denseMinX;
    private final int denseMinY;
    private final int denseMinZ;
@@ -93,12 +94,15 @@ public final class WorldChangeBatch {
       BlockEntitySnapshot[] beforeEntities,
       BlockEntitySnapshot[] afterEntities,
       int estimatedBytes,
-      BlockEditHistoryMetadata tinker
+      BlockEditHistoryMetadata tinker,
+      HistoryBounds bounds
    ) {
       this.dimension = dimension;
       this.operationId = operationId;
       this.tinker = tinker;
       this.positions = positions;
+      this.bounds = bounds == null ? HistoryBounds.of(positions, denseMinX, denseMinY, denseMinZ,
+         denseWidth, denseHeight, denseDepth) : bounds;
       this.denseMinX = denseMinX;
       this.denseMinY = denseMinY;
       this.denseMinZ = denseMinZ;
@@ -432,6 +436,7 @@ public final class WorldChangeBatch {
          beforeEntities,
          afterEntities,
          estimatedBytes,
+         null,
          null
       ));
    }
@@ -472,18 +477,26 @@ public final class WorldChangeBatch {
          this.beforeEntities,
          this.afterEntities,
          this.estimatedBytes,
-         this.tinker
+         this.tinker,
+         this.bounds
       );
    }
 
    BlockEditHistoryMetadata tinker() { return this.tinker; }
 
+   HistoryBounds bounds() { return this.bounds; }
+
    public WorldChangeBatch withTinker(BlockEditHistoryMetadata metadata) {
+      return withTinker(metadata, bounds);
+   }
+
+   WorldChangeBatch withTinker(BlockEditHistoryMetadata metadata, HistoryBounds bounds) {
+      HistoryBounds retainedBounds = bounds == null || bounds == this.bounds ? this.bounds : this.bounds.union(bounds);
       return new WorldChangeBatch(dimension, operationId, positions, denseMinX, denseMinY, denseMinZ,
          denseWidth, denseHeight, denseDepth, blockStates, fluidStates,
          beforeBlockIds, uniformBeforeBlockId, afterBlockIds, uniformAfterBlockId,
          beforeFluidIds, uniformBeforeFluidId, afterFluidIds, uniformAfterFluidId,
-         beforeEntities, afterEntities, estimatedBytes, metadata);
+         beforeEntities, afterEntities, estimatedBytes, metadata, retainedBounds);
    }
 
    /** Encodes the compact in-memory representation without expanding dense positions or uniform palette IDs. */
@@ -491,6 +504,7 @@ public final class WorldChangeBatch {
       validateForEncoding();
       CompoundTag root = new CompoundTag();
       root.putInt("Version", CODEC_VERSION);
+      bounds.encode(root);
       root.putString("Dimension", this.dimension.location().toString());
       if (this.operationId != null) {
          root.putUUID("OperationId", this.operationId);
@@ -563,7 +577,9 @@ public final class WorldChangeBatch {
          beforeBlocks.ids(), beforeBlocks.uniformId(), afterBlocks.ids(), afterBlocks.uniformId(),
          beforeFluids.ids(), beforeFluids.uniformId(), afterFluids.ids(), afterFluids.uniformId(),
          beforeEntities, afterEntities, estimatedBytes,
-         root.contains("Tinker") ? BlockEditHistoryMetadata.decode(root) : null
+         root.contains("Tinker") ? BlockEditHistoryMetadata.decode(root) : null,
+         HistoryBounds.decode(root, HistoryBounds.of(positions.positions(), positions.minX(), positions.minY(), positions.minZ(),
+            positions.width(), positions.height(), positions.depth()))
       );
    }
 
@@ -906,7 +922,7 @@ public final class WorldChangeBatch {
 
    public int estimatedBytes() {
       long metadataBytes = tinker == null ? 0 : 48L + tinker.cluster().length() * 2L;
-      return (int)Math.min(Integer.MAX_VALUE, this.estimatedBytes + metadataBytes);
+      return (int)Math.min(Integer.MAX_VALUE, this.estimatedBytes + metadataBytes + 48L);
    }
 
    public BlockPos position(int index) {

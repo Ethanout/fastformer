@@ -16,7 +16,8 @@ class CommandIdentityCodecTest {
       var eye = new Vec3(2.5, 66, 3.5);
       var view = new Vec3(0, -1, 0);
       var hit = new net.minecraft.world.phys.BlockHitResult(new Vec3(2.5, 65, 3.5), net.minecraft.core.Direction.UP, position, false);
-      var capture = new io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload(123, hit, eye, view);
+      var rules = new io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules(true, true);
+      var capture = new io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload(123, hit, eye, view, rules);
       var snapshot = new io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload(123,
          net.minecraft.resources.ResourceLocation.parse("minecraft:overworld"),
          new io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot(position,
@@ -35,6 +36,7 @@ class CommandIdentityCodecTest {
          assertEquals(capture.token(), decodedCapture.token());
          assertEquals(eye, decodedCapture.eye());
          assertEquals(view, decodedCapture.view());
+         assertEquals(rules, decodedCapture.rules());
          assertEquals(position, decodedCapture.hit().getBlockPos());
          assertEquals(hit.getLocation(), decodedCapture.hit().getLocation());
          assertEquals(snapshot, io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload.STREAM_CODEC.decode(buffer));
@@ -78,7 +80,7 @@ class CommandIdentityCodecTest {
       try {
          var request = new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, true);
          var response = new FallingStatePayload(false, false);
-         var interaction = new InteractionUpdatesPayload(true, false, true, false, false);
+         var interaction = new InteractionUpdatesPayload(true, false, true, false);
          SettingsActionPayload.STREAM_CODEC.encode(buffer, request);
          FallingStatePayload.STREAM_CODEC.encode(buffer, response);
          InteractionUpdatesPayload.STREAM_CODEC.encode(buffer, interaction);

@@ -6,11 +6,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
 public record InteractionUpdatesPayload(boolean suppressNeighbors, boolean wrenchEnabled, boolean forcePlacement,
-   boolean skipRepeatedCropStages, boolean distantBlockRemoval) implements CustomPacketPayload {
-   public InteractionUpdatesPayload(boolean suppressNeighbors, boolean wrenchEnabled, boolean forcePlacement,
-      boolean skipRepeatedCropStages) {
-      this(suppressNeighbors, wrenchEnabled, forcePlacement, skipRepeatedCropStages, true);
-   }
+   boolean skipRepeatedCropStages) implements CustomPacketPayload {
    public InteractionUpdatesPayload(boolean suppressNeighbors, boolean wrenchEnabled, boolean forcePlacement) {
       this(suppressNeighbors, wrenchEnabled, forcePlacement, true);
    }
@@ -20,9 +16,8 @@ public record InteractionUpdatesPayload(boolean suppressNeighbors, boolean wrenc
       (buffer, value) -> {
          buffer.writeBoolean(value.suppressNeighbors()); buffer.writeBoolean(value.wrenchEnabled());
          buffer.writeBoolean(value.forcePlacement()); buffer.writeBoolean(value.skipRepeatedCropStages());
-         buffer.writeBoolean(value.distantBlockRemoval());
       },
-      buffer -> new InteractionUpdatesPayload(buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean()));
+      buffer -> new InteractionUpdatesPayload(buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean()));
 
    @Override public Type<InteractionUpdatesPayload> type() { return TYPE; }
 }

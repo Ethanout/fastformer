@@ -3,7 +3,6 @@ package io.github.fastformer.client.ui;
 import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.network.payload.settings.FaceRasterizationSettingPayload;
 import io.github.fastformer.network.payload.settings.MiddleConfirmSettingPayload;
 import io.github.fastformer.network.payload.settings.SettingsActionPayload;
 import io.github.fastformer.network.payload.settings.TinkerHistorySettingPayload;
@@ -34,19 +33,17 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 public final class FastFormerSettingsScreen extends Screen {
    private boolean middleConfirmEnabled;
-   private FaceRasterizationMode faceRasterizationMode;
    private OperationConflictMode placementConflictMode;
    private PlacementUpdateMode placementUpdateMode;
    private final Set<ResourceLocation> enabledPlacementEffects;
    private boolean emptyHandWrench;
    private boolean skipRepeatedCropStages;
-   private boolean distantBlockRemoval;
+   private boolean vanillaBlockHistory;
    private boolean fallingDisabled;
    private int worldUndoHistoryLimit;
    private int sessionUndoHistoryLimit;
    private TinkerHistoryMergeLimits tinkerHistoryMergeLimits;
    private Button middleConfirmButton;
-   private Button faceRasterizationButton;
    private Button placementConflictButton;
    private Button placementUpdateButton;
    private final Map<ResourceLocation, Button> placementEffectButtons = new HashMap<>();
@@ -55,6 +52,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private Button fallingRuleButton;
    private Button worldHistoryButton;
    private Button sessionHistoryButton;
+   private Button vanillaHistoryButton;
    private Button themeButton;
    private Category category = Category.OPERATIONS;
    private OperationCategory operationCategory = OperationCategory.PLACEMENT;
@@ -68,7 +66,7 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private enum OperationCategory {
-      PLACEMENT, MICRO;
+      PLACEMENT, MICRO, FLIGHT;
       String key() { return "fastformer.settings.operation_category." + name().toLowerCase(java.util.Locale.ROOT); }
    }
 
@@ -87,11 +85,10 @@ public final class FastFormerSettingsScreen extends Screen {
       int sessionUndoHistoryLimit,
       TinkerHistoryMergeLimits tinkerHistoryMergeLimits,
       boolean skipRepeatedCropStages,
-      boolean distantBlockRemoval
+      boolean vanillaBlockHistory
    ) {
       super(Component.translatable("fastformer.settings.title"));
       this.middleConfirmEnabled = middleConfirmEnabled;
-      this.faceRasterizationMode = FaceRasterizationMode.DEFAULT;
       this.placementConflictMode = placementConflictMode == null ? OperationConflictMode.REPLACE : placementConflictMode;
       this.placementUpdateMode = placementUpdateMode == null ? PlacementUpdateMode.CLIENT_ONLY : placementUpdateMode;
       this.enabledPlacementEffects = new HashSet<>(
@@ -99,7 +96,7 @@ public final class FastFormerSettingsScreen extends Screen {
       );
       this.emptyHandWrench = emptyHandWrench;
       this.skipRepeatedCropStages = skipRepeatedCropStages;
-      this.distantBlockRemoval = distantBlockRemoval;
+      this.vanillaBlockHistory = vanillaBlockHistory;
       this.fallingDisabled = fallingDisabled;
       this.worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
       this.sessionUndoHistoryLimit = Math.clamp((long)sessionUndoHistoryLimit, 1, 800);
@@ -118,13 +115,13 @@ public final class FastFormerSettingsScreen extends Screen {
       int sessionUndoHistoryLimit,
       TinkerHistoryMergeLimits tinkerHistoryMergeLimits,
       boolean skipRepeatedCropStages,
-      boolean distantBlockRemoval
+      boolean vanillaBlockHistory
    ) {
       Minecraft.getInstance().setScreen(
          new FastFormerSettingsScreen(
             middleConfirmEnabled, faceRasterizationMode, placementConflictMode,
             placementUpdateMode, enabledPlacementEffects, emptyHandWrench, fallingDisabled,
-            worldUndoHistoryLimit, sessionUndoHistoryLimit, tinkerHistoryMergeLimits, skipRepeatedCropStages, distantBlockRemoval
+            worldUndoHistoryLimit, sessionUndoHistoryLimit, tinkerHistoryMergeLimits, skipRepeatedCropStages, vanillaBlockHistory
          )
       );
    }
@@ -138,8 +135,11 @@ public final class FastFormerSettingsScreen extends Screen {
       switch (category) {
          case OPERATIONS -> {
             addOperationTabs();
-            if (operationCategory == OperationCategory.PLACEMENT) addPlacementRows();
-            else addMicroRows();
+            switch (operationCategory) {
+               case PLACEMENT -> addPlacementRows();
+               case MICRO -> addMicroRows();
+               case FLIGHT -> addFlightRows();
+            }
          }
          case APPEARANCE -> rows.add(new SettingRow(Component.translatable("fastformer.settings.theme"), bounds ->
             themeButton = addControl(bounds, themeLabel(), button -> cycleTheme())));
@@ -168,7 +168,8 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private void addOperationTabs() {
-      int tabWidth = (panelWidth() - 4) / 2;
+      int count = OperationCategory.values().length;
+      int tabWidth = (panelWidth() - 4 * (count - 1)) / count;
       for (OperationCategory tab : OperationCategory.values()) {
          Button button = addRenderableWidget(Button.builder(Component.translatable(tab.key()), ignored -> {
             operationCategory = tab;
@@ -182,8 +183,6 @@ public final class FastFormerSettingsScreen extends Screen {
    private void addPlacementRows() {
       rows.add(new SettingRow(Component.translatable("fastformer.settings.middle_confirm"), bounds ->
          middleConfirmButton = addControl(bounds, middleConfirmLabel(), button -> toggleMiddleConfirm())));
-      rows.add(new SettingRow(Component.translatable("fastformer.settings.face_rasterization"), bounds ->
-         faceRasterizationButton = addControl(bounds, faceRasterizationLabel(), button -> cycleFaceRasterization())));
       rows.add(new SettingRow(Component.translatable("fastformer.settings.placement_conflict"), bounds ->
          placementConflictButton = addControl(bounds, placementConflictLabel(), button -> cyclePlacementConflict())));
       rows.add(new SettingRow(Component.translatable("fastformer.settings.placement_update"), bounds ->
@@ -199,15 +198,13 @@ public final class FastFormerSettingsScreen extends Screen {
    private void addMicroRows() {
       rows.add(new SettingRow(Component.translatable("fastformer.settings.empty_hand_wrench"), bounds ->
          emptyHandWrenchButton = addControl(bounds, emptyHandWrenchLabel(), button -> toggleEmptyHandWrench())));
-      rows.add(new SettingRow(Component.translatable("fastformer.settings.distant_removal"), bounds ->
-         addControl(bounds, Component.translatable(distantBlockRemoval ? "options.on" : "options.off"), button -> {
-            distantBlockRemoval = !distantBlockRemoval;
-            button.setMessage(Component.translatable(distantBlockRemoval ? "options.on" : "options.off"));
-            send(SettingsActionPayload.Action.TOGGLE_DISTANT_BLOCK_REMOVAL);
-         })));
       rows.add(new SettingRow(Component.translatable("fastformer.settings.crop_stages"), bounds -> {
          cropStagesButton = addControl(bounds, cropStagesLabel(), button -> toggleCropStages());
          cropStagesButton.setTooltip(Tooltip.create(Component.translatable("fastformer.settings.crop_stages.help")));
+      }));
+      rows.add(new SettingRow(Component.translatable("fastformer.settings.vanilla_block_history"), bounds -> {
+         vanillaHistoryButton = addControl(bounds, vanillaHistoryLabel(), button -> toggleVanillaHistory());
+         vanillaHistoryButton.setTooltip(Tooltip.create(Component.translatable("fastformer.settings.vanilla_block_history.help")));
       }));
    }
 
@@ -216,8 +213,27 @@ public final class FastFormerSettingsScreen extends Screen {
          worldHistoryButton = addHistoryCounter(bounds, worldHistoryLabel(), this::adjustWorldHistory)));
       rows.add(new SettingRow(Component.translatable("fastformer.settings.session_history"), bounds ->
          sessionHistoryButton = addHistoryCounter(bounds, sessionHistoryLabel(), this::adjustSessionHistory)));
-      addRenderableWidget(new MicroOperationCompressionBar(panelLeft(), contentTop() + 2 * ROW_HEIGHT + 18,
-         panelWidth(), tinkerHistoryMergeLimits, this::setTinkerHistory));
+      rows.add(new SettingRow(Component.translatable("fastformer.settings.tinker_history_merge"), bounds -> {
+         Button configure = addControl(bounds, Component.translatable("fastformer.settings.compression.configure"),
+            button -> minecraft.setScreen(new MicroOperationCompressionScreen(this, tinkerHistoryMergeLimits, this::setTinkerHistory)));
+         configure.setTooltip(Tooltip.create(Component.translatable("fastformer.settings.tinker_history.help")));
+      }));
+   }
+
+   private void addFlightRows() {
+      rows.add(new SettingRow(Component.translatable("fastformer.settings.flight_dash_distance"), bounds ->
+         addRenderableWidget(new FlightDistanceSlider(bounds.x(), bounds.y(), bounds.width()))));
+      rows.add(new SettingRow(Component.translatable("fastformer.settings.flight_acceleration"), bounds -> {
+         Button toggle = addControl(bounds, flightAccelerationLabel(), button -> {
+            FastFormerClientConfig.setFlightAcceleration(!FastFormerClientConfig.flightSettings().accelerationEnabled());
+            button.setMessage(flightAccelerationLabel());
+         });
+         toggle.setTooltip(Tooltip.create(Component.translatable("fastformer.settings.flight_acceleration.help")));
+      }));
+   }
+
+   private Component flightAccelerationLabel() {
+      return Component.translatable(FastFormerClientConfig.flightSettings().accelerationEnabled() ? "options.on" : "options.off");
    }
 
    private Button addControl(ControlBounds bounds, Component label, Button.OnPress action) {
@@ -241,8 +257,6 @@ public final class FastFormerSettingsScreen extends Screen {
          graphics.drawWordWrap(font, row.label(), panelLeft(), contentTop() + (index - firstRow) * ROW_HEIGHT + 5,
             labelWidth, row.controls() == null ? GeometryPalette.screenTitle().argb() : GeometryPalette.screenLabel().argb());
       }
-      if (category == Category.HISTORY) graphics.drawString(font, Component.translatable("fastformer.settings.tinker_history_merge"),
-         panelLeft(), contentTop() + 2 * ROW_HEIGHT + 4, GeometryPalette.screenTitle().argb());
       if (rows.size() > visibleRows()) {
          int x = panelLeft() + panelWidth() + 4;
          int trackHeight = visibleRows() * ROW_HEIGHT;
@@ -272,29 +286,6 @@ public final class FastFormerSettingsScreen extends Screen {
 
    private Component middleConfirmLabel() {
       return Component.translatable(this.middleConfirmEnabled ? "options.on" : "options.off");
-   }
-
-   private void cycleFaceRasterization() {
-      this.faceRasterizationMode = this.faceRasterizationMode.next();
-      this.faceRasterizationButton.setMessage(this.faceRasterizationLabel());
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(
-            minecraft.getConnection(), FaceRasterizationSettingPayload.TYPE.id()
-         )) {
-         PacketDistributor.sendToServer(
-            new FaceRasterizationSettingPayload(this.faceRasterizationMode),
-            new CustomPacketPayload[0]
-         );
-      }
-   }
-
-   private Component faceRasterizationLabel() {
-      return Component.translatable(switch (this.faceRasterizationMode) {
-         case POINT_SWEEP -> "fastformer.settings.face_rasterization.point_sweep";
-         case GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL -> "fastformer.settings.face_rasterization.gradient_cross_experimental";
-         case NORMAL_PLANE_EXPERIMENTAL -> "fastformer.settings.face_rasterization.normal_plane_experimental";
-      });
    }
 
    private void cyclePlacementConflict() {
@@ -342,6 +333,16 @@ public final class FastFormerSettingsScreen extends Screen {
       this.emptyHandWrench = !this.emptyHandWrench;
       this.emptyHandWrenchButton.setMessage(this.emptyHandWrenchLabel());
       this.send(SettingsActionPayload.Action.TOGGLE_EMPTY_HAND_WRENCH);
+   }
+
+   private void toggleVanillaHistory() {
+      vanillaBlockHistory = !vanillaBlockHistory;
+      vanillaHistoryButton.setMessage(vanillaHistoryLabel());
+      send(SettingsActionPayload.Action.TOGGLE_VANILLA_BLOCK_HISTORY);
+   }
+
+   private Component vanillaHistoryLabel() {
+      return Component.translatable(vanillaBlockHistory ? "options.on" : "options.off");
    }
 
    private Component emptyHandWrenchLabel() {

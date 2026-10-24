@@ -23,7 +23,7 @@ import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
 import io.github.fastformer.client.operation.input.SelectionDraftPress;
 import io.github.fastformer.client.operation.input.SelectionPointPress;
 import io.github.fastformer.client.operation.input.SelectionPointerPress;
-import io.github.fastformer.client.operation.input.SelectionScrollMove;
+import io.github.fastformer.client.operation.input.SelectionScrollAction;
 import io.github.fastformer.client.operation.input.SubmissionKeyboardSemantics;
 import io.github.fastformer.client.operation.input.WorkspaceKeyboardSemantics;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
@@ -171,6 +171,16 @@ public final class FastPlaceClientInput {
          InputConstants.isKeyDown(window, 342), InputConstants.isKeyDown(window, 346),
          InputConstants.isKeyDown(window, 341), InputConstants.isKeyDown(window, 345)
       );
+      boolean shortcutOwnsMovementKey = false;
+      if (minecraft.player != null && minecraft.screen == null) {
+         synchronizeInputState();
+         int shortcutAction = input.action() == 2 ? 1 : input.action();
+         shortcutOwnsMovementKey = workspaceShortcutDecision(shortcutAction, input.key(), input.controlDown(),
+            inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY)).consumesPress();
+      }
+      MovementKeyInput.reconcile(new net.minecraft.client.KeyMapping[]{
+         minecraft.options.keyUp, minecraft.options.keyDown, minecraft.options.keyLeft, minecraft.options.keyRight
+      }, input, shortcutOwnsMovementKey);
       if (minecraft.player != null && minecraft.screen == null && input.action() == 1
          && input.controlDown() && input.key() == 70
          && workspaceShortcutDecision(input.action(), input.key(), true,
@@ -196,7 +206,7 @@ public final class FastPlaceClientInput {
       }
       if (input.key() == CancelInputSemantics.CANCEL_KEY && input.action() == CancelInputSemantics.PRESS) {
          inputSession().idleEntry.clear();
-         inputSession().distantEntryPressGuard.clear();
+         inputSession().entryPressGuard.clear();
          inputSession().cuboidPointPressGuard.clear();
          if (HistoryConflictConfirmation.pending() != null) {
             if (cancelKeyCarriesVanillaDrop(minecraft, input.key())) minecraft.options.keyDrop.consumeClick();
@@ -797,10 +807,6 @@ public final class FastPlaceClientInput {
       if (event.getAction() == MouseButtonInputSemantics.RELEASE
          && inputSession().cuboidPointPressGuard.capture(event.getAction(), event.getButton(), occurredAtNanos)) {
          minecraft.options.keyUse.setDown(false);
-         event.setCanceled(true);
-         return;
-      }
-      if (IdleDistantBlockRemoval.capture(minecraft, inputSession(), event.getAction(), event.getButton(), physicalAlt)) {
          event.setCanceled(true);
          return;
       }
@@ -1523,7 +1529,7 @@ public final class FastPlaceClientInput {
       synchronizeInputState();
       if (minecraft.screen != null || !minecraft.isWindowActive()) {
          inputSession().idleEntry.clear();
-         inputSession().distantEntryPressGuard.clear();
+         inputSession().entryPressGuard.clear();
          inputSession().cuboidPointPressGuard.clear();
       } else if (!vanillaSession()) inputSession().idleEntry.clear();
       else inputSession().idleEntry.validate(minecraft.level, minecraft.player.getMainHandItem());
@@ -1587,12 +1593,18 @@ public final class FastPlaceClientInput {
       );
       switch (scroll.command()) {
          case BLOCK -> event.setCanceled(true);
-         case WORKSPACE_MOVE -> {
+         case WORKSPACE_TRANSFORM -> {
             BlockPos offset = OperationGeometry.viewAxisStep(minecraft.player.getViewVector(1.0F), scroll.direction());
-            var move = SelectionScrollMove.capture(ClientOperationController.interactionScene().owner(),
-               ClientOperationController.workspace(), offset);
-            if (move.isPresent() && !ClientOperationController.workspaceSubmissionPending()) {
-               inputSession().postScroll(new ScrollInputSnapshot(scroll.direction(), move.orElseThrow()));
+            var workspace = ClientOperationController.workspace();
+            var reference = workspace.selectedParts().stream()
+               .min(java.util.Comparator.comparingInt(io.github.fastformer.workspace.model.ClientSelectionPart::id)).orElse(null);
+            SelectionScrollAction.Gesture gesture = physicalCtrlDown(minecraft, false) && reference != null
+               ? SelectionScrollAction.stackAlongView(reference.transform(), minecraft.player.getViewVector(1.0F), scroll.direction())
+               : new SelectionScrollAction.Move(offset);
+            var action = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(),
+               ClientOperationController.workspace(), gesture);
+            if (action.isPresent() && !ClientOperationController.workspaceSubmissionPending()) {
+               inputSession().postScroll(new ScrollInputSnapshot(scroll.direction(), action.orElseThrow()));
                event.setCanceled(true);
             }
          }

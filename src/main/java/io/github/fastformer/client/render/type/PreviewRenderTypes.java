@@ -32,6 +32,8 @@ public final class PreviewRenderTypes {
          // Alpha overlays (grass sides) must preserve the model layer below them.
          .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
          .setDepthTestState(RenderStateShard.LEQUAL_DEPTH_TEST)
+         // Separate embedded previews from world faces before their depth is composited.
+         .setLayeringState(RenderType.POLYGON_OFFSET_LAYERING)
          .setWriteMaskState(RenderStateShard.COLOR_DEPTH_WRITE)
          .createCompositeState(false)
    );
@@ -57,6 +59,12 @@ public final class PreviewRenderTypes {
    ));
    public static final RenderType PENDING_DASHED_XRAY_LINES = dashedLines(
       "fastformer_pending_dashed_xray_lines", RenderStateShard.GREATER_DEPTH_TEST
+   );
+   public static final RenderType UNSELECTED_LINES = unselectedLines(
+      "fastformer_unselected_lines", RenderStateShard.LEQUAL_DEPTH_TEST
+   );
+   public static final RenderType UNSELECTED_XRAY_LINES = unselectedLines(
+      "fastformer_unselected_xray_lines", RenderStateShard.GREATER_DEPTH_TEST
    );
    public static final RenderType GHOST_FACES = RenderType.create(
       "fastformer_ghost_faces",
@@ -160,6 +168,15 @@ public final class PreviewRenderTypes {
             ? FastPlaceClientShaders::occludedPendingLines : FastPlaceClientShaders::pendingDashedLines),
          PREVIEW_LINE_WIDTH, depthTest
       );
+   }
+
+   private static RenderType unselectedLines(String name, RenderStateShard.DepthTestStateShard depthTest) {
+      return lines(name, DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL,
+         new RenderStateShard.ShaderStateShard(() -> FastPlaceClientShaders.staticDashedLines(
+            depthTest == RenderStateShard.GREATER_DEPTH_TEST,
+            io.github.fastformer.client.render.theme.VisualThemes.value("unselected_dash_length", 0.25F),
+            io.github.fastformer.client.render.theme.VisualThemes.value("unselected_dash_gap", 0.18F))),
+         PREVIEW_LINE_WIDTH, depthTest, true);
    }
 
    private static RenderType lines(

@@ -69,6 +69,15 @@ public record OperationStackRegion(BlockPos min, BlockPos max) {
       return updated == endpoint ? this : new OperationStackRegion(withCoordinate(this.min, axisIndex, updated), this.max);
    }
 
+   /** Scroll toward an axis direction: retract opposite copies first, then grow past zero. */
+   public OperationStackRegion stepAcrossOrigin(AxisGizmo.Axis axis, int direction) {
+      if (axis == null || direction == 0) return this;
+      int sign = Integer.signum(direction);
+      boolean retract = sign > 0 ? coordinate(this.min, axis.ordinal()) < 0
+         : coordinate(this.max, axis.ordinal()) > 0;
+      return withAxisEndpoint(axis, retract ? -sign : sign, retract ? -1 : 1);
+   }
+
    public long cellCount() {
       long x = (long)this.max.getX() - this.min.getX() + 1L;
       long y = (long)this.max.getY() - this.min.getY() + 1L;

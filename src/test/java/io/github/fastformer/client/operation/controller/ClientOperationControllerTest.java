@@ -29,6 +29,88 @@ import sun.misc.Unsafe;
 
 class ClientOperationControllerTest {
    @Test
+   void withdrawingTheOnlyDraftPointEndsTheSelectionSessionAndUndoRestoresIt() {
+      ClientOperationController.onDisconnected();
+      try {
+         assertTrue(ClientOperationController.handleCreateClick(1, BlockPos.ZERO));
+         assertTrue(ClientOperationController.handleCreateClick(0, null));
+
+         assertFalse(ClientOperationController.selectionDraftActive());
+         assertFalse(ClientOperationController.selectionSessionActive());
+         assertTrue(ClientOperationController.workspace().isEmpty());
+         assertTrue(ClientOperationController.sourceMask().positions().isEmpty());
+
+         assertTrue(ClientOperationController.undo());
+         assertTrue(ClientOperationController.selectionSessionActive());
+         assertEquals(List.of(BlockPos.ZERO), ClientOperationController.selectionDraft().points());
+      } finally {
+         ClientOperationController.onDisconnected();
+      }
+   }
+
+   @Test
+   void withdrawingANewDraftKeepsThePreviousSelection() {
+      ClientOperationController.onDisconnected();
+      try {
+         var old = ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD);
+         assertTrue(ClientOperationController.workspace().addParts(List.of(old)));
+         var parts = List.copyOf(ClientOperationController.workspace().parts());
+         assertTrue(ClientOperationController.handleAltCreateClick(1, BlockPos.ZERO));
+         assertTrue(ClientOperationController.handleAltCreateClick(0, null));
+
+         assertTrue(ClientOperationController.selectionSessionActive());
+         assertFalse(ClientOperationController.selectionDraftActive());
+         assertEquals(parts, ClientOperationController.workspace().parts());
+      } finally {
+         ClientOperationController.onDisconnected();
+      }
+   }
+
+   @Test
+   void withdrawingBothCompletedCuboidPointsEndsTheSession() {
+      ClientOperationController.onDisconnected();
+      try {
+         var second = new BlockPos(2, 2, 2);
+         var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
+            OperationSelectionVolume.cuboid(BlockPos.ZERO, second, BlockPos.ZERO, second),
+            Map.of(), WorkspaceTransform.IDENTITY, false);
+         assertTrue(ClientOperationController.workspace().addParts(List.of(part)));
+
+         assertTrue(ClientOperationController.handleCreateClick(0, null));
+         assertTrue(ClientOperationController.selectionSessionActive());
+         assertEquals(List.of(BlockPos.ZERO), ClientOperationController.selectionDraft().points());
+         assertTrue(ClientOperationController.handleCreateClick(0, null));
+         assertFalse(ClientOperationController.selectionSessionActive());
+         assertFalse(ClientOperationController.selectionDraftActive());
+      } finally {
+         ClientOperationController.onDisconnected();
+      }
+   }
+
+   @Test
+   void removingTheLastSmartRegionEndsTheSession() throws ReflectiveOperationException {
+      ClientOperationController.onDisconnected();
+      try {
+         var method = ClientOperationController.class.getDeclaredMethod("selectionSession");
+         method.setAccessible(true);
+         var session = (io.github.fastformer.client.operation.selection.ClientSelectionSession) method.invoke(null);
+         session.setSelectionMode(OperationSelectionMode.SMART);
+         var cells = Map.of(BlockPos.ZERO, snapshot());
+         assertTrue(io.github.fastformer.client.operation.selection.SmartSelectionEdits.add(
+            ClientOperationController.workspace(), cells));
+         assertTrue(ClientOperationController.handleCreateClick(0, BlockPos.ZERO));
+
+         assertFalse(ClientOperationController.selectionSessionActive());
+         assertTrue(ClientOperationController.workspace().isEmpty());
+         assertTrue(ClientOperationController.undo());
+         assertTrue(ClientOperationController.selectionSessionActive());
+         assertEquals(cells, ClientOperationController.workspace().parts().getFirst().blocks());
+      } finally {
+         ClientOperationController.onDisconnected();
+      }
+   }
+
+   @Test
    void successfulMixedSubmissionClearsOriginalSelectionsAndSubmittedParts() throws Exception {
       ClientOperationController.onDisconnected();
       try {

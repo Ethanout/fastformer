@@ -29,6 +29,29 @@ public final class WorldChangeBatchCodecGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 100)
+   public static void mergedBoundsPersistAndRecoverWithoutChangingSnapshots(GameTestHelper helper) throws Exception {
+      var pos = new BlockPos(1, 2, 3);
+      var original = batch(helper,
+         List.of(snapshot(pos, Blocks.STONE.defaultBlockState(), Fluids.EMPTY.defaultFluidState(), null)),
+         Map.of(pos, snapshot(pos, Blocks.AIR.defaultBlockState(), Fluids.EMPTY.defaultFluidState(), null)));
+      var bounds = new HistoryBounds(-4, -3, -2, 6, 7, 8);
+      var grouped = original.withTinker(new BlockEditHistoryMetadata("vanilla", 8, 1), bounds);
+      var payload = WorldHistoryBatchCodec.encode(grouped, 1024 * 1024);
+      var reloaded = WorldHistoryBatchCodec.decode(helper.getLevel().registryAccess(), payload, 1024 * 1024);
+      assertEquivalent(helper, grouped, reloaded);
+      helper.assertTrue(bounds.equals(reloaded.bounds()), "merged region shrank on reload");
+      var missing = grouped.encode();
+      missing.remove("HistoryBounds");
+      assertEquivalent(helper, original, WorldChangeBatch.decode(helper.getLevel().registryAccess(), missing));
+      for (int[] invalid : new int[][]{ {}, {1}, {4, 5, 6, 1, 2, 3}, {2, 3, 4, 3, 4, 5} }) {
+         var broken = grouped.encode();
+         broken.putIntArray("HistoryBounds", invalid);
+         assertEquivalent(helper, original, WorldChangeBatch.decode(helper.getLevel().registryAccess(), broken));
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", timeoutTicks = 100)
    public static void compactLayoutsRoundTrip(GameTestHelper helper) throws Exception {
       UUID operationId = UUID.randomUUID();
       BlockPos first = new BlockPos(-3, 20, 7);
@@ -181,6 +204,7 @@ public final class WorldChangeBatchCodecGameTests {
    private static void assertEquivalent(GameTestHelper helper, WorldChangeBatch expected, WorldChangeBatch actual) {
       helper.assertTrue(expected.dimension().equals(actual.dimension()), "dimension was not preserved");
       helper.assertTrue(expected.size() == actual.size(), "batch size was not preserved");
+      helper.assertTrue(expected.bounds().equals(actual.bounds()), "history bounds were not preserved");
       for (int index = 0; index < expected.size(); index++) {
          helper.assertTrue(expected.position(index).equals(actual.position(index)), "position was not preserved");
          helper.assertTrue(

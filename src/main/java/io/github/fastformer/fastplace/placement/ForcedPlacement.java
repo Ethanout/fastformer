@@ -41,8 +41,12 @@ public final class ForcedPlacement {
          if (!target.equals(pos) && !level.getBlockState(target).canBeReplaced()
             && !level.getBlockState(target).equals(changes.get(target))) return true;
       }
-      var outcome = BlockEditTransaction.apply(player, level, changes,
-         PlacementUpdateMode.CLIENT_ONLY.flags(), PlacementUpdateMode.CLIENT_ONLY.flags());
+      int flags = PlacementUpdateMode.CLIENT_ONLY.flags();
+      var metadata = settings.vanillaBlockHistory()
+         ? io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromVanillaEdit() : null;
+      var outcome = settings.vanillaBlockHistory()
+         ? BlockEditTransaction.apply(player, level, changes, flags, flags, metadata)
+         : BlockEditTransaction.applyWithoutHistory(player, level, changes, flags, flags);
       if (TRACE) LOGGER.info("Placement input: server time={}, tick={}, hit={}, target={}, state={}, outcome={}",
          System.nanoTime(), level.getGameTime(), hit.getBlockPos(), pos, state, outcome);
       BlockEditTransaction.report(outcome, player);

@@ -290,17 +290,14 @@ final class OperationPreviewRenderer {
                moving, selectionOpacity
             );
          } else if (shouldRenderPartOutline(interactionPart, selected)) {
-            LevelRenderer.renderLineBox(poseStack, buffers.getBuffer(PENDING_XRAY_LINES),
-               outlineBounds.inflate(PreviewStyle.OUTLINE_INFLATE), inkRed(), inkGreen(), inkBlue(),
-               (hovered ? 1.0F : 0.52F) * selectionOpacity);
-               LevelRenderer.renderLineBox(
-               poseStack,
-               buffers.getBuffer(GHOST_OUTLINE_LINES),
-               outlineBounds.inflate(PreviewStyle.OUTLINE_INFLATE),
-               inkRed(),
-               inkGreen(),
-               inkBlue(),
-               (hovered ? 1.0F : 0.52F) * selectionOpacity
+            float alpha = (hovered ? 1.0F : 0.52F) * selectionOpacity;
+            renderConfirmedBox(
+               poseStack, buffers.getBuffer(selected ? PENDING_XRAY_LINES : UNSELECTED_XRAY_LINES),
+               outlineBounds.getCenter(), halfExtents, false, alpha
+            );
+            renderConfirmedBox(
+               poseStack, buffers.getBuffer(selected ? GHOST_OUTLINE_LINES : UNSELECTED_LINES),
+               outlineBounds.getCenter(), halfExtents, false, alpha
             );
          }
          poseStack.popPose();
@@ -471,7 +468,8 @@ final class OperationPreviewRenderer {
       var state = minecraft.level.getBlockState(position);
       var shape = state.isAir() ? net.minecraft.world.phys.shapes.Shapes.block()
          : io.github.fastformer.fastplace.geometry.raycast.SelectionTargetShape.resolve(minecraft.level, position,
-            net.minecraft.world.phys.shapes.CollisionContext.of(minecraft.player), FastPlaceClientInput.modifierHeld());
+            net.minecraft.world.phys.shapes.CollisionContext.of(minecraft.player),
+            io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.passesThroughFluids(minecraft.player, FastPlaceClientInput.modifierHeld()));
       var mesh = io.github.fastformer.client.render.model.InitialBlockPreview.mesh(position, shape.toAabbs());
       io.github.fastformer.client.render.shell.ShapeShellRenderer.renderDashedEdges(
          poseStack, buffers.getBuffer(DYNAMIC_LINES), camera, mesh.edges(),

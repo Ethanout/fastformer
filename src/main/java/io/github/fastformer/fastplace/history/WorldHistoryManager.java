@@ -292,7 +292,6 @@ public final class WorldHistoryManager {
    private static void addBatchInMemory(OwnerState owner, WorldChangeBatch batch) {
       HistoryMemoryCache history = owner.history();
       history.addNew(batch);
-      owner.compactionRequested = true;
       trim(owner.historyLimit, history);
       HistoryOrderCatalog order = historyOrder(owner);
       order.addNew(batch.operationId());
@@ -309,7 +308,6 @@ public final class WorldHistoryManager {
       OwnerState owner = ownerState(context.owner());
       HistoryMemoryCache history = owner.history();
       history.addNew(batch);
-      owner.compactionRequested = true;
       ServerPlayer player = context.onlinePlayer();
       // Keep all batches in memory while an earlier save is unresolved. The
       // recovery snapshot must still contain the failed batch and any newer work.
@@ -954,8 +952,7 @@ public final class WorldHistoryManager {
       // the lifetime of this server instance. Reconnect timing must not drop
       // an undo that was accepted while a recovery task was still running.
       owner.detached = true;
-      owner.compaction = null;
-      owner.compactionRequested = false;
+      owner.compaction.clear();
       pruneDetachedOwners();
    }
 
@@ -1100,44 +1097,22 @@ public final class WorldHistoryManager {
    public static void requestCompaction(ServerPlayer player) {
       OwnerState owner = ownerState(player.getUUID());
       owner.compactionLimits = FastPlaceSettings.load(player).tinkerHistoryMergeLimits();
-      owner.compactionRequested = true;
+      owner.compaction.request();
    }
 
    private static void compactHistory(WorldTaskContext context, OwnerState owner) {
       if (owner.detached) {
-         owner.compactionRequested = false;
-         owner.compaction = null;
+         owner.compaction.clear();
          return;
       }
       HistoryCompactionPolicy policy = HistoryStorageConfig.compactionPolicy();
-      if (owner.lastCompactionPolicy != policy) {
-         owner.lastCompactionPolicy = policy;
-         owner.compactionRequested = true;
-      }
       boolean ready = !owner.busy() && owner.pendingPersistence == 0 && !owner.persistenceDirty
          && owner.durableCommit == null;
-      TinkerHistoryMergeLimits limits = owner.compactionLimits;
-      if (owner.compaction != null) {
-         finishCompaction(context, owner, ready, limits);
-         return;
-      }
-      if (!ready || !owner.compactionRequested) return;
-      owner.compactionRequested = false;
-      owner.compaction = HistoryCompactionJob.start(owner.history(), historyOrder(owner), limits, policy).orElse(null);
-   }
-
-   private static void finishCompaction(WorldTaskContext context, OwnerState owner, boolean ready, TinkerHistoryMergeLimits limits) {
-      if (!owner.compaction.result.isDone()) return;
-      HistoryCompactionJob completed = owner.compaction;
-      owner.compaction = null;
-      if (!ready || !completed.matches(owner.history(), historyOrder(owner), limits)) {
-         owner.compactionRequested = true;
-         return;
-      }
       try {
-         completed.result.join().ifPresent(change -> applyCompaction(context, owner, change));
+         owner.compaction.poll(owner.history(), historyOrder(owner), owner.compactionLimits, policy, ready)
+            .ifPresent(change -> applyCompaction(context, owner, change));
       } catch (java.util.concurrent.CompletionException exception) {
-         LOGGER.warn("Wrench history compaction failed for {}; original history retained", context.owner(), exception);
+         LOGGER.warn("Micro-operation history compaction failed for {}; original history retained", context.owner(), exception);
       }
    }
 
@@ -1153,7 +1128,6 @@ public final class WorldHistoryManager {
       } else {
          scheduleIndex(context.server(), context.owner(), owner, owner.history());
       }
-      owner.compactionRequested = true;
    }
 
    private static boolean runDeferredUndo(ServerPlayer player) {
@@ -1265,7 +1239,6 @@ public final class WorldHistoryManager {
       try {
          WorldHistoryPersistence.LoadedHistory loaded = load.join();
          applyLoadedHistory(owner, loaded);
-         owner.compactionRequested = true;
          owner.historyLoadFailed = false;
       } catch (RuntimeException failure) {
          owner.historyLoadFailed = true;
@@ -1729,10 +1702,8 @@ public final class WorldHistoryManager {
       private HistoryOrderCatalog historyOrder;
       private boolean historyLoadFailed;
       private DurableCommit durableCommit;
-      private boolean compactionRequested;
       private TinkerHistoryMergeLimits compactionLimits = TinkerHistoryMergeLimits.DEFAULTS;
-      private HistoryCompactionJob compaction;
-      private HistoryCompactionPolicy lastCompactionPolicy;
+      private final HistoryCompactionScheduler compaction = new HistoryCompactionScheduler();
 
       private long historyBytes() {
          return history == null ? 0L : history.estimatedBytes();
@@ -1772,9 +1743,7 @@ public final class WorldHistoryManager {
             || !pendingRecords.isEmpty()
             || deferredUndo > 0
             || persistenceDirty
-            || compactionRequested
-            || compaction != null
-            || history != null && !detached && lastCompactionPolicy != HistoryStorageConfig.compactionPolicy();
+            || history != null && !detached && compaction.needsTick(history, compactionLimits, HistoryStorageConfig.compactionPolicy());
       }
 
       /**
@@ -1792,7 +1761,7 @@ public final class WorldHistoryManager {
             && !busy()
             && pendingPersistence == 0
             && !persistenceDirty
-            && compaction == null
+            && !compaction.running()
             && durableCommit == null;
       }
    }

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.state.FastFlightGesture;
+import io.github.fastformer.client.FastFormerClientConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.neoforged.api.distmarker.Dist;
@@ -10,7 +11,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import org.lwjgl.glfw.GLFW;
 
-/** Local flight input; never changes or synchronizes the player's ability speed. */
+/** Flight gestures keep ability speed unchanged; dash requests are resolved by the server. */
 @EventBusSubscriber(modid = "fastformer", value = Dist.CLIENT)
 public final class FastFlightController {
    private static final FastFlightGesture GESTURE = new FastFlightGesture();
@@ -22,9 +23,15 @@ public final class FastFlightController {
    public static void onKey(InputEvent.Key event) {
       Minecraft minecraft = Minecraft.getInstance();
       validateOwner(minecraft);
-      if (!eligible(minecraft) || !minecraft.options.keyUp.matches(event.getKey(), event.getScanCode())) return;
+      if (!eligible(minecraft)) {
+         GESTURE.reset();
+         return;
+      }
+      if (!minecraft.options.keyUp.matches(event.getKey(), event.getScanCode())) return;
       if (event.getAction() == GLFW.GLFW_PRESS) GESTURE.press(System.nanoTime());
-      else if (event.getAction() == GLFW.GLFW_RELEASE) GESTURE.release();
+      else if (event.getAction() == GLFW.GLFW_RELEASE && GESTURE.release(System.nanoTime())) {
+         ForwardDashController.request(minecraft);
+      }
    }
 
    @SubscribeEvent
@@ -37,13 +44,14 @@ public final class FastFlightController {
 
    public static float flyingSpeed(LocalPlayer player, float vanillaSpeed) {
       Minecraft minecraft = Minecraft.getInstance();
-      if (player != owner || !eligible(minecraft) || !minecraft.options.keyUp.isDown()) return vanillaSpeed;
+      if (player != owner || !eligible(minecraft) || !minecraft.options.keyUp.isDown()
+         || !FastFormerClientConfig.flightSettings().accelerationEnabled()) return vanillaSpeed;
       double multiplier = GESTURE.multiplier(System.nanoTime());
       return multiplier > 1.0 ? (float)(player.getAbilities().getFlyingSpeed() * multiplier) : vanillaSpeed;
    }
 
    private static boolean eligible(Minecraft minecraft) {
-      return minecraft.player != null && minecraft.screen == null && minecraft.isWindowActive()
+      return minecraft.player != null && minecraft.getConnection() != null && minecraft.screen == null && minecraft.isWindowActive()
          && !minecraft.isPaused() && minecraft.player.getAbilities().flying
          && !minecraft.player.isPassenger() && minecraft.getCameraEntity() == minecraft.player;
    }

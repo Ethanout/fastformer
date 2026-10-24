@@ -17,15 +17,20 @@ public final class TinkerHistoryClassifier {
    private TinkerHistoryClassifier() { }
 
    public static Optional<String> cluster(Level level, BlockHitResult hit, Map<BlockPos, BlockState> changes, TinkerHistoryGroupingRules rules) {
-      if (changes.entrySet().stream().anyMatch(entry -> level.getBlockState(entry.getKey()).is(rules.tags().noMerge())
+      return cluster(level, hit, changes, level::getBlockState, rules);
+   }
+
+   public static Optional<String> cluster(Level level, BlockHitResult hit, Map<BlockPos, BlockState> changes,
+      java.util.function.Function<BlockPos, BlockState> source, TinkerHistoryGroupingRules rules) {
+      if (changes.entrySet().stream().anyMatch(entry -> source.apply(entry.getKey()).is(rules.tags().noMerge())
          || entry.getValue().is(rules.tags().noMerge()))) return Optional.empty();
-      BlockState before = level.getBlockState(hit.getBlockPos());
+      BlockState before = source.apply(hit.getBlockPos());
       BlockState after = changes.get(hit.getBlockPos());
       if (changes.size() == 1 && after != null) {
          var shape = shapeCluster(level, hit, before, after, rules);
          if (shape.isPresent()) return shape;
       }
-      return Optional.of(generalCluster(level, hit, changes, rules));
+      return Optional.of(generalCluster(source, hit, changes, rules));
    }
 
    private static Optional<String> shapeCluster(Level level, BlockHitResult hit, BlockState before, BlockState after,
@@ -70,12 +75,12 @@ public final class TinkerHistoryClassifier {
       return (before & ~after) == 0 ? "add" : "mixed";
    }
 
-   private static String generalCluster(Level level, BlockHitResult hit, Map<BlockPos, BlockState> changes,
+   private static String generalCluster(java.util.function.Function<BlockPos, BlockState> source, BlockHitResult hit, Map<BlockPos, BlockState> changes,
       TinkerHistoryGroupingRules rules) {
       TreeSet<String> parts = new TreeSet<>();
       if (rules.generalParts().contains(KeyPart.FACE)) parts.add("face=" + hit.getDirection().getName());
       for (var entry : changes.entrySet()) {
-         BlockState before = level.getBlockState(entry.getKey());
+         BlockState before = source.apply(entry.getKey());
          BlockState after = entry.getValue();
          if (rules.generalParts().contains(KeyPart.BLOCK_TYPE)) parts.add("block=" + id(before.getBlock()));
          if (before.getBlock() != after.getBlock()) {

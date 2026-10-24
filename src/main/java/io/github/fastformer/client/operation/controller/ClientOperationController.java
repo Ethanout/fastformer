@@ -566,7 +566,7 @@ public final class ClientOperationController {
 
    public static boolean cancelLastSelection() {
       if (workspaceSubmissionPending()) return false;
-      if (SMART_CAPTURE.pending()) { SMART_CAPTURE.cancel(); return true; }
+      if (SMART_CAPTURE.pending()) { SMART_CAPTURE.cancel(); settleSelectionRemoval(); return true; }
       adoptRemoteDraft();
       selectionSession().retain();
       if (workspace().editing()) {
@@ -579,20 +579,23 @@ public final class ClientOperationController {
       }
       DRAFT_CAPTURE.cancel();
       if (selectionSession().stack().peek().isEmpty()) {
-         selectionSession().clearTransientInteraction();
-         SOURCE_MASK.clear();
-         serverPreview = OperationPreviewPayload.inactive(lastServerPreviewRevision, draftSelectionMode());
-         synchronizeDerivedWorkspaceState();
+         settleSelectionRemoval();
          return true;
       }
       if (!workspace().popSelection()) return false;
+      settleSelectionRemoval();
+      return true;
+   }
+
+   private static void settleSelectionRemoval() {
       if (selectionSession().stack().peek().isEmpty()) {
          selectionSession().clearTransientInteraction();
          SOURCE_MASK.clear();
          serverPreview = OperationPreviewPayload.inactive(lastServerPreviewRevision, draftSelectionMode());
+      } else {
+         selectionSession().retain();
       }
       synchronizeDerivedWorkspaceState();
-      return true;
    }
 
    private static void adoptRemoteDraft() {
@@ -609,7 +612,7 @@ public final class ClientOperationController {
          return false;
       }
       boolean changed = workspace().removeSelectedParts();
-      synchronizeDerivedWorkspaceState();
+      if (changed) settleSelectionRemoval();
       return changed;
    }
 
@@ -665,7 +668,7 @@ public final class ClientOperationController {
       session.setSelectionMode(next);
       io.github.fastformer.client.operation.selection.SelectionToolPreference.set(next);
       workspace().pushEvent(() -> session.restoreDraftEdit(before), ClientOperationEventStack.Retention.of(before.points().size() + 1));
-      synchronizeDerivedWorkspaceState();
+      settleSelectionRemoval();
       return true;
    }
 
@@ -675,10 +678,7 @@ public final class ClientOperationController {
          adoptRemoteDraft();
          DRAFT_CAPTURE.cancel();
          boolean changed = selectionSession().undoCuboidPoint();
-         if (changed) {
-            selectionSession().retain();
-            synchronizeDerivedWorkspaceState();
-         }
+         if (changed) settleSelectionRemoval();
          return changed;
       }
       if (workspaceSubmissionPending() || workspace().locked() || workspace().editing() || DRAFT_CAPTURE.pending()
@@ -693,6 +693,7 @@ public final class ClientOperationController {
       }
       boolean handled = result != SelectionDraftResult.READY
          || finishDraft(selectionSession().prismBaseCount());
+      if (mouseButton == 0 && handled) settleSelectionRemoval();
       return handled;
    }
 
@@ -735,13 +736,12 @@ public final class ClientOperationController {
    }
 
    public static boolean undo() {
-      if (SMART_CAPTURE.pending()) { SMART_CAPTURE.cancel(); return true; }
+      if (SMART_CAPTURE.pending()) { SMART_CAPTURE.cancel(); settleSelectionRemoval(); return true; }
       if (workspaceSubmissionPending()) {
          return false;
       }
       boolean changed = workspace().undo();
-      if (changed && (!workspace().isEmpty() || selectionSession().hasDraft())) selectionSession().retain();
-      synchronizeDerivedWorkspaceState();
+      if (changed) settleSelectionRemoval();
       return changed;
    }
 
@@ -751,6 +751,24 @@ public final class ClientOperationController {
 
    public static boolean scrollSelected(BlockPos offset, long timestampNanos) {
       return moveSelected(offset, timestampNanos, true);
+   }
+
+   public static boolean scrollStackSelected(io.github.fastformer.client.operation.input.SelectionScrollAction.Stack stack, long timestampNanos) {
+      if (SMART_CAPTURE.pending() || DRAFT_CAPTURE.pending() || workspaceSubmissionPending()
+         || workspace().locked() || workspace().editing() || workspace().selectedIds().isEmpty()) return false;
+      var baseline = List.copyOf(workspace().selectedParts());
+      var result = io.github.fastformer.workspace.transform.SelectionTransformCalculator.scrollStack(
+         baseline, stack.axis(), stack.side(), stack.steps());
+      if (result.failureKey() != null) {
+         captureFailed(result.failureKey());
+         return false;
+      }
+      if (!workspace().beginEdit()) return false;
+      result.parts().forEach(workspace()::updatePart);
+      boolean changed = workspace().finishScrollEdit(stack, timestampNanos,
+         io.github.fastformer.client.FastFormerClientConfig.scrollHistoryMergeNanos());
+      synchronizeDerivedWorkspaceState();
+      return changed;
    }
 
    private static boolean moveSelected(BlockPos offset, long timestampNanos, boolean scroll) {
@@ -1591,7 +1609,7 @@ public final class ClientOperationController {
       selectionSession().retain();
       if (button == 0) {
          io.github.fastformer.client.operation.selection.SmartSelectionEdits.remove(workspace(), position, alternative);
-         synchronizeDerivedWorkspaceState();
+         settleSelectionRemoval();
          return true;
       }
       if (button != 1) return true;

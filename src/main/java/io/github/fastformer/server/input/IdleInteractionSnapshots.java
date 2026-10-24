@@ -1,6 +1,7 @@
 package io.github.fastformer.server.input;
 
 import io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot;
+import io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload;
@@ -23,8 +24,9 @@ public final class IdleInteractionSnapshots {
    private static final Map<ServerPlayer, Capture> CAPTURES = new WeakHashMap<>();
    private static final Map<ServerPlayer, Long> TINKER_TOKENS = new WeakHashMap<>();
    private record Capture(long token, Level level, long tick, ItemStack item, InteractionShapeSnapshot shape,
-      BlockPos clicked, BlockPos adjacent, boolean placed, IdleTinkerSnapshot tinker, PlacementContextSnapshot placement) { }
-   public record Entry(BlockHitResult hit, PlacementContextSnapshot placement) { }
+      BlockPos clicked, BlockPos adjacent, boolean placed, IdleTinkerSnapshot tinker, PlacementContextSnapshot placement,
+      InteractionRaycastRules rules) { }
+   public record Entry(BlockHitResult hit, PlacementContextSnapshot placement, InteractionRaycastRules rules) { }
    private IdleInteractionSnapshots() { }
 
    public static boolean idle(ServerPlayer player) {
@@ -49,21 +51,20 @@ public final class IdleInteractionSnapshots {
       var level = player.serverLevel();
       var position = request.hit().getBlockPos();
       if (!level.isInWorldBounds(position) || !level.hasChunkAt(position) || !level.getWorldBorder().isWithinBounds(position)) return;
-      var shape = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(level, position);
+      var shape = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(player, position, request.rules());
       var actual = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(
-         player, request.eye(), request.view(), false);
+         player, request.eye(), request.view(), request.rules());
       if (shape.clip(request.eye(), request.view()) == null || !actual.getBlockPos().equals(position)
          || actual.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) return;
       ItemStack item = player.getMainHandItem().copy();
       PlacementContextSnapshot placement = null;
       if (PlaceableItems.isPlaceable(item)) {
-         placement = PlacementContextSnapshot.capture(level, player, item, actual, false);
+         placement = PlacementContextSnapshot.capture(level, player, item, request.hit(), request.rules().embedded());
          var state = PlaceableItems.placementState(item, player, placement);
          if (state.isPresent()) placement = placement.withCapturedState(item.getItem(), state.orElseThrow());
-         placement = placement.anchoredAt(position);
       }
       var capture = new Capture(request.token(), level, level.getGameTime(), item, shape,
-         position.immutable(), position.relative(actual.getDirection()), false, null, placement);
+         position.immutable(), position.relative(request.hit().getDirection()), false, null, placement, request.rules());
       CAPTURES.put(player, capture);
       if (sendShape) publish(player, capture);
    }
@@ -75,7 +76,7 @@ public final class IdleInteractionSnapshots {
       var placement = capture.placement() == null ? null : capture.placement().anchoredAt(position)
          .withCapturedState(capture.item().getItem(), player.level().getBlockState(position));
       var updated = new Capture(capture.token(), capture.level(), capture.tick(), capture.item(), capture.shape(),
-         capture.clicked(), capture.adjacent(), true, capture.tinker(), placement);
+         capture.clicked(), capture.adjacent(), true, capture.tinker(), placement, capture.rules());
       CAPTURES.put(player, updated);
       publish(player, updated);
    }
@@ -95,14 +96,15 @@ public final class IdleInteractionSnapshots {
          player.sendSystemMessage(net.minecraft.network.chat.Component.translatable("fastformer.message.idle_entry_changed"), true);
          return null;
       }
-      return new Entry(hit, capture.placement());
+      return new Entry(hit, capture.placement(), capture.rules());
    }
 
    public static void tinker(ServerPlayer player, io.github.fastformer.network.payload.placement.TinkerInteractionPayload request) {
       if (!io.github.fastformer.fastplace.interaction.BlockTinker.withinInteractionRange(player, request.hit())) return;
       if (request.token() <= TINKER_TOKENS.getOrDefault(player, 0L)) return;
       TINKER_TOKENS.put(player, request.token());
-      capture(player, new IdleInteractionCapturePayload(request.token(), request.hit(), request.eye(), request.view()), false);
+      capture(player, new IdleInteractionCapturePayload(request.token(), request.hit(), request.eye(), request.view(),
+         InteractionRaycastRules.VANILLA_OUTLINE), false);
       var capture = current(player);
       if (capture == null) return;
       var changes = io.github.fastformer.fastplace.interaction.BlockTinker.preview(player, request.hit());
@@ -113,7 +115,8 @@ public final class IdleInteractionSnapshots {
       if (changed == null) { CAPTURES.remove(player); return; }
       var updated = new Capture(capture.token(), capture.level(), capture.tick(), capture.item(),
          capture.shape(), capture.clicked(), capture.adjacent(), true,
-         new IdleTinkerSnapshot(originals, changed, io.github.fastformer.fastplace.history.WorldHistoryManager.latestOperationId(player)), capture.placement());
+         new IdleTinkerSnapshot(originals, changed, io.github.fastformer.fastplace.history.WorldHistoryManager.latestOperationId(player)),
+         capture.placement(), capture.rules());
       CAPTURES.put(player, updated);
       publish(player, updated);
    }

@@ -48,8 +48,8 @@ public final class FastPlaceSettings {
    private final Set<ResourceLocation> enabledPlacementEffects = new HashSet<>();
    private boolean emptyHandWrench = true;
    private boolean skipRepeatedCropStages = true;
-   private boolean distantBlockRemoval = true;
    private boolean forcePlacement = true;
+   private boolean vanillaBlockHistory;
    private int maxPlacement = 20972152;
    private int worldUndoHistoryLimit = DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
    private int sessionUndoHistoryLimit = DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
@@ -108,8 +108,8 @@ public final class FastPlaceSettings {
       }
       settings.emptyHandWrench = !tag.contains("emptyHandWrench") || tag.getBoolean("emptyHandWrench");
       settings.skipRepeatedCropStages = !tag.contains("skipRepeatedCropStages") || tag.getBoolean("skipRepeatedCropStages");
-      settings.distantBlockRemoval = !tag.contains("distantBlockRemoval") || tag.getBoolean("distantBlockRemoval");
       settings.forcePlacement = !tag.contains("forcePlacement") || tag.getBoolean("forcePlacement");
+      settings.vanillaBlockHistory = tag.getBoolean("vanillaBlockHistory");
       settings.maxPlacement = tag.contains("maxPlacement")
          ? Math.clamp((long)tag.getInt("maxPlacement"), 1, 20972152)
          : 20972152;
@@ -316,13 +316,6 @@ public final class FastPlaceSettings {
 
    public boolean skipRepeatedCropStages() { return this.skipRepeatedCropStages; }
 
-   public boolean distantBlockRemoval() { return this.distantBlockRemoval; }
-
-   public void toggleDistantBlockRemoval(ServerPlayer player) {
-      this.distantBlockRemoval = !this.distantBlockRemoval;
-      this.save(player);
-   }
-
    public void toggleSkipRepeatedCropStages(ServerPlayer player) {
       this.skipRepeatedCropStages = !this.skipRepeatedCropStages;
       this.save(player);
@@ -337,6 +330,13 @@ public final class FastPlaceSettings {
    }
 
    public boolean forcePlacement() { return forcePlacement; }
+
+   public boolean vanillaBlockHistory() { return vanillaBlockHistory; }
+
+   public void toggleVanillaBlockHistory(ServerPlayer player) {
+      vanillaBlockHistory = !vanillaBlockHistory;
+      save(player);
+   }
 
    public void setForcePlacement(ServerPlayer player, boolean value) {
       forcePlacement = value;
@@ -395,17 +395,18 @@ public final class FastPlaceSettings {
       tag.put("enabledPlacementEffects", effectIds);
       tag.putBoolean("emptyHandWrench", this.emptyHandWrench);
       tag.putBoolean("skipRepeatedCropStages", this.skipRepeatedCropStages);
-      tag.putBoolean("distantBlockRemoval", this.distantBlockRemoval);
       tag.putBoolean("forcePlacement", forcePlacement);
+      tag.putBoolean("vanillaBlockHistory", vanillaBlockHistory);
       tag.putInt("maxPlacement", this.maxPlacement);
       tag.putInt("undoHistoryLimit", this.worldUndoHistoryLimit);
       tag.putInt("sessionUndoHistoryLimit", this.sessionUndoHistoryLimit);
       CompoundTag tinkerHistory = new CompoundTag();
-      tinkerHistory.putInt("near", tinkerHistoryMergeLimits.near());
-      tinkerHistory.putInt("middle", tinkerHistoryMergeLimits.middle());
-      tinkerHistory.putInt("far", tinkerHistoryMergeLimits.far());
-      tinkerHistory.putInt("nearDistance", tinkerHistoryMergeLimits.nearDistance());
-      tinkerHistory.putInt("farDistance", tinkerHistoryMergeLimits.farDistance());
+      tinkerHistory.putInt("recentAfter", tinkerHistoryMergeLimits.recentAfter());
+      tinkerHistory.putInt("recentGroup", tinkerHistoryMergeLimits.recentGroup());
+      tinkerHistory.putInt("olderAfter", tinkerHistoryMergeLimits.olderAfter());
+      tinkerHistory.putInt("olderGroup", tinkerHistoryMergeLimits.olderGroup());
+      tinkerHistory.putInt("oldestAfter", tinkerHistoryMergeLimits.oldestAfter());
+      tinkerHistory.putInt("oldestGroup", tinkerHistoryMergeLimits.oldestGroup());
       tag.put("tinkerHistoryMerge", tinkerHistory);
       tag.putDouble("angleDegrees", this.angleDegrees);
       return tag;
@@ -422,16 +423,25 @@ public final class FastPlaceSettings {
       var defaults = io.github.fastformer.fastplace.history.HistoryStorageConfig.defaultMergeLimits();
       if (tag.contains("tinkerHistoryMerge", Tag.TAG_COMPOUND)) {
          CompoundTag limits = tag.getCompound("tinkerHistoryMerge");
+         // Spatial bands cannot be interpreted as chronological tiers. Keep an explicit opt-out.
+         if (limits.contains("near") && !limits.contains("recentGroup")) {
+            if (limits.getInt("near") <= 1 && limits.getInt("middle") <= 1 && limits.getInt("far") <= 1)
+               return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(defaults.recentAfter(), 1,
+                  defaults.olderAfter(), 1, defaults.oldestAfter(), 1);
+            return defaults;
+         }
          return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(
-            limits.contains("near") ? limits.getInt("near") : defaults.near(),
-            limits.contains("middle") ? limits.getInt("middle") : defaults.middle(),
-            limits.contains("far") ? limits.getInt("far") : defaults.far(),
-            limits.contains("nearDistance") ? limits.getInt("nearDistance") : defaults.nearDistance(),
-            limits.contains("farDistance") ? limits.getInt("farDistance") : defaults.farDistance());
+            limits.contains("recentAfter") ? limits.getInt("recentAfter") : defaults.recentAfter(),
+            limits.contains("recentGroup") ? limits.getInt("recentGroup") : defaults.recentGroup(),
+            limits.contains("olderAfter") ? limits.getInt("olderAfter") : defaults.olderAfter(),
+            limits.contains("olderGroup") ? limits.getInt("olderGroup") : defaults.olderGroup(),
+            limits.contains("oldestAfter") ? limits.getInt("oldestAfter") : defaults.oldestAfter(),
+            limits.contains("oldestGroup") ? limits.getInt("oldestGroup") : defaults.oldestGroup());
       }
       if (tag.contains("tinkerHistoryMergeLimit") && tag.getInt("tinkerHistoryMergeLimit") != 32) {
          int legacy = tag.getInt("tinkerHistoryMergeLimit");
-         return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(legacy, legacy, legacy);
+         return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(defaults.recentAfter(), legacy,
+            defaults.olderAfter(), legacy <= 1 ? 1 : defaults.olderGroup(), defaults.oldestAfter(), legacy <= 1 ? 1 : defaults.oldestGroup());
       }
       return defaults;
    }

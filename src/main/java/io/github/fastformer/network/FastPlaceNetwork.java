@@ -57,7 +57,19 @@ public final class FastPlaceNetwork {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("78").optional();
+      PayloadRegistrar registrar = event.registrar("80").optional();
+      registrar.playToServer(io.github.fastformer.network.payload.movement.ForwardDashPayload.TYPE,
+         io.github.fastformer.network.payload.movement.ForwardDashPayload.STREAM_CODEC,
+         (payload, context) -> context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player)
+               io.github.fastformer.server.movement.ForwardDash.execute(player, payload.requestId(), payload.distance());
+         }));
+      registrar.playToClient(io.github.fastformer.network.payload.movement.ForwardDashStartPayload.TYPE,
+         io.github.fastformer.network.payload.movement.ForwardDashStartPayload.STREAM_CODEC,
+         (payload, context) -> {
+            var connection = context.connection();
+            context.enqueueWork(() -> ClientPayloadDispatcher.applyForwardDash(payload, connection));
+         });
       registrar.playToServer(SmartFillCommandPayload.TYPE, SmartFillCommandPayload.STREAM_CODEC,
          (payload, context) -> context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player)
@@ -118,10 +130,6 @@ public final class FastPlaceNetwork {
       registrar.playToServer(TinkerInteractionPayload.TYPE, TinkerInteractionPayload.STREAM_CODEC,
          (payload, context) -> context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer player) ServerInputDispatcher.tinker(player, payload);
-         }));
-      registrar.playToServer(DistantBlockRemovePayload.TYPE, DistantBlockRemovePayload.STREAM_CODEC,
-         (payload, context) -> context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer player) ServerInputDispatcher.removeDistantBlock(player, payload);
          }));
       registrar.playToServer(IdleSelectionEntryPayload.TYPE, IdleSelectionEntryPayload.STREAM_CODEC,
          (payload, context) -> context.enqueueWork(() -> {
@@ -289,12 +297,9 @@ public final class FastPlaceNetwork {
                   player, next(settings.placementUpdateMode(), PlacementUpdateMode.values())
                );
                case TOGGLE_EMPTY_HAND_WRENCH -> settings.toggleEmptyHandWrench(player);
+               case TOGGLE_VANILLA_BLOCK_HISTORY -> settings.toggleVanillaBlockHistory(player);
                case TOGGLE_SKIP_REPEATED_CROP_STAGES -> {
                   settings.toggleSkipRepeatedCropStages(player);
-                  io.github.fastformer.network.sync.PlayerPreviewSync.syncInteractionUpdates(player);
-               }
-               case TOGGLE_DISTANT_BLOCK_REMOVAL -> {
-                  settings.toggleDistantBlockRemoval(player);
                   io.github.fastformer.network.sync.PlayerPreviewSync.syncInteractionUpdates(player);
                }
                case TOGGLE_FALLING_DISABLED -> {

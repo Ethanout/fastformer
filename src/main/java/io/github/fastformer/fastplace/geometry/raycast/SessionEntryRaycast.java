@@ -7,7 +7,7 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
-/** Entry rays include every fluid unless Alt is held; snapshots retain the same shapes. */
+/** Direct entries use FF fluid rules; vanilla double-clicks retain the first outline's rules. */
 public final class SessionEntryRaycast {
    private SessionEntryRaycast() { }
 
@@ -15,7 +15,20 @@ public final class SessionEntryRaycast {
       return LongRangeBlockRaycast.clipForSelection(player.level(), player, eye, view, throughFluids).hit();
    }
 
+   public static BlockHitResult clip(Player player, Vec3 eye, Vec3 view, InteractionRaycastRules rules) {
+      return LongRangeBlockRaycast.clipForSelection(player.level(), player, eye, view, rules).hit();
+   }
+
    public static InteractionShapeSnapshot snapshot(BlockGetter level, BlockPos position) {
       return InteractionShapeSnapshot.capture(level, position);
+   }
+
+   public static InteractionShapeSnapshot snapshot(BlockGetter level, BlockPos position, InteractionRaycastRules rules) {
+      return InteractionShapeSnapshot.capture(level, position, rules.throughFluids());
+   }
+
+   public static InteractionShapeSnapshot snapshot(Player player, BlockPos position, InteractionRaycastRules rules) {
+      return InteractionShapeSnapshot.capture(player.level(), position, rules.throughFluids(),
+         net.minecraft.world.phys.shapes.CollisionContext.of(player));
    }
 }

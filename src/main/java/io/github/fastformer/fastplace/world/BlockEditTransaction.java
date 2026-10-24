@@ -80,14 +80,62 @@ public final class BlockEditTransaction {
 
    public static Outcome apply(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
       int writeFlags, int restoreFlags, io.github.fastformer.fastplace.history.BlockEditHistoryMetadata metadata) {
+      return applyChanges(player, level, changes, writeFlags, restoreFlags, (before, after) -> metadata == null
+         ? WorldHistoryManager.record(player, level, before, after)
+         : WorldHistoryManager.recordTinker(player, level, before, after, metadata));
+   }
+
+   public static Outcome applyWithoutHistory(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
+      int writeFlags, int restoreFlags) {
+      return applyChanges(player, level, changes, writeFlags, restoreFlags, (before, after) -> true);
+   }
+
+   private static Outcome applyChanges(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
+      int writeFlags, int restoreFlags, SnapshotRecorder recorder) {
       if (player == null || level == null || changes == null || changes.isEmpty()) {
          return Outcome.NOT_APPLICABLE;
       }
       return applyTargets(player, level, changes.keySet(),
          position -> WorldWriteSideEffectGuard.setBlock(level, position, changes.get(position), writeFlags),
-         Map.of(), restoreFlags, (before, after) -> metadata == null
-            ? WorldHistoryManager.record(player, level, before, after)
-            : WorldHistoryManager.recordTinker(player, level, before, after, metadata));
+         Map.of(), restoreFlags, recorder);
+   }
+
+   /** Observes a vanilla action without replaying it; failed history publication uses the same recovery path as FF edits. */
+   public static <T> T observe(ServerPlayer player, java.util.function.Supplier<T> action, T failure) {
+      if (ObservedBlockChanges.active()) return action.get();
+      ServerLevel level = player.serverLevel();
+      WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
+      var lease = WorldWriteCoordinator.acquire(context.server(), level.dimension(), context.owner());
+      if (lease == null) return failure;
+      var capture = new ObservedBlockChanges(level);
+      int flags = io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags();
+      try {
+         T result;
+         try (capture) { result = action.get(); }
+         if (!capture.finish()) {
+            report(fail(level, context, lease, capture.rollbackSnapshots(), capture.after(), flags, "observed-snapshot"), player);
+            return failure;
+         }
+         var before = capture.changedBefore();
+         if (!before.isEmpty()) {
+            var metadata = io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromVanillaEdit();
+            boolean recorded = WorldHistoryManager.recordTinker(player, level, before, capture.after(), metadata);
+            if (!recorded) {
+               report(fail(level, context, lease, capture.rollbackSnapshots(), capture.after(), flags, "observed-history"), player);
+               return failure;
+            }
+         }
+         WorldWriteCoordinator.release(lease);
+         return result;
+      } catch (RuntimeException | Error exception) {
+         LOGGER.warn("FastFormer could not record vanilla block interaction; restoring captured blocks", exception);
+         report(fail(level, context, lease, capture.rollbackSnapshots(), capture.after(), flags, "observed-exception"), player);
+         return failure;
+      }
+   }
+
+   public static boolean observeWrite(Level level, BlockPos pos, java.util.function.BooleanSupplier write) {
+      return ObservedBlockChanges.observe(level, pos, write);
    }
 
    public static Outcome restore(ServerPlayer player, ServerLevel level,

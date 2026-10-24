@@ -89,6 +89,17 @@ public final class FastPlaceClientShaders {
       return styledLines(pendingDashedLines, true, true);
    }
 
+   /** A fixed dash pattern uses the same pigment and depth policy as other strokes. */
+   public static ShaderInstance staticDashedLines(boolean occluded, float dashLength, float gapLength) {
+      configurePencil(pendingDashedLines, false);
+      if (occluded) configureOccludedDashes(pendingDashedLines);
+      if (pendingDashedLines != null) {
+         pendingDashedLines.safeGetUniform("OccludedDash").set(Math.max(0F, dashLength), Math.max(0F, gapLength));
+      }
+      return VisualStyleHooks.shader(pendingDashedLines,
+         occluded ? VisualStyleContext.Pass.OCCLUDED_LINE : VisualStyleContext.Pass.LINE, false);
+   }
+
    private static ShaderInstance styledLines(@Nullable ShaderInstance shader, boolean dynamic, boolean occluded) {
       configurePencil(shader, dynamic);
       if (occluded) configureOccludedDashes(shader);

@@ -70,7 +70,7 @@ public final class BlockTinker {
       if (action.changes().isEmpty()) return true;
       boolean wax = action.changes().entrySet().stream()
          .anyMatch(entry -> TinkerCopperCycle.addsWax(level.getBlockState(entry.getKey()), entry.getValue()));
-      var metadata = io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromInteraction(player, hit, action.changes(), settings.tinkerHistoryMergeLimits());
+      var metadata = io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromInteraction(player, hit, action.changes());
       var outcome = tinker(player, level, action.changes(), settings.placementUpdateMode().flags(), metadata);
       if (outcome == BlockEditTransaction.Outcome.APPLIED && wax) level.levelEvent(null, 3003, hit.getBlockPos(), 0);
       return outcome.consumedInteraction() || outcome == BlockEditTransaction.Outcome.REJECTED_BUSY;

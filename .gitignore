@@ -50,3 +50,6 @@ repo/
 logs/
 错误报告-*.zip
 .temp/
+
+### Isolated third-party reference ###
+/temp/axiom/

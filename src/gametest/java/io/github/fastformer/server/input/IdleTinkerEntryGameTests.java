@@ -113,6 +113,32 @@ public final class IdleTinkerEntryGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "idle_tinker")
+   public static void underwaterDoubleClickRestoresTheBlackOutlineTargetBeforeSelection(GameTestHelper helper) {
+      var player = player(helper);
+      var position = helper.absolutePos(new BlockPos(2, 2, 2));
+      var level = helper.getLevel();
+      level.setBlock(position, Blocks.GRASS_BLOCK.defaultBlockState(), 2);
+      level.setBlock(position.above(), Blocks.WATER.defaultBlockState(), 2);
+      level.setBlock(position.above(2), Blocks.WATER.defaultBlockState(), 2);
+      player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE).setBaseValue(20);
+      lookDown(player, position, 4);
+      var eye = player.getEyePosition();
+      var view = player.getViewVector(1);
+      var outline = (net.minecraft.world.phys.BlockHitResult)player.pick(player.blockInteractionRange(), 1, false);
+      var fluidHit = LongRangeBlockRaycast.clipForSelection(level, player, eye, view, false).hit();
+      helper.assertTrue(outline.getBlockPos().equals(position), "black outline did not target the underwater block");
+      helper.assertTrue(fluidHit.getBlockPos().equals(position.above(2)), "water did not occlude FF's ordinary entry ray");
+
+      ServerInputDispatcher.tinker(player, new TinkerInteractionPayload(551, outline, eye, view));
+      helper.assertTrue(level.getBlockState(position).is(Blocks.DIRT_PATH), "server rejected the underwater black-outline tinker hit");
+      var selected = ServerInputDispatcher.idleSelectionEntry(player, new IdleSelectionEntryPayload(552, 551, eye, view));
+      helper.assertTrue(position.equals(selected), "double click did not enter selection at the underwater block");
+      helper.assertTrue(level.getBlockState(position).is(Blocks.GRASS_BLOCK), "selection entry did not restore the original block");
+      helper.assertTrue(level.getBlockState(position.above()).is(Blocks.WATER), "selection entry changed the intervening water");
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "idle_tinker")
    public static void wrenchUsesPlayerInteractionRangeAndRejectsRepeatedTokens(GameTestHelper helper) {
       var player = player(helper);
       var position = helper.absolutePos(new BlockPos(2, 2, 2));

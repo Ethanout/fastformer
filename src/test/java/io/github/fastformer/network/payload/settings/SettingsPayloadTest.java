@@ -21,6 +21,7 @@ class SettingsPayloadTest {
          null, List.of(), true, false, 200, 100
       );
       assertEquals(PlacementUpdateMode.CLIENT_ONLY, payload.placementUpdateMode());
+      assertEquals(false, payload.vanillaBlockHistory());
    }
 
    @Test
@@ -32,7 +33,7 @@ class SettingsPayloadTest {
          new OpenSettingsPayload(
             false, FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL,
             OperationConflictMode.KEEP_EXISTING, PlacementUpdateMode.CLIENT_ONLY,
-            List.of(woodFrame), true, false, 300, 120, new TinkerHistoryMergeLimits(8, 16, 48, 7, 25), false, false
+            List.of(woodFrame), true, false, 300, 120, new TinkerHistoryMergeLimits(8, 16, 40, 3, 200, 5), false, true
          )
       );
       OpenSettingsPayload open = OpenSettingsPayload.STREAM_CODEC.decode(openBuffer);
@@ -44,15 +45,25 @@ class SettingsPayloadTest {
       assertEquals(true, open.emptyHandWrench());
       assertEquals(false, open.fallingDisabled());
       assertEquals(false, open.skipRepeatedCropStages());
-      assertEquals(false, open.distantBlockRemoval());
+      assertEquals(true, open.vanillaBlockHistory());
       assertEquals(300, open.worldUndoHistoryLimit());
       assertEquals(120, open.sessionUndoHistoryLimit());
-      assertEquals(new TinkerHistoryMergeLimits(8, 16, 48, 7, 25), open.tinkerHistoryMergeLimits());
+      assertEquals(new TinkerHistoryMergeLimits(8, 16, 40, 3, 200, 5), open.tinkerHistoryMergeLimits());
 
       FriendlyByteBuf tinkerBuffer = new FriendlyByteBuf(Unpooled.buffer());
-      var tinker = new TinkerHistorySettingPayload(TinkerHistoryMergeLimits.Setting.NEAR_DISTANCE, 9);
+      var tinker = new TinkerHistorySettingPayload(TinkerHistoryMergeLimits.Setting.RECENT_AFTER, 9);
       TinkerHistorySettingPayload.STREAM_CODEC.encode(tinkerBuffer, tinker);
       assertEquals(tinker, TinkerHistorySettingPayload.STREAM_CODEC.decode(tinkerBuffer));
+      for (var setting : TinkerHistoryMergeLimits.Setting.values()) {
+         var settingBuffer = new FriendlyByteBuf(Unpooled.buffer());
+         try {
+            var value = new TinkerHistorySettingPayload(setting, 42);
+            TinkerHistorySettingPayload.STREAM_CODEC.encode(settingBuffer, value);
+            assertEquals(value, TinkerHistorySettingPayload.STREAM_CODEC.decode(settingBuffer));
+         } finally {
+            settingBuffer.release();
+         }
+      }
 
       FriendlyByteBuf updateBuffer = new FriendlyByteBuf(Unpooled.buffer());
       MiddleConfirmSettingPayload.STREAM_CODEC.encode(updateBuffer, new MiddleConfirmSettingPayload(true));

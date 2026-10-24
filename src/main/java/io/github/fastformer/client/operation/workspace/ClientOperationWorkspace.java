@@ -228,8 +228,8 @@ public final class ClientOperationWorkspace {
       return finishEdit(restoreSelection, retainedSelectionPoints, null);
    }
 
-   public boolean finishScrollEdit(BlockPos offset, long timestampNanos, long maxGapNanos) {
-      boolean finished = finishEdit(null, 0, new ScrollEdit(offset.immutable(), timestampNanos, maxGapNanos));
+   public boolean finishScrollEdit(Object gesture, long timestampNanos, long maxGapNanos) {
+      boolean finished = finishEdit(null, 0, new ScrollEdit(java.util.Objects.requireNonNull(gesture), timestampNanos, maxGapNanos));
       if (finished) this.lastScrollRevision = this.revision;
       return finished;
    }
@@ -247,7 +247,7 @@ public final class ClientOperationWorkspace {
       if (scroll != null) {
          if (this.editStartRevision != this.lastScrollRevision) this.history.endCoalescing();
          var identities = baseline.selectedIds().stream().collect(java.util.stream.Collectors.toMap(id -> id, baseline.interactionIds()::get));
-         var key = new ScrollMoveKey(Map.copyOf(identities), baseline.activeId(), scroll.offset());
+         var key = new ScrollTransformKey(Map.copyOf(identities), baseline.activeId(), scroll.gesture());
          var retained = baseline.retention();
          this.history.pushCoalesced(key, scroll.timestampNanos(), scroll.maxGapNanos(), () -> this.restore(baseline),
             ClientOperationEventStack.Retention.of(retained.nodeUnits() + identities.size() + 3, retained.sharedPayloads()));
@@ -646,8 +646,8 @@ public final class ClientOperationWorkspace {
       private EditToken() { }
    }
 
-   private record ScrollEdit(BlockPos offset, long timestampNanos, long maxGapNanos) { }
-   private record ScrollMoveKey(Map<Integer, Long> targets, int activeId, BlockPos offset) { }
+   private record ScrollEdit(Object gesture, long timestampNanos, long maxGapNanos) { }
+   private record ScrollTransformKey(Map<Integer, Long> targets, int activeId, Object gesture) { }
 
    public record SelectionState(Set<Integer> ids, int activeId) { }
 

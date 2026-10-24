@@ -1,9 +1,10 @@
 package io.github.fastformer.client.input.state;
 
-/** A second forward press owns the boost until release or loss of flight control. */
+/** A second forward press boosts while held, or requests a dash on a quick release. */
 public final class FastFlightGesture {
    public static final long DOUBLE_PRESS_NANOS = 250_000_000L;
    public static final long ACCELERATION_NANOS = 3_000_000_000L;
+   public static final long DASH_TAP_NANOS = 200_000_000L;
    private long firstPress = Long.MIN_VALUE;
    private long boostStarted;
    private boolean held;
@@ -15,7 +16,7 @@ public final class FastFlightGesture {
       if (firstPress != Long.MIN_VALUE && now >= firstPress && now - firstPress <= DOUBLE_PRESS_NANOS) {
          active = true;
          boostStarted = now;
-         firstPress = Long.MIN_VALUE;
+         firstPress = now;
       } else {
          firstPress = now;
       }
@@ -24,6 +25,13 @@ public final class FastFlightGesture {
    public void release() {
       held = false;
       active = false;
+   }
+
+   public boolean release(long now) {
+      long elapsed = now - boostStarted;
+      boolean dash = held && active && elapsed >= 0 && elapsed <= DASH_TAP_NANOS;
+      release();
+      return dash;
    }
 
    public double multiplier(long now) {

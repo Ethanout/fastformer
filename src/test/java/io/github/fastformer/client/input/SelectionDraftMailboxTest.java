@@ -127,11 +127,42 @@ class SelectionDraftMailboxTest {
       drain();
       assertTrue(this.selection.workspace().isEmpty());
       assertFalse(this.selection.hasDraft());
-      assertTrue(ClientOperationController.selectionSessionActive());
+      assertFalse(ClientOperationController.selectionSessionActive());
       assertTrue(ClientOperationController.undo());
       assertEquals(List.of(BlockPos.ZERO), this.selection.draftPoints());
       assertTrue(ClientOperationController.undo());
       assertEquals(1, this.selection.workspace().size());
+   }
+
+   @Test
+   void withdrawingTheLastPointInvalidatesLaterQueuedPointsFromTheOldSession() {
+      postClick(1, BlockPos.ZERO, false);
+      postClick(0, null, false);
+      postClick(1, new BlockPos(8, 8, 8), false);
+      drain();
+
+      assertFalse(ClientOperationController.selectionSessionActive());
+      assertFalse(this.selection.hasDraft());
+      assertTrue(this.selection.workspace().isEmpty());
+      assertFalse(this.input.selectionPointer.active());
+   }
+
+   @Test
+   void undoingTheOnlyPointReturnsToIdle() {
+      assertTrue(ClientOperationController.handleCreateClick(1, BlockPos.ZERO));
+      assertTrue(ClientOperationController.undo());
+      assertFalse(ClientOperationController.selectionSessionActive());
+      assertFalse(this.selection.hasDraft());
+      assertTrue(this.selection.workspace().isEmpty());
+   }
+
+   @Test
+   void switchingToolsAfterOnlyOnePointDoesNotLeaveAnEmptySession() {
+      assertTrue(ClientOperationController.handleCreateClick(1, BlockPos.ZERO));
+      assertTrue(ClientOperationController.cycleDraftMode());
+      assertEquals(OperationSelectionMode.SMART, this.selection.selectionMode());
+      assertFalse(ClientOperationController.selectionSessionActive());
+      assertFalse(this.selection.hasDraft());
    }
 
    @Test

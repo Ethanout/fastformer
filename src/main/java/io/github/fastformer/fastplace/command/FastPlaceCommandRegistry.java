@@ -344,7 +344,7 @@ public final class FastPlaceCommandRegistry {
                settings.sessionUndoHistoryLimit(),
                settings.tinkerHistoryMergeLimits(),
                settings.skipRepeatedCropStages(),
-               settings.distantBlockRemoval()
+               settings.vanillaBlockHistory()
             ),
             new net.minecraft.network.protocol.common.custom.CustomPacketPayload[0]
          );

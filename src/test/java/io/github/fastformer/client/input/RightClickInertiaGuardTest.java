@@ -49,15 +49,15 @@ class RightClickInertiaGuardTest {
 
    @Test void cancellationAndWorldResetRemoveProtection() {
       var session = new ClientInputSession();
-      session.distantEntryPressGuard.arm(0);
+      session.entryPressGuard.arm(0);
       session.cuboidPointPressGuard.arm(0);
       session.discardPhysicalEvents();
-      assertFalse(session.distantEntryPressGuard.capture(PRESS, RIGHT_BUTTON, 10));
+      assertFalse(session.entryPressGuard.capture(PRESS, RIGHT_BUTTON, 10));
       assertFalse(session.cuboidPointPressGuard.capture(PRESS, RIGHT_BUTTON, 10));
-      session.distantEntryPressGuard.arm(20);
+      session.entryPressGuard.arm(20);
       session.cuboidPointPressGuard.arm(20);
       session.reset();
-      assertFalse(session.distantEntryPressGuard.capture(PRESS, RIGHT_BUTTON, 30));
+      assertFalse(session.entryPressGuard.capture(PRESS, RIGHT_BUTTON, 30));
       assertFalse(session.cuboidPointPressGuard.capture(PRESS, RIGHT_BUTTON, 30));
    }
 }

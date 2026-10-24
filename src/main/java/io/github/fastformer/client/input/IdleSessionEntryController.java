@@ -6,6 +6,7 @@ import io.github.fastformer.client.interaction.ClientBlockTinker;
 import io.github.fastformer.client.render.FastPlaceClientPreview;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast;
+import io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload;
 import io.github.fastformer.network.payload.placement.TinkerInteractionPayload;
@@ -23,7 +24,7 @@ final class IdleSessionEntryController {
 
    static boolean capture(Minecraft minecraft, ClientInputSession session, int action, int button,
       long now, boolean alt, boolean control) {
-      if (session.distantEntryPressGuard.capture(action, button, now)) {
+      if (session.entryPressGuard.capture(action, button, now)) {
          minecraft.options.keyUse.setDown(false);
          return true;
       }
@@ -37,7 +38,7 @@ final class IdleSessionEntryController {
       }
       if (minecraft.player == null) return false;
       boolean middleEntry = button == MouseButtonInputSemantics.MIDDLE_BUTTON
-         && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem());
+         && alt && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem());
       if (session.routing.state() != ClientInputStateMachine.State.IDLE
          || button != MouseButtonInputSemantics.RIGHT_BUTTON && !middleEntry
          || action != MouseButtonInputSemantics.PRESS || !minecraft.player.isCreative()
@@ -50,60 +51,65 @@ final class IdleSessionEntryController {
       session.idleEntry.validate(minecraft.level, minecraft.player.getMainHandItem());
       var eye = minecraft.player.getEyePosition();
       var view = minecraft.player.getViewVector(1);
-      BlockHitResult hit = SessionEntryRaycast.clip(minecraft.player, eye, view, alt);
+      boolean throughFluids = InteractionRaycastRules.passesThroughFluids(minecraft.player, alt);
+      BlockHitResult hit = SessionEntryRaycast.clip(minecraft.player, eye, view, new InteractionRaycastRules(alt, throughFluids));
       boolean distant = LongRangeBlockRaycast.beyondInteractionRange(minecraft.player, hit);
-      if (middleEntry && !alt && !distant) return false;
       if (alt) {
          session.idleEntry.clear();
-         boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry, true);
+         boolean started = enter(minecraft, session, hit, now, control, 0, button, true, throughFluids);
          if (started) {
             session.entryConsumedAlt = true;
-            protectDistantEntry(session, distant, button, now);
+            protectEntry(session, button, now);
          }
          return started;
       }
-      BlockHitResult anchor = middleEntry ? null : session.idleEntry.secondPress(now, eye, view);
+      var anchor = middleEntry ? null : session.idleEntry.secondPress(now, eye, view);
       if (anchor != null) {
-         long token = session.idleEntry.token();
-         boolean restore = session.idleEntry.tinker();
          session.idleEntry.clear();
-         if (!restore) return enter(minecraft, session, anchor, now, control, token, button, true, false);
-         boolean started = IdleSelectionEntryController.begin(minecraft, session, token, eye, view, control, now);
+         if (!anchor.tinker()) return enter(minecraft, session, anchor.hit(), now, control, anchor.token(), button,
+            anchor.rules().embedded(), anchor.rules().throughFluids());
+         boolean started = IdleSelectionEntryController.begin(minecraft, session, anchor.token(), eye, view, control, now);
          if (started) {
             session.idleEntryButton = button;
             minecraft.options.keyUse.setDown(false);
          }
          return started;
       }
-      if (!middleEntry && hit.getType() == HitResult.Type.BLOCK
-         && ClientBlockTinker.consumes(minecraft.player, InteractionHand.MAIN_HAND, hit)
+      BlockHitResult firstHit = minecraft.hitResult instanceof BlockHitResult blockHit
+         && blockHit.getType() == HitResult.Type.BLOCK ? blockHit : null;
+      float partialTick = minecraft.getTimer().getGameTimeDeltaPartialTick(true);
+      var firstEye = minecraft.player.getEyePosition(partialTick);
+      var firstView = minecraft.player.getViewVector(partialTick);
+      var rules = InteractionRaycastRules.VANILLA_OUTLINE;
+      if (!middleEntry && firstHit != null
+         && ClientBlockTinker.consumes(minecraft.player, InteractionHand.MAIN_HAND, firstHit)
          && NetworkRegistry.hasChannel(minecraft.getConnection(), TinkerInteractionPayload.TYPE.id())) {
          long token = ++nextToken;
-         var original = SessionEntryRaycast.snapshot(minecraft.level, hit.getBlockPos());
-         session.idleEntry.rememberTinker(token, now, original, eye, view, minecraft.level, minecraft.player.getMainHandItem());
+         var original = SessionEntryRaycast.snapshot(minecraft.player, firstHit.getBlockPos(), rules);
+         session.idleEntry.rememberTinker(token, now, original, firstEye, firstView, minecraft.level, minecraft.player.getMainHandItem());
          session.idleEntryButton = button;
          minecraft.options.keyUse.setDown(false);
-         PacketDistributor.sendToServer(new TinkerInteractionPayload(token, hit, eye, view));
+         PacketDistributor.sendToServer(new TinkerInteractionPayload(token, firstHit, firstEye, firstView));
          return true;
       }
-      if (distant) {
+      if (firstHit == null && distant) {
          session.idleEntry.clear();
-         boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry, false);
-         if (started) protectDistantEntry(session, true, button, now);
+         boolean started = enter(minecraft, session, hit, now, control, 0, button, middleEntry, throughFluids);
+         if (started) protectEntry(session, button, now);
          return started;
       }
-      if (hit.getType() == HitResult.Type.BLOCK
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), IdleInteractionCapturePayload.TYPE.id())) {
+      // Freeze the displayed black-outline hit, including its face and position; do not recast it.
+      if (firstHit != null) {
          long token = ++nextToken;
-         session.idleEntry.remember(token, now, SessionEntryRaycast.snapshot(minecraft.level, hit.getBlockPos()),
-            eye, view, minecraft.level, minecraft.player.getMainHandItem());
-         PacketDistributor.sendToServer(new IdleInteractionCapturePayload(token, hit, eye, view));
+         session.idleEntry.remember(token, now, SessionEntryRaycast.snapshot(minecraft.player, firstHit.getBlockPos(), rules),
+            firstEye, firstView, minecraft.level, minecraft.player.getMainHandItem(), rules);
+         PacketDistributor.sendToServer(new IdleInteractionCapturePayload(token, firstHit, firstEye, firstView, rules));
       } else session.idleEntry.clear();
       return false;
    }
 
-   private static void protectDistantEntry(ClientInputSession session, boolean distant, int button, long now) {
-      if (distant && button == MouseButtonInputSemantics.RIGHT_BUTTON) session.distantEntryPressGuard.arm(now);
+   private static void protectEntry(ClientInputSession session, int button, long now) {
+      if (button == MouseButtonInputSemantics.RIGHT_BUTTON) session.entryPressGuard.arm(now);
    }
 
    private static boolean enter(Minecraft minecraft, ClientInputSession session, BlockHitResult hit,

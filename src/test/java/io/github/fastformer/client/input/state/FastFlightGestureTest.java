@@ -1,9 +1,58 @@
 package io.github.fastformer.client.input.state;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 class FastFlightGestureTest {
+   @Test
+   void rapidForwardTapsKeepRequestingDashesAfterTheInitialDoubleTap() {
+      var gesture = new FastFlightGesture();
+      for (int tap = 0; tap < 6; tap++) {
+         long now = tap * 120_000_000L;
+         gesture.press(now);
+         assertEquals(tap > 0, gesture.release(now + 40_000_000L));
+      }
+      gesture.press(1_000_000_000L);
+      assertFalse(gesture.release(1_040_000_000L));
+   }
+
+   @Test
+   void quickSecondReleaseDashesExactlyOnce() {
+      var gesture = new FastFlightGesture();
+      gesture.press(0);
+      assertFalse(gesture.release(50_000_000L));
+      gesture.press(150_000_000L);
+      assertTrue(gesture.release(350_000_000L));
+      assertFalse(gesture.release(350_000_001L));
+      assertEquals(1, gesture.multiplier(350_000_001L));
+   }
+
+   @Test
+   void longHoldAndLostFocusNeverTurnIntoADash() {
+      var gesture = new FastFlightGesture();
+      gesture.press(0);
+      gesture.release();
+      gesture.press(150_000_000L);
+      assertFalse(gesture.release(350_000_001L));
+      gesture.press(500_000_000L);
+      gesture.release();
+      gesture.press(600_000_000L);
+      gesture.reset();
+      assertFalse(gesture.release(650_000_000L));
+   }
+
+   @Test
+   void ordinaryTapsAndKeyRepeatCannotRequestADash() {
+      var gesture = new FastFlightGesture();
+      gesture.press(0);
+      gesture.press(50_000_000L);
+      assertFalse(gesture.release(100_000_000L));
+      gesture.press(300_000_000L);
+      assertFalse(gesture.release(350_000_000L));
+   }
+
    @Test
    void doublePressAcceleratesFromTwoToTenAndReleaseStopsIt() {
       var gesture = new FastFlightGesture();
