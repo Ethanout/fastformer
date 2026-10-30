@@ -29,6 +29,24 @@ public final class WorkspaceSelectionBounds {
       return unionBoxes(parts, true);
    }
 
+   /** Keeps sub-cell offsets for composed shortcuts instead of feeding voxel rounding back into the pivot. */
+   public static AABB continuousWholeBox(List<ClientSelectionPart> parts) {
+      AABB union = null;
+      for (ClientSelectionPart part : parts) {
+         WorkspaceTransform transform = part.transform();
+         var symmetry = transform.symmetry();
+         // Resolve the same scale/repeat/rotation envelope with a zero final offset,
+         // then apply the exact offset once. Rendered bounds still use voxel snapping.
+         var orientation = new io.github.fastformer.workspace.model.WorkspaceSymmetry(
+            symmetry.x(), symmetry.y(), symmetry.z(), Vec3.ZERO);
+         AABB box = resolve(part, transform.withTranslation(Vec3.ZERO).withSymmetry(orientation));
+         if (box != null) {
+            union = union(union, box.move(symmetry.offset().add(transform.translation())));
+         }
+      }
+      return union;
+   }
+
    /** Union of the base selection boxes. Copies placed by an earlier stack stay outside it. */
    public static AABB baseBox(List<ClientSelectionPart> parts) {
       return unionBoxes(parts, false);

@@ -16,6 +16,37 @@ import org.junit.jupiter.api.Test;
 
 class WorkspaceSelectionBoundsTest {
    @Test
+   void shortcutPivotsDoNotAccumulateRoundingAcrossMixedParityTurns() {
+      for (int origin : new int[] {-7, 0, 8}) for (int width : new int[] {1, 2, 3}) for (int depth : new int[] {1, 2, 3}) {
+         var blocks = new java.util.LinkedHashMap<BlockPos, String>();
+         for (int x = 0; x < width; x++) for (int z = 0; z < depth; z++) {
+            blocks.put(new BlockPos(origin + x, 0, origin + z), "block");
+         }
+         var selection = OperationSelectionVolume.cuboid(new BlockPos(origin, 0, origin),
+            new BlockPos(origin + width - 1, 0, origin + depth - 1), null, null);
+         for (double shift : new double[] {-7, -0.25, 0, 0.25, 10}) {
+            WorkspaceTransform transform = WorkspaceTransform.IDENTITY.withTranslation(new Vec3(shift, 3, -7));
+            // Use position-only values to exercise the same pipeline without a block registry.
+            var before = WorkspacePreviewComposer.resolveValues(blocks, transform);
+            Vec3 pivot = null;
+            for (int turn = 0; turn < 4; turn++) {
+               // The empty snapshots are irrelevant to bounds: a cuboid supplies the same envelope.
+               var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, selection,
+                  java.util.Map.of(), transform, false);
+               Vec3 currentPivot = WorkspaceSelectionBounds.continuousWholeBox(List.of(part)).getCenter();
+               if (pivot == null) pivot = currentPivot;
+               assertEquals(pivot, currentPivot, "shortcut reused a snapped centre");
+               transform = transform.withSymmetry(transform.symmetry().then(
+                  io.github.fastformer.workspace.model.WorkspaceSymmetry.quarterTurnY(),
+                  currentPivot.subtract(transform.translation())));
+            }
+            assertEquals(before, WorkspacePreviewComposer.resolveValues(blocks, transform),
+               "origin=" + origin + ", size=" + width + "x" + depth + ", shift=" + shift);
+         }
+      }
+   }
+
+   @Test
    void quarterTurnFramesMatchVoxelExtentsAcrossMixedParityAndNegativeCoordinates() {
       for (int origin : new int[] {-7, 0, 8}) for (int width : new int[] {2, 3}) for (int depth : new int[] {2, 3}) {
          var blocks = new java.util.LinkedHashMap<BlockPos, String>();

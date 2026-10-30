@@ -31,6 +31,7 @@
 - `smart-fill.md`：F 单层平面修补、玩家相交时的预览确认和世界撤回。
 - `visual-resources.md`：主题 JSON、着色器覆盖路径与资源重载。
 - `reviews/2026-10-25-project-audit.md`：项目架构审查、缺陷修复与验证范围。
+- `reviews/2026-10-30-ci-rotation.md`：GitHub 旋转回归测试的失败原因与修复。
 
 ## 权威规则
 

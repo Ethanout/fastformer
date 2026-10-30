@@ -27,7 +27,7 @@ public final class SelectionShortcutCalculator {
 
    public static SelectionTransformCalculator.Result calculate(List<ClientSelectionPart> selected, WorkspaceSymmetry operation) {
       if (selected.isEmpty()) return new SelectionTransformCalculator.Result(selected, null);
-      var bounds = WorkspaceSelectionBounds.wholeBox(selected);
+      var bounds = WorkspaceSelectionBounds.continuousWholeBox(selected);
       if (bounds == null) return new SelectionTransformCalculator.Result(selected, null);
       Vec3 pivot = bounds.getCenter();
       List<ClientSelectionPart> updates = new ArrayList<>();
