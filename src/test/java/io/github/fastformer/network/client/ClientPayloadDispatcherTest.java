@@ -61,4 +61,29 @@ class ClientPayloadDispatcherTest {
          ClientPayloadDispatcher.applyOperationPreview(OperationPreviewPayload.inactive(), null));
       assertEquals(0, ClientPayloadDispatcher.pendingEvents());
    }
+
+   @Test
+   void settingsUseTheSameWorldBoundaryAsOtherPayloads() {
+      var settings = new io.github.fastformer.network.payload.settings.OpenSettingsPayload(true);
+      var falling = new io.github.fastformer.network.payload.settings.FallingStatePayload(true, true);
+      ClientPayloadDispatcher.openSettings(settings, connection);
+      ClientPayloadDispatcher.fallingState(falling, connection);
+      assertEquals(2, ClientPayloadDispatcher.pendingEvents());
+      ClientPayloadDispatcher.endWorldSession();
+      assertEquals(0, ClientPayloadDispatcher.pendingEvents());
+      assertDoesNotThrow(ClientPayloadDispatcher::onClientTick);
+      assertThrows(NullPointerException.class, () -> ClientPayloadDispatcher.openSettings(settings, null));
+      assertThrows(NullPointerException.class, () -> ClientPayloadDispatcher.fallingState(falling, null));
+   }
+
+   @Test
+   void settingsFromAnInactiveConnectionNeverReachTheScreenHandler() {
+      ClientPayloadDispatcher.openSettings(
+         new io.github.fastformer.network.payload.settings.OpenSettingsPayload(true), connection);
+      ClientPayloadDispatcher.fallingState(
+         new io.github.fastformer.network.payload.settings.FallingStatePayload(true, true), connection);
+      // No current client connection exists. Loading the screen handler here would fail.
+      assertDoesNotThrow(ClientPayloadDispatcher::onClientTick);
+      assertEquals(0, ClientPayloadDispatcher.pendingEvents());
+   }
 }

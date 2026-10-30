@@ -252,6 +252,13 @@ public final class ClientPayloadDispatcher {
          case PlacementActionAckPayload payload -> deliverPlacementAcknowledgement(payload, connection);
          case OperationWorkspaceResultPayload payload -> deliverWorkspaceResult(payload, connection);
          case OperationWorkspaceReceiptPayload payload -> deliverWorkspaceReceipt(payload, connection);
+         case OpenSettingsPayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) deliverOpenSettings(payload);
+         }
+         case io.github.fastformer.network.payload.settings.FallingStatePayload payload -> {
+            if (ClientSessionManager.instance().acceptsReceiptCallback(connection)) invokeStatic(
+               SETTINGS_CLASS, "applyFallingState", io.github.fastformer.network.payload.settings.FallingStatePayload.class, payload);
+         }
          default -> throw new IllegalArgumentException("Unsupported client event: " + event.payload().type());
       }
    }
@@ -264,11 +271,14 @@ public final class ClientPayloadDispatcher {
    }
 
    public static void fallingState(io.github.fastformer.network.payload.settings.FallingStatePayload payload, Connection connection) {
-      if (!ClientSessionManager.instance().acceptsReceiptCallback(connection)) return;
-      invokeStatic(SETTINGS_CLASS, "applyFallingState", io.github.fastformer.network.payload.settings.FallingStatePayload.class, payload);
+      EVENTS.post(new PendingPayload(payload, connection));
    }
 
-   public static void openSettings(OpenSettingsPayload payload) {
+   public static void openSettings(OpenSettingsPayload payload, Connection connection) {
+      EVENTS.post(new PendingPayload(payload, connection));
+   }
+
+   private static void deliverOpenSettings(OpenSettingsPayload payload) {
       try {
          Class<?> handler = Class.forName(SETTINGS_CLASS);
          handler.getMethod(

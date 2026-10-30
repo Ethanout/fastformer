@@ -7,6 +7,42 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ClientStorageQueueTest {
    @Test
+   void fatalWorkStillCompletesAndReturnsEveryAdmissionSlot() {
+      var queue = new ClientStorageQueue();
+      var failure = new AssertionError("storage worker failed");
+      var completed = new AtomicInteger();
+      assertTrue(queue.submit(() -> { throw failure; }, (value, error) -> {
+         assertNull(value);
+         assertInstanceOf(ExecutionException.class, error);
+         assertSame(failure, error.getCause());
+         completed.incrementAndGet();
+      }));
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+      while (completed.get() == 0 && System.nanoTime() < deadline) { queue.drain(); Thread.yield(); }
+      assertEquals(1, completed.get());
+      for (int i = 0; i < 3; i++) {
+         assertTrue(queue.submit(() -> true, (value, error) -> {
+            assertNull(error);
+            completed.incrementAndGet();
+         }));
+      }
+      assertFalse(queue.submit(() -> true, (value, error) -> fail("capacity exceeded")));
+      while (completed.get() != 4 && System.nanoTime() < deadline) { queue.drain(); Thread.yield(); }
+      assertEquals(4, completed.get());
+   }
+
+   @Test
+   void invalidPreparedTasksReturnTheirAdmissionSlots() {
+      var queue = new ClientStorageQueue();
+      for (int i = 0; i < 4; i++) {
+         assertThrows(NullPointerException.class, () -> queue.submitPrepared(() -> null));
+         assertThrows(NullPointerException.class, () -> queue.submit(null, (value, error) -> {}));
+         assertThrows(NullPointerException.class, () -> queue.submit(() -> true, null));
+      }
+      assertTrue(queue.submit(() -> true, (value, error) -> {}));
+   }
+
+   @Test
    void rejectedWorkDoesNotInvalidateAnAcceptedFileWrite() throws Exception {
       var queue = new ClientStorageQueue();
       var release = new CountDownLatch(1);

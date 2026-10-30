@@ -122,13 +122,16 @@ public final class SmoothReticlePostEffect {
          RenderSystem.disableDepthTest();
          RenderSystem.resetTextureMatrix();
          postChain.process(partialTicks);
-         minecraft.getMainRenderTarget().bindWrite(false);
          return true;
       } catch (RuntimeException exception) {
          reportFailure(exception);
          close();
          nextRetryAt = System.nanoTime() + RETRY_DELAY_NANOS;
          return false;
+      } finally {
+         // A failed pass may leave one of its intermediate targets bound. The
+         // vanilla crosshair fallback must always draw into the main target.
+         minecraft.getMainRenderTarget().bindWrite(false);
       }
    }
 
@@ -143,11 +146,18 @@ public final class SmoothReticlePostEffect {
    }
 
    public static void reset() {
-      close();
+      reloadResources();
       transitionFrom = ModifierReticleMode.NONE;
       transitionTo = ModifierReticleMode.NONE;
       transitionStartedAt = 0L;
       transitionActive = false;
+   }
+
+   /** ResourceManager keeps its identity across reloads; invalidate compiled passes explicitly. */
+   public static void reloadResources() {
+      close();
+      nextRetryAt = 0L;
+      failureReported = false;
    }
 
    private static boolean needsRender() {

@@ -24,12 +24,13 @@
 - `source-layout.md`：源码职责、测试目录和依赖检查。
 - `placement-fallbacks.md`：无支撑方块朝向、数据包覆盖规则与示例。
 - `tinker.md`：空手扳手的形状转换、点击部位与数据包材质关系。
-- `reach.md`：近处拾取容差、原版／FF 双阈值切换与命令。
+- `reach.md`：原版方块交互属性、会话入口距离与强制放置命令。
 - `block-updates.md`：交互的邻居保护、延迟任务策略与禁止方块下坠。
 - `selection-history.md`：选区删除、会话与世界撤销、快速替换和多选控件。
 - `smart-selection.md`：智能选区、材质族标签、剔除与合并、分离部分的屏幕标记。
 - `smart-fill.md`：F 单层平面修补、玩家相交时的预览确认和世界撤回。
 - `visual-resources.md`：主题 JSON、着色器覆盖路径与资源重载。
+- `reviews/2026-10-25-project-audit.md`：项目架构审查、缺陷修复与验证范围。
 
 ## 权威规则
 

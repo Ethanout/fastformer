@@ -73,6 +73,24 @@ class ClientOperationDraftCodecTest {
       assertThrows(IOException.class, () -> ClientOperationDraftCodec.decode(root, null));
    }
 
+   @Test
+   void malformedPartAndBlockListsCannotSilentlyEraseDraftContents() {
+      CompoundTag missing = ClientOperationDraftCodec.encode(sampleDraft());
+      missing.getCompound("Workspace").remove("Parts");
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.decode(missing, null));
+
+      ListTag strings = new ListTag();
+      strings.add(net.minecraft.nbt.StringTag.valueOf("not a saved part"));
+      CompoundTag wrongParts = ClientOperationDraftCodec.encode(sampleDraft());
+      wrongParts.getCompound("Workspace").put("Parts", strings);
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.decode(wrongParts, null));
+
+      CompoundTag wrongBlocks = ClientOperationDraftCodec.encode(sampleDraft());
+      wrongBlocks.getCompound("Workspace").getList("Parts", Tag.TAG_COMPOUND)
+         .getCompound(0).put("Blocks", strings.copy());
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.decode(wrongBlocks, null));
+   }
+
    private static ClientOperationDraft sampleDraft() {
       BlockPos min = new BlockPos(-4, 20, 7);
       BlockPos max = new BlockPos(2, 24, 9);

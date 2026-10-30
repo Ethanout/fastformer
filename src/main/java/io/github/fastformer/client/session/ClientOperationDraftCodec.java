@@ -175,7 +175,7 @@ public final class ClientOperationDraftCodec {
    private static ClientOperationWorkspace.DraftState decodeWorkspace(
       CompoundTag tag, HolderGetter<Block> blocks
    ) throws IOException {
-      ListTag partTags = tag.getList("Parts", Tag.TAG_COMPOUND);
+      ListTag partTags = requiredList(tag, "Parts");
       if (partTags.size() > MAX_PARTS) {
          throw new IOException("Client operation draft has too many parts");
       }
@@ -468,8 +468,7 @@ public final class ClientOperationDraftCodec {
    }
 
    private static ListTag requiredList(CompoundTag owner, String key) throws IOException {
-      if (!owner.contains(key, Tag.TAG_LIST)) throw new IOException("Operation draft is missing " + key);
-      return owner.getList(key, Tag.TAG_COMPOUND);
+      return ClientStorageNbt.requiredCompoundList(owner, key);
    }
 
    private static <E extends Enum<E>> E enumValue(Class<E> type, String value, String name) throws IOException {

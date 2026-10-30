@@ -59,7 +59,7 @@ public final class OperationSubmissionReceiptCodec {
       if (root.getInt(VERSION_KEY) != CURRENT_VERSION) {
          throw new VersionMismatchException("Unsupported submission receipt version");
       }
-      ListTag list = root.getList(RECEIPTS_KEY, Tag.TAG_COMPOUND);
+      ListTag list = ClientStorageNbt.requiredCompoundList(root, RECEIPTS_KEY);
       if (list.size() > MAX_DECODED_RECEIPTS) {
          throw new IOException("Too many submission receipts to read");
       }

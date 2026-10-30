@@ -658,7 +658,8 @@ public final class FastPlaceNetwork {
    }
 
    private static void handleOpenSettings(OpenSettingsPayload payload, IPayloadContext context) {
-      context.enqueueWork(() -> ClientPayloadDispatcher.openSettings(payload));
+      var connection = context.connection();
+      context.enqueueWork(() -> ClientPayloadDispatcher.openSettings(payload, connection));
    }
 
    private static void handleScrollCandidate(ScrollCandidatePayload payload, IPayloadContext context) {

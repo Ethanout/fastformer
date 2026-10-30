@@ -30,7 +30,7 @@ import sun.misc.Unsafe;
  * <p>The unit of one repeat step is the base group envelope, including selected air.
  * The record {@code repeatStride} keeps this extent between gestures.
  *
- * <p>See docs/plan/bugs/2026-09-16-group-repeat.md for the remaining gaps.
+ * <p>See docs/reviews/2026-10-25-project-audit.md for the remaining gaps.
  */
 class GroupRepeatTest {
    @Test
@@ -242,12 +242,12 @@ class GroupRepeatTest {
     *
     * <p>Disabled: the current {@link WorkspaceTransform} holds one repeat interval and one
     * stride, so it cannot keep both parts' copies and repeat the whole as a rigid unit. Such
-    * a state currently re-spaces both parts onto the base cell lattice. The group repeat
-    * layer in docs/plan/bugs/2026-09-16-group-repeat.md is the fix, and it changes the wire
-    * format, so it waits for the protocol owner.
+    * a state currently re-spaces both parts onto the base cell lattice. A group repeat
+    * layer needs transform and wire-format changes. The deferred scope is recorded in
+    * docs/reviews/2026-10-25-project-audit.md.
     */
    @Test
-   @Disabled("needs a group repeat layer in WorkspaceTransform; see 2026-09-16-group-repeat.md")
+   @Disabled("needs a group repeat layer in WorkspaceTransform; see 2026-10-25-project-audit.md")
    void placedCopiesSurviveACommonSecondStackAfterPerPartFirstStacks() {
       ClientOperationController.onDisconnected();
       // A was stacked alone, so its copies sit five blocks apart. B was stacked alone with a

@@ -24,23 +24,40 @@ public final class ClientStorageQueue {
       return submitPrepared(() -> new Task<>(task, completion));
    }
 
-   public record Task<T>(Callable<T> work, BiConsumer<T, Exception> completion) {}
+   public record Task<T>(Callable<T> work, BiConsumer<T, Exception> completion) {
+      public Task {
+         java.util.Objects.requireNonNull(work, "work");
+         java.util.Objects.requireNonNull(completion, "completion");
+      }
+   }
 
    public <T> boolean submitPrepared(Supplier<Task<T>> preparation) {
       if (!slots.tryAcquire()) return false;
       try {
-         Task<T> task = preparation.get();
-         worker.execute(() -> {
-            T value = null;
-            Exception failure = null;
-            try { value = task.work().call(); } catch (Exception exception) { failure = exception; }
-            T result = value;
-            Exception error = failure;
-            results.add(() -> { slots.release(); task.completion().accept(result, error); });
-         });
+         Task<T> task = java.util.Objects.requireNonNull(preparation.get(), "prepared task");
+         worker.execute(() -> run(task));
          return true;
       } catch (RejectedExecutionException exception) { slots.release(); return false; }
       catch (RuntimeException | Error failure) { slots.release(); throw failure; }
+   }
+
+   private <T> void run(Task<T> task) {
+      T value = null;
+      Exception failure = null;
+      try {
+         value = task.work().call();
+      } catch (Exception exception) {
+         failure = exception;
+      } catch (Error error) {
+         failure = new ExecutionException(error);
+         throw error;
+      } finally {
+         // Even a failed worker must finish the caller's pending operation. Keep its
+         // admission slot until the client consumes the result, just as on success.
+         T result = value;
+         Exception error = failure;
+         results.add(() -> { slots.release(); task.completion().accept(result, error); });
+      }
    }
    public void drain() {
       for (int i = results.size(); i > 0; i--) { Runnable result = results.poll(); if (result != null) result.run(); }

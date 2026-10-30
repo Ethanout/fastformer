@@ -67,6 +67,7 @@
 - `smart_selection_surface`：智能选区实际外表面的素描排线，保留轮廓和分组。排线固定在世界坐标，不随镜头移动，不穿透世界方块。主题参数 `smart_surface_hatch_scale` 控制密度，`smart_surface_hatch_opacity` 控制透明度。资源包可以覆盖该着色器。
 
 覆盖着色器时保留声明的顶点格式、采样器和 uniform 接口。
+修饰键准星的后处理位于 `assets/fastformer/shaders/post/reticle_invert.json`。资源重载会释放已编译的准星后处理并清除失败重试等待，下次绘制时重新加载；不依赖资源管理器是否更换对象。后处理运行失败时先恢复主渲染目标，再绘制原版准星。
 `preview_material` 通过世界位置与表面法线固定排线。`BoilFrame` 是画稿编号，动态预览为 1～N，静态预览为零。
 
 ## 开发者接口

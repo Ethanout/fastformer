@@ -10,6 +10,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.input` | 输入会话与紧密协作的调度控制器；规则、状态和通用手势分别放在 `policy`、`state`、`gesture` |
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
+| `client.session` | 客户端会话、tick 邮箱、受限磁盘任务与草稿／提交回执存储 |
 | `server.input` | 服务端输入分发、请求顺序与手势身份 |
 | `server.session` | 快速起形、几何和选区操作的服务端会话管理 |
 | `server.submission` | 服务端提交账本与去重记录 |
@@ -38,6 +39,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `ServerInputDispatcher` 将请求水位与手势身份保存在 `ServerInputState` 中。输入控制器仍在同一包内共享会话状态，以免目录拆分导致内部字段变为公共 API。`WorldHistoryManager` 只负责所有者队列、历史页和持久化顺序，`HistoryReplayTask` 负责单次写入、回滚和恢复状态机。预览入口和恢复日志仍是较大的协调类，后续拆分应围绕明确的行为边界。
 
 工作区模型不依赖网络层。提交结果语义位于 `workspace.submission`，网络载荷引用该模型。恢复模块负责读取私有日志清单，再用所有者与操作标识调用历史协调 API。日志和历史文件格式保持不变。
+
+客户端网络结果通过 `ClientPayloadDispatcher` 的 `ClientTickMailbox` 在 tick 边界应用，并在消费时校验来源连接；设置页面也使用同一路径。磁盘任务通过 `ClientStorageQueue` 串行执行，容量包含尚未消费的完成结果，工作失败也必须返回完成通知。草稿与回执共用 `ClientStorageNbt` 校验必要的复合标签列表，禁止把缺失字段或错误元素类型静默转换为空数据。
 
 ## 源码集与检查
 

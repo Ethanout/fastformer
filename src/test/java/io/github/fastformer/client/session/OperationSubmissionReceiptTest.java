@@ -219,6 +219,20 @@ class OperationSubmissionReceiptTest {
    }
 
    @Test
+   void malformedReceiptListsAreNotSuccessfulEmptyReads() throws IOException {
+      CompoundTag missing = OperationSubmissionReceiptCodec.encode(List.of());
+      assertEquals(List.of(), OperationSubmissionReceiptCodec.decode(missing));
+      missing.remove("Receipts");
+      assertThrows(IOException.class, () -> OperationSubmissionReceiptCodec.decode(missing));
+      missing.putString("Receipts", "not a list");
+      assertThrows(IOException.class, () -> OperationSubmissionReceiptCodec.decode(missing));
+      var strings = new net.minecraft.nbt.ListTag();
+      strings.add(net.minecraft.nbt.StringTag.valueOf("not a receipt"));
+      missing.put("Receipts", strings);
+      assertThrows(IOException.class, () -> OperationSubmissionReceiptCodec.decode(missing));
+   }
+
+   @Test
    void aReadOnlyStoreRefusesToWrite(@TempDir Path directory) {
       OperationSubmissionReceiptStore store = OperationSubmissionReceiptStore.unreadable();
       store.record(receipt(1, OperationSubmissionOutcome.IN_FLIGHT));

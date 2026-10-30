@@ -69,6 +69,7 @@ public final class VisualThemes {
          GeometryPalette.installThemes(loaded);
          revision++;
          io.github.fastformer.client.render.core.FastPlaceClientPreviewCore.onThemeChanged();
+         io.github.fastformer.client.render.SmoothReticlePostEffect.reloadResources();
       }
    }
 }
