@@ -12,8 +12,8 @@ import io.github.fastformer.server.history.rollback.RollbackQueue;
 
 import static io.github.fastformer.server.history.HistoryService.DEFAULT_LIMIT;
 
-import io.github.fastformer.fastplace.world.WorldTaskBudget;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskBudget;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import net.minecraft.server.level.ServerPlayer;

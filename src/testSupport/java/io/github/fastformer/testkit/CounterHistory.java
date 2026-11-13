@@ -1,6 +1,6 @@
 package io.github.fastformer.testkit;
 
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.server.history.entry.EntryCodec;
 import io.github.fastformer.server.history.entry.EntryCodecRegistry;

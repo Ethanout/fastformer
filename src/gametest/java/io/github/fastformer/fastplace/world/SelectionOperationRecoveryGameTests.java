@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.world;
 
-import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.history.HistoryRecoveryReconciler;
@@ -13,7 +13,9 @@ import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
+import io.github.fastformer.server.task.TaskBudgets;
+import io.github.fastformer.server.task.WorldTaskContext;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import java.util.List;
 import java.util.UUID;
@@ -57,7 +59,7 @@ public final class SelectionOperationRecoveryGameTests {
 
       helper.succeedWhen(() -> {
          helper.assertTrue(task.acquireLease(context), "waiting for recovery-test write lease");
-         TaskStep result = TaskRuntimeFixtures.tickBatch(task, context, level, WorldTaskBudget.testing(1, 1, Long.MAX_VALUE, () -> 0L));
+         TaskStep result = TaskRuntimeFixtures.tickBatch(task, context, level, TaskBudgets.fixed(1, 1, Long.MAX_VALUE, () -> 0L));
          helper.assertTrue(result == TaskStep.ACTIVE, "move finished before the simulated crash point");
          helper.assertTrue("验证快照".equals(task.phaseName()), "waiting for source clearing to finish");
          helper.assertTrue(task.journal() != null, "move did not prepare its unsealed recovery journal");

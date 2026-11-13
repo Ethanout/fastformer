@@ -1,5 +1,7 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.task.WorldTaskContext;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.server.gate.ServerOperationGates;
@@ -37,9 +39,9 @@ import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.session.InteractionState;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.task.PlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.server.task.block.PlacementTask;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
+import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;

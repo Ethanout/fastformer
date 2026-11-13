@@ -1,5 +1,7 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.task.WorldTaskContext;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.server.gate.ServerOperationGates;
@@ -17,10 +19,10 @@ import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.server.session.slot.PlayerSessions;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
+import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.*;
@@ -485,7 +487,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_task_running"));
          return io.github.fastformer.workspace.submission.WorkspaceAdmission.rejected();
       }
-      ClientWorkspacePlacementTask workspaceTask = new ClientWorkspacePlacementTask(
+      SubmittedWorkspaceTask workspaceTask = new SubmittedWorkspaceTask(
          transferId,
          plan,
          FastPlaceSettings.load(player).placementUpdateMode(),
@@ -601,7 +603,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          return handover;
       }
       tasks.remove(context.owner(), task);
-      if (task instanceof ClientWorkspacePlacementTask workspaceTask) {
+      if (task instanceof SubmittedWorkspaceTask workspaceTask) {
          // No writes: the draft may go again with a new transfer. Writes that reached
          // recovery report that state, so a retry cannot repeat the same work.
          results.finish(workspaceTask.completion(context.owner(), false,
@@ -671,7 +673,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
             // direct release here would let a later writer cross stale WAL.
             task.releaseAfterCancelledJournal(context);
          }
-         if (task instanceof ClientWorkspacePlacementTask workspaceTask) {
+         if (task instanceof SubmittedWorkspaceTask workspaceTask) {
             UploadSystem.of(context.server()).receipts().finish(workspaceTask.completion(owner,
                result == TaskStep.COMPLETE || result == TaskStep.EMPTY,
                retryableWorkspaceFailure, recoveryCreated), context.onlinePlayer());
@@ -712,7 +714,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          if (!handoverAccepted(handover)) return;
          recoveryCreated = handover.recoveryCreated();
          tasks.remove(owner, task);
-         if (task instanceof ClientWorkspacePlacementTask workspaceTask) {
+         if (task instanceof SubmittedWorkspaceTask workspaceTask) {
             UploadSystem.of(context.server()).receipts().finish(workspaceTask.completion(owner,
                false, retryableWorkspaceFailure, recoveryCreated), context.onlinePlayer());
          }
@@ -834,7 +836,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          return false;
       }
       WorldTask task = tasks.get(owner);
-      return task instanceof io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask workspace
+      return task instanceof io.github.fastformer.server.task.block.SubmittedWorkspaceTask workspace
          && workspace.transferId().equals(transferId);
    }
 

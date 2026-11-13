@@ -5,8 +5,8 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
+import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.session.SessionSystem;
@@ -123,7 +123,7 @@ public final class OperationCancelSettlementGameTests {
          }
          runPhaseOnce(cancelled, phaseFailure, () -> {
             level.setBlock(pos, Blocks.STONE.defaultBlockState(), 2);
-            ClientWorkspacePlacementTask task = workspaceTask(level, transferId, pos, Blocks.GOLD_BLOCK);
+            SubmittedWorkspaceTask task = workspaceTask(level, transferId, pos, Blocks.GOLD_BLOCK);
             ReversibleBlockSnapshot before = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
             helper.assertTrue(
                new ReversibleBlockSnapshot(
@@ -260,10 +260,10 @@ public final class OperationCancelSettlementGameTests {
       throw new IllegalStateException("A cancel settlement phase failed with a checked exception", problem);
    }
 
-   private static ClientWorkspacePlacementTask workspaceTask(
+   private static SubmittedWorkspaceTask workspaceTask(
       ServerLevel level, UUID transferId, BlockPos pos, net.minecraft.world.level.block.Block block
    ) {
-      return new ClientWorkspacePlacementTask(
+      return new SubmittedWorkspaceTask(
          transferId,
          clipboardPlan(pos, block),
          PlacementUpdateMode.CLIENT_ONLY,

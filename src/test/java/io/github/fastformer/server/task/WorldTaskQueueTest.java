@@ -2,9 +2,9 @@ package io.github.fastformer.server.task;
 
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTask;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.UUID;

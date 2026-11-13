@@ -1,6 +1,6 @@
 package io.github.fastformer.server.session;
 
-import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -12,18 +12,18 @@ import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.task.PlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
+import io.github.fastformer.server.task.block.PlacementTask;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.server.task.WorldTask;
-import io.github.fastformer.fastplace.task.WorldTaskFixtures;
-import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.task.block.WorldTaskFixtures;
+import io.github.fastformer.server.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.WorldTaskBudget;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskBudget;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
-import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
+import io.github.fastformer.server.task.TaskBudgets;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -125,7 +125,7 @@ public final class TaskCommitFailureGameTests {
       ServerLevel level = helper.getLevel();
       BlockPos target = helper.absolutePos(new BlockPos(1, 2, 1));
       UUID owner = UUID.randomUUID();
-      var task = (ClientWorkspacePlacementTask)create(level, target, 1);
+      var task = (SubmittedWorkspaceTask)create(level, target, 1);
       var context = new WorldTaskContext(level.getServer(), owner);
       boolean[] targetChanged = {false};
 
@@ -236,6 +236,6 @@ public final class TaskCommitFailureGameTests {
    }
 
    private static WorldTaskBudget oneCellBudget() {
-      return WorldTaskTestAccess.singleCellBudget();
+      return TaskBudgets.singleCellBudget();
    }
 }

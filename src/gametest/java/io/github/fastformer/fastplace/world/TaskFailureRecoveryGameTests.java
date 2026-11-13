@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.world;
 
-import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -10,9 +10,12 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
+import io.github.fastformer.server.task.TaskBudgets;
+import io.github.fastformer.server.task.WorldTaskBudget;
+import io.github.fastformer.server.task.WorldTaskContext;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -95,7 +98,7 @@ public final class TaskFailureRecoveryGameTests {
       ServerLevel level = helper.getLevel();
       BlockPos origin = helper.absolutePos(new BlockPos(1, 129, 1));
       initializeAlternating(level, origin);
-      ClientWorkspacePlacementTask task = workspaceTask(level, origin);
+      SubmittedWorkspaceTask task = workspaceTask(level, origin);
       var context = new WorldTaskContext(level.getServer(), UUID.randomUUID());
       int[] observedWrites = {0};
       boolean[] recovering = {false};
@@ -148,7 +151,7 @@ public final class TaskFailureRecoveryGameTests {
       });
    }
 
-   private static ClientWorkspacePlacementTask workspaceTask(ServerLevel level, BlockPos origin) {
+   private static SubmittedWorkspaceTask workspaceTask(ServerLevel level, BlockPos origin) {
       Map<BlockPos, ClientBlockSnapshot> desired = new LinkedHashMap<>();
       for (int index = 0; index < COUNT; index++) {
          desired.put(origin.offset(index, 0, 0),
@@ -157,13 +160,13 @@ public final class TaskFailureRecoveryGameTests {
       var part = new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, desired, WorkspaceTransform.IDENTITY, false
       );
-      return new ClientWorkspacePlacementTask(
+      return new SubmittedWorkspaceTask(
          UUID.randomUUID(), new OperationWorkspacePlan(List.of(part)),
          PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension()
       );
    }
 
-   private static BlockPos firstUnwritten(ClientWorkspacePlacementTask task, List<BlockPos> written) {
+   private static BlockPos firstUnwritten(SubmittedWorkspaceTask task, List<BlockPos> written) {
       var positions = task.transaction().expectedPositions();
       while (positions.hasNext()) {
          BlockPos position = positions.next();
@@ -181,7 +184,7 @@ public final class TaskFailureRecoveryGameTests {
    }
 
    private static WorldTaskBudget oneCellBudget() {
-      return WorldTaskBudget.testing(1, 1, 0L, () -> 0L);
+      return TaskBudgets.fixed(1, 1, 0L, () -> 0L);
    }
 
    private static void initializeAlternating(ServerLevel level, BlockPos origin) {

@@ -15,7 +15,7 @@ import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.DrainingBlockSet;
 import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;

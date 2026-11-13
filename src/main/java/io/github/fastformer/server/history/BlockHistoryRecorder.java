@@ -1,6 +1,6 @@
 package io.github.fastformer.server.history;
 
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
 import io.github.fastformer.server.history.entry.BlockEditHistoryMetadata;

@@ -1,6 +1,6 @@
 package io.github.fastformer.server.history.replay;
 
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import java.util.UUID;

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistoryTestAccess;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;

@@ -5,7 +5,7 @@ import io.github.fastformer.core.command.IntentContext;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.core.gate.Gate;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.server.gate.ServerOperationGates;

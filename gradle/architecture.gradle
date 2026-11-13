@@ -25,7 +25,6 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.server.session') ||
                     packageName.startsWith('io.github.fastformer.server.feedback') ||
                     packageName.startsWith('io.github.fastformer.server.task') ||
-                    packageName.startsWith('io.github.fastformer.fastplace.task.runtime') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -136,16 +135,24 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (text =~ /(?:\bWorldTaskBudget\b|task\.(?:prepareJournal|validateSnapshots|finalizeSnapshots|recordBatch|place)\s*\()/).find()) {
                 violations.add("Workflow owns task batch scheduling instead of advancing its queue: ${path}")
             }
-            if (main && packageName == 'io.github.fastformer.fastplace.task' &&
-                    source.name in ['PlacementTask.java', 'SelectionOperationTask.java', 'ClientWorkspacePlacementTask.java']) {
+            if (main && packageName == 'io.github.fastformer.server.task.block' &&
+                    source.name in ['PlacementTask.java', 'SelectionOperationTask.java', 'SubmittedWorkspaceTask.java']) {
                 if (!(text =~ /extends\s+LeasedJournaledTask\b/).find() ||
                         (text =~ /\bprivate\s+(?:final\s+)?(?:TaskWriteLease|WorldJournalPreparation|JournalSegments)\s+/).find()) {
                     violations.add("Block writer bypasses shared task resource ownership: ${path}")
                 }
             }
-            if (main && packageName == 'io.github.fastformer.fastplace.task.runtime' &&
+            if (main && packageName in ['io.github.fastformer.server.task.runtime', 'io.github.fastformer.server.task.block'] &&
                     (dependencies =~ /io\.github\.fastformer\.(?:client\.|network\.|server\.session\.)/).find()) {
-                violations.add("Task resource lifecycle depends on feature orchestration: ${path}")
+                violations.add("Task algorithm or resource lifecycle depends on feature orchestration: ${path}")
+            }
+            if (main && (packageName.startsWith('io.github.fastformer.fastplace.task') ||
+                    (dependencies =~ /io\.github\.fastformer\.fastplace\.(?:task\.|world\.WorldTask(?:Budget|Context)\b)/).find())) {
+                violations.add("Retired world-task package reference: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.task') &&
+                    (dependencies =~ /(?:\btesting(?:Adaptive|SmallOperation)?\s*\(|\b\w+ForTest\b)/).find()) {
+                violations.add("World-task production code exposes a test-only hook: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.feedback') &&
                     (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!feedback))\.|\bstatic\s+final\s+Map\s*<|\b\w+ForTest\b)/).find()) {

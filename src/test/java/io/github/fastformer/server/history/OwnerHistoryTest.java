@@ -6,7 +6,7 @@ import io.github.fastformer.server.history.memory.HistoryOrderCatalog;
 import io.github.fastformer.server.history.memory.HistoryPageLoadPlan;
 import io.github.fastformer.server.history.rollback.RollbackRequest;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;

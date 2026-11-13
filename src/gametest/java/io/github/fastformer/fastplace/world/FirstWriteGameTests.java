@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.world;
 
-import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -11,7 +11,11 @@ import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.*;
+import io.github.fastformer.server.task.TaskBudgets;
+import io.github.fastformer.server.task.WorldTaskBudget;
+import io.github.fastformer.server.task.WorldTaskContext;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
+import io.github.fastformer.server.task.block.WorldTaskFixtures;
 import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
@@ -101,7 +105,7 @@ public final class FirstWriteGameTests {
             helper.assertTrue(false, "waiting for journal completion callback");
          }
          helper.assertTrue(current.resumes > 0, "waiting for main-thread journal callback");
-         boolean workspace = current.task instanceof ClientWorkspacePlacementTask;
+         boolean workspace = current.task instanceof SubmittedWorkspaceTask;
          if (workspace && !current.task.hasWrites()) {
             // A workspace journals the entire composed scene before its first write.
             TaskRuntimeFixtures.tickBatch(current.task, current.context, level, oneCellBudget());
@@ -131,7 +135,7 @@ public final class FirstWriteGameTests {
    }
 
    private static WorldTaskBudget oneCellBudget() {
-      return WorldTaskBudget.testing(1, 1, 0L, () -> 0L);
+      return TaskBudgets.fixed(1, 1, 0L, () -> 0L);
    }
 
    private static BlockPos position(BlockPos origin, int index) {

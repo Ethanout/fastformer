@@ -2,7 +2,7 @@ package io.github.fastformer.server.history.vanilla;
 
 import io.github.fastformer.server.history.entry.HistoryEntry;
 
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
 import com.mojang.logging.LogUtils;

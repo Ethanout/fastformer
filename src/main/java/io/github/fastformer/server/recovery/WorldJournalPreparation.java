@@ -1,6 +1,6 @@
 package io.github.fastformer.server.recovery;
 
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.core.async.AsyncTasks;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;

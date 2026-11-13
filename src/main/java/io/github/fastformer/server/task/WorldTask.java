@@ -1,7 +1,7 @@
 package io.github.fastformer.server.task;
 
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;

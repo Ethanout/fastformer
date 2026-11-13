@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.task.PlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
+import io.github.fastformer.server.task.block.PlacementTask;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import java.util.Set;
 import net.minecraft.core.BlockPos;

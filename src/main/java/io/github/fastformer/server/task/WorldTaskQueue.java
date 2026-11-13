@@ -1,9 +1,9 @@
 package io.github.fastformer.server.task;
 
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTask;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

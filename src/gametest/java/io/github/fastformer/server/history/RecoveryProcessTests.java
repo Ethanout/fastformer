@@ -1,6 +1,6 @@
 package io.github.fastformer.server.history;
 
-import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
@@ -13,14 +13,14 @@ import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.task.PlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
-import io.github.fastformer.fastplace.world.WorldTaskBudget;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
+import io.github.fastformer.server.task.block.PlacementTask;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
+import io.github.fastformer.server.task.WorldTaskBudget;
+import io.github.fastformer.server.task.WorldTaskContext;
+import io.github.fastformer.server.task.TaskBudgets;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
@@ -163,7 +163,7 @@ public final class RecoveryProcessTests {
       var workspacePart = new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, desired, WorkspaceTransform.IDENTITY, false
       );
-      var workspace = new ClientWorkspacePlacementTask(
+      var workspace = new SubmittedWorkspaceTask(
          UUID.randomUUID(), new OperationWorkspacePlan(List.of(workspacePart)),
          PlacementUpdateMode.CLIENT_ONLY, 16, Level.NETHER
       );
@@ -475,7 +475,7 @@ public final class RecoveryProcessTests {
    }
 
    private static WorldTaskBudget oneCellBudget() {
-      return WorldTaskTestAccess.singleCellBudget();
+      return TaskBudgets.singleCellBudget();
    }
 
    private static void finish(MinecraftServer server, String result) {
@@ -505,7 +505,7 @@ public final class RecoveryProcessTests {
    private record CrashOperations(
       PlacementTask placement,
       WorldTaskContext placementContext,
-      ClientWorkspacePlacementTask workspace,
+      SubmittedWorkspaceTask workspace,
       WorldTaskContext workspaceContext,
       SelectionOperationTask selection,
       WorldTaskContext selectionContext

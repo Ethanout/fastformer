@@ -8,10 +8,10 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
+import io.github.fastformer.server.task.block.PlacementTask;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
@@ -102,7 +102,7 @@ public final class WriteFailureGameTests {
       } else if (kind == 1) {
          var part = new OperationWorkspacePlan.Part(1, ClientSelectionPart.Source.CLIPBOARD,
             Map.of(target, new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)), WorkspaceTransform.IDENTITY, false);
-         OperationSystem.of(level.getServer()).tasks.put(owner, new ClientWorkspacePlacementTask(UUID.randomUUID(),
+         OperationSystem.of(level.getServer()).tasks.put(owner, new SubmittedWorkspaceTask(UUID.randomUUID(),
             new OperationWorkspacePlan(List.of(part)), PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension()));
       } else {
          OperationSystem.of(level.getServer()).tasks.put(owner, new SelectionOperationTask(

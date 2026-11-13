@@ -11,8 +11,8 @@ import io.github.fastformer.core.gate.Gate;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.TaskCancellationResult;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
 import java.util.List;

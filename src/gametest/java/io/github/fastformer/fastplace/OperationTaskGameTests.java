@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -12,9 +12,9 @@ import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
-import io.github.fastformer.fastplace.world.WorldTaskBudget;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
+import io.github.fastformer.server.task.WorldTaskBudget;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import java.util.List;
 import java.util.UUID;

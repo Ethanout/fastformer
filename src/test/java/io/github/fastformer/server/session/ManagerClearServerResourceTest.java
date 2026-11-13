@@ -10,13 +10,13 @@ import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
-import io.github.fastformer.fastplace.task.WorldTaskFixtures;
-import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
-import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
+import io.github.fastformer.server.task.block.PlacementTask;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
+import io.github.fastformer.server.task.block.WorldTaskFixtures;
+import io.github.fastformer.server.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
@@ -71,7 +71,7 @@ class ManagerClearServerResourceTest {
    @Test
    void operationClearServerDetachesWorkspaceButWaitsForIoBeforeReleasingMemory() throws Exception {
       long baseline = MemoryReservation.reservedBytes();
-      ClientWorkspacePlacementTask task = WorldTaskFixtures.workspace(
+      SubmittedWorkspaceTask task = WorldTaskFixtures.workspace(
          UUID.randomUUID(), new OperationWorkspacePlan(List.of()),
          PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, preparation
       );

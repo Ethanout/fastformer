@@ -1,7 +1,7 @@
 package io.github.fastformer.server.history.replay;
 
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
 import io.github.fastformer.server.history.entry.HistoryEntry;
 import java.util.ArrayList;

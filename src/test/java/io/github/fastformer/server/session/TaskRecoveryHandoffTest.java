@@ -16,21 +16,21 @@ import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.task.PlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
-import io.github.fastformer.fastplace.task.TaskCancellationResult;
+import io.github.fastformer.server.task.block.PlacementTask;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
+import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTask;
-import io.github.fastformer.fastplace.task.WorldTaskFixtures;
-import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.task.block.WorldTaskFixtures;
+import io.github.fastformer.server.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.WorldTaskBudget;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskBudget;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
@@ -136,7 +136,7 @@ class TaskRecoveryHandoffTest {
 
    @Test
    void workspaceCancellationTransfersRecoveryOnce() {
-      ClientWorkspacePlacementTask task = new ClientWorkspacePlacementTask(
+      SubmittedWorkspaceTask task = new SubmittedWorkspaceTask(
          UUID.randomUUID(), new OperationWorkspacePlan(List.of()), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
       );
 
@@ -308,7 +308,7 @@ class TaskRecoveryHandoffTest {
          TaskCancellationResult.NOT_ACTIVE,
          operation.cancelTask(new WorldTaskContext(null, owner), history, results)
       );
-      if (task instanceof ClientWorkspacePlacementTask workspace) {
+      if (task instanceof SubmittedWorkspaceTask workspace) {
          assertEquals(1, reported.size());
          assertEquals(owner, reported.getFirst().owner());
          assertEquals(workspace.transferId(), reported.getFirst().transfer());

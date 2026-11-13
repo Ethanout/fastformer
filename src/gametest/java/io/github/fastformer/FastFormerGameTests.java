@@ -9,7 +9,7 @@ import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
 import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;

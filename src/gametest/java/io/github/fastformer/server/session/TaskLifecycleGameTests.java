@@ -9,17 +9,17 @@ import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
+import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.task.PlacementTask;
-import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
+import io.github.fastformer.server.task.block.PlacementTask;
+import io.github.fastformer.server.task.block.PlacementTaskPlan;
+import io.github.fastformer.server.task.block.SelectionOperationTask;
 import io.github.fastformer.server.task.WorldTask;
-import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
-import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
-import io.github.fastformer.fastplace.world.WorldTaskBudget;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
+import io.github.fastformer.server.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.task.WorldTaskBudget;
+import io.github.fastformer.server.task.WorldTaskContext;
+import io.github.fastformer.server.task.TaskBudgets;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -163,7 +163,7 @@ public final class TaskLifecycleGameTests {
       OperationWorkspacePlan.Part part = new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, blocks, WorkspaceTransform.IDENTITY, false
       );
-      ClientWorkspacePlacementTask task = new ClientWorkspacePlacementTask(
+      SubmittedWorkspaceTask task = new SubmittedWorkspaceTask(
          UUID.randomUUID(),
          new OperationWorkspacePlan(List.of(part)),
          PlacementUpdateMode.CLIENT_ONLY,
@@ -212,7 +212,7 @@ public final class TaskLifecycleGameTests {
       BlockPos origin = helper.absolutePos(new BlockPos(1, 49, 1));
       int[] scenario = {0};
       UUID[] owner = {null};
-      ClientWorkspacePlacementTask[] active = {null};
+      SubmittedWorkspaceTask[] active = {null};
       helper.succeedWhen(() -> {
          int count = SIZES[scenario[0]];
          if (owner[0] == null) {
@@ -266,7 +266,7 @@ public final class TaskLifecycleGameTests {
       BlockPos origin = helper.absolutePos(new BlockPos(1, 81, 1));
       Set<BlockPos> positions = positions(origin, 16);
       positions.forEach(pos -> level.setBlock(pos, Blocks.STONE.defaultBlockState(), 2));
-      ClientWorkspacePlacementTask task = workspaceTask(level, positions);
+      SubmittedWorkspaceTask task = workspaceTask(level, positions);
       WorldTaskContext context = new WorldTaskContext(level.getServer(), UUID.randomUUID());
       boolean[] cancelled = {false};
       helper.succeedWhen(() -> {
@@ -312,7 +312,7 @@ public final class TaskLifecycleGameTests {
       ));
    }
 
-   private static ClientWorkspacePlacementTask workspaceTask(ServerLevel level, Set<BlockPos> positions) {
+   private static SubmittedWorkspaceTask workspaceTask(ServerLevel level, Set<BlockPos> positions) {
       Map<BlockPos, ClientBlockSnapshot> blocks = new LinkedHashMap<>();
       positions.forEach(pos -> blocks.put(
          pos, new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)
@@ -320,7 +320,7 @@ public final class TaskLifecycleGameTests {
       OperationWorkspacePlan.Part part = new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, blocks, WorkspaceTransform.IDENTITY, false
       );
-      return new ClientWorkspacePlacementTask(
+      return new SubmittedWorkspaceTask(
          UUID.randomUUID(), new OperationWorkspacePlan(List.of(part)),
          PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension()
       );
@@ -335,7 +335,7 @@ public final class TaskLifecycleGameTests {
    }
 
    private static WorldTaskBudget oneCellBudget() {
-      return WorldTaskTestAccess.singleCellBudget();
+      return TaskBudgets.singleCellBudget();
    }
 
    private static void assertBlockRange(

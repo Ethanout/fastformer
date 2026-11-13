@@ -2,7 +2,7 @@ package io.github.fastformer.server.history.rollback;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;

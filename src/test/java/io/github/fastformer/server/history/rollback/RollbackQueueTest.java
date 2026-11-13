@@ -2,7 +2,7 @@ package io.github.fastformer.server.history.rollback;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import java.util.ArrayDeque;
 import java.util.Map;
