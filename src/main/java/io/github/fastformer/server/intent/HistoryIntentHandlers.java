@@ -13,7 +13,6 @@ import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistorySystem;
-import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -40,11 +39,11 @@ final class HistoryIntentHandlers {
       if (history.snapshotRetryAvailable(player)) return IntentResult.handled(history.requestUndo(player, intent.count()));
       UndoRoute route = undoRoute(history.busy(player),
          intent.scope() == HistoryIntents.UndoScope.SESSION_OR_WORLD && SessionRollback.active(player),
-         QuickShapeSystem.of(player).taskActive(player), OperationSystem.of(player).taskActive(player));
+         SessionSystem.of(player).placementTasks().active(player), OperationSystem.of(player).taskActive(player));
       return IntentResult.handled(switch (route) {
          case BLOCKED -> false;
          case SESSION -> SessionRollback.undo(player);
-         case FAST_PLACE_TASK -> finishTaskCancellation(player, QuickShapeSystem.of(player).cancelTask(player), intent.count());
+         case FAST_PLACE_TASK -> finishTaskCancellation(player, SessionSystem.of(player).placementTasks().cancel(player), intent.count());
          case OPERATION_TASK -> finishTaskCancellation(player, OperationSystem.of(player).cancelTask(player), intent.count());
          case HISTORY -> history.requestUndo(player, intent.count());
       });
@@ -70,7 +69,7 @@ final class HistoryIntentHandlers {
          SmartFillSystem.cancel(player);
          return IntentResult.success();
       }
-      if (SessionRollback.active(player) || QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player)
+      if (SessionRollback.active(player) || SessionSystem.of(player).placementTasks().active(player) || OperationSystem.of(player).taskActive(player)
          || HistorySystem.of(player).restoreActive(player)) {
          SessionSystem.of(player).quit(player);
          return IntentResult.success();

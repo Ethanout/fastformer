@@ -10,8 +10,6 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast;
-import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import io.github.fastformer.server.sync.PreviewSync;
@@ -293,8 +291,8 @@ public final class IdleEntryGameTests {
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "middle entry left a line draft instead of submitting");
             submitted[0] = true;
          }
-         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "waiting for placement");
+         SessionSystem.of(helper.getLevel().getServer()).placementTasks().tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "waiting for placement");
          helper.assertFalse(HistorySystem.of(player).busy(player), "waiting for history publication");
          helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos()).is(Blocks.OAK_LOG), "embedded entry did not replace the hit block");
          helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos().above()).isAir(), "embedded entry placed an adjacent block");

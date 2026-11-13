@@ -5,7 +5,6 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.server.task.block.PlacementTask;
@@ -59,7 +58,7 @@ public final class PlacementWakeupGameTests {
          helper.assertTrue(current.resumes == 1, "journal callback did not resume the manager exactly once");
          helper.assertTrue(current.placedInResume > 0, "manager wakeup did not write any block");
          if (!current.stopping) {
-            QuickShapeSystem.of(current.context.server()).cancelTask(current.context, HistorySystem.of(current.context.server()));
+            SessionSystem.of(current.context.server()).placementTasks().cancel(current.context, HistorySystem.of(current.context.server()));
             current.stopping = true;
          }
          // Publication shares this task's injected journal worker. Drain the
@@ -97,8 +96,8 @@ public final class PlacementWakeupGameTests {
          context = owner.withResume(() -> {
             resumes++;
             // Register only when the callback runs, so Post cannot service this fixture first.
-            QuickShapeSystem.of(owner.server()).tasks.put(owner.owner(), task);
-            QuickShapeSystem.of(owner.server()).resumeTask(owner, task,
+            SessionSystem.of(owner.server()).placementTasks().admit(owner.owner(), task);
+            SessionSystem.of(owner.server()).placementTasks().resume(owner, task,
                HistorySystem.of(level.getServer()));
             placedInResume = task.placed();
          });

@@ -1,10 +1,11 @@
 package io.github.fastformer.server.replace;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.common.replace.QuickReplaceSweep;
 import io.github.fastformer.common.replace.QuickReplaceTarget;
 
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
@@ -46,7 +47,7 @@ public final class QuickReplaceSystem {
       if (!active) return false;
       if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player) || HistorySystem.of(player).busy(player)
          || QuickShapeSystem.of(player).active(player) || OperationSystem.of(player).active(player) || GeometrySystem.of(player).active(player)
-         || QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player)) return false;
+         || SessionSystem.of(player).placementTasks().active(player) || OperationSystem.of(player).taskActive(player)) return false;
       state(player).active = true;
       return true;
    }
@@ -118,7 +119,7 @@ public final class QuickReplaceSystem {
          && !QuickShapeSystem.of(player).active(player)
          && !OperationSystem.of(player).active(player)
          && !GeometrySystem.of(player).active(player)
-         && !QuickShapeSystem.of(player).taskActive(player)
+         && !SessionSystem.of(player).placementTasks().active(player)
          && !OperationSystem.of(player).taskActive(player)
          && PlaceableItems.isPlaceable(player.getMainHandItem());
    }

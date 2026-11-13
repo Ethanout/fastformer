@@ -72,7 +72,7 @@ public final class QuickShapeSubmissionGameTests {
          ServerInputDispatcher.quickShape(player);
          helper.assertTrue(QuickShapeSystem.of(player).active(player), "middle ended the polygon draft");
          helper.assertTrue(confirmed.equals(session.points()), "middle changed polygon points");
-         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "middle submitted the polygon");
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "middle submitted the polygon");
          SessionSystem.of(player).cancelEditing(player);
       });
    }
@@ -93,8 +93,8 @@ public final class QuickShapeSubmissionGameTests {
             QuickShapeSystem.of(player).fill(player);
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "waiting for submission admission");
          }
-         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "placement has not finished");
+         SessionSystem.of(helper.getLevel().getServer()).placementTasks().tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "placement has not finished");
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "confirmed point was not placed");
          for (int x = 1; x <= 3; x++) {
             helper.assertTrue(
@@ -127,15 +127,15 @@ public final class QuickShapeSubmissionGameTests {
             ServerInputDispatcher.confirmQuickShape(player,
                new io.github.fastformer.protocol.c2s.placement.QuickShapeConfirmPayload(40, oldRevision, scope));
             helper.assertTrue(QuickShapeSystem.of(player).active(player), "stale request ended the newer draft");
-            helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "stale request created a world task");
+            helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "stale request created a world task");
             helper.assertTrue(helper.getLevel().getBlockState(first).isAir(), "stale request wrote the world");
             long revision = io.github.fastformer.server.sync.PreviewSync.buildingRevision(player);
             ServerInputDispatcher.confirmQuickShape(player,
                new io.github.fastformer.protocol.c2s.placement.QuickShapeConfirmPayload(41, revision, scope));
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "current request was not admitted");
          }
-         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "placement has not finished");
+         SessionSystem.of(helper.getLevel().getServer()).placementTasks().tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "placement has not finished");
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "current request did not write");
       });
    }

@@ -5,7 +5,6 @@ import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
@@ -216,16 +215,16 @@ public final class TaskCommitFailureGameTests {
    }
 
    private static void register(ServerLevel level, UUID owner, Object task) {
-      if (task instanceof PlacementTask placement) QuickShapeSystem.of(level.getServer()).tasks.put(owner, placement);
+      if (task instanceof PlacementTask placement) SessionSystem.of(level.getServer()).placementTasks().admit(owner, placement);
       else OperationSystem.of(level.getServer()).tasks.put(owner, (WorldTask)task);
    }
 
    private static boolean active(ServerLevel level, UUID owner) {
-      return QuickShapeSystem.of(level.getServer()).taskActive(owner) || OperationSystem.of(level.getServer()).taskActive(owner);
+      return SessionSystem.of(level.getServer()).placementTasks().active(owner) || OperationSystem.of(level.getServer()).taskActive(owner);
    }
 
    private static void service(ServerLevel level, Object task) {
-      if (task instanceof PlacementTask) QuickShapeSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+      if (task instanceof PlacementTask) SessionSystem.of(level.getServer()).placementTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
       else OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
    }
 

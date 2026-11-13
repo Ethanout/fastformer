@@ -33,9 +33,6 @@ import io.github.fastformer.server.submission.WorkspaceResultSink;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -623,7 +620,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
             handOverBlockedTask(context, history);
             continue;
          }
-         if (history.busy(owner) || runtime.quickShape.taskActive(owner)) {
+         if (history.busy(owner) || runtime.placementTasks().active(owner)) {
             continue;
          }
          tickTask(context, history);
@@ -735,7 +732,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          && !tasks.handingOver(context.owner())
          && context.writesAllowed()
          && !history.busy(context.owner())
-         && !runtime.quickShape.taskActive(context.owner())) {
+         && !runtime.placementTasks().active(context.owner())) {
          tickTask(context, history);
       }
    }

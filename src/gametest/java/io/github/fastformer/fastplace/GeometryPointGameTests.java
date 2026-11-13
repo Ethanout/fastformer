@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistoryTestAccess;
 
 import io.github.fastformer.server.history.HistorySystem;
@@ -9,14 +11,12 @@ import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
 import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
 import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.protocol.c2s.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryInteractionPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryPointPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryUndoPayload;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.GeometrySystem;
 import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
@@ -55,7 +55,7 @@ public final class GeometryPointGameTests {
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "geometry point input is blocked: fastPlaceTask="
-            + QuickShapeSystem.of(player).taskActive(player) + " operationTask=" + OperationSystem.of(player).taskActive(player)
+            + SessionSystem.of(player).placementTasks().active(player) + " operationTask=" + OperationSystem.of(player).taskActive(player)
             + " worldHistoryBusy=" + HistorySystem.of(player).busy(player));
          ServerInputDispatcher.geometryPoint(player, request);
          helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(target.above())),

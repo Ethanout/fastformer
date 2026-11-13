@@ -7,7 +7,6 @@ import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
@@ -88,8 +87,8 @@ public final class QuickShapePointerGameTests {
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "confirmed submission did not end the draft");
             submitted[0] = true;
          }
-         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "waiting for placement");
+         SessionSystem.of(helper.getLevel().getServer()).placementTasks().tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "waiting for placement");
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "confirmed point was not placed");
          helper.assertTrue(helper.getLevel().getBlockState(first.offset(3, 0, 0)).isAir(), "ghost candidate was placed");
       });
@@ -137,8 +136,8 @@ public final class QuickShapePointerGameTests {
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "middle did not finish a surface-started draft near a block");
             submitted[0] = true;
          }
-         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "waiting for placement");
+         SessionSystem.of(helper.getLevel().getServer()).placementTasks().tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "waiting for placement");
          helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos().relative(hit.getDirection())).is(Blocks.GOLD_BLOCK), "middle finish did not place the shape");
       });
    }
@@ -188,8 +187,8 @@ public final class QuickShapePointerGameTests {
                + ", revision=" + PreviewSync.buildingRevision(player) + "/" + request.revision());
             submitted[0] = true;
          }
-         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "waiting for placement");
+         SessionSystem.of(helper.getLevel().getServer()).placementTasks().tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "waiting for placement");
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "Alt-middle did not place the shape");
       });
    }
@@ -360,7 +359,7 @@ public final class QuickShapePointerGameTests {
    }
 
    private static String blockedMessage(net.minecraft.server.level.ServerPlayer player, String message) {
-      return message + ": placementTaskActive=" + QuickShapeSystem.of(player).taskActive(player)
+      return message + ": placementTaskActive=" + SessionSystem.of(player).placementTasks().active(player)
          + ", operationTaskActive=" + OperationSystem.of(player).taskActive(player)
          + ", historyBusy=" + HistorySystem.of(player).busy(player);
    }

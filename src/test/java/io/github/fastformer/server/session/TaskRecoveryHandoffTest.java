@@ -29,7 +29,6 @@ import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
@@ -52,7 +51,6 @@ import java.nio.file.Path;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.AfterEach;
@@ -72,14 +70,14 @@ class TaskRecoveryHandoffTest {
       UUID owner = UUID.randomUUID();
       AtomicInteger starts = new AtomicInteger();
       PlacementTask task = deferredGeneration(starts);
-      quickShape.tasks.put(owner, task);
+      runtime.placementTasks().admit(owner, task);
 
       assertEquals(TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-         quickShape.cancelTask(new WorldTaskContext(null, owner), history));
-      quickShape.tickWorld(null, history);
+         runtime.placementTasks().cancel(new WorldTaskContext(null, owner), history));
+      runtime.placementTasks().tickWorld(null, history);
 
       assertFalse(task.waitingForGenerationMemory());
-      assertFalse(quickShape.taskActive(owner));
+      assertFalse(runtime.placementTasks().active(owner));
       assertFalse(history.busy(owner));
       assertEquals(0, starts.get());
    }
@@ -89,13 +87,13 @@ class TaskRecoveryHandoffTest {
       UUID owner = UUID.randomUUID();
       AtomicInteger starts = new AtomicInteger();
       PlacementTask task = deferredGeneration(starts);
-      quickShape.tasks.put(owner, task);
+      runtime.placementTasks().admit(owner, task);
 
       runtime.close();
-      quickShape.tickWorld(null, history);
+      runtime.placementTasks().tickWorld(null, history);
 
       assertFalse(task.waitingForGenerationMemory());
-      assertFalse(quickShape.taskActive(owner));
+      assertFalse(runtime.placementTasks().active(owner));
       assertEquals(0, starts.get());
    }
 
@@ -122,15 +120,15 @@ class TaskRecoveryHandoffTest {
             null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
          )
       );
-      quickShape.tasks.put(owner, task);
+      runtime.placementTasks().admit(owner, task);
 
       assertEquals(
          TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-         quickShape.cancelTask(new WorldTaskContext(null, owner), history)
+         runtime.placementTasks().cancel(new WorldTaskContext(null, owner), history)
       );
       assertEquals(
          TaskCancellationResult.NOT_ACTIVE,
-         quickShape.cancelTask(new WorldTaskContext(null, owner), history)
+         runtime.placementTasks().cancel(new WorldTaskContext(null, owner), history)
       );
    }
 
@@ -204,13 +202,13 @@ class TaskRecoveryHandoffTest {
       var terminalField = PlacementTask.class.getDeclaredField(failureField);
       terminalField.setAccessible(true);
       terminalField.setBoolean(task, true);
-      quickShape.tasks.put(owner, task);
+      runtime.placementTasks().admit(owner, task);
 
-      quickShape.tickWorld(null, history);
+      runtime.placementTasks().tickWorld(null, history);
 
       assertTrue(task.recoveryTaskCreated());
       assertTrue(history.busy(owner));
-      assertEquals(TaskCancellationResult.NOT_ACTIVE, quickShape.cancelTask(new WorldTaskContext(null, owner), history));
+      assertEquals(TaskCancellationResult.NOT_ACTIVE, runtime.placementTasks().cancel(new WorldTaskContext(null, owner), history));
       history.tickWorld(null);
       WorldChangeBatch recovery = HistoryTestAccess.activeRecoveryBatch(history, owner);
       assertNotNull(recovery);

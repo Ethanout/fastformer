@@ -93,14 +93,14 @@ class SessionSystemTest {
          first.operation.sessions.activate(owner, new OperationSession(OperationSelectionMode.CUBOID, 10));
          first.geometry.sessions.activate(owner, new GeometrySession());
          second.quickShape.sessions.activate(owner, draft);
-         second.quickShape.tasks.put(owner, task);
+         second.placementTasks().admit(owner, task);
          first.close();
          assertTrue(first.closed());
          assertFalse(first.quickShape.sessions.hasActive(owner));
          assertFalse(first.operation.sessions.hasActive(owner));
          assertFalse(first.geometry.sessions.hasActive(owner));
          assertSame(draft, second.quickShape.sessions.active(owner));
-         assertTrue(second.quickShape.taskActive(owner));
+         assertTrue(second.placementTasks().active(owner));
       }
    }
 

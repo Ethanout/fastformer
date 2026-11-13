@@ -8,7 +8,6 @@ import io.github.fastformer.fastplace.session.GeometrySession;
 import io.github.fastformer.fastplace.session.InteractionState;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.server.player.PlayerStateRegistry;
-import io.github.fastformer.server.task.CancelReason;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
@@ -43,17 +42,16 @@ public final class SessionBoundaryGameTests {
       system.quickShape.sessions.activate(owner, new QuickShapeDraft());
       system.operation.sessions.activate(owner, new OperationSession(OperationSelectionMode.CUBOID, 10));
       system.geometry.sessions.activate(owner, new GeometrySession());
-      system.quickShape.tasks.put(owner, task);
+      system.placementTasks().admit(owner, task);
       try {
          system.cancelEditing(player);
          helper.assertFalse(system.quickShape.active(player), "quick shape remained active");
          helper.assertFalse(system.operation.active(player), "selection remained active");
          helper.assertFalse(system.geometry.active(player), "geometry remained active");
          helper.assertTrue(system.operation.sessions.parked(owner, Level.NETHER) == parked, "cancel discarded parked work");
-         helper.assertTrue(system.quickShape.tasks.get(owner) == task, "cancel removed queued world work");
+         helper.assertTrue(system.placementTasks().isCurrent(owner, task), "cancel removed queued world work");
       } finally {
-         system.quickShape.tasks.remove(owner, task);
-         task.cancel(CancelReason.SHUTDOWN);
+         system.placementTasks().cancel(player);
          system.discardPlayer(player);
          PlayerStateRegistry.detach(player);
       }

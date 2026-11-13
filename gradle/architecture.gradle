@@ -140,6 +140,14 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /(?:runtime\.(?:operation|geometry)\b|\b(?:classify|setModifierHeld|modifierHeld|operationActive|detachPlayer|handleDimensionChange|syncCurrentPreview|restoreActive|restoreTossedItem)\s*\(ServerPlayer\s)/).find()) {
                 violations.add("Quick shape owns cross-session interaction or player lifecycle: ${path}")
             }
+            if (main && source.name == 'QuickShapeSystem.java' &&
+                    (dependencies =~ /\b(?:WorldTaskQueue|WorldTaskContext|HistoryService|JournalPreparation)\b/).find()) {
+                violations.add("Quick shape owns world-task execution instead of using its execution capability: ${path}")
+            }
+            if (main && packageName == 'io.github.fastformer.server.session.execution' &&
+                    (dependencies =~ /io\.github\.fastformer\.(?:client\.|network\.|server\.session\.(?!execution\.))/).find()) {
+                violations.add("Task execution depends on editing workflows or transport: ${path}")
+            }
             if (main && packageName == 'io.github.fastformer.server.task.block' &&
                     source.name in ['PlacementTask.java', 'SelectionOperationTask.java', 'SubmittedWorkspaceTask.java']) {
                 if (!(text =~ /extends\s+LeasedJournaledTask\b/).find() ||

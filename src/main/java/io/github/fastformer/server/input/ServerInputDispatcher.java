@@ -11,7 +11,6 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.gate.ServerOperationGates;
 
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryHit;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPointerSequence;
@@ -24,12 +23,9 @@ import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.interaction.SpecialItemHandlers;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
-import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.session.InteractionState;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.*;
@@ -57,7 +53,6 @@ import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -85,9 +80,9 @@ public final class ServerInputDispatcher {
 
    public static void stopBecauseUnavailable(ServerPlayer player) {
       io.github.fastformer.server.fill.SmartFillSystem.cancel(player);
-      boolean taskWasActive = QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player);
+      boolean taskWasActive = SessionSystem.of(player).placementTasks().active(player) || OperationSystem.of(player).taskActive(player);
       SessionSystem.of(player).cancelEditing(player);
-      QuickShapeSystem.of(player).cancelTask(player);
+      SessionSystem.of(player).placementTasks().cancel(player);
       OperationSystem.of(player).cancelTask(player);
       HistorySystem.of(player).cancel(player);
       if (taskWasActive && !RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {

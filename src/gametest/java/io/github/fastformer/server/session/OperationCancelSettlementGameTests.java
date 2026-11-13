@@ -3,7 +3,6 @@ package io.github.fastformer.server.session;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskCancellationResult;
@@ -228,7 +227,7 @@ public final class OperationCancelSettlementGameTests {
 
    private static boolean admissionBlocked(ServerPlayer player) {
       return OperationSystem.of(player).taskBusy(player)
-         || QuickShapeSystem.of(player).taskBusy(player)
+         || SessionSystem.of(player).placementTasks().active(player)
          || HistorySystem.of(player).busy(player)
          || io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension());
    }

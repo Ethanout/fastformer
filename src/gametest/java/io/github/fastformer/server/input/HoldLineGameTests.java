@@ -9,9 +9,7 @@ import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.common.interaction.binding.SessionProfiles;
 import io.github.fastformer.fastplace.geometry.raycast.*;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.quickshape.*;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
@@ -91,8 +89,8 @@ public final class HoldLineGameTests {
             helper.assertTrue(settings.storedLineMode() == LineMode.RAYCAST, "release overwrote the saved line mode");
             submitted[0] = true;
          }
-         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "waiting for line placement");
+         SessionSystem.of(helper.getLevel().getServer()).placementTasks().tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "waiting for line placement");
          helper.assertTrue(helper.getLevel().getBlockState(first[0]).is(Blocks.GOLD_BLOCK), "embedded starting block was not included");
          helper.assertTrue(helper.getLevel().getBlockState(first[0].above()).isAir(), "surface entry left an extra block above the start");
       });

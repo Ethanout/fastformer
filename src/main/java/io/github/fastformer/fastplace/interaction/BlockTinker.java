@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.interaction;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.common.tinker.TinkerAction;
@@ -9,7 +11,6 @@ import io.github.fastformer.common.tinker.rule.StandardTinkerRules;
 import io.github.fastformer.common.tinker.state.TinkerCopperCycle;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.server.history.entry.BlockEditHistoryMetadata;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistoryStorageConfig;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
@@ -37,7 +38,7 @@ public final class BlockTinker {
       if (!canEdit(player) || !withinInteractionRange(player, hit)
          || HistorySystem.of(player).busy(player) || QuickShapeSystem.of(player).active(player)
          || OperationSystem.of(player).active(player) || GeometrySystem.of(player).active(player)
-         || QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player)) return false;
+         || SessionSystem.of(player).placementTasks().active(player) || OperationSystem.of(player).taskActive(player)) return false;
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       if (!settings.enabled() || !settings.emptyHandWrench()) return false;
       ServerLevel level = player.serverLevel();

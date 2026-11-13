@@ -236,7 +236,7 @@ public final class PreviewSync {
       if (OperationSystem.of(player).taskActive(player)) {
          return FastPlaceActivity.OPERATION_TASK;
       }
-      if (QuickShapeSystem.of(player).taskActive(player)) {
+      if (SessionSystem.of(player).placementTasks().active(player)) {
          return FastPlaceActivity.PLACEMENT_TASK;
       }
       if (OperationSystem.of(player).active(player)) {

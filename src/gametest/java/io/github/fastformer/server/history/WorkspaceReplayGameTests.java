@@ -4,11 +4,9 @@ import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.server.task.WorldTaskSchedulerTestAccess;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
@@ -296,7 +294,7 @@ public final class WorkspaceReplayGameTests {
     */
    public static boolean admissionBlocked(ServerPlayer player) {
       return OperationSystem.of(player).taskBusy(player)
-         || QuickShapeSystem.of(player).taskBusy(player)
+         || SessionSystem.of(player).placementTasks().active(player)
          || HistorySystem.of(player).busy(player)
          || io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension());
    }

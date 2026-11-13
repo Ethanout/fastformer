@@ -1,6 +1,5 @@
 package io.github.fastformer.server.session;
 
-import io.github.fastformer.server.task.WorldTaskContext;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -12,8 +11,6 @@ import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
-import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
@@ -32,12 +29,10 @@ import io.github.fastformer.fastplace.quickshape.QuickShapeTransitionExecutor;
 import io.github.fastformer.fastplace.quickshape.QuickShapeWorkflow;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
-import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
@@ -52,7 +47,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
@@ -60,15 +54,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
-import io.github.fastformer.server.task.WorldTaskQueue;
-import io.github.fastformer.server.task.TaskStep;
 
 public final class QuickShapeSystem implements io.github.fastformer.core.lifecycle.Scoped {
    private static final Logger LOGGER = LogUtils.getLogger();
    /** Generate ordinary placements on the server thread up to this size. */
    private static final long SYNCHRONOUS_PLACEMENT_LIMIT = 262_144L;
    final PlayerSessions<QuickShapeDraft> sessions = new PlayerSessions<>();
-   final WorldTaskQueue<PlacementTask> tasks = new WorldTaskQueue<>();
    private final SessionSystem runtime;
    QuickShapeSystem(SessionSystem runtime) {
       this.runtime = runtime;
@@ -278,25 +269,6 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
          session.onDestroyed();
          FastPlaceNetwork.clearPreview(player);
       }
-   }
-
-   public TaskCancellationResult cancelTask(ServerPlayer player) {
-      return cancelTask(new WorldTaskContext(player.getServer(), player.getUUID()), HistorySystem.of(player));
-   }
-
-   TaskCancellationResult cancelTask(WorldTaskContext context, HistoryService history) {
-      PlacementTask task = tasks.get(context.owner());
-      if (task == null) {
-         return TaskCancellationResult.NOT_ACTIVE;
-      }
-      // Accept first, then drop the queue slot. A refused or failed handover keeps both
-      // the task and the extracted snapshot, so the only record of a partial write stays.
-      TaskCancellationResult result = tasks.transfer(context, task, history::acceptTransferredTask);
-      if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE
-         || result == TaskCancellationResult.ROLLBACK_STARTED) {
-         tasks.remove(context.owner(), task);
-      }
-      return result;
    }
 
    public void cycleStageMode(ServerPlayer player) {
@@ -566,12 +538,12 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                   generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()
                );
                if (generationReservation.isEmpty()) {
-                  enqueueTask(player, generationPlan.waitForGenerationMemory());
+                  runtime.placementTasks().enqueue(player, generationPlan.waitForGenerationMemory());
                   runtime.cancelEditing(player);
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
                   return;
                }
-               enqueueTask(player, generationPlan.generateAsync(generationReservation.orElseThrow()));
+               runtime.placementTasks().enqueue(player, generationPlan.generateAsync(generationReservation.orElseThrow()));
                runtime.cancelEditing(player);
                FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_generating"));
             } else {
@@ -580,7 +552,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                   generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()
                );
                if (generationReservation.isEmpty()) {
-                  enqueueTask(player, generationPlan.waitForGenerationMemory());
+                  runtime.placementTasks().enqueue(player, generationPlan.waitForGenerationMemory());
                   FastPlaceNetwork.syncPreview(player, session);
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
                   return;
@@ -608,7 +580,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                   FastPlaceNetwork.syncPreview(player, session);
                   FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
                 } else {
-                   enqueueTask(player, PlacementTask.ready(blocks, generationPlan.taskPlan()));
+                   runtime.placementTasks().enqueue(player, PlacementTask.ready(blocks, generationPlan.taskPlan()));
                    runtime.cancelEditing(player);
                    FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_queued", blocks.size()));
                 }
@@ -629,7 +601,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       if (blocks.isEmpty() || blocks.size() > settings.maxPlacement() || placementBusy(player)) return false;
       var plan = new PlacementTaskPlan(state, null, io.github.fastformer.workspace.submission.OperationConflictMode.KEEP_EXISTING,
          settings.placementUpdateMode(), settings.maxPlacement(), player.level().dimension(), true);
-      enqueueTask(player, PlacementTask.ready(blocks, plan));
+      runtime.placementTasks().enqueue(player, PlacementTask.ready(blocks, plan));
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.fill.queued", blocks.size()));
       return true;
    }
@@ -659,7 +631,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_empty"));
          return false;
       }
-      enqueueTask(player, PlacementTask.ready(targets, taskPlan(player, settings, state, null)));
+      runtime.placementTasks().enqueue(player, PlacementTask.ready(targets, taskPlan(player, settings, state, null)));
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_queued", targets.size()));
       return true;
    }
@@ -684,7 +656,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       }
       Optional<MemoryReservation> generationReservation = WorldOperationMemory.reserve(generationAdmission);
       if (generationReservation.isEmpty()) {
-         enqueueTask(player, PlacementTask.waitingForGeneration(
+         runtime.placementTasks().enqueue(player, PlacementTask.waitingForGeneration(
             generator, null, taskPlan(player, settings, state, null), targetCapacity, 0L));
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
          return true;
@@ -711,7 +683,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
          LOGGER.error("FastFormer asynchronous placement generation could not be scheduled for {}", player.getUUID(), exception);
          return false;
       }
-      enqueueTask(player, PlacementTask.generatingResult(
+      runtime.placementTasks().enqueue(player, PlacementTask.generatingResult(
          future,
          taskPlan(player, settings, state, null),
          generationReservation.orElseThrow()
@@ -755,162 +727,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
    }
 
    /** Drops server-bound sessions/tasks before a world instance is replaced. */
-   @Override public void onDiscard() {
-      try {
-         tasks.close();
-      } finally {
-         sessions.clear();
-      }
-   }
-
-   /**
-    * Hands every write-blocked placement task to the recovery path.
-    *
-    * <p>The scheduler calls this instead of {@link #tickWorld} while the global write gate
-    * is closed. A placement task has no gate check inside its own tick, so it cannot end
-    * by itself. The queue slot leaves only after the recovery path accepts the snapshot.
-    */
-   public void handOverBlockedTasks(net.minecraft.server.MinecraftServer server, HistoryService history) {
-      for (UUID owner : tasks.owners()) {
-         handOverBlockedTask(new WorldTaskContext(server, owner), history);
-      }
-   }
-
-   private void handOverBlockedTask(WorldTaskContext context, HistoryService history) {
-      PlacementTask task = tasks.get(context.owner());
-      if (task == null) {
-         return;
-      }
-      TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
-      if (handover == TaskCancellationResult.CANCELLED_BEFORE_WRITE
-         || handover == TaskCancellationResult.ROLLBACK_STARTED) {
-         tasks.remove(context.owner(), task);
-         context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
-         return;
-      }
-      context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
-   }
-
-   public void tickWorld(net.minecraft.server.MinecraftServer server, HistoryService history) {
-      for (UUID owner : tasks.owners()) {
-         WorldTaskContext context = new WorldTaskContext(server, owner);
-         if (!context.writesAllowed()) {
-            break;
-         }
-         if (tasks.handingOver(owner)) {
-            handOverBlockedTask(context, history);
-            continue;
-         }
-         if (history.busy(owner)) {
-            continue;
-         }
-         tickTask(context, history);
-      }
-   }
-
-   private void enqueueTask(ServerPlayer player, PlacementTask task) {
-      tasks.put(player.getUUID(), task);
-      WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-      HistoryService history = HistorySystem.of(player);
-      context.withResume(() -> resumeTask(context, task, history)).enqueueResume();
-   }
-
-   void resumeTask(WorldTaskContext context, PlacementTask task, HistoryService history) {
-      if (!runtime.closed() && tasks.get(context.owner()) == task
-         && !tasks.handingOver(context.owner())
-         && context.writesAllowed()
-         && !history.busy(context.owner())) {
-         tickTask(context, history);
-      }
-   }
-
-   void tickTask(WorldTaskContext context, HistoryService history) {
-      UUID owner = context.owner();
-      PlacementTask task = tasks.get(owner);
-      if (task == null) return;
-      try {
-         Optional<TaskStep> advanced = tasks.tick(context.withResume(() -> resumeTask(context, task, history)), task);
-         if (advanced.isEmpty()) return;
-         TaskStep step = advanced.orElseThrow();
-         if (!step.terminal()) {
-            reportTaskProgress(context, task, step);
-            return;
-         }
-         if (step.recoveryRequired()) {
-            settleFailedTask(context, task, history);
-            LOGGER.warn("FastFormer placement {} ended with {}: {}", task.operationId(), step, task.metricsSummary());
-            context.actionBar(placementFailureStatus(task, owner, step));
-            return;
-         }
-         if (step == TaskStep.COMPLETE && task.hasWrites()) {
-            JournalPreparation historyCommit = history.pollPreparedOperation(context, task.preparedBatch(), task.journal());
-            if (historyCommit == JournalPreparation.PENDING) {
-               context.actionBar(FastPlaceMessages.text("fastformer.message.history_saving"));
-               return;
-            }
-            if (historyCommit == JournalPreparation.FAILED) {
-               settleFailedTask(context, task, history);
-               context.actionBar(failureStatus(task, owner));
-               return;
-            }
-            task.releaseLease(context);
-         } else {
-            task.releaseAfterCancelledJournal(context);
-         }
-         tasks.remove(owner, task);
-         task.releaseMemoryReservation();
-         task.releaseCommittedTransactionState();
-         if (step == TaskStep.COMPLETE) {
-            task.markComplete();
-            LOGGER.info("FastFormer placement operation {} finished: {}", task.operationId(), task.metricsSummary());
-            context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
-         } else if (step == TaskStep.CONSTRAINTS_FAILED) {
-            context.chat(FastPlaceMessages.text("fastformer.message.face_generation_constraints_failed"));
-         } else {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.operation_empty"));
-         }
-      } catch (RuntimeException | OutOfMemoryError exception) {
-         settleFailedTask(context, task, history);
-         LOGGER.error("FastFormer placement task failed for {}: {}", owner, task.metricsSummary(), exception);
-         context.actionBar(failureStatus(task, owner));
-      }
-   }
-
-   private void reportTaskProgress(WorldTaskContext context, PlacementTask task, TaskStep step) {
-      switch (step) {
-         case WAITING -> context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
-         case WORLD_UNLOADED -> context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
-         case VALIDATING -> context.actionBar(FastPlaceMessages.text(
-            "fastformer.message.placement_validating", task.validationRemaining()));
-         case PREPARING_JOURNAL -> context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_preparing"));
-         case FINALIZING -> context.actionBar(FastPlaceMessages.text("fastformer.message.placement_finalizing"));
-         case COMMITTING -> context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_finalizing"));
-         case GENERATING -> {
-            ProgressiveBlockGeneration.Snapshot progress = task.generationProgress();
-            context.actionBar(progress == null
-               ? FastPlaceMessages.text("fastformer.message.placement_generating")
-               : FastPlaceMessages.text("fastformer.message.placement_generation_progress",
-                  progress.scanned(), progress.estimatedScan(), progress.generated()));
-         }
-         case ACTIVE -> context.actionBar(FastPlaceMessages.text(
-            "fastformer.message.placement_progress", task.processed(), task.total(), task.placed()));
-         default -> throw new IllegalArgumentException("Not a placement progress step: " + step);
-      }
-   }
-
-   private net.minecraft.network.chat.MutableComponent placementFailureStatus(PlacementTask task, UUID owner, TaskStep step) {
-      return switch (step) {
-         case EXCEEDED -> FastPlaceMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement());
-         case MEMORY_UNSAFE -> FastPlaceMessages.text("fastformer.message.operation_memory_unsafe");
-         case JOURNAL_FAILED -> FastPlaceMessages.text("fastformer.message.recovery_journal_failed");
-         case BLOCKED -> FastPlaceMessages.text("fastformer.message.recovery_journal_blocked");
-         default -> switch (task.failurePhase()) {
-            case GENERATION -> FastPlaceMessages.text("fastformer.message.placement_generation_failed");
-            case SNAPSHOT -> FastPlaceMessages.text("fastformer.message.placement_snapshot_validation_failed");
-            default -> failureStatus(task, owner);
-         };
-      };
-   }
+   @Override public void onDiscard() { sessions.clear(); }
 
    public boolean undoLast(ServerPlayer player) {
       return HistorySystem.of(player).requestUndo(player, 1);
@@ -929,51 +746,6 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
          return LineTieBias.DEFAULT;
       }
       return session.effectiveFaceTieBias(session.modifierHeld());
-   }
-
-   public boolean taskBusy(ServerPlayer player) {
-      return localTaskBusy(player);
-   }
-
-   public boolean taskActive(ServerPlayer player) {
-      return taskActive(player.getUUID());
-   }
-
-   public boolean taskActive(UUID owner) {
-      return tasks.containsKey(owner);
-   }
-
-   private boolean localTaskBusy(ServerPlayer player) {
-      UUID id = player.getUUID();
-      return tasks.containsKey(id);
-   }
-
-   private void settleFailedTask(WorldTaskContext context, PlacementTask task, HistoryService history) {
-      TaskCancellationResult result = tasks.transfer(context, task, history::acceptTransferredTask);
-      if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE || result == TaskCancellationResult.ROLLBACK_STARTED) {
-         tasks.remove(context.owner(), task);
-      }
-      if (result.recoveryCreated()) {
-         task.markRecoveryTaskCreated();
-      }
-   }
-
-   private net.minecraft.network.chat.MutableComponent failureStatus(PlacementTask task, UUID owner) {
-      if (task.failurePhase() == WorldOperationPhase.COMMIT && task.hasWrites()) {
-         return FastPlaceMessages.text(
-            "fastformer.message.placement_history_unavailable",
-            task.operationId().toString()
-         );
-      }
-      String key = task.recoveryTaskCreated()
-         ? "fastformer.message.placement_failed_rollback"
-         : "fastformer.message.placement_failed_no_recovery";
-      return FastPlaceMessages.text(
-         key,
-         task.failurePhase().name(),
-         task.operationId().toString(),
-         task.failureReason()
-      );
    }
 
 

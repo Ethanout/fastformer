@@ -5,7 +5,6 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
 import io.github.fastformer.server.session.OperationSystem;
-import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.SessionSystem;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
@@ -22,9 +21,9 @@ public final class WorldTaskScheduler {
       // A closed gate must transfer queued writers instead of waiting for a lease.
       // Both transfers run independently so one failure does not skip the other.
       if (gate.writesAllowed()) {
-         if (!tickSafely(gate, "placement", () -> QuickShapeSystem.of(server).tickWorld(server, HistorySystem.of(server)))) return;
+         if (!tickSafely(gate, "placement", () -> SessionSystem.of(server).placementTasks().tickWorld(server, HistorySystem.of(server)))) return;
       } else {
-         tickSafely(gate, "placement-handover", () -> QuickShapeSystem.of(server).handOverBlockedTasks(server, HistorySystem.of(server)));
+         tickSafely(gate, "placement-handover", () -> SessionSystem.of(server).placementTasks().handOverBlockedTasks(server, HistorySystem.of(server)));
       }
       if (gate.writesAllowed()) {
          tickSafely(gate, "operation", () -> OperationSystem.of(server).tickWorld(server, HistorySystem.of(server)));

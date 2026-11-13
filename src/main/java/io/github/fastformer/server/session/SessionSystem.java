@@ -8,6 +8,7 @@ import io.github.fastformer.fastplace.session.InteractionState;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.feedback.TaskFeedback;
+import io.github.fastformer.server.session.execution.PlacementTasks;
 import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.input.ServerInputDispatcher;
@@ -32,6 +33,7 @@ public final class SessionSystem implements AutoCloseable {
    private static final Logger LOGGER = LoggerFactory.getLogger(SessionSystem.class);
    private static final Map<MinecraftServer, SessionSystem> SERVERS = Collections.synchronizedMap(new IdentityHashMap<>());
    private final Scope states = new Scope();
+   private final PlacementTasks placements = states.get(ScopedKey.create("placement_tasks", () -> new PlacementTasks(() -> this.closed)));
    final QuickShapeSystem quickShape = states.get(ScopedKey.create("quick_shape", () -> new QuickShapeSystem(this)));
    final OperationSystem operation = states.get(ScopedKey.create("operation", () -> new OperationSystem(this)));
    final GeometrySystem geometry = states.get(ScopedKey.create("geometry", () -> new GeometrySystem(this)));
@@ -104,7 +106,7 @@ public final class SessionSystem implements AutoCloseable {
       boolean restoring = HistorySystem.of(player).restoreActive(player);
       cancelEditing(player);
       if (!restoring) {
-         quickShape.cancelTask(player);
+         placements.cancel(player);
          operation.cancelTask(player);
       }
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.quit"));
@@ -170,6 +172,7 @@ public final class SessionSystem implements AutoCloseable {
    boolean closed() { return closed; }
 
    public TaskFeedback feedback() { return feedback; }
+   public PlacementTasks placementTasks() { return placements; }
 
    public WorkspaceSubmissionLedger submissions() { return submissions; }
 

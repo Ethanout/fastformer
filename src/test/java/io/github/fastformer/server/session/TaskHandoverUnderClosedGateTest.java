@@ -18,8 +18,6 @@ import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
-import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
@@ -33,7 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -197,11 +194,11 @@ class TaskHandoverUnderClosedGateTest {
       PlacementTask task = PlacementTask.ready(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
          null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
       ));
-      quickShape.tasks.put(owner, task);
+      runtime.placementTasks().admit(owner, task);
 
-      quickShape.handOverBlockedTasks(null, history);
+      runtime.placementTasks().handOverBlockedTasks(null, history);
 
-      assertFalse(quickShape.taskActive(owner), "the handed-over placement task stayed in the queue");
+      assertFalse(runtime.placementTasks().active(owner), "the handed-over placement task stayed in the queue");
    }
 
    private static ReversibleBlockSnapshot snapshot(BlockPos pos, String marker) {
