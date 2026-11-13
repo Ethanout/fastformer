@@ -1,7 +1,6 @@
 package io.github.fastformer.server.session.execution;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistorySystem;
@@ -11,7 +10,6 @@ import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.server.task.WorldTaskQueue;
 import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import java.util.Objects;
 import java.util.Optional;
@@ -20,115 +18,40 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 
 /** Owns selection/workspace writers, recovery transfer and their completion receipts. */
-public final class OperationTasks implements Scoped {
+public final class OperationTasks extends TaskExecution<WorldTask> {
    private static final Logger LOGGER = LogUtils.getLogger();
-   private final WorldTaskQueue<WorldTask> queue = new WorldTaskQueue<>();
-   private final BooleanSupplier closed;
-   private final Predicate<UUID> placementsBusy;
    private final Function<WorldTaskContext, WorkspaceResultSink> results;
 
    public OperationTasks(BooleanSupplier closed, Predicate<UUID> placementsBusy,
       Function<WorldTaskContext, WorkspaceResultSink> results) {
-      this.closed = Objects.requireNonNull(closed);
-      this.placementsBusy = Objects.requireNonNull(placementsBusy);
+      super(closed, placementsBusy);
       this.results = Objects.requireNonNull(results);
    }
-
-   /** Record ownership before publishing admission or scheduling a resume. */
-   public void admit(UUID owner, WorldTask task) { queue.put(owner, task); }
-   public boolean active(UUID owner) { return queue.containsKey(owner); }
-   public boolean active(ServerPlayer player) { return active(player.getUUID()); }
-   @Override public void onDiscard() { queue.close(); }
 
    /** Schedules the first resume of one queued task. A scheduling fault keeps the task. */
    public void scheduleResume(ServerPlayer player, WorldTask task) {
       try {
          WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
          HistoryService history = HistorySystem.of(player);
-         context.withResume(() -> resume(context, task, history)).enqueueResume();
+         schedule(context, task, history);
       } catch (RuntimeException exception) {
          LOGGER.warn("FastFormer queued a workspace submission but could not schedule its resume", exception);
       }
    }
 
-   public TaskCancellationResult cancel(ServerPlayer player) {
-      return cancel(new WorldTaskContext(player.getServer(), player.getUUID()), HistorySystem.of(player));
-   }
-
-   /**
-    * Hands every write-blocked operation task to the recovery path.
-    *
-    * <p>The scheduler calls this instead of {@link #tickWorld} while the global write gate
-    * is closed. A task must not run again, and it must not be dropped either: the queue
-    * slot leaves only after the recovery path accepts the snapshot. A refused or failed
-    * handover keeps the task, so a later tick can try again.
-    */
-   public void handOverBlockedTasks(MinecraftServer server, HistoryService history) {
-      for (UUID owner : queue.owners()) {
-         handOverBlockedTask(new WorldTaskContext(server, owner), history);
+   @Override void onCancellationAccepted(WorldTaskContext context, WorldTask task, TaskCancellationResult result) {
+      if (task instanceof SubmittedWorkspaceTask workspace) {
+         results.apply(context).finish(workspace.completion(context.owner(), false,
+            result == TaskCancellationResult.CANCELLED_BEFORE_WRITE,
+            result == TaskCancellationResult.ROLLBACK_STARTED), context.onlinePlayer());
       }
    }
 
-   private void handOverBlockedTask(WorldTaskContext context, HistoryService history) {
-      TaskCancellationResult handover = cancel(context, history);
-      if (handover.handled()) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
-      }
-   }
-
-   /**
-    * Stops one queued task and records its workspace outcome when recovery accepts it.
-    *
-    * <p>This is the only owner of that result packet. A later tick, a cancel, or a
-    * closed-gate handover all reach it, so one transfer cannot receive two answers.
-    * Recovery does not finish the ledger: an {@code IN_PROGRESS} record never ages out,
-    * and a missing finish would leave the client waiting.</p>
-    *
-    * @return {@link TaskCancellationResult#NOT_ACTIVE} when no task exists
-    */
-   public TaskCancellationResult cancel(WorldTaskContext context, HistoryService history) {
-      WorldTask task = queue.get(context.owner());
-      if (task == null) {
-         return TaskCancellationResult.NOT_ACTIVE;
-      }
-      TaskCancellationResult handover = queue.transfer(context, task, history::acceptTransferredTask);
-      if (handover != TaskCancellationResult.CANCELLED_BEFORE_WRITE
-         && handover != TaskCancellationResult.ROLLBACK_STARTED) {
-         return handover;
-      }
-      queue.remove(context.owner(), task);
-      if (task instanceof SubmittedWorkspaceTask workspaceTask) {
-         // No writes: the draft may go again with a new transfer. Writes that reached
-         // recovery report that state, so a retry cannot repeat the same work.
-         results.apply(context).finish(workspaceTask.completion(context.owner(), false,
-            handover == TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-            handover == TaskCancellationResult.ROLLBACK_STARTED), context.onlinePlayer());
-      }
-      return handover;
-   }
-
-   public void tickWorld(MinecraftServer server, HistoryService history) {
-      for (UUID owner : queue.owners()) {
-         WorldTaskContext context = new WorldTaskContext(server, owner);
-         if (!context.writesAllowed()) {
-            break;
-         }
-         if (queue.handingOver(owner)) {
-            handOverBlockedTask(context, history);
-            continue;
-         }
-         if (history.busy(owner) || placementsBusy.test(owner)) {
-            continue;
-         }
-         service(context, history);
-      }
-   }
-
+   @Override
    public void service(WorldTaskContext context, HistoryService history) {
       WorldTask task = queue.get(context.owner());
       if (task == null) return;
@@ -216,28 +139,6 @@ public final class OperationTasks implements Scoped {
          case MEMORY_UNSAFE -> FastPlaceMessages.text("fastformer.message.operation_memory_unsafe");
          default -> FastPlaceMessages.text("fastformer.message.operation_too_large_run");
       };
-   }
-
-   public void enqueue(ServerPlayer player, WorldTask task) {
-      admit(player.getUUID(), task);
-      WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-      HistoryService history = HistorySystem.of(player);
-      context.withResume(() -> resume(context, task, history)).enqueueResume();
-   }
-
-   private void resume(WorldTaskContext context, WorldTask task, HistoryService history) {
-      if (!closed.getAsBoolean() && queue.get(context.owner()) == task
-         && !queue.handingOver(context.owner())
-         && context.writesAllowed()
-         && !history.busy(context.owner())
-         && !placementsBusy.test(context.owner())) {
-         service(context, history);
-      }
-   }
-
-
-   private boolean handoverAccepted(TaskCancellationResult result) {
-      return result == TaskCancellationResult.CANCELLED_BEFORE_WRITE || result == TaskCancellationResult.ROLLBACK_STARTED;
    }
 
    private MutableComponent operationFailureStatus(

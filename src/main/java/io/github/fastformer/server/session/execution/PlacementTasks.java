@@ -1,112 +1,28 @@
 package io.github.fastformer.server.session.execution;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.server.task.WorldTaskQueue;
 import io.github.fastformer.server.task.block.PlacementTask;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.MutableComponent;
 import org.slf4j.Logger;
 
 /** Owns queued placement execution, recovery transfer, completion and delayed resumes. */
-public final class PlacementTasks implements Scoped {
+public final class PlacementTasks extends TaskExecution<PlacementTask> {
    private static final Logger LOGGER = LogUtils.getLogger();
-   private final WorldTaskQueue<PlacementTask> queue = new WorldTaskQueue<>();
-   private final BooleanSupplier closed;
 
-   public PlacementTasks(BooleanSupplier closed) { this.closed = java.util.Objects.requireNonNull(closed); }
+   public PlacementTasks(BooleanSupplier closed) { super(closed, ignored -> false); }
 
-   /** Admission is separate from scheduling so queue ownership is established first. */
-   public void admit(UUID owner, PlacementTask task) { queue.put(owner, task); }
-
-   public boolean active(UUID owner) { return queue.containsKey(owner); }
-   public boolean active(ServerPlayer player) { return active(player.getUUID()); }
-   public boolean isCurrent(UUID owner, PlacementTask task) { return queue.get(owner) == task; }
-
-   @Override public void onDiscard() { queue.close(); }
-
-   public TaskCancellationResult cancel(ServerPlayer player) {
-      return cancel(new WorldTaskContext(player.getServer(), player.getUUID()), HistorySystem.of(player));
-   }
-
-   public TaskCancellationResult cancel(WorldTaskContext context, HistoryService history) {
-      PlacementTask task = queue.get(context.owner());
-      if (task == null) {
-         return TaskCancellationResult.NOT_ACTIVE;
-      }
-      // Accept first, then drop the queue slot. A refused or failed handover keeps both
-      // the task and the extracted snapshot, so the only record of a partial write stays.
-      TaskCancellationResult result = queue.transfer(context, task, history::acceptTransferredTask);
-      if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE
-         || result == TaskCancellationResult.ROLLBACK_STARTED) {
-         queue.remove(context.owner(), task);
-      }
-      return result;
-   }
-
-   /**
-    * Hands every write-blocked placement task to the recovery path.
-    *
-    * <p>The scheduler calls this instead of {@link #tickWorld} while the global write gate
-    * is closed. A placement task has no gate check inside its own tick, so it cannot end
-    * by itself. The queue slot leaves only after the recovery path accepts the snapshot.
-    */
-   public void handOverBlockedTasks(net.minecraft.server.MinecraftServer server, HistoryService history) {
-      for (UUID owner : queue.owners()) {
-         handOverBlockedTask(new WorldTaskContext(server, owner), history);
-      }
-   }
-
-   private void handOverBlockedTask(WorldTaskContext context, HistoryService history) {
-      if (cancel(context, history).handled()) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
-      }
-   }
-
-   public void tickWorld(net.minecraft.server.MinecraftServer server, HistoryService history) {
-      for (UUID owner : queue.owners()) {
-         WorldTaskContext context = new WorldTaskContext(server, owner);
-         if (!context.writesAllowed()) {
-            break;
-         }
-         if (queue.handingOver(owner)) {
-            handOverBlockedTask(context, history);
-            continue;
-         }
-         if (history.busy(owner)) {
-            continue;
-         }
-         service(context, history);
-      }
-   }
-
-   public void enqueue(ServerPlayer player, PlacementTask task) {
-      admit(player.getUUID(), task);
-      WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-      HistoryService history = HistorySystem.of(player);
-      context.withResume(() -> resume(context, task, history)).enqueueResume();
-   }
-
-   public void resume(WorldTaskContext context, PlacementTask task, HistoryService history) {
-      if (!closed.getAsBoolean() && isCurrent(context.owner(), task)
-         && !queue.handingOver(context.owner())
-         && context.writesAllowed()
-         && !history.busy(context.owner())) {
-         service(context, history);
-      }
-   }
-
+   @Override
    public void service(WorldTaskContext context, HistoryService history) {
       UUID owner = context.owner();
       PlacementTask task = queue.get(owner);
@@ -181,7 +97,7 @@ public final class PlacementTasks implements Scoped {
       }
    }
 
-   private net.minecraft.network.chat.MutableComponent placementFailureStatus(PlacementTask task, UUID owner, TaskStep step) {
+   private MutableComponent placementFailureStatus(PlacementTask task, UUID owner, TaskStep step) {
       return switch (step) {
          case EXCEEDED -> FastPlaceMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement());
          case MEMORY_UNSAFE -> FastPlaceMessages.text("fastformer.message.operation_memory_unsafe");
@@ -197,7 +113,7 @@ public final class PlacementTasks implements Scoped {
 
    private void settleFailedTask(WorldTaskContext context, PlacementTask task, HistoryService history) {
       TaskCancellationResult result = queue.transfer(context, task, history::acceptTransferredTask);
-      if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE || result == TaskCancellationResult.ROLLBACK_STARTED) {
+      if (handoverAccepted(result)) {
          queue.remove(context.owner(), task);
       }
       if (result.recoveryCreated()) {
@@ -205,7 +121,7 @@ public final class PlacementTasks implements Scoped {
       }
    }
 
-   private net.minecraft.network.chat.MutableComponent failureStatus(PlacementTask task, UUID owner) {
+   private MutableComponent failureStatus(PlacementTask task, UUID owner) {
       if (task.failurePhase() == WorldOperationPhase.COMMIT && task.hasWrites()) {
          return FastPlaceMessages.text(
             "fastformer.message.placement_history_unavailable",
@@ -222,6 +138,4 @@ public final class PlacementTasks implements Scoped {
          task.failureReason()
       );
    }
-
-
 }
