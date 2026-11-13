@@ -462,17 +462,6 @@ public final class ServerInputDispatcher {
       }
    }
 
-   public static boolean selectGeometryMode(ServerPlayer player, GeometryMode mode) {
-      if (interactionBlocked(player) || !canOperate(player) || QuickShapeSystem.of(player).active(player) || OperationSystem.of(player).active(player)) {
-         return false;
-      }
-      if (!GeometrySystem.of(player).active(player) || GeometrySystem.of(player).awaitingFirstPoint(player)) {
-         GeometrySystem.of(player).selectMode(player, mode);
-         return true;
-      }
-      return false;
-   }
-
    public static boolean fill(ServerPlayer player) {
       if (io.github.fastformer.server.fill.SmartFillSystem.active(player)) return true;
       if (interactionBlocked(player) || !canOperate(player)) {

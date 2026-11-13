@@ -4,6 +4,7 @@ import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.server.intent.HistoryIntents;
 import io.github.fastformer.server.intent.SessionIntents;
+import io.github.fastformer.server.intent.GeometryIntents;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.network.ServerChannels;
 import io.github.fastformer.server.network.upload.UploadSystem;
@@ -178,7 +179,7 @@ public final class FastPlaceNetwork {
       channels.receive(QuickShapePointerPayload.TYPE, QuickShapePointerPayload.STREAM_CODEC)
          .handle(FastPlaceNetwork::handleQuickShapePointer);
       channels.receive(GeometrySelectModePayload.TYPE, GeometrySelectModePayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.selectGeometryMode(player, payload.mode()));
+         .toIntent(payload -> new GeometryIntents.SelectMode(payload.mode()));
       channels.receive(GeometryGizmoDragPayload.TYPE, GeometryGizmoDragPayload.STREAM_CODEC)
          .handle((payload, player) -> ServerInputDispatcher.geometryGizmoDrag(player, payload));
       channels.receive(GeometryInteractionPayload.TYPE, GeometryInteractionPayload.STREAM_CODEC)

@@ -6,6 +6,7 @@ import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.server.intent.PlayerIntentSystem;
 import io.github.fastformer.server.intent.SessionIntents;
 import io.github.fastformer.server.intent.HistoryIntents;
+import io.github.fastformer.server.intent.GeometryIntents;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -34,7 +35,6 @@ import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.protocol.s2c.settings.OpenSettingsPayload;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.QuickShapeSystem;
-import io.github.fastformer.server.session.GeometrySystem;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import net.minecraft.commands.CommandSourceStack;
@@ -521,7 +521,7 @@ public final class FastPlaceCommandRegistry {
                FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_mode_usage"));
                return 0;
             }
-            return ServerInputDispatcher.selectGeometryMode(player, mode) ? 1 : 0;
+            return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new GeometryIntents.SelectMode(mode)).handled() ? 1 : 0;
          }));
    }
 
@@ -541,7 +541,7 @@ public final class FastPlaceCommandRegistry {
             FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.cone_plane_usage"));
             return 0;
          }
-         return GeometrySystem.of(player).setConePlaneMode(player, mode) ? 1 : 0;
+         return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new GeometryIntents.ConePlane(mode)).handled() ? 1 : 0;
       }));
    }
 
@@ -560,7 +560,7 @@ public final class FastPlaceCommandRegistry {
             FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.polyhedron_size_usage"));
             return 0;
          }
-         return GeometrySystem.of(player).setPolyhedronSizeMode(player, mode) ? 1 : 0;
+         return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new GeometryIntents.PolyhedronSize(mode)).handled() ? 1 : 0;
       }));
    }
 
@@ -574,7 +574,8 @@ public final class FastPlaceCommandRegistry {
                }
                double x = DoubleArgumentType.getDouble(context, "x");
                double z = DoubleArgumentType.getDouble(context, "z");
-               return validNumber(player, x, z) && GeometrySystem.of(player).setConeEllipse(player, x, z) ? 1 : 0;
+               return validNumber(player, x, z) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
+                  new GeometryIntents.ConeEllipse(x, z)).handled() ? 1 : 0;
             })));
    }
 
@@ -589,12 +590,11 @@ public final class FastPlaceCommandRegistry {
                         .then(Commands.argument("z", DoubleArgumentType.doubleArg()).executes(context -> {
                            ServerPlayer player = context.getSource().getPlayerOrException();
                            return commandCanOperate(player)
-                              && GeometrySystem.of(player).rotateEuler(
-                                 player,
+                              && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new GeometryIntents.Euler(
                                  DoubleArgumentType.getDouble(context, "x"),
                                  DoubleArgumentType.getDouble(context, "y"),
                                  DoubleArgumentType.getDouble(context, "z")
-                              )
+                              )).handled()
                               ? 1
                               : 0;
                         }))
@@ -612,13 +612,12 @@ public final class FastPlaceCommandRegistry {
                               .then(Commands.argument("z", DoubleArgumentType.doubleArg()).executes(context -> {
                                  ServerPlayer player = context.getSource().getPlayerOrException();
                                  return commandCanOperate(player)
-                                    && GeometrySystem.of(player).rotateQuaternion(
-                                       player,
+                                    && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new GeometryIntents.Quaternion(
                                        DoubleArgumentType.getDouble(context, "w"),
                                        DoubleArgumentType.getDouble(context, "x"),
                                        DoubleArgumentType.getDouble(context, "y"),
                                        DoubleArgumentType.getDouble(context, "z")
-                                    )
+                                    )).handled()
                                     ? 1
                                     : 0;
                               }))
@@ -633,7 +632,8 @@ public final class FastPlaceCommandRegistry {
             return 0;
          }
          ServerPlayer player = context.getSource().getPlayerOrException();
-         return commandCanOperate(player) && GeometrySystem.of(player).rotateMatrix(player, values) ? 1 : 0;
+         return commandCanOperate(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
+            new GeometryIntents.Matrix(values)).handled() ? 1 : 0;
       })));
       root.then(Commands.literal("snap").then(rotateSnapCommand(false)));
       root.then(Commands.literal("fine").then(rotateSnapCommand(true)));
@@ -652,7 +652,8 @@ public final class FastPlaceCommandRegistry {
                return 0;
             }
             ServerPlayer player = context.getSource().getPlayerOrException();
-            return commandCanOperate(player) && GeometrySystem.of(player).rotateSnap(player, axis, IntegerArgumentType.getInteger(context, "steps"), fine) ? 1 : 0;
+            return commandCanOperate(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
+               new GeometryIntents.RotationStep(axis, IntegerArgumentType.getInteger(context, "steps"), fine)).handled() ? 1 : 0;
          }));
    }
 
@@ -664,20 +665,22 @@ public final class FastPlaceCommandRegistry {
       double[] values = parseNumbers(normalized);
       if (normalized.startsWith("quat")) {
          if (values.length == 4) {
-            return GeometrySystem.of(player).rotateQuaternion(player, values[0], values[1], values[2], values[3]) ? 1 : 0;
+            return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
+               new GeometryIntents.Quaternion(values[0], values[1], values[2], values[3])).handled() ? 1 : 0;
          }
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_quat_usage"));
          return 0;
       }
       if (normalized.startsWith("mat")) {
          if (values.length == 9) {
-            return GeometrySystem.of(player).rotateMatrix(player, values) ? 1 : 0;
+            return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new GeometryIntents.Matrix(values)).handled() ? 1 : 0;
          }
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_mat_usage"));
          return 0;
       }
       if (values.length == 3) {
-         return GeometrySystem.of(player).rotateEuler(player, values[0], values[1], values[2]) ? 1 : 0;
+         return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
+            new GeometryIntents.Euler(values[0], values[1], values[2])).handled() ? 1 : 0;
       }
       FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_usage"));
       return 0;

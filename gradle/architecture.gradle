@@ -26,6 +26,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.server.feedback') ||
                     packageName.startsWith('io.github.fastformer.server.task') ||
                     packageName.startsWith('io.github.fastformer.server.worldwrite') ||
+                    packageName.startsWith('io.github.fastformer.server.intent') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -118,6 +119,14 @@ abstract class VerifySourceLayout extends DefaultTask {
             }
             if (main && source.name == 'FastPlaceNetwork.java' && (text =~ /instanceof ServerPlayer/).find()) {
                 violations.add("Network registration bypasses typed server channels: ${path}")
+            }
+            if (main && source.name == 'FastPlaceCommandRegistry.java' &&
+                    (dependencies =~ /\bGeometrySystem\b/).find()) {
+                violations.add("Geometry commands bypass the player intent handlers: ${path}")
+            }
+            if (main && source.name == 'ServerInputDispatcher.java' &&
+                    (text =~ /\bselectGeometryMode\s*\(/).find()) {
+                violations.add("Input facade owns geometry mode admission instead of the intent: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.sync') &&
                     (dependencies =~ /(?:\bstatic\s+final\s+Map\s*<|\bConcurrentHashMap\b|\bclearServer\s*\()/).find()) {

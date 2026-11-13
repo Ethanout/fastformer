@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 public final class PlayerIntentSystem {
    private static final IntentBus<ServerPlayer> BUS = IntentBus.create(bus -> {
       SessionIntentHandlers.register(bus);
+      GeometryIntentHandlers.register(bus);
       HistoryIntentHandlers.register(bus);
       SettingsIntentHandlers.register(bus);
    });
