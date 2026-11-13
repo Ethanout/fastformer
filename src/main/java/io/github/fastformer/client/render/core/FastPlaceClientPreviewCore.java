@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import static io.github.fastformer.common.math.MinecraftVectors.normalize;
+
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.client.render.PreviewStyle;
@@ -2635,11 +2637,6 @@ public final class FastPlaceClientPreviewCore {
 
    public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float red, float green, float blue, float alpha) {
       GuideRenderer.renderLine(poseStack, consumer, from, to, red, green, blue, alpha, worldPreviewOpacity);
-   }
-
-   private static Vec3 normalize(Vec3 vector) {
-      double length = vector.length();
-      return length < 1.0E-7 ? Vec3.ZERO : vector.scale(1.0 / length);
    }
 
    private static QuickShapeMode selectedMode(BuildingPreviewSnapshot snapshot, QuickShapeStage stage) {

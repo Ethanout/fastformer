@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.guide;
 
+import static io.github.fastformer.common.math.MinecraftVectors.normalize;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.PoseStack.Pose;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -340,8 +342,4 @@ public final class GuideRenderer {
          .setNormal(pose, (float)normal.x, (float)normal.y, (float)normal.z);
    }
 
-   private static Vec3 normalize(Vec3 vector) {
-      double length = vector.length();
-      return length < EPSILON ? Vec3.ZERO : vector.scale(1.0 / length);
-   }
 }

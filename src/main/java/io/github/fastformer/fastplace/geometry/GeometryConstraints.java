@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import static io.github.fastformer.common.math.MinecraftVectors.normalizeDirection;
+
 import java.util.Optional;
 import net.minecraft.world.phys.Vec3;
 
@@ -19,7 +21,7 @@ public final class GeometryConstraints {
    }
 
    public static Optional<Vec3> rayPlane(Vec3 rayOrigin, Vec3 rayDirection, Vec3 planePoint, Vec3 planeNormal) {
-      Vec3 direction = normalize(rayDirection);
+      Vec3 direction = normalizeDirection(rayDirection);
       if (direction.lengthSqr() < EPSILON || planeNormal.lengthSqr() < EPSILON) {
          return Optional.empty();
       }
@@ -50,11 +52,11 @@ public final class GeometryConstraints {
       double parallelFallbackDistance,
       double maxRayDistance
    ) {
-      Vec3 axis = normalize(axisDirection);
+      Vec3 axis = normalizeDirection(axisDirection);
       if (axis.lengthSqr() < EPSILON) {
          return 0.0;
       }
-      Vec3 direction = normalize(rayDirection);
+      Vec3 direction = normalizeDirection(rayDirection);
       if (direction.lengthSqr() < EPSILON) {
          direction = new Vec3(0.0, 0.0, 1.0);
       }
@@ -74,10 +76,6 @@ public final class GeometryConstraints {
       double limit = Double.isFinite(maxRayDistance) ? Math.max(0.0, maxRayDistance) : Double.POSITIVE_INFINITY;
       rayDistance = Math.clamp(rayDistance, 0.0, limit);
       return originAxisOffset + parallel * rayDistance;
-   }
-
-   private static Vec3 normalize(Vec3 value) {
-      return value.lengthSqr() < EPSILON ? Vec3.ZERO : value.normalize();
    }
 
    public record Plane(Vec3 point, Vec3 normal) {

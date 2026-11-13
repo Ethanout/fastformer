@@ -1,12 +1,12 @@
 package io.github.fastformer.fastplace.geometry;
 
 import io.github.fastformer.core.math.Axis;
+import io.github.fastformer.core.math.Epsilon;
+import io.github.fastformer.common.math.MinecraftVectors;
 
 import net.minecraft.world.phys.Vec3;
 
 public record TransformFrame(Vec3 origin, Vec3 xAxis, Vec3 yAxis, Vec3 zAxis, Kind kind) {
-   private static final double EPSILON = 1.0E-7;
-
    public TransformFrame {
       origin = origin == null ? Vec3.ZERO : origin;
       xAxis = normalizeOr(xAxis, new Vec3(1.0, 0.0, 0.0));
@@ -32,10 +32,10 @@ public record TransformFrame(Vec3 origin, Vec3 xAxis, Vec3 yAxis, Vec3 zAxis, Ki
    }
 
    private static Vec3 normalizeOr(Vec3 value, Vec3 fallback) {
-      if (value == null || value.lengthSqr() < EPSILON) {
+      if (value == null || value.lengthSqr() < Epsilon.DIRECTION_LENGTH_SQUARED) {
          return fallback;
       }
-      return value.normalize();
+      return MinecraftVectors.normalizeDirection(value);
    }
 
    public enum Kind {

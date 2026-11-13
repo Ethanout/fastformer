@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
+import static io.github.fastformer.common.math.MinecraftVectors.normalize;
+
 import io.github.fastformer.fastplace.geometry.FillMode;
 
 import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
@@ -676,11 +678,6 @@ public final class FastPlaceGeometry {
          .max((left, right) -> Double.compare(Math.abs(direction.dot(left)), Math.abs(direction.dot(right))))
          .orElseGet(() -> dominantAxis(direction));
       return new FastPlaceGeometry.PlaneHit(normal, fallback.subtract(normal.scale(fallback.subtract(anchor).dot(normal))));
-   }
-
-   private static Vec3 normalize(Vec3 vector) {
-      double length = vector.length();
-      return length < 1.0E-7 ? Vec3.ZERO : vector.scale(1.0 / length);
    }
 
    private static record AxisRayCandidate(Vec3 axisPoint, double distanceSqr) {

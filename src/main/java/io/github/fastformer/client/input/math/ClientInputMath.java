@@ -8,8 +8,6 @@ import net.minecraft.world.phys.Vec3;
 
 /** Stateless coordinate and axis helpers shared by input gesture routes. */
 public final class ClientInputMath {
-   private static final double EPSILON = 1.0E-7;
-
    private ClientInputMath() {
    }
 
@@ -67,7 +65,4 @@ public final class ClientInputMath {
       return axis == 0 ? value.x : axis == 1 ? value.y : value.z;
    }
 
-   public static Vec3 normalize(Vec3 vector) {
-      return vector == null || vector.lengthSqr() < EPSILON ? Vec3.ZERO : vector.normalize();
-   }
 }

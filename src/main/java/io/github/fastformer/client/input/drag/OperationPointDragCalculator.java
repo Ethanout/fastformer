@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input.drag;
 
 import io.github.fastformer.client.input.math.ClientInputMath;
+import io.github.fastformer.common.math.MinecraftVectors;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
@@ -66,7 +67,7 @@ public final class OperationPointDragCalculator {
       if (drag.plane() == null) {
          return OperationPointDragConstraint.LINE;
       }
-      Vec3 ray = ClientInputMath.normalize(view);
+      Vec3 ray = MinecraftVectors.normalizeDirectionOrZero(view);
       SelectionPrism.GridLine targetingLine = drag.line().through(drag.initialPoint());
       Vec3 linePoint = OperationGeometry.closestPointOnAxisToRay(
          targetingLine.anchor(), targetingLine.direction(), eye, ray

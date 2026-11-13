@@ -31,7 +31,9 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
                     packageName.startsWith('io.github.fastformer.common.raycast') ||
-                    packageName.startsWith('io.github.fastformer.common.preview')) && source.name != 'package-info.java') {
+                    packageName.startsWith('io.github.fastformer.common.preview') ||
+                    packageName.startsWith('io.github.fastformer.common.math') ||
+                    packageName.startsWith('io.github.fastformer.core.math')) && source.name != 'package-info.java') {
                 boundedPackages[packageName].add(source)
             }
             if (main && packageName == 'io.github.fastformer' && source.name != 'FastFormer.java') {
@@ -75,7 +77,8 @@ abstract class VerifySourceLayout extends DefaultTask {
             }
             if (main && (packageName.startsWith('io.github.fastformer.common.history') ||
                     packageName.startsWith('io.github.fastformer.common.raycast') ||
-                    packageName.startsWith('io.github.fastformer.common.preview')) &&
+                    packageName.startsWith('io.github.fastformer.common.preview') ||
+                    packageName.startsWith('io.github.fastformer.common.math')) &&
                     (dependencies =~ /(?:io\.github\.fastformer\.(?:client|server|network|protocol)\.|net\.minecraft\.(?:client|server)\.|\bFastPlaceSettings\b)/).find()) {
                 violations.add("Shared data model depends on a runtime or wire implementation: ${path}")
             }

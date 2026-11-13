@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input.drag;
 
-import io.github.fastformer.client.input.math.ClientInputMath;
+import io.github.fastformer.common.math.MinecraftVectors;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import net.minecraft.world.phys.Vec3;
 
@@ -24,7 +24,7 @@ public final class GizmoDragCalculator {
    }
 
    public static int geometryRotationSteps(GeometryGizmoDrag drag, Vec3 eye, Vec3 view) {
-      Vec3 normal = ClientInputMath.normalize(drag.axisVector());
+      Vec3 normal = MinecraftVectors.normalizeDirectionOrZero(drag.axisVector());
       double denominator = normal.dot(view);
       if (Math.abs(denominator) < 1.0E-7) {
          return drag.sentSteps();
@@ -51,6 +51,6 @@ public final class GizmoDragCalculator {
    }
 
    public static Vec3 rotationTangent(Vec3 normal, Vec3 radial) {
-      return ClientInputMath.normalize(normal).cross(radial).normalize();
+      return MinecraftVectors.normalizeDirectionOrZero(normal).cross(radial).normalize();
    }
 }

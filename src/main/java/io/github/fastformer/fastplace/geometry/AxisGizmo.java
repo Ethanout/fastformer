@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import static io.github.fastformer.common.math.MinecraftVectors.normalizeDirectionOrZero;
+
 import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.interaction.HoverFeedback;
@@ -157,7 +159,7 @@ public record AxisGizmo(
    }
 
    public Hit hitTest(Vec3 eye, Vec3 view, double maxDistance) {
-      Vec3 direction = normalize(view);
+      Vec3 direction = normalizeDirectionOrZero(view);
       if (eye == null || direction.lengthSqr() < EPSILON || maxDistance <= 0.0) {
          return null;
       }
@@ -213,7 +215,7 @@ public record AxisGizmo(
    }
 
    private Hit hitAxis(Handle handle, Vec3 eye, Vec3 direction, double maxDistance) {
-      Vec3 axis = normalize(this.axisVector(handle.axis()));
+      Vec3 axis = normalizeDirectionOrZero(this.axisVector(handle.axis()));
       if (axis.lengthSqr() < EPSILON) {
          return null;
       }
@@ -265,7 +267,7 @@ public record AxisGizmo(
    }
 
    private Hit hitRing(Handle handle, Vec3 eye, Vec3 direction, double maxDistance) {
-      Vec3 normal = normalize(this.axisVector(handle.axis()));
+      Vec3 normal = normalizeDirectionOrZero(this.axisVector(handle.axis()));
       if (normal.lengthSqr() < EPSILON) {
          return null;
       }
@@ -289,13 +291,6 @@ public record AxisGizmo(
          return null;
       }
       return new Hit(handle, point, rayDistance, handleDistance);
-   }
-
-   private static Vec3 normalize(Vec3 vector) {
-      if (vector == null || vector.lengthSqr() < EPSILON) {
-         return Vec3.ZERO;
-      }
-      return vector.normalize();
    }
 
    public record Handle(

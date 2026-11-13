@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.interaction;
 
+import static io.github.fastformer.common.math.MinecraftVectors.normalizeDirectionOrZero;
+
 import java.util.Collection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.AABB;
@@ -15,7 +17,7 @@ public record GeometryInteractionHit(GeometryInteractionTarget target, double ra
       if (target == null) {
          return null;
       }
-      Vec3 direction = normalize(view);
+      Vec3 direction = normalizeDirectionOrZero(view);
       if (eye == null || direction.lengthSqr() < EPSILON || !Double.isFinite(reach) || reach <= 0.0) {
          return null;
       }
@@ -83,10 +85,4 @@ public record GeometryInteractionHit(GeometryInteractionTarget target, double ra
       return minDistance;
    }
 
-   private static Vec3 normalize(Vec3 vector) {
-      if (vector == null || vector.lengthSqr() < EPSILON) {
-         return Vec3.ZERO;
-      }
-      return vector.normalize();
-   }
 }

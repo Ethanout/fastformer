@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import static io.github.fastformer.common.math.MinecraftVectors.normalize;
+
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -284,11 +286,6 @@ public final class OperationGeometry {
          return new AxisHit(first, second, minNormal, maxNormal);
       }
       return new AxisHit(second, first, maxNormal, minNormal);
-   }
-
-   private static Vec3 normalize(Vec3 vector) {
-      double length = vector.length();
-      return length < EPSILON ? Vec3.ZERO : vector.scale(1.0 / length);
    }
 
    private static int normalAxis(Vec3 normal) {
