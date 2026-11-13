@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Test;
  * {@link RecoveryHandoffBoundaryGameTests} and fails hard there instead of skipping.
  */
 class RecoveryHandoffBoundaryTest {
+   private final Object server = new Object();
    private static final HistoryService history = new HistoryService(
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
@@ -53,7 +54,7 @@ class RecoveryHandoffBoundaryTest {
    @AfterEach
    void clearState() {
       history.clear();
-      WorldWriteCoordinator.clearAll();
+      WorldWriteCoordinator.clear(server);
    }
 
    @Test
@@ -75,7 +76,6 @@ class RecoveryHandoffBoundaryTest {
 
    @Test
    void theUnusedJournalCleanupKeepsTheLeaseUntilTheJournalSignalSettles() {
-      Object server = new Object();
       UUID owner = UUID.randomUUID();
       WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, DIMENSION, owner);
       assertNotNull(lease);

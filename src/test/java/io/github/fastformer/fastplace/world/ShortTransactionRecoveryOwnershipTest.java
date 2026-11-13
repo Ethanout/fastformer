@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
  * exist.</p>
  */
 class ShortTransactionRecoveryOwnershipTest {
+   private final Object server = new Object();
    private static final HistoryService history = new HistoryService(
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
@@ -43,12 +44,11 @@ class ShortTransactionRecoveryOwnershipTest {
    @AfterEach
    void clearState() {
       history.clear();
-      WorldWriteCoordinator.clearAll();
+      WorldWriteCoordinator.clear(server);
    }
 
    @Test
    void anAcceptedHandOffGivesTheCaptureToTheRecoveryQueueAndKeepsTheLease() {
-      Object server = new Object();
       UUID owner = UUID.randomUUID();
       WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, DIMENSION, owner);
       assertNotNull(lease);
@@ -68,7 +68,6 @@ class ShortTransactionRecoveryOwnershipTest {
 
    @Test
    void aRefusedHandOffReportsABlockedRecoveryAndNeverClaimsARecovery() {
-      Object server = new Object();
       UUID owner = UUID.randomUUID();
       WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, DIMENSION, owner);
       assertNotNull(lease);
@@ -93,7 +92,6 @@ class ShortTransactionRecoveryOwnershipTest {
 
    @Test
    void anEmptyOrMissingCaptureIsNotHandedOff() {
-      Object server = new Object();
       UUID owner = UUID.randomUUID();
       WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, DIMENSION, owner);
       assertNotNull(lease);

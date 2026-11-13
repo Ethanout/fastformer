@@ -157,19 +157,29 @@ class WorldWriteCoordinatorTest {
    }
 
    @Test
-   void newServerLifecycleCanDiscardEveryStaleServerLease() {
+   void clearingOneServerAndItsLateCleanupCannotReleaseAnotherLiveServer() {
       Object firstServer = new Object();
-      Object staleServer = new Object();
+      Object liveServer = new Object();
       UUID firstOwner = UUID.randomUUID();
-      UUID staleOwner = UUID.randomUUID();
-
-      assertNotNull(WorldWriteCoordinator.acquire(firstServer, Level.OVERWORLD, firstOwner));
-      assertNotNull(WorldWriteCoordinator.acquire(staleServer, Level.NETHER, staleOwner));
-
-      WorldWriteCoordinator.clearAll();
-
-      assertFalse(WorldWriteCoordinator.heldBy(firstServer, Level.OVERWORLD, firstOwner));
-      assertFalse(WorldWriteCoordinator.heldBy(staleServer, Level.NETHER, staleOwner));
+      UUID liveOwner = UUID.randomUUID();
+      var pending = new CompletableFuture<Optional<PersistentRecoveryJournal>>();
+      try {
+         var first = WorldWriteCoordinator.acquire(firstServer, Level.OVERWORLD, firstOwner);
+         var live = WorldWriteCoordinator.acquire(liveServer, Level.OVERWORLD, liveOwner);
+         assertNotNull(first);
+         assertNotNull(live);
+         WorldWriteCoordinator.releaseAfterUnusedJournal(first, null, pending);
+         WorldWriteCoordinator.clear(firstServer);
+         assertFalse(WorldWriteCoordinator.renew(first));
+         assertTrue(WorldWriteCoordinator.renew(live));
+         pending.complete(Optional.empty());
+         assertFalse(WorldWriteCoordinator.busy(firstServer, Level.OVERWORLD));
+         assertTrue(WorldWriteCoordinator.renew(live));
+      } finally {
+         pending.complete(Optional.empty());
+         WorldWriteCoordinator.clear(firstServer);
+         WorldWriteCoordinator.clear(liveServer);
+      }
    }
 
    @Test

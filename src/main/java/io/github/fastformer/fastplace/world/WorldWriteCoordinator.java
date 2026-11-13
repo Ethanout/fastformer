@@ -341,11 +341,6 @@ public final class WorldWriteCoordinator {
       }
    }
 
-   public static synchronized void clearAll() {
-      LEASES.clear();
-      PENDING_UNUSED.clear();
-   }
-
    private static final class LeaseState {
       private final UUID owner;
       private long generation;

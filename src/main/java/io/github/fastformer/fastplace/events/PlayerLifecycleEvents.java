@@ -100,7 +100,7 @@ public final class PlayerLifecycleEvents {
       HistorySystem.start(event.getServer());
       UploadSystem.start(event.getServer());
       HistorySystem.of(event.getServer()).clear();
-      WorldWriteCoordinator.clearAll();
+      WorldWriteCoordinator.clear(event.getServer());
       if (PersistentRecoveryJournal.awaitIoIdle(event.getServer())) {
          PersistentRecoveryJournal.recoverAll(event.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(event.getServer())));
       }
