@@ -1,7 +1,9 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
@@ -79,15 +81,21 @@ public final class BlockEditTransaction {
    }
 
    public static Outcome apply(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
-      int writeFlags, int restoreFlags, io.github.fastformer.fastplace.history.BlockEditHistoryMetadata metadata) {
+      int writeFlags, int restoreFlags, io.github.fastformer.server.history.entry.BlockEditHistoryMetadata metadata) {
       return applyChanges(player, level, changes, writeFlags, restoreFlags, (before, after) -> metadata == null
-         ? WorldHistoryManager.record(player, level, before, after)
-         : WorldHistoryManager.recordTinker(player, level, before, after, metadata));
+         ? HistorySystem.of(player).record(player, level, before, after)
+         : HistorySystem.of(player).recordTinker(player, level, before, after, metadata));
    }
 
    public static Outcome applyWithoutHistory(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
       int writeFlags, int restoreFlags) {
       return applyChanges(player, level, changes, writeFlags, restoreFlags, (before, after) -> true);
+   }
+
+   public static Outcome applyGesture(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
+      int writeFlags, int restoreFlags, io.github.fastformer.server.history.memory.BlockEditHistoryGesture gesture) {
+      return applyChanges(player, level, changes, writeFlags, restoreFlags,
+         (before, after) -> HistorySystem.of(player).recordGesture(player, level, before, after, gesture));
    }
 
    private static Outcome applyChanges(ServerPlayer player, ServerLevel level, Map<BlockPos, BlockState> changes,
@@ -102,12 +110,12 @@ public final class BlockEditTransaction {
 
    /** Observes a vanilla action without replaying it; failed history publication uses the same recovery path as FF edits. */
    public static <T> T observe(ServerPlayer player, java.util.function.Supplier<T> action, T failure) {
-      if (ObservedBlockChanges.active()) return action.get();
+      if (ObservedBlockChanges.active(player)) return action.get();
       ServerLevel level = player.serverLevel();
       WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
       var lease = WorldWriteCoordinator.acquire(context.server(), level.dimension(), context.owner());
       if (lease == null) return failure;
-      var capture = new ObservedBlockChanges(level);
+      var capture = new ObservedBlockChanges(player);
       int flags = io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags();
       try {
          T result;
@@ -118,8 +126,8 @@ public final class BlockEditTransaction {
          }
          var before = capture.changedBefore();
          if (!before.isEmpty()) {
-            var metadata = io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromVanillaEdit();
-            boolean recorded = WorldHistoryManager.recordTinker(player, level, before, capture.after(), metadata);
+            var metadata = io.github.fastformer.server.history.entry.BlockEditHistoryMetadata.fromVanillaEdit();
+            boolean recorded = HistorySystem.of(player).recordTinker(player, level, before, capture.after(), metadata);
             if (!recorded) {
                report(fail(level, context, lease, capture.rollbackSnapshots(), capture.after(), flags, "observed-history"), player);
                return failure;
@@ -138,6 +146,12 @@ public final class BlockEditTransaction {
       return ObservedBlockChanges.observe(level, pos, write);
    }
 
+   /** Vanilla may publish an item event inside its already admitted history transaction. */
+   public static boolean continuingObservedAction(ServerPlayer player) {
+      return ObservedBlockChanges.active(player)
+         && WorldWriteCoordinator.heldBy(player.getServer(), player.serverLevel().dimension(), player.getUUID());
+   }
+
    public static Outcome restore(ServerPlayer player, ServerLevel level,
       Map<BlockPos, ReversibleBlockSnapshot> originals, Map<BlockPos, ReversibleBlockSnapshot> expected,
       java.util.UUID originalOperation) {
@@ -145,7 +159,7 @@ public final class BlockEditTransaction {
          || expected == null || !originals.keySet().equals(expected.keySet())) return Outcome.NOT_APPLICABLE;
       int flags = io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags();
       return applyTargets(player, level, originals.keySet(), position -> originals.get(position).restore(level, flags),
-         expected, flags, (before, after) -> WorldHistoryManager.recordRestoration(player, level, before, after, originalOperation));
+         expected, flags, (before, after) -> HistorySystem.of(player).recordRestoration(player, level, before, after, originalOperation));
    }
 
    @FunctionalInterface
@@ -224,7 +238,7 @@ public final class BlockEditTransaction {
          WorldWriteCoordinator.release(lease);
          return Outcome.RESTORED;
       }
-      Outcome outcome = handOffRecovery(context, level.dimension(), before, after);
+      Outcome outcome = handOffRecovery(context, level.dimension(), before, after, HistorySystem.of(context.server()));
       if (outcome == Outcome.RECOVERY_BLOCKED) {
          LOGGER.error(
             "FastFormer short world transaction in {} could not hand {} unfinished positions to recovery ({}); the write lease stays locked",
@@ -251,9 +265,10 @@ public final class BlockEditTransaction {
       WorldTaskContext context,
       ResourceKey<Level> dimension,
       ArrayDeque<ReversibleBlockSnapshot> before,
-      Map<BlockPos, ReversibleBlockSnapshot> after
+      Map<BlockPos, ReversibleBlockSnapshot> after,
+      HistoryService history
    ) {
-      return WorldHistoryManager.acceptShortTransactionRecovery(context, dimension, before, after)
+      return history.acceptShortTransactionRecovery(context, dimension, before, after)
          ? Outcome.RECOVERY_PENDING
          : Outcome.RECOVERY_BLOCKED;
    }

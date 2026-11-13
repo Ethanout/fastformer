@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.history.WorldChangeBatch;
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
-import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.time.Duration;
@@ -140,7 +140,7 @@ class WorldChangeTransactionTest {
    void commitIsReturnedToTheCallerAndWriteStateCanBeReleasedSeparately() {
       WorldChangeTransaction transaction = changedTransaction();
       UUID operationId = UUID.randomUUID();
-      WorldOperationCommit commit = WorldOperationCommit.begin(Level.OVERWORLD, transaction, null);
+      WorldOperationCommit commit = WorldOperationCommit.begin(Level.OVERWORLD, transaction.beforeView(), transaction.afterView(), null, Runnable::run);
 
       JournalPreparation result = await(commit::poll);
 

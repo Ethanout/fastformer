@@ -70,7 +70,7 @@ class FaceTieBiasGenerationTest {
          LinkedHashSet<BlockPos> expectedShell = new LinkedHashSet<>();
          for (List<Vec3> face : boxFaces(base, extrusion)) {
             ProjectedBresenhamFace.Frame faceFrame = ProjectedBresenhamFace.Frame.create(face);
-            BresenhamFaceSweep.Attempt attempt = BoundaryInterpolatedFaceRasterizer.attempt(
+            BresenhamFaceSweep.Attempt attempt = QuadFaceRasterizer.attempt(
                faceFrame,
                bias,
                10_000,

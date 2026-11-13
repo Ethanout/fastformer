@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import io.github.fastformer.fastplace.geometry.generation.BoundaryInterpolatedFaceRasterizer.Pixel;
+import io.github.fastformer.fastplace.geometry.generation.QuadFaceRasterizer.Pixel;
 
 /** Fits one plane to fixed edge samples with the smallest required height corrections. */
 final class NormalPlaneFaceRasterizer {

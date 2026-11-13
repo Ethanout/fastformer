@@ -1,7 +1,7 @@
 package io.github.fastformer.network.payload;
 
 import static org.junit.jupiter.api.Assertions.*;
-import io.github.fastformer.network.payload.placement.SmartFillCommandPayload;
+import io.github.fastformer.protocol.c2s.placement.SmartFillCommandPayload;
 import io.netty.buffer.Unpooled;
 import java.util.UUID;
 import net.minecraft.network.FriendlyByteBuf;

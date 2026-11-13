@@ -1,9 +1,15 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewEffectSnapshot;
+
 import static org.junit.jupiter.api.Assertions.*;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
-import io.github.fastformer.network.payload.preview.*;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
 import io.github.fastformer.client.render.state.ClientPreviewState;
 import java.util.List;
 import java.util.UUID;
@@ -16,7 +22,7 @@ class QuickShapeKeyboardSnapshotTest {
    void queuedEnterRetainsItsOriginalSnapshotAfterARevisionArrives() {
       var state = new ClientPreviewState();
       var scope = new OperationCallbackScope(UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID());
-      var defaults = BuildingPreviewPayload.inactive();
+      var defaults = BuildingPreviewSnapshot.inactive();
       var session = new BuildingPreviewSession(true, true, true, false, false, false,
          defaults.polygonVolumeShape(), List.of(new BlockPos(1, 2, 3)), BlockPos.ZERO, null);
       state.applyBuildingSession(new BuildingPreviewSessionPayload(1, session, scope));

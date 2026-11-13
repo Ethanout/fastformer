@@ -1,11 +1,15 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
-import io.github.fastformer.network.payload.operation.OperationExtendPayload;
-import io.github.fastformer.network.sync.PlayerPreviewSync;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
+import io.github.fastformer.protocol.c2s.operation.OperationExtendPayload;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.FastPlaceManager;
 import io.github.fastformer.server.session.OperationManager;
@@ -29,24 +33,24 @@ public final class OperationExtendIdentityGameTests {
          ready(helper, player);
          var session = OperationManager.session(player).orElseThrow();
          session.confirmSelection();
-         long revision = PlayerPreviewSync.operationRevision(player);
-         var scope = PlayerPreviewSync.callbackScope(player);
+         long revision = PreviewSync.operationRevision(player);
+         var scope = PreviewSync.callbackScope(player);
          int move = io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.MOVE.ordinal();
-         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.network.payload.operation.OperationTransformPayload(100, 100, revision, scope, move, 0, 1, 2, false));
+         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.protocol.c2s.operation.OperationTransformPayload(100, 100, revision, scope, move, 0, 1, 2, false));
          helper.assertTrue(session.translation().getX() == 2 && session.transformActive(), "first transform did not apply");
-         long next = PlayerPreviewSync.operationRevision(player);
-         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.network.payload.operation.OperationTransformPayload(101, 101, next, scope, move, 0, 1, 3, false));
+         long next = PreviewSync.operationRevision(player);
+         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.protocol.c2s.operation.OperationTransformPayload(101, 101, next, scope, move, 0, 1, 3, false));
          helper.assertTrue(session.translation().getX() == 5, "replacement reused the old transform baseline");
-         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.network.payload.operation.OperationTransformPayload(102, 100, revision, scope, move, 0, 1, 20, true));
+         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.protocol.c2s.operation.OperationTransformPayload(102, 100, revision, scope, move, 0, 1, 20, true));
          helper.assertTrue(session.translation().getX() == 5 && session.transformActive(), "old finish changed the replacement");
-         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.network.payload.operation.OperationTransformPayload(103, 101, next, scope, move, 0, 1, 4, true));
+         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.protocol.c2s.operation.OperationTransformPayload(103, 101, next, scope, move, 0, 1, 4, true));
          helper.assertTrue(session.translation().getX() == 6 && !session.transformActive(), "owned finish did not apply");
          OperationManager.cancel(player);
          BlockPos origin = helper.absolutePos(new BlockPos(1, 5, 1));
          OperationManager.startFirst(player, origin);
          OperationManager.startSecond(player, origin.offset(3, 0, 0));
          var replacement = OperationManager.session(player).orElseThrow();
-         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.network.payload.operation.OperationTransformPayload(104, 101, next, scope, move, 0, 1, 10, true));
+         ServerInputDispatcher.operationTransform(player, new io.github.fastformer.protocol.c2s.operation.OperationTransformPayload(104, 101, next, scope, move, 0, 1, 10, true));
          helper.assertTrue(replacement.translation().equals(BlockPos.ZERO), "old session finish changed the new draft");
          OperationManager.cancel(player);
       });
@@ -57,8 +61,8 @@ public final class OperationExtendIdentityGameTests {
       ServerPlayer player = preparedOperation(helper);
       helper.succeedWhen(() -> {
          ready(helper, player);
-         long old = PlayerPreviewSync.operationRevision(player);
-         var scope = PlayerPreviewSync.callbackScope(player);
+         long old = PreviewSync.operationRevision(player);
+         var scope = PreviewSync.callbackScope(player);
          OperationManager.cancel(player);
          BlockPos origin = helper.absolutePos(new BlockPos(1, 5, 1));
          OperationManager.startFirst(player, origin);
@@ -68,11 +72,11 @@ public final class OperationExtendIdentityGameTests {
          OperationManager.addSelectionPoint(player, origin);
          OperationManager.addSelectionPoint(player, origin.offset(3, 0, 0));
          OperationManager.addSelectionPoint(player, origin.offset(0, 0, 3));
-         ServerInputDispatcher.closeActivePath(player, new io.github.fastformer.network.payload.geometry.ClosePathPayload(200, old, scope,
-            io.github.fastformer.network.payload.geometry.ClosePathPayload.Kind.OPERATION));
+         ServerInputDispatcher.closeActivePath(player, new io.github.fastformer.protocol.c2s.geometry.ClosePathPayload(200, old, scope,
+            io.github.fastformer.protocol.c2s.geometry.ClosePathPayload.Kind.OPERATION));
          helper.assertFalse(session.prismBaseClosed(), "old close changed the replacement draft");
-         ServerInputDispatcher.closeActivePath(player, new io.github.fastformer.network.payload.geometry.ClosePathPayload(201, PlayerPreviewSync.operationRevision(player), scope,
-            io.github.fastformer.network.payload.geometry.ClosePathPayload.Kind.OPERATION));
+         ServerInputDispatcher.closeActivePath(player, new io.github.fastformer.protocol.c2s.geometry.ClosePathPayload(201, PreviewSync.operationRevision(player), scope,
+            io.github.fastformer.protocol.c2s.geometry.ClosePathPayload.Kind.OPERATION));
          helper.assertTrue(session.prismBaseClosed(), "valid close did not close the prism");
          OperationManager.cancel(player);
       });
@@ -83,20 +87,20 @@ public final class OperationExtendIdentityGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "operation_extend_identity", timeoutTicks = 600)
    public static void continuousDragKeepsCapturedRevisionAfterPreviewUpdate(GameTestHelper helper) {
       ServerPlayer player = preparedOperation(helper);
-      long capturedRevision = PlayerPreviewSync.operationRevision(player);
-      OperationCallbackScope scope = PlayerPreviewSync.callbackScope(player);
+      long capturedRevision = PreviewSync.operationRevision(player);
+      OperationCallbackScope scope = PreviewSync.callbackScope(player);
 
       helper.succeedWhen(() -> {
          ready(helper, player);
          var session = OperationManager.session(player).orElseThrow();
          int initialMax = session.cuboidMaxPoint().getX();
          ServerInputDispatcher.extend(player, new OperationExtendPayload(1L, capturedRevision, scope, 0, true, 1, false));
-         long updatedRevision = PlayerPreviewSync.operationRevision(player);
+         long updatedRevision = PreviewSync.operationRevision(player);
          helper.assertTrue(updatedRevision != capturedRevision, "the first drag packet did not publish a new preview");
          ServerInputDispatcher.extend(player, new OperationExtendPayload(1L, capturedRevision, scope, 0, true, 1, true));
          helper.assertTrue(session.cuboidMaxPoint().getX() == initialMax + 2, "the finish delta was not applied");
          helper.assertFalse(session.extend(), "the finish packet did not close the edit");
-         long nextRevision = PlayerPreviewSync.operationRevision(player);
+         long nextRevision = PreviewSync.operationRevision(player);
          ServerInputDispatcher.extend(player, new OperationExtendPayload(2L, nextRevision, scope, 0, true, 1, false));
          ServerInputDispatcher.extend(player, new OperationExtendPayload(1L, capturedRevision, scope, 0, true, 10, true));
          helper.assertTrue(session.cuboidMaxPoint().getX() == initialMax + 3 && session.extend(), "a stale finish changed the new gesture");
@@ -110,8 +114,8 @@ public final class OperationExtendIdentityGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "operation_extend_identity", timeoutTicks = 600)
    public static void changedIdentityCannotContinueDrag(GameTestHelper helper) {
       ServerPlayer player = preparedOperation(helper);
-      long revision = PlayerPreviewSync.operationRevision(player);
-      OperationCallbackScope scope = PlayerPreviewSync.callbackScope(player);
+      long revision = PreviewSync.operationRevision(player);
+      OperationCallbackScope scope = PreviewSync.callbackScope(player);
 
       helper.succeedWhen(() -> {
          ready(helper, player);
@@ -131,8 +135,8 @@ public final class OperationExtendIdentityGameTests {
       ServerPlayer player = preparedOperation(helper);
       helper.succeedWhen(() -> {
          ready(helper, player);
-         long revision = PlayerPreviewSync.operationRevision(player);
-         var scope = PlayerPreviewSync.callbackScope(player);
+         long revision = PreviewSync.operationRevision(player);
+         var scope = PreviewSync.callbackScope(player);
          ServerInputDispatcher.extend(player, new OperationExtendPayload(10, revision, scope, 0, true, 1, false));
          FastPlaceManager.quit(player);
          BlockPos origin = helper.absolutePos(new BlockPos(1,5,1));
@@ -140,7 +144,7 @@ public final class OperationExtendIdentityGameTests {
          OperationManager.startSecond(player, origin.offset(3,0,0));
          var session = OperationManager.session(player).orElseThrow();
          int before = session.cuboidMaxPoint().getX();
-         long next = PlayerPreviewSync.operationRevision(player);
+         long next = PreviewSync.operationRevision(player);
          ServerInputDispatcher.extend(player, new OperationExtendPayload(11, next, scope, 0, true, 2, false));
          ServerInputDispatcher.extend(player, new OperationExtendPayload(10, revision, scope, 0, true, 20, true));
          helper.assertTrue(session.cuboidMaxPoint().getX() == before + 2 && session.extend(), "replacement drag was blocked or ended by stale input");
@@ -152,7 +156,7 @@ public final class OperationExtendIdentityGameTests {
 
    private static ServerPlayer preparedOperation(GameTestHelper helper) {
       ServerPlayer player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, HISTORY_TIMEOUT_MILLIS);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, HISTORY_TIMEOUT_MILLIS);
       player.setGameMode(GameType.CREATIVE);
       BlockPos origin = helper.absolutePos(new BlockPos(1, 5, 1));
       OperationManager.startFirst(player, origin);

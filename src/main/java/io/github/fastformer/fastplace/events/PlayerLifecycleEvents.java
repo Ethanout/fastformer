@@ -1,14 +1,20 @@
 package io.github.fastformer.fastplace.events;
 
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.history.HistorySystem;
+import io.github.fastformer.server.network.upload.UploadSystem;
+
+import io.github.fastformer.server.history.HistoryService;
+import io.github.fastformer.server.history.HistoryRecoveryReconciler;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.WorldTaskFeature;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.network.FastPlaceNetwork;
-import io.github.fastformer.network.sync.PlayerPreviewSync;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.lifecycle.ServerBackgroundTasks;
+import io.github.fastformer.server.player.PlayerStateRegistry;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
@@ -41,10 +47,11 @@ public final class PlayerLifecycleEvents {
       if (event.getOriginal() instanceof ServerPlayer oldPlayer
          && event.getEntity() instanceof ServerPlayer newPlayer) {
          FastPlaceSettings.copy(oldPlayer, newPlayer);
-         io.github.fastformer.server.session.SmartFillManager.forget(oldPlayer.getUUID());
          io.github.fastformer.fastplace.settings.PlayerBlockReach.copy(oldPlayer, newPlayer);
-         io.github.fastformer.server.input.IdleInteractionSnapshots.remove(oldPlayer);
-         PlayerPreviewSync.syncInteractionUpdates(newPlayer);
+         UploadSystem.forget(oldPlayer);
+         PlayerStateRegistry.detach(oldPlayer);
+         PlayerStateRegistry.attach(newPlayer);
+         PreviewSync.syncInteractionUpdates(newPlayer);
          // Rebind the retained UUID-owned workflow to the replacement instance.
          FastPlaceManager.syncCurrentPreview(newPlayer);
       }
@@ -58,8 +65,8 @@ public final class PlayerLifecycleEvents {
          // old environment ends, so old coordinates are never used in the new
          // dimension.
          FastPlaceManager.handleDimensionChange(player, event.getFrom(), event.getTo());
-         io.github.fastformer.server.input.IdleInteractionSnapshots.remove(player);
-         PlayerPreviewSync.syncInteractionUpdates(player);
+         PlayerStateRegistry.dimensionChanged(player);
+         PreviewSync.syncInteractionUpdates(player);
       }
    }
 
@@ -67,13 +74,13 @@ public final class PlayerLifecycleEvents {
       if (!(event.getEntity() instanceof ServerPlayer player)) {
          return;
       }
-      PlayerPreviewSync.beginClientSession(player);
-      io.github.fastformer.fastplace.settings.LegacyReachMigration.apply(player);
+      PlayerStateRegistry.attach(player);
+      PreviewSync.beginClientSession(player);
       io.github.fastformer.fastplace.settings.PlayerBlockReach.initialize(player);
       FastPlaceNetwork.syncSettings(player);
       // Reattach UUID-owned workflows after a reconnect or player replacement.
       FastPlaceManager.syncCurrentPreview(player);
-      WorldHistoryManager.trimToSetting(player, FastPlaceSettings.load(player).worldUndoHistoryLimit());
+      HistorySystem.of(player).trimToSetting(player, FastPlaceSettings.load(player).worldUndoHistoryLimit());
       WorldTaskFeature.attachPlayer(player);
       if (!PersistentRecoveryJournal.writesAllowed()) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
@@ -82,33 +89,37 @@ public final class PlayerLifecycleEvents {
 
    private static void onPlayerLogout(PlayerLoggedOutEvent event) {
       if (event.getEntity() instanceof ServerPlayer player) {
-         io.github.fastformer.server.input.IdleInteractionSnapshots.remove(player);
+         PlayerStateRegistry.detach(player);
          FastPlaceManager.detachPlayer(player);
       }
    }
 
    private static void onServerStarted(ServerStartedEvent event) {
-      io.github.fastformer.server.input.IdleInteractionSnapshots.clear();
+      ServerBackgroundTasks.start(event.getServer());
+      PlayerStateRegistry.start(event.getServer());
+      HistorySystem.start(event.getServer());
+      UploadSystem.start(event.getServer());
       FastPlaceManager.clearServer();
-      WorldHistoryManager.clearServer();
+      HistorySystem.of(event.getServer()).clear();
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clearAll();
-      if (PersistentRecoveryJournal.awaitIoIdle()) {
-         PersistentRecoveryJournal.recoverAll(event.getServer());
+      if (PersistentRecoveryJournal.awaitIoIdle(event.getServer())) {
+         PersistentRecoveryJournal.recoverAll(event.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(event.getServer())));
       }
-      WorldHistoryManager.resumeDiskCleanup(event.getServer());
+      HistorySystem.of(event.getServer()).resumeDiskCleanup(event.getServer());
    }
 
    private static void onServerStopping(ServerStoppingEvent event) {
-      io.github.fastformer.server.input.IdleInteractionSnapshots.clear();
+      PlayerStateRegistry.discardPlayers(event.getServer());
       for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
          FastPlaceManager.remove(player);
       }
       FastPlaceManager.clearServer();
-      PersistentRecoveryJournal.awaitIoIdle();
-      WorldHistoryManager.awaitDiskWritesOnShutdown(event.getServer());
-      WorldHistoryManager.clearServer();
-      FastPlaceNetwork.clearServer();
+      PersistentRecoveryJournal.awaitIoIdle(event.getServer());
+      HistorySystem.of(event.getServer()).awaitDiskWritesOnShutdown(event.getServer());
+      HistorySystem.of(event.getServer()).clear();
+      UploadSystem.of(event.getServer()).close();
+      PreviewSync.clearServer();
       // The ledger belongs to one server instance. A different save must never answer
       // with a result that belongs to this one.
       io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
@@ -118,11 +129,15 @@ public final class PlayerLifecycleEvents {
 
    private static void onServerStopped(ServerStoppedEvent event) {
       FastPlaceManager.clearServer();
-      WorldHistoryManager.clearServer();
-      FastPlaceNetwork.clearServer();
+      HistorySystem.of(event.getServer()).clear();
+      UploadSystem.stop(event.getServer());
+      PreviewSync.clearServer();
       io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());
+      ServerBackgroundTasks.stop(event.getServer());
+      PlayerStateRegistry.stop(event.getServer());
+      HistorySystem.stop(event.getServer());
    }
 
    private static void onLevelSave(LevelEvent.Save event) {

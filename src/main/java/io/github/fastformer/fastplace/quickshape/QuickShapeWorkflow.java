@@ -43,6 +43,9 @@ public final class QuickShapeWorkflow {
    private static Decision confirmPoint(QuickShapeDraft draft, FaceMode faceMode, Event.ConfirmPoint event) {
       int previousCount = draft.points().size();
       boolean addPoint = previousCount == 0 || !draft.points().getLast().equals(event.point());
+      if (previousCount > 0 && draft.profile().maxStage().filter("line"::equals).isPresent()) {
+         return new Decision(Action.SUBMIT, previousCount == 1 && addPoint, false, false, false, false);
+      }
       if (draft.polygonClosed()) {
          return new Decision(Action.SUBMIT, addPoint, false, addPoint, false, false);
       }
@@ -63,6 +66,8 @@ public final class QuickShapeWorkflow {
    }
 
    private static Decision closePath(QuickShapeDraft draft, FaceMode faceMode) {
+      if (draft.profile().maxStage().filter(stage -> stage.equals("point") || stage.equals("line")).isPresent())
+         return unchanged(Action.REJECT);
       if (faceMode != FaceMode.POLYGON || draft.polygonClosed() || draft.points().size() < 3) {
          return unchanged(Action.REJECT);
       }

@@ -1,4 +1,5 @@
 {
+  "fastformer.option.hold_line": "Draw an axis-aligned line by holding use",
   "fastformer.settings.operation_category.flight": "Flight",
   "fastformer.settings.flight_dash_distance": "Double-tap W dash distance",
   "fastformer.settings.flight_dash_distance.value": "%s blocks",

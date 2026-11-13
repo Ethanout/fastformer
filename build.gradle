@@ -38,8 +38,9 @@ base {
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 sourceSets {
+    test.java.srcDir('src/testSupport/java')
     gameTest {
-        java.setSrcDirs(['src/gametest/java'])
+        java.setSrcDirs(['src/gametest/java', 'src/testSupport/java'])
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
     }
@@ -203,7 +204,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('jar', Jar).configure {
-    exclude 'io/github/fastformer/fastplace/history/RecoveryProcessTests*.class'
+    exclude 'io/github/fastformer/server/history/RecoveryProcessTests*.class'
     exclude '**/*GameTests*.class'
 }
 
@@ -266,9 +267,9 @@ tasks.register('verifyModJar') {
                 'io/github/fastformer/fastplace/workflow/ConvexPolyhedronWorkflow.class',
                 'io/github/fastformer/fastplace/session/FastPlaceActivity.class',
                 'io/github/fastformer/fastplace/world/snapshot/ReversibleBlockSnapshot.class',
-                'io/github/fastformer/fastplace/history/WorldHistoryManager.class',
-                'io/github/fastformer/fastplace/history/WorldChangeBatch.class',
-                 'io/github/fastformer/fastplace/recovery/PersistentRecoveryJournal.class',
+                'io/github/fastformer/server/history/HistoryService.class',
+                'io/github/fastformer/server/history/entry/WorldChangeBatch.class',
+                 'io/github/fastformer/server/recovery/PersistentRecoveryJournal.class',
                  'io/github/fastformer/fastplace/task/TaskCancellationResult.class',
                  'io/github/fastformer/fastplace/world/WorldWriteCoordinator.class',
                  'io/github/fastformer/fastplace/world/WorldOperationCommit.class',

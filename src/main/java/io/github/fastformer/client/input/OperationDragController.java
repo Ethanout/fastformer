@@ -6,12 +6,12 @@ import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.network.payload.operation.OperationExtendPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationExtendPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.Vec3;
@@ -26,7 +26,7 @@ final class OperationDragController {
    private OperationDragController() { }
 
    static boolean beginFace(Minecraft minecraft, ClientInputSession session, int mouseButton, int shortPressSteps) {
-      OperationSelectionVolume selection = FastPlaceClientPreview.operationSelection();
+      OperationSelectionVolume selection = FastPlaceClientPreviewCore.operationSelection();
       if (selection == null
          || shortPressSteps == 0
          || !ClientOperationController.operationSelectionReady()
@@ -36,7 +36,7 @@ final class OperationDragController {
 
       Vec3 eye = minecraft.player.getEyePosition();
       OperationGeometry.RayHit hit = ClientOperationController.operationCuboid()
-         ? FastPlaceClientPreview.operationFaceHit()
+         ? FastPlaceClientPreviewCore.operationFaceHit()
          : selection.raycast(eye, minecraft.player.getViewVector(1.0F), LongRangeBlockRaycast.MAX_REACH);
       if (hit == null) {
          return false;
@@ -69,8 +69,8 @@ final class OperationDragController {
    }
 
    static boolean beginGizmo(Minecraft minecraft, ClientInputSession session, int mouseButton) {
-      AxisGizmo gizmo = FastPlaceClientPreview.operationGizmo();
-      AxisGizmo.Hit hit = FastPlaceClientPreview.operationGizmoHit();
+      AxisGizmo gizmo = FastPlaceClientPreviewCore.operationGizmo();
+      AxisGizmo.Hit hit = FastPlaceClientPreviewCore.operationGizmoHit();
       if (gizmo == null || hit == null) {
          return false;
       }
@@ -82,7 +82,7 @@ final class OperationDragController {
       boolean positive = handle.direction() != AxisGizmo.Direction.NEGATIVE;
       Vec3 vector = gizmo.axisVector(handle.axis()).scale(positive ? 1.0 : -1.0);
       int encodedAxis = handle.operation() == AxisGizmo.Operation.MOVE
-         ? axis + (FastPlaceClientPreview.operationPointSelected() ? 6 : 3)
+         ? axis + (FastPlaceClientPreviewCore.operationPointSelected() ? 6 : 3)
          : axis;
       session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       session.operationDrag = new OperationDrag(
@@ -115,7 +115,7 @@ final class OperationDragController {
          drag = drag.withDeferredClick(drag.deferredClick().cancel());
       }
       if (drag.faceHit() != null && ClientOperationController.operationCuboid()) {
-         OperationSelectionVolume selection = FastPlaceClientPreview.operationSelection();
+         OperationSelectionVolume selection = FastPlaceClientPreviewCore.operationSelection();
          boolean inside = selection != null
             && selection.bounds().inflate(OperationSelectionVolume.RAYCAST_INFLATE).contains(eye);
          if (inside != drag.frame().reversed()) {
@@ -134,7 +134,7 @@ final class OperationDragController {
       drag = drag.withSentSteps(drag.sentSteps() + clippedDelta);
       session.operationDrag = drag;
       if (drag.gizmoKey() != null) {
-         FastPlaceClientPreview.noteGizmoFeedback(drag.gizmoKey().axis(), AxisGizmo.Operation.MOVE,
+         FastPlaceClientPreviewCore.noteGizmoFeedback(drag.gizmoKey().axis(), AxisGizmo.Operation.MOVE,
             drag.sentSteps(), drag.gizmoBaseValue());
       }
    }
@@ -143,7 +143,7 @@ final class OperationDragController {
       OperationDrag drag = session.operationDrag;
       if (!acceptsCapture(session, drag)) return;
       if (drag.gizmoKey() != null) {
-         FastPlaceClientPreview.noteGizmoFeedback(drag.gizmoKey().axis(), drag.gizmoKey().operation(),
+         FastPlaceClientPreviewCore.noteGizmoFeedback(drag.gizmoKey().axis(), drag.gizmoKey().operation(),
             drag.sentSteps(), drag.gizmoBaseValue());
       }
       if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
@@ -171,7 +171,7 @@ final class OperationDragController {
       if (drag == null) return false;
       boolean owned = session.pointerGesture.owns(drag.captureToken(), PointerGestureState.Kind.OPERATION_FACE)
          || session.pointerGesture.owns(drag.captureToken(), PointerGestureState.Kind.OPERATION_GIZMO);
-      if (owned && FastPlaceClientPreview.operationActive()) return true;
+      if (owned && FastPlaceClientPreviewCore.operationActive()) return true;
       clearCapture(session, drag);
       return false;
    }

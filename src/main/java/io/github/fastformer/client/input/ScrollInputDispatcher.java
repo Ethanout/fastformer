@@ -2,8 +2,8 @@ package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
-import io.github.fastformer.network.payload.geometry.ScrollCandidatePayload;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.protocol.c2s.geometry.ScrollCandidatePayload;
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
@@ -29,9 +29,9 @@ final class ScrollInputDispatcher {
       }
       if (route != ClientInputStateMachine.Dispatch.BLOCKED
          && NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id())
-         && FastPlaceClientPreview.usesScrollContext()) {
+         && FastPlaceClientPreviewCore.usesScrollContext()) {
          PacketDistributor.sendToServer(new ScrollCandidatePayload(event.direction()));
-         FastPlaceClientPreview.noteScrollFeedback();
+         FastPlaceClientPreviewCore.noteScrollFeedback();
       }
    }
 }

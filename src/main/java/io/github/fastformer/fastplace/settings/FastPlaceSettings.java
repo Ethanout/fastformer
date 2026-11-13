@@ -1,11 +1,12 @@
 package io.github.fastformer.fastplace.settings;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
@@ -29,12 +30,13 @@ import net.minecraft.server.level.ServerPlayer;
 
 public final class FastPlaceSettings {
    private static final String KEY = "fastformer";
+   /** Existing gameplay cap, centralized without changing accepted placement sizes. */
+   public static final int MAX_PLACEMENT = 20_972_152;
    public static final int DEFAULT_WORLD_UNDO_HISTORY_LIMIT = 200;
    public static final int DEFAULT_SESSION_UNDO_HISTORY_LIMIT = 100;
    public static final int MAX_UNDO_HISTORY_LIMIT = 800;
    private boolean enabled = true;
    private boolean middleConfirmEnabled = true;
-   private FaceRasterizationMode faceRasterizationMode = FaceRasterizationMode.DEFAULT;
    private PointMode pointMode = PointMode.RAYCAST;
    private LineMode lineMode = LineMode.AXIS;
    private FaceMode faceMode = FaceMode.POLYGON;
@@ -50,10 +52,10 @@ public final class FastPlaceSettings {
    private boolean skipRepeatedCropStages = true;
    private boolean forcePlacement = true;
    private boolean vanillaBlockHistory;
-   private int maxPlacement = 20972152;
+   private int maxPlacement = MAX_PLACEMENT;
    private int worldUndoHistoryLimit = DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
    private int sessionUndoHistoryLimit = DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
-   private io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits tinkerHistoryMergeLimits = io.github.fastformer.fastplace.history.HistoryStorageConfig.defaultMergeLimits();
+   private io.github.fastformer.common.history.HistoryCompressionLimits tinkerHistoryMergeLimits = io.github.fastformer.server.history.HistoryStorageConfig.defaultMergeLimits();
    private double angleDegrees = 0.0;
 
    private FastPlaceSettings() {
@@ -76,7 +78,6 @@ public final class FastPlaceSettings {
       FastPlaceSettings settings = new FastPlaceSettings();
       settings.enabled = !tag.contains("enabled") || tag.getBoolean("enabled");
       settings.middleConfirmEnabled = !tag.contains("middleConfirmEnabled") || tag.getBoolean("middleConfirmEnabled");
-      settings.faceRasterizationMode = FaceRasterizationMode.DEFAULT;
       settings.pointMode = readEnum(tag, "pointMode", PointMode.RAYCAST);
       // Raycast placement is now an input policy. Legacy preferences must not
       // override the surface-by-default and Alt-to-embed behavior.
@@ -100,19 +101,14 @@ public final class FastPlaceSettings {
                settings.enabledPlacementEffects.add(id);
             }
          }
-      } else if (tag.contains("smartWoodFrame") && !tag.getBoolean("smartWoodFrame")) {
-         // Migrate the pre-registry setting once when a player first loads it.
-         settings.enabledPlacementEffects.remove(
-            io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect.ID
-         );
       }
       settings.emptyHandWrench = !tag.contains("emptyHandWrench") || tag.getBoolean("emptyHandWrench");
       settings.skipRepeatedCropStages = !tag.contains("skipRepeatedCropStages") || tag.getBoolean("skipRepeatedCropStages");
       settings.forcePlacement = !tag.contains("forcePlacement") || tag.getBoolean("forcePlacement");
       settings.vanillaBlockHistory = tag.getBoolean("vanillaBlockHistory");
       settings.maxPlacement = tag.contains("maxPlacement")
-         ? Math.clamp((long)tag.getInt("maxPlacement"), 1, 20972152)
-         : 20972152;
+         ? Math.clamp((long)tag.getInt("maxPlacement"), 1, MAX_PLACEMENT)
+         : MAX_PLACEMENT;
       settings.worldUndoHistoryLimit = tag.contains("undoHistoryLimit")
          ? Math.clamp((long)tag.getInt("undoHistoryLimit"), 1, MAX_UNDO_HISTORY_LIMIT)
          : DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
@@ -142,15 +138,6 @@ public final class FastPlaceSettings {
 
    public void setMiddleConfirmEnabled(ServerPlayer player, boolean value) {
       this.middleConfirmEnabled = value;
-      this.save(player);
-   }
-
-   public FaceRasterizationMode faceRasterizationMode() {
-      return this.faceRasterizationMode;
-   }
-
-   public void setFaceRasterizationMode(ServerPlayer player, FaceRasterizationMode value) {
-      this.faceRasterizationMode = FaceRasterizationMode.DEFAULT;
       this.save(player);
    }
 
@@ -221,8 +208,7 @@ public final class FastPlaceSettings {
    public FastPlaceGeometry.Modes modes() {
       return new FastPlaceGeometry.Modes(
          this.pointMode(), RaycastPlacement.SURFACE, this.lineMode(), this.faceMode(), this.volumeMode(), this.fillMode,
-         this.angleDegrees, false, io.github.fastformer.fastplace.geometry.generation.LineTieBias.DEFAULT,
-         this.faceRasterizationMode
+         this.angleDegrees, false, io.github.fastformer.fastplace.geometry.generation.LineTieBias.DEFAULT
       );
    }
 
@@ -253,7 +239,7 @@ public final class FastPlaceSettings {
    public void setWorldUndoHistoryLimit(ServerPlayer player, int value) {
       this.worldUndoHistoryLimit = Math.clamp((long)value, 1, MAX_UNDO_HISTORY_LIMIT);
       this.save(player);
-      WorldHistoryManager.trimToSetting(player, this.worldUndoHistoryLimit);
+      HistorySystem.of(player).trimToSetting(player, this.worldUndoHistoryLimit);
    }
 
    public int sessionUndoHistoryLimit() {
@@ -317,16 +303,20 @@ public final class FastPlaceSettings {
    public boolean skipRepeatedCropStages() { return this.skipRepeatedCropStages; }
 
    public void toggleSkipRepeatedCropStages(ServerPlayer player) {
-      this.skipRepeatedCropStages = !this.skipRepeatedCropStages;
+      setSkipRepeatedCropStages(player, !skipRepeatedCropStages);
+   }
+
+   public void setSkipRepeatedCropStages(ServerPlayer player, boolean value) {
+      this.skipRepeatedCropStages = value;
       this.save(player);
    }
 
-   public io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits tinkerHistoryMergeLimits() { return tinkerHistoryMergeLimits; }
+   public io.github.fastformer.common.history.HistoryCompressionLimits tinkerHistoryMergeLimits() { return tinkerHistoryMergeLimits; }
 
-   public void setTinkerHistoryMergeLimit(ServerPlayer player, io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits.Setting setting, int value) {
+   public void setTinkerHistoryMergeLimit(ServerPlayer player, io.github.fastformer.common.history.CompressionSetting setting, int value) {
       tinkerHistoryMergeLimits = tinkerHistoryMergeLimits.with(setting, value);
       save(player);
-      WorldHistoryManager.requestCompaction(player);
+      HistorySystem.of(player).requestCompaction(player);
    }
 
    public boolean forcePlacement() { return forcePlacement; }
@@ -334,7 +324,11 @@ public final class FastPlaceSettings {
    public boolean vanillaBlockHistory() { return vanillaBlockHistory; }
 
    public void toggleVanillaBlockHistory(ServerPlayer player) {
-      vanillaBlockHistory = !vanillaBlockHistory;
+      setVanillaBlockHistory(player, !vanillaBlockHistory);
+   }
+
+   public void setVanillaBlockHistory(ServerPlayer player, boolean value) {
+      vanillaBlockHistory = value;
       save(player);
    }
 
@@ -343,9 +337,12 @@ public final class FastPlaceSettings {
       save(player);
    }
 
-
    public void toggleEmptyHandWrench(ServerPlayer player) {
-      this.emptyHandWrench = !this.emptyHandWrench;
+      setEmptyHandWrench(player, !emptyHandWrench);
+   }
+
+   public void setEmptyHandWrench(ServerPlayer player, boolean value) {
+      this.emptyHandWrench = value;
       this.save(player);
    }
 
@@ -355,7 +352,7 @@ public final class FastPlaceSettings {
    }
 
    public void setMaxPlacement(ServerPlayer player, int value) {
-      this.maxPlacement = Math.clamp((long)value, 1, 20972152);
+      this.maxPlacement = Math.clamp((long)value, 1, MAX_PLACEMENT);
       this.save(player);
    }
 
@@ -379,7 +376,6 @@ public final class FastPlaceSettings {
       CompoundTag tag = new CompoundTag();
       tag.putBoolean("enabled", this.enabled);
       tag.putBoolean("middleConfirmEnabled", this.middleConfirmEnabled);
-      tag.putString("faceRasterizationMode", this.faceRasterizationMode.name());
       tag.putString("pointMode", this.pointMode.name());
       tag.putString("lineMode", this.lineMode.name());
       tag.putString("faceMode", this.faceMode.name());
@@ -419,29 +415,17 @@ public final class FastPlaceSettings {
       }
    }
 
-   private static io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits readTinkerHistoryLimits(CompoundTag tag) {
-      var defaults = io.github.fastformer.fastplace.history.HistoryStorageConfig.defaultMergeLimits();
+   private static io.github.fastformer.common.history.HistoryCompressionLimits readTinkerHistoryLimits(CompoundTag tag) {
+      var defaults = io.github.fastformer.server.history.HistoryStorageConfig.defaultMergeLimits();
       if (tag.contains("tinkerHistoryMerge", Tag.TAG_COMPOUND)) {
          CompoundTag limits = tag.getCompound("tinkerHistoryMerge");
-         // Spatial bands cannot be interpreted as chronological tiers. Keep an explicit opt-out.
-         if (limits.contains("near") && !limits.contains("recentGroup")) {
-            if (limits.getInt("near") <= 1 && limits.getInt("middle") <= 1 && limits.getInt("far") <= 1)
-               return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(defaults.recentAfter(), 1,
-                  defaults.olderAfter(), 1, defaults.oldestAfter(), 1);
-            return defaults;
-         }
-         return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(
+         return new io.github.fastformer.common.history.HistoryCompressionLimits(
             limits.contains("recentAfter") ? limits.getInt("recentAfter") : defaults.recentAfter(),
             limits.contains("recentGroup") ? limits.getInt("recentGroup") : defaults.recentGroup(),
             limits.contains("olderAfter") ? limits.getInt("olderAfter") : defaults.olderAfter(),
             limits.contains("olderGroup") ? limits.getInt("olderGroup") : defaults.olderGroup(),
             limits.contains("oldestAfter") ? limits.getInt("oldestAfter") : defaults.oldestAfter(),
             limits.contains("oldestGroup") ? limits.getInt("oldestGroup") : defaults.oldestGroup());
-      }
-      if (tag.contains("tinkerHistoryMergeLimit") && tag.getInt("tinkerHistoryMergeLimit") != 32) {
-         int legacy = tag.getInt("tinkerHistoryMergeLimit");
-         return new io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits(defaults.recentAfter(), legacy,
-            defaults.olderAfter(), legacy <= 1 ? 1 : defaults.olderGroup(), defaults.oldestAfter(), legacy <= 1 ? 1 : defaults.oldestGroup());
       }
       return defaults;
    }

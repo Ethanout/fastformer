@@ -1,11 +1,15 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.network.payload.placement.IdleSelectionEntryPayload;
-import io.github.fastformer.network.payload.placement.TinkerInteractionPayload;
+import io.github.fastformer.protocol.c2s.placement.IdleSelectionEntryPayload;
+import io.github.fastformer.protocol.c2s.placement.TinkerInteractionPayload;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -40,17 +44,17 @@ public final class IdleTinkerEntryGameTests {
          io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags());
       helper.assertTrue(previousWrite == io.github.fastformer.fastplace.world.BlockEditTransaction.Outcome.APPLIED,
          "prior world edit was not recorded");
-      var prior = WorldHistoryManager.latestOperationId(player);
+      var prior = HistorySystem.of(player).latestOperationId(player);
       click(player, 501);
       helper.assertTrue(helper.getLevel().getBlockState(position).is(Blocks.DIRT_PATH), "first wrench click did not apply immediately");
-      var operation = WorldHistoryManager.latestOperationId(player);
+      var operation = HistorySystem.of(player).latestOperationId(player);
       helper.assertTrue(operation != null && !operation.equals(prior), "single wrench click was not recorded");
       var sideEye = position.getCenter().add(0, 0.49, -3);
       var restored = ServerInputDispatcher.idleSelectionEntry(player,
          new IdleSelectionEntryPayload(502, 501, sideEye, new Vec3(0, 0, 1)));
       helper.assertTrue(position.equals(restored), "double click did not restore the source before selection entry");
       helper.assertTrue(helper.getLevel().getBlockState(position).is(Blocks.GRASS_BLOCK), "original grass state was not restored");
-      helper.assertTrue(java.util.Objects.equals(prior, WorldHistoryManager.latestOperationId(player)), "canceled wrench displaced prior world history");
+      helper.assertTrue(java.util.Objects.equals(prior, HistorySystem.of(player).latestOperationId(player)), "canceled wrench displaced prior world history");
       helper.assertTrue(IdleInteractionSnapshots.consume(player, 501, player.getEyePosition(), player.getViewVector(1)) == null,
          "double click reused the same snapshot");
       helper.succeed();
@@ -85,7 +89,7 @@ public final class IdleTinkerEntryGameTests {
       var originals = IdleTinkerSnapshot.capture(helper.getLevel(), java.util.Set.of(position, position.above()));
       click(player, 521);
       helper.assertTrue(helper.getLevel().getBlockState(position).getValue(BlockStateProperties.OPEN), "first click did not open the door");
-      var changedShape = io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot.capture(helper.getLevel(), position);
+      var changedShape = io.github.fastformer.common.raycast.InteractionShapeSnapshot.capture(helper.getLevel(), position);
       var target = changedShape.boxes().getFirst().getCenter().add(Vec3.atLowerCornerOf(position));
       var view = target.subtract(player.getEyePosition()).normalize();
       helper.assertTrue(IdleInteractionSnapshots.consume(player, 521, player.getEyePosition(), view) != null, "door restore failed");
@@ -158,7 +162,7 @@ public final class IdleTinkerEntryGameTests {
 
    private static ServerPlayer player(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000L);
       player.setGameMode(GameType.CREATIVE);
       player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
       return player;

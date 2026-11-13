@@ -20,8 +20,6 @@ class EdgeOwnedSurfaceTest {
          Set<BlockPos> outline = quad(face, FillMode.OUTLINE, bias);
          Set<BlockPos> surface = quad(face, FillMode.SOLID, bias);
          assertTrue(surface.containsAll(outline), "surface moved authored edge blocks");
-         assertEquals(QuadFaceGenerator.generate(face, FillMode.OUTLINE, 100_000,
-            BlockGenerationObserver.NONE, bias, FaceRasterizationMode.POINT_SWEEP), outline);
       }
    }
 
@@ -111,8 +109,6 @@ class EdgeOwnedSurfaceTest {
          Vec3 snapped = Vec3.atLowerCornerOf(BlockPos.containing(extrusion));
          for (LineTieBias bias : LineTieBias.values()) {
             Set<BlockPos> outline = box(base, extrusion, FillMode.OUTLINE, bias);
-            assertEquals(TiltedBoxGenerator.generate(base, extrusion, FillMode.OUTLINE, 100_000,
-               BlockGenerationObserver.NONE, bias, FaceRasterizationMode.POINT_SWEEP), outline);
             Set<BlockPos> solid = box(base, extrusion, FillMode.SOLID, bias);
             assertFalse(GenerationFailed.is(solid));
             assertEquals(box(base, snapped, FillMode.SOLID, bias), solid);
@@ -126,12 +122,12 @@ class EdgeOwnedSurfaceTest {
       List<Vec3> face = base(new Vec3(23, 4, 7), new Vec3(-5, 19, 11));
       Set<BlockPos> exact = quad(face, FillMode.SOLID, LineTieBias.DEFAULT);
       Set<BlockPos> limited = QuadFaceGenerator.generate(face, FillMode.SOLID, exact.size() - 1,
-         BlockGenerationObserver.NONE, LineTieBias.DEFAULT, FaceRasterizationMode.DEFAULT);
+         BlockGenerationObserver.NONE, LineTieBias.DEFAULT);
       assertTrue(GenerationLimitExceeded.is(limited));
       assertThrows(java.util.concurrent.CancellationException.class, () -> QuadFaceGenerator.generate(
          face, FillMode.SOLID, 100_000, new BlockGenerationObserver() {
             @Override public void checkCancelled() { throw new java.util.concurrent.CancellationException(); }
-         }, LineTieBias.DEFAULT, FaceRasterizationMode.DEFAULT));
+         }, LineTieBias.DEFAULT));
    }
 
    private static int gcd(int a, int b) {
@@ -157,11 +153,11 @@ class EdgeOwnedSurfaceTest {
    }
 
    private static Set<BlockPos> quad(List<Vec3> face, FillMode mode, LineTieBias bias) {
-      return QuadFaceGenerator.generate(face, mode, 100_000, BlockGenerationObserver.NONE, bias, FaceRasterizationMode.DEFAULT);
+      return QuadFaceGenerator.generate(face, mode, 100_000, BlockGenerationObserver.NONE, bias);
    }
 
    private static Set<BlockPos> box(List<Vec3> base, Vec3 extrusion, FillMode mode, LineTieBias bias) {
       return TiltedBoxGenerator.generate(base, extrusion, mode, 100_000,
-         BlockGenerationObserver.NONE, bias, FaceRasterizationMode.DEFAULT);
+         BlockGenerationObserver.NONE, bias);
    }
 }

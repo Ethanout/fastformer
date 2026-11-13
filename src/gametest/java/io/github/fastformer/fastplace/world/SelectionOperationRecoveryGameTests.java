@@ -1,8 +1,10 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.server.history.HistoryRecoveryReconciler;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -62,7 +64,7 @@ public final class SelectionOperationRecoveryGameTests {
                "move cleared overlapping source " + index);
          }
 
-         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer()), "startup recovery failed");
+         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))), "startup recovery failed");
          for (int index = 0; index < count; index++) {
             helper.assertTrue(level.getBlockState(origin.offset(index, 0, 0)).is(Blocks.GOLD_BLOCK),
                "startup recovery lost source " + index);

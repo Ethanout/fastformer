@@ -3,7 +3,7 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.input.policy.DragAdvanceSemantics;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import net.minecraft.client.Minecraft;
 
 /** Advances one pointer drag owner per client tick. */
@@ -25,7 +25,7 @@ final class PointerDragTicker {
          session.geometryGizmoDrag != null,
          workspaceGizmo,
          workspaceFace,
-         FastPlaceClientPreview.operationActive()
+         FastPlaceClientPreviewCore.operationActive()
       ));
       if (plan.clearOperationDrag()) OperationDragController.cancel(session);
       if (plan.clearOperationPointDrag()) OperationPointInputController.cancel(session);

@@ -1,16 +1,20 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.history.HistorySystem;
+
+import io.github.fastformer.server.gate.ServerOperationGates;
+
+import io.github.fastformer.server.selection.ClientPointValidator;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.fastplace.session.DimensionSessionStore;
+import io.github.fastformer.server.session.slot.PlayerSessions;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
@@ -23,6 +27,8 @@ import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.server.network.upload.UploadSystem;
+import io.github.fastformer.server.submission.WorkspaceResultSink;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
@@ -40,21 +46,13 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.slf4j.Logger;
+import io.github.fastformer.server.task.WorldTaskQueue;
 
 public final class OperationManager {
    private static final Logger LOGGER = LogUtils.getLogger();
-   private static final Map<UUID, OperationSession> SESSIONS = new HashMap<>();
-   private static final Map<UUID, WorldOperationTask> TASKS = new HashMap<>();
-   /**
-    * Recovery snapshots already extracted from a task and not yet accepted.
-    *
-    * <p>The extraction moves the before/after record out of the task. The record therefore
-    * lives here until the recovery path accepts it, so a failed acceptance can retry
-    * without extracting a second, empty snapshot.
-    */
-   private static final Map<UUID, WorldRecoverySnapshot> HANDOVERS = new HashMap<>();
+   private static final PlayerSessions<OperationSession> SESSIONS = new PlayerSessions<>();
+   private static final WorldTaskQueue<WorldOperationTask> TASKS = new WorldTaskQueue<>();
    /** Operation sessions kept for the dimension the player left. */
-   private static final DimensionSessionStore<OperationSession> PARKED_SESSIONS = new DimensionSessionStore<>();
 
    private OperationManager() {
    }
@@ -65,7 +63,7 @@ public final class OperationManager {
    }
 
    public static void updateSessionHistoryLimit(ServerPlayer player, int historyLimit) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null) {
          session.updateHistoryLimit(historyLimit);
       }
@@ -87,25 +85,25 @@ public final class OperationManager {
    }
 
    public static Optional<OperationSession> session(ServerPlayer player) {
-      return Optional.ofNullable(SESSIONS.get(player.getUUID()));
+      return Optional.ofNullable(SESSIONS.active(player.getUUID()));
    }
 
    public static boolean active(ServerPlayer player) {
-      return SESSIONS.containsKey(player.getUUID());
+      return SESSIONS.hasActive(player.getUUID());
    }
 
    public static boolean needsSecond(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       return session != null && session.first() != null && session.second() == null;
    }
 
    public static boolean needsSelectionPoint(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       return session != null && session.needsSelectionPoint();
    }
 
    public static boolean selectionReady(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       return session != null && session.selectionReady();
    }
 
@@ -114,7 +112,7 @@ public final class OperationManager {
    }
 
    public static OperationSession startFirst(ServerPlayer player, BlockPos point) {
-      OperationSession session = SESSIONS.computeIfAbsent(player.getUUID(), ignored -> createSession(player));
+      OperationSession session = SESSIONS.getOrCreate(player.getUUID(), () -> createSession(player));
       recordEdit(session, () -> {
          session.setFirst(point);
          return true;
@@ -125,7 +123,7 @@ public final class OperationManager {
    }
 
    public static OperationSession startSecond(ServerPlayer player, BlockPos point) {
-      OperationSession session = SESSIONS.computeIfAbsent(player.getUUID(), ignored -> createSession(player));
+      OperationSession session = SESSIONS.getOrCreate(player.getUUID(), () -> createSession(player));
       recordEdit(session, () -> {
          session.setSecond(point);
          return true;
@@ -136,7 +134,7 @@ public final class OperationManager {
    }
 
    public static void setSecond(ServerPlayer player, BlockPos point) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null) {
          recordEdit(session, () -> {
             session.setSecond(point);
@@ -148,7 +146,7 @@ public final class OperationManager {
    }
 
    public static void addExtraPoint(ServerPlayer player, BlockPos point) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.addExtraPoint(point))) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_extra_point", session.extraPoints().size()));
          FastPlaceNetwork.syncOperation(player, session);
@@ -156,14 +154,14 @@ public final class OperationManager {
    }
 
    public static void expandTo(ServerPlayer player, BlockPos point) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.expandTo(point))) {
          FastPlaceNetwork.syncOperation(player, session);
       }
    }
 
    public static boolean confirmSelection(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null || !recordEdit(session, session::confirmSelection)) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_need_points"));
          return false;
@@ -174,7 +172,7 @@ public final class OperationManager {
    }
 
    public static boolean closePrismBase(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null || !recordEdit(session, session::closePrismBase)) {
          return false;
       }
@@ -183,14 +181,14 @@ public final class OperationManager {
    }
 
    public static void selectPoint(ServerPlayer player, int index) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null && session.selectPoint(index)) {
          FastPlaceNetwork.syncOperation(player, session);
       }
    }
 
    public static void removePoint(ServerPlayer player, int index) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.removePoint(index))) {
          FastPlaceNetwork.syncOperation(player, session);
       }
@@ -203,12 +201,13 @@ public final class OperationManager {
       OperationPointDragConstraint constraint,
       boolean finish
    ) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null) {
          return;
       }
       session.beginEdit();
-      if (session.dragPointTo(index, target, constraint, finish)) {
+      if (session.dragPointTo(index, target, constraint, finish,
+         point -> ClientPointValidator.accepts(player, point))) {
          FastPlaceNetwork.syncOperation(player, session);
       }
       if (finish) {
@@ -217,14 +216,14 @@ public final class OperationManager {
    }
 
    public static void insertPoint(ServerPlayer player, int insertionIndex, BlockPos point) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.insertPoint(insertionIndex, point))) {
          FastPlaceNetwork.syncOperation(player, session);
       }
    }
 
    public static void addSelectionPoint(ServerPlayer player, BlockPos point) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.addSelectionPoint(point))) {
          FastPlaceMessages.actionBar(
             player,
@@ -235,7 +234,7 @@ public final class OperationManager {
    }
 
    public static void undo(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       boolean changed = session != null && (session.adjustmentStarted()
          ? session.undoAdjustment()
          : session.undoStep());
@@ -246,7 +245,7 @@ public final class OperationManager {
    }
 
    public static void redo(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null && session.redoStep()) {
          rememberSelectionMode(player, session);
          FastPlaceNetwork.syncOperation(player, session);
@@ -254,7 +253,7 @@ public final class OperationManager {
    }
 
    public static void sync(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session != null) {
          FastPlaceNetwork.syncOperation(player, session);
       } else {
@@ -263,7 +262,7 @@ public final class OperationManager {
    }
 
    public static void extend(ServerPlayer player, int axis, boolean positive, int steps, boolean finish) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null) {
          return;
       }
@@ -284,7 +283,7 @@ public final class OperationManager {
    }
 
    public static void cycleMode(ServerPlayer player) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null) {
          FastPlaceSettings settings = FastPlaceSettings.load(player);
          // Interactive tool choice belongs to the client. Server point sessions remain cuboids.
@@ -305,7 +304,7 @@ public final class OperationManager {
    }
 
    public static boolean setSelectionMode(ServerPlayer player, OperationSelectionMode mode) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null || mode == OperationSelectionMode.CONVEX_HULL) {
          return false;
       }
@@ -319,7 +318,7 @@ public final class OperationManager {
    }
 
    public static boolean setConflictMode(ServerPlayer player, OperationConflictMode mode) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null) {
          return false;
       }
@@ -329,7 +328,7 @@ public final class OperationManager {
    }
 
    public static void scroll(ServerPlayer player, int steps) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null || !session.operationReady() || steps == 0) {
          return;
       }
@@ -351,7 +350,7 @@ public final class OperationManager {
       int totalSteps,
       boolean finish
    ) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null || !session.operationReady()) {
          return;
       }
@@ -368,7 +367,7 @@ public final class OperationManager {
    }
 
    public static boolean applyConfirmed(ServerPlayer player, boolean copy) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null || !session.operationReady() || !session.adjustmentStarted()) {
          return false;
       }
@@ -380,7 +379,7 @@ public final class OperationManager {
    }
 
    public static boolean apply(ServerPlayer player, boolean copy) {
-      OperationSession session = SESSIONS.get(player.getUUID());
+      OperationSession session = SESSIONS.active(player.getUUID());
       if (session == null || !session.selectionReady()) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_need_points"));
          return false;
@@ -525,7 +524,8 @@ public final class OperationManager {
    private static void scheduleResume(ServerPlayer player, WorldOperationTask task) {
       try {
          WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-         context.withResume(() -> resumeTask(context, task)).enqueueResume();
+         HistoryService history = HistorySystem.of(player);
+      context.withResume(() -> resumeTask(context, task, history)).enqueueResume();
       } catch (RuntimeException exception) {
          LOGGER.warn("FastFormer queued a workspace submission but could not schedule its resume", exception);
       }
@@ -571,14 +571,14 @@ public final class OperationManager {
     * slot leaves only after the recovery path accepts the snapshot. A refused or failed
     * handover keeps the task, so a later tick can try again.
     */
-   public static void handOverBlockedTasks(net.minecraft.server.MinecraftServer server) {
-      for (UUID owner : List.copyOf(TASKS.keySet())) {
-         handOverBlockedTask(new WorldTaskContext(server, owner));
+   public static void handOverBlockedTasks(net.minecraft.server.MinecraftServer server, HistoryService history) {
+      for (UUID owner : TASKS.owners()) {
+         handOverBlockedTask(new WorldTaskContext(server, owner), history);
       }
    }
 
-   private static void handOverBlockedTask(WorldTaskContext context) {
-      TaskCancellationResult handover = settleCancelledTask(context);
+   private static void handOverBlockedTask(WorldTaskContext context, HistoryService history) {
+      TaskCancellationResult handover = cancelTask(context, history);
       if (handover.handled()) {
          context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
       }
@@ -594,21 +594,14 @@ public final class OperationManager {
     *
     * @return {@link TaskCancellationResult#NOT_ACTIVE} when no task exists
     */
-   private static TaskCancellationResult settleCancelledTask(WorldTaskContext context) {
+   static TaskCancellationResult cancelTask(
+      WorldTaskContext context, HistoryService history, WorkspaceResultSink results
+   ) {
       WorldOperationTask task = TASKS.get(context.owner());
       if (task == null) {
          return TaskCancellationResult.NOT_ACTIVE;
       }
-      TaskCancellationResult handover;
-      try {
-         handover = transferToRecovery(context, task);
-      } catch (RuntimeException | OutOfMemoryError failure) {
-         // transferToRecovery already treats its own failures as "not accepted".
-         // A later throw here must not drop the queue slot or invent a result.
-         LOGGER.error("FastFormer kept an operation task of {} after a cancel fault",
-            context.owner(), failure);
-         return TaskCancellationResult.RECOVERY_BLOCKED;
-      }
+      TaskCancellationResult handover = TASKS.transfer(context, task, history::acceptTransferredTask);
       if (handover != TaskCancellationResult.CANCELLED_BEFORE_WRITE
          && handover != TaskCancellationResult.ROLLBACK_STARTED) {
          return handover;
@@ -617,78 +610,30 @@ public final class OperationManager {
       if (task instanceof ClientWorkspacePlacementTask workspaceTask) {
          // No writes: the draft may go again with a new transfer. Writes that reached
          // recovery report that state, so a retry cannot repeat the same work.
-         FastPlaceNetwork.sendWorkspaceResult(
-            context.server(),
-            context.owner(),
-            workspaceTask.dimension().location(),
-            context.onlinePlayer(),
-            workspaceTask.transferId(),
-            false,
+         results.finish(workspaceTask.completion(context.owner(), false,
             handover == TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-            handover == TaskCancellationResult.ROLLBACK_STARTED,
-            workspaceTask.failedPartIds(),
-            workspaceTask.failedTargetPositions(), workspaceTask.failureReason()
-         );
+            handover == TaskCancellationResult.ROLLBACK_STARTED), context.onlinePlayer());
       }
       return handover;
    }
 
-   /**
-    * Moves one task into the recovery path, or keeps both the task and the extracted
-    * snapshot when the recovery path does not accept them.
-    *
-    * <p>The snapshot is extracted once. A retry reuses the held snapshot, because the
-    * extraction already removed the before/after record from the task.
-    */
-   private static TaskCancellationResult transferToRecovery(WorldTaskContext context, WorldOperationTask task) {
-      UUID owner = context.owner();
-      try {
-         WorldRecoverySnapshot held = HANDOVERS.get(owner);
-         if (held == null) {
-            held = task.stopAndTransferRecovery();
-            HANDOVERS.put(owner, held);
-         }
-         TaskCancellationResult result = WorldHistoryManager.acceptTransferredRecovery(
-            context,
-            task.dimension(),
-            held,
-            task.journal(),
-            () -> task.releaseAfterCancelledJournal(context),
-            task::releaseMemoryReservation
-         );
-         if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE
-            || result == TaskCancellationResult.ROLLBACK_STARTED) {
-            HANDOVERS.remove(owner);
-         }
-         return result;
-      } catch (RuntimeException | OutOfMemoryError failure) {
-         // The acceptance boundary accepts a snapshot only by returning a handled result,
-         // and the boundary performs no throwing work after a transfer. An exception
-         // therefore means "not accepted": keep the task and the extracted snapshot.
-         LOGGER.error("FastFormer kept a blocked operation task of {} with its recovery snapshot",
-            owner, failure);
-         return TaskCancellationResult.RECOVERY_BLOCKED;
-      }
-   }
-
-   public static void tickWorld(net.minecraft.server.MinecraftServer server) {
-      for (UUID owner : List.copyOf(TASKS.keySet())) {
+   public static void tickWorld(net.minecraft.server.MinecraftServer server, HistoryService history) {
+      for (UUID owner : TASKS.owners()) {
          if (!PersistentRecoveryJournal.writesAllowed()) {
             break;
          }
-         if (HANDOVERS.containsKey(owner)) {
-            // A pending handover holds the only record of this task's writes. Ticking the
-            // task would empty that record, so the handover owns the owner until it ends.
+         if (TASKS.handingOver(owner)) {
+            handOverBlockedTask(new WorldTaskContext(server, owner), history);
             continue;
          }
-         if (WorldHistoryManager.busy(owner) || FastPlaceManager.taskActive(owner)) {
+         if (history.busy(owner) || FastPlaceManager.taskActive(owner)) {
             continue;
          }
-         tickTask(new WorldTaskContext(server, owner));
+         tickTask(new WorldTaskContext(server, owner), history);
       }
    }
 
-   private static void tickTask(WorldTaskContext context) {
+   static void tickTask(WorldTaskContext context, HistoryService history) {
       UUID owner = context.owner();
       WorldOperationTask task = TASKS.get(owner);
       if (task == null) {
@@ -722,7 +667,7 @@ public final class OperationManager {
       );
       OperationTaskResult result = reservation == MemoryReservationAttempt.REJECTED
          ? OperationTaskResult.MEMORY_UNSAFE : task.tick(
-         context.withResume(() -> resumeTask(context, task)),
+         context.withResume(() -> resumeTask(context, task, history)),
          level,
          budget
       );
@@ -734,9 +679,11 @@ public final class OperationManager {
             || result == OperationTaskResult.MEMORY_UNSAFE
             || result == OperationTaskResult.EXCEEDED;
          if (failureTransferred) {
-            recoveryCreated = settleFailedTask(context, task);
+            TaskCancellationResult handover = TASKS.transfer(context, task, history::acceptTransferredTask);
+            if (!handoverAccepted(handover)) return;
+            recoveryCreated = handover.recoveryCreated();
          } else if (task.hasWrites()) {
-            JournalPreparation historyCommit = WorldHistoryManager.pollPreparedOperation(
+            JournalPreparation historyCommit = history.pollPreparedOperation(
                context, task.preparedBatch(), task.journal()
             );
             if (historyCommit == JournalPreparation.PENDING) {
@@ -746,7 +693,9 @@ public final class OperationManager {
             if (historyCommit == JournalPreparation.FAILED) {
                result = OperationTaskResult.FAILED;
                failureTransferred = true;
-               recoveryCreated = settleFailedTask(context, task);
+               TaskCancellationResult handover = TASKS.transfer(context, task, history::acceptTransferredTask);
+               if (!handoverAccepted(handover)) return;
+               recoveryCreated = handover.recoveryCreated();
             } else {
                task.markComplete();
                task.releaseCommittedTransactionState();
@@ -759,17 +708,9 @@ public final class OperationManager {
             task.releaseAfterCancelledJournal(context);
          }
          if (task instanceof ClientWorkspacePlacementTask workspaceTask) {
-            FastPlaceNetwork.sendWorkspaceResult(
-               context.server(),
-               owner,
-               workspaceTask.dimension().location(),
-               context.onlinePlayer(),
-               workspaceTask.transferId(),
+            UploadSystem.of(context.server()).receipts().finish(workspaceTask.completion(owner,
                result == OperationTaskResult.COMPLETE || result == OperationTaskResult.EMPTY,
-               retryableWorkspaceFailure,
-               recoveryCreated,
-               workspaceTask.failedPartIds(), workspaceTask.failedTargetPositions(), workspaceTask.failureReason()
-            );
+               retryableWorkspaceFailure, recoveryCreated), context.onlinePlayer());
          }
          if (result == OperationTaskResult.COMPLETE) {
             task.markComplete();
@@ -804,46 +745,40 @@ public final class OperationManager {
             task.recordBatch(budget.consumed(), System.nanoTime() - batchStartedAt);
          }
          boolean retryableWorkspaceFailure = !task.hasWrites();
-         if (TASKS.remove(owner, task)) {
-            recoveryCreated = settleFailedTask(context, task);
-         }
+         TaskCancellationResult handover = TASKS.transfer(context, task, history::acceptTransferredTask);
+         LOGGER.error("FastFormer operation task failed for {} (handover={})", owner, handover, exception);
+         if (!handoverAccepted(handover)) return;
+         recoveryCreated = handover.recoveryCreated();
+         TASKS.remove(owner, task);
          if (task instanceof ClientWorkspacePlacementTask workspaceTask) {
-            FastPlaceNetwork.sendWorkspaceResult(
-               context.server(),
-               owner,
-               workspaceTask.dimension().location(),
-               context.onlinePlayer(),
-               workspaceTask.transferId(), false, retryableWorkspaceFailure, recoveryCreated,
-               workspaceTask.failedPartIds(), workspaceTask.failedTargetPositions(), workspaceTask.failureReason()
-            );
+            UploadSystem.of(context.server()).receipts().finish(workspaceTask.completion(owner,
+               false, retryableWorkspaceFailure, recoveryCreated), context.onlinePlayer());
          }
-         LOGGER.error("FastFormer operation task failed for {} and was transferred to recovery", owner, exception);
          LOGGER.error("FastFormer operation metrics: {}", task.metricsSummary());
          context.actionBar(operationFailureStatus(task, recoveryCreated));
       }
    }
 
    private static void enqueueTask(ServerPlayer player, WorldOperationTask task) {
-      // A new task cannot own a snapshot extracted from an earlier one.
-      HANDOVERS.remove(player.getUUID());
       TASKS.put(player.getUUID(), task);
       WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-      context.withResume(() -> resumeTask(context, task)).enqueueResume();
+      HistoryService history = HistorySystem.of(player);
+      context.withResume(() -> resumeTask(context, task, history)).enqueueResume();
    }
 
-   private static void resumeTask(WorldTaskContext context, WorldOperationTask task) {
+   private static void resumeTask(WorldTaskContext context, WorldOperationTask task, HistoryService history) {
       if (TASKS.get(context.owner()) == task
-         && !HANDOVERS.containsKey(context.owner())
+         && !TASKS.handingOver(context.owner())
          && PersistentRecoveryJournal.writesAllowed()
-         && !WorldHistoryManager.busy(context.owner())
+         && !history.busy(context.owner())
          && !FastPlaceManager.taskActive(context.owner())) {
-         tickTask(context);
+         tickTask(context, history);
       }
    }
 
 
-   private static boolean settleFailedTask(WorldTaskContext context, WorldOperationTask task) {
-      return WorldHistoryManager.acceptStoppedTask(context, task).recoveryCreated();
+   private static boolean handoverAccepted(TaskCancellationResult result) {
+      return result == TaskCancellationResult.CANCELLED_BEFORE_WRITE || result == TaskCancellationResult.ROLLBACK_STARTED;
    }
 
    private static net.minecraft.network.chat.MutableComponent operationFailureStatus(
@@ -857,7 +792,7 @@ public final class OperationManager {
 
    public static void cancel(ServerPlayer player) {
       ServerInputDispatcher.endOperationGestures(player);
-      OperationSession removed = SESSIONS.remove(player.getUUID());
+      OperationSession removed = SESSIONS.end(player.getUUID());
       if (removed != null) {
          rememberSelectionMode(player, removed);
          FastPlaceNetwork.syncSettings(player);
@@ -865,23 +800,21 @@ public final class OperationManager {
    }
 
    public static void remove(ServerPlayer player) {
-      OperationSession removed = SESSIONS.remove(player.getUUID());
+      OperationSession removed = SESSIONS.end(player.getUUID());
       if (removed != null) {
          rememberSelectionMode(player, removed);
       }
-      PARKED_SESSIONS.forget(player.getUUID());
+      SESSIONS.discard(player.getUUID());
    }
 
    /** Drops server-bound operation sessions/tasks before a world instance is replaced. */
    public static void clearServer() {
-      for (WorldOperationTask task : TASKS.values()) {
+      for (WorldOperationTask task : TASKS.tasks()) {
          task.cancelJournalPreparation();
          task.releaseMemoryReservation();
       }
       TASKS.clear();
-      HANDOVERS.clear();
       SESSIONS.clear();
-      PARKED_SESSIONS.clear();
    }
 
    /**
@@ -889,35 +822,24 @@ public final class OperationManager {
     * dimension-bound because its coordinates are absolute world positions.
     */
    static void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
-      if (owner == null || dimension == null) {
-         return;
-      }
-      PARKED_SESSIONS.park(owner, dimension, SESSIONS.remove(owner));
+      SESSIONS.park(owner, dimension);
    }
 
    /** Restores the operation session that belongs to the target dimension. */
    static void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
-      if (owner == null || dimension == null) {
-         return;
-      }
-      OperationSession session = PARKED_SESSIONS.take(owner, dimension);
-      if (session == null) {
-         return;
-      }
-      if (SESSIONS.putIfAbsent(owner, session) != null) {
-         PARKED_SESSIONS.park(owner, dimension, session);
-      }
+      SESSIONS.restore(owner, dimension);
    }
 
    public static TaskCancellationResult cancelTask(ServerPlayer player) {
-      return cancelTask(new WorldTaskContext(player.getServer(), player.getUUID()));
+      return cancelTask(new WorldTaskContext(player.getServer(), player.getUUID()), HistorySystem.of(player));
    }
 
-   static TaskCancellationResult cancelTask(WorldTaskContext context) {
+   static TaskCancellationResult cancelTask(WorldTaskContext context, HistoryService history) {
       // Accept first, then drop the queue slot. A refused or failed handover keeps both
       // the task and the extracted snapshot, so the only record of a partial write stays.
       // The shared settler also finishes the workspace ledger. Recovery never does that.
-      return settleCancelledTask(context);
+      return cancelTask(context, history,
+         (result, player) -> UploadSystem.of(context.server()).receipts().finish(result, player));
    }
 
    static void addTaskForTest(UUID owner, WorldOperationTask task) {
@@ -925,14 +847,11 @@ public final class OperationManager {
    }
 
    public static boolean undoLast(ServerPlayer player) {
-      return WorldHistoryManager.requestUndo(player, 1);
+      return HistorySystem.of(player).requestUndo(player, 1);
    }
 
    private static boolean operationBusy(ServerPlayer player) {
-      return localTaskBusy(player)
-         || FastPlaceManager.taskBusy(player)
-         || WorldHistoryManager.busy(player)
-         || WorldWriteCoordinator.busy(player.getServer(), player.serverLevel().dimension());
+      return !ServerOperationGates.START_WRITE.test(player).allowed();
    }
 
    public static boolean taskBusy(ServerPlayer player) {
@@ -963,7 +882,7 @@ public final class OperationManager {
    }
 
    public static boolean restoreActive(ServerPlayer player) {
-      return WorldHistoryManager.restoreActive(player);
+      return HistorySystem.of(player).restoreActive(player);
    }
 
    private static boolean localTaskBusy(ServerPlayer player) {

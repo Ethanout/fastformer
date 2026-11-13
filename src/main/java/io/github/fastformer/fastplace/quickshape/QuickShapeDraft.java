@@ -1,6 +1,9 @@
 package io.github.fastformer.fastplace.quickshape;
 
 import io.github.fastformer.fastplace.session.SessionValue;
+import io.github.fastformer.common.interaction.binding.SessionProfile;
+import io.github.fastformer.common.interaction.binding.SessionProfiles;
+import net.minecraft.resources.ResourceLocation;
 
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
@@ -12,6 +15,19 @@ import net.minecraft.world.phys.Vec3;
 
 /** Owns confirmed quick-shape points and editable offsets, not input routing or world tasks. */
 public final class QuickShapeDraft {
+   private final ResourceLocation profileId;
+   private final SessionProfile profile;
+
+   public QuickShapeDraft() { this(SessionProfiles.NONE, SessionProfile.NONE); }
+
+   public QuickShapeDraft(ResourceLocation profileId, SessionProfile profile) {
+      this.profileId = java.util.Objects.requireNonNull(profileId);
+      this.profile = java.util.Objects.requireNonNull(profile);
+   }
+
+   public ResourceLocation profileId() { return profileId; }
+   public SessionProfile profile() { return profile; }
+
    private final List<BlockPos> points = new ArrayList<>();
    private final SessionValue<Vec3> faceBaseOffset = new SessionValue<>(() -> Vec3.ZERO, SessionValue.ResetOn.STAGE_CHANGE, SessionValue.ResetOn.DESTROY);
    private final SessionValue<Vec3> volumeBaseOffset = new SessionValue<>(() -> Vec3.ZERO, SessionValue.ResetOn.STAGE_CHANGE, SessionValue.ResetOn.DESTROY);

@@ -49,7 +49,7 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> outline = TiltedBoxGenerator.generate(base, new Vec3(0.0, 4.0, 0.0), FillMode.OUTLINE, 10000);
 
       assertEquals(100, solid.size());
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(boundary(solid), hollow);
       assertSweepContract(base, new Vec3(0.0, 4.0, 0.0), solid);
    }
 
@@ -103,7 +103,7 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> hollow = TiltedBoxGenerator.generate(base, Vec3.ZERO, FillMode.HOLLOW, 10_000);
 
       assertFalse(solid.isEmpty());
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(boundary(solid), hollow);
    }
 
    @Test
@@ -120,7 +120,7 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> hollow = TiltedBoxGenerator.generate(base, extrusion, FillMode.HOLLOW, 10_000);
 
       assertFalse(solid.isEmpty());
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(expectedHollow(base, extrusion, solid), hollow);
    }
 
    @Test
@@ -161,7 +161,7 @@ class TiltedBoxGeneratorTest {
          new Vec3(4.5, 0.5, 8.5),
          new Vec3(-1.5, 0.5, 6.5)
       );
-      BresenhamFaceSweep.Attempt faceAttempt = BoundaryInterpolatedFaceRasterizer.attempt(
+      BresenhamFaceSweep.Attempt faceAttempt = QuadFaceRasterizer.attempt(
          ProjectedBresenhamFace.Frame.create(base),
          LineTieBias.DEFAULT,
          10_000,
@@ -169,11 +169,7 @@ class TiltedBoxGeneratorTest {
       );
       assertTrue(faceAttempt.succeeded());
       ProjectedBresenhamFace.Frame baseFrame = ProjectedBresenhamFace.Frame.create(base);
-      Set<BlockPos> face = clipToNaturalBoundary(
-         baseFrame,
-         faceAttempt.result().fill(),
-         faceAttempt.result().outline()
-      );
+      Set<BlockPos> face = faceAttempt.result().fill();
       Set<BlockPos> solid = TiltedBoxGenerator.generate(
          base, new Vec3(0.0, 8.0, 0.0), FillMode.SOLID, 100000
       );
@@ -217,7 +213,7 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> solid = TiltedBoxGenerator.generate(base, extrusion, FillMode.SOLID, 10000);
       Set<BlockPos> hollow = TiltedBoxGenerator.generate(base, extrusion, FillMode.HOLLOW, 10000);
       Set<BlockPos> outline = TiltedBoxGenerator.generate(base, extrusion, FillMode.OUTLINE, 10000);
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(expectedHollow(base, extrusion, solid), hollow);
       assertTrue(solid.size() > hollow.size());
       assertFalse(hasEnclosedAir(solid));
       assertSweepContract(base, extrusion, solid);
@@ -238,7 +234,7 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> hollow = TiltedBoxGenerator.generate(base, extrusion, FillMode.HOLLOW, 10000);
       Set<BlockPos> outline = TiltedBoxGenerator.generate(base, extrusion, FillMode.OUTLINE, 10000);
 
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(expectedHollow(base, extrusion, solid), hollow);
       assertFalse(hasEnclosedAir(solid));
       assertSweepContract(base, extrusion, solid);
       assertTrue(solid.containsAll(outline));
@@ -278,7 +274,7 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> hollow = TiltedBoxGenerator.generate(base, extrusion, FillMode.HOLLOW, 10000);
       Set<BlockPos> outline = TiltedBoxGenerator.generate(base, extrusion, FillMode.OUTLINE, 10000);
 
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(expectedHollow(base, extrusion, solid), hollow);
       assertFalse(hasEnclosedAir(solid));
       assertSweepContract(base, extrusion, solid);
       assertTrue(solid.containsAll(outline));
@@ -298,7 +294,7 @@ class TiltedBoxGeneratorTest {
 
       assertTrue(outline.containsAll(corners(base, extrusion)));
       assertTrue(solid.containsAll(outline));
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(expectedHollow(base, extrusion, solid), hollow);
       assertSweepContract(base, extrusion, solid);
    }
 
@@ -371,7 +367,7 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> expectedOutline = exactTwelveEdgeOutline(base, extrusion, bias);
 
       assertFalse(solid.isEmpty());
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(expectedHollow(base, extrusion, solid, bias), hollow);
       assertEquals(expectedOutline, outline, "outline must contain exactly the twelve authored box edges");
       assertTrue(solid.containsAll(outline));
       assertTrue(hollow.containsAll(corners(base, extrusion)), "a box corner escaped the physical boundary");
@@ -429,7 +425,7 @@ class TiltedBoxGeneratorTest {
             );
 
             assertSweepContract(transformedBase, transformedExtrusion, solid);
-            assertEquals(expectedHollow(solid), hollow, () -> frame(order, signs));
+            assertEquals(expectedHollow(transformedBase, transformedExtrusion, solid), hollow, () -> frame(order, signs));
          }
       }
    }
@@ -571,7 +567,7 @@ class TiltedBoxGeneratorTest {
          Set<BlockPos> outline = TiltedBoxGenerator.generate(base, extrusion, FillMode.OUTLINE, 100000);
          assertFalse(solid.isEmpty());
          assertSweepContract(base, extrusion, solid);
-         assertEquals(expectedHollow(solid), hollow);
+         assertEquals(expectedHollow(base, extrusion, solid), hollow);
          assertTrue(outline.containsAll(corners(base, extrusion)));
          assertTrue(is26Connected(outline));
          assertTrue(fiveSidedOpenGaps(solid).isEmpty(), () -> name + " five-sided gaps " + fiveSidedOpenGaps(solid));
@@ -643,8 +639,14 @@ class TiltedBoxGeneratorTest {
       return result;
    }
 
-   private static Set<BlockPos> expectedHollow(Set<BlockPos> solid) {
-      return boundary(solid);
+   private static Set<BlockPos> expectedHollow(List<Vec3> base, Vec3 extrusion, Set<BlockPos> solid) {
+      return expectedHollow(base, extrusion, solid, LineTieBias.DEFAULT);
+   }
+
+   private static Set<BlockPos> expectedHollow(List<Vec3> base, Vec3 extrusion, Set<BlockPos> solid, LineTieBias bias) {
+      Set<BlockPos> expected = new LinkedHashSet<>(boundary(solid));
+      expected.addAll(independentlyRasterizedShell(base, extrusion, bias));
+      return expected;
    }
 
    private static Set<BlockPos> difference(Set<BlockPos> expected, Set<BlockPos> actual) {
@@ -660,7 +662,7 @@ class TiltedBoxGeneratorTest {
       Set<BlockPos> hollow = TiltedBoxGenerator.generate(base, extrusion, FillMode.HOLLOW, 10000);
       Set<BlockPos> outline = TiltedBoxGenerator.generate(base, extrusion, FillMode.OUTLINE, 10000);
 
-      assertEquals(expectedHollow(solid), hollow);
+      assertEquals(expectedHollow(base, extrusion, solid), hollow);
       assertFalse(hasEnclosedAir(solid));
       assertSweepContract(base, extrusion, solid);
       assertTrue(solid.containsAll(outline));
@@ -700,18 +702,14 @@ class TiltedBoxGeneratorTest {
       LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
       for (List<Vec3> face : boxFaces(base, extrusion)) {
          ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(face);
-         BresenhamFaceSweep.Attempt attempt = BoundaryInterpolatedFaceRasterizer.attempt(
+         BresenhamFaceSweep.Attempt attempt = QuadFaceRasterizer.attempt(
             frame,
             tieBias,
             100_000,
             BlockGenerationObserver.NONE
          );
          assertTrue(attempt.succeeded(), "independent face failed " + face + " status=" + attempt.status());
-         Set<BlockPos> clipped = clipToNaturalBoundary(
-            frame,
-            attempt.result().fill(),
-            attempt.result().outline()
-         );
+         Set<BlockPos> clipped = attempt.result().fill();
          assertTrue(clipped.containsAll(attempt.result().outline()), "face lost its natural outline " + face);
          result.addAll(clipped);
       }
@@ -730,32 +728,9 @@ class TiltedBoxGeneratorTest {
       return result;
    }
 
-   private static Set<BlockPos> clipToNaturalBoundary(
-      ProjectedBresenhamFace.Frame frame,
-      Set<BlockPos> fill,
-      Set<BlockPos> outline
-   ) {
-      Set<FaceColumn> boundaryColumns = outline.stream()
-         .map(block -> faceColumn(frame, block))
-         .collect(java.util.stream.Collectors.toSet());
-      return fill.stream()
-         .filter(block -> outline.contains(block) || !boundaryColumns.contains(faceColumn(frame, block)))
-         .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-   }
 
-   private static FaceColumn faceColumn(ProjectedBresenhamFace.Frame frame, BlockPos block) {
-      long[] delta = {
-         (long)block.getX() - frame.anchor().getX(),
-         (long)block.getY() - frame.anchor().getY(),
-         (long)block.getZ() - frame.anchor().getZ()
-      };
-      int[] order = frame.order();
-      int[] signs = frame.signs();
-      return new FaceColumn(
-         Math.toIntExact(delta[order[0]] * signs[0]),
-         Math.toIntExact(delta[order[1]] * signs[1])
-      );
-   }
+
+
 
    private static boolean touchesPlanar(BlockPos position, Set<BlockPos> boundary, int normalAxis) {
       if (boundary.contains(position)) {
@@ -776,8 +751,6 @@ class TiltedBoxGeneratorTest {
       return false;
    }
 
-   private record FaceColumn(int u, int v) {
-   }
 
    private static Set<BlockPos> exactTwelveEdgeOutline(
       List<Vec3> base,

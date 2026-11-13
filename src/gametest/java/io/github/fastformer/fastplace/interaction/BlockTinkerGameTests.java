@@ -1,10 +1,21 @@
 package io.github.fastformer.fastplace.interaction;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
+import io.github.fastformer.common.tinker.TinkerAction;
+import io.github.fastformer.common.tinker.data.TinkerShapeFamilies;
+import io.github.fastformer.common.tinker.data.TinkerShapeFamily;
+import io.github.fastformer.common.tinker.data.TinkerWoodFamily;
+import io.github.fastformer.common.tinker.shape.TinkerShapeTransform;
+import io.github.fastformer.common.tinker.shape.TinkerStructureRules;
+
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.Lifecycle;
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import java.util.List;
@@ -185,7 +196,7 @@ public final class BlockTinkerGameTests {
    public static void typeChangesSupportUndoAndRedo(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 5000);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 5000);
       var level = helper.getLevel();
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
       var original = Blocks.OAK_PLANKS.defaultBlockState();
@@ -194,7 +205,7 @@ public final class BlockTinkerGameTests {
       Map<BlockPos, BlockState> changes = BlockTinker.resolve(level, target);
       helper.assertTrue(changes.get(pos).is(Blocks.OAK_STAIRS), "resolver did not change block type");
       helper.assertTrue(BlockTinker.tinker(player, level, changes, FLAGS) == BlockEditTransaction.Outcome.APPLIED, "tinker write failed");
-      helper.assertTrue(WorldHistoryManager.requestUndo(player, 1), "undo request failed");
+      helper.assertTrue(HistorySystem.of(player).requestUndo(player, 1), "undo request failed");
       boolean[] redo = {false};
       helper.succeedWhen(() -> {
          // The test server runs ticks without pacing. Allow the history journal to reach disk.
@@ -204,10 +215,10 @@ public final class BlockTinkerGameTests {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
          }
-         helper.assertTrue(!WorldHistoryManager.busy(player), "waiting for history");
+         helper.assertTrue(!HistorySystem.of(player).busy(player), "waiting for history");
          if (!redo[0]) {
             helper.assertTrue(level.getBlockState(pos).equals(original), "undo did not restore the full block");
-            helper.assertTrue(WorldHistoryManager.requestRedo(player, 1), "redo request failed");
+            helper.assertTrue(HistorySystem.of(player).requestRedo(player, 1), "redo request failed");
             redo[0] = true;
             helper.fail("waiting for redo");
          }

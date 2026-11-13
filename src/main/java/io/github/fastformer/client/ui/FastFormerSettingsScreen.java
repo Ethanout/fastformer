@@ -1,14 +1,17 @@
 package io.github.fastformer.client.ui;
 
-import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
+import io.github.fastformer.common.history.CompressionSetting;
+
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.network.payload.settings.MiddleConfirmSettingPayload;
-import io.github.fastformer.network.payload.settings.SettingsActionPayload;
-import io.github.fastformer.network.payload.settings.TinkerHistorySettingPayload;
-import io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits;
+import io.github.fastformer.client.network.outbound.ServerGateway;
+import io.github.fastformer.protocol.settings.SettingKey;
+import io.github.fastformer.protocol.c2s.settings.SettingPayload;
+import io.github.fastformer.protocol.settings.SettingRequest;
+import io.github.fastformer.protocol.settings.SettingsKeys;
+import io.github.fastformer.protocol.settings.PlacementEffectValue;
+import io.github.fastformer.common.history.HistoryCompressionLimits;
 import net.minecraft.client.gui.components.Tooltip;
-import io.github.fastformer.network.payload.settings.PlacementEffectSettingPayload;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffect;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
 import io.github.fastformer.client.FastFormerClientConfig;
@@ -27,9 +30,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 public final class FastFormerSettingsScreen extends Screen {
    private boolean middleConfirmEnabled;
@@ -42,7 +42,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private boolean fallingDisabled;
    private int worldUndoHistoryLimit;
    private int sessionUndoHistoryLimit;
-   private TinkerHistoryMergeLimits tinkerHistoryMergeLimits;
+   private HistoryCompressionLimits tinkerHistoryMergeLimits;
    private Button middleConfirmButton;
    private Button placementConflictButton;
    private Button placementUpdateButton;
@@ -75,7 +75,6 @@ public final class FastFormerSettingsScreen extends Screen {
 
    public FastFormerSettingsScreen(
       boolean middleConfirmEnabled,
-      FaceRasterizationMode faceRasterizationMode,
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
       List<ResourceLocation> enabledPlacementEffects,
@@ -83,7 +82,7 @@ public final class FastFormerSettingsScreen extends Screen {
       boolean fallingDisabled,
       int worldUndoHistoryLimit,
       int sessionUndoHistoryLimit,
-      TinkerHistoryMergeLimits tinkerHistoryMergeLimits,
+      HistoryCompressionLimits tinkerHistoryMergeLimits,
       boolean skipRepeatedCropStages,
       boolean vanillaBlockHistory
    ) {
@@ -100,12 +99,11 @@ public final class FastFormerSettingsScreen extends Screen {
       this.fallingDisabled = fallingDisabled;
       this.worldUndoHistoryLimit = Math.clamp((long)worldUndoHistoryLimit, 1, 800);
       this.sessionUndoHistoryLimit = Math.clamp((long)sessionUndoHistoryLimit, 1, 800);
-      this.tinkerHistoryMergeLimits = tinkerHistoryMergeLimits == null ? TinkerHistoryMergeLimits.DEFAULTS : tinkerHistoryMergeLimits;
+      this.tinkerHistoryMergeLimits = tinkerHistoryMergeLimits == null ? HistoryCompressionLimits.DEFAULTS : tinkerHistoryMergeLimits;
    }
 
    public static void open(
       boolean middleConfirmEnabled,
-      FaceRasterizationMode faceRasterizationMode,
       OperationConflictMode placementConflictMode,
       PlacementUpdateMode placementUpdateMode,
       List<ResourceLocation> enabledPlacementEffects,
@@ -113,13 +111,13 @@ public final class FastFormerSettingsScreen extends Screen {
       boolean fallingDisabled,
       int worldUndoHistoryLimit,
       int sessionUndoHistoryLimit,
-      TinkerHistoryMergeLimits tinkerHistoryMergeLimits,
+      HistoryCompressionLimits tinkerHistoryMergeLimits,
       boolean skipRepeatedCropStages,
       boolean vanillaBlockHistory
    ) {
       Minecraft.getInstance().setScreen(
          new FastFormerSettingsScreen(
-            middleConfirmEnabled, faceRasterizationMode, placementConflictMode,
+            middleConfirmEnabled, placementConflictMode,
             placementUpdateMode, enabledPlacementEffects, emptyHandWrench, fallingDisabled,
             worldUndoHistoryLimit, sessionUndoHistoryLimit, tinkerHistoryMergeLimits, skipRepeatedCropStages, vanillaBlockHistory
          )
@@ -181,6 +179,15 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private void addPlacementRows() {
+      for (var option : io.github.fastformer.client.interaction.binding.option.OptionSettingsSection.rows()) {
+         rows.add(new SettingRow(option.label(), bounds -> addControl(bounds,
+            Component.translatable(option.value().getAsBoolean() ? "options.on" : "options.off"), button -> {
+               option.toggle().run();
+               button.setMessage(Component.translatable(option.value().getAsBoolean() ? "options.on" : "options.off"));
+            })));
+      }
+      for (Component error : io.github.fastformer.client.interaction.binding.option.OptionSettingsSection.errors())
+         rows.add(new SettingRow(error, bounds -> {}));
       rows.add(new SettingRow(Component.translatable("fastformer.settings.middle_confirm"), bounds ->
          middleConfirmButton = addControl(bounds, middleConfirmLabel(), button -> toggleMiddleConfirm())));
       rows.add(new SettingRow(Component.translatable("fastformer.settings.placement_conflict"), bounds ->
@@ -278,10 +285,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private void toggleMiddleConfirm() {
       this.middleConfirmEnabled = !this.middleConfirmEnabled;
       this.middleConfirmButton.setMessage(this.middleConfirmLabel());
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.getConnection() != null && NetworkRegistry.hasChannel(minecraft.getConnection(), MiddleConfirmSettingPayload.TYPE.id())) {
-         PacketDistributor.sendToServer(new MiddleConfirmSettingPayload(this.middleConfirmEnabled), new CustomPacketPayload[0]);
-      }
+      send(SettingsKeys.MIDDLE_CONFIRM.set(middleConfirmEnabled));
    }
 
    private Component middleConfirmLabel() {
@@ -291,7 +295,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private void cyclePlacementConflict() {
       this.placementConflictMode = next(this.placementConflictMode, OperationConflictMode.values());
       this.placementConflictButton.setMessage(this.placementConflictLabel());
-      this.send(SettingsActionPayload.Action.CYCLE_PLACEMENT_CONFLICT);
+      send(SettingsKeys.PLACEMENT_CONFLICT.set(placementConflictMode));
    }
 
    private Component placementConflictLabel() {
@@ -301,7 +305,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private void cyclePlacementUpdate() {
       this.placementUpdateMode = next(this.placementUpdateMode, PlacementUpdateMode.values());
       this.placementUpdateButton.setMessage(this.placementUpdateLabel());
-      this.send(SettingsActionPayload.Action.CYCLE_PLACEMENT_UPDATE);
+      send(SettingsKeys.PLACEMENT_UPDATE.set(placementUpdateMode));
    }
 
    private void togglePlacementEffect(ResourceLocation effectId) {
@@ -310,13 +314,7 @@ public final class FastFormerSettingsScreen extends Screen {
          this.enabledPlacementEffects.add(effectId);
       }
       this.placementEffectButtons.get(effectId).setMessage(this.placementEffectLabel(effectId));
-      if (this.minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(this.minecraft.getConnection(), PlacementEffectSettingPayload.TYPE.id())) {
-         PacketDistributor.sendToServer(
-            new PlacementEffectSettingPayload(effectId, enabled),
-            new CustomPacketPayload[0]
-         );
-      }
+      send(SettingsKeys.PLACEMENT_EFFECT.set(new PlacementEffectValue(effectId, enabled)));
    }
 
    private Component placementEffectLabel(ResourceLocation effectId) {
@@ -332,13 +330,13 @@ public final class FastFormerSettingsScreen extends Screen {
    private void toggleEmptyHandWrench() {
       this.emptyHandWrench = !this.emptyHandWrench;
       this.emptyHandWrenchButton.setMessage(this.emptyHandWrenchLabel());
-      this.send(SettingsActionPayload.Action.TOGGLE_EMPTY_HAND_WRENCH);
+      send(SettingsKeys.EMPTY_HAND_WRENCH.set(emptyHandWrench));
    }
 
    private void toggleVanillaHistory() {
       vanillaBlockHistory = !vanillaBlockHistory;
       vanillaHistoryButton.setMessage(vanillaHistoryLabel());
-      send(SettingsActionPayload.Action.TOGGLE_VANILLA_BLOCK_HISTORY);
+      send(SettingsKeys.VANILLA_BLOCK_HISTORY.set(vanillaBlockHistory));
    }
 
    private Component vanillaHistoryLabel() {
@@ -352,7 +350,7 @@ public final class FastFormerSettingsScreen extends Screen {
    private void toggleCropStages() {
       this.skipRepeatedCropStages = !this.skipRepeatedCropStages;
       this.cropStagesButton.setMessage(this.cropStagesLabel());
-      this.send(SettingsActionPayload.Action.TOGGLE_SKIP_REPEATED_CROP_STAGES);
+      send(SettingsKeys.SKIP_REPEATED_CROP_STAGES.set(skipRepeatedCropStages));
    }
 
    private Component cropStagesLabel() {
@@ -361,9 +359,9 @@ public final class FastFormerSettingsScreen extends Screen {
 
    private void toggleFallingRule() {
       Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.getConnection() == null || !NetworkRegistry.hasChannel(minecraft.getConnection(), SettingsActionPayload.TYPE.id())) return;
+      if (!ServerGateway.supports(minecraft, SettingPayload.TYPE)) return;
       this.fallingRuleButton.active = false;
-      PacketDistributor.sendToServer(new SettingsActionPayload(SettingsActionPayload.Action.TOGGLE_FALLING_DISABLED, !this.fallingDisabled));
+      send(SettingsKeys.FALLING_DISABLED.set(!fallingDisabled));
    }
 
    private int rulePollTicks;
@@ -372,10 +370,10 @@ public final class FastFormerSettingsScreen extends Screen {
       super.tick();
       if (fallingRuleButton == null) return;
       if (Minecraft.getInstance().getConnection() == null) { this.fallingRuleButton.active = false; return; }
-      if (rulePollTicks++ % 20 == 0) this.send(SettingsActionPayload.Action.QUERY_FALLING_DISABLED);
+      if (rulePollTicks++ % 20 == 0) send(SettingsKeys.FALLING_DISABLED.query());
    }
 
-   public static void applyFallingState(io.github.fastformer.network.payload.settings.FallingStatePayload payload) {
+   public static void applyFallingState(io.github.fastformer.protocol.s2c.settings.FallingStatePayload payload) {
       if (Minecraft.getInstance().screen instanceof FastFormerSettingsScreen screen) {
          screen.fallingDisabled = payload.fallingDisabled();
          if (screen.fallingRuleButton != null) {
@@ -406,15 +404,20 @@ public final class FastFormerSettingsScreen extends Screen {
    private void adjustWorldHistory(int amount) {
       this.worldUndoHistoryLimit = Math.clamp((long)this.worldUndoHistoryLimit + amount, 1, 800);
       this.worldHistoryButton.setMessage(this.worldHistoryLabel());
-      this.send(amount < 0 ? SettingsActionPayload.Action.DECREASE_WORLD_HISTORY : SettingsActionPayload.Action.INCREASE_WORLD_HISTORY);
+      send(SettingsKeys.WORLD_HISTORY_LIMIT.set(worldUndoHistoryLimit));
    }
 
-   private void setTinkerHistory(TinkerHistoryMergeLimits.Setting setting, int value) {
+   private void setTinkerHistory(CompressionSetting setting, int value) {
       this.tinkerHistoryMergeLimits = this.tinkerHistoryMergeLimits.with(setting, value);
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.getConnection() != null && NetworkRegistry.hasChannel(minecraft.getConnection(), TinkerHistorySettingPayload.TYPE.id())) {
-         PacketDistributor.sendToServer(new TinkerHistorySettingPayload(setting, this.tinkerHistoryMergeLimits.value(setting)));
-      }
+      SettingKey<Integer> key = switch (setting) {
+         case RECENT_AFTER -> SettingsKeys.RECENT_AFTER;
+         case RECENT_GROUP -> SettingsKeys.RECENT_GROUP;
+         case OLDER_AFTER -> SettingsKeys.OLDER_AFTER;
+         case OLDER_GROUP -> SettingsKeys.OLDER_GROUP;
+         case OLDEST_AFTER -> SettingsKeys.OLDEST_AFTER;
+         case OLDEST_GROUP -> SettingsKeys.OLDEST_GROUP;
+      };
+      send(key.set(tinkerHistoryMergeLimits.value(setting)));
    }
 
    private Component worldHistoryLabel() {
@@ -424,18 +427,15 @@ public final class FastFormerSettingsScreen extends Screen {
    private void adjustSessionHistory(int amount) {
       this.sessionUndoHistoryLimit = Math.clamp((long)this.sessionUndoHistoryLimit + amount, 1, 800);
       this.sessionHistoryButton.setMessage(this.sessionHistoryLabel());
-      this.send(amount < 0 ? SettingsActionPayload.Action.DECREASE_SESSION_HISTORY : SettingsActionPayload.Action.INCREASE_SESSION_HISTORY);
+      send(SettingsKeys.SESSION_HISTORY_LIMIT.set(sessionUndoHistoryLimit));
    }
 
    private Component sessionHistoryLabel() {
       return Component.literal(String.valueOf(this.sessionUndoHistoryLimit));
    }
 
-   private void send(SettingsActionPayload.Action action) {
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.getConnection() != null && NetworkRegistry.hasChannel(minecraft.getConnection(), SettingsActionPayload.TYPE.id())) {
-         PacketDistributor.sendToServer(new SettingsActionPayload(action), new CustomPacketPayload[0]);
-      }
+   private void send(SettingRequest<?> request) {
+      ServerGateway.trySend(new SettingPayload(request));
    }
 
    private static <E extends Enum<E>> E next(E current, E[] values) {

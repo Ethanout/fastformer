@@ -5,10 +5,10 @@ import io.github.fastformer.client.input.drag.GizmoDragCalculator;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.network.payload.geometry.GeometryGizmoDragPayload;
-import io.github.fastformer.network.payload.operation.OperationTransformPayload;
+import io.github.fastformer.protocol.c2s.geometry.GeometryGizmoDragPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationTransformPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.Vec3;
@@ -28,7 +28,7 @@ final class GeometryDragController {
          return false;
       }
       AxisGizmo.Handle handle = hit.handle();
-      double baseValue = FastPlaceClientPreview.operationGizmoValue(handle.axis(), handle.operation());
+      double baseValue = FastPlaceClientPreviewCore.operationGizmoValue(handle.axis(), handle.operation());
       if (handle.drawsRing()) {
          Vec3 radial = hit.point().subtract(gizmo.center());
          if (radial.lengthSqr() < 1.0E-7) {
@@ -54,7 +54,7 @@ final class GeometryDragController {
       session.geometryGizmoDrag = session.geometryGizmoDrag.withCapture(session.pointerGestureToken);
       session.operationTransformCapture = new ClientInputSession.OperationTransformCapture(GeometryInputController.nextRequestId(),
          ClientOperationController.remoteSelectionRevision(), ClientOperationController.remoteSelectionCallbackScope());
-      FastPlaceClientPreview.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
+      FastPlaceClientPreviewCore.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
       return true;
    }
 
@@ -72,14 +72,14 @@ final class GeometryDragController {
    private static Target validatedTarget(ClientInputSession session) {
       if (discardInvalidCapture(session)) return Target.NONE;
       if (session.geometryGizmoCapture.owns(session.geometryGizmoDrag.captureToken())) {
-         var preview = FastPlaceClientPreview.geometrySnapshot();
+         var preview = FastPlaceClientPreviewCore.geometrySnapshot();
          if (!preview.active() || !session.geometryGizmoCapture.matchesActive(preview.draftId(), preview.callbackScope(), preview.mode())) {
             clearCapture(session);
             session.geometryGizmoCapture.cancel();
             return Target.NONE;
          }
       }
-      Target target = target(session, FastPlaceClientPreview.geometryActive(), ClientOperationController.operationSelectionReady());
+      Target target = target(session, FastPlaceClientPreviewCore.geometryActive(), ClientOperationController.operationSelectionReady());
       if (target == Target.NONE) {
          clearCapture(session);
       }
@@ -123,7 +123,7 @@ final class GeometryDragController {
          }
          PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
           session.geometryGizmoDrag = session.geometryGizmoDrag.withSentSteps(session.geometryGizmoDrag.sentSteps() + clippedDelta);
-          FastPlaceClientPreview.noteGizmoFeedback(
+          FastPlaceClientPreviewCore.noteGizmoFeedback(
              session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.sentSteps(), session.geometryGizmoDrag.baseValue()
           );
       }
@@ -136,7 +136,7 @@ final class GeometryDragController {
       if (session.geometryGizmoDrag != null && (operationTransform
          ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
          : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
-         FastPlaceClientPreview.noteGizmoFeedback(
+         FastPlaceClientPreviewCore.noteGizmoFeedback(
             session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.sentSteps(), session.geometryGizmoDrag.baseValue()
          );
          CustomPacketPayload payload = operationTransform

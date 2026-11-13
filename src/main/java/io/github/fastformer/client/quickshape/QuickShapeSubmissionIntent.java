@@ -1,6 +1,6 @@
 package io.github.fastformer.client.quickshape;
 
-import io.github.fastformer.client.session.ClientTickMailbox;
+import io.github.fastformer.core.async.TickMailbox;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
@@ -14,7 +14,7 @@ import java.util.concurrent.FutureTask;
 /** One unsent Enter intent. Only its owning client tick can consume the result. */
 public final class QuickShapeSubmissionIntent {
    private Pending pending;
-   private final ClientTickMailbox<Completion> results = new ClientTickMailbox<>(ignored -> { });
+   private final TickMailbox<Completion> results = new TickMailbox<>(ignored -> { });
 
    public boolean begin(long requestId, QuickShapeSubmissionSnapshot snapshot) {
       if (pending != null || requestId <= 0 || snapshot == null) return false;

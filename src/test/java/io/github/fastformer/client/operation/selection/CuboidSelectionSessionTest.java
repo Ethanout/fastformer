@@ -19,11 +19,11 @@ class CuboidSelectionSessionTest {
    @Test
    void expandOnlyGrowsAndLockedSelectionCannotEdit() {
       CuboidSelectionSession session = new CuboidSelectionSession(BlockPos.ZERO, new BlockPos(1, 1, 1));
-      assertFalse(session.expand(new BlockPos(1, 1, 1)));
-      assertTrue(session.expand(new BlockPos(-2, 3, 0)));
+      assertFalse(session.expandTo(new BlockPos(1, 1, 1)));
+      assertTrue(session.expandTo(new BlockPos(-2, 3, 0)));
       session.lock();
       assertFalse(session.pushPull(CuboidSelectionSession.Face.Y_POSITIVE, 1));
-      assertFalse(session.expand(new BlockPos(10, 10, 10)));
+      assertFalse(session.expandTo(new BlockPos(10, 10, 10)));
       assertFalse(session.setPoint1(BlockPos.ZERO));
    }
 

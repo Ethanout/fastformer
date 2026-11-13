@@ -21,7 +21,7 @@ public final class ClientPlayerSession {
 
    public ClientPlayerSession(UUID playerId) {
       this.playerId = Objects.requireNonNull(playerId, "playerId");
-      this.inputSession = new ClientInputSession();
+      this.inputSession = new ClientInputSession(selectionSession.gestures());
    }
 
    public UUID playerId() {

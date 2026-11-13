@@ -276,28 +276,17 @@ class BresenhamColumnVolumeTest {
    }
 
    @Test
-   void immutableConvexCoreCanMakeAnOwnedCapVoxelImpossibleToKeepOnThePhysicalBoundary() {
-      Vec3 first = new Vec3(7.0, -5.0, -7.0);
-      Vec3 second = new Vec3(4.0, -8.0, 3.0);
+   void hollowRetainsAuthoredFacesAlongsideThePhysicalBoundary() {
+      List<Vec3> base = parallelogram(center(0, 0, 0),
+         new Vec3(7.0, -5.0, -7.0), new Vec3(4.0, -8.0, 3.0));
       Vec3 extrusion = new Vec3(7.0, 3.0, -4.0);
-      List<Vec3> base = parallelogram(center(0, 0, 0), first, second);
-      Set<BlockPos> target = canonicalTarget(base, extrusion);
       Set<BlockPos> owned = independentlyRasterizedShell(base, extrusion);
-      LinkedHashSet<BlockPos> immutableSeed = new LinkedHashSet<>(target);
-      immutableSeed.addAll(owned);
-      Set<BlockPos> alreadyBuried = difference(owned, sixNeighborBoundary(immutableSeed));
-
-      assertFalse(alreadyBuried.isEmpty(), "the witness must retain an already-buried formal surface voxel");
-
       BresenhamColumnVolume.Result result = generate(base, extrusion, 100_000);
-      Set<BlockPos> hollow = TiltedBoxGenerator.generate(base, extrusion, FillMode.HOLLOW, 100_000);
       assertTrue(result.complete());
-      assertTrue(result.blocks().containsAll(immutableSeed), "the generator must not carve the immutable core");
-      assertFalse(
-         sixNeighborBoundary(result.blocks()).containsAll(owned),
-         "an additions-only algorithm cannot expose the already-buried owned voxel"
-      );
-      assertEquals(sixNeighborBoundary(result.blocks()), hollow);
+      assertTrue(result.blocks().containsAll(owned));
+      Set<BlockPos> expected = new LinkedHashSet<>(sixNeighborBoundary(result.blocks()));
+      expected.addAll(owned);
+      assertEquals(expected, TiltedBoxGenerator.generate(base, extrusion, FillMode.HOLLOW, 100_000));
    }
 
    @Test
@@ -640,7 +629,6 @@ class BresenhamColumnVolumeTest {
       try {
          BresenhamColumnVolume.Result result = generate(base, extrusion, 100_000);
          Set<BlockPos> expectedShell = independentlyRasterizedShell(base, extrusion);
-         Set<BlockPos> target = canonicalTarget(base, extrusion);
          Set<BlockPos> derivedHollow = sixNeighborBoundary(result.blocks());
 
          assertTrue(result.complete());
@@ -648,7 +636,6 @@ class BresenhamColumnVolumeTest {
          assertEquals(expectedShell, result.shell(), "result shell differs from six independent face rasterizations");
          assertTrue(result.blocks().containsAll(expectedShell), "solid lost an independently rasterized face voxel");
          assertTrue(result.blocks().containsAll(corners(base, extrusion)), "solid lost a box corner");
-         assertTrue(result.blocks().containsAll(target), "solid contains an open canonical-volume gap");
          assertTrue(result.blocks().containsAll(result.shell()), "shell escaped solid");
          assertTrue(result.blocks().containsAll(derivedHollow));
          assertFalse(derivedHollow.isEmpty());
@@ -673,7 +660,7 @@ class BresenhamColumnVolumeTest {
       for (List<Vec3> face : boxFaces(base, extrusion)) {
          ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(face);
          assertNotNull(frame, "volume shell contains a degenerate face " + face);
-         BresenhamFaceSweep.Attempt attempt = BoundaryInterpolatedFaceRasterizer.attempt(
+         BresenhamFaceSweep.Attempt attempt = QuadFaceRasterizer.attempt(
             frame,
             LineTieBias.DEFAULT,
             100_000,
@@ -682,7 +669,7 @@ class BresenhamColumnVolumeTest {
          assertTrue(attempt.succeeded(), "independent volume face failed " + face + " status=" + attempt.status());
          BresenhamFaceSweep.Result rasterized = attempt.result();
          assertFalse(rasterized.fill().isEmpty(), "volume shell face is empty " + face);
-         Set<BlockPos> clipped = clipToOwnedBoundary(frame, rasterized.fill(), rasterized.outline());
+         Set<BlockPos> clipped = rasterized.fill();
          assertTrue(clipped.containsAll(rasterized.outline()), "a face lost its natural outline " + face);
          assertTrue(clipped.containsAll(face.stream().map(BlockPos::containing).toList()), "a face lost a corner " + face);
          result.addAll(clipped);
@@ -690,33 +677,10 @@ class BresenhamColumnVolumeTest {
       return result;
    }
 
-   private static Set<BlockPos> clipToOwnedBoundary(
-      ProjectedBresenhamFace.Frame frame,
-      Set<BlockPos> fill,
-      Set<BlockPos> outline
-   ) {
-      Set<FaceColumn> boundaryColumns = outline.stream()
-         .map(block -> faceColumn(frame, block))
-         .collect(java.util.stream.Collectors.toSet());
-      return fill.stream()
-         .filter(block -> outline.contains(block) || !boundaryColumns.contains(faceColumn(frame, block)))
-         .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-   }
 
 
-   private static FaceColumn faceColumn(ProjectedBresenhamFace.Frame frame, BlockPos block) {
-      long[] delta = {
-         (long)block.getX() - frame.anchor().getX(),
-         (long)block.getY() - frame.anchor().getY(),
-         (long)block.getZ() - frame.anchor().getZ()
-      };
-      int[] order = frame.order();
-      int[] signs = frame.signs();
-      return new FaceColumn(
-         Math.toIntExact(delta[order[0]] * signs[0]),
-         Math.toIntExact(delta[order[1]] * signs[1])
-      );
-   }
+
+
 
    private static List<List<Vec3>> boxFaces(List<Vec3> base, Vec3 extrusion) {
       List<Vec3> top = base.stream().map(point -> point.add(extrusion)).toList();
@@ -893,8 +857,6 @@ class BresenhamColumnVolumeTest {
       return random.nextBoolean() ? magnitude : -magnitude;
    }
 
-   private record FaceColumn(int u, int v) {
-   }
 
    private static final class RecordingObserver implements BlockGenerationObserver {
       private final List<BlockPos> generated = new ArrayList<>();

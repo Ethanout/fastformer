@@ -2,7 +2,7 @@ package io.github.fastformer.client.session;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,6 +35,10 @@ public final class ClientSessionManager {
    private static final String RECEIPT_DIRECTORY = "fastformer/session-receipts";
 
    private final Map<SessionKey, ClientPlayerSession> playerSessions = new HashMap<>();
+   private final io.github.fastformer.client.operation.selection.ClientSelectionSession unboundSelection =
+      new io.github.fastformer.client.operation.selection.ClientSelectionSession();
+   private final io.github.fastformer.client.input.ClientInputSession unboundInput =
+      new io.github.fastformer.client.input.ClientInputSession(unboundSelection.gestures());
    /** Explicit read result for each scope draft file. Absent means NOT_LOADED. */
    private final Map<SessionKey, ClientDraftLoadState> draftLoadStates = new HashMap<>();
    /** Submission receipts of each scope, read from disk at the first use. */
@@ -44,6 +48,9 @@ public final class ClientSessionManager {
    private final Map<SessionKey, Path> receiptFiles = new HashMap<>();
    /** Draft files of one scope. The read, save and delete paths use this, and a test supplies its own path. */
    private final Map<SessionKey, Path> draftFiles = new HashMap<>();
+   /** Identity of the staged draft whose exact contents were loaded or saved successfully. */
+   private final Map<SessionKey, ClientOperationDraft> durableDrafts = new HashMap<>();
+   private boolean reclaimScopesPending;
    /** Scopes whose applied-draft cleanup already ran in this process. */
    private final java.util.Set<SessionKey> cleanupReplayed = new java.util.HashSet<>();
    private ClientPlayerSession current;
@@ -51,10 +58,20 @@ public final class ClientSessionManager {
    private Object callbackConnection;
    private UUID callbackSessionId;
    private final ClientStorageQueue storage = new ClientStorageQueue();
+   private final DeferredReceiptSaves unsentReceiptSaves = new DeferredReceiptSaves(storage, System::nanoTime, (path, failure) -> {
+      LOGGER.warn("Unable to save the unsent submission receipt at {}; the save will retry", path, failure);
+      showDraftMessage("fastformer.message.operation_receipt_save_failed");
+   });
 
-   public void drainStorageResults() { storage.drain(); }
+   public void drainStorageResults() {
+      storage.drain();
+      unsentReceiptSaves.tick();
+      if (reclaimScopesPending && storage.idle() && unsentReceiptSaves.pendingCount() == 0) {
+         reclaimInactiveScopes();
+      }
+   }
 
-   private ClientSessionManager() {
+   ClientSessionManager() {
    }
 
    public static ClientSessionManager instance() {
@@ -66,17 +83,23 @@ public final class ClientSessionManager {
       return current;
    }
 
+   /** Input and selection share one gesture owner even before any world has been attached. */
+   public io.github.fastformer.client.input.ClientInputSession inputSession() {
+      return current == null ? unboundInput : current.inputSession();
+   }
+
+   public io.github.fastformer.client.operation.selection.ClientSelectionSession selectionSession() {
+      return current == null ? unboundSelection : current.selectionSession();
+   }
+
+   public void clearUnboundInteraction() {
+      unboundInput.reset();
+      unboundSelection.clearLiveInteraction();
+   }
+
    public ClientPlayerSession forCurrent(Minecraft minecraft) {
       observePlayer(minecraft);
       return current;
-   }
-
-   /** Returns the persistent session box for a player identity. */
-   public ClientPlayerSession forPlayer(UUID playerId) {
-      if (playerId == null) {
-         throw new IllegalArgumentException("playerId must not be null");
-      }
-      return playerSessions.computeIfAbsent(new SessionKey("legacy", "", playerId), key -> new ClientPlayerSession(playerId));
    }
 
    /** Returns the session isolated to one connection, player, and dimension. */
@@ -126,7 +149,41 @@ public final class ClientSessionManager {
       }
       ClientPlayerSession next = playerSessions.computeIfAbsent(nextKey, ignored -> new ClientPlayerSession(playerId));
       if (scopeChanged || firstActivation) next.resetInput();
-      return current = next;
+      current = next;
+      if (scopeChanged) {
+         reclaimScopesPending = true;
+         if (storage.idle() && unsentReceiptSaves.pendingCount() == 0) reclaimInactiveScopes();
+      }
+      return next;
+   }
+
+   /** Keeps unsaved or unreadable scopes; successful disk state can be loaded on the next entry. */
+   void reclaimInactiveScopes() {
+      if (!storage.idle() || unsentReceiptSaves.pendingCount() != 0) return;
+      reclaimScopesPending = false;
+      var entries = playerSessions.entrySet().iterator();
+      while (entries.hasNext()) {
+         var entry = entries.next();
+         SessionKey key = entry.getKey();
+         ClientPlayerSession session = entry.getValue();
+         if (session == current || liveWorkBlocksDraftRead(session)) continue;
+         var draft = session.suspendedOperationDraftData();
+         if (draft != null && durableDrafts.get(key) != draft) continue;
+         var receipts = receiptStores.get(key);
+         if (receipts != null && receipts.dirty()) continue;
+         if (draftLoadStates.getOrDefault(key, ClientDraftLoadState.NOT_LOADED).blocksRead()
+            && draftLoadStates.get(key) != ClientDraftLoadState.READY) continue;
+         if (receiptLoadStates.getOrDefault(key, ClientDraftLoadState.NOT_LOADED).blocksRead()
+            && receiptLoadStates.get(key) != ClientDraftLoadState.READY) continue;
+         entries.remove();
+         durableDrafts.remove(key);
+         draftLoadStates.remove(key);
+         receiptStores.remove(key);
+         receiptLoadStates.remove(key);
+         draftFiles.remove(key);
+         receiptFiles.remove(key);
+         cleanupReplayed.remove(key);
+      }
    }
 
    /** Records the current player identity without coupling the session box to LocalPlayer lifetime. */
@@ -180,7 +237,11 @@ public final class ClientSessionManager {
             return true;
          }, (saved, error) -> {
             if (!OperationClipboardStore.current(file, ticket)) return;
-            if (error == null) draftLoadStates.put(key, ClientDraftLoadState.READY);
+            if (error == null) {
+               draftLoadStates.put(key, ClientDraftLoadState.READY);
+               durableDrafts.put(key, draft);
+               reclaimScopesPending = true;
+            }
             else { LOGGER.warn("Unable to save the FastFormer client operation draft", error); showDraftMessage("fastformer.message.operation_draft_save_failed"); }
          });
       });
@@ -273,17 +334,7 @@ public final class ClientSessionManager {
 
    private void recordUnsentSubmission(OperationSubmissionReceiptStore store, OperationSubmissionReceipt receipt, Path file) {
       store.record(receipt.withOutcome(OperationSubmissionOutcome.FAILED_RETRYABLE, System.currentTimeMillis()));
-      var receipts = store.all();
-      storage.submitPrepared(() -> {
-         Object ticket = OperationClipboardStore.reserve(file);
-         return new ClientStorageQueue.Task<>(() -> {
-            OperationClipboardStore.save(file, OperationSubmissionReceiptCodec.encode(receipts), ticket);
-            return true;
-         }, (saved, failure) -> {
-            if (failure == null && OperationClipboardStore.current(file, ticket)) store.confirmSaved(receipts);
-            else if (failure != null) LOGGER.warn("Unable to save the unsent submission receipt", failure);
-         });
-      });
+      unsentReceiptSaves.request(file, store);
    }
 
    /**
@@ -533,7 +584,8 @@ public final class ClientSessionManager {
    }
 
    /** Accepts a server snapshot and binds its callback session to the current connection. */
-   public boolean acceptsPreviewCallback(OperationCallbackScope callbackScope, Connection sourceConnection) {      Minecraft minecraft = Minecraft.getInstance();
+   public boolean acceptsPreviewCallback(OperationCallbackScope callbackScope, Connection sourceConnection) {
+      Minecraft minecraft = Minecraft.getInstance();
       if (minecraft == null || minecraft.player == null || minecraft.level == null || minecraft.getConnection() == null) {
          return false;
       }
@@ -909,6 +961,10 @@ public final class ClientSessionManager {
          return ClientDraftLoadState.AWAITING_RECEIPT;
       }
       session.stageSuspendedOperationDraft(draft);
+      if (playerSessions.get(key) == session) {
+         durableDrafts.put(key, draft);
+         reclaimScopesPending = true;
+      }
       this.draftLoadStates.put(key, ClientDraftLoadState.READY);
       return ClientDraftLoadState.READY;
    }
@@ -956,7 +1012,12 @@ public final class ClientSessionManager {
    }
 
    private boolean deleteDraftFile(SessionKey key) {
-      return deleteDraftFileAt(draftFileFor(key));
+      boolean deleted = deleteDraftFileAt(draftFileFor(key));
+      if (deleted) {
+         durableDrafts.remove(key);
+         reclaimScopesPending = true;
+      }
+      return deleted;
    }
 
    private static void showDraftMessage(String translationKey) {

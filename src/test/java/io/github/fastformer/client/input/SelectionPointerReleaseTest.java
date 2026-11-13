@@ -13,13 +13,13 @@ class SelectionPointerReleaseTest {
    void releaseUsesSuppliedSessionWithoutClearingAnotherSessionsCapture() {
       var first = new ClientInputSession();
       var second = new ClientInputSession();
-      first.operationClickCapturedButton = 0;
-      second.operationClickCapturedButton = 0;
+      first.operationClick.capture(0);
+      second.operationClick.capture(0);
       assertTrue(MouseReleaseDispatcher.finish(null, first, MouseButtonInputSemantics.RELEASE, 0, 123L));
-      assertEquals(-1, first.operationClickCapturedButton);
-      assertEquals(0, second.operationClickCapturedButton);
+      assertEquals(-1, first.operationClick.buttonId());
+      assertEquals(0, second.operationClick.buttonId());
       assertTrue(MouseReleaseDispatcher.finish(null, second, MouseButtonInputSemantics.RELEASE, 0, 124L));
-      assertEquals(-1, second.operationClickCapturedButton);
+      assertEquals(-1, second.operationClick.buttonId());
    }
 
    @AfterEach
@@ -32,11 +32,11 @@ class SelectionPointerReleaseTest {
       var session = FastPlaceClientInput.inputSession();
       session.reset();
       for (int button : new int[] {0, 1}) {
-         session.operationClickCapturedButton = button;
+         session.operationClick.capture(button);
          assertFalse(releaseMouse(1 - button));
-         assertEquals(button, session.operationClickCapturedButton);
+         assertEquals(button, session.operationClick.buttonId());
          assertTrue(releaseMouse(button));
-         assertEquals(-1, session.operationClickCapturedButton);
+         assertEquals(-1, session.operationClick.buttonId());
          assertFalse(releaseMouse(button));
       }
    }

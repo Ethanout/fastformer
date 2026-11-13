@@ -1,11 +1,17 @@
 package io.github.fastformer.client.render.state;
 
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewEffectSnapshot;
+
 import static org.junit.jupiter.api.Assertions.*;
 import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
-import io.github.fastformer.network.payload.preview.*;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -65,15 +71,15 @@ class QuickShapeSubmissionSnapshotTest {
       assertTrue(state.buildingSubmission().isEmpty());
    }
 
-   private static void publish(ClientPreviewState state, BuildingPreviewPayload data, long revision, OperationCallbackScope scope) {
+   private static void publish(ClientPreviewState state, BuildingPreviewSnapshot data, long revision, OperationCallbackScope scope) {
       state.applyBuildingSession(new BuildingPreviewSessionPayload(revision, data.session(), scope));
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(revision, data.parameters(), scope));
       state.applyBuildingEffect(new BuildingPreviewEffectPayload(revision, new BuildingPreviewEffectSnapshot(null), scope));
    }
 
-   private static BuildingPreviewPayload active(BlockPos first, BlockPos offset) {
-      var defaults = BuildingPreviewPayload.inactive();
-      return new BuildingPreviewPayload(true, true, true, false, false, false,
+   private static BuildingPreviewSnapshot active(BlockPos first, BlockPos offset) {
+      var defaults = BuildingPreviewSnapshot.inactive();
+      return new BuildingPreviewSnapshot(true, true, true, false, false, false,
          PolygonVolumeShape.EXTRUDE, List.of(first), 0, offset, Vec3.ZERO, Vec3.ZERO,
          BlockPos.ZERO, 0, defaults.pointMode(), RaycastPlacement.SURFACE, defaults.lineMode(),
          defaults.faceMode(), defaults.volumeMode(), defaults.fillMode(), LineTieBias.DEFAULT, null);

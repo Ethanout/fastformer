@@ -147,23 +147,6 @@ public final class PreviewGeometrySupport {
          || Math.abs(rotation.z - Math.rint(rotation.z / quarterTurn) * quarterTurn) > 1.0E-5;
    }
 
-   public static Vec3 rotateLocalAxis(AxisGizmo.Axis axis, Vec3 rotation) {
-      Vec3 value = switch (axis) {
-         case X -> new Vec3(1.0, 0.0, 0.0);
-         case Y -> new Vec3(0.0, 1.0, 0.0);
-         case Z -> new Vec3(0.0, 0.0, 1.0);
-      };
-      double xSin = Math.sin(rotation.x);
-      double xCos = Math.cos(rotation.x);
-      value = new Vec3(value.x, value.y * xCos - value.z * xSin, value.y * xSin + value.z * xCos);
-      double ySin = Math.sin(rotation.y);
-      double yCos = Math.cos(rotation.y);
-      value = new Vec3(value.x * yCos + value.z * ySin, value.y, -value.x * ySin + value.z * yCos);
-      double zSin = Math.sin(rotation.z);
-      double zCos = Math.cos(rotation.z);
-      return new Vec3(value.x * zCos - value.y * zSin, value.x * zSin + value.y * zCos, value.z);
-   }
-
    public static float[] softLocalAxisColor(AxisGizmo.Axis axis) {
       var color = io.github.fastformer.fastplace.geometry.GeometryPalette.softAxis(axis);
       return new float[]{color.red(), color.green(), color.blue()};

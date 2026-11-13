@@ -1,7 +1,7 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.network.payload.world.WorldRedoPayload;
-import io.github.fastformer.network.payload.world.WorldUndoPayload;
+import io.github.fastformer.protocol.c2s.world.WorldRedoPayload;
+import io.github.fastformer.protocol.c2s.world.WorldUndoPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;

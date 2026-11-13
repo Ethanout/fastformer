@@ -12,6 +12,22 @@ import org.junit.jupiter.api.Test;
 
 class SelectionGestureStateTest {
    @Test
+   void pointerViewReadsTheSuppliedPlayerSessionWithoutLeakingOtherPlayers() {
+      var first = new io.github.fastformer.client.session.ClientPlayerSession(java.util.UUID.randomUUID());
+      var second = new io.github.fastformer.client.session.ClientPlayerSession(java.util.UUID.randomUUID());
+      var firstDrag = face(first.selectionSession(), 1);
+      var secondDrag = face(second.selectionSession(), 2);
+      first.selectionSession().gestures().begin(firstDrag);
+      second.selectionSession().gestures().begin(secondDrag);
+      assertSame(first.selectionSession().gestures(), first.inputSession().selectionGestures());
+      assertSame(firstDrag, PointerDragSnapshotView.face(first.inputSession()));
+      assertSame(secondDrag, PointerDragSnapshotView.face(second.inputSession()));
+      first.resetInput();
+      assertNull(PointerDragSnapshotView.face(first.inputSession()));
+      assertSame(secondDrag, PointerDragSnapshotView.face(second.inputSession()));
+   }
+
+   @Test
    void aSessionOwnsOneGestureAndCleanupRemovesIt() {
       var session = new ClientSelectionSession();
       var drag = face(session, 1);

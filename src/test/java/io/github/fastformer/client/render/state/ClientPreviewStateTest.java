@@ -8,15 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
-import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
-import io.github.fastformer.network.payload.preview.ActivityStatePayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewEffectPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewEffectSnapshot;
-import io.github.fastformer.network.payload.preview.BuildingPreviewParametersPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewSession;
-import io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload;
+import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
+import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
+import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewEffectSnapshot;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
@@ -25,8 +25,8 @@ class ClientPreviewStateTest {
    @Test
    void idleStartRequiresAllPreviewPartsFromTheSameScopedRevision() {
       var state = new ClientPreviewState();
-      var inactive = BuildingPreviewPayload.inactive();
-      var scope = new io.github.fastformer.network.payload.operation.OperationCallbackScope(
+      var inactive = BuildingPreviewSnapshot.inactive();
+      var scope = new io.github.fastformer.protocol.callback.OperationCallbackScope(
          java.util.UUID.randomUUID(), net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"),
          java.util.UUID.randomUUID());
       assertTrue(state.idleBuildingSession().isEmpty());
@@ -44,11 +44,11 @@ class ClientPreviewStateTest {
    @Test
    void idleStartRejectsPreviewPartsFromDifferentSessions() {
       var state = new ClientPreviewState();
-      var inactive = BuildingPreviewPayload.inactive();
-      var scope = new io.github.fastformer.network.payload.operation.OperationCallbackScope(
+      var inactive = BuildingPreviewSnapshot.inactive();
+      var scope = new io.github.fastformer.protocol.callback.OperationCallbackScope(
          java.util.UUID.randomUUID(), net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"),
          java.util.UUID.randomUUID());
-      var other = new io.github.fastformer.network.payload.operation.OperationCallbackScope(
+      var other = new io.github.fastformer.protocol.callback.OperationCallbackScope(
          scope.playerId(), scope.dimension(), java.util.UUID.randomUUID());
       state.applyBuildingSession(new BuildingPreviewSessionPayload(1L, inactive.session(), scope));
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(1L, inactive.parameters(), other));
@@ -59,7 +59,7 @@ class ClientPreviewStateTest {
    @Test
    void invalidatesPreviewOnlyWhenACompleteNewSnapshotIsPublished() {
       ClientPreviewState state = new ClientPreviewState();
-      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot inactive = BuildingPreviewSnapshot.inactive();
       var session = new BuildingPreviewSessionPayload(9L, inactive.session());
       var parameters = new BuildingPreviewParametersPayload(9L, inactive.parameters());
       var effect = new BuildingPreviewEffectPayload(9L, new BuildingPreviewEffectSnapshot(inactive.activePlacementEffect()));
@@ -78,7 +78,7 @@ class ClientPreviewStateTest {
    @Test
    void keepsTheLatestSnapshotsWhenAClientWorldIsReplaced() {
       ClientPreviewState state = new ClientPreviewState();
-      BuildingPreviewPayload building = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot building = BuildingPreviewSnapshot.inactive();
       OperationPreviewPayload operation = OperationPreviewPayload.inactive(4L);
       GeometryPreviewPayload geometry = GeometryPreviewPayload.inactive();
 
@@ -100,7 +100,7 @@ class ClientPreviewStateTest {
    void startsWithInactiveSnapshotsAndZeroVersions() {
       ClientPreviewState state = new ClientPreviewState();
 
-      assertEquals(BuildingPreviewPayload.inactive(), state.building());
+      assertEquals(BuildingPreviewSnapshot.inactive(), state.building());
       assertEquals(OperationPreviewPayload.inactive(), state.operation());
       assertFalse(state.geometry().active());
       assertEquals(FastPlaceActivity.NONE, state.activity());
@@ -142,12 +142,12 @@ class ClientPreviewStateTest {
    @Test
    void waitsForAllSplitPreviewPartsBeforePublishingARevision() {
       ClientPreviewState state = new ClientPreviewState();
-      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot inactive = BuildingPreviewSnapshot.inactive();
 
       state.applyBuildingSession(new BuildingPreviewSessionPayload(7L, inactive.session()));
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(6L, inactive.parameters()));
       state.applyBuildingEffect(new BuildingPreviewEffectPayload(7L, new BuildingPreviewEffectSnapshot(null)));
-      assertEquals(BuildingPreviewPayload.inactive(), state.building());
+      assertEquals(BuildingPreviewSnapshot.inactive(), state.building());
 
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(7L, inactive.parameters()));
       assertEquals(inactive, state.building());
@@ -157,7 +157,7 @@ class ClientPreviewStateTest {
    @Test
    void ignoresLateSplitPreviewParts() {
       ClientPreviewState state = new ClientPreviewState();
-      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot inactive = BuildingPreviewSnapshot.inactive();
 
       state.applyBuildingSession(new BuildingPreviewSessionPayload(3L, inactive.session()));
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(3L, inactive.parameters()));
@@ -175,7 +175,7 @@ class ClientPreviewStateTest {
    @Test
    void fullSnapshotDoesNotLowerSplitRevisionWatermark() {
       ClientPreviewState state = new ClientPreviewState();
-      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot inactive = BuildingPreviewSnapshot.inactive();
       state.applyBuildingSession(new BuildingPreviewSessionPayload(8L, inactive.session()));
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(8L, inactive.parameters()));
       state.applyBuildingEffect(new BuildingPreviewEffectPayload(8L, new BuildingPreviewEffectSnapshot(null)));
@@ -193,7 +193,7 @@ class ClientPreviewStateTest {
    @Test
    void disconnectResetsRevisionForReconnect() {
       ClientPreviewState state = new ClientPreviewState();
-      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot inactive = BuildingPreviewSnapshot.inactive();
       state.applyBuildingSession(new BuildingPreviewSessionPayload(8L, inactive.session()));
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(8L, inactive.parameters()));
       state.applyBuildingEffect(new BuildingPreviewEffectPayload(8L, new BuildingPreviewEffectSnapshot(null)));
@@ -217,7 +217,7 @@ class ClientPreviewStateTest {
       state.resetConnection();
       state.beginReconnectRestore();
       var session = activeBuildingSession(11L);
-      var parameters = new BuildingPreviewParametersPayload(11L, BuildingPreviewPayload.inactive().parameters());
+      var parameters = new BuildingPreviewParametersPayload(11L, BuildingPreviewSnapshot.inactive().parameters());
       var effect = new BuildingPreviewEffectPayload(11L, new BuildingPreviewEffectSnapshot(null));
       var activity = new ActivityStatePayload(1L, FastPlaceActivity.BUILDING_SESSION);
 
@@ -275,7 +275,7 @@ class ClientPreviewStateTest {
    @Test
    void newConnectionScopeArmsTheConfirmGateForAVisiblePreview() {
       ClientPreviewState state = new ClientPreviewState();
-      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot inactive = BuildingPreviewSnapshot.inactive();
       state.applyBuildingSession(activeBuildingSession(20L));
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(20L, inactive.parameters()));
       state.applyBuildingEffect(new BuildingPreviewEffectPayload(20L, new BuildingPreviewEffectSnapshot(null)));
@@ -295,7 +295,7 @@ class ClientPreviewStateTest {
       state.resetConnection();
       state.beginReconnectRestore();
 
-      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot inactive = BuildingPreviewSnapshot.inactive();
       assertFalse(state.holdReconnectBuildingSession(new BuildingPreviewSessionPayload(4L, inactive.session())));
       assertFalse(state.reconnectRestorePending());
 
@@ -357,7 +357,7 @@ class ClientPreviewStateTest {
    }
 
    private static BuildingPreviewSessionPayload activeBuildingSession(long revision) {
-      BuildingPreviewPayload inactive = BuildingPreviewPayload.inactive();
+      BuildingPreviewSnapshot inactive = BuildingPreviewSnapshot.inactive();
       return new BuildingPreviewSessionPayload(
          revision,
          new BuildingPreviewSession(

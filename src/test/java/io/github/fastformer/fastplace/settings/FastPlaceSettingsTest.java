@@ -4,7 +4,6 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.session.FastPlaceManager;
 
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.generation.FaceRasterizationMode;
 
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 
@@ -58,45 +57,20 @@ class FastPlaceSettingsTest {
    }
 
    @Test
-   void legacyWoodFrameFlagMigratesIntoEffectSet() {
+   void obsoleteWoodFrameFlagIsIgnored() {
       CompoundTag tag = new CompoundTag();
       tag.putBoolean("smartWoodFrame", false);
 
-      assertFalse(FastPlaceSettings.fromTag(tag)
+      assertTrue(FastPlaceSettings.fromTag(tag)
          .isPlacementEffectEnabled(WoodFramePlacementEffect.ID));
    }
 
    @Test
-   void faceRasterizationDefaultsToNormalPlaneAndMigratesArchivedMode() {
-      for (FaceRasterizationMode mode : FaceRasterizationMode.values()) {
-         CompoundTag legacy = new CompoundTag();
-         legacy.putString("faceRasterizationMode", mode.name());
-         assertEquals(FaceRasterizationMode.DEFAULT, FastPlaceSettings.fromTag(legacy).faceRasterizationMode());
-         assertEquals(FaceRasterizationMode.DEFAULT, mode.next());
-      }
-      assertEquals(
-         FaceRasterizationMode.DEFAULT,
-         FastPlaceSettings.fromTag(new CompoundTag()).faceRasterizationMode()
-      );
-      CompoundTag tag = new CompoundTag();
-      tag.putString(
-         "faceRasterizationMode",
-         FaceRasterizationMode.GRADIENT_CROSS_INTERPOLATED_EXPERIMENTAL.name()
-      );
-      FastPlaceSettings settings = FastPlaceSettings.fromTag(tag);
-
-      assertEquals(
-         FaceRasterizationMode.DEFAULT,
-         settings.faceRasterizationMode()
-      );
-      assertEquals(
-         FaceRasterizationMode.DEFAULT,
-         settings.modes().faceRasterizationMode()
-      );
-      assertEquals(
-         FaceRasterizationMode.DEFAULT,
-         FastPlaceSettings.fromTag(settings.toTag()).faceRasterizationMode()
-      );
+   void retiredRasterizationPreferenceIsNotStored() {
+      CompoundTag input = new CompoundTag();
+      input.putString("faceRasterizationMode", "POINT_SWEEP");
+      FastPlaceSettings settings = FastPlaceSettings.fromTag(input);
+      assertFalse(settings.toTag().contains("faceRasterizationMode"));
    }
 
    @Test

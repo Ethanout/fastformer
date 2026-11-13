@@ -19,13 +19,13 @@ final class SelectionInputDispatcher {
             SelectionDragCapture capture = null;
             long routingToken = 0L;
             if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) == ClientInputStateMachine.Dispatch.OPERATION
-               && !ClientOperationController.selectionGestures().active()) {
+               && !session.selectionGestures().active()) {
                SelectionGestureController.press(session, minecraft, press.snapshot());
-               capture = ClientOperationController.selectionGestures().capture();
+               capture = session.selectionGestures().capture();
                if (capture != null) {
                   routingToken = session.routing.beginGesture(press.snapshot().button());
                   session.clickGestureToken = routingToken;
-                  session.operationClickCapturedButton = press.snapshot().button();
+                  session.operationClick.capture(press.snapshot().button());
                   if (press.alt()) session.modifier.consume();
                }
             }
@@ -43,7 +43,7 @@ final class SelectionInputDispatcher {
             var snapshot = press.snapshot();
             if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) == ClientInputStateMachine.Dispatch.OPERATION
                && snapshot.matches(ClientOperationController.interactionScene().owner(), ClientOperationController.workspace())
-               && !ClientOperationController.selectionGestures().active() && snapshot.point() != null) {
+               && !session.selectionGestures().active() && snapshot.point() != null) {
                var decision = ClientOperationController.adjustAabbPoint(snapshot.partId(), snapshot.button(), snapshot.point());
                ClientInteractionFeedback.showAabbAdjustFailure(minecraft, decision);
             }
@@ -56,7 +56,7 @@ final class SelectionInputDispatcher {
       if (session.routing.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION) != ClientInputStateMachine.Dispatch.OPERATION
          || !press.matches(ClientOperationController.interactionScene().owner(), ClientOperationController.draftSelectionMode())
          || ClientOperationController.workspaceSubmissionPending() || ClientOperationController.workspace().locked()
-         || ClientOperationController.selectionGestures().active()) return;
+         || session.selectionGestures().active()) return;
       if (press.alt()) {
          ClientOperationController.setAltMode(true);
          session.modifier.consume();
@@ -70,7 +70,7 @@ final class SelectionInputDispatcher {
    private static void settleSelectionPointer(ClientInputSession session, SelectionPointerCapture.Dispatch dispatched, boolean cancelled) {
       if (dispatched == null || dispatched.drag() == null) return;
       SelectionDragCapture capture = dispatched.drag();
-      var gestures = ClientOperationController.selectionGestures();
+      var gestures = session.selectionGestures();
       var drag = gestures.capturedBy(capture);
       if (drag != null) {
          if (cancelled) {
@@ -86,7 +86,7 @@ final class SelectionInputDispatcher {
       if (session.clickGestureToken == dispatched.routingToken()) {
          session.routing.finishGesture(capture.mouseButton(), dispatched.routingToken());
          session.clickGestureToken = 0L;
-         session.operationClickCapturedButton = -1;
+         session.operationClick.clear();
       }
    }
 

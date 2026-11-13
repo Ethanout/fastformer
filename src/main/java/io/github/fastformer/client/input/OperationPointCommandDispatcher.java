@@ -3,10 +3,10 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.OperationPointCommandEvent;
 import io.github.fastformer.client.operation.input.OperationPointCommandPress;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
-import io.github.fastformer.network.payload.operation.OperationInsertPointPayload;
-import io.github.fastformer.network.payload.operation.OperationPointPayload;
-import io.github.fastformer.network.payload.operation.OperationSelectPointPayload;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.protocol.c2s.operation.OperationInsertPointPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationPointPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationSelectPointPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -33,7 +33,7 @@ final class OperationPointCommandDispatcher {
    }
 
    static boolean insertEdge(Minecraft minecraft) {
-      if (FastPlaceClientPreview.operationPrismEdgeInsertion() == null
+      if (FastPlaceClientPreviewCore.operationPrismEdgeInsertion() == null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationInsertPointPayload.TYPE.id())) return false;
       ClientInputSession session = FastPlaceClientInput.currentSession();
       session.captureOperationPointCommand(OperationPointCommandPress.insert(System.nanoTime()));
@@ -42,11 +42,11 @@ final class OperationPointCommandDispatcher {
 
    static boolean queueNext(ClientInputSession session, Minecraft minecraft) {
       if (!ClientOperationController.operationPrism()
-         || FastPlaceClientPreview.operationCandidatePoint() == null
+         || FastPlaceClientPreviewCore.operationCandidatePoint() == null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) return false;
-      OperationPointPayload.Role role = FastPlaceClientPreview.operationNeedsFirst()
+      OperationPointPayload.Role role = FastPlaceClientPreviewCore.operationNeedsFirst()
          ? OperationPointPayload.Role.FIRST
-         : FastPlaceClientPreview.operationNeedsSecond()
+         : FastPlaceClientPreviewCore.operationNeedsSecond()
          ? OperationPointPayload.Role.SECOND : OperationPointPayload.Role.EXTRA;
       session.postRemoteSelectionPoint(RemoteSelectionPointDispatcher.capture(role));
       return true;
@@ -54,7 +54,7 @@ final class OperationPointCommandDispatcher {
 
    static boolean select(Minecraft minecraft) {
       if (!ClientOperationController.operationPrism()) return false;
-      int index = FastPlaceClientPreview.operationPointUnderCrosshairIndex();
+      int index = FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex();
       if (index < 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationSelectPointPayload.TYPE.id())) return false;
       FastPlaceClientInput.currentSession().captureOperationPointCommand(OperationPointCommandPress.select(System.nanoTime()));
       return true;

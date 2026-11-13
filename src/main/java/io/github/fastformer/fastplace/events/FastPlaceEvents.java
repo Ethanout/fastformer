@@ -1,9 +1,13 @@
 package io.github.fastformer.fastplace.events;
 
+import io.github.fastformer.server.history.HistorySystem;
+
+import io.github.fastformer.server.gate.ServerOperationGates;
+
 import io.github.fastformer.fastplace.command.FastPlaceCommandRegistry;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
-import io.github.fastformer.fastplace.placement.replace.QuickReplaceManager;
+import io.github.fastformer.server.replace.QuickReplaceSystem;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
@@ -53,7 +57,7 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (QuickReplaceManager.active(player)) {
+      if (QuickReplaceSystem.active(player)) {
          if (PlaceableItems.isPlaceable(player.getMainHandItem())) {
             event.setCancellationResult(InteractionResult.SUCCESS);
             event.setCanceled(true);
@@ -84,7 +88,7 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (QuickReplaceManager.active(player)) return;
+      if (QuickReplaceSystem.active(player)) return;
       if (ServerInputDispatcher.rightClickItem(player)) {
          event.setCancellationResult(InteractionResult.SUCCESS);
          event.setCanceled(true);
@@ -102,7 +106,7 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (QuickReplaceManager.active(player)) return;
+      if (QuickReplaceSystem.active(player)) return;
       if (ServerInputDispatcher.leftClickBlock(player, event.getPos())) {
          event.setCanceled(true);
       }
@@ -110,13 +114,8 @@ public final class FastPlaceEvents {
 
    private static void onItemToss(ItemTossEvent event) {
       if (event.getPlayer() instanceof ServerPlayer player
-         && (FastPlaceManager.active(player)
-            || OperationManager.active(player)
-            || GeometryManager.active(player)
-            || FastPlaceManager.taskActive(player)
-            || OperationManager.taskActive(player)
-            || FastPlaceManager.restoreActive(player)
-            || OperationManager.restoreActive(player))) {
+         && (!ServerOperationGates.NO_SESSION.test(player).allowed()
+            || !ServerOperationGates.WRITE_AVAILABLE.test(player).allowed())) {
          ItemStack tossed = event.getEntity().getItem().copy();
          event.setCanceled(true);
          FastPlaceManager.restoreTossedItem(player, tossed);
@@ -126,7 +125,7 @@ public final class FastPlaceEvents {
    }
 
    private static void onSwapHands(Hands event) {
-      if (event.getEntity() instanceof ServerPlayer player && QuickReplaceManager.active(player)) return;
+      if (event.getEntity() instanceof ServerPlayer player && QuickReplaceSystem.active(player)) return;
       if (event.getEntity() instanceof ServerPlayer player && ServerInputDispatcher.fill(player)) {
          event.setCanceled(true);
          return;
@@ -135,16 +134,15 @@ public final class FastPlaceEvents {
 
    private static void onPlayerTick(Post event) {
       if (event.getEntity() instanceof ServerPlayer player) {
-         io.github.fastformer.fastplace.settings.LegacyReachMigration.apply(player);
          // A world undo/redo or task-recovery write must finish even if the
          // player toggles FastFormer off while it is running; otherwise the
          // history lock would remain forever and leave a partial world.
-         if (WorldHistoryManager.busy(player)) {
+         if (HistorySystem.of(player).busy(player)) {
             FastPlaceNetwork.syncActivity(player);
             return;
          }
          if (!ServerInputDispatcher.canOperate(player)) {
-            QuickReplaceManager.forget(player.getUUID());
+            QuickReplaceSystem.forget(player);
             ServerInputDispatcher.stopBecauseUnavailable(player);
             FastPlaceNetwork.syncActivity(player);
             return;
@@ -155,7 +153,7 @@ public final class FastPlaceEvents {
    }
 
    private static void onServerTick(ServerTickEvent.Post event) {
-      FastPlaceNetwork.tick(event.getServer());
+      io.github.fastformer.server.network.upload.UploadSystem.of(event.getServer()).tick();
       WorldTaskFeature.tick(event.getServer());
    }
 

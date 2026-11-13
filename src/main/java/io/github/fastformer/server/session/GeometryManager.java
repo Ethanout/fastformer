@@ -1,5 +1,9 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.session.slot.PlayerSessions;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
@@ -22,9 +26,7 @@ import io.github.fastformer.fastplace.workflow.*;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -34,33 +36,31 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 public final class GeometryManager {
-   private static final Map<UUID, GeometrySession> SESSIONS = new HashMap<>();
-   /** Geometry sessions kept for the dimension the player left. */
-   private static final DimensionSessionStore<GeometrySession> PARKED_SESSIONS = new DimensionSessionStore<>();
+   private static final PlayerSessions<GeometrySession> SESSIONS = new PlayerSessions<>();
 
    private GeometryManager() {
    }
 
    public static boolean active(ServerPlayer player) {
-      return SESSIONS.containsKey(player.getUUID());
+      return SESSIONS.hasActive(player.getUUID());
    }
 
    public static Optional<GeometrySession> session(ServerPlayer player) {
-      return Optional.ofNullable(SESSIONS.get(player.getUUID()));
+      return Optional.ofNullable(SESSIONS.active(player.getUUID()));
    }
 
    public static boolean allows(ServerPlayer player, GeometryAction action) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       return session != null && GeometryWorkflows.get(session.mode()).allows(session, action);
    }
 
    public static boolean confirmsOnRightClick(ServerPlayer player) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       return session != null && GeometryWorkflows.get(session.mode()).allows(session, GeometryAction.CONFIRM);
    }
 
    public static boolean awaitingFirstPoint(ServerPlayer player) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       return session != null && session.points().isEmpty();
    }
 
@@ -70,7 +70,7 @@ public final class GeometryManager {
 
    public static void start(ServerPlayer player, GeometryHit hit) {
       GeometrySession session = new GeometrySession();
-      SESSIONS.put(player.getUUID(), session);
+      SESSIONS.activate(player.getUUID(), session);
       GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
       if (hit == null || !workflow.allows(session, GeometryAction.POINT_INPUT)) {
          session.addPoint(hit == null ? BlockPos.ZERO : hit.point());
@@ -81,7 +81,7 @@ public final class GeometryManager {
    }
 
    public static void selectMode(ServerPlayer player, GeometryMode mode) {
-      GeometrySession session = SESSIONS.computeIfAbsent(player.getUUID(), ignored -> new GeometrySession());
+      GeometrySession session = SESSIONS.getOrCreate(player.getUUID(), GeometrySession::new);
       session.setMode(mode);
       if (mode == GeometryMode.CONE_PRISM) {
          session.setConePlaneMode(FastPlaceSettings.load(player).conePlaneMode());
@@ -102,7 +102,7 @@ public final class GeometryManager {
    }
 
    private static void addPoint(ServerPlayer player, GeometryHit hit, GeometryActionContext context) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session != null) {
          GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
          if (!workflow.allows(session, GeometryAction.POINT_INPUT)) {
@@ -118,7 +118,7 @@ public final class GeometryManager {
    }
 
    public static void removeOrUndo(ServerPlayer player, BlockPos point) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session != null && !session.removeOrUndo(point)) {
          cancel(player);
       } else if (session != null) {
@@ -127,7 +127,7 @@ public final class GeometryManager {
    }
 
    public static boolean closePath(ServerPlayer player) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null) {
          return false;
       }
@@ -140,7 +140,7 @@ public final class GeometryManager {
    }
 
    public static void sync(ServerPlayer player) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session != null) {
          FastPlaceNetwork.syncGeometry(player, session);
       } else {
@@ -149,7 +149,7 @@ public final class GeometryManager {
    }
 
    public static void scroll(ServerPlayer player, int steps) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session != null && steps != 0) {
          GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
          if (!workflow.allows(session, GeometryAction.SCALAR_ADJUST)) {
@@ -163,7 +163,7 @@ public final class GeometryManager {
    }
 
    public static boolean gizmoDrag(ServerPlayer player, AxisGizmo.Operation operation, AxisGizmo.Axis axis, int steps, boolean finish) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null) {
          return false;
       }
@@ -187,7 +187,7 @@ public final class GeometryManager {
       Vec3 eye,
       Vec3 view
    ) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null || targetType == null || action == null || gesture == null || eye == null || view == null) {
          return false;
       }
@@ -232,7 +232,7 @@ public final class GeometryManager {
    }
 
    public static boolean rotateEuler(ServerPlayer player, double xDegrees, double yDegrees, double zDegrees) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
@@ -247,7 +247,7 @@ public final class GeometryManager {
    }
 
    public static boolean rotateQuaternion(ServerPlayer player, double w, double x, double y, double z) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
@@ -262,7 +262,7 @@ public final class GeometryManager {
    }
 
    public static boolean rotateMatrix(ServerPlayer player, double[] matrix) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
@@ -277,7 +277,7 @@ public final class GeometryManager {
    }
 
    public static boolean rotateSnap(ServerPlayer player, int axis, int steps, boolean fine) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
@@ -289,7 +289,7 @@ public final class GeometryManager {
    }
 
    public static boolean setConePlaneMode(ServerPlayer player, ConePlaneMode mode) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.CONE_PRISM) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.cone_session_only"));
          return false;
@@ -302,7 +302,7 @@ public final class GeometryManager {
    }
 
    public static boolean setPolyhedronSizeMode(ServerPlayer player, PolyhedronSizeMode mode) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON || session.closed()) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
@@ -313,7 +313,7 @@ public final class GeometryManager {
    }
 
    public static boolean cycleMode(ServerPlayer player) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null) {
          return false;
       }
@@ -329,7 +329,7 @@ public final class GeometryManager {
    }
 
    public static boolean setConeEllipse(ServerPlayer player, double scaleX, double scaleZ) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.CONE_PRISM) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.cone_session_only"));
          return false;
@@ -344,7 +344,7 @@ public final class GeometryManager {
    }
 
    public static boolean fill(ServerPlayer player) {
-      GeometrySession session = SESSIONS.get(player.getUUID());
+      GeometrySession session = SESSIONS.active(player.getUUID());
       GeometryWorkflow workflow = session == null ? null : GeometryWorkflows.get(session.mode());
       if (session == null
          || !workflow.allows(session, GeometryAction.CONFIRM)
@@ -375,45 +375,31 @@ public final class GeometryManager {
    }
 
    public static void cancel(ServerPlayer player) {
-      if (SESSIONS.remove(player.getUUID()) != null) {
+      if (SESSIONS.end(player.getUUID()) != null) {
          FastPlaceNetwork.clearGeometry(player);
       }
    }
 
    public static void remove(ServerPlayer player) {
-      SESSIONS.remove(player.getUUID());
-      PARKED_SESSIONS.forget(player.getUUID());
+      SESSIONS.discard(player.getUUID());
    }
 
    /** Drops server-bound geometry sessions before a world instance is replaced. */
    public static void clearServer() {
       SESSIONS.clear();
-      PARKED_SESSIONS.clear();
    }
 
    /**
     * Moves the geometry session of a dimension aside. A shape is dimension-bound
     * because its points are absolute world coordinates.
     */
-   static void parkDimensionSession(UUID owner, net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension) {
-      if (owner == null || dimension == null) {
-         return;
-      }
-      PARKED_SESSIONS.park(owner, dimension, SESSIONS.remove(owner));
+   static void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+      SESSIONS.park(owner, dimension);
    }
 
    /** Restores the geometry session that belongs to the target dimension. */
-   static void restoreDimensionSession(UUID owner, net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension) {
-      if (owner == null || dimension == null) {
-         return;
-      }
-      GeometrySession session = PARKED_SESSIONS.take(owner, dimension);
-      if (session == null) {
-         return;
-      }
-      if (SESSIONS.putIfAbsent(owner, session) != null) {
-         PARKED_SESSIONS.park(owner, dimension, session);
-      }
+   static void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+      SESSIONS.restore(owner, dimension);
    }
 
    private static Component fillBlockedMessage(GeometrySession session, ServerPlayer player) {

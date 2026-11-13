@@ -43,7 +43,7 @@ public final class ForcedPlacement {
       }
       int flags = PlacementUpdateMode.CLIENT_ONLY.flags();
       var metadata = settings.vanillaBlockHistory()
-         ? io.github.fastformer.fastplace.history.BlockEditHistoryMetadata.fromVanillaEdit() : null;
+         ? io.github.fastformer.server.history.entry.BlockEditHistoryMetadata.fromVanillaEdit() : null;
       var outcome = settings.vanillaBlockHistory()
          ? BlockEditTransaction.apply(player, level, changes, flags, flags, metadata)
          : BlockEditTransaction.applyWithoutHistory(player, level, changes, flags, flags);

@@ -1,0 +1,96 @@
+package io.github.fastformer.protocol.s2c.preview;
+
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;
+
+import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
+import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+
+/** Wire payload for the mutable interaction session portion of a building preview. */
+public record BuildingPreviewSessionPayload(
+   long revision, BuildingPreviewSession value, OperationCallbackScope callbackScope
+) implements CustomPacketPayload {
+   public static final Type<BuildingPreviewSessionPayload> TYPE = new Type<>(
+      ResourceLocation.fromNamespaceAndPath("fastformer", "building_preview_session")
+   );
+   public static final StreamCodec<FriendlyByteBuf, BuildingPreviewSessionPayload> STREAM_CODEC = CustomPacketPayload.codec(
+      BuildingPreviewSessionPayload::write,
+      BuildingPreviewSessionPayload::new
+   );
+
+   public BuildingPreviewSessionPayload(BuildingPreviewSession value) {
+      this(0L, value, OperationCallbackScope.unscoped());
+   }
+
+   public BuildingPreviewSessionPayload(long revision, BuildingPreviewSession value) {
+      this(revision, value, OperationCallbackScope.unscoped());
+   }
+
+   public BuildingPreviewSessionPayload {
+      revision = Math.max(0L, revision);
+      value = value == null ? inactive() : value;
+      if (callbackScope == null) {
+         throw new IllegalArgumentException("Building callback scope is required");
+      }
+   }
+
+   public BuildingPreviewSessionPayload(
+      boolean enabled,
+      boolean middleConfirmEnabled,
+      boolean active,
+      boolean ctrlHeld,
+      boolean polygonClosed,
+      boolean polygonHeightConfirmed,
+      PolygonVolumeShape polygonVolumeShape,
+      List<BlockPos> points,
+      BlockPos freeScrollOffset,
+      io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot placementContext
+   ) {
+      this(0L, new BuildingPreviewSession(
+         enabled, middleConfirmEnabled, active, ctrlHeld, polygonClosed,
+         polygonHeightConfirmed, polygonVolumeShape, points, freeScrollOffset, placementContext
+      ), OperationCallbackScope.unscoped());
+   }
+
+   private BuildingPreviewSessionPayload(FriendlyByteBuf buffer) {
+      this(buffer.readVarLong(), new BuildingPreviewSession(
+         buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(), buffer.readBoolean(),
+         buffer.readBoolean(), buffer.readBoolean(), buffer.readEnum(PolygonVolumeShape.class),
+         BuildingPreviewCodec.readPoints(buffer), buffer.readBlockPos(),
+         BuildingPreviewCodec.readPlacementContext(buffer), buffer.readResourceLocation()
+      ), OperationCallbackScope.STREAM_CODEC.decode(buffer));
+   }
+
+   private void write(FriendlyByteBuf buffer) {
+      buffer.writeVarLong(revision);
+      buffer.writeBoolean(value.enabled());
+      buffer.writeBoolean(value.middleConfirmEnabled());
+      buffer.writeBoolean(value.active());
+      buffer.writeBoolean(value.ctrlHeld());
+      buffer.writeBoolean(value.polygonClosed());
+      buffer.writeBoolean(value.polygonHeightConfirmed());
+      buffer.writeEnum(value.polygonVolumeShape());
+      BuildingPreviewCodec.writePoints(buffer, value.points());
+      buffer.writeBlockPos(value.freeScrollOffset());
+      BuildingPreviewCodec.writePlacementContext(buffer, value.placementContext());
+      buffer.writeResourceLocation(value.profile());
+      OperationCallbackScope.STREAM_CODEC.encode(buffer, callbackScope);
+   }
+
+   private static BuildingPreviewSession inactive() {
+      return new BuildingPreviewSession(
+         true, true, false, false, false, false, PolygonVolumeShape.EXTRUDE,
+         List.of(), BlockPos.ZERO, null
+      );
+   }
+
+   @Override
+   public Type<BuildingPreviewSessionPayload> type() {
+      return TYPE;
+   }
+}

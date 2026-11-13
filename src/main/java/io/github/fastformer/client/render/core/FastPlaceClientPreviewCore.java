@@ -92,13 +92,13 @@ import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.fastplace.text.TranslatableText;
 import io.github.fastformer.fastplace.workflow.GeometryWorkflowView;
 import io.github.fastformer.fastplace.workflow.GeometryWorkflows;
-import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
-import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
-import io.github.fastformer.network.payload.preview.ActivityStatePayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewEffectPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewParametersPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload;
+import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
+import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
+import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -138,7 +138,7 @@ import org.slf4j.Logger;
    modid = "fastformer",
    value = {Dist.CLIENT}
 )
-public class FastPlaceClientPreviewCore {
+public final class FastPlaceClientPreviewCore {
    private static final Logger LOGGER = LogUtils.getLogger();
    private static final double PREVIEW_REACH = LongRangeBlockRaycast.MAX_REACH;
    private static final int CONFIRMED_FACE_BLOCK_LIMIT = 16000;
@@ -227,10 +227,10 @@ public class FastPlaceClientPreviewCore {
       }
    );
 
-   protected FastPlaceClientPreviewCore() {
+   private FastPlaceClientPreviewCore() {
    }
 
-   public static void applyBuilding(BuildingPreviewPayload payload) {
+   public static void applyBuilding(BuildingPreviewSnapshot payload) {
       PREVIEW_STATE.applyBuilding(payload);
       BUILDING_CACHE.resetBuildingPreviewCaches();
    }
@@ -243,17 +243,21 @@ public class FastPlaceClientPreviewCore {
       return PREVIEW_STATE.idleBuildingSession();
    }
 
+   public static net.minecraft.resources.ResourceLocation buildingProfile() {
+      return PREVIEW_STATE.buildingProfile();
+   }
+
    public static GeometryPreviewPayload geometrySnapshot() {
       return PREVIEW_STATE.geometry();
    }
 
    public static void applyQuickShapeSubmissionParameters(
-      io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload payload
+      io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload payload
    ) {
       PREVIEW_STATE.applyQuickShapeSubmissionParameters(payload);
    }
 
-   public static java.util.Optional<io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload> submissionParameters(
+   public static java.util.Optional<io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload> submissionParameters(
       io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot snapshot
    ) {
       return PREVIEW_STATE.submissionParameters(snapshot);
@@ -365,7 +369,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    public static boolean buildingMiddleClickIgnored() {
-      BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
+      BuildingPreviewSnapshot snapshot = PREVIEW_STATE.building();
       return io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
          snapshot.faceMode(), snapshot.points().size(), snapshot.polygonClosed()
       );
@@ -861,7 +865,7 @@ public class FastPlaceClientPreviewCore {
    public static BlockPos lineModeCandidate() {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
+      BuildingPreviewSnapshot snapshot = PREVIEW_STATE.building();
       if (player == null || minecraft.level == null || !snapshot.active() || QuickShapeStage.fromPointCount(snapshot.points().size()) != QuickShapeStage.LINE) {
          return null;
       }
@@ -977,7 +981,7 @@ public class FastPlaceClientPreviewCore {
          smoothReticleFrame = false;
          return;
       }
-      BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
+      BuildingPreviewSnapshot snapshot = PREVIEW_STATE.building();
       boolean persistentFreeScroll = FEEDBACK.refreshFreeScrollSession(PREVIEW_STATE.building(), System.nanoTime());
       boolean reconnectRestorePending = ClientOperationController.reconnectRestorePending()
          || reconnectPreviewRestorePending();
@@ -1279,7 +1283,7 @@ public class FastPlaceClientPreviewCore {
       return buildingStageStatus(PREVIEW_STATE.building(), effectiveStage(PREVIEW_STATE.building()));
    }
 
-   private static MutableComponent buildingStageStatus(BuildingPreviewPayload snapshot, QuickShapeStage stage) {
+   private static MutableComponent buildingStageStatus(BuildingPreviewSnapshot snapshot, QuickShapeStage stage) {
       MutableComponent status = Component.translatable(stage.translationKey()).withStyle(GeometryPalette.text().style());
       status.append(Component.literal(" | ").withStyle(ChatFormatting.DARK_GRAY));
       if (stage == QuickShapeStage.VOLUME && snapshot.polygonClosed()) {
@@ -1668,7 +1672,7 @@ public class FastPlaceClientPreviewCore {
          );
       }
       if (PREVIEW_STATE.building().active()) {
-         BuildingPreviewPayload building = PREVIEW_STATE.building();
+         BuildingPreviewSnapshot building = PREVIEW_STATE.building();
          // Keep the free-scroll payload aligned with persistent visibility.
          // effectiveStage() can briefly describe the previous server snapshot
          // while the active line session already owns the scroll offset.
@@ -1793,7 +1797,7 @@ public class FastPlaceClientPreviewCore {
          SmartSelectionIsolationRenderer.render(event, Minecraft.getInstance());
          return;
       }
-      BuildingPreviewPayload snapshot = PREVIEW_STATE.building();
+      BuildingPreviewSnapshot snapshot = PREVIEW_STATE.building();
       if (event.getStage() == Stage.AFTER_PARTICLES) {
           Minecraft minecraft = Minecraft.getInstance();
           LocalPlayer player = minecraft.player;
@@ -1814,17 +1818,13 @@ public class FastPlaceClientPreviewCore {
                 FastPlaceClientInput.modifierHeld(), 1.0F);
              return;
           }
-          boolean emptyBuildingPreview = false;
           OperationInteractionIntent pointerIntent = player == null ? null : operationInteractionIntent().orElse(null);
           boolean selectionCandidate = pointerIntent instanceof OperationInteractionIntent.CreateSelection;
-          if (!(snapshot.active() || emptyBuildingPreview || PREVIEW_STATE.operation().active()
+          if (!(snapshot.active() || PREVIEW_STATE.operation().active()
              || ClientOperationController.active() || ClientOperationController.selectionDraftActive() || PREVIEW_STATE.geometry().active() || QuickReplaceMode.active() || selectionCandidate)) {
              return;
           }
           worldPreviewOpacity = updateWorldPreviewOpacity(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
-         if (emptyBuildingPreview && !selectionCandidate && worldPreviewOpacity <= 0.01F) {
-             return;
-          }
          PreviewRenderOwner renderOwner = PreviewRenderOwner.select(
             snapshot.active(),
             PREVIEW_STATE.operation().active(),
@@ -1851,15 +1851,10 @@ public class FastPlaceClientPreviewCore {
             renderSelectionCreationCandidate(event, minecraft, pointerIntent);
          } else if (minecraft.level != null
             && player != null
-            && (snapshot.active() || emptyBuildingPreview)) {
+            && snapshot.active()) {
             Vec3 eye = player.getEyePosition();
             Vec3 view = player.getViewVector(1.0F);
             BlockPos candidate = buildingCandidatePoint(snapshot, player);
-            if (!snapshot.active() && snapshot.points().isEmpty() && candidate != null) {
-               InitialBlockPreviewRenderer.render(event, minecraft, player, raycastBlocks(player),
-                  PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), worldPreviewOpacity);
-               return;
-            }
             BlockPos hoveredPoint = snapshot.points().isEmpty()
                ? null
                : pointUnderCrosshair(List.of(snapshot.points().getFirst()));
@@ -2030,7 +2025,7 @@ public class FastPlaceClientPreviewCore {
       );
    }
 
-   private static BlockPos buildingCandidatePoint(BuildingPreviewPayload snapshot, LocalPlayer player) {
+   private static BlockPos buildingCandidatePoint(BuildingPreviewSnapshot snapshot, LocalPlayer player) {
       if (!snapshot.active() && snapshot.points().isEmpty()) {
          BlockHitResult firstHit = raycastBlocks(player);
          if (firstHit.getType() != Type.BLOCK) {
@@ -2074,7 +2069,7 @@ public class FastPlaceClientPreviewCore {
    }
 
    private static PlacementContextSnapshot previewPlacementContext(
-      BuildingPreviewPayload snapshot, LocalPlayer player
+      BuildingPreviewSnapshot snapshot, LocalPlayer player
    ) {
       if (snapshot.placementContext() != null || !snapshot.points().isEmpty()) {
          return snapshot.placementContext();
@@ -2233,19 +2228,6 @@ public class FastPlaceClientPreviewCore {
       return InteractionContext.previewVisibility(minecraft, partialTick);
    }
 
-   private static void renderBuildingFallbackPoints(
-      PoseStack poseStack,
-      BufferSource buffers,
-      Vec3 camera,
-      List<ControlPoint> points,
-      Set<BlockPos> shellBlocks
-   ) {
-      List<ControlPoint> fallback = points.stream()
-         .filter(point -> !shellBlocks.contains(BlockPos.containing(point.center())))
-         .toList();
-      renderControlPoints(poseStack, buffers, camera, fallback);
-   }
-
    private static void renderGeometryControlPoints(PoseStack poseStack, BufferSource buffers, Vec3 camera, GeometryPreviewPlan plan) {
       renderControlPoints(poseStack, buffers, camera, plan.controlPoints());
    }
@@ -2283,12 +2265,6 @@ public class FastPlaceClientPreviewCore {
 
    static void renderOperationOutlineLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha) {
       renderLine(poseStack, consumer, from, to, inkRed(), inkGreen(), inkBlue(), alpha);
-   }
-
-   static void renderStaticOperationGuideLine(
-      PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha
-   ) {
-      renderOperationOutlineLine(poseStack, consumer, from, to, alpha);
    }
 
    private static long renderedThemeRevision = -1;
@@ -2390,62 +2366,6 @@ public class FastPlaceClientPreviewCore {
       return selection ? RAYCAST.clipForSelection(player, FastPlaceClientInput.modifierHeld()) : RAYCAST.clip(player, placement);
    }
 
-   private static void renderBuildingEndpointFallback(
-      PoseStack poseStack,
-      BufferSource buffers,
-      Vec3 camera,
-      int confirmedPointCount,
-      List<BlockPos> previewPoints,
-      BuildingShellVisibility shellVisibility
-   ) {
-      Set<BlockPos> fallbackBlocks = endpointFallbackBlocks(
-         confirmedPointCount, previewPoints, shellVisibility
-      );
-      if (fallbackBlocks.isEmpty()) {
-         return;
-      }
-      // Endpoints use the same confirmed/candidate opacity as the full shell.
-      BlockPos candidate = previewPoints.size() > Math.max(confirmedPointCount, 0) ? previewPoints.getLast() : null;
-      Set<BlockPos> confirmed = new LinkedHashSet<>(fallbackBlocks);
-      boolean candidateVisible = candidate != null && confirmed.remove(candidate);
-      float outlineAlpha = PreviewStyle.OUTLINE_ALPHA;
-      if (!confirmed.isEmpty()) {
-         GhostMesh mesh = GhostMeshBuilder.build(confirmed, true, true, true);
-         renderGhostFaces(poseStack, buffers.getBuffer(GHOST_FACES), camera, mesh.faces(), inkRed(), inkGreen(), inkBlue(), PreviewStyle.FACE_ALPHA);
-         buffers.endBatch(GHOST_FACES);
-         renderGhostOutline(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, mesh.edges(), GeometryPalette.confirmedOutline().red(), GeometryPalette.confirmedOutline().green(), GeometryPalette.confirmedOutline().blue(), outlineAlpha);
-         buffers.endBatch(GHOST_OUTLINE_LINES);
-         renderGhostOutline(poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, mesh.edges(), GeometryPalette.confirmedOutline().red(), GeometryPalette.confirmedOutline().green(), GeometryPalette.confirmedOutline().blue(), outlineAlpha);
-         buffers.endBatch(PENDING_XRAY_LINES);
-      }
-      if (candidateVisible) {
-         // Stays visible behind the world surface, including the free-scroll origin.
-         GhostMesh mesh = GhostMeshBuilder.build(Set.of(candidate), true, true, true);
-         renderGhostDashedOutline(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, mesh.edges(), outlineAlpha);
-         buffers.endBatch(GHOST_OUTLINE_LINES);
-         renderGhostDashedOutline(poseStack, buffers.getBuffer(PENDING_XRAY_LINES), camera, mesh.edges(), outlineAlpha);
-         buffers.endBatch(PENDING_XRAY_LINES);
-      }
-   }
-
-   static Set<BlockPos> endpointFallbackBlocks(
-      int confirmedPointCount, List<BlockPos> previewPoints, BuildingShellVisibility shellVisibility
-   ) {
-      if (previewPoints.isEmpty()) {
-         return Set.of();
-      }
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
-      int confirmedCount = Math.min(Math.max(confirmedPointCount, 0), previewPoints.size());
-      if (confirmedCount > 0 && !shellVisibility.confirmedFacesVisible()) {
-         result.add(previewPoints.getFirst());
-         result.add(previewPoints.get(confirmedCount - 1));
-      }
-      if (previewPoints.size() > confirmedCount && !shellVisibility.pendingFacesVisible()) {
-         result.add(previewPoints.getLast());
-      }
-      return Set.copyOf(result);
-   }
-
    private static void renderConfirmedBlocks(PoseStack poseStack, BufferSource buffers, Vec3 camera, Set<BlockPos> blocks) {
       if (blocks.isEmpty()) {
          return;
@@ -2535,7 +2455,7 @@ public class FastPlaceClientPreviewCore {
    private static void renderPendingFallback(
       PoseStack poseStack, BufferSource buffers, Vec3 camera, PendingGhostMesh mesh
    ) {
-      double offset = pendingDashOffset();
+      double offset = pendingGridDashOffset();
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       VertexConsumer xray = buffers.getBuffer(DYNAMIC_XRAY_LINES);
@@ -2580,17 +2500,9 @@ public class FastPlaceClientPreviewCore {
       }
    }
 
-   private static double pendingDashOffset() {
-      return pendingGridDashOffset();
-   }
-
    static double pendingGridDashOffset() {
       double seconds = (System.nanoTime() % 10_000_000_000L) / 1_000_000_000.0;
       return seconds * PENDING_DASH_SPEED % SELECTION_DASH_PERIOD;
-   }
-
-   private static double selectionDashOffset() {
-      return pendingGridDashOffset();
    }
 
    static float ghostBreathPulse() {
@@ -2728,7 +2640,7 @@ public class FastPlaceClientPreviewCore {
       return length < 1.0E-7 ? Vec3.ZERO : vector.scale(1.0 / length);
    }
 
-   private static QuickShapeMode selectedMode(BuildingPreviewPayload snapshot, QuickShapeStage stage) {
+   private static QuickShapeMode selectedMode(BuildingPreviewSnapshot snapshot, QuickShapeStage stage) {
       return (QuickShapeMode)(switch (stage) {
          case POINT -> snapshot.pointMode();
          case LINE -> snapshot.lineMode();
@@ -2737,7 +2649,7 @@ public class FastPlaceClientPreviewCore {
       });
    }
 
-   private static MutableComponent contextValue(BuildingPreviewPayload snapshot) {
+   private static MutableComponent contextValue(BuildingPreviewSnapshot snapshot) {
       if (!snapshot.active()) {
          return null;
       }
@@ -2789,7 +2701,7 @@ public class FastPlaceClientPreviewCore {
       return GeometryNumbers.fixed(value, 0);
    }
 
-   private static QuickShapeStage effectiveStage(BuildingPreviewPayload snapshot) {
+   private static QuickShapeStage effectiveStage(BuildingPreviewSnapshot snapshot) {
       return QuickShapeStage.resolve(snapshot.points().size(), snapshot.faceMode(), snapshot.polygonClosed());
    }
 

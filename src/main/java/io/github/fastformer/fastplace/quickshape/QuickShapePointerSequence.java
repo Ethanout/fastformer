@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.quickshape;
 
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 
 /** Allows ordered actions from one published revision while that same draft advances. */
 public final class QuickShapePointerSequence {

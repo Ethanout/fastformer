@@ -26,13 +26,6 @@ class GeneratorPerformanceBudgetTest {
       });
 
       assertTimeoutPreemptively(BUDGET, () -> {
-         PolyhedronParameters convex = polyhedron(1, 32.0);
-         Set<BlockPos> result = ConvexPolyhedronGenerator.generate(convex, FillMode.SOLID, 500000);
-         assertTrue(result.size() < 500000);
-         assertTrue(ConvexPolyhedronGenerator.estimateScanCells(convex) < PolyhedronGeometry.bounds(convex, true).volume());
-      });
-
-      assertTimeoutPreemptively(BUDGET, () -> {
          Vec3 center = new Vec3(0.5, 0.5, 0.5);
          ConePrismParameters cone = new ConePrismParameters(
             List.of(center, center.add(24.0, 0.0, 0.0)),

@@ -28,7 +28,7 @@ import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.PointMode;
 import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,7 +53,7 @@ final class BuildingPreviewCache {
       this.failureLogger = failureLogger;
    }
 
-   private BuildingPreviewPayload cachedConfirmedBuildingState;
+   private BuildingPreviewSnapshot cachedConfirmedBuildingState;
    private LineTieBias cachedConfirmedBuildingBias = LineTieBias.DEFAULT;
    private Set<BlockPos> cachedConfirmedBuildingBlocks = Set.of();
    private BuildingPreviewKey cachedBuildingPreviewKey;
@@ -82,7 +82,7 @@ final class BuildingPreviewCache {
       PreviewRenderResources.clearShells();
    }
 
-   private Set<BlockPos> confirmedBuildingBlocks(BuildingPreviewPayload snapshot) {
+   private Set<BlockPos> confirmedBuildingBlocks(BuildingPreviewSnapshot snapshot) {
       LineTieBias effectiveBias = effectiveBuildingModes(snapshot).faceTieBias();
       if (cachedConfirmedBuildingState != snapshot || cachedConfirmedBuildingBias != effectiveBias) {
          cachedConfirmedBuildingState = snapshot;
@@ -116,13 +116,13 @@ final class BuildingPreviewCache {
    }
 
    private Set<BlockPos> buildingPreviewBlocks(
-      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
+      BuildingPreviewSnapshot snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
    ) {
       return buildingPreviewBlocks(snapshot, points, polygonHeightConfirmed, effectiveBuildingModes(snapshot));
    }
 
    private Set<BlockPos> buildingPreviewBlocks(
-      BuildingPreviewPayload snapshot,
+      BuildingPreviewSnapshot snapshot,
       List<BlockPos> points,
       boolean polygonHeightConfirmed,
       FastPlaceGeometry.Modes modes
@@ -131,7 +131,7 @@ final class BuildingPreviewCache {
    }
 
    private Set<BlockPos> buildingPreviewBlocks(
-      BuildingPreviewPayload snapshot,
+      BuildingPreviewSnapshot snapshot,
       List<BlockPos> points,
       boolean polygonHeightConfirmed,
       FastPlaceGeometry.Modes modes,
@@ -141,7 +141,7 @@ final class BuildingPreviewCache {
    }
 
    private Set<BlockPos> buildingPreviewBlocks(
-      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed,
+      BuildingPreviewSnapshot snapshot, List<BlockPos> points, boolean polygonHeightConfirmed,
       FastPlaceGeometry.Modes modes, ProgressiveBlockGeneration progress, int blockLimit
    ) {
       return snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()
@@ -163,7 +163,7 @@ final class BuildingPreviewCache {
    }
 
    Set<BlockPos> buildingPreviewBlocksCached(
-      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
+      BuildingPreviewSnapshot snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
    ) {
       long buildingVersion = previewState.buildingVersion();
       boolean modifierHeld = this.modifierHeld.getAsBoolean();
@@ -238,7 +238,7 @@ final class BuildingPreviewCache {
       BuildingPreviewKey key = cachedBuildingPreviewKey;
       if (key == null || key.stateVersion() != previewState.buildingVersion()
          || key.modifierHeld() != this.modifierHeld.getAsBoolean()) return;
-      BuildingPreviewPayload snapshot = previewState.building();
+      BuildingPreviewSnapshot snapshot = previewState.building();
       if (!snapshot.active()) return;
       boolean polygonHeightConfirmed = key.heightConfirmed();
       if (generation.completed()) {
@@ -286,7 +286,7 @@ final class BuildingPreviewCache {
    }
 
    private Set<BlockPos> completedBuildingPreview(
-      BuildingPreviewPayload snapshot,
+      BuildingPreviewSnapshot snapshot,
       List<BlockPos> points,
       boolean polygonHeightConfirmed,
       FastPlaceGeometry.Modes modes,
@@ -298,7 +298,7 @@ final class BuildingPreviewCache {
    }
 
    private void holdBuildingPreviewAtFallback(
-      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
+      BuildingPreviewSnapshot snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
    ) {
       cachedBuildingPreviewAtLimit = true;
       if (cachedBuildingPreviewProgress != null) {
@@ -320,7 +320,7 @@ final class BuildingPreviewCache {
    }
 
    private Set<BlockPos> buildingPreviewLimitFallback(
-      BuildingPreviewPayload snapshot,
+      BuildingPreviewSnapshot snapshot,
       List<BlockPos> points,
       boolean polygonHeightConfirmed,
       FastPlaceGeometry.Modes modes
@@ -342,7 +342,7 @@ final class BuildingPreviewCache {
    }
 
    private Set<BlockPos> buildingPreviewLimitFallbackSafely(
-      BuildingPreviewPayload snapshot,
+      BuildingPreviewSnapshot snapshot,
       List<BlockPos> points,
       boolean polygonHeightConfirmed,
       FastPlaceGeometry.Modes modes
@@ -356,7 +356,7 @@ final class BuildingPreviewCache {
    }
 
    PreviewAsyncPolicy.Workload buildingPreviewWorkload(
-      BuildingPreviewPayload snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
+      BuildingPreviewSnapshot snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
    ) {
       if (points.size() <= 2) {
          return PreviewAsyncPolicy.Workload.LINE;
@@ -381,7 +381,7 @@ final class BuildingPreviewCache {
    }
 
    BuildingRenderFrame buildingRenderFrame(
-      BuildingPreviewPayload snapshot,
+      BuildingPreviewSnapshot snapshot,
       ResolvedPlacementEffect previewEffect,
       Set<BlockPos> previewBlocks,
       Set<BlockPos> candidateBlocks,
@@ -447,7 +447,7 @@ final class BuildingPreviewCache {
       return PlacementEffectPreview.resolveStates(effect, previewBlocks);
    }
 
-   FastPlaceGeometry.Modes effectiveBuildingModes(BuildingPreviewPayload snapshot) {
+   FastPlaceGeometry.Modes effectiveBuildingModes(BuildingPreviewSnapshot snapshot) {
       boolean modifier = modifierHeld.getAsBoolean();
       FastPlaceGeometry.Modes modes = snapshot.modes().withModifierHeld(modifier);
       QuickShapeStage stage = QuickShapeStage.resolve(snapshot.points().size(), snapshot.faceMode(), snapshot.polygonClosed());

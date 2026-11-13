@@ -1,15 +1,16 @@
 package io.github.fastformer.client.placement;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
-import io.github.fastformer.network.payload.placement.QuickShapeConfirmPayload;
+import io.github.fastformer.protocol.c2s.placement.QuickShapeConfirmPayload;
 
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
-import io.github.fastformer.network.payload.operation.OperationApplyPayload;
-import io.github.fastformer.network.payload.operation.OperationWorkspaceApplyPayload;
-import io.github.fastformer.network.payload.placement.QuickReplacePayload;
-import io.github.fastformer.network.payload.placement.PlacementActionPayload;
-import io.github.fastformer.network.payload.placement.StartPlacementPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationApplyPayload;
+import io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceApplyPayload;
+import io.github.fastformer.protocol.c2s.placement.QuickReplacePayload;
+import io.github.fastformer.protocol.c2s.placement.PlacementActionPayload;
+import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +20,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Single client boundary for requests that may ultimately modify the world. */
 public final class ClientPlacementRouter {
@@ -36,20 +36,20 @@ public final class ClientPlacementRouter {
    }
 
    public static boolean quickShapePointer(Minecraft minecraft, long revision,
-      io.github.fastformer.network.payload.operation.OperationCallbackScope scope,
-      io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action action,
+      io.github.fastformer.protocol.callback.OperationCallbackScope scope,
+      io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload.Action action,
       net.minecraft.core.BlockPos candidate, net.minecraft.world.phys.Vec3 eye,
       net.minecraft.world.phys.Vec3 view, boolean modifierHeld) {
-      var type = io.github.fastformer.network.payload.placement.QuickShapePointerPayload.TYPE;
+      var type = io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload.TYPE;
       if (!supports(minecraft, type)) return false;
-      boolean submitting = action == io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.MIDDLE
-         || action == io.github.fastformer.network.payload.placement.QuickShapePointerPayload.Action.SUBMIT_CURRENT;
+      boolean submitting = action == io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload.Action.MIDDLE
+         || action == io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload.Action.SUBMIT_CURRENT;
       long requestId = NEXT_ACTION_ID.incrementAndGet();
       if (submitting) {
-         if (!supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) return false;
+         if (!supports(minecraft, io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE)) return false;
          if (!io.github.fastformer.client.input.FastPlaceClientInput.beginPlacementRequest(requestId)) return false;
       }
-      var payload = new io.github.fastformer.network.payload.placement.QuickShapePointerPayload(
+      var payload = new io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload(
          revision, scope, action, candidate, eye, view, modifierHeld, requestId);
       if (submitting) return sendSubmittedAction(minecraft, type, payload, requestId);
       net.neoforged.neoforge.network.PacketDistributor.sendToServer(payload);
@@ -59,8 +59,8 @@ public final class ClientPlacementRouter {
    public static long beginQuickShapeRequest(Minecraft minecraft) {
       var type = QuickShapeConfirmPayload.TYPE;
       if (!supports(minecraft, type)
-         || !supports(minecraft, io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload.TYPE)
-         || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) {
+         || !supports(minecraft, io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload.TYPE)
+         || !supports(minecraft, io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE)) {
          return 0;
       }
       long requestId = NEXT_ACTION_ID.incrementAndGet();
@@ -77,7 +77,7 @@ public final class ClientPlacementRouter {
 
    private static boolean sendAction(Minecraft minecraft, PlacementActionPayload.Action action) {
       if (!supports(minecraft, PlacementActionPayload.TYPE)
-         || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) {
+         || !supports(minecraft, io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE)) {
          return false;
       }
       long requestId = NEXT_ACTION_ID.incrementAndGet();
@@ -91,7 +91,7 @@ public final class ClientPlacementRouter {
 
    public static boolean applyOperation(Minecraft minecraft, boolean copy) {
       if (!supports(minecraft, OperationApplyPayload.TYPE)
-         || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) {
+         || !supports(minecraft, io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE)) {
          return false;
       }
       long requestId = NEXT_ACTION_ID.incrementAndGet();
@@ -103,13 +103,13 @@ public final class ClientPlacementRouter {
       );
    }
 
-   public static boolean quickReplace(Minecraft minecraft) {
-      return send(minecraft, QuickReplacePayload.TYPE, QuickReplacePayload.INSTANCE);
+   public static boolean quickReplace(Minecraft minecraft, long strokeId, boolean finished) {
+      return send(minecraft, QuickReplacePayload.TYPE, new QuickReplacePayload(strokeId, finished));
    }
 
    public static boolean startPlacement(Minecraft minecraft, StartPlacementPayload.Target target) {
       if (!supports(minecraft, StartPlacementPayload.TYPE)
-         || !supports(minecraft, io.github.fastformer.network.payload.placement.PlacementActionAckPayload.TYPE)) return false;
+         || !supports(minecraft, io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE)) return false;
       long requestId = NEXT_ACTION_ID.incrementAndGet();
       if (!io.github.fastformer.client.input.FastPlaceClientInput.beginStartPlacementRequest(requestId)) return false;
       return sendSubmittedAction(minecraft, StartPlacementPayload.TYPE,
@@ -117,12 +117,12 @@ public final class ClientPlacementRouter {
    }
 
    public static long startIdleSelection(Minecraft minecraft, long token, net.minecraft.world.phys.Vec3 eye, net.minecraft.world.phys.Vec3 view) {
-      var type = io.github.fastformer.network.payload.placement.IdleSelectionEntryPayload.TYPE;
-      if (!supports(minecraft, type) || !supports(minecraft, io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload.TYPE)) return 0;
+      var type = io.github.fastformer.protocol.c2s.placement.IdleSelectionEntryPayload.TYPE;
+      if (!supports(minecraft, type) || !supports(minecraft, io.github.fastformer.protocol.s2c.placement.IdleSelectionEntryResultPayload.TYPE)) return 0;
       long requestId = NEXT_ACTION_ID.incrementAndGet();
       if (!io.github.fastformer.client.input.FastPlaceClientInput.beginStartPlacementRequest(requestId)) return 0;
       return sendSubmittedAction(minecraft, type,
-         new io.github.fastformer.network.payload.placement.IdleSelectionEntryPayload(requestId, token, eye, view), requestId) ? requestId : 0;
+         new io.github.fastformer.protocol.c2s.placement.IdleSelectionEntryPayload(requestId, token, eye, view), requestId) ? requestId : 0;
    }
 
    public static Optional<WorkspaceSubmission> prepareWorkspace(
@@ -158,16 +158,14 @@ public final class ClientPlacementRouter {
    }
 
    private static boolean supports(Minecraft minecraft, CustomPacketPayload.Type<?> type) {
-      return minecraft != null && minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), type.id());
+      return ServerGateway.supports(minecraft, type);
    }
 
    private static boolean send(
       Minecraft minecraft, CustomPacketPayload.Type<?> type, CustomPacketPayload payload
    ) {
       if (!supports(minecraft, type)) return false;
-      PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
-      return true;
+      return ServerGateway.trySend(minecraft, payload);
    }
 
    private static boolean sendSubmittedAction(

@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -294,6 +294,7 @@ class IncrementalMemoryContentionTest {
    }
 
    private static JournalPreparation awaitPlacementCommit(PlacementTask task) {
+      bindCommitExecutor(task);
       task.prepareCommit();
       try {
          operationCommit(task).completion().join();
@@ -308,15 +309,25 @@ class IncrementalMemoryContentionTest {
    }
 
    private static OperationTaskResult awaitOperationCommit(Object task, String method) throws Exception {
+      bindCommitExecutor(task);
       invoke(task, method);
       ((WorldOperationCommit)field(task, "operationCommit")).completion().join();
       return (OperationTaskResult)invoke(task, method);
    }
 
    private static JournalPreparation awaitJournalCommit(Object task, String method) throws Exception {
+      bindCommitExecutor(task);
       invoke(task, method);
       ((WorldOperationCommit)field(task, "operationCommit")).completion().join();
       return (JournalPreparation)invoke(task, method);
+   }
+
+   private static void bindCommitExecutor(Object task) {
+      try {
+         setField(task, "journalPreparation", new io.github.fastformer.server.recovery.WorldJournalPreparation(Runnable::run));
+      } catch (Exception failure) {
+         throw new AssertionError("Cannot bind commit fixture executor", failure);
+      }
    }
 
    private static SelectionOperationTask selectionTask() {

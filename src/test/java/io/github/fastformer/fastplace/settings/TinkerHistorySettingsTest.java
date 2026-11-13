@@ -2,16 +2,16 @@ package io.github.fastformer.fastplace.settings;
 
 import static org.junit.jupiter.api.Assertions.*;
 import net.minecraft.nbt.CompoundTag;
-import io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits;
+import io.github.fastformer.common.history.HistoryCompressionLimits;
 import org.junit.jupiter.api.Test;
 
 class TinkerHistorySettingsTest {
    @Test
-   void defaultsAndLegacySpatialSettingsUseChronologicalDefaults() {
-      assertEquals(TinkerHistoryMergeLimits.DEFAULTS, FastPlaceSettings.fromTag(new CompoundTag()).tinkerHistoryMergeLimits());
+   void obsoleteSpatialSettingsAreIgnored() {
+      assertEquals(HistoryCompressionLimits.DEFAULTS, FastPlaceSettings.fromTag(new CompoundTag()).tinkerHistoryMergeLimits());
       var tag = new CompoundTag();
       tag.putInt("tinkerHistoryMergeLimit", 32);
-      assertEquals(TinkerHistoryMergeLimits.DEFAULTS, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
+      assertEquals(HistoryCompressionLimits.DEFAULTS, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
       var spatial = new CompoundTag();
       spatial.putInt("near", 4);
       spatial.putInt("middle", 12);
@@ -19,20 +19,20 @@ class TinkerHistorySettingsTest {
       spatial.putInt("nearDistance", 7);
       spatial.putInt("farDistance", 25);
       tag.put("tinkerHistoryMerge", spatial);
-      assertEquals(TinkerHistoryMergeLimits.DEFAULTS, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
+      assertEquals(HistoryCompressionLimits.DEFAULTS, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
       for (var key : java.util.List.of("near", "middle", "far")) spatial.putInt(key, 1);
-      assertFalse(FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits().enabled());
+      assertEquals(HistoryCompressionLimits.DEFAULTS, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
    }
 
    @Test
-   void legacySingleLimitPreservesCustomSizeAndExplicitOptOut() {
+   void obsoleteSingleLimitIsIgnored() {
       var tag = new CompoundTag();
       tag.putInt("tinkerHistoryMergeLimit", 48);
-      assertEquals(new TinkerHistoryMergeLimits(5, 48, 32, 4, 128, 4), FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
+      assertEquals(HistoryCompressionLimits.DEFAULTS, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
       tag.putInt("tinkerHistoryMergeLimit", 0);
-      assertFalse(FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits().enabled());
+      assertEquals(HistoryCompressionLimits.DEFAULTS, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
       tag.putInt("tinkerHistoryMergeLimit", Integer.MAX_VALUE);
-      assertEquals(256, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits().recentGroup());
+      assertEquals(HistoryCompressionLimits.DEFAULTS, FastPlaceSettings.fromTag(tag).tinkerHistoryMergeLimits());
    }
 
    @Test
@@ -49,7 +49,7 @@ class TinkerHistorySettingsTest {
       values.putInt("olderMultiplier", 99);
       tag.put("tinkerHistoryMerge", values);
       var saved = FastPlaceSettings.fromTag(tag).toTag();
-      assertEquals(new TinkerHistoryMergeLimits(8, 12, 40, 3, 200, 5), FastPlaceSettings.fromTag(saved).tinkerHistoryMergeLimits());
+      assertEquals(new HistoryCompressionLimits(8, 12, 40, 3, 200, 5), FastPlaceSettings.fromTag(saved).tinkerHistoryMergeLimits());
       assertEquals(6, saved.getCompound("tinkerHistoryMerge").size());
       assertFalse(saved.getCompound("tinkerHistoryMerge").contains("nearDistance"));
       assertFalse(saved.getCompound("tinkerHistoryMerge").contains("olderMultiplier"));

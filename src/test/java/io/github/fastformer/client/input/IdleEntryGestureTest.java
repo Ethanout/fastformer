@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot;
+import io.github.fastformer.common.raycast.InteractionShapeSnapshot;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
@@ -18,7 +18,7 @@ class IdleEntryGestureTest {
       for (boolean embedded : new boolean[]{false, true}) {
          for (boolean throughFluids : new boolean[]{false, true}) {
             var gesture = new IdleEntryGesture();
-            var rules = new io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules(embedded, throughFluids);
+            var rules = new io.github.fastformer.common.raycast.InteractionRaycastRules(embedded, throughFluids);
             gesture.remember(5, 100, FULL, EYE, VIEW, this, null, rules);
             gesture.update(5, new InteractionShapeSnapshot(BlockPos.ZERO.north(), FULL.boxes()));
             var match = gesture.secondPress(200, EYE, VIEW);
@@ -29,19 +29,18 @@ class IdleEntryGestureTest {
             assertFalse(match.tinker());
             assertEquals(BlockPos.ZERO.north(), match.hit().getBlockPos());
             gesture.remember(6, 300, FULL, EYE, VIEW, this, null);
-            assertEquals(io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.DEFAULT,
+            assertEquals(io.github.fastformer.common.raycast.InteractionRaycastRules.DEFAULT,
                gesture.secondPress(400, EYE, VIEW).rules());
          }
       }
    }
 
    @Test void secondPressRequiresTheTimeWindowAndTheCapturedShape() {
-      assertEquals(200_000_000L, IdleEntryGesture.DOUBLE_PRESS_NANOS);
       var gesture = new IdleEntryGesture();
       assertNull(gesture.secondPress(100, EYE, VIEW));
       gesture.remember(1, 100, FULL, EYE, VIEW, this, null);
-      assertNotNull(gesture.secondPress(100 + IdleEntryGesture.DOUBLE_PRESS_NANOS, EYE, VIEW));
-      assertNull(gesture.secondPress(101 + IdleEntryGesture.DOUBLE_PRESS_NANOS, EYE, VIEW));
+      assertNotNull(gesture.secondPress(100 + 200_000_000L, EYE, VIEW));
+      assertNull(gesture.secondPress(101 + 200_000_000L, EYE, VIEW));
       assertNull(gesture.secondPress(99, EYE, VIEW));
       assertNull(gesture.secondPress(200, EYE, new Vec3(1, 0, 0)));
    }
@@ -52,6 +51,59 @@ class IdleEntryGestureTest {
       gesture.remember(1, 100, slab, EYE.subtract(0, 0.5, 0), VIEW, this, null);
       assertNull(gesture.secondPress(200, EYE, VIEW));
       assertNotNull(gesture.secondPress(200, EYE.subtract(0, 0.5, 0), VIEW));
+   }
+
+   @Test void distantEdgeMissUsesTheLongerWindowAndKeepsTheOriginalSurface() {
+      var gesture = new IdleEntryGesture();
+      var eye = new Vec3(0.99, 0.75, -20);
+      var secondEye = eye.add(0.16, 0, 0);
+      gesture.remember(1, 100, FULL, eye, VIEW, this, null);
+      assertNull(FULL.clip(secondEye, VIEW));
+      var match = gesture.secondPress(100 + 300_000_000L, secondEye, VIEW);
+      assertNotNull(match);
+      assertEquals(BlockPos.ZERO, match.hit().getBlockPos());
+      assertEquals(new Vec3(1, 0.75, 0), match.hit().getLocation());
+      assertEquals(net.minecraft.core.Direction.NORTH, match.hit().getDirection());
+      assertNull(gesture.secondPress(101 + 300_000_000L, secondEye, VIEW));
+      assertNull(gesture.secondPress(200, eye.add(0.4, 0, 0), VIEW));
+   }
+
+   @Test void fifteenBlockBoundaryUsesTheFirstPressDistance() {
+      var gesture = new IdleEntryGesture();
+      var near = new Vec3(0.99, 0.75, -14.99);
+      gesture.remember(1, 100, FULL, near, VIEW, this, null);
+      assertNull(gesture.secondPress(100 + 250_000_000L, near, VIEW));
+      assertNull(gesture.secondPress(200, near.add(0.1, 0, -5), VIEW));
+      var far = new Vec3(0.99, 0.75, -15);
+      gesture.remember(2, 100, FULL, far, VIEW, this, null);
+      assertNotNull(gesture.secondPress(100 + 250_000_000L, far.add(0.1, 0, 5), VIEW));
+   }
+
+   @Test void distantPartialShapeStaysPartialAndTinkerSharesTheSameTolerance() {
+      var slab = new InteractionShapeSnapshot(BlockPos.ZERO, List.of(new AABB(0, 0, 0, 1, 0.5, 1)));
+      var eye = new Vec3(0.5, 0.49, -20);
+      for (boolean tinker : new boolean[]{false, true}) {
+         var gesture = new IdleEntryGesture();
+         if (tinker) gesture.rememberTinker(1, 100, slab, eye, VIEW, this, null);
+         else gesture.remember(1, 100, slab, eye, VIEW, this, null);
+         var match = gesture.secondPress(100 + 250_000_000L, eye.add(0, 0.1, 0), VIEW);
+         assertNotNull(match);
+         assertEquals(tinker, match.tinker());
+         assertEquals(0.5, match.hit().getLocation().y);
+         assertNull(gesture.secondPress(200, eye.add(0, 0.4, 0), VIEW));
+      }
+   }
+
+   @Test void distantToleranceDoesNotBypassBothGestureLimits() {
+      var gesture = new IdleEntryGesture();
+      var eye = new Vec3(0.1, 0.75, -20);
+      gesture.remember(1, 100, FULL, eye, VIEW, this, null);
+      var changedEye = eye.add(-1.6, 0, 0);
+      var changedView = horizontalView(7);
+      assertNotNull(FULL.clip(changedEye, changedView));
+      assertNull(gesture.secondPress(200, changedEye, changedView));
+      gesture.clear();
+      assertNull(gesture.secondPress(200, eye, VIEW));
    }
 
    @Test void closeHitsAllowViewChangeBeyondTheAngleThreshold() {

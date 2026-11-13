@@ -1,9 +1,13 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
-import io.github.fastformer.fastplace.placement.replace.QuickReplaceManager;
-import io.github.fastformer.fastplace.placement.replace.QuickReplaceTarget;
+import io.github.fastformer.server.history.HistoryService;
+import io.github.fastformer.server.replace.QuickReplaceSystem;
+import io.github.fastformer.common.replace.QuickReplaceTarget;
 import io.github.fastformer.server.session.FastPlaceManager;
 import io.github.fastformer.server.session.OperationManager;
 import net.minecraft.core.BlockPos;
@@ -28,7 +32,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class QuickReplaceGameTests {
    private QuickReplaceGameTests() { }
 
-   @GameTest(template = "fastformergametests.empty", batch = "quick_replace", timeoutTicks = 1000)
+   @GameTest(template = "fastformergametests.empty", batch = "quick_replace_history", timeoutTicks = 1000)
    public static void replacementUsesHistoryAndRejectsWritesAfterExit(GameTestHelper helper) {
       var pos = helper.absolutePos(new BlockPos(2, 3, 3));
       helper.getLevel().setBlock(pos, Blocks.STONE.defaultBlockState(), 18);
@@ -36,29 +40,29 @@ public final class QuickReplaceGameTests {
       int[] phase = {-1};
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
-         WorldHistoryManager.tickWorld(helper.getLevel().getServer());
+         HistorySystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer());
          if (phase[0] == -1) {
             helper.assertTrue(!io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
                player.getServer(), helper.getLevel().dimension()), "Waiting for the world writer");
-            helper.assertTrue(!QuickReplaceManager.replaceCrosshair(player), "Inactive session wrote a block");
-            helper.assertTrue(QuickReplaceManager.setActive(player, true), "Session did not start");
-            helper.assertTrue(QuickReplaceManager.replaceCrosshair(player), "Replacement failed");
+            helper.assertTrue(!QuickReplaceSystem.replaceCrosshair(player), "Inactive session wrote a block");
+            helper.assertTrue(QuickReplaceSystem.setActive(player, true), "Session did not start");
+            helper.assertTrue(QuickReplaceSystem.replaceCrosshair(player), "Replacement failed");
             helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.GOLD_BLOCK), "Replacement missed its target");
-            helper.assertTrue(WorldHistoryManager.requestUndo(player, 1), "Undo was refused");
+            helper.assertTrue(HistorySystem.of(player).requestUndo(player, 1), "Undo was refused");
             phase[0] = 0;
          }
-         helper.assertTrue(!WorldHistoryManager.busy(player), "History is pending");
+         helper.assertTrue(!HistorySystem.of(player).busy(player), "History is pending");
          if (phase[0] == 0) {
             helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.STONE), "Undo lost the original block");
-            helper.assertTrue(WorldHistoryManager.requestRedo(player, 1), "Redo was refused");
+            helper.assertTrue(HistorySystem.of(player).requestRedo(player, 1), "Redo was refused");
             phase[0] = 1;
             helper.assertTrue(false, "Redo is pending");
          }
          helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.GOLD_BLOCK), "Redo lost the replacement");
-         QuickReplaceManager.setActive(player, false);
-         helper.assertTrue(!QuickReplaceManager.active(player), "Session remained active");
+         QuickReplaceSystem.setActive(player, false);
+         helper.assertTrue(!QuickReplaceSystem.active(player), "Session remained active");
          player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_BLOCK));
-         helper.assertTrue(!QuickReplaceManager.replaceCrosshair(player), "Closed session accepted a late request");
+         helper.assertTrue(!QuickReplaceSystem.replaceCrosshair(player), "Closed session accepted a late request");
       });
    }
 
@@ -88,7 +92,7 @@ public final class QuickReplaceGameTests {
       var pos = helper.absolutePos(new BlockPos(2, 30, 3));
       helper.getLevel().setBlock(pos, Blocks.STONE.defaultBlockState(), 18);
       var player = player(helper, pos, 2);
-      helper.assertTrue(QuickReplaceManager.setActive(player, true), "Session did not start");
+      helper.assertTrue(QuickReplaceSystem.setActive(player, true), "Session did not start");
       for (int distance : new int[] {2, 12}) {
          aim(player, pos, distance);
          var target = QuickReplaceTarget.resolve(player);
@@ -105,14 +109,144 @@ public final class QuickReplaceGameTests {
          helper.assertTrue(!FastPlaceManager.active(player) && !OperationManager.active(player), "Attack started an FF session");
       }
       io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).toggleEnabled(player);
-      helper.assertTrue(!QuickReplaceManager.setActive(player, true) && !QuickReplaceManager.active(player),
+      helper.assertTrue(!QuickReplaceSystem.setActive(player, true) && !QuickReplaceSystem.active(player),
          "Rejected activation retained server ownership");
       helper.succeed();
    }
 
+   @GameTest(template = "fastformergametests.empty", batch = "quick_replace_held", timeoutTicks = 1000)
+   public static void heldStrokeConnectsSurfaceAndUndoesAndRedoesAsOneRecord(GameTestHelper helper) {
+      var first = helper.absolutePos(new BlockPos(1, 3, 3));
+      var last = first.east(6);
+      var player = player(helper, first, 5);
+      for (int x = 0; x <= 6; x++) helper.getLevel().setBlock(first.east(x), Blocks.STONE.defaultBlockState(), 18);
+      int[] phase = {0};
+      helper.succeedWhen(() -> {
+         HistorySystem.of(player.getServer()).tickWorld(player.getServer());
+         if (phase[0] == 0) {
+            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), player.level().dimension()),
+               "waiting for world writer");
+            helper.assertTrue(QuickReplaceSystem.setActive(player, true), "activation failed");
+            helper.assertTrue(QuickReplaceSystem.sample(player, 1, false), "first sample failed");
+            phase[0] = 1;
+            helper.fail("waiting for next tick");
+         }
+         if (phase[0] == 1) {
+            var delta = last.getCenter().add(0, 0, -0.5).subtract(player.getEyePosition());
+            player.setYRot((float)-Math.toDegrees(Math.atan2(delta.x, delta.z)));
+            player.setYHeadRot(player.getYRot());
+            player.setXRot((float)-Math.toDegrees(Math.atan2(delta.y, Math.hypot(delta.x, delta.z))));
+            var target = QuickReplaceTarget.resolve(player);
+            helper.assertTrue(QuickReplaceSystem.sample(player, 1, false), "second sample failed: target=" + target
+               + ", expected=" + last + ", busy=" + HistorySystem.of(player).busy(player));
+            QuickReplaceSystem.sample(player, 1, true);
+            helper.assertFalse(QuickReplaceSystem.sample(player, 1, false), "release accepted a late sample");
+            phase[0] = 2;
+         }
+         if (phase[0] == 2) {
+            for (int x = 0; x <= 6; x++) helper.assertTrue(helper.getLevel().getBlockState(first.east(x)).is(Blocks.GOLD_BLOCK),
+               "stroke left a surface gap at " + x);
+            helper.assertTrue(HistorySystem.of(player).requestUndo(player, 1), "undo refused");
+            phase[0] = 3;
+         }
+         if (phase[0] == 3) {
+            helper.assertFalse(HistorySystem.of(player).busy(player), "waiting for undo");
+            for (int x = 0; x <= 6; x++) helper.assertTrue(helper.getLevel().getBlockState(first.east(x)).is(Blocks.STONE),
+               "one undo did not restore the whole stroke at " + x);
+            helper.assertTrue(HistorySystem.of(player).requestRedo(player, 1), "redo refused");
+            phase[0] = 4;
+         }
+         helper.assertFalse(HistorySystem.of(player).busy(player), "waiting for redo");
+         for (int x = 0; x <= 6; x++) helper.assertTrue(helper.getLevel().getBlockState(first.east(x)).is(Blocks.GOLD_BLOCK),
+            "one redo did not restore the whole stroke at " + x);
+         QuickReplaceSystem.setActive(player, false);
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "quick_replace_presses", timeoutTicks = 1000)
+   public static void separatePressesAndRepeatedPositionsRetainDistinctUndoBoundaries(GameTestHelper helper) {
+      var pos = helper.absolutePos(new BlockPos(2, 3, 3));
+      helper.getLevel().setBlock(pos, Blocks.STONE.defaultBlockState(), 18);
+      var player = player(helper, pos, 2);
+      int[] phase = {0};
+      helper.succeedWhen(() -> {
+         HistorySystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer());
+         if (phase[0] == 0) {
+            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), player.level().dimension()),
+               "waiting for writer");
+            helper.assertTrue(QuickReplaceSystem.setActive(player, true), "activation failed");
+            helper.assertTrue(QuickReplaceSystem.sample(player, 10, false), "first sample failed");
+            phase[0] = 1;
+            helper.fail("waiting for next tick");
+         }
+         if (phase[0] == 1) {
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_BLOCK));
+            helper.assertTrue(QuickReplaceSystem.sample(player, 10, false), "revisited cell failed");
+            QuickReplaceSystem.sample(player, 10, true);
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD_BLOCK));
+            helper.assertTrue(QuickReplaceSystem.sample(player, 11, false), "new press in same tick failed");
+            QuickReplaceSystem.sample(player, 11, true);
+            helper.assertFalse(QuickReplaceSystem.sample(player, 10, false), "old press reopened");
+            helper.assertTrue(HistorySystem.of(player).requestUndo(player, 1), "undo refused");
+            phase[0] = 2;
+         }
+         if (phase[0] == 2) {
+            helper.assertFalse(HistorySystem.of(player).busy(player), "waiting for second press undo");
+            helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.DIAMOND_BLOCK), "separate presses were merged");
+            helper.assertTrue(HistorySystem.of(player).requestUndo(player, 1), "second undo refused");
+            phase[0] = 3;
+         }
+         helper.assertFalse(HistorySystem.of(player).busy(player), "waiting for first press undo");
+         helper.assertTrue(helper.getLevel().getBlockState(pos).is(Blocks.STONE), "first press lost its original state");
+         QuickReplaceSystem.setActive(player, false);
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "quick_replace_occlusion", timeoutTicks = 1000)
+   public static void sweepRespectsForegroundAndReleaseBreaksThePath(GameTestHelper helper) {
+      var first = helper.absolutePos(new BlockPos(1, 40, 3));
+      var foreground = first.east(3).north(2);
+      for (int x = 0; x <= 6; x++) helper.getLevel().setBlock(first.east(x), Blocks.DIAMOND_BLOCK.defaultBlockState(), 18);
+      helper.getLevel().setBlock(foreground, Blocks.STONE.defaultBlockState(), 18);
+      var player = player(helper, first, 5);
+      int[] phase = {0};
+      helper.succeedWhen(() -> {
+         HistorySystem.of(player.getServer()).tickWorld(player.getServer());
+         if (phase[0] == 0) {
+            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), player.level().dimension()),
+               "waiting for world writer");
+            helper.assertTrue(QuickReplaceSystem.setActive(player, true), "activation failed");
+            helper.assertTrue(QuickReplaceSystem.sample(player, 1, false), "first sample failed");
+            phase[0] = 1;
+            helper.fail("waiting for next tick");
+         }
+         if (phase[0] == 1) {
+            aim(player, first.east(6), 5);
+            helper.assertTrue(QuickReplaceSystem.sample(player, 1, false), "sweep failed");
+            QuickReplaceSystem.sample(player, 1, true);
+            phase[0] = 2;
+         }
+         if (phase[0] == 2) {
+            for (int x = 0; x <= 6; x++) helper.assertTrue(helper.getLevel().getBlockState(first.east(x))
+               .is(x == 3 ? Blocks.DIAMOND_BLOCK : Blocks.GOLD_BLOCK), "occlusion mismatch at " + x);
+            helper.assertTrue(helper.getLevel().getBlockState(foreground).is(Blocks.GOLD_BLOCK), "foreground was skipped");
+            // A new press aimed back across the wall must not inherit the old sweep.
+            player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD_BLOCK));
+            aim(player, first, 5);
+            helper.assertTrue(QuickReplaceSystem.sample(player, 2, false), "new press failed");
+            QuickReplaceSystem.sample(player, 2, true);
+            phase[0] = 3;
+         }
+         helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.EMERALD_BLOCK), "new press missed endpoint");
+         for (int x = 1; x <= 6; x++) helper.assertFalse(helper.getLevel().getBlockState(first.east(x)).is(Blocks.EMERALD_BLOCK),
+            "new press bridged the released path at " + x);
+         QuickReplaceSystem.setActive(player, false);
+      });
+   }
+
    private static ServerPlayer player(GameTestHelper helper, BlockPos target, int distance) {
       var player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000);
       player.setGameMode(GameType.CREATIVE);
       player.getAttribute(Attributes.BLOCK_INTERACTION_RANGE).setBaseValue(20);
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.GOLD_BLOCK));

@@ -1,7 +1,9 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -72,16 +74,16 @@ public final class WriteFailureGameTests {
             NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, true, EntityJoinLevelEvent.class, failure);
          }
          if (scenario[0] == 0) {
-            FastPlaceManager.tickWorld(level.getServer());
+            FastPlaceManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          } else {
-            OperationManager.tickWorld(level.getServer());
+            OperationManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          }
          helper.assertTrue(injected[0], "waiting for container callback in scenario " + scenario[0]);
          NeoForge.EVENT_BUS.unregister(failure);
          helper.assertTrue(!FastPlaceManager.taskActive(owner[0]) && !OperationManager.taskActive(owner[0]),
             "failed writer remained active");
-         WorldHistoryManager.tickWorld(level.getServer());
-         helper.assertTrue(!WorldHistoryManager.busy(owner[0]), "waiting for failure recovery");
+         HistorySystem.of(level.getServer()).tickWorld(level.getServer());
+         helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner[0]), "waiting for failure recovery");
          helper.assertTrue(original[0].matches(level, target), "failure did not restore chest and inventory");
          helper.assertTrue(level.getBlockState(source).is(Blocks.GOLD_BLOCK), "copy changed its source");
          helper.assertTrue(!WorldWriteCoordinator.busy(level.getServer(), level.dimension()), "failure retained write lease");

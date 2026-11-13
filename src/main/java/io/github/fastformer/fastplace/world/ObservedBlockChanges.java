@@ -7,22 +7,29 @@ import java.util.Map;
 import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import java.util.UUID;
 import net.minecraft.world.level.Level;
 
 /** Captures first writes, then reads final states after placement callbacks and event cancellation. */
 final class ObservedBlockChanges implements AutoCloseable {
    private static final ThreadLocal<ObservedBlockChanges> ACTIVE = new ThreadLocal<>();
    private final ServerLevel level;
+   private final UUID owner;
    private final LinkedHashMap<BlockPos, ReversibleBlockSnapshot> originals = new LinkedHashMap<>();
    private final Map<BlockPos, ReversibleBlockSnapshot> after = new LinkedHashMap<>();
    private boolean failed;
 
-   ObservedBlockChanges(ServerLevel level) {
-      this.level = level;
+   ObservedBlockChanges(ServerPlayer player) {
+      this.level = player.serverLevel();
+      this.owner = player.getUUID();
       ACTIVE.set(this);
    }
 
-   static boolean active() { return ACTIVE.get() != null; }
+   static boolean active(ServerPlayer player) {
+      var capture = ACTIVE.get();
+      return capture != null && capture.level == player.serverLevel() && capture.owner.equals(player.getUUID());
+   }
 
    static boolean observe(Level level, BlockPos pos, BooleanSupplier write) {
       var capture = ACTIVE.get();

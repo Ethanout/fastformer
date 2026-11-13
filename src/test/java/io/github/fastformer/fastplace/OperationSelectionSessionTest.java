@@ -715,6 +715,21 @@ class OperationSelectionSessionTest {
    }
 
    @Test
+   void movingTheBaseValidatesEveryTranslatedPointBeforeWriting() {
+      OperationSession session = new OperationSession(OperationSelectionMode.PRISM);
+      session.setFirst(BlockPos.ZERO);
+      session.setSecond(new BlockPos(4, 0, 0));
+      session.addSelectionPoint(new BlockPos(0, 0, 4));
+      assertTrue(session.closePrismBase());
+      var before = session.points();
+
+      session.dragPointTo(0, new BlockPos(2, 0, 0), OperationPointDragConstraint.PLANE, true,
+         point -> point.getX() <= 5);
+
+      assertEquals(before, session.points());
+   }
+
+   @Test
    void confirmedSelectionIsLockedUntilUndoReturnsToEditing() {
       OperationSession session = new OperationSession();
       session.setFirst(new BlockPos(0, 0, 0));

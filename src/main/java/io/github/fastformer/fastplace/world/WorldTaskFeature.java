@@ -1,8 +1,10 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.history.HistoryService;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.server.session.FastPlaceManager;
 import io.github.fastformer.server.session.OperationManager;
@@ -29,7 +31,7 @@ public final class WorldTaskFeature {
    public static void tick(MinecraftServer server) {
       // Recovery has priority. A writer that transfers itself to recovery is
       // removed from its manager before the next manager gets a chance to run.
-      if (!tickSafely("history/recovery", () -> WorldHistoryManager.tickWorld(server))) {
+      if (!tickSafely("history/recovery", () -> HistorySystem.of(server).tickWorld(server))) {
          return;
       }
       // A closed gate stops new writes for the rest of the session. Placement and operation
@@ -37,16 +39,16 @@ public final class WorldTaskFeature {
       // waits for a lease first, so it would never reach the gate check inside the task.
       // The two handovers are independent, so one failure must not skip the other.
       if (PersistentRecoveryJournal.writesAllowed()) {
-         if (!tickSafely("placement", () -> FastPlaceManager.tickWorld(server))) {
+         if (!tickSafely("placement", () -> FastPlaceManager.tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server)))) {
             return;
          }
       } else {
-         tickSafely("placement-handover", () -> FastPlaceManager.handOverBlockedTasks(server));
+         tickSafely("placement-handover", () -> FastPlaceManager.handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server)));
       }
       if (PersistentRecoveryJournal.writesAllowed()) {
-         tickSafely("operation", () -> OperationManager.tickWorld(server));
+         tickSafely("operation", () -> OperationManager.tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server)));
       } else {
-         tickSafely("operation-handover", () -> OperationManager.handOverBlockedTasks(server));
+         tickSafely("operation-handover", () -> OperationManager.handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server)));
       }
       // Finished submission results age out here. A record of work that still runs is
       // never removed, so a query always learns that the work is still in progress.

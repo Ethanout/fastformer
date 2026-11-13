@@ -6,8 +6,8 @@ import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
 import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
-import io.github.fastformer.client.session.ClientTickMailbox;
-import io.github.fastformer.network.payload.placement.StartPlacementPayload;
+import io.github.fastformer.core.async.TickMailbox;
+import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import java.util.function.BooleanSupplier;
 
 /** Owns queued physical input and releases pending requests on dispatch or invalidation. */
@@ -26,8 +26,8 @@ final class PhysicalInputMailbox {
       record OperationPointDrag(OperationPointDragEvent value) implements PhysicalEvent { }
       record OperationPointCommand(OperationPointCommandEvent value) implements PhysicalEvent { }
    }
-   private final ClientTickMailbox<PhysicalEvent> events =
-      new ClientTickMailbox<>(this::releaseQueuedEvent);
+   private final TickMailbox<PhysicalEvent> events =
+      new TickMailbox<>(this::releaseQueuedEvent);
    private int pendingRemotePoints;
    private int pendingStarts;
 

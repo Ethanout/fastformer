@@ -1,14 +1,15 @@
 package io.github.fastformer.fastplace.world;
 
-import io.github.fastformer.fastplace.history.WorldChangeBatch;
-import io.github.fastformer.fastplace.history.WorldHistoryPublication;
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
+import io.github.fastformer.server.history.WorldHistoryPublication;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
@@ -26,7 +27,8 @@ public final class WorldOperationCommit {
       ResourceKey<Level> dimension,
       Collection<ReversibleBlockSnapshot> before,
       Map<BlockPos, ReversibleBlockSnapshot> after,
-      PersistentRecoveryJournal journal
+      PersistentRecoveryJournal journal,
+      Executor executor
    ) {
       this.journal = journal;
       this.journalFuture = journal == null
@@ -37,33 +39,34 @@ public final class WorldOperationCommit {
          dimension,
          before,
          after,
-         () -> this.cancelled
+         () -> this.cancelled,
+         executor
       );
    }
 
    public static WorldOperationCommit begin(
-      ResourceKey<Level> dimension,
-      Collection<ReversibleBlockSnapshot> before,
-      Map<BlockPos, ReversibleBlockSnapshot> after,
-      PersistentRecoveryJournal journal
+      ResourceKey<Level> dimension, Collection<ReversibleBlockSnapshot> before,
+      Map<BlockPos, ReversibleBlockSnapshot> after, PersistentRecoveryJournal journal, Executor executor
    ) {
-      return new WorldOperationCommit(dimension, before, after, journal);
+      return new WorldOperationCommit(dimension, before, after, journal, executor);
    }
 
    public static WorldOperationCommit begin(
       ResourceKey<Level> dimension,
       WorldChangeTransaction transaction,
-      PersistentRecoveryJournal journal
+      PersistentRecoveryJournal journal,
+      Executor executor
    ) {
-      return begin(dimension, transaction.beforeView(), transaction.afterView(), journal);
+      return begin(dimension, transaction.beforeView(), transaction.afterView(), journal, executor);
    }
 
    static CompletableFuture<Optional<WorldChangeBatch>> prepareBatchAfterJournal(
       CompletableFuture<Boolean> journalFuture,
       java.util.function.Supplier<Optional<WorldChangeBatch>> batchSupplier,
-      BooleanSupplier cancelled
+      BooleanSupplier cancelled,
+      Executor executor
    ) {
-      return WorldHistoryPublication.prepare(journalFuture, batchSupplier, cancelled);
+      return WorldHistoryPublication.prepare(journalFuture, batchSupplier, cancelled, executor);
    }
 
    public JournalPreparation poll() {

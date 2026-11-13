@@ -15,7 +15,7 @@ final class InputSessionIdleCleanup {
       session.undoPressCaptured = false;
       session.releaseGeometryPointerButton(0);
       session.releaseGeometryPointerButton(1);
-      session.operationClickCapturedButton = -1;
+      session.operationClick.clear();
       ClientOperationController.selectionGestures().clear();
       FastPlaceClientInput.finishPointerGesture();
    }

@@ -1,7 +1,11 @@
 package io.github.fastformer.fastplace.interaction;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -22,7 +26,7 @@ public final class IdleSessionGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "idle_wrench", timeoutTicks = 6000)
    public static void wrenchStillWorksThroughTheBlockEventDuringIdleHandoff(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000L);
       var pos = helper.absolutePos(new BlockPos(1, 3, 1));
       helper.setBlock(new BlockPos(1, 3, 1), Blocks.GRASS_BLOCK);
       player.setPos(pos.getCenter().add(0, 2, 0));

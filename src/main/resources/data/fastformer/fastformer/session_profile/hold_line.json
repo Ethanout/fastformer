@@ -1,0 +1,11 @@
+{
+  "session": "fastformer:quick_shape",
+  "max_stage": "line",
+  "locked_modes": { "line": "fastformer:axis" },
+  "allow_mode_switch": false,
+  "middle_confirm": "always",
+  "entry": {
+    "anchor": "embedded",
+    "requires": ["creative", "holding_placeable", "aiming_block", "within_reach"]
+  }
+}

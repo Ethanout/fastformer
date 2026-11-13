@@ -8,7 +8,7 @@ import io.github.fastformer.client.render.model.ScrollFeedbackData;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.List;
 import java.util.function.Function;
 import net.minecraft.client.Minecraft;
@@ -33,7 +33,7 @@ public final class PreviewFeedbackHud {
    }
 
    /** Records wheel input before the server can publish its replacement snapshot. */
-   public void noteScroll(BuildingPreviewPayload building, long now) {
+   public void noteScroll(BuildingPreviewSnapshot building, long now) {
       this.state.scroll().touch(now);
       if (!isActiveFreeScroll(building)) {
          return;
@@ -43,7 +43,7 @@ public final class PreviewFeedbackHud {
       this.state.protectFreeScrollTransition(now);
    }
 
-   public boolean refreshFreeScrollSession(BuildingPreviewPayload building, long now) {
+   public boolean refreshFreeScrollSession(BuildingPreviewSnapshot building, long now) {
       boolean activeFreeScroll = isActiveFreeScroll(building);
       return this.state.refreshFreeScrollSession(
          building.active(), activeFreeScroll,
@@ -150,7 +150,7 @@ public final class PreviewFeedbackHud {
       return this.state.lastGizmoBaseValue();
    }
 
-   private static boolean isActiveFreeScroll(BuildingPreviewPayload building) {
+   private static boolean isActiveFreeScroll(BuildingPreviewSnapshot building) {
       return building.active()
          && building.lineMode() == LineMode.FREE_SCROLL
          && building.points().size() <= 1;

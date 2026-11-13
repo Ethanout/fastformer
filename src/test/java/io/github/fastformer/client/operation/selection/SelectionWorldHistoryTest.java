@@ -2,7 +2,7 @@ package io.github.fastformer.client.operation.selection;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind;
+import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload.Kind;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.List;

@@ -4,7 +4,7 @@ import net.minecraft.core.BlockPos;
 
 /** Freezes the target and clock used by the path-close gesture. */
 public record PathClosePress(boolean hoveredStart, boolean doubleClickEnabled, BlockPos candidate,
-   boolean geometry, long occurredAtNanos, io.github.fastformer.network.payload.geometry.ClosePathPayload payload) {
+   boolean geometry, long occurredAtNanos, io.github.fastformer.protocol.c2s.geometry.ClosePathPayload payload) {
    public PathClosePress(boolean hoveredStart, boolean doubleClickEnabled, BlockPos candidate, boolean geometry, long occurredAtNanos) {
       this(hoveredStart, doubleClickEnabled, candidate, geometry, occurredAtNanos, null);
    }

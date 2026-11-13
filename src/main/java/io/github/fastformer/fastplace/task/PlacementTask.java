@@ -3,12 +3,12 @@ package io.github.fastformer.fastplace.task;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
-import io.github.fastformer.fastplace.history.WorldChangeBatch;
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
-import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.WorldBatchFeedback;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
@@ -17,7 +17,8 @@ import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.fastplace.task.runtime.TaskWriteLease;
+import io.github.fastformer.fastplace.task.runtime.JournalSegments;
 import io.github.fastformer.fastplace.world.WorldWriteSideEffectGuard;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
@@ -51,7 +52,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * Player-owned placement transaction from asynchronous shape generation through
  * validated world writes and durable history commit.
  */
-public final class PlacementTask {
+public final class PlacementTask implements WorldWriteTask {
    private CompletableFuture<BlockGenerationResult> future;
    private DeferredGeneration deferredGeneration;
    private MemoryReservation generationReservation;
@@ -64,8 +65,7 @@ public final class PlacementTask {
    private Set<BlockPos> targets;
    private BlockPositionSource generatedPositions;
    private Map<BlockPos, BlockState> resolvedStates = Map.of();
-   /** The only object that may release this task's dimension lease. */
-   private WorldWriteCoordinator.Lease lease;
+   private final TaskWriteLease writeLease = new TaskWriteLease();
    private boolean resolvedStatesPrepared;
    private final ArrayDeque<BlockPos> writable = new ArrayDeque<>();
    private final Iterator<BlockPos> blocks = new Iterator<>() {
@@ -82,8 +82,7 @@ public final class PlacementTask {
    private Iterator<BlockPos> validationIterator;
    private int validationRemaining;
    private boolean snapshotsValidated;
-   private int journaledCount;
-   private List<ReversibleBlockSnapshot> pendingJournalSlice = List.of();
+   private final JournalSegments journalSegments = new JournalSegments();
    private int remaining;
    private int processed;
    private int total;
@@ -401,8 +400,8 @@ public final class PlacementTask {
             return this.memoryUnsafe;
          }
          if (!this.journalPreparation.started()) {
-            int unjournaled = this.transaction.expectedCount() - this.journaledCount;
-            if (unjournaled >= PersistentRecoveryJournal.segmentCapacity(this.journaledCount)) {
+            int unjournaled = this.transaction.expectedCount() - this.journalSegments.count();
+            if (unjournaled >= PersistentRecoveryJournal.segmentCapacity(this.journalSegments.count())) {
                break;
             }
          }
@@ -429,14 +428,14 @@ public final class PlacementTask {
    }
 
    private boolean journalBatchReady(WorldTaskBudget budget) {
-      int unjournaled = this.transaction.expectedCount() - this.journaledCount - this.pendingJournalSlice.size();
+      int unjournaled = this.transaction.expectedCount() - this.journalSegments.count() - this.journalSegments.pending().size();
       if (unjournaled <= 0) {
          return this.snapshotsValidated;
       }
       if (this.snapshotsValidated) {
          return true;
       }
-      int batch = PersistentRecoveryJournal.segmentCapacity(this.journaledCount);
+      int batch = PersistentRecoveryJournal.segmentCapacity(this.journalSegments.count());
       return unjournaled >= batch || !budget.hasRemaining();
    }
 
@@ -444,7 +443,7 @@ public final class PlacementTask {
       if (this.transaction.expectedCount() == 0) {
          return JournalPreparation.READY;
       }
-      if (this.pendingJournalSlice.isEmpty()) {
+      if (this.journalSegments.pending().isEmpty()) {
          if (!this.hasUnjournaledSnapshots()) {
             return JournalPreparation.READY;
          }
@@ -457,11 +456,7 @@ public final class PlacementTask {
             fail(WorldOperationPhase.JOURNAL, "journal memory admission failed");
             return JournalPreparation.FAILED;
          }
-         int from = this.journaledCount;
-         int size = PersistentRecoveryJournal.segmentBatchSize(
-            from, this.transaction.expectedCount() - from
-         );
-         this.pendingJournalSlice = this.transaction.expectedRange(from, from + size);
+         this.journalSegments.prepare(this.transaction);
       }
       if (!this.journalPreparation.started()) {
          this.metrics.phase(WorldOperationPhase.JOURNAL);
@@ -472,21 +467,20 @@ public final class PlacementTask {
          return JournalPreparation.FAILED;
       }
       RegistryAccess registryAccess = level.registryAccess();
-      List<ReversibleBlockSnapshot> slice = this.pendingJournalSlice;
+      List<ReversibleBlockSnapshot> slice = this.journalSegments.pending();
       JournalPreparation preparation = this.journalPreparation.journal() == null
          ? this.journalPreparation.poll(() -> beginJournal(context, registryAccess, slice), context)
          : this.journalPreparation.pollAppend(() -> appendJournal(slice, registryAccess));
       if (preparation == JournalPreparation.FAILED) {
          fail(WorldOperationPhase.JOURNAL, this.journalPreparation.failureReason());
       } else if (preparation == JournalPreparation.READY && !slice.isEmpty()) {
-         if (this.journaledCount == 0) {
+         if (this.journalSegments.count() == 0) {
             this.metrics.journalReady();
          }
          for (ReversibleBlockSnapshot snapshot : slice) {
             this.writable.addLast(snapshot.pos());
          }
-         this.journaledCount += slice.size();
-         this.pendingJournalSlice = List.of();
+         this.journalSegments.acknowledge(slice);
       }
       return preparation;
    }
@@ -544,7 +538,7 @@ public final class PlacementTask {
    }
 
    private boolean hasUnjournaledSnapshots() {
-      return this.transaction.expectedCount() > this.journaledCount + this.pendingJournalSlice.size();
+      return this.transaction.expectedCount() > this.journalSegments.count() + this.journalSegments.pending().size();
    }
 
    public boolean snapshotsComplete() {
@@ -553,7 +547,7 @@ public final class PlacementTask {
 
    public boolean readyToFinalize() {
       return this.snapshotsValidated
-         && this.pendingJournalSlice.isEmpty()
+         && this.journalSegments.pending().isEmpty()
          && this.writable.isEmpty()
          && this.remaining == 0;
    }
@@ -590,7 +584,7 @@ public final class PlacementTask {
             return JournalPreparation.FAILED;
          }
          this.operationCommit = WorldOperationCommit.begin(
-            this.plan.dimension(), this.transaction, this.journalPreparation.journal()
+            this.plan.dimension(), this.transaction, this.journalPreparation.journal(), this.journalPreparation.executor()
          );
       }
       JournalPreparation preparation = this.operationCommit.poll();
@@ -611,31 +605,15 @@ public final class PlacementTask {
    }
 
    public boolean acquireLease(WorldTaskContext context) {
-      if (this.lease != null && WorldWriteCoordinator.renew(this.lease)) {
-         return true;
-      }
-      this.lease = WorldWriteCoordinator.takeOver(context.server(), this.plan.dimension(), context.owner());
-      if (this.lease == null) {
-         return false;
-      }
-      this.metrics.leaseAcquired();
-      return true;
+      return writeLease.acquire(context, plan.dimension(), metrics);
    }
 
    public void releaseLease(WorldTaskContext context) {
-      WorldWriteCoordinator.release(this.lease);
-      this.lease = null;
+      writeLease.release();
    }
 
    public void releaseAfterCancelledJournal(WorldTaskContext context) {
-      if (this.operationCommit != null) {
-         this.operationCommit.cancel();
-      }
-      // The lease travels with the cleanup so a late journal callback can never
-      // release a later transaction of the same player.
-      WorldWriteCoordinator.Lease cancelled = this.lease;
-      this.lease = null;
-      this.journalPreparation.releaseAfterCancellation(cancelled);
+      writeLease.releaseAfterCancellation(journalPreparation, operationCommit);
    }
 
    public boolean hasWrites() {
@@ -759,7 +737,7 @@ public final class PlacementTask {
       this.resolvedStatesPrepared = false;
       this.transaction.clearExpected();
       this.writable.clear();
-      this.pendingJournalSlice = List.of();
+      this.journalSegments.clearPending();
       this.validationIterator = null;
    }
 

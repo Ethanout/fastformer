@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.client.session.OperationDraftIdentity;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.network.payload.operation.OperationPointPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationPointPayload;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;

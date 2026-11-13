@@ -3,8 +3,8 @@ package io.github.fastformer.fastplace.world;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.history.WorldChangeBatch;
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
+import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +20,7 @@ class WorldOperationCommitTest {
       BlockPos position = new BlockPos(2, 3, 4);
       ReversibleBlockSnapshot state = snapshot(position);
       WorldOperationCommit commit = WorldOperationCommit.begin(
-         net.minecraft.world.level.Level.OVERWORLD, List.of(state), Map.of(position, state), null
+         net.minecraft.world.level.Level.OVERWORLD, List.of(state), Map.of(position, state), null, Runnable::run
       );
       commit.completion().join();
       org.junit.jupiter.api.Assertions.assertEquals(JournalPreparation.READY, commit.poll());
@@ -30,7 +30,7 @@ class WorldOperationCommitTest {
    @Test
    void cancelledEmptyCommitDoesNotBecomeSuccessful() {
       WorldOperationCommit commit = WorldOperationCommit.begin(
-         net.minecraft.world.level.Level.OVERWORLD, List.of(), Map.of(), null
+         net.minecraft.world.level.Level.OVERWORLD, List.of(), Map.of(), null, Runnable::run
       );
       commit.completion().join();
       commit.cancel();
@@ -47,7 +47,7 @@ class WorldOperationCommitTest {
             batchStarted.set(true);
             return Optional.empty();
          },
-         () -> false
+         () -> false, Runnable::run
       );
 
       assertFalse(batchStarted.get());
@@ -68,7 +68,7 @@ class WorldOperationCommitTest {
             batchStarted.set(true);
             return Optional.empty();
          },
-         () -> false
+         () -> false, Runnable::run
       );
 
       assertTrue(batch.join().isEmpty());
@@ -81,7 +81,7 @@ class WorldOperationCommitTest {
          net.minecraft.world.level.Level.OVERWORLD,
          java.util.List.of(),
          java.util.Map.of(),
-         null
+         null, Runnable::run
       );
 
       commit.cancel();
@@ -96,7 +96,7 @@ class WorldOperationCommitTest {
       ReversibleBlockSnapshot after = snapshot(position);
       WorldOperationCommit commit = WorldOperationCommit.begin(
          net.minecraft.world.level.Level.OVERWORLD,
-         List.of(before), Map.of(position, after), null
+         List.of(before), Map.of(position, after), null, Runnable::run
       );
 
       commit.stopForRecovery().join();

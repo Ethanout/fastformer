@@ -76,9 +76,8 @@ public record ClientOperationDraft(
    /**
     * True when the server selection identity must match before this draft returns.
     *
-    * <p>A draft with no recorded origin comes from an older client version or from a
-    * connection that never submitted. Both cases carry a server identity, so both
-    * require the match. Only an explicit local-only origin skips it.</p>
+    * <p>An unsubmitted draft may have no recorded origin and still requires a match.
+    * Explicit local-only and client-selection origins do not require it.</p>
     */
    public boolean requiresServerIdentity() {
       return this.origin != OperationSubmissionOrigin.LOCAL_ONLY

@@ -126,7 +126,7 @@ public final class OperationDraftSettlement {
          return Ownership.UNCONFIRMED;
       }
       if (probe.submissionId() == null) {
-         // A draft from an older client names no submission. Ownership is unknown.
+         // An unsubmitted draft belongs to the player, not this submission.
          return Ownership.UNCONFIRMED;
       }
       if (!transferId.equals(probe.submissionId())) {

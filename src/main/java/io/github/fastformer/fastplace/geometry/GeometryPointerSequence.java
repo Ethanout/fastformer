@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
 import io.github.fastformer.fastplace.session.GeometrySession;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 
 /** Allows ordered geometry actions from one published revision while that same session advances. */
 public final class GeometryPointerSequence {

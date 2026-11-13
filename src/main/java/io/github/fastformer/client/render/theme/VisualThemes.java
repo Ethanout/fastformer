@@ -21,11 +21,10 @@ import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 @EventBusSubscriber(modid = "fastformer", value = Dist.CLIENT)
 public final class VisualThemes {
    private static volatile Map<GeometryPalette.Theme, VisualTheme> themes = Map.of();
-   private static volatile long revision;
 
    private VisualThemes() { }
 
-   public static long revision() { return revision * 2 + GeometryPalette.theme().ordinal(); }
+   public static long revision() { return GeometryPalette.revision(); }
 
    public static GeometryPalette.Color color(String name, GeometryPalette.Color fallback) {
       return new GeometryPalette.Color(current().colors().getOrDefault(name, fallback.rgb()));
@@ -67,7 +66,6 @@ public final class VisualThemes {
       protected void apply(Map<GeometryPalette.Theme, VisualTheme> loaded, ResourceManager resources, ProfilerFiller profiler) {
          themes = loaded;
          GeometryPalette.installThemes(loaded);
-         revision++;
          io.github.fastformer.client.render.core.FastPlaceClientPreviewCore.onThemeChanged();
          io.github.fastformer.client.render.SmoothReticlePostEffect.reloadResources();
       }

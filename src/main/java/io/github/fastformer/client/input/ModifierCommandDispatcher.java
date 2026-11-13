@@ -1,8 +1,8 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.render.FastPlaceClientPreview;
-import io.github.fastformer.network.payload.geometry.CycleStageModePayload;
-import io.github.fastformer.network.payload.settings.ModifierStatePayload;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.protocol.c2s.geometry.CycleStageModePayload;
+import io.github.fastformer.protocol.c2s.settings.ModifierStatePayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -28,13 +28,13 @@ final class ModifierCommandDispatcher {
    static void cycle(Minecraft minecraft) {
       if (io.github.fastformer.client.operation.controller.ClientOperationController.cycleDraftMode()) return;
       if (minecraft.player != null && !io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
-         && !FastPlaceClientPreview.active() && !FastPlaceClientPreview.geometryActive()
+         && !FastPlaceClientPreviewCore.active() && !FastPlaceClientPreviewCore.geometryActive()
          && !io.github.fastformer.client.placement.QuickReplaceMode.active()) {
          io.github.fastformer.client.operation.controller.ClientOperationController.cycleIdleSelectionTool();
          return;
       }
       if (!NetworkRegistry.hasChannel(minecraft.getConnection(), CycleStageModePayload.TYPE.id())) return;
-      BlockPos candidate = FastPlaceClientPreview.lineModeCandidate();
+      BlockPos candidate = FastPlaceClientPreviewCore.lineModeCandidate();
       PacketDistributor.sendToServer(
          candidate != null ? new CycleStageModePayload(true, candidate) : CycleStageModePayload.INSTANCE,
          new CustomPacketPayload[0]

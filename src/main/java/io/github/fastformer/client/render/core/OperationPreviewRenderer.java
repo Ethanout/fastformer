@@ -27,7 +27,7 @@ import io.github.fastformer.fastplace.geometry.*;
 import io.github.fastformer.fastplace.geometry.generation.*;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
+import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import java.util.*;
@@ -469,7 +469,7 @@ final class OperationPreviewRenderer {
       var shape = state.isAir() ? net.minecraft.world.phys.shapes.Shapes.block()
          : io.github.fastformer.fastplace.geometry.raycast.SelectionTargetShape.resolve(minecraft.level, position,
             net.minecraft.world.phys.shapes.CollisionContext.of(minecraft.player),
-            io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.passesThroughFluids(minecraft.player, FastPlaceClientInput.modifierHeld()));
+            io.github.fastformer.common.raycast.InteractionRaycastRules.passesThroughFluids(minecraft.player, FastPlaceClientInput.modifierHeld()));
       var mesh = io.github.fastformer.client.render.model.InitialBlockPreview.mesh(position, shape.toAabbs());
       io.github.fastformer.client.render.shell.ShapeShellRenderer.renderDashedEdges(
          poseStack, buffers.getBuffer(DYNAMIC_LINES), camera, mesh.edges(),
@@ -581,7 +581,7 @@ final class OperationPreviewRenderer {
       }
       if (hit != null) {
          double length = Math.max(2.0, eye.distanceTo(hit.point()) * 0.08);
-         renderStaticOperationGuideLine(
+         renderOperationOutlineLine(
             poseStack,
             lines,
             hit.point(),

@@ -12,6 +12,7 @@ import java.util.Map;
 public final class GeometryPalette {
    private static volatile Theme selectedTheme = Theme.CLASSIC;
    private static volatile Map<Theme, VisualTheme> resources = Map.of();
+   private static final java.util.concurrent.atomic.AtomicLong REVISION = new java.util.concurrent.atomic.AtomicLong();
    private GeometryPalette() { }
 
    public enum Theme {
@@ -78,8 +79,19 @@ public final class GeometryPalette {
    }
 
    public static Theme theme() { return selectedTheme; }
-   public static void selectTheme(Theme theme) { selectedTheme = java.util.Objects.requireNonNull(theme); }
-   public static void installThemes(Map<Theme, VisualTheme> themes) { resources = Map.copyOf(themes); }
+   public static long revision() { return REVISION.get(); }
+
+   public static synchronized void selectTheme(Theme theme) {
+      java.util.Objects.requireNonNull(theme, "theme");
+      if (selectedTheme == theme) return;
+      selectedTheme = theme;
+      REVISION.incrementAndGet();
+   }
+
+   public static synchronized void installThemes(Map<Theme, VisualTheme> themes) {
+      resources = Map.copyOf(themes);
+      REVISION.incrementAndGet();
+   }
    public static Color color(String key, Color fallback) {
       return new Color(resources.getOrDefault(theme(), VisualTheme.EMPTY).colors().getOrDefault(key, fallback.rgb()));
    }

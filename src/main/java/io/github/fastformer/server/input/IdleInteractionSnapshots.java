@@ -1,16 +1,21 @@
 package io.github.fastformer.server.input;
 
-import io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot;
-import io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules;
+import io.github.fastformer.server.history.HistorySystem;
+
+import io.github.fastformer.common.raycast.InteractionShapeSnapshot;
+import io.github.fastformer.fastplace.interaction.EntryDoubleClickTolerance;
+import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload;
-import io.github.fastformer.network.payload.placement.IdleInteractionSnapshotPayload;
+import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
+import io.github.fastformer.protocol.s2c.placement.IdleInteractionSnapshotPayload;
 import io.github.fastformer.server.session.FastPlaceManager;
 import io.github.fastformer.server.session.OperationManager;
 import io.github.fastformer.server.session.GeometryManager;
-import java.util.Map;
-import java.util.WeakHashMap;
+import io.github.fastformer.core.lifecycle.Scoped;
+import io.github.fastformer.core.lifecycle.ScopedKey;
+import io.github.fastformer.server.player.PlayerStateRegistry;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -21,17 +26,27 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Server-thread snapshots pair ordinary interactions with an explicit session entry. */
 public final class IdleInteractionSnapshots {
-   private static final Map<ServerPlayer, Capture> CAPTURES = new WeakHashMap<>();
-   private static final Map<ServerPlayer, Long> TINKER_TOKENS = new WeakHashMap<>();
+   private static final ScopedKey<State> STATE = PlayerStateRegistry.key(
+      ResourceLocation.parse("fastformer:idle_interaction"), State::new);
+
+   private static final class State implements Scoped {
+      private Capture capture;
+      private long tinkerToken;
+      @Override public void onDetach() { onDiscard(); }
+      @Override public void onDimensionChanged() { onDiscard(); }
+      @Override public void onDiscard() { capture = null; tinkerToken = 0; }
+   }
+
+   private static State state(ServerPlayer player) { return PlayerStateRegistry.of(player).get(STATE); }
    private record Capture(long token, Level level, long tick, ItemStack item, InteractionShapeSnapshot shape,
       BlockPos clicked, BlockPos adjacent, boolean placed, IdleTinkerSnapshot tinker, PlacementContextSnapshot placement,
-      InteractionRaycastRules rules) { }
+      InteractionRaycastRules rules, EntryDoubleClickTolerance tolerance) { }
    public record Entry(BlockHitResult hit, PlacementContextSnapshot placement, InteractionRaycastRules rules) { }
    private IdleInteractionSnapshots() { }
 
    public static boolean idle(ServerPlayer player) {
       return !FastPlaceManager.active(player) && !OperationManager.active(player) && !GeometryManager.active(player)
-         && !io.github.fastformer.server.session.SmartFillManager.active(player);
+         && !io.github.fastformer.server.fill.SmartFillSystem.active(player);
    }
 
    public static boolean validRay(ServerPlayer player, Vec3 eye, Vec3 view) {
@@ -45,7 +60,7 @@ public final class IdleInteractionSnapshots {
    }
 
    private static void capture(ServerPlayer player, IdleInteractionCapturePayload request, boolean sendShape) {
-      CAPTURES.remove(player);
+      state(player).capture = null;
       if (request.token() <= 0 || !ServerInputDispatcher.canOperate(player) || !idle(player)
          || ServerInputDispatcher.interactionBlocked(player) || !validRay(player, request.eye(), request.view())) return;
       var level = player.serverLevel();
@@ -64,8 +79,9 @@ public final class IdleInteractionSnapshots {
          if (state.isPresent()) placement = placement.withCapturedState(item.getItem(), state.orElseThrow());
       }
       var capture = new Capture(request.token(), level, level.getGameTime(), item, shape,
-         position.immutable(), position.relative(request.hit().getDirection()), false, null, placement, request.rules());
-      CAPTURES.put(player, capture);
+         position.immutable(), position.relative(request.hit().getDirection()), false, null, placement, request.rules(),
+         EntryDoubleClickTolerance.capture(shape, request.eye(), request.view()));
+      state(player).capture = capture;
       if (sendShape) publish(player, capture);
    }
 
@@ -76,8 +92,8 @@ public final class IdleInteractionSnapshots {
       var placement = capture.placement() == null ? null : capture.placement().anchoredAt(position)
          .withCapturedState(capture.item().getItem(), player.level().getBlockState(position));
       var updated = new Capture(capture.token(), capture.level(), capture.tick(), capture.item(), capture.shape(),
-         capture.clicked(), capture.adjacent(), true, capture.tinker(), placement, capture.rules());
-      CAPTURES.put(player, updated);
+         capture.clicked(), capture.adjacent(), true, capture.tinker(), placement, capture.rules(), capture.tolerance());
+      state(player).capture = updated;
       publish(player, updated);
    }
 
@@ -89,9 +105,9 @@ public final class IdleInteractionSnapshots {
    public static Entry consumeEntry(ServerPlayer player, long token, Vec3 eye, Vec3 view) {
       var capture = current(player);
       if (capture == null || capture.token() != token || !validRay(player, eye, view)) return null;
-      var hit = capture.shape().clip(eye, view);
+      var hit = capture.tolerance().clip(capture.shape(), eye, view);
       if (hit == null) return null;
-      CAPTURES.remove(player);
+      state(player).capture = null;
       if (capture.tinker() != null && !capture.tinker().restore(player)) {
          player.sendSystemMessage(net.minecraft.network.chat.Component.translatable("fastformer.message.idle_entry_changed"), true);
          return null;
@@ -99,35 +115,35 @@ public final class IdleInteractionSnapshots {
       return new Entry(hit, capture.placement(), capture.rules());
    }
 
-   public static void tinker(ServerPlayer player, io.github.fastformer.network.payload.placement.TinkerInteractionPayload request) {
+   public static void tinker(ServerPlayer player, io.github.fastformer.protocol.c2s.placement.TinkerInteractionPayload request) {
       if (!io.github.fastformer.fastplace.interaction.BlockTinker.withinInteractionRange(player, request.hit())) return;
-      if (request.token() <= TINKER_TOKENS.getOrDefault(player, 0L)) return;
-      TINKER_TOKENS.put(player, request.token());
+      if (request.token() <= state(player).tinkerToken) return;
+      state(player).tinkerToken = request.token();
       capture(player, new IdleInteractionCapturePayload(request.token(), request.hit(), request.eye(), request.view(),
          InteractionRaycastRules.VANILLA_OUTLINE), false);
       var capture = current(player);
       if (capture == null) return;
       var changes = io.github.fastformer.fastplace.interaction.BlockTinker.preview(player, request.hit());
       var originals = IdleTinkerSnapshot.capture(player.serverLevel(), changes.keySet());
-      if (originals == null) { CAPTURES.remove(player); return; }
-      if (!io.github.fastformer.fastplace.interaction.BlockTinker.use(player, request.hit())) { CAPTURES.remove(player); return; }
+      if (originals == null) { state(player).capture = null; return; }
+      if (!io.github.fastformer.fastplace.interaction.BlockTinker.use(player, request.hit())) { state(player).capture = null; return; }
       var changed = IdleTinkerSnapshot.capture(player.serverLevel(), changes.keySet());
-      if (changed == null) { CAPTURES.remove(player); return; }
+      if (changed == null) { state(player).capture = null; return; }
       var updated = new Capture(capture.token(), capture.level(), capture.tick(), capture.item(),
          capture.shape(), capture.clicked(), capture.adjacent(), true,
-         new IdleTinkerSnapshot(originals, changed, io.github.fastformer.fastplace.history.WorldHistoryManager.latestOperationId(player)),
-         capture.placement(), capture.rules());
-      CAPTURES.put(player, updated);
+         new IdleTinkerSnapshot(originals, changed, HistorySystem.of(player).latestOperationId(player)),
+         capture.placement(), capture.rules(), capture.tolerance());
+      state(player).capture = updated;
       publish(player, updated);
    }
 
    private static Capture current(ServerPlayer player) {
-      var capture = CAPTURES.get(player);
+      var capture = state(player).capture;
       if (capture == null) return null;
       long elapsed = player.level().getGameTime() - capture.tick();
       if (capture.level() != player.level() || elapsed < 0 || elapsed > 20
          || !ItemStack.isSameItemSameComponents(capture.item(), player.getMainHandItem()) || !idle(player)) {
-         CAPTURES.remove(player);
+         state(player).capture = null;
          return null;
       }
       return capture;
@@ -139,6 +155,4 @@ public final class IdleInteractionSnapshots {
       }
    }
 
-   public static void remove(ServerPlayer player) { CAPTURES.remove(player); TINKER_TOKENS.remove(player); }
-   public static void clear() { CAPTURES.clear(); TINKER_TOKENS.clear(); }
 }

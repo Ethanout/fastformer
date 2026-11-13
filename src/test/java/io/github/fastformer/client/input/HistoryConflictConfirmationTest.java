@@ -1,8 +1,8 @@
 package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
-import io.github.fastformer.network.payload.world.HistoryConflictPayload;
-import io.github.fastformer.network.payload.world.HistoryConflictResponsePayload.Choice;
+import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
+import io.github.fastformer.protocol.c2s.world.HistoryConflictResponsePayload.Choice;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;

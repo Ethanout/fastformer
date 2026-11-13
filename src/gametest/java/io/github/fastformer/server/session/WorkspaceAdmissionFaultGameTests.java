@@ -1,7 +1,7 @@
 package io.github.fastformer.server.session;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorkspaceReplayGameTests;
+import io.github.fastformer.server.history.WorkspaceReplayGameTests;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;

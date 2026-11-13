@@ -27,9 +27,9 @@ import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
-import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
-import io.github.fastformer.network.payload.operation.OperationWorkspaceReceiptPayload;
-import io.github.fastformer.network.payload.operation.OperationWorkspaceResultPayload;
+import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
+import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayload;
+import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.Composition;
@@ -62,7 +62,6 @@ public final class ClientOperationController {
    private static List<ClientSelectionPart> failedWorkspaceDraft = List.of();
    private static final String CLIPBOARD_FILE_NAME = "fastformer-operation-clipboard.nbt.gz";
    private static final SourceBlockRenderMask SOURCE_MASK = new SourceBlockRenderMask();
-   private static final ClientSelectionSession FALLBACK_SELECTION_SESSION = new ClientSelectionSession();
    private static final OperationClipboardState CLIPBOARD_STATE = new OperationClipboardState();
    private static String lastOperationFailureKey;
    private static ClientOperationWorkspace.EditToken lastTooLargeGesture;
@@ -70,13 +69,10 @@ public final class ClientOperationController {
    private static boolean missingLevelLogged;
    private static final WorkspaceSubmissionTracker WORKSPACE_SUBMISSION =
       new WorkspaceSubmissionTracker(20 * 30, 20 * 2);
-   /** Ticks an unanswered connection boundary waits before it is dropped. */
-   private static final int RECONNECT_BOUNDARY_IDLE_TICKS = 40;
    /** A reconnect snapshot may describe a server task that continues running,
     * but it must not recreate client-owned draft/workspace state. */
-   private static boolean reconnectBoundaryArmed;
-   private static boolean reconnectBoundarySawSnapshot;
-   private static int reconnectBoundaryIdleTicks;
+   private static final io.github.fastformer.client.session.reconnect.ReconnectSnapshotWindow RECONNECT_BOUNDARY =
+      new io.github.fastformer.client.session.reconnect.ReconnectSnapshotWindow();
    private static OperationPreviewPayload pendingReconnectPreview;
    private static OperationPreviewPayload serverPreview = OperationPreviewPayload.inactive();
    private static long lastServerPreviewRevision = -1L;
@@ -129,8 +125,7 @@ public final class ClientOperationController {
    private static ClientSelectionSession selectionSession() {
       Minecraft minecraft = Minecraft.getInstance();
       if (minecraft == null || minecraft.player == null) {
-         ClientPlayerSession current = ClientSessionManager.instance().currentSession();
-         return current == null ? FALLBACK_SELECTION_SESSION : current.selectionSession();
+         return ClientSessionManager.instance().selectionSession();
       }
       return ClientSessionManager.instance().forCurrent(minecraft).selectionSession();
    }
@@ -153,7 +148,7 @@ public final class ClientOperationController {
       return workspace().undoSize();
    }
 
-   public static void applyWorldHistoryEvent(io.github.fastformer.network.payload.world.WorldHistoryEventPayload event) {
+   public static void applyWorldHistoryEvent(io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload event) {
       var minecraft = Minecraft.getInstance();
       if (minecraft == null || minecraft.level == null || !minecraft.level.dimension().location().equals(event.dimension())) return;
       selectionSession().onWorldHistory(event.kind());
@@ -211,7 +206,7 @@ public final class ClientOperationController {
       return serverPreview.operationRevision();
    }
 
-   public static io.github.fastformer.network.payload.operation.OperationCallbackScope remoteSelectionCallbackScope() {
+   public static io.github.fastformer.protocol.callback.OperationCallbackScope remoteSelectionCallbackScope() {
       return serverPreview.callbackScope();
    }
 
@@ -265,7 +260,7 @@ public final class ClientOperationController {
          return false;
       }
       if (shouldHoldStoredDraft(
-         reconnectBoundaryArmed,
+         RECONNECT_BOUNDARY.armed(),
          pendingReconnectPreview != null,
          ClientSessionManager.instance().currentDraftPending()
       )) {
@@ -276,12 +271,10 @@ public final class ClientOperationController {
          }
          ClientSessionManager.instance().discardCurrentDraft();
       }
-      if (reconnectBoundaryArmed) {
-         reconnectBoundarySawSnapshot = true;
+      if (RECONNECT_BOUNDARY.armed()) {
+         RECONNECT_BOUNDARY.observeSnapshot();
          if (payload.active()) {
-            reconnectBoundaryArmed = false;
-            reconnectBoundarySawSnapshot = false;
-            reconnectBoundaryIdleTicks = 0;
+            RECONNECT_BOUNDARY.clear();
             pendingReconnectPreview = payload;
             serverPreview = OperationPreviewPayload.inactive();
             return false;
@@ -570,7 +563,6 @@ public final class ClientOperationController {
       adoptRemoteDraft();
       selectionSession().retain();
       if (workspace().editing()) {
-         SOURCE_CAPTURE.cancel();
          RESIZE_CAPTURE.cancel();
          pendingPointAdjustment = null;
          pendingResizeSelection = null;
@@ -1238,7 +1230,7 @@ public final class ClientOperationController {
 
    private static void sendReceiptQuery(ResourceLocation dimension, List<UUID> transferIds) {
       try {
-         int limit = io.github.fastformer.network.payload.operation.OperationWorkspaceReceiptQueryPayload
+         int limit = io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload
             .MAX_TRANSFER_IDS;
          // A large set needs more than one packet. Each query stays inside the limit.
          for (int start = 0; start < transferIds.size(); start += limit) {
@@ -1246,7 +1238,7 @@ public final class ClientOperationController {
                transferIds.subList(start, Math.min(start + limit, transferIds.size()))
             );
             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-               new io.github.fastformer.network.payload.operation.OperationWorkspaceReceiptQueryPayload(
+               new io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload(
                   dimension, batch
                )
             );
@@ -1454,18 +1446,23 @@ public final class ClientOperationController {
 
    public static void clearWorkspace() {
       clearSubmissionRemainder();
-      DRAFT_CAPTURE.cancel(); SOURCE_CAPTURE.cancel(); RESIZE_CAPTURE.cancel(); DELETE_CAPTURE.cancel(); SMART_CAPTURE.cancel();
-      submittedPartIds = null;
-      submittedDraft = false;
-      pendingPointAdjustment = null;
-      sourceCheckPart = null; sourceCheckResult = null; resizeToken = null; pendingResizeSelection = null;
-      lastOperationFailureKey = null;
-      lastTooLargeGesture = null;
+      clearTransientOperationState();
       selectionSession().clearLiveInteraction();
       WorkspacePreviewComposer.invalidatePartGeometry();
       clearFailedWorkspaceTargets();
       SOURCE_MASK.clear();
       WORKSPACE_SUBMISSION.clear();
+   }
+
+   private static void clearTransientOperationState() {
+      DRAFT_CAPTURE.cancel(); RESIZE_CAPTURE.cancel(); DELETE_CAPTURE.cancel(); SMART_CAPTURE.cancel();
+      submittedPartIds = null;
+      submittedDraft = false;
+      pendingPointAdjustment = null;
+      resizeToken = null; pendingResizeSelection = null;
+      resizeFinishRequested = false;
+      lastOperationFailureKey = null;
+      lastTooLargeGesture = null;
    }
 
    static boolean shouldClearWorkspaceAfterSnapshot(
@@ -1491,12 +1488,11 @@ public final class ClientOperationController {
             WORKSPACE_SUBMISSION.identity(), outstandingSubmissionOrigin(), WORKSPACE_SUBMISSION.transferId()
          );
       }
-      FALLBACK_SELECTION_SESSION.clearLiveInteraction();
+      clearTransientOperationState();
+      ClientSessionManager.instance().clearUnboundInteraction();
       WorkspacePreviewComposer.invalidatePartGeometry();
       WORKSPACE_SUBMISSION.clear();
-      reconnectBoundaryArmed = true;
-      reconnectBoundarySawSnapshot = false;
-      reconnectBoundaryIdleTicks = 0;
+      RECONNECT_BOUNDARY.arm();
       pendingReconnectPreview = null;
       serverPreview = OperationPreviewPayload.inactive();
       lastServerPreviewRevision = -1L;
@@ -1521,7 +1517,7 @@ public final class ClientOperationController {
    public static void onClientTick() {
       ClientSessionManager.instance().drainStorageResults();
       long captureDeadline = System.nanoTime() + io.github.fastformer.client.operation.selection.SelectionBlockCapture.NANOS_PER_TICK;
-      DRAFT_CAPTURE.tick(captureDeadline); SOURCE_CAPTURE.tick(captureDeadline); RESIZE_CAPTURE.tick(captureDeadline); DELETE_CAPTURE.tick(captureDeadline);
+      DRAFT_CAPTURE.tick(captureDeadline); RESIZE_CAPTURE.tick(captureDeadline); DELETE_CAPTURE.tick(captureDeadline);
       SMART_CAPTURE.tick(captureDeadline);
       continuePointAdjustment();
       selectionSession().publishInteractionScene();
@@ -1541,25 +1537,13 @@ public final class ClientOperationController {
             );
          }
       }
-      if (!reconnectBoundaryArmed) {
-         return;
-      }
-      if (reconnectBoundarySawSnapshot) {
-         reconnectBoundaryArmed = false;
-         reconnectBoundarySawSnapshot = false;
-         reconnectBoundaryIdleTicks = 0;
+      if (RECONNECT_BOUNDARY.tick() == io.github.fastformer.client.session.reconnect.ReconnectSnapshotWindow.Result.SNAPSHOT_RECEIVED) {
          // The environment returned a snapshot, so the connection is live and the scope
          // is bound. Any submission that was still open may have finished while the
          // player was away, so ask once for its result.
          queryOutstandingSubmissionReceipts();
-         return;
       }
-      if (++reconnectBoundaryIdleTicks >= RECONNECT_BOUNDARY_IDLE_TICKS) {
-         reconnectBoundaryArmed = false;
-         reconnectBoundaryIdleTicks = 0;
-         // Silence is not a server rejection. Keep the draft so a delayed
-         // snapshot can still offer restoration through shouldHoldStoredDraft.
-      }
+      // Silence is not a server rejection. The wait owns no draft and discards none on timeout.
    }
 
    public static void observeServerActivity(FastPlaceActivity activity) {
@@ -1631,11 +1615,7 @@ public final class ClientOperationController {
    private static final io.github.fastformer.client.operation.selection.SelectionBlockCapture DELETE_CAPTURE = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
    private static java.util.Set<Integer> submittedPartIds;
    private static boolean submittedDraft;
-   private static final io.github.fastformer.client.operation.selection.SelectionBlockCapture SOURCE_CAPTURE = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
    private static final io.github.fastformer.client.operation.selection.SelectionBlockCapture RESIZE_CAPTURE = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
-   private static ClientSelectionPart sourceCheckPart;
-   private static SourceState sourceCheckResult;
-   private static long sourceCheckCompletedAt;
    private static OperationSelectionVolume pendingResizeSelection;
    private static ClientOperationWorkspace.EditToken resizeToken;
    private static boolean resizeFinishRequested;

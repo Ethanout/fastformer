@@ -1,7 +1,7 @@
 package io.github.fastformer.client.interaction;
 
 import io.github.fastformer.fastplace.interaction.InteractionUpdateScope;
-import io.github.fastformer.network.payload.settings.InteractionUpdatesPayload;
+import io.github.fastformer.protocol.s2c.settings.InteractionUpdatesPayload;
 import net.minecraft.client.Minecraft;
 
 public final class ClientInteractionUpdates {

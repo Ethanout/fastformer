@@ -1,14 +1,18 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules;
+import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.network.payload.placement.IdleInteractionCapturePayload;
-import io.github.fastformer.network.payload.placement.StartPlacementPayload;
-import io.github.fastformer.network.sync.PlayerPreviewSync;
+import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
+import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.session.FastPlaceManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -112,13 +116,13 @@ public final class IdleEntryGameTests {
             player.getMainHandItem(), player, placement).orElseThrow().equals(expected), "second click recalculated the first placed state");
          helper.assertTrue(io.github.fastformer.fastplace.placement.context.PlaceableItems.placementState(
             new ItemStack(Items.STONE), player, placement).orElseThrow().is(Blocks.STONE), "changing material reused the old stair state");
-         var payload = new io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload(true, true, true,
+         var payload = new io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload(true, true, true,
             false, false, false, io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE,
             draft.points(), BlockPos.ZERO, placement);
          var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
          try {
-            io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload.STREAM_CODEC.encode(buffer, payload);
-            var decoded = io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload.STREAM_CODEC.decode(buffer);
+            io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload.STREAM_CODEC.encode(buffer, payload);
+            var decoded = io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload.STREAM_CODEC.decode(buffer);
             helper.assertTrue(decoded.value().placementContext().equals(placement), "client preview lost the captured block state");
          } finally {
             buffer.release();
@@ -138,15 +142,41 @@ public final class IdleEntryGameTests {
       helper.succeed();
    }
 
+   @GameTest(template = "fastformergametests.empty", batch = "idle_entry", timeoutTicks = 600)
+   public static void distantSecondPressCanMissTheFrozenEdgeWithoutMovingTheSurface(GameTestHelper helper) {
+      var player = player(helper);
+      var floor = hit(player).getBlockPos();
+      player.setPos(floor.getCenter().add(0.49, 16, 0));
+      var first = hit(player);
+      helper.assertTrue(first.getBlockPos().equals(floor), "first ray missed the test floor");
+      IdleInteractionSnapshots.capture(player,
+         new IdleInteractionCapturePayload(104, first, player.getEyePosition(), player.getViewVector(1),
+            InteractionRaycastRules.VANILLA_OUTLINE));
+      player.setPos(player.position().add(0.15, 0, 0));
+      var snapshot = SessionEntryRaycast.snapshot(player, floor, InteractionRaycastRules.VANILLA_OUTLINE);
+      helper.assertTrue(snapshot.clip(player.getEyePosition(), player.getViewVector(1)) == null,
+         "second ray must miss the original shape");
+      var entry = IdleInteractionSnapshots.consumeEntry(player, 104, player.getEyePosition(), player.getViewVector(1));
+      helper.assertTrue(entry != null, "server rejected a tolerant distant hit");
+      helper.assertTrue(entry.hit().getBlockPos().equals(floor)
+         && Math.abs(entry.hit().getLocation().y - (floor.getY() + 1)) < 1.0E-6
+         && Math.abs(entry.hit().getLocation().x - (floor.getX() + 1)) < 1.0E-6,
+         "tolerant hit did not return to the original top edge");
+      helper.assertTrue(entry.rules().equals(InteractionRaycastRules.VANILLA_OUTLINE), "entry changed fluid rules");
+      helper.assertTrue(IdleInteractionSnapshots.consumeEntry(player, 104,
+         player.getEyePosition(), player.getViewVector(1)) == null, "snapshot was consumed twice");
+      helper.succeed();
+   }
+
    private static ServerPlayer player(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000L);
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
       helper.getLevel().setBlock(pos, Blocks.STONE.defaultBlockState(), 2);
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.OAK_LOG));
       player.setPos(pos.getCenter().add(0, 2, 0));
       player.setXRot(90);
-      PlayerPreviewSync.syncSettings(player);
+      PreviewSync.syncSettings(player);
       return player;
    }
 
@@ -161,7 +191,7 @@ public final class IdleEntryGameTests {
       player.setPos(floor.getCenter().add(0, 4, 0));
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
-      var rules = io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.VANILLA_OUTLINE;
+      var rules = io.github.fastformer.common.raycast.InteractionRaycastRules.VANILLA_OUTLINE;
       var first = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, rules.throughFluids());
       helper.assertTrue(first.getBlockPos().equals(floor), "first placement ray did not pass through water");
       IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(120, first, eye, view, rules));
@@ -183,7 +213,7 @@ public final class IdleEntryGameTests {
       var player = player(helper);
       var first = hit(player);
       for (boolean embedded : new boolean[]{false, true}) {
-         var rules = new io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules(embedded, true);
+         var rules = new io.github.fastformer.common.raycast.InteractionRaycastRules(embedded, true);
          long token = embedded ? 122 : 121;
          IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(token, first, player.getEyePosition(), player.getViewVector(1), rules));
          ServerInputDispatcher.startPlacement(player, request(player, token, first));
@@ -211,7 +241,7 @@ public final class IdleEntryGameTests {
          player, player.getEyePosition(), player.getViewVector(1), false);
       helper.assertTrue(blackOutline.getBlockPos().equals(floor), "vanilla black outline did not point through the water");
       helper.assertTrue(fluidRay.getBlockPos().equals(floor.above(2)), "setup did not distinguish FF's fluid ray from the black outline");
-      var rules = io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.VANILLA_OUTLINE;
+      var rules = io.github.fastformer.common.raycast.InteractionRaycastRules.VANILLA_OUTLINE;
       IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(123, blackOutline,
          player.getEyePosition(), player.getViewVector(1), rules));
       var entry = IdleInteractionSnapshots.consumeEntry(player, 123, player.getEyePosition(), player.getViewVector(1));
@@ -234,7 +264,7 @@ public final class IdleEntryGameTests {
       player.setYRot(0);
       var eye = player.getEyePosition().subtract(0, player.getEyeHeight(), 0);
       var view = new net.minecraft.world.phys.Vec3(0, 0, 1);
-      var rules = io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.VANILLA_OUTLINE;
+      var rules = io.github.fastformer.common.raycast.InteractionRaycastRules.VANILLA_OUTLINE;
       var snapshot = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(player, pos, rules);
       var generic = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(helper.getLevel(), pos, rules);
       var expected = Blocks.SCAFFOLDING.defaultBlockState().getShape(helper.getLevel(), pos,
@@ -258,15 +288,15 @@ public final class IdleEntryGameTests {
             helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
             helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
                player.getServer(), player.level().dimension()), "waiting for world writer");
-            var target = new StartPlacementPayload.Target(PlayerPreviewSync.buildingRevision(player),
-               PlayerPreviewSync.callbackScope(player), hit, player.getEyePosition(), player.getViewVector(1), 0, true, true);
+            var target = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
+               PreviewSync.callbackScope(player), hit, player.getEyePosition(), player.getViewVector(1), 0, true, true);
             ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(104, target));
             helper.assertFalse(FastPlaceManager.active(player), "middle entry left a line draft instead of submitting");
             submitted[0] = true;
          }
-         FastPlaceManager.tickWorld(helper.getLevel().getServer());
+         FastPlaceManager.tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
          helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for placement");
-         helper.assertFalse(WorldHistoryManager.busy(player), "waiting for history publication");
+         helper.assertFalse(HistorySystem.of(player).busy(player), "waiting for history publication");
          helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos()).is(Blocks.OAK_LOG), "embedded entry did not replace the hit block");
          helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos().above()).isAir(), "embedded entry placed an adjacent block");
       });
@@ -296,8 +326,8 @@ public final class IdleEntryGameTests {
    }
 
    private static StartPlacementPayload request(ServerPlayer player, long token, net.minecraft.world.phys.BlockHitResult hit) {
-      return new StartPlacementPayload(token, new StartPlacementPayload.Target(PlayerPreviewSync.buildingRevision(player),
-         PlayerPreviewSync.callbackScope(player), hit, player.getEyePosition(), player.getViewVector(1), token));
+      return new StartPlacementPayload(token, new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
+         PreviewSync.callbackScope(player), hit, player.getEyePosition(), player.getViewVector(1), token));
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "idle_entry")
@@ -364,7 +394,7 @@ public final class IdleEntryGameTests {
             helper.assertTrue(alt.getLocation().y < normal.getLocation().y, "Alt ignored the solid slab too");
          }
          var transparentSnapshot = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(level, fluid,
-            io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.VANILLA_OUTLINE).clip(eye, view);
+            io.github.fastformer.common.raycast.InteractionRaycastRules.VANILLA_OUTLINE).clip(eye, view);
          helper.assertTrue(state.is(Blocks.OAK_SLAB)
             ? transparentSnapshot != null && transparentSnapshot.getLocation().distanceTo(alt.getLocation()) < 1.0E-6
             : transparentSnapshot == null, "through-fluid snapshot restored a fluid collision shape: " + state);
@@ -373,8 +403,8 @@ public final class IdleEntryGameTests {
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var targetHit = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, true);
-      var target = new StartPlacementPayload.Target(PlayerPreviewSync.buildingRevision(player),
-         PlayerPreviewSync.callbackScope(player), targetHit, eye, view, 0, false, false, true);
+      var target = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
+         PreviewSync.callbackScope(player), targetHit, eye, view, 0, false, false, true);
       ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(110, target));
       helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().equals(java.util.List.of(fluid)),
          "server rejected the Alt surface ray through water");

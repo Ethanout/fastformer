@@ -481,7 +481,7 @@ class SelectionPointerMailboxTest {
          new Vec3(1, 0, 0), 0, capture, DeferredDragClick.none(), null, workspace.activeEditToken(), false);
       ClientOperationController.selectionGestures().begin(drag);
       this.input.clickGestureToken = this.input.routing.beginGesture(press.snapshot().button());
-      this.input.operationClickCapturedButton = press.snapshot().button();
+      this.input.operationClick.capture(press.snapshot().button());
       this.input.selectionPointer.dispatched(press.identity(), capture, this.input.clickGestureToken);
    }
 
@@ -491,7 +491,7 @@ class SelectionPointerMailboxTest {
       assertFalse(this.input.selectionPointer.active());
       assertFalse(this.input.blocksDraftLoad());
       assertEquals(0, this.input.clickGestureToken);
-      assertEquals(-1, this.input.operationClickCapturedButton);
+      assertEquals(-1, this.input.operationClick.buttonId());
       assertEquals(PointerGestureState.Kind.NONE, this.input.pointerGesture.kind());
    }
 

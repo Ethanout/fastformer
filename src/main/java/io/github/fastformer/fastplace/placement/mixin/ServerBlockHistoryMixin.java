@@ -22,14 +22,14 @@ public abstract class ServerBlockHistoryMixin {
 
    @WrapMethod(method = "destroyBlock")
    private boolean fastformer$breakWithUpdatePolicy(BlockPos pos, Operation<Boolean> original) {
-      return io.github.fastformer.fastplace.history.VanillaBlockHistory.breakBlock(player,
+      return io.github.fastformer.server.history.vanilla.VanillaBlockHistory.breakBlock(player,
          () -> InteractionUpdateScope.interact(level, player, () -> original.call(pos)));
    }
 
    @WrapMethod(method = "useItem")
    private InteractionResult fastformer$recordWaterSurfacePlacement(ServerPlayer player, Level level, ItemStack stack,
       InteractionHand hand, Operation<InteractionResult> original) {
-      return io.github.fastformer.fastplace.history.VanillaBlockHistory.useItem(player, stack,
+      return io.github.fastformer.server.history.vanilla.VanillaBlockHistory.useItem(player, stack,
          () -> original.call(player, level, stack, hand));
    }
 }

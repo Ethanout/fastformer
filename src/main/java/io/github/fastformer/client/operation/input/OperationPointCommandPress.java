@@ -1,9 +1,9 @@
 package io.github.fastformer.client.operation.input;
 
 import io.github.fastformer.client.operation.controller.ClientOperationController;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.session.OperationDraftIdentity;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.world.phys.Vec3;
@@ -19,7 +19,7 @@ public record OperationPointCommandPress(
    }
 
    public static OperationPointCommandPress select(long occurredAtNanos) {
-      int index = FastPlaceClientPreview.operationPointUnderCrosshairIndex();
+      int index = FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex();
       return new OperationPointCommandPress(
          ClientOperationController.interactionScene().owner(),
          ClientOperationController.remoteSelectionCallbackScope(),

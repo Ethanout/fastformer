@@ -1,7 +1,14 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.core.command.IntentSource;
+import io.github.fastformer.server.intent.SessionIntents;
+import io.github.fastformer.server.intent.PlayerIntentSystem;
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.input.ServerInputDispatcher;
@@ -23,7 +30,7 @@ public final class OperationSelectionModeEntryGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "operation_selection_mode", timeoutTicks = 600)
    public static void vanillaItemCallbacksCannotCreateOrChangeSelectionPoints(GameTestHelper helper) {
       ServerPlayer player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, HISTORY_TIMEOUT_MILLIS);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, HISTORY_TIMEOUT_MILLIS);
       player.setGameMode(GameType.CREATIVE);
       var point = net.minecraft.core.BlockPos.containing(player.getEyePosition().add(32, 0, 0));
       var hit = new net.minecraft.world.phys.BlockHitResult(point.getCenter(), net.minecraft.core.Direction.UP, point, false);
@@ -55,9 +62,9 @@ public final class OperationSelectionModeEntryGameTests {
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "operation_selection_mode", timeoutTicks = 600)
-   public static void legacyModifierKeepsServerPointEntryCuboid(GameTestHelper helper) {
+   public static void modeCycleKeepsServerPointEntryCuboid(GameTestHelper helper) {
       ServerPlayer player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, HISTORY_TIMEOUT_MILLIS);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, HISTORY_TIMEOUT_MILLIS);
       player.setGameMode(GameType.CREATIVE);
 
       helper.succeedWhen(() -> {
@@ -68,7 +75,7 @@ public final class OperationSelectionModeEntryGameTests {
             "selection mode should begin as cuboid"
          );
 
-         ServerInputDispatcher.shortModifier(player);
+         PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.CycleMode(null));
 
          helper.assertFalse(OperationManager.active(player), "cycling mode must not create a selection session");
          helper.assertTrue(

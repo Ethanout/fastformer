@@ -24,7 +24,7 @@ class ClientDraftLoadTest {
 
    @Test
    void failedReadKeepsTheFileAndBlocksAnotherAttempt() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       ClientSessionManager.SessionKey key = keyFor(session, "load-a");
       Path file = this.directory.resolve("transient.nbt.gz");
@@ -44,7 +44,7 @@ class ClientDraftLoadTest {
 
    @Test
    void versionMismatchHasItsOwnStateAndKeepsTheFile() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       ClientSessionManager.SessionKey key = keyFor(session, "load-b");
       Path file = this.directory.resolve("future.nbt.gz");
@@ -60,7 +60,7 @@ class ClientDraftLoadTest {
 
    @Test
    void unreadableContentKeepsTheFileAndReportsCorruption() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       ClientSessionManager.SessionKey key = keyFor(session, "load-c");
       Path file = this.directory.resolve("broken.nbt.gz");
@@ -75,7 +75,7 @@ class ClientDraftLoadTest {
 
    @Test
    void aMissingFileCompletesTheReadWithoutADraft() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       ClientSessionManager.SessionKey key = keyFor(session, "load-d");
       Path file = this.directory.resolve("absent.nbt.gz");
@@ -88,7 +88,7 @@ class ClientDraftLoadTest {
 
    @Test
    void anUnchangedScopeNeverRetriesAFailedRead() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       UUID playerId = session.playerId();
       Path file = this.directory.resolve("repeated.nbt.gz");
@@ -110,7 +110,7 @@ class ClientDraftLoadTest {
 
    @Test
    void reEnteringAnEnvironmentRetriesOnlyATransientFailure() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       UUID playerId = session.playerId();
       ClientSessionManager.SessionKey key = keyFor(session, "load-f");
@@ -136,7 +136,7 @@ class ClientDraftLoadTest {
 
    @Test
    void explicitRetryClearsOneFailedRead() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       UUID playerId = session.playerId();
       Path file = this.directory.resolve("retry.nbt.gz");
@@ -161,7 +161,7 @@ class ClientDraftLoadTest {
 
    @Test
    void explicitRetryReadsAValidDraftAndStagesIt() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       UUID playerId = session.playerId();
       Path file = this.directory.resolve("retry-valid.nbt.gz");
@@ -207,7 +207,7 @@ class ClientDraftLoadTest {
     */
    @Test
    void anAppliedDraftNeverReachesTheStagedSlot() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       ClientSessionManager.SessionKey key = keyFor(session, "guard-a");
       Path file = this.directory.resolve("applied.nbt.gz");
@@ -236,7 +236,7 @@ class ClientDraftLoadTest {
    /** A draft whose submission has no applied result is still staged. */
    @Test
    void aDraftWithoutAnAppliedResultIsStillStaged() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       ClientSessionManager.SessionKey key = keyFor(session, "guard-b");
       Path file = this.directory.resolve("pending.nbt.gz");
@@ -259,10 +259,10 @@ class ClientDraftLoadTest {
       assertTrue(session.suspendedOperationDraft());
    }
 
-   /** A draft from an older format names no submission, so no receipt can forbid it. */
+   /** An unsubmitted draft belongs to the player, so no receipt can forbid it. */
    @Test
    void aDraftThatNamesNoSubmissionIsStillStaged() throws Exception {
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
       ClientSessionManager.SessionKey key = keyFor(session, "guard-c");
       Path file = this.directory.resolve("unnamed.nbt.gz");
@@ -286,6 +286,8 @@ class ClientDraftLoadTest {
    /** A draft file that names a submission, for the load guard. */
    private static CompoundTag draftTagWithSubmission(UUID transferId) {
       CompoundTag tag = validDraftTag();
+      tag.putBoolean("Unsubmitted", false);
+      tag.putString("Origin", OperationSubmissionOrigin.SERVER_SELECTION.name());
       tag.putUUID("SubmissionId", transferId);
       return tag;
    }
@@ -299,8 +301,13 @@ class ClientDraftLoadTest {
    @Test
    void unansweredReconnectKeepsTheStagedDraft() throws Exception {
       io.github.fastformer.client.operation.controller.ClientOperationController.onDisconnected();
-      ClientPlayerSession session = ClientSessionManager.instance().activateScope(
-         UUID.randomUUID(), "reconnect-timeout", "minecraft:overworld"
+      var manager = ClientSessionManager.instance();
+      UUID playerId = UUID.randomUUID();
+      var key = new ClientSessionManager.SessionKey("reconnect-timeout", "minecraft:overworld", playerId);
+      manager.installDraftFile(key, directory.resolve("reconnect-draft.nbt.gz"));
+      manager.installReceiptFile(key, directory.resolve("reconnect-receipts.nbt.gz"));
+      ClientPlayerSession session = manager.activateScope(
+         playerId, key.connection(), key.dimension()
       );
       session.stageSuspendedOperationDraft(ClientOperationDraftCodec.decode(validDraftTag(), null));
       try {

@@ -28,7 +28,7 @@ class ClientInputSessionTest {
       assertTrue(input.captureQuickShapeButton(1));
       input.modifier.press(100, true, true);
       input.undoPressCaptured = true;
-      input.operationClickCapturedButton = 0;
+      input.operationClick.capture(0);
       input.captureGeometryPointerButton(1);
       input.radialChordDown = true;
       input.pathClose.press(BlockPos.ZERO, true, 100);
@@ -38,6 +38,8 @@ class ClientInputSessionTest {
       input.lastOperationPointRightClickIndex = 3;
       input.operationSessionWasActive = true;
       input.suppressedPausePausedSound = true;
+      input.operationTransformCapture = new ClientInputSession.OperationTransformCapture(7L, 1L,
+         io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped());
 
       input.reset();
 
@@ -51,7 +53,7 @@ class ClientInputSessionTest {
       assertFalse(input.hasQuickShapeButtons());
       assertFalse(input.modifier.held());
       assertFalse(input.undoPressCaptured);
-      assertEquals(-1, input.operationClickCapturedButton);
+      assertEquals(-1, input.operationClick.buttonId());
       assertFalse(input.hasGeometryPointerButtons());
       assertFalse(input.radialChordDown);
       assertFalse(input.pathClose.press(BlockPos.ZERO, true, 101));
@@ -61,6 +63,7 @@ class ClientInputSessionTest {
       assertEquals(-1, input.lastOperationPointRightClickIndex);
       assertFalse(input.operationSessionWasActive);
       assertFalse(input.suppressedPausePausedSound);
+      assertNull(input.operationTransformCapture);
       long next = input.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_FACE);
       assertNotEquals(pointer, next);
    }
@@ -170,7 +173,9 @@ class ClientInputSessionTest {
       assertEquals(ClientInputStateMachine.State.IDLE, oldInput.routing.state());
       assertEquals(PointerGestureState.Kind.NONE, oldInput.pointerGesture.kind());
       nether.inputSession().routing.observe(ClientInputStateMachine.State.BUILDING);
-      assertSame(overworld, activate(manager, playerId, "server", "overworld"));
+      var reentered = activate(manager, playerId, "server", "overworld");
+      assertNotSame(overworld, reentered);
+      assertEquals(ClientInputStateMachine.State.IDLE, reentered.inputSession().routing.state());
       assertEquals(ClientInputStateMachine.State.IDLE, oldInput.routing.state());
       assertEquals(ClientInputStateMachine.State.IDLE, nether.inputSession().routing.state());
    }
@@ -237,5 +242,27 @@ class ClientInputSessionTest {
       var method = ClientSessionManager.class.getDeclaredMethod("activateScope", UUID.class, String.class, String.class);
       method.setAccessible(true);
       return (ClientPlayerSession)method.invoke(manager, player, server, dimension);
+   }
+
+   @Test
+   void unboundInputAndSelectionShareOneOwnerBeforeFirstWorld() throws Exception {
+      var constructor = ClientSessionManager.class.getDeclaredConstructor();
+      constructor.setAccessible(true);
+      var manager = constructor.newInstance();
+      var input = manager.inputSession();
+      var selection = manager.selectionSession();
+      assertNull(manager.currentSession());
+      assertSame(selection.gestures(), input.selectionGestures());
+      input.operationTransformCapture = new ClientInputSession.OperationTransformCapture(1L, 1L,
+         io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped());
+      selection.addDraftPoint(BlockPos.ZERO);
+      manager.clearUnboundInteraction();
+      assertNull(input.operationTransformCapture);
+      assertFalse(selection.hasDraft());
+      assertSame(input, manager.inputSession());
+      var player = activate(manager, UUID.randomUUID(), "server", "overworld");
+      assertSame(player.inputSession(), manager.inputSession());
+      assertSame(player.selectionSession(), manager.selectionSession());
+      assertSame(manager.selectionSession().gestures(), manager.inputSession().selectionGestures());
    }
 }

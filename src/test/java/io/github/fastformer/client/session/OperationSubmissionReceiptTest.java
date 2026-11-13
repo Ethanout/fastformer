@@ -161,9 +161,7 @@ class OperationSubmissionReceiptTest {
    }
 
    @Test
-   void anOlderFileTreatsAnAppliedReceiptAsPending() {
-      // An older writer deleted the draft copy on a best-effort path and recorded no flag.
-      // The applied record must therefore start as pending, so the copy is cleared once.
+   void appliedReceiptWithoutCleanupStateIsRejected() {
       CompoundTag root = OperationSubmissionReceiptCodec.encode(
          List.of(receipt(3, OperationSubmissionOutcome.APPLIED))
       );
@@ -171,16 +169,11 @@ class OperationSubmissionReceiptTest {
       entry.remove("CleanupPending");
       assertFalse(entry.contains("CleanupPending"));
 
-      List<OperationSubmissionReceipt> reloaded = decodeIgnoringChecked(root);
-
-      assertFalse(reloaded.isEmpty());
-      assertTrue(reloaded.get(0).needsCleanup());
+      assertThrows(IOException.class, () -> OperationSubmissionReceiptCodec.decode(root));
    }
 
    @Test
-   void anOlderFileKeepsOtherOutcomesClean() {
-      // An unknown result owes no cleanup. The migration must not invent one, because the
-      // draft of an unknown submission must stay for the player.
+   void unappliedReceiptNeedsNoCleanupState() {
       CompoundTag root = OperationSubmissionReceiptCodec.encode(
          List.of(receipt(4, OperationSubmissionOutcome.UNKNOWN))
       );
@@ -341,7 +334,7 @@ class OperationSubmissionReceiptTest {
    @Test
    void aFileAboveTheLimitStaysReadable(@TempDir Path directory) throws IOException {
       Path file = directory.resolve("receipts.nbt");
-      // A larger file can come from an older client or from a damaged write. It must not
+      // A larger file can come from a damaged write. It must not
       // become unreadable, because every result in it would be lost. The write path
       // refuses this, so the file is built directly.
       OperationClipboardStore.save(file, oversizedTag(OperationSubmissionOutcome.APPLIED));
@@ -377,9 +370,7 @@ class OperationSubmissionReceiptTest {
          tag.putString("Dimension", source.dimension().toString());
          tag.putLong("RecordedAt", source.recordedAtMillis());
          if (outcome.applied()) {
-            // A current-version writer always writes this flag for an applied receipt, both
-            // when it is true and when it is false. An absent flag means a file from an
-            // older client, and the reader must then treat the receipt as pending cleanup.
+            // Applied receipts require an explicit cleanup state.
             tag.putBoolean("CleanupPending", false);
          }
          list.add(tag);

@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:doors", "#minecraft:trapdoors", "#minecraft:fence_gates", "#minecraft:buttons", "#minecraft:beds",
+    "minecraft:lever", "minecraft:chest", "minecraft:trapped_chest", "minecraft:ender_chest",
+    "minecraft:barrel", "minecraft:hopper", "minecraft:dispenser", "minecraft:dropper",
+    "minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker", "minecraft:brewing_stand",
+    "minecraft:crafting_table", "minecraft:stonecutter", "minecraft:cartography_table", "minecraft:loom",
+    "minecraft:smithing_table", "minecraft:grindstone", "minecraft:enchanting_table",
+    "minecraft:anvil", "minecraft:chipped_anvil", "minecraft:damaged_anvil",
+    "#minecraft:shulker_boxes", "minecraft:crafter", "minecraft:beacon"
+  ]
+}

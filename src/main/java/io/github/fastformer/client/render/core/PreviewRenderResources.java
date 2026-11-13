@@ -2,7 +2,8 @@ package io.github.fastformer.client.render.core;
 
 import io.github.fastformer.client.render.cache.*;
 import io.github.fastformer.client.render.mesh.GhostMeshBuilder;
-import java.util.concurrent.*;
+import io.github.fastformer.client.lifecycle.ClientBackgroundTasks;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /** Owns GPU caches and worker lifetimes for the preview renderer. */
 final class PreviewRenderResources {
@@ -21,17 +22,11 @@ final class PreviewRenderResources {
    static final BuildingShellFaceBuffer CONFIRMED_SHELL_FACES = new BuildingShellFaceBuffer();
    static final BuildingShellFaceBuffer PENDING_SHELL_FACES = new BuildingShellFaceBuffer();
    static final BuildingShellBlocksCache BUILDING_SHELL_BLOCKS_CACHE = new BuildingShellBlocksCache();
-   static final ThreadPoolExecutor PREVIEW_MESH_EXECUTOR = executor("FastFormer preview mesh");
-   static final ThreadPoolExecutor PREVIEW_GENERATION_EXECUTOR = executor("FastFormer preview generation");
+   static final ThreadPoolExecutor PREVIEW_MESH_EXECUTOR = ClientBackgroundTasks.serial("preview-mesh", 16);
+   static final ThreadPoolExecutor PREVIEW_GENERATION_EXECUTOR = ClientBackgroundTasks.serial("preview-generation", 16);
    static final PendingGhostMeshCache PENDING_GHOST_CACHE = new PendingGhostMeshCache(PREVIEW_MESH_EXECUTOR,
       GhostMeshBuilder::buildPending, failure -> FastPlaceClientPreviewCore.logPreviewFailure("Unable to build FastFormer preview mesh", failure));
    static final PendingGhostBufferCache PENDING_GHOST_BUFFER_CACHE = new PendingGhostBufferCache(FastPlaceClientPreviewCore::uploadPendingGrid);
-
-   private static ThreadPoolExecutor executor(String name) {
-      return new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(16), runnable -> {
-         var thread = new Thread(runnable, name); thread.setDaemon(true); return thread;
-      });
-   }
 
    static void clearShells() {
       CONFIRMED_MODELS.clear(); PENDING_MODELS.clear(); INITIAL_MODEL.clear();

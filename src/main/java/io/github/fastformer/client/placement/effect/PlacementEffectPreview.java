@@ -9,7 +9,7 @@ import io.github.fastformer.fastplace.geometry.generation.GeneratedBlockSets;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectContext;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +28,7 @@ public final class PlacementEffectPreview {
    }
 
    public static ResolvedPlacementEffect resolve(
-      BuildingPreviewPayload snapshot,
+      BuildingPreviewSnapshot snapshot,
       LocalPlayer player,
       BlockState prototype,
       List<BlockPos> points,

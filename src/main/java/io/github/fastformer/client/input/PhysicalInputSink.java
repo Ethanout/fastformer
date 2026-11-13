@@ -6,7 +6,7 @@ import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
 import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
-import io.github.fastformer.network.payload.placement.StartPlacementPayload;
+import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 
 /** Typed dispatch boundary. The mailbox owns ordering and the sink owns actions. */
 interface PhysicalInputSink {

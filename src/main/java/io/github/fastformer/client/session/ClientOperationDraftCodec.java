@@ -73,16 +73,15 @@ public final class ClientOperationDraftCodec {
       if (root.getInt("Version") != ClientOperationDraft.CURRENT_VERSION) {
          throw new VersionMismatchException("Unsupported client operation draft version");
       }
-      // An absent identity is readable: a local-only draft has none by design. An absent
-      // Origin means an older writer, which always produced a server-confirmed draft.
+      UUID submissionId = readSubmissionId(root);
+      // Local drafts may lack a server identity or a submission origin.
       OperationSubmissionOrigin origin = root.contains("Origin", Tag.TAG_STRING)
          ? enumValue(OperationSubmissionOrigin.class, root.getString("Origin"), "submission origin") : null;
+      if (submissionId != null && origin == null) {
+         throw new IOException("Submitted operation draft has no origin");
+      }
       OperationDraftIdentity identity = root.contains("Identity", Tag.TAG_COMPOUND)
          ? decodeIdentity(root.getCompound("Identity")) : null;
-      // An absent submission id means a draft that no submission wrote, which is every
-      // draft of an older client version. Such a draft belongs to the player.
-      UUID submissionId = root.contains("SubmissionId", Tag.TAG_INT_ARRAY)
-         ? root.getUUID("SubmissionId") : null;
       try {
          return new ClientOperationDraft(
             root.getInt("Version"),
@@ -109,10 +108,17 @@ public final class ClientOperationDraftCodec {
     *
     * @return the recorded submission id, or null when the file names none
     */
-   public static UUID readSubmissionId(CompoundTag root) {
-      if (root == null || !root.contains("SubmissionId", Tag.TAG_INT_ARRAY)) {
+   public static UUID readSubmissionId(CompoundTag root) throws IOException {
+      if (root == null || !root.contains("Version", Tag.TAG_INT)
+         || root.getInt("Version") != ClientOperationDraft.CURRENT_VERSION) {
+         throw new VersionMismatchException("Unsupported client operation draft version");
+      }
+      boolean unsubmitted = requiredBoolean(root, "Unsubmitted");
+      if (unsubmitted) {
+         if (root.contains("SubmissionId")) throw new IOException("Unsubmitted draft carries a submission id");
          return null;
       }
+      if (!root.hasUUID("SubmissionId")) throw new IOException("Submitted draft has no valid submission id");
       return root.getUUID("SubmissionId");
    }
 
@@ -277,7 +283,7 @@ public final class ClientOperationDraftCodec {
          tag.getInt("PrismBasePointCount"),
          readOptionalBlockPos(tag, "Min"),
          readOptionalBlockPos(tag, "Max"),
-         tag.getBoolean("SecondPointOnly")
+         requiredBoolean(tag, "SecondPointOnly")
       );
    }
 
@@ -391,8 +397,7 @@ public final class ClientOperationDraftCodec {
          new OperationStackRegion(BlockPos.of(tag.getLong("RepeatMin")), BlockPos.of(tag.getLong("RepeatMax"))),
          BlockPos.of(tag.getLong("RepeatStride")),
          decodeVec3(requiredCompound(tag, "Scale")),
-         tag.contains("Symmetry") ? io.github.fastformer.workspace.model.WorkspaceSymmetry.decode(requiredCompound(tag, "Symmetry"))
-            : io.github.fastformer.workspace.model.WorkspaceSymmetry.IDENTITY
+         io.github.fastformer.workspace.model.WorkspaceSymmetry.decode(requiredCompound(tag, "Symmetry"))
       );
    }
 
@@ -465,6 +470,11 @@ public final class ClientOperationDraftCodec {
    private static CompoundTag requiredCompound(CompoundTag owner, String key) throws IOException {
       if (!owner.contains(key, Tag.TAG_COMPOUND)) throw new IOException("Operation draft is missing " + key);
       return owner.getCompound(key);
+   }
+
+   private static boolean requiredBoolean(CompoundTag owner, String key) throws IOException {
+      if (!owner.contains(key, Tag.TAG_BYTE)) throw new IOException("Operation draft is missing " + key);
+      return owner.getBoolean(key);
    }
 
    private static ListTag requiredList(CompoundTag owner, String key) throws IOException {

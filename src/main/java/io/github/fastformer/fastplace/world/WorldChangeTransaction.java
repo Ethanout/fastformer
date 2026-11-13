@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.world;
 
-import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.PackedBlockSnapshotMap;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;

@@ -5,8 +5,8 @@ import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
 import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
 import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
@@ -146,8 +146,8 @@ public class QuickShapeSubmissionIntentTest {
    }
 
    public static QuickShapeSubmissionSnapshot snapshot(LineMode mode) {
-      var d = BuildingPreviewPayload.inactive();
-      var data = new BuildingPreviewPayload(true, true, true, false, false, false, d.polygonVolumeShape(),
+      var d = BuildingPreviewSnapshot.inactive();
+      var data = new BuildingPreviewSnapshot(true, true, true, false, false, false, d.polygonVolumeShape(),
          List.of(new BlockPos(1, 2, 3)), 0, new BlockPos(3, 0, 0), d.faceBaseOffset(), d.volumeBaseOffset(),
          d.perpendicularAnchor(), d.angleDegrees(), d.pointMode(), d.raycastPlacement(), mode, d.faceMode(),
          d.volumeMode(), d.fillMode(), d.faceTieBias(), null);

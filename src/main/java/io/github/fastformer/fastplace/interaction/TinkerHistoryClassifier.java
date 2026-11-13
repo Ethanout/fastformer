@@ -1,7 +1,10 @@
 package io.github.fastformer.fastplace.interaction;
 
-import io.github.fastformer.fastplace.history.TinkerHistoryGroupingRules;
-import io.github.fastformer.fastplace.history.TinkerHistoryGroupingRules.KeyPart;
+import io.github.fastformer.common.tinker.data.TinkerShapeFamilies;
+import io.github.fastformer.common.tinker.shape.TinkerShapeTransform;
+
+import io.github.fastformer.server.history.compaction.TinkerHistoryGroupingRules;
+import io.github.fastformer.server.history.compaction.TinkerHistoryGroupingRules.KeyPart;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeSet;

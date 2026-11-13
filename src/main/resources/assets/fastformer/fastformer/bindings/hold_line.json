@@ -1,0 +1,29 @@
+{
+  "option": "fastformer:hold_line",
+  "option_default": false,
+  "bindings": [
+    {
+      "id": "fastformer:hold_line/start",
+      "context": {
+        "session": "fastformer:idle", "items": "#fastformer:placeable", "screen": false,
+        "aiming": "block", "range": "near", "!modifiers": ["alt"],
+        "!aiming_tag": "#fastformer:hold_line_passthrough", "!tinker_consumes": true,
+        "!double_second_press": true
+      },
+      "input": {"button": "right", "gesture": "hold", "duration_ms": 200, "hold_start": "deferred"},
+      "action": {"id": "fastformer:quick_shape/start", "profile": "fastformer:hold_line"}
+    },
+    {
+      "id": "fastformer:hold_line/release",
+      "context": {"session": "fastformer:quick_shape", "profile": "fastformer:hold_line"},
+      "input": {"button": "right", "gesture": "release"},
+      "action": "fastformer:quick_shape/middle_confirm"
+    },
+    {
+      "id": "fastformer:hold_line/abort",
+      "context": {"session": "fastformer:quick_shape", "profile": "fastformer:hold_line"},
+      "input": {"button": "left", "gesture": "press"},
+      "action": "fastformer:session/cancel"
+    }
+  ]
+}

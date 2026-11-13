@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.common.selection.PointMotionLimits;
+import java.util.function.Predicate;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 
@@ -27,7 +29,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 public final class OperationSession {
-   private static final int MAX_POINT_DRAG_DELTA = 128;
    private final OperationSelectionPoints selectionPointStates = new OperationSelectionPoints();
    private int historyLimit;
    private BlockPos minOffset = BlockPos.ZERO;
@@ -622,6 +623,12 @@ public final class OperationSession {
       OperationPointDragConstraint requestedConstraint,
       boolean finish
    ) {
+      return dragPointTo(pointIndex, target, requestedConstraint, finish, point -> true);
+   }
+
+   public boolean dragPointTo(int pointIndex, BlockPos target,
+      OperationPointDragConstraint requestedConstraint, boolean finish,
+      Predicate<BlockPos> targetValidator) {
       if (this.selectionConfirmed
          || this.selectionMode != OperationSelectionMode.PRISM
          || target == null
@@ -642,7 +649,7 @@ public final class OperationSession {
          this.pointDragState = this.pointDragState.rebase(current, constraint);
       }
       ConstrainedPoint constrained = constrainPointTarget(this.pointDragState, target, constraint);
-      boolean changed = this.movePointTo(pointIndex, constrained, before);
+      boolean changed = this.movePointTo(pointIndex, constrained, before, targetValidator);
       if (finish) {
          this.pointDragState = null;
       }
@@ -650,14 +657,18 @@ public final class OperationSession {
    }
 
    private boolean movePointTo(int pointIndex, ConstrainedPoint constrained, List<BlockPos> before) {
+      return movePointTo(pointIndex, constrained, before, point -> true);
+   }
+
+   private boolean movePointTo(int pointIndex, ConstrainedPoint constrained, List<BlockPos> before,
+      Predicate<BlockPos> targetValidator) {
       BlockPos target = constrained.target();
       BlockPos current = before.get(pointIndex);
       if (current.equals(target)) {
          return false;
       }
-      if (Math.abs((long)target.getX() - current.getX()) > MAX_POINT_DRAG_DELTA
-         || Math.abs((long)target.getY() - current.getY()) > MAX_POINT_DRAG_DELTA
-         || Math.abs((long)target.getZ() - current.getZ()) > MAX_POINT_DRAG_DELTA) {
+      if (!PointMotionLimits.accepts(current, target)
+         || !targetValidator.test(target)) {
          return false;
       }
       int baseCount = this.prismBaseClosed() ? this.selectionPoints().prismBasePointCount : before.size();
@@ -666,6 +677,10 @@ public final class OperationSession {
          && constrained.constraint() != OperationPointDragConstraint.FREE;
       if (moveBase) {
          BlockPos offset = target.subtract(current);
+         int movedCount = constrained.constraint() == OperationPointDragConstraint.PLANE ? before.size() : baseCount;
+         for (int index = 0; index < movedCount; index++) {
+            if (!targetValidator.test(before.get(index).offset(offset))) return false;
+         }
          for (int index = 0; index < baseCount; index++) {
             setPoint(index, before.get(index).offset(offset));
          }

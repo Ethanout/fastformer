@@ -48,16 +48,20 @@ class NormalPlaneFaceRasterizerTest {
       }
       assertEquals(expected, generate(vertices, FillMode.OUTLINE));
       Vec3 extrusion = new Vec3(7, 13, -3);
-      assertEquals(
-         TiltedBoxGenerator.generate(vertices, extrusion, FillMode.OUTLINE, 10000,
-            BlockGenerationObserver.NONE, LineTieBias.DEFAULT, FaceRasterizationMode.POINT_SWEEP),
-         TiltedBoxGenerator.generate(vertices, extrusion, FillMode.OUTLINE, 10000,
-            BlockGenerationObserver.NONE, LineTieBias.DEFAULT, FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL)
-      );
+      Set<BlockPos> expectedBox = new java.util.HashSet<>(expected);
+      for (BlockPos p : expected) {
+         expectedBox.add(p.offset(BlockPos.containing(extrusion)));
+      }
+      for (Vec3 corner : vertices) {
+         for (BlockPos offset : LineGenerator.offsets(extrusion, 10000, LineTieBias.DEFAULT)) {
+            expectedBox.add(BlockPos.containing(corner).offset(offset));
+         }
+      }
+      assertEquals(expectedBox, TiltedBoxGenerator.generate(vertices, extrusion, FillMode.OUTLINE, 10000));
    }
 
    private static Set<BlockPos> generate(List<Vec3> vertices, FillMode fill) {
       return QuadFaceGenerator.generate(vertices, fill, 10000, BlockGenerationObserver.NONE,
-         LineTieBias.DEFAULT, FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL);
+         LineTieBias.DEFAULT);
    }
 }

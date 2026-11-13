@@ -1,8 +1,8 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.gesture.PathClosePress;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
-import io.github.fastformer.network.payload.geometry.ClosePathPayload;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.protocol.c2s.geometry.ClosePathPayload;
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
@@ -16,19 +16,19 @@ final class PathCloseInputDispatcher {
    }
 
    static PathClosePress capture(boolean geometry, long occurredAtNanos) {
-      return new PathClosePress(FastPlaceClientPreview.closePathAtHoveredStart(),
-         FastPlaceClientPreview.canDoubleClickClosePath(), FastPlaceClientPreview.pathCandidatePoint(),
+      return new PathClosePress(FastPlaceClientPreviewCore.closePathAtHoveredStart(),
+         FastPlaceClientPreviewCore.canDoubleClickClosePath(), FastPlaceClientPreviewCore.pathCandidatePoint(),
          geometry, occurredAtNanos, captureIdentity());
    }
 
    private static ClosePathPayload captureIdentity() {
       long request = GeometryInputController.nextRequestId();
-      if (FastPlaceClientPreview.operationActive()) return new ClosePathPayload(request,
+      if (FastPlaceClientPreviewCore.operationActive()) return new ClosePathPayload(request,
          io.github.fastformer.client.operation.controller.ClientOperationController.remoteSelectionRevision(),
          io.github.fastformer.client.operation.controller.ClientOperationController.remoteSelectionCallbackScope(), ClosePathPayload.Kind.OPERATION);
-      var geometry = FastPlaceClientPreview.geometrySnapshot();
+      var geometry = FastPlaceClientPreviewCore.geometrySnapshot();
       if (geometry.active()) return new ClosePathPayload(request, geometry.revision(), geometry.callbackScope(), ClosePathPayload.Kind.GEOMETRY);
-      return FastPlaceClientPreview.buildingSubmission().map(snapshot ->
+      return FastPlaceClientPreviewCore.buildingSubmission().map(snapshot ->
          new ClosePathPayload(request, snapshot.revision(), snapshot.scope(), ClosePathPayload.Kind.BUILDING)).orElse(null);
    }
 

@@ -7,7 +7,7 @@ import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexSorting;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import java.util.List;
 import net.minecraft.client.renderer.RenderType;
@@ -67,7 +67,7 @@ public final class BuildingShellFaceBuffer {
             Vec3 normal = Vec3.atLowerCornerOf(face.direction().getNormal()).scale(FACE_OFFSET);
             List<Vec3> points = face.vertices();
             ShapeShellMesh.Color color = face.color();
-            FastPlaceClientPreview.addGhostQuadUnscaled(
+            FastPlaceClientPreviewCore.addGhostQuadUnscaled(
                localPose,
                builder,
                points.get(0).add(normal).subtract(this.origin),

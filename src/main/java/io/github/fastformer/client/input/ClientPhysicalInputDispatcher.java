@@ -7,7 +7,7 @@ import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
 import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
-import io.github.fastformer.network.payload.placement.StartPlacementPayload;
+import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import net.minecraft.client.Minecraft;
 
 /** Routes a captured batch without owning another copy of input state. */

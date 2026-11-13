@@ -6,12 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.history.WorldChangeBatch;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
-import io.github.fastformer.fastplace.history.WorldHistoryManagerTestAccess;
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
+import io.github.fastformer.server.history.HistoryService;
+import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
-import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -52,6 +52,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class TaskRecoveryHandoffTest {
+   private static final HistoryService history = new HistoryService(
+      io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
+      io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
    @Test
    void cancelRemovesDeferredGenerationBeforeItCanStart() {
       UUID owner = UUID.randomUUID();
@@ -60,12 +63,12 @@ class TaskRecoveryHandoffTest {
       FastPlaceManager.addTaskForTest(owner, task);
 
       assertEquals(TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner)));
-      FastPlaceManager.tickWorld(null);
+         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner), history));
+      FastPlaceManager.tickWorld(null, history);
 
       assertFalse(task.waitingForGenerationMemory());
       assertFalse(FastPlaceManager.taskActive(owner));
-      assertFalse(WorldHistoryManager.busy(owner));
+      assertFalse(history.busy(owner));
       assertEquals(0, starts.get());
    }
 
@@ -77,7 +80,7 @@ class TaskRecoveryHandoffTest {
       FastPlaceManager.addTaskForTest(owner, task);
 
       FastPlaceManager.clearServer();
-      FastPlaceManager.tickWorld(null);
+      FastPlaceManager.tickWorld(null, history);
 
       assertFalse(task.waitingForGenerationMemory());
       assertFalse(FastPlaceManager.taskActive(owner));
@@ -95,7 +98,7 @@ class TaskRecoveryHandoffTest {
    @AfterEach
    void clearTasks() {
       FastPlaceManager.clearServer();
-      WorldHistoryManager.clearServer();
+      history.clear();
    }
 
    @Test
@@ -111,11 +114,11 @@ class TaskRecoveryHandoffTest {
 
       assertEquals(
          TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner))
+         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner), history)
       );
       assertEquals(
          TaskCancellationResult.NOT_ACTIVE,
-         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner))
+         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner), history)
       );
    }
 
@@ -197,15 +200,15 @@ class TaskRecoveryHandoffTest {
       terminalField.setBoolean(task, true);
       FastPlaceManager.addTaskForTest(owner, task);
 
-      FastPlaceManager.tickWorld(null);
+      FastPlaceManager.tickWorld(null, history);
 
       assertTrue(task.recoveryTaskCreated());
-      assertTrue(WorldHistoryManager.busy(owner));
-      assertEquals(TaskCancellationResult.NOT_ACTIVE, FastPlaceManager.cancelTask(new WorldTaskContext(null, owner)));
-      WorldHistoryManager.tickWorld(null);
-      WorldChangeBatch recovery = WorldHistoryManagerTestAccess.activeRecoveryBatch(owner);
+      assertTrue(history.busy(owner));
+      assertEquals(TaskCancellationResult.NOT_ACTIVE, FastPlaceManager.cancelTask(new WorldTaskContext(null, owner), history));
+      history.tickWorld(null);
+      WorldChangeBatch recovery = HistoryTestAccess.activeRecoveryBatch(history, owner);
       assertNotNull(recovery);
-      assertEquals("before", marker(WorldHistoryManagerTestAccess.targetSnapshots(recovery, true).getFirst()));
+      assertEquals("before", marker(HistoryTestAccess.targetSnapshots(recovery, true).getFirst()));
    }
 
    @Test
@@ -251,31 +254,31 @@ class TaskRecoveryHandoffTest {
       try {
          assertEquals(
             TaskCancellationResult.ROLLBACK_STARTED,
-            OperationManager.cancelTask(new WorldTaskContext(null, owner))
+            OperationManager.cancelTask(new WorldTaskContext(null, owner), history)
          );
          assertEquals(1, task.memoryReleaseCount.get());
          assertEquals(
             TaskCancellationResult.NOT_ACTIVE,
-            OperationManager.cancelTask(new WorldTaskContext(null, owner))
+            OperationManager.cancelTask(new WorldTaskContext(null, owner), history)
          );
          assertEquals(1, task.memoryReleaseCount.get());
-         WorldHistoryManager.tickWorld(null);
-         assertEquals(1, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
-         assertNull(WorldHistoryManagerTestAccess.activeRecoveryBatch(owner));
+         history.tickWorld(null);
+         assertEquals(1, HistoryTestAccess.recoveryCaptureCount(history, owner));
+         assertNull(HistoryTestAccess.activeRecoveryBatch(history, owner));
       } finally {
          finishCompression.complete(null);
       }
 
       task.readyForRecovery.join();
       assertTrue(task.commit.batch().isEmpty());
-      WorldHistoryManager.tickWorld(null);
+      history.tickWorld(null);
 
-      assertEquals(0, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
-      WorldChangeBatch recovery = WorldHistoryManagerTestAccess.activeRecoveryBatch(owner);
+      assertEquals(0, HistoryTestAccess.recoveryCaptureCount(history, owner));
+      WorldChangeBatch recovery = HistoryTestAccess.activeRecoveryBatch(history, owner);
       assertNotNull(recovery);
       assertEquals(pos, recovery.position(0));
-      assertEquals("after", marker(WorldHistoryManagerTestAccess.sourceSnapshots(recovery, true).getFirst()));
-      assertEquals("before", marker(WorldHistoryManagerTestAccess.targetSnapshots(recovery, true).getFirst()));
+      assertEquals("after", marker(HistoryTestAccess.sourceSnapshots(recovery, true).getFirst()));
+      assertEquals("before", marker(HistoryTestAccess.targetSnapshots(recovery, true).getFirst()));
    }
 
    private static void assertOperationTaskTransfersRecoveryOnce(WorldOperationTask task) {
@@ -285,15 +288,28 @@ class TaskRecoveryHandoffTest {
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
       OperationManager.addTaskForTest(owner, task);
 
+      var reported = new java.util.ArrayList<io.github.fastformer.workspace.submission.WorkspaceCompletion>();
+      io.github.fastformer.server.submission.WorkspaceResultSink results = (result, online) -> {
+         assertNull(online);
+         reported.add(result);
+      };
       assertEquals(
          TaskCancellationResult.ROLLBACK_STARTED,
-         OperationManager.cancelTask(new WorldTaskContext(null, owner))
+         OperationManager.cancelTask(new WorldTaskContext(null, owner), history, results)
       );
-      assertTrue(WorldHistoryManager.busy(owner));
+      assertTrue(history.busy(owner));
       assertEquals(
          TaskCancellationResult.NOT_ACTIVE,
-         OperationManager.cancelTask(new WorldTaskContext(null, owner))
+         OperationManager.cancelTask(new WorldTaskContext(null, owner), history, results)
       );
+      if (task instanceof ClientWorkspacePlacementTask workspace) {
+         assertEquals(1, reported.size());
+         assertEquals(owner, reported.getFirst().owner());
+         assertEquals(workspace.transferId(), reported.getFirst().transfer());
+         assertTrue(reported.getFirst().recoveryCreated());
+         assertFalse(reported.getFirst().applied());
+         assertFalse(reported.getFirst().retryable());
+      } else assertTrue(reported.isEmpty());
    }
 
    private static ReversibleBlockSnapshot snapshot(BlockPos pos, String marker) {
@@ -321,7 +337,7 @@ class TaskRecoveryHandoffTest {
       ) {
          this.before = before;
          this.after = after;
-         this.commit = WorldOperationCommit.begin(Level.OVERWORLD, before, after, null);
+         this.commit = WorldOperationCommit.begin(Level.OVERWORLD, before, after, null, task -> CompletableFuture.runAsync(task));
       }
 
       @Override
@@ -345,7 +361,7 @@ class TaskRecoveryHandoffTest {
       }
 
       @Override
-      public io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal journal() {
+      public io.github.fastformer.server.recovery.PersistentRecoveryJournal journal() {
          return null;
       }
 

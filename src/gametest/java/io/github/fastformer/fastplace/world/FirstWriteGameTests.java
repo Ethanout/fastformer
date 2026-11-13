@@ -1,9 +1,11 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
@@ -108,12 +110,12 @@ public final class FirstWriteGameTests {
             helper.assertTrue(current.task.transaction().beforeCount() == 1, "first-write allowance wrote more than one block");
             helper.assertTrue(current.task.transaction().expectedCount() == (workspace ? count : Math.min(256, count)),
                "first write used the wrong snapshot boundary");
-            helper.assertTrue(WorldHistoryManager.acceptStoppedTask(current.context, current.task).recoveryCreated(),
+            helper.assertTrue(HistorySystem.of((current.context).server()).acceptStoppedTask(current.context, current.task).recoveryCreated(),
                "first write did not create cancellation recovery");
             current.recovering = true;
          }
-         WorldHistoryManager.tickWorld(level.getServer());
-         helper.assertTrue(!WorldHistoryManager.busy(current.context.owner()), "waiting for first-write recovery");
+         HistorySystem.of(level.getServer()).tickWorld(level.getServer());
+         helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(current.context.owner()), "waiting for first-write recovery");
          for (int index = 0; index < count; index++) {
             BlockPos source = position(origin, index);
             helper.assertTrue(level.getBlockState(source.above()).isAir(), "recovery left a target block");

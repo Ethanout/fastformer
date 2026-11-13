@@ -35,33 +35,17 @@ public final class TiltedBoxGenerator {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generate(
-         base, extrusion, fillMode, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   public static Set<BlockPos> generate(
-      List<Vec3> base,
-      Vec3 extrusion,
-      FillMode fillMode,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
       if (base.size() != 4 || maxBlocks <= 0) {
          return Set.of();
       }
 
       if (fillMode == FillMode.OUTLINE) {
-         return outline(base, extrusion, maxBlocks, observer, tieBias, rasterizationMode);
+         return outline(base, extrusion, maxBlocks, observer, tieBias);
       }
-      if (rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL) {
-         // Match the authored outline's integer translation, including negative
-         // fractional heights. Rounding translated cell centers gives another box.
-         base = base.stream().map(BlockPos::containing).map(Vec3::atCenterOf).toList();
-         extrusion = Vec3.atLowerCornerOf(BlockPos.containing(extrusion));
-      }
+      // Match the authored outline's integer translation, including negative
+      // fractional heights. Rounding translated cell centers gives another box.
+      base = base.stream().map(BlockPos::containing).map(Vec3::atCenterOf).toList();
+      extrusion = Vec3.atLowerCornerOf(BlockPos.containing(extrusion));
       Vec3 normal = PlanarFaceGeometry.normal(base);
       if (normal.lengthSqr() < EPSILON
          || extrusion.lengthSqr() < EPSILON
@@ -83,8 +67,7 @@ public final class TiltedBoxGenerator {
             extrusion,
             fillMode == FillMode.SOLID ? maxBlocks : Integer.MAX_VALUE,
             solidObserver,
-            tieBias,
-            rasterizationMode
+            tieBias
          );
          if (GenerationLimitExceeded.is(solid)) {
             return GenerationLimitExceeded.witness(maxBlocks, observer);
@@ -95,8 +78,8 @@ public final class TiltedBoxGenerator {
          ? observer
          : stagingObserver(observer);
       BresenhamColumnVolume.Result generated = fillMode == FillMode.SOLID
-         ? BresenhamColumnVolume.generate(base, extrusion, maxBlocks, solidObserver, tieBias, rasterizationMode)
-         : BresenhamColumnVolume.generateBoundary(base, extrusion, maxBlocks, solidObserver, tieBias, rasterizationMode);
+         ? BresenhamColumnVolume.generate(base, extrusion, maxBlocks, solidObserver, tieBias)
+         : BresenhamColumnVolume.generateBoundary(base, extrusion, maxBlocks, solidObserver, tieBias);
       if (!generated.complete()) {
          return GenerationFailed.is(generated.blocks())
             ? generated.blocks()
@@ -153,19 +136,6 @@ public final class TiltedBoxGenerator {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return outline(
-         base, extrusion, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   private static Set<BlockPos> outline(
-      List<Vec3> base,
-      Vec3 extrusion,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
       int stagingLimit = onePast(maxBlocks);
       BlockGenerationObserver staging = stagingObserver(observer);
       Set<BlockPos> staged = new ObservedBlockSet(staging);
@@ -173,8 +143,7 @@ public final class TiltedBoxGenerator {
          base,
          stagingLimit,
          staging,
-         tieBias,
-         rasterizationMode
+         tieBias
       );
       if (GenerationLimitExceeded.is(baseOutline)) {
          return GenerationLimitExceeded.witness(maxBlocks, observer);
@@ -225,19 +194,6 @@ public final class TiltedBoxGenerator {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return degenerateSolid(
-         base, extrusion, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   private static Set<BlockPos> degenerateSolid(
-      List<Vec3> base,
-      Vec3 extrusion,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
       int stagingLimit = onePast(maxBlocks);
       BlockGenerationObserver staging = stagingObserver(observer);
       List<BlockPos> offsets = LineGenerator.offsets(extrusion, stagingLimit, tieBias);
@@ -249,8 +205,7 @@ public final class TiltedBoxGenerator {
          FillMode.SOLID,
          stagingLimit,
          staging,
-         tieBias,
-         rasterizationMode
+         tieBias
       );
       if (GenerationLimitExceeded.is(face)) {
          return GenerationLimitExceeded.witness(maxBlocks, observer);

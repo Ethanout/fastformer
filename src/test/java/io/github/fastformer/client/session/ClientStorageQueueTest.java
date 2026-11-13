@@ -102,11 +102,13 @@ class ClientStorageQueueTest {
          assertFalse(queue.submit(() -> 0, (v, e) -> fail("queue exceeded its capacity")));
          release.countDown();
          assertTrue(finished.await(5, TimeUnit.SECONDS));
+         assertFalse(queue.idle());
          assertEquals(0, published.get());
          assertFalse(queue.submit(() -> 0, (v, e) -> {}));
          long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
          while (published.get() != 3 && System.nanoTime() < deadline) { queue.drain(); Thread.yield(); }
          assertEquals(3, published.get());
+         assertTrue(queue.idle());
       } finally { release.countDown(); }
    }
 

@@ -7,13 +7,12 @@ import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import io.github.fastformer.fastplace.geometry.BlockPositionSets;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.model.BuildingSpecialBlock;
+import io.github.fastformer.core.async.LatestOnlyTask;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import net.minecraft.world.level.BlockGetter;
@@ -36,7 +35,7 @@ public final class BuildingShellCache {
    private Map<net.minecraft.core.BlockPos, BuildingSpecialBlock> specialStyles = Map.of();
    private boolean playerShift;
    private ShapeShellMesh.Mesh mesh = ShapeShellMesh.Mesh.empty();
-   private Future<MeshResult> future;
+   private final LatestOnlyTask<Long, ShapeShellMesh.Mesh> generation = new LatestOnlyTask<>();
    private long version;
 
    public BuildingShellCache(boolean pending) {
@@ -144,7 +143,7 @@ public final class BuildingShellCache {
       this.specialStyles = nextStyles;
       this.playerShift = playerShift;
       this.version++;
-      cancelFuture();
+      generation.cancel();
       buildOrSchedule(List.copyOf(parts), this.version);
       publishCompletedMesh();
       return this.mesh;
@@ -159,38 +158,16 @@ public final class BuildingShellCache {
          this.mesh = ShapeShellMesh.build(parts);
          return;
       }
-      try {
-         this.future = this.executor.submit(() -> new MeshResult(requestedVersion, ShapeShellMesh.build(parts)));
-      } catch (java.util.concurrent.RejectedExecutionException exception) {
-         discardInputsWithoutAMesh();
-         this.failureLogger.accept(exception);
-      }
+      generation.start(requestedVersion, () -> ShapeShellMesh.build(parts), executor);
    }
 
    private void publishCompletedMesh() {
-      if (this.future == null || !this.future.isDone()) {
-         return;
-      }
-      Future<MeshResult> completedFuture = this.future;
-      this.future = null;
-      try {
-         MeshResult result = completedFuture.get();
-         if (result.version() == this.version) {
-            this.mesh = result.mesh();
+      generation.drain(completion -> this.mesh = completion.value(), failure -> {
+         discardInputsWithoutAMesh();
+         if (!(failure instanceof CancellationException)) {
+            this.failureLogger.accept(failure);
          }
-      } catch (CancellationException ignored) {
-         // Superseded futures are removed by cancelFuture and cannot reach this path.
-         discardInputsWithoutAMesh();
-      } catch (InterruptedException exception) {
-         Thread.currentThread().interrupt();
-         discardInputsWithoutAMesh();
-      } catch (ExecutionException exception) {
-         Throwable cause = exception.getCause();
-         discardInputsWithoutAMesh();
-         if (!(cause instanceof CancellationException)) {
-            this.failureLogger.accept(cause);
-         }
-      }
+      });
    }
 
    /**
@@ -202,18 +179,6 @@ public final class BuildingShellCache {
       clear();
    }
 
-   private void cancelFuture() {
-      if (this.future == null) {
-         return;
-      }
-      Future<MeshResult> cancelled = this.future;
-      this.future = null;
-      cancelled.cancel(true);
-      if (cancelled instanceof Runnable task) {
-         this.executor.remove(task);
-      }
-   }
-
    public void clear() {
       this.state = null;
       this.stateOverrides = Map.of();
@@ -222,10 +187,8 @@ public final class BuildingShellCache {
       this.specialStyles = Map.of();
       this.playerShift = false;
       this.version++;
-      cancelFuture();
+      generation.cancel();
       this.mesh = ShapeShellMesh.Mesh.empty();
    }
 
-   private record MeshResult(long version, ShapeShellMesh.Mesh mesh) {
-   }
 }

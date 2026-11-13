@@ -32,22 +32,8 @@ public final class PrismGenerator {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generateQuad(
-         base, extrusion, fillMode, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   public static Set<BlockPos> generateQuad(
-      List<Vec3> base,
-      Vec3 extrusion,
-      FillMode fillMode,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
       return TiltedBoxGenerator.generate(
-         base, extrusion, fillMode, maxBlocks, observer, tieBias, rasterizationMode
+         base, extrusion, fillMode, maxBlocks, observer, tieBias
       );
    }
 

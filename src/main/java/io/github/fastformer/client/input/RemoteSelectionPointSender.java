@@ -1,7 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
-import io.github.fastformer.network.payload.operation.OperationPointPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationPointPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;

@@ -1,7 +1,9 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -67,13 +69,13 @@ public final class TaskFailureRecoveryGameTests {
             }
             helper.assertTrue(task.transaction().beforeCount() == 2, "move wrote past the cancellation boundary");
             level.setBlock(origin, Blocks.EMERALD_BLOCK.defaultBlockState(), 2);
-            helper.assertTrue(WorldHistoryManager.acceptStoppedTask(context, task).recoveryCreated(),
+            helper.assertTrue(HistorySystem.of((context).server()).acceptStoppedTask(context, task).recoveryCreated(),
                "partial overlapping move did not create recovery");
             recovering[0] = true;
          }
 
-         WorldHistoryManager.tickWorld(level.getServer());
-         helper.assertTrue(!WorldHistoryManager.busy(context.owner()), "waiting for overlapping move recovery");
+         HistorySystem.of(level.getServer()).tickWorld(level.getServer());
+         helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(context.owner()), "waiting for overlapping move recovery");
          helper.assertTrue(!WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
             "overlapping move recovery retained the world lease");
          helper.assertTrue(level.getBlockState(origin).is(Blocks.EMERALD_BLOCK),
@@ -122,13 +124,13 @@ public final class TaskFailureRecoveryGameTests {
                "workspace accepted an externally changed validated target");
             helper.assertTrue(task.transaction().beforeCount() == observedWrites[0],
                "failed workspace write changed recovery ownership");
-            helper.assertTrue(WorldHistoryManager.acceptStoppedTask(context, task).recoveryCreated(),
+            helper.assertTrue(HistorySystem.of((context).server()).acceptStoppedTask(context, task).recoveryCreated(),
                "failed workspace task did not create recovery");
             recovering[0] = true;
          }
 
-         WorldHistoryManager.tickWorld(level.getServer());
-         helper.assertTrue(!WorldHistoryManager.busy(context.owner()), "waiting for workspace failure recovery");
+         HistorySystem.of(level.getServer()).tickWorld(level.getServer());
+         helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(context.owner()), "waiting for workspace failure recovery");
          helper.assertTrue(!WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
             "workspace recovery retained the world lease");
          for (int index = 0; index < COUNT; index++) {

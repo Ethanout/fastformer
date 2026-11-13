@@ -2,9 +2,9 @@ package io.github.fastformer.fastplace.task;
 
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
@@ -15,7 +15,8 @@ import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.fastplace.task.runtime.TaskWriteLease;
+import io.github.fastformer.fastplace.task.runtime.JournalSegments;
 import io.github.fastformer.fastplace.world.WorldWriteSideEffectGuard;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
@@ -57,8 +58,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
    private final ResourceKey<Level> dimension;
    private final WorldOperationMetrics metrics = new WorldOperationMetrics();
    private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
-   /** The only object that may release this task's dimension lease. */
-   private WorldWriteCoordinator.Lease lease;
+   private final TaskWriteLease writeLease = new TaskWriteLease();
    private MemoryReservation memoryReservation;
    private boolean memoryThrottled;
    private final List<ReversibleBlockSnapshot> source = new ArrayList<>();
@@ -66,8 +66,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
    private WorldOperationCommit operationCommit;
    private boolean failed;
    private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
-   private int journaledCount;
-   private List<ReversibleBlockSnapshot> pendingJournalSlice = List.of();
+   private final JournalSegments journalSegments = new JournalSegments();
    private final Set<BlockPos> journaledPositions = new HashSet<>();
    private final Set<BlockPos> overlappingPlacementPositions = new HashSet<>();
    private boolean validateComplete;
@@ -239,13 +238,13 @@ public final class SelectionOperationTask implements WorldOperationTask {
       if (currentReservation == MemoryReservationAttempt.RETRY) {
          return Optional.of(OperationTaskResult.ACTIVE);
       }
-      if (pendingTargets.size() >= PersistentRecoveryJournal.segmentCapacity(journaledCount)) {
+      if (pendingTargets.size() >= PersistentRecoveryJournal.segmentCapacity(journalSegments.count())) {
          phase = unjournaledCount() > 0 ? Phase.JOURNAL : Phase.PLACE;
          return Optional.empty();
       }
       ValidationStep validation = validateNext(level);
       if (validation == ValidationStep.ADVANCED) {
-         if (unjournaledCount() >= PersistentRecoveryJournal.segmentCapacity(journaledCount)) {
+         if (unjournaledCount() >= PersistentRecoveryJournal.segmentCapacity(journalSegments.count())) {
             phase = Phase.JOURNAL;
          }
          return Optional.empty();
@@ -369,7 +368,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    private int unjournaledCount() {
-      return transaction.expectedCount() - journaledCount - pendingJournalSlice.size();
+      return transaction.expectedCount() - journalSegments.count() - journalSegments.pending().size();
    }
 
    private boolean finalizeNext(ServerLevel level) {
@@ -678,16 +677,8 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    private JournalPreparation prepareJournal(WorldTaskContext context) {
-      if (pendingJournalSlice.isEmpty()) {
-         int from = journaledCount;
-         int remaining = transaction.expectedCount() - from;
-         if (remaining <= 0) {
-            return JournalPreparation.READY;
-         }
-         int size = PersistentRecoveryJournal.segmentBatchSize(from, remaining);
-         pendingJournalSlice = transaction.expectedRange(from, from + size);
-      }
-      List<ReversibleBlockSnapshot> slice = pendingJournalSlice;
+      List<ReversibleBlockSnapshot> slice = journalSegments.prepare(transaction);
+      if (slice.isEmpty()) return JournalPreparation.READY;
       JournalPreparation preparation = journalPreparation.journal() == null
          ? journalPreparation.poll(() -> journalSnapshots(slice).flatMap(prepared -> PersistentRecoveryJournal.begin(
             context.server(), context.owner(), dimension, prepared.before(), prepared.after(), operationId()
@@ -700,8 +691,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
          for (ReversibleBlockSnapshot snapshot : slice) {
             journaledPositions.add(snapshot.pos());
          }
-         journaledCount += slice.size();
-         pendingJournalSlice = List.of();
+         journalSegments.acknowledge(slice);
       }
       return preparation;
    }
@@ -760,7 +750,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
             memoryUnsafe = true;
             return JournalPreparation.FAILED;
          }
-         operationCommit = WorldOperationCommit.begin(dimension, transaction, journalPreparation.journal());
+         operationCommit = WorldOperationCommit.begin(dimension, transaction, journalPreparation.journal(), journalPreparation.executor());
       }
       return operationCommit.poll();
    }
@@ -770,7 +760,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
       transaction.clearExpected();
       clearSourceIndex = 0;
       placementSourceIndex = 0;
-      pendingJournalSlice = List.of();
+      journalSegments.clearPending();
       journaledPositions.clear();
       overlappingPlacementPositions.clear();
       pendingTargets.clear();
@@ -795,33 +785,17 @@ public final class SelectionOperationTask implements WorldOperationTask {
 
    @Override
    public boolean acquireLease(WorldTaskContext context) {
-      if (this.lease != null && WorldWriteCoordinator.renew(this.lease)) {
-         return true;
-      }
-      this.lease = WorldWriteCoordinator.takeOver(context.server(), dimension, context.owner());
-      if (this.lease == null) {
-         return false;
-      }
-      this.metrics.leaseAcquired();
-      return true;
+      return writeLease.acquire(context, dimension, metrics);
    }
 
    @Override
    public void releaseLease(WorldTaskContext context) {
-      WorldWriteCoordinator.release(this.lease);
-      this.lease = null;
+      writeLease.release();
    }
 
    @Override
    public void releaseAfterCancelledJournal(WorldTaskContext context) {
-      if (operationCommit != null) {
-         operationCommit.cancel();
-      }
-      // The lease travels with the cleanup so a late journal callback can never
-      // release a later transaction of the same player.
-      WorldWriteCoordinator.Lease cancelled = this.lease;
-      this.lease = null;
-      journalPreparation.releaseAfterCancellation(cancelled);
+      writeLease.releaseAfterCancellation(journalPreparation, operationCommit);
    }
 
    @Override

@@ -58,7 +58,7 @@ public final class OperationWorkspacePlanCodec {
       }
       long started = System.nanoTime();
       CompoundTag root = NbtIo.readCompressed(
-         new io.github.fastformer.network.transfer.DeadlineInputStream(new ByteArrayInputStream(bytes), 10_000_000_000L), NbtAccounter.create(MAX_DECODE_BYTES)
+         new DeadlineInputStream(new ByteArrayInputStream(bytes), 10_000_000_000L), NbtAccounter.create(MAX_DECODE_BYTES)
       );
       return decode(root, blocks, started);
    }
@@ -103,7 +103,7 @@ public final class OperationWorkspacePlanCodec {
    }
 
    private static OperationWorkspacePlan decode(CompoundTag root, HolderGetter<Block> blocks, long started) throws IOException {
-      if (root == null || root.getInt("Version") != 1 && root.getInt("Version") != VERSION) {
+      if (root == null || root.getInt("Version") != VERSION) {
          throw new IOException("Unsupported workspace plan version");
       }
       ListTag partTags = root.getList("Parts", Tag.TAG_COMPOUND);
@@ -161,14 +161,17 @@ public final class OperationWorkspacePlanCodec {
    }
 
    private static WorkspaceTransform readTransform(CompoundTag tag) throws IOException {
+      if (!tag.contains("Scale", Tag.TAG_COMPOUND) || !tag.contains("Symmetry", Tag.TAG_COMPOUND)) {
+         throw new IOException("Missing workspace transform fields");
+      }
       try {
          return new WorkspaceTransform(
             readVec3(tag, "Translation"),
             readVec3(tag, "Rotation"),
             new OperationStackRegion(BlockPos.of(tag.getLong("RepeatMin")), BlockPos.of(tag.getLong("RepeatMax"))),
             BlockPos.of(tag.getLong("RepeatStride")),
-            tag.contains("Scale") ? readVec3(tag, "Scale") : new Vec3(1.0, 1.0, 1.0),
-            tag.contains("Symmetry") ? WorkspaceSymmetry.decode(tag.getCompound("Symmetry")) : WorkspaceSymmetry.IDENTITY
+            readVec3(tag, "Scale"),
+            WorkspaceSymmetry.decode(tag.getCompound("Symmetry"))
          );
       } catch (IllegalArgumentException exception) {
          throw new IOException("Invalid workspace transform", exception);

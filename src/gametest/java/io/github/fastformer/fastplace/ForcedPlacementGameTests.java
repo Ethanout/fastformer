@@ -1,9 +1,12 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.ForcedPlacement;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.settings.LegacyReachMigration;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -25,7 +28,7 @@ public final class ForcedPlacementGameTests {
    public static void pumpkinAndMelonSeedsStartAtFullGrowth(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(GameType.CREATIVE);
-      io.github.fastformer.fastplace.history.WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000L);
       var level = helper.getLevel();
       var pumpkinFloor = helper.absolutePos(new BlockPos(2, 2, 2));
       var melonFloor = pumpkinFloor.east(2);
@@ -58,7 +61,7 @@ public final class ForcedPlacementGameTests {
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(GameType.CREATIVE);
       FastPlaceSettings.load(player).toggleVanillaBlockHistory(player);
-      io.github.fastformer.fastplace.history.WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000L);
       var level = helper.getLevel();
       var floor = helper.absolutePos(new BlockPos(2, 2, 2));
       level.setBlock(floor, Blocks.STONE.defaultBlockState(), 2);
@@ -70,7 +73,7 @@ public final class ForcedPlacementGameTests {
       int[] phase = {0};
       helper.succeedWhen(() -> {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
-         io.github.fastformer.fastplace.history.WorldHistoryManager.tickWorld(level.getServer());
+         HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          if (phase[0] == 0) {
             helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
                "waiting for world writer");
@@ -86,10 +89,10 @@ public final class ForcedPlacementGameTests {
             phase[0] = 1;
          }
          if (phase[0] == 1) {
-            helper.assertTrue(io.github.fastformer.fastplace.history.WorldHistoryManager.requestUndo(player, 1), "door undo was refused");
+            helper.assertTrue(HistorySystem.of(player).requestUndo(player, 1), "door undo was refused");
             phase[0] = 2;
          }
-         helper.assertFalse(io.github.fastformer.fastplace.history.WorldHistoryManager.busy(player), "door undo is pending");
+         helper.assertFalse(HistorySystem.of(player).busy(player), "door undo is pending");
          helper.assertTrue(level.getBlockState(floor.above()).isAir() && level.getBlockState(floor.above(2)).isAir(),
             "one undo did not remove both halves");
          helper.assertTrue(level.getBlockState(floor).is(Blocks.STONE), "door undo changed the floor");
@@ -100,7 +103,7 @@ public final class ForcedPlacementGameTests {
    public static void blockedUpperDoorCellDoesNotLeaveALowerHalf(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(GameType.CREATIVE);
-      io.github.fastformer.fastplace.history.WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000L);
       var floor = helper.absolutePos(new BlockPos(2, 2, 2));
       var level = helper.getLevel();
       level.setBlock(floor, Blocks.STONE.defaultBlockState(), 2);
@@ -122,7 +125,7 @@ public final class ForcedPlacementGameTests {
    public static void turningAfterTheClickDoesNotRetargetOrDuplicateTheLog(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(GameType.CREATIVE);
-      io.github.fastformer.fastplace.history.WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 10_000L);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000L);
       var floor = helper.absolutePos(new BlockPos(2, 2, 2));
       var other = floor.east(2);
       helper.getLevel().setBlock(floor, Blocks.STONE.defaultBlockState(), 2);
@@ -166,13 +169,7 @@ public final class ForcedPlacementGameTests {
             net.minecraft.resources.ResourceLocation.withDefaultNamespace("creative_mode_entity_range"), 2,
             net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
       var blockRange = player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE);
-      blockRange.setBaseValue(19.5);
-      player.getPersistentData().putBoolean("fastformerReachInitialized", true);
-      LegacyReachMigration.apply(player);
-      helper.assertTrue(Math.abs(player.blockInteractionRange() - 5) < 1.0E-6, "legacy range was not restored");
       blockRange.setBaseValue(15.5);
-      LegacyReachMigration.apply(player);
-      helper.assertTrue(Math.abs(player.blockInteractionRange() - 16) < 1.0E-6, "migration overwrote another owner's range");
       var hit = new BlockHitResult(Vec3.atLowerCornerOf(floor).add(0.5, 1, 0.5), Direction.UP, floor, false);
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }

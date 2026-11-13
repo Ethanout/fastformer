@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.recovery.RecoveryJournalTestAccess;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

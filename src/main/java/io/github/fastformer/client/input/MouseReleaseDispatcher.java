@@ -12,7 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
-import io.github.fastformer.network.payload.placement.UndoFastPlacePayload;
+import io.github.fastformer.protocol.c2s.placement.UndoFastPlacePayload;
 
 final class MouseReleaseDispatcher {
    private static final long UNDO_SHORT_PRESS_NANOS = 250_000_000L;
@@ -24,22 +24,22 @@ final class MouseReleaseDispatcher {
          case OPERATION_POINT_DRAG -> {
             OperationPointDrag finished = OperationPointInputController.finishOperationPointDrag(minecraft, session);
             OperationPointInputController.finishOperationPointClick(minecraft, session, finished, releasedAtNanos);
-            session.operationClickCapturedButton = -1;
+            session.operationClick.clear();
             yield true;
          }
          case OPERATION_DRAG -> {
             OperationDragController.finish(minecraft, session, releasedAtNanos);
-            session.operationClickCapturedButton = -1;
+            session.operationClick.clear();
             yield true;
          }
          case WORKSPACE_GIZMO_DRAG -> {
             SelectionGestureController.finishGizmo(session);
-            session.operationClickCapturedButton = -1;
+            session.operationClick.clear();
             yield true;
          }
          case WORKSPACE_FACE_DRAG -> {
             SelectionGestureController.finishFace(session);
-            session.operationClickCapturedButton = -1;
+            session.operationClick.clear();
             yield true;
          }
          case GEOMETRY_GIZMO_DRAG -> {
@@ -51,7 +51,7 @@ final class MouseReleaseDispatcher {
             yield true;
          }
          case OPERATION_CAPTURE -> {
-            session.operationClickCapturedButton = -1;
+            session.operationClick.clear();
             yield true;
          }
          case GEOMETRY_CAPTURE -> {
@@ -75,10 +75,10 @@ final class MouseReleaseDispatcher {
       return MouseDragReleaseSemantics.releaseTarget(action, button, new MouseDragReleaseSemantics.State(
          dragButton(session.operationPointDrag),
          dragButton(session.operationDrag),
-         dragButton(ClientOperationController.selectionGestures().gizmo()),
-         dragButton(ClientOperationController.selectionGestures().face()),
+         dragButton(session.selectionGestures().gizmo()),
+         dragButton(session.selectionGestures().face()),
          dragButton(session.geometryGizmoDrag),
-         session.operationClickCapturedButton,
+         session.operationClick.buttonId(),
          session.ownsGeometryPointerButton(button) ? button : -1,
          session.undoPressCaptured
       ));

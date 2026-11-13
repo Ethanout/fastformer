@@ -1,16 +1,18 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.history.rollback.RollbackRequest;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.history.WorldChangeBatch;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
-import io.github.fastformer.fastplace.history.WorldHistoryManagerTestAccess;
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
+import io.github.fastformer.server.history.HistoryService;
+import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.task.OperationTaskResult;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
@@ -44,11 +46,14 @@ import org.junit.jupiter.api.Test;
  * must not stop the handover of another owner.
  */
 class TaskHandoverUnderClosedGateTest {
+   private static final HistoryService history = new HistoryService(
+      io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
+      io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
    @AfterEach
    void clearTasks() {
       OperationManager.clearServer();
       FastPlaceManager.clearServer();
-      WorldHistoryManager.clearServer();
+      history.clear();
    }
 
    @Test
@@ -57,12 +62,12 @@ class TaskHandoverUnderClosedGateTest {
       CountingOperationTask task = new CountingOperationTask(false);
       OperationManager.addTaskForTest(owner, task);
 
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the recovery path did not receive the task");
       assertEquals(0, task.ticks.get(), "the handover ran the task instead of transferring it");
       assertFalse(OperationManager.taskActive(owner), "the handed-over task stayed in the queue");
-      assertFalse(WorldHistoryManager.busy(owner), "a task without writes started recovery work");
+      assertFalse(history.busy(owner), "a task without writes started recovery work");
    }
 
    @Test
@@ -74,11 +79,11 @@ class TaskHandoverUnderClosedGateTest {
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
       OperationManager.addTaskForTest(owner, task);
 
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the recovery path did not receive the task");
       assertFalse(OperationManager.taskActive(owner), "the written task stayed in the queue");
-      assertTrue(WorldHistoryManager.busy(owner), "the written task did not start recovery");
+      assertTrue(history.busy(owner), "the written task did not start recovery");
    }
 
    @Test
@@ -87,8 +92,8 @@ class TaskHandoverUnderClosedGateTest {
       CountingOperationTask task = new CountingOperationTask(false);
       OperationManager.addTaskForTest(owner, task);
 
-      OperationManager.handOverBlockedTasks(null);
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.handOverBlockedTasks(null, history);
+      OperationManager.handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the second tick transferred the task again");
       assertFalse(OperationManager.taskActive(owner));
@@ -100,10 +105,11 @@ class TaskHandoverUnderClosedGateTest {
       CountingOperationTask task = new CountingOperationTask(true);
       OperationManager.addTaskForTest(owner, task);
 
-      OperationManager.handOverBlockedTasks(null);
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.handOverBlockedTasks(null, history);
+      OperationManager.tickWorld(null, history);
 
-      assertEquals(2, task.transfers.get(), "the handover was not retried");
+      assertEquals(2, task.transfers.get(), "the open-gate tick did not retry the failed extraction");
+      assertEquals(0, task.ticks.get(), "the task resumed after cancellation failed");
       assertTrue(OperationManager.taskActive(owner), "a failed handover lost the task");
    }
 
@@ -116,7 +122,7 @@ class TaskHandoverUnderClosedGateTest {
       OperationManager.addTaskForTest(failing, broken);
       OperationManager.addTaskForTest(healthy, handedOver);
 
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.handOverBlockedTasks(null, history);
 
       assertTrue(OperationManager.taskActive(failing), "the failing owner lost its task");
       assertFalse(OperationManager.taskActive(healthy), "the healthy owner kept its task");
@@ -132,23 +138,23 @@ class TaskHandoverUnderClosedGateTest {
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
       OperationManager.addTaskForTest(owner, task);
 
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the snapshot was not extracted");
       assertTrue(OperationManager.taskActive(owner), "a failed acceptance dropped the task");
-      assertFalse(WorldHistoryManager.busy(owner), "a failed acceptance started recovery work");
+      assertFalse(history.busy(owner), "a failed acceptance started recovery work");
 
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.tickWorld(null, history);
 
-      assertEquals(1, task.transfers.get(), "the retry extracted a second, empty snapshot");
+      assertEquals(1, task.transfers.get(), "the open-gate retry extracted a second, empty snapshot");
       assertFalse(OperationManager.taskActive(owner), "the retry left the task in the queue");
-      assertTrue(WorldHistoryManager.busy(owner), "the retry did not start recovery");
-      WorldChangeBatch recovery = WorldHistoryManagerTestAccess.activeRecoveryBatch(owner);
+      assertTrue(history.busy(owner), "the retry did not start recovery");
+      WorldChangeBatch recovery = HistoryTestAccess.activeRecoveryBatch(history, owner);
       assertNotNull(recovery, "the retry created no recovery batch");
       assertEquals(pos, recovery.position(0));
-      assertEquals("after", marker(WorldHistoryManagerTestAccess.sourceSnapshots(recovery, true).getFirst()),
+      assertEquals("after", marker(HistoryTestAccess.sourceSnapshots(recovery, true).getFirst()),
          "the retry lost the extracted after state");
-      assertEquals("before", marker(WorldHistoryManagerTestAccess.targetSnapshots(recovery, true).getFirst()),
+      assertEquals("before", marker(HistoryTestAccess.targetSnapshots(recovery, true).getFirst()),
          "the retry lost the extracted before state");
    }
 
@@ -159,11 +165,11 @@ class TaskHandoverUnderClosedGateTest {
       BlockPos unrelated = new BlockPos(9, 9, 9);
       ArrayDeque<ReversibleBlockSnapshot> unrelatedChanges = new ArrayDeque<>();
       unrelatedChanges.add(snapshot(unrelated, "unrelated-before"));
-      assertTrue(WorldHistoryManager.startRollback(
+      assertTrue(history.rollback(RollbackRequest.ready(
          context, Level.OVERWORLD, unrelatedChanges,
          Map.of(unrelated, snapshot(unrelated, "unrelated-after")), null
-      ), "the unrelated history work did not start");
-      assertTrue(WorldHistoryManager.busy(owner), "the unrelated history work is not busy");
+      )), "the unrelated history work did not start");
+      assertTrue(history.busy(owner), "the unrelated history work is not busy");
 
       BlockPos pos = new BlockPos(4, 5, 6);
       CountingOperationTask task = new CountingOperationTask(false, true);
@@ -171,13 +177,13 @@ class TaskHandoverUnderClosedGateTest {
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
       OperationManager.addTaskForTest(owner, task);
 
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the snapshot was not extracted");
       assertTrue(OperationManager.taskActive(owner),
          "unrelated history work was mistaken for an acceptance of this snapshot");
 
-      OperationManager.handOverBlockedTasks(null);
+      OperationManager.handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the retry extracted a second, empty snapshot");
       assertFalse(OperationManager.taskActive(owner), "the retry left the task in the queue");
@@ -191,7 +197,7 @@ class TaskHandoverUnderClosedGateTest {
       ));
       FastPlaceManager.addTaskForTest(owner, task);
 
-      FastPlaceManager.handOverBlockedTasks(null);
+      FastPlaceManager.handOverBlockedTasks(null, history);
 
       assertFalse(FastPlaceManager.taskActive(owner), "the handed-over placement task stayed in the queue");
    }

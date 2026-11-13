@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
-import io.github.fastformer.fastplace.history.WorldHistoryManagerTestAccess;
+import io.github.fastformer.server.history.HistoryService;
+import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
@@ -32,6 +32,9 @@ import org.junit.jupiter.api.Test;
  * exist.</p>
  */
 class ShortTransactionRecoveryOwnershipTest {
+   private static final HistoryService history = new HistoryService(
+      io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
+      io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
    private static final ResourceKey<Level> DIMENSION = ResourceKey.create(
       Registries.DIMENSION,
       ResourceLocation.fromNamespaceAndPath("fastformer", "short_transaction_ownership_test")
@@ -39,7 +42,7 @@ class ShortTransactionRecoveryOwnershipTest {
 
    @AfterEach
    void clearState() {
-      WorldHistoryManager.clearServer();
+      history.clear();
       WorldWriteCoordinator.clearAll();
    }
 
@@ -55,10 +58,10 @@ class ShortTransactionRecoveryOwnershipTest {
       // An incomplete pair set stays queued, so the recovery queue owns it.
       BlockEditTransaction.Outcome outcome = BlockEditTransaction.handOffRecovery(
          new WorldTaskContext(null, owner), DIMENSION, before, Map.of()
-      );
+      , history);
 
       assertEquals(BlockEditTransaction.Outcome.RECOVERY_PENDING, outcome);
-      assertEquals(1, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
+      assertEquals(1, HistoryTestAccess.recoveryCaptureCount(history, owner));
       assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
       assertTrue(outcome.consumedInteraction());
    }
@@ -75,11 +78,11 @@ class ShortTransactionRecoveryOwnershipTest {
       // A capture without a dimension has no recovery owner.
       BlockEditTransaction.Outcome outcome = BlockEditTransaction.handOffRecovery(
          new WorldTaskContext(null, owner), null, before, Map.of()
-      );
+      , history);
 
       assertNotEquals(BlockEditTransaction.Outcome.RECOVERY_PENDING, outcome);
       assertEquals(BlockEditTransaction.Outcome.RECOVERY_BLOCKED, outcome);
-      assertEquals(0, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
+      assertEquals(0, HistoryTestAccess.recoveryCaptureCount(history, owner));
       // The write lock and the capture stay with the caller, so another writer
       // cannot enter the half-written world.
       assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
@@ -99,13 +102,13 @@ class ShortTransactionRecoveryOwnershipTest {
       // because the transaction never released it.
       assertEquals(
          BlockEditTransaction.Outcome.RECOVERY_BLOCKED,
-         BlockEditTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, new ArrayDeque<>(), Map.of())
+         BlockEditTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, new ArrayDeque<>(), Map.of(), history)
       );
       assertEquals(
          BlockEditTransaction.Outcome.RECOVERY_BLOCKED,
-         BlockEditTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, null, Map.of())
+         BlockEditTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, null, Map.of(), history)
       );
-      assertEquals(0, WorldHistoryManagerTestAccess.recoveryCaptureCount(owner));
+      assertEquals(0, HistoryTestAccess.recoveryCaptureCount(history, owner));
       assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
    }
 

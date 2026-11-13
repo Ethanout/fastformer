@@ -1,9 +1,13 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.history.HistorySystem;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
@@ -54,11 +58,14 @@ public final class PlacementWakeupGameTests {
          helper.assertTrue(current.resumes == 1, "journal callback did not resume the manager exactly once");
          helper.assertTrue(current.placedInResume > 0, "manager wakeup did not write any block");
          if (!current.stopping) {
-            FastPlaceManager.cancelTask(current.context);
+            FastPlaceManager.cancelTask(current.context, HistorySystem.of(current.context.server()));
             current.stopping = true;
          }
-         WorldHistoryManager.tickWorld(level.getServer());
-         helper.assertTrue(!WorldHistoryManager.busy(current.context.owner()), "waiting for wakeup test cleanup");
+         // Publication shares this task's injected journal worker. Drain the
+         // controlled queue during cancellation as a real server worker would.
+         while (!current.io.isEmpty()) current.io.removeFirst().run();
+         HistorySystem.of(level.getServer()).tickWorld(level.getServer());
+         helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(current.context.owner()), "waiting for wakeup test cleanup");
          current.positions.forEach(pos -> level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2));
          active[0] = null;
          scenario[0]++;
@@ -96,13 +103,8 @@ public final class PlacementWakeupGameTests {
             resumes++;
             // Register only when the callback runs, so Post cannot service this fixture first.
             FastPlaceManager.addTaskForTest(owner.owner(), task);
-            try {
-               var resume = FastPlaceManager.class.getDeclaredMethod("resumeTask", WorldTaskContext.class, PlacementTask.class);
-               resume.setAccessible(true);
-               resume.invoke(null, owner, task);
-            } catch (ReflectiveOperationException exception) {
-               throw new IllegalStateException("Could not resume ordinary placement", exception);
-            }
+            FastPlaceManager.resumeTask(owner, task,
+               HistorySystem.of(level.getServer()));
             placedInResume = task.placed();
          });
       }

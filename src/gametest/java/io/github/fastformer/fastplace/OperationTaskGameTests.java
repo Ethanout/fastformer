@@ -1,7 +1,9 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
@@ -68,7 +70,7 @@ public final class OperationTaskGameTests {
             helper.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "copy changed its source");
             helper.assertTrue(level.getBlockState(pos.above()).is(Blocks.GOLD_BLOCK), "copy omitted a target");
          }
-         helper.assertTrue(WorldHistoryManager.commitPreparedOperation(context[0], task.preparedBatch(), task.journal()),
+         helper.assertTrue(HistorySystem.of((context[0]).server()).commitPreparedOperation(context[0], task.preparedBatch(), task.journal()),
             "completed selection could not publish history");
          task.releaseMemoryReservation();
          task.releaseCommittedTransactionState();
@@ -115,7 +117,7 @@ public final class OperationTaskGameTests {
             helper.assertTrue(level.getBlockState(origin.offset(index, 0, 0)).is(Blocks.GOLD_BLOCK),
                "overlapping move omitted target " + index);
          }
-         helper.assertTrue(WorldHistoryManager.commitPreparedOperation(context, task.preparedBatch(), task.journal()),
+         helper.assertTrue(HistorySystem.of((context).server()).commitPreparedOperation(context, task.preparedBatch(), task.journal()),
             "completed overlapping move could not publish history");
          task.releaseMemoryReservation();
          task.releaseCommittedTransactionState();

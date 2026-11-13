@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -123,7 +123,7 @@ class ClientPlayerSessionTest {
    @Test
    void switchingDimensionKeepsTheDraftStagedForTheLeftScope() {
       UUID playerId = UUID.randomUUID();
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       ClientPlayerSession overworld = manager.activateScope(playerId, "server-scope", "minecraft:overworld");
       overworld.operationWorkspace().addParts(java.util.List.of(
          ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
@@ -144,12 +144,28 @@ class ClientPlayerSessionTest {
    }
 
    @Test
-   void managerReusesTheSameSessionBoxForAPlayerIdentity() {
+   void emptyInactiveScopesAreReclaimedButUnsavedDraftsStay() {
       UUID playerId = UUID.randomUUID();
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
+      var first = manager.activateScope(playerId, "reclaim-empty", "minecraft:overworld");
+      manager.activateScope(playerId, "reclaim-empty", "minecraft:the_nether");
+      var replacement = manager.activateScope(playerId, "reclaim-empty", "minecraft:overworld");
+      org.junit.jupiter.api.Assertions.assertNotSame(first, replacement);
+      replacement.selectionSession().addDraftPoint(new BlockPos(1, 2, 3));
+      replacement.suspendOperationDraft(identity(BlockPos.ZERO));
+      manager.activateScope(playerId, "reclaim-empty", "minecraft:the_nether");
+      manager.reclaimInactiveScopes();
+      assertSame(replacement, manager.activateScope(playerId, "reclaim-empty", "minecraft:overworld"));
+      org.junit.jupiter.api.Assertions.assertTrue(replacement.suspendedOperationDraft());
+   }
 
-      ClientPlayerSession first = manager.forPlayer(playerId);
-      ClientPlayerSession second = manager.forPlayer(playerId);
+   @Test
+   void managerReusesTheSameSessionBoxWithinAScope() {
+      UUID playerId = UUID.randomUUID();
+      ClientSessionManager manager = new ClientSessionManager();
+
+      ClientPlayerSession first = manager.forScope(playerId, "session-reuse", "minecraft:overworld");
+      ClientPlayerSession second = manager.forScope(playerId, "session-reuse", "minecraft:overworld");
 
       assertSame(first, second);
    }
@@ -158,7 +174,7 @@ class ClientPlayerSessionTest {
    void managerIsolatesSessionBoxesByConnectionAndDimension() {
       UUID playerId = UUID.randomUUID();
 
-      ClientSessionManager manager = ClientSessionManager.instance();
+      ClientSessionManager manager = new ClientSessionManager();
       manager.activateScope(playerId, "server-a", "minecraft:overworld").selectionSession()
          .addDraftPoint(new net.minecraft.core.BlockPos(1, 2, 3));
       ClientPlayerSession overworld = manager.forScope(playerId, "server-a", "minecraft:overworld");

@@ -23,7 +23,7 @@ public final class OperationSubmissionReceiptCodec {
    /**
     * Receipts that this client reads from one file.
     *
-    * <p>This bound is larger than {@link #MAX_RECEIPTS} on purpose. An older client or a
+    * <p>This bound is larger than {@link #MAX_RECEIPTS} on purpose. A
     * damaged write can leave a larger file, and a refusal would make every receipt in it
     * unreadable. The client keeps such a file and reports the capacity problem instead of
     * losing the results that the file holds.</p>
@@ -92,9 +92,6 @@ public final class OperationSubmissionReceiptCodec {
       tag.putString("Dimension", receipt.dimension().toString());
       tag.putLong("RecordedAt", receipt.recordedAtMillis());
       if (receipt.outcome().applied()) {
-         // An applied record always writes the flag, both when it is true and when it is
-         // false. An absent flag then means one thing only: a file from an older client,
-         // which never confirmed a cleanup. An older reader ignores this key.
          tag.putBoolean("CleanupPending", receipt.needsCleanup());
       }
       if (receipt.identity() != null) {
@@ -120,13 +117,10 @@ public final class OperationSubmissionReceiptCodec {
       if (!hasTransferId) {
          throw new IOException("Submission receipt has no transfer id");
       }
-      // A file from an older client carries no cleanup flag. An applied record in such a
-      // file may still own a draft copy, because the older writer deleted that copy on a
-      // best-effort path. Treat it as pending, so the client clears the copy once at the
-      // next boundary. The cleanup is safe: it removes a draft only when that draft names
-      // this submission.
-      boolean cleanupPending = tag.contains("CleanupPending", Tag.TAG_BYTE)
-         ? tag.getBoolean("CleanupPending") : outcome.applied();
+      if (outcome.applied() && !tag.contains("CleanupPending", Tag.TAG_BYTE)) {
+         throw new IOException("Applied submission receipt has no cleanup state");
+      }
+      boolean cleanupPending = tag.getBoolean("CleanupPending");
       try {
          return new OperationSubmissionReceipt(
             tag.getUUID("TransferId"), origin, identity, dimension, outcome,

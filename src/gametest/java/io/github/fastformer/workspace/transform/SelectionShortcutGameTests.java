@@ -136,8 +136,13 @@ public final class SelectionShortcutGameTests {
       var legacy = OperationWorkspacePlanCodec.encode(plan);
       legacy.putInt("Version", 1);
       legacy.getList("Parts", net.minecraft.nbt.Tag.TAG_COMPOUND).forEach(tag -> ((net.minecraft.nbt.CompoundTag)tag).remove("Symmetry"));
-      helper.assertTrue(OperationWorkspacePlanCodec.decode(legacy, registry).parts().stream()
-         .allMatch(part -> part.transform().symmetry().equals(WorkspaceSymmetry.IDENTITY)), "legacy plans must use identity symmetry");
+      boolean rejected = false;
+      try {
+         OperationWorkspacePlanCodec.decode(legacy, registry);
+      } catch (java.io.IOException expected) {
+         rejected = true;
+      }
+      helper.assertTrue(rejected, "previous workspace plans must be rejected");
       helper.succeed();
    }
 

@@ -3,7 +3,7 @@ package io.github.fastformer.client.operation.input;
 import io.github.fastformer.client.session.OperationDraftIdentity;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 

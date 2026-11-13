@@ -1,6 +1,8 @@
 package io.github.fastformer.fastplace.geometry.raycast;
 
-import io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot;
+import io.github.fastformer.common.raycast.InteractionRaycastRules;
+
+import io.github.fastformer.common.raycast.InteractionShapeSnapshot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;

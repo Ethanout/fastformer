@@ -1,19 +1,20 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.fastplace.interaction.InteractionShapeSnapshot;
-import io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules;
+import io.github.fastformer.common.raycast.InteractionShapeSnapshot;
+import io.github.fastformer.fastplace.interaction.EntryDoubleClickTolerance;
+import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /** One physical right press can pair with one later press, never with a held-key repeat. */
 final class IdleEntryGesture {
-   static final long DOUBLE_PRESS_NANOS = io.github.fastformer.client.input.mouse.MouseButtonInputSemantics.ENTRY_DOUBLE_PRESS_NANOS;
    static final double MAX_VIEW_CHANGE_DEGREES = 2.0;
    static final double MAX_HIT_DISTANCE = 0.5;
    private static final double MIN_VIEW_DOT = Math.cos(Math.toRadians(MAX_VIEW_CHANGE_DEGREES));
    private long token;
    private long pressedAt;
    private InteractionShapeSnapshot snapshot;
+   private EntryDoubleClickTolerance tolerance;
    private Vec3 firstEye;
    private Vec3 firstView;
    private boolean tinker;
@@ -35,6 +36,7 @@ final class IdleEntryGesture {
       this.snapshot = snapshot;
       this.firstEye = eye;
       this.firstView = view.normalize();
+      this.tolerance = EntryDoubleClickTolerance.capture(snapshot, eye, this.firstView);
       tinker = false;
       this.environment = environment;
       this.item = item == null ? null : item.copy();
@@ -61,9 +63,9 @@ final class IdleEntryGesture {
    }
 
    Match secondPress(long now, Vec3 eye, Vec3 view) {
-      if (snapshot == null || now < pressedAt || now - pressedAt > DOUBLE_PRESS_NANOS) return null;
+      if (snapshot == null || now < pressedAt || now - pressedAt > tolerance.intervalNanos()) return null;
       // Clip only the frozen shape: intervening world blocks do not occlude it.
-      var secondHit = snapshot.clip(eye, view);
+      var secondHit = tolerance.clip(snapshot, eye, view);
       if (secondHit == null) return null;
       if (firstView.dot(view.normalize()) >= MIN_VIEW_DOT) return new Match(token, secondHit, rules, tinker);
       var firstHit = snapshot.clip(firstEye, firstView);
@@ -75,6 +77,7 @@ final class IdleEntryGesture {
       token = 0;
       pressedAt = 0;
       snapshot = null;
+      tolerance = null;
       firstEye = null;
       firstView = null;
       tinker = false;

@@ -1,10 +1,17 @@
 package io.github.fastformer.fastplace.interaction;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
+import io.github.fastformer.common.tinker.TinkerAction;
+import io.github.fastformer.common.tinker.data.TinkerPropertyRule;
+
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.Lifecycle;
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import java.util.List;
@@ -294,7 +301,7 @@ public final class TinkerPlanGameTests {
       }
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 5000);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 5000);
       var state = Blocks.CHEST.defaultBlockState();
       level.setBlock(pos, state, FLAGS);
       level.setBlock(pos.east(), state, FLAGS);
@@ -315,7 +322,7 @@ public final class TinkerPlanGameTests {
       });
    }
 
-   @GameTest(template = "fastformergametests.empty", batch = "tinker", timeoutTicks = 1200)
+   @GameTest(template = "fastformergametests.empty", batch = "tinker_piston_transaction", timeoutTicks = 1200)
    public static void pistonEditsAreBlockedByObstaclesAndUndoBothCells(GameTestHelper helper) {
       var level = helper.getLevel();
       var pos = helper.absolutePos(new BlockPos(2, 2, 2));
@@ -331,18 +338,19 @@ public final class TinkerPlanGameTests {
          == PistonType.STICKY, "piston head did not match its base");
       var player = helper.makeMockServerPlayerInLevel();
       player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, 5000);
-      helper.assertTrue(BlockTinker.tinker(player, level, action.changes(), FLAGS) == BlockEditTransaction.Outcome.APPLIED, "piston transaction failed");
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 5000);
+      var outcome = BlockTinker.tinker(player, level, action.changes(), FLAGS);
+      helper.assertTrue(outcome == BlockEditTransaction.Outcome.APPLIED, "piston transaction failed: " + outcome);
       var retract = BlockTinker.resolveAction(level, hit, false);
       helper.assertTrue(retract.changes().get(pos).equals(initial) && retract.changes().get(pos.east()).isAir(), "piston retraction changed direction or left its head");
       helper.assertTrue(retract.changes().keySet().iterator().next().equals(pos), "piston write order did not put the base first");
-      helper.assertTrue(WorldHistoryManager.requestUndo(player, 1), "piston undo refused");
+      helper.assertTrue(HistorySystem.of(player).requestUndo(player, 1), "piston undo refused");
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
          }
-         helper.assertTrue(!WorldHistoryManager.busy(player), "waiting for history");
+         helper.assertTrue(!HistorySystem.of(player).busy(player), "waiting for history");
          helper.assertTrue(level.getBlockState(pos).equals(initial) && level.getBlockState(pos.east()).isAir(), "undo did not restore both piston cells");
          helper.assertTrue(level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
             new net.minecraft.world.phys.AABB(pos).inflate(2)).isEmpty(), "piston undo created extra drops");

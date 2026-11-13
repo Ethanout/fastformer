@@ -20,9 +20,9 @@ class SelectionStackTest {
       for (var mode : OperationSelectionMode.values()) {
          reset();
          assertTrue(ClientOperationController.synchronize(
-            io.github.fastformer.network.payload.operation.OperationPreviewPayload.inactive(0)));
+            io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.inactive(0)));
          ClientOperationController.onClientTick();
-         var preview = io.github.fastformer.network.payload.operation.OperationPreviewPayload.active(
+         var preview = io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.active(
             1L, false, true, List.of(A), BlockPos.ZERO, BlockPos.ZERO, mode, 0, -1, 0,
             io.github.fastformer.fastplace.selection.OperationMode.MOVE,
             io.github.fastformer.fastplace.selection.OperationStageMode.TRANSFORM,

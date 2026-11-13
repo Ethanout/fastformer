@@ -1,7 +1,7 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.network.payload.world.HistoryConflictPayload;
-import io.github.fastformer.network.payload.world.HistoryConflictResponsePayload;
+import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
+import io.github.fastformer.protocol.c2s.world.HistoryConflictResponsePayload;
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.network.PacketDistributor;
 

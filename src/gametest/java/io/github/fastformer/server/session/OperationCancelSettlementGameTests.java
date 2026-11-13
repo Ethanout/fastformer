@@ -1,9 +1,11 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
@@ -83,7 +85,7 @@ public final class OperationCancelSettlementGameTests {
                OperationManager.cancelTask(player) == TaskCancellationResult.NOT_ACTIVE,
                "a second cancel found a task"
             );
-            OperationManager.handOverBlockedTasks(server);
+            OperationManager.handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
             helper.assertTrue(
                WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.FAILED_RETRYABLE,
@@ -155,7 +157,7 @@ public final class OperationCancelSettlementGameTests {
                OperationManager.cancelTask(player) == TaskCancellationResult.NOT_ACTIVE,
                "a second cancel found a task"
             );
-            OperationManager.handOverBlockedTasks(server);
+            OperationManager.handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
             helper.assertTrue(
                WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.RECOVERY_REQUIRED,
@@ -169,8 +171,8 @@ public final class OperationCancelSettlementGameTests {
             );
             helper.assertFalse(replay.retryable(), "a recovery cancel offered a retry");
          });
-         WorldHistoryManager.tickWorld(server);
-         helper.assertTrue(!WorldHistoryManager.busy(player.getUUID()), "waiting for recovery to finish");
+         HistorySystem.of(server).tickWorld(server);
+         helper.assertTrue(!HistorySystem.of(player).busy(player.getUUID()), "waiting for recovery to finish");
          helper.assertTrue(level.getBlockState(pos).is(Blocks.STONE), "recovery did not restore the original block");
          helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
          WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
@@ -257,15 +259,15 @@ public final class OperationCancelSettlementGameTests {
                OperationManager.cancelTask(player) == TaskCancellationResult.NOT_ACTIVE,
                "a later cancel found a task after the restored cancel"
             );
-            OperationManager.handOverBlockedTasks(server);
+            OperationManager.handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
             helper.assertTrue(
                WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.RECOVERY_REQUIRED,
                "a later handover replaced the restored cancel result"
             );
          });
-         WorldHistoryManager.tickWorld(server);
-         helper.assertTrue(!WorldHistoryManager.busy(player.getUUID()), "waiting for recovery to finish");
+         HistorySystem.of(server).tickWorld(server);
+         helper.assertTrue(!HistorySystem.of(player).busy(player.getUUID()), "waiting for recovery to finish");
          helper.assertTrue(level.getBlockState(pos).is(Blocks.STONE), "recovery did not restore the original block");
          helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
          WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
@@ -295,7 +297,7 @@ public final class OperationCancelSettlementGameTests {
             );
          });
          if (OperationManager.transferActive(player.getUUID(), transferId)) {
-            OperationManager.tickWorld(server);
+            OperationManager.tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server));
             java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
             helper.assertTrue(false, "waiting for the queued workspace to finish");
          }
@@ -309,7 +311,7 @@ public final class OperationCancelSettlementGameTests {
             OperationManager.cancelTask(player) == TaskCancellationResult.NOT_ACTIVE,
             "cancel after completion found a task"
          );
-         OperationManager.handOverBlockedTasks(server);
+         OperationManager.handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
          helper.assertTrue(
             WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
                == OperationSubmissionOutcome.APPLIED,
@@ -324,7 +326,7 @@ public final class OperationCancelSettlementGameTests {
    private static boolean admissionBlocked(ServerPlayer player) {
       return OperationManager.taskBusy(player)
          || FastPlaceManager.taskBusy(player)
-         || WorldHistoryManager.busy(player)
+         || HistorySystem.of(player).busy(player)
          || WorldWriteCoordinator.busy(player.getServer(), player.serverLevel().dimension());
    }
 

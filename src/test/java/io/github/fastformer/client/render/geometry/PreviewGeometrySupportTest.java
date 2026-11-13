@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import java.util.List;
 import java.util.Set;
@@ -27,18 +26,6 @@ class PreviewGeometrySupportTest {
       assertEquals(Set.of(first), PreviewGeometrySupport.unionBlocks(Set.of(first), Set.of()));
       Set<BlockPos> empty = Set.of();
       assertSame(empty, PreviewGeometrySupport.withoutBlocks(empty, Set.of(second)));
-   }
-
-   @Test
-   void localAxisRotationUsesEulerRotationOrder() {
-      Vec3 rotated = PreviewGeometrySupport.rotateLocalAxis(
-         AxisGizmo.Axis.X,
-         new Vec3(0.0, 0.0, Math.PI * 0.5)
-      );
-
-      assertEquals(0.0, rotated.x, 1.0E-9);
-      assertEquals(1.0, rotated.y, 1.0E-9);
-      assertEquals(0.0, rotated.z, 1.0E-9);
    }
 
    @Test

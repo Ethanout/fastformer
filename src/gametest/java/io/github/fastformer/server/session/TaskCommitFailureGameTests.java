@@ -1,10 +1,12 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
@@ -64,7 +66,7 @@ public final class TaskCommitFailureGameTests {
          }
          service(level, task[0]);
          helper.assertTrue(!active(owner[0]), "waiting for journal failure");
-         helper.assertTrue(!WorldHistoryManager.busy(owner[0]), "unwritten task created recovery");
+         helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner[0]), "unwritten task created recovery");
          helper.assertTrue(level.getBlockState(target).is(Blocks.STONE), "journal failure wrote without WAL");
          assertReleased(helper, level, baseline);
          task[0] = null;
@@ -100,11 +102,11 @@ public final class TaskCommitFailureGameTests {
             register(context[0].owner(), task[0]);
             service(level, task[0]);
             helper.assertTrue(!active(context[0].owner()), "failed publication retained writer");
-            helper.assertTrue(WorldHistoryManager.busy(context[0].owner()), "failed publication did not create recovery");
+            helper.assertTrue(HistorySystem.of(helper.getLevel().getServer()).busy(context[0].owner()), "failed publication did not create recovery");
             injected[0] = true;
          }
-         WorldHistoryManager.tickWorld(level.getServer());
-         helper.assertTrue(!WorldHistoryManager.busy(context[0].owner()), "waiting for publication failure recovery");
+         HistorySystem.of(level.getServer()).tickWorld(level.getServer());
+         helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(context[0].owner()), "waiting for publication failure recovery");
          helper.assertTrue(level.getBlockState(target).is(Blocks.STONE), "publication failure did not restore original");
          assertReleased(helper, level, baseline);
          task[0] = null;
@@ -211,8 +213,8 @@ public final class TaskCommitFailureGameTests {
    }
 
    private static void service(ServerLevel level, Object task) {
-      if (task instanceof PlacementTask) FastPlaceManager.tickWorld(level.getServer());
-      else OperationManager.tickWorld(level.getServer());
+      if (task instanceof PlacementTask) FastPlaceManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+      else OperationManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
    }
 
    private static void assertReleased(GameTestHelper helper, ServerLevel level, long baseline) {

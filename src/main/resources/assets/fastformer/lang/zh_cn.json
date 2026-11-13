@@ -1,4 +1,5 @@
 {
+  "fastformer.option.hold_line": "长按右键画线",
   "fastformer.settings.operation_category.flight": "飞行",
   "fastformer.settings.flight_dash_distance": "双击 W 飞行突进距离",
   "fastformer.settings.flight_dash_distance.value": "%s 格",

@@ -3,7 +3,7 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
-import io.github.fastformer.network.payload.placement.IdleSelectionEntryResultPayload;
+import io.github.fastformer.protocol.s2c.placement.IdleSelectionEntryResultPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 

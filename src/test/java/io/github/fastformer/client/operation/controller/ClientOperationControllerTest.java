@@ -17,7 +17,7 @@ import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationStageMode;
-import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
+import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +28,30 @@ import org.junit.jupiter.api.Test;
 import sun.misc.Unsafe;
 
 class ClientOperationControllerTest {
+   @Test
+   void disconnectClearsTransientSubmissionAndResizeState() throws Exception {
+      ClientOperationController.onDisconnected();
+      setStaticField("submittedPartIds", Set.of(7));
+      setStaticField("submittedDraft", true);
+      setStaticField("resizeFinishRequested", true);
+      ClientOperationController.onDisconnected();
+      assertNull(staticField("submittedPartIds"));
+      assertEquals(false, staticField("submittedDraft"));
+      assertEquals(false, staticField("resizeFinishRequested"));
+   }
+
+   private static Object staticField(String name) throws Exception {
+      Field field = ClientOperationController.class.getDeclaredField(name);
+      field.setAccessible(true);
+      return field.get(null);
+   }
+
+   private static void setStaticField(String name, Object value) throws Exception {
+      Field field = ClientOperationController.class.getDeclaredField(name);
+      field.setAccessible(true);
+      field.set(null, value);
+   }
+
    @Test
    void withdrawingTheOnlyDraftPointEndsTheSelectionSessionAndUndoRestoresIt() {
       ClientOperationController.onDisconnected();
@@ -128,7 +152,7 @@ class ClientOperationControllerTest {
          ClientOperationController.workspace().setLocked(true);
 
          ClientOperationController.applyWorkspaceResult(
-            new io.github.fastformer.network.payload.operation.OperationWorkspaceResultPayload(
+            new io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload(
                transferId, true, List.of()));
 
          assertEquals(0, ClientOperationController.workspace().size());

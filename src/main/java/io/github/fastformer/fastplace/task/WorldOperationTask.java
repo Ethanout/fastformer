@@ -1,8 +1,8 @@
 package io.github.fastformer.fastplace.task;
 
-import io.github.fastformer.fastplace.history.WorldChangeBatch;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
@@ -15,7 +15,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 
 /** A UUID-owned server task that validates and atomically changes one world. */
-public interface WorldOperationTask {
+public interface WorldOperationTask extends WorldWriteTask {
    OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget);
 
    String phaseName();

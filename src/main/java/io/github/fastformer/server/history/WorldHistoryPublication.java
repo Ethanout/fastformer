@@ -1,0 +1,114 @@
+package io.github.fastformer.server.history;
+
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
+
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import io.github.fastformer.core.async.AsyncTasks;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+
+/**
+ * Builds the compact undo/redo record after the recovery journal is durable.
+ * This object owns history publication only; it never decides whether world
+ * writes are allowed or whether a failed write needs recovery.
+ */
+public final class WorldHistoryPublication {
+   private final CompletableFuture<Optional<WorldChangeBatch>> future;
+   private final AtomicBoolean cancelled;
+   private final AtomicBoolean prepared;
+
+   private WorldHistoryPublication(
+      CompletableFuture<Optional<WorldChangeBatch>> future,
+      AtomicBoolean cancelled,
+      AtomicBoolean prepared
+   ) {
+      this.future = future;
+      this.cancelled = cancelled;
+      this.prepared = prepared;
+   }
+
+   public static WorldHistoryPublication afterJournal(
+      CompletableFuture<Boolean> journalReady,
+      ResourceKey<Level> dimension,
+      Collection<ReversibleBlockSnapshot> before,
+      Map<BlockPos, ReversibleBlockSnapshot> after,
+      BooleanSupplier cancelled,
+      Executor executor
+   ) {
+      AtomicBoolean cancelledState = new AtomicBoolean();
+      AtomicBoolean prepared = new AtomicBoolean();
+      BooleanSupplier cancellation = cancelled == null ? () -> false : cancelled;
+      CompletableFuture<Optional<WorldChangeBatch>> future = journalReady.thenCompose(
+         ready -> AsyncTasks.submit(executor, () -> {
+            if (!ready || cancellation.getAsBoolean() || cancelledState.get()) {
+               return Optional.empty();
+            }
+            Optional<WorldChangeBatch> batch = WorldChangeBatch.capturePairsByPos(dimension, before, after);
+            if (cancellation.getAsBoolean() || cancelledState.get()) {
+               return Optional.empty();
+            }
+            prepared.set(true);
+            return batch;
+         })
+      );
+      return new WorldHistoryPublication(future, cancelledState, prepared);
+   }
+
+   public JournalPreparation poll() {
+      if (!this.future.isDone()) {
+         return JournalPreparation.PENDING;
+      }
+      try {
+         this.future.join();
+         return this.prepared.get() && !this.cancelled.get()
+            ? JournalPreparation.READY : JournalPreparation.FAILED;
+      } catch (RuntimeException exception) {
+         return JournalPreparation.FAILED;
+      }
+   }
+
+   public Optional<WorldChangeBatch> batch() {
+      return this.future.join();
+   }
+
+   public void cancel() {
+      this.cancelled.set(true);
+   }
+
+   public CompletableFuture<Void> stopForRecovery() {
+      this.cancelled.set(true);
+      return this.future.handle((ignored, exception) -> null);
+   }
+
+   public CompletableFuture<Void> completion() {
+      return this.future.handle((ignored, exception) -> null);
+   }
+
+   public static CompletableFuture<Optional<WorldChangeBatch>> prepare(
+      CompletableFuture<Boolean> journalReady,
+      Supplier<Optional<WorldChangeBatch>> batchSupplier,
+      BooleanSupplier cancelled,
+      Executor executor
+   ) {
+      BooleanSupplier cancellation = cancelled == null ? () -> false : cancelled;
+      return journalReady.thenCompose(
+         ready -> AsyncTasks.submit(executor, () -> {
+            if (!ready || cancellation.getAsBoolean()) {
+               return Optional.empty();
+            }
+            Optional<WorldChangeBatch> batch = batchSupplier.get();
+            return cancellation.getAsBoolean() ? Optional.empty() : batch;
+         })
+      );
+   }
+}

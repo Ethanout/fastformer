@@ -1,9 +1,9 @@
 package io.github.fastformer.fastplace.interaction;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.TinkerHistoryGroupingRules;
-import io.github.fastformer.fastplace.history.TinkerHistoryGroupingRules.KeyPart;
-import io.github.fastformer.fastplace.history.TinkerHistoryTags;
+import io.github.fastformer.server.history.compaction.TinkerHistoryGroupingRules;
+import io.github.fastformer.server.history.compaction.TinkerHistoryGroupingRules.KeyPart;
+import io.github.fastformer.server.history.compaction.TinkerHistoryTags;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

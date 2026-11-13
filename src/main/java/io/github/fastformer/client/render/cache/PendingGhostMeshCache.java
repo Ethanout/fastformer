@@ -3,11 +3,9 @@ package io.github.fastformer.client.render.cache;
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
 import io.github.fastformer.fastplace.geometry.BlockPositionSets;
 import io.github.fastformer.client.render.model.PendingGhostMesh;
-import io.github.fastformer.client.render.model.PendingMeshResult;
+import io.github.fastformer.core.async.LatestOnlyTask;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -25,8 +23,7 @@ public final class PendingGhostMeshCache {
    private final LongSupplier clock;
    private Set<BlockPos> blocks = Set.of();
    private PendingGhostMesh mesh = PendingGhostMesh.empty();
-   private Future<PendingMeshResult> future;
-   private long version;
+   private final LatestOnlyTask<Set<BlockPos>, PendingGhostMesh> generation = new LatestOnlyTask<>();
    private boolean failed;
    private long retryAtNanos;
    private long retryDelayNanos = INITIAL_RETRY_DELAY_NANOS;
@@ -54,11 +51,10 @@ public final class PendingGhostMeshCache {
    public PendingGhostMesh mesh(Set<BlockPos> requestedBlocks) {
       if (this.blocks != requestedBlocks && !this.blocks.equals(requestedBlocks)) {
          rememberRequestedBlocks(requestedBlocks);
-         this.version++;
-         cancelFuture();
+         generation.cancel();
          clearFailure();
          submitCurrentBlocks();
-      } else if (this.failed && this.future == null && this.clock.getAsLong() - this.retryAtNanos >= 0L) {
+      } else if (this.failed && !generation.pending() && this.clock.getAsLong() - this.retryAtNanos >= 0L) {
          submitCurrentBlocks();
       }
       publishCompletedMesh();
@@ -66,13 +62,12 @@ public final class PendingGhostMeshCache {
    }
 
    public void clearPreview() {
-      if (this.blocks.isEmpty() && this.mesh.gridEdges().isEmpty() && this.future == null && !this.failed) {
+      if (this.blocks.isEmpty() && this.mesh.gridEdges().isEmpty() && !generation.pending() && !this.failed) {
          return;
       }
       this.blocks = Set.of();
       this.mesh = PendingGhostMesh.empty();
-      this.version++;
-      cancelFuture();
+      generation.cancel();
       clearFailure();
    }
 
@@ -90,15 +85,8 @@ public final class PendingGhostMeshCache {
          return;
       }
       this.mesh = PendingGhostMesh.empty();
-      long requestedVersion = this.version;
       Set<BlockPos> blocksSnapshot = this.blocks;
-      try {
-         this.future = this.executor.submit(
-            () -> new PendingMeshResult(requestedVersion, this.builder.apply(blocksSnapshot))
-         );
-      } catch (RejectedExecutionException exception) {
-         rememberFailure(exception);
-      }
+      generation.start(blocksSnapshot, () -> this.builder.apply(blocksSnapshot), executor);
    }
 
    private void buildSynchronously() {
@@ -115,30 +103,13 @@ public final class PendingGhostMeshCache {
    }
 
    private void publishCompletedMesh() {
-      if (this.future == null || !this.future.isDone()) {
-         return;
-      }
-      try {
-         PendingMeshResult result = this.future.get();
-         if (result.version() == this.version) {
-            this.mesh = result.mesh();
-            clearFailure();
-         }
-      } catch (CancellationException ignored) {
-         rememberFailure(null);
-      } catch (InterruptedException exception) {
-         Thread.currentThread().interrupt();
-      } catch (java.util.concurrent.ExecutionException exception) {
-         Throwable cause = exception.getCause();
-         if (cause instanceof CancellationException) {
-            rememberFailure(null);
-            return;
-         }
-         rememberFailure(cause);
+      generation.drain(completion -> {
+         this.mesh = completion.value();
+         clearFailure();
+      }, failure -> {
+         rememberFailure(failure instanceof CancellationException ? null : failure);
          this.mesh = PendingGhostMesh.empty();
-      } finally {
-         this.future = null;
-      }
+      });
    }
 
    private void rememberFailure(Throwable failure) {
@@ -157,14 +128,4 @@ public final class PendingGhostMeshCache {
       this.retryDelayNanos = INITIAL_RETRY_DELAY_NANOS;
    }
 
-   private void cancelFuture() {
-      if (this.future != null) {
-         Future<PendingMeshResult> cancelled = this.future;
-         this.future = null;
-         cancelled.cancel(true);
-         if (cancelled instanceof Runnable task) {
-            this.executor.remove(task);
-         }
-      }
-   }
 }

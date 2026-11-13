@@ -1,22 +1,22 @@
 package io.github.fastformer.client.render.state;
 
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.Optional;
 
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
-import io.github.fastformer.network.payload.geometry.GeometryPreviewPayload;
-import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
-import io.github.fastformer.network.payload.preview.ActivityStatePayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewEffectPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewParametersPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewSessionPayload;
+import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
+import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
+import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
+import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
 import java.util.Objects;
 
 /** Owns the latest server preview snapshots shown by the client renderer. */
 public final class ClientPreviewState {
-   private BuildingPreviewPayload building = BuildingPreviewPayload.inactive();
+   private BuildingPreviewSnapshot building = BuildingPreviewSnapshot.inactive();
    private BuildingPreviewSessionPayload buildingSession = new BuildingPreviewSessionPayload(building.session());
    private BuildingPreviewParametersPayload buildingParameters = new BuildingPreviewParametersPayload(building.parameters());
    private BuildingPreviewEffectPayload buildingEffect = new BuildingPreviewEffectPayload(building.activePlacementEffect());
@@ -30,22 +30,19 @@ public final class ClientPreviewState {
    private long buildingParametersRevision;
    private long buildingEffectRevision;
    private QuickShapeSubmissionSnapshot buildingSubmission;
-   private io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload submissionParameters;
+   private io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload submissionParameters;
    private long geometryRevision = -1L;
    private long activityRevision = -1L;
-   /** Ticks an unanswered connection boundary waits before it is dropped. */
-   private static final int RECONNECT_BOUNDARY_IDLE_TICKS = 40;
-   private boolean reconnectRestoreArmed;
+   private final io.github.fastformer.client.session.reconnect.ReconnectSnapshotWindow reconnectBoundary =
+      new io.github.fastformer.client.session.reconnect.ReconnectSnapshotWindow();
    private boolean reconnectRestorePending;
-   private boolean reconnectBoundarySawSnapshot;
-   private int reconnectBoundaryIdleTicks;
    private long reconnectRestoreRevision = Long.MIN_VALUE;
    private BuildingPreviewSessionPayload heldReconnectBuildingSession;
    private BuildingPreviewParametersPayload heldReconnectBuildingParameters;
    private BuildingPreviewEffectPayload heldReconnectBuildingEffect;
    private GeometryPreviewPayload heldReconnectGeometry;
 
-   public BuildingPreviewPayload building() {
+   public BuildingPreviewSnapshot building() {
       return building;
    }
 
@@ -61,7 +58,7 @@ public final class ClientPreviewState {
 
    public Optional<BuildingPreviewSessionPayload> idleBuildingSession() {
       return !buildingSession.value().active() && buildingSessionRevision > 0
-         && !buildingSession.callbackScope().equals(io.github.fastformer.network.payload.operation.OperationCallbackScope.unscoped())
+         && !buildingSession.callbackScope().equals(io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped())
          && buildingSessionRevision == buildingParametersRevision
          && buildingSessionRevision == buildingEffectRevision
          && buildingSession.callbackScope().equals(buildingParameters.callbackScope())
@@ -69,15 +66,21 @@ public final class ClientPreviewState {
          ? Optional.of(buildingSession) : Optional.empty();
    }
 
+   public net.minecraft.resources.ResourceLocation buildingProfile() {
+      return building.active() && buildingSessionRevision == buildingParametersRevision
+         && buildingSessionRevision == buildingEffectRevision ? buildingSession.value().profile()
+         : io.github.fastformer.common.interaction.binding.SessionProfiles.NONE;
+   }
+
    public void applyQuickShapeSubmissionParameters(
-      io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload payload
+      io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload payload
    ) {
       if (submissionParameters == null || payload.revision() >= submissionParameters.revision()) {
          submissionParameters = payload;
       }
    }
 
-   public Optional<io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload> submissionParameters(
+   public Optional<io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload> submissionParameters(
       QuickShapeSubmissionSnapshot snapshot
    ) {
       return submissionParameters != null && submissionParameters.revision() == snapshot.revision()
@@ -108,7 +111,7 @@ public final class ClientPreviewState {
       return geometryVersion;
    }
 
-   public void applyBuilding(BuildingPreviewPayload payload) {
+   public void applyBuilding(BuildingPreviewSnapshot payload) {
       payload = Objects.requireNonNull(payload, "payload");
       long revisionWatermark = Math.max(
          this.buildingSessionRevision,
@@ -151,7 +154,7 @@ public final class ClientPreviewState {
       buildingEffectRevision = 0L;
       geometryRevision = -1L;
       activityRevision = -1L;
-      applyBuilding(BuildingPreviewPayload.inactive());
+      applyBuilding(BuildingPreviewSnapshot.inactive());
       applyOperation(OperationPreviewPayload.inactive());
       applyGeometry(GeometryPreviewPayload.inactive());
       applyActivity(new ActivityStatePayload(FastPlaceActivity.NONE));
@@ -164,10 +167,8 @@ public final class ClientPreviewState {
     * The replayed active snapshot stays hidden until the player confirms it.
     */
    public void beginReconnectRestore() {
-      reconnectRestoreArmed = true;
+      reconnectBoundary.arm();
       reconnectRestorePending = false;
-      reconnectBoundarySawSnapshot = false;
-      reconnectBoundaryIdleTicks = 0;
       reconnectRestoreRevision = Long.MIN_VALUE;
       clearHeldReconnectPreviews();
    }
@@ -181,19 +182,7 @@ public final class ClientPreviewState {
     * A snapshot already waiting for the player's answer stays held.
     */
    public void tickReconnectBoundary() {
-      if (!reconnectRestoreArmed) {
-         return;
-      }
-      if (reconnectBoundarySawSnapshot) {
-         reconnectRestoreArmed = false;
-         reconnectBoundarySawSnapshot = false;
-         reconnectBoundaryIdleTicks = 0;
-         return;
-      }
-      if (++reconnectBoundaryIdleTicks >= RECONNECT_BOUNDARY_IDLE_TICKS) {
-         reconnectRestoreArmed = false;
-         reconnectBoundaryIdleTicks = 0;
-      }
+      reconnectBoundary.tick();
    }
 
    /** Returns true when a replayed preview part must wait for the player's confirmation. */
@@ -207,10 +196,10 @@ public final class ClientPreviewState {
          heldReconnectBuildingSession = payload;
          return true;
       }
-      if (!reconnectRestoreArmed) {
+      if (!reconnectBoundary.armed()) {
          return false;
       }
-      reconnectBoundarySawSnapshot = true;
+      reconnectBoundary.observeSnapshot();
       if (!payload.value().active()) {
          return false;
       }
@@ -256,10 +245,10 @@ public final class ClientPreviewState {
          heldReconnectGeometry = payload;
          return true;
       }
-      if (!reconnectRestoreArmed) {
+      if (!reconnectBoundary.armed()) {
          return false;
       }
-      reconnectBoundarySawSnapshot = true;
+      reconnectBoundary.observeSnapshot();
       if (!payload.active()) {
          return false;
       }
@@ -284,10 +273,8 @@ public final class ClientPreviewState {
    }
 
    public void dismissReconnectRestore() {
-      reconnectRestoreArmed = false;
+      reconnectBoundary.clear();
       reconnectRestorePending = false;
-      reconnectBoundarySawSnapshot = false;
-      reconnectBoundaryIdleTicks = 0;
       reconnectRestoreRevision = Long.MIN_VALUE;
       clearHeldReconnectPreviews();
    }
@@ -298,8 +285,7 @@ public final class ClientPreviewState {
     */
    private void clearPendingReconnectRestore() {
       reconnectRestorePending = false;
-      reconnectBoundarySawSnapshot = false;
-      reconnectBoundaryIdleTicks = 0;
+      reconnectBoundary.restartWait();
       reconnectRestoreRevision = Long.MIN_VALUE;
       clearHeldReconnectPreviews();
    }
@@ -339,32 +325,7 @@ public final class ClientPreviewState {
       var sessionValue = buildingSession.value();
       var parameterValue = buildingParameters.value();
       var effectValue = buildingEffect.value();
-      building = new BuildingPreviewPayload(
-         sessionValue.enabled(),
-         sessionValue.middleConfirmEnabled(),
-         sessionValue.active(),
-         sessionValue.ctrlHeld(),
-         sessionValue.polygonClosed(),
-         sessionValue.polygonHeightConfirmed(),
-         sessionValue.polygonVolumeShape(),
-         sessionValue.points(),
-         parameterValue.angleDistance(),
-         sessionValue.freeScrollOffset(),
-         parameterValue.faceBaseOffset(),
-         parameterValue.volumeBaseOffset(),
-         parameterValue.perpendicularAnchor(),
-         parameterValue.angleDegrees(),
-         parameterValue.pointMode(),
-         parameterValue.raycastPlacement(),
-         parameterValue.lineMode(),
-         parameterValue.faceMode(),
-         parameterValue.volumeMode(),
-         parameterValue.fillMode(),
-         parameterValue.faceTieBias(),
-         parameterValue.faceRasterizationMode(),
-         sessionValue.placementContext(),
-         effectValue.activeEffect()
-      );
+      building = BuildingPreviewSnapshot.combine(sessionValue, parameterValue, effectValue);
       var scope = buildingSession.callbackScope();
       buildingSubmission = building.active() && buildingSessionRevision > 0
          && !scope.equals(OperationCallbackScope.unscoped())

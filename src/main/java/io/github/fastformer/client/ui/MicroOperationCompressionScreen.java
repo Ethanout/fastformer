@@ -1,9 +1,9 @@
 package io.github.fastformer.client.ui;
 
 import io.github.fastformer.fastplace.geometry.GeometryPalette;
-import io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits;
-import io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits.Setting;
-import io.github.fastformer.fastplace.history.TinkerHistoryMergeLimits.Tier;
+import io.github.fastformer.common.history.HistoryCompressionLimits;
+import io.github.fastformer.common.history.CompressionSetting;
+import io.github.fastformer.common.history.CompressionTier;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -19,15 +19,15 @@ import net.minecraft.network.chat.Component;
 final class MicroOperationCompressionScreen extends Screen {
    private static final int FIELD_WIDTH = 40;
    private final Screen parent;
-   private final BiConsumer<Setting, Integer> save;
-   private final EnumMap<Setting, EditBox> fields = new EnumMap<>(Setting.class);
+   private final BiConsumer<CompressionSetting, Integer> save;
+   private final EnumMap<CompressionSetting, EditBox> fields = new EnumMap<>(CompressionSetting.class);
    private final List<Label> labels = new ArrayList<>();
-   private TinkerHistoryMergeLimits limits;
+   private HistoryCompressionLimits limits;
    private int firstRow;
 
    private record Label(Component text, int x, int y, boolean wrap) { }
 
-   MicroOperationCompressionScreen(Screen parent, TinkerHistoryMergeLimits limits, BiConsumer<Setting, Integer> save) {
+   MicroOperationCompressionScreen(Screen parent, HistoryCompressionLimits limits, BiConsumer<CompressionSetting, Integer> save) {
       super(Component.translatable("fastformer.settings.tinker_history_merge"));
       this.parent = parent;
       this.limits = limits;
@@ -37,20 +37,20 @@ final class MicroOperationCompressionScreen extends Screen {
    @Override protected void init() {
       fields.clear();
       labels.clear();
-      firstRow = Math.clamp(firstRow, 0, Tier.values().length - visibleRows());
+      firstRow = Math.clamp(firstRow, 0, CompressionTier.values().length - visibleRows());
       for (int index = firstRow; index < Math.min(3, firstRow + visibleRows()); index++) {
-         addTier(Tier.values()[index], rowTop() + (index - firstRow) * rowHeight());
+         addTier(CompressionTier.values()[index], rowTop() + (index - firstRow) * rowHeight());
       }
       int buttonWidth = Math.min(150, (panelWidth() - 8) / 2);
       addRenderableWidget(Button.builder(Component.translatable("controls.reset"), button -> {
-         apply(TinkerHistoryMergeLimits.DEFAULTS);
+         apply(HistoryCompressionLimits.DEFAULTS);
          rebuildWidgets();
       }).bounds(width / 2 - buttonWidth - 4, height - 28, buttonWidth, 20).build());
       addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> onClose())
          .bounds(width / 2 + 4, height - 28, buttonWidth, 20).build());
    }
 
-   private void addTier(Tier tier, int y) {
+   private void addTier(CompressionTier tier, int y) {
       int x = label(Component.translatable(tier.translationKey()), left(), y + 5);
       x = number(tier.afterSetting(), x, y);
       x = label(text("after"), x, y + 5);
@@ -61,7 +61,7 @@ final class MicroOperationCompressionScreen extends Screen {
       x = label(text("every"), x, y + 5);
       x = number(tier.groupSetting(), x, y);
       label(text("records"), x, y + 5);
-      if (tier != Tier.RECENT) labels.add(new Label(text(tier == Tier.OLDER ? "recent_record" : "older_record"), left(), y + 27, true));
+      if (tier != CompressionTier.RECENT) labels.add(new Label(text(tier == CompressionTier.OLDER ? "recent_record" : "older_record"), left(), y + 27, true));
    }
 
    private int label(Component text, int x, int y) {
@@ -69,7 +69,7 @@ final class MicroOperationCompressionScreen extends Screen {
       return x + font.width(text) + 3;
    }
 
-   private int number(Setting setting, int x, int y) {
+   private int number(CompressionSetting setting, int x, int y) {
       var field = new EditBox(font, x, y, FIELD_WIDTH, 20, title);
       field.setMaxLength(5);
       field.setFilter(value -> value.isEmpty() || value.chars().allMatch(character -> character >= '0' && character <= '9'));
@@ -80,24 +80,24 @@ final class MicroOperationCompressionScreen extends Screen {
       return x + FIELD_WIDTH + 3;
    }
 
-   private int value(Setting setting) {
+   private int value(CompressionSetting setting) {
       var field = fields.get(setting);
       return field == null || field.getValue().isEmpty() ? limits.value(setting) : Integer.parseInt(field.getValue());
    }
 
    private void saveFields() {
-      apply(new TinkerHistoryMergeLimits(value(Setting.RECENT_AFTER), value(Setting.RECENT_GROUP),
-         value(Setting.OLDER_AFTER), value(Setting.OLDER_GROUP), value(Setting.OLDEST_AFTER), value(Setting.OLDEST_GROUP)));
+      apply(new HistoryCompressionLimits(value(CompressionSetting.RECENT_AFTER), value(CompressionSetting.RECENT_GROUP),
+         value(CompressionSetting.OLDER_AFTER), value(CompressionSetting.OLDER_GROUP), value(CompressionSetting.OLDEST_AFTER), value(CompressionSetting.OLDEST_GROUP)));
    }
 
-   private void apply(TinkerHistoryMergeLimits target) {
+   private void apply(HistoryCompressionLimits target) {
       // Expand upper bounds first so saving several edited thresholds cannot truncate a lower one.
-      update(Setting.OLDEST_AFTER, Math.max(limits.oldestAfter(), target.oldestAfter()));
-      update(Setting.OLDER_AFTER, Math.max(limits.olderAfter(), target.olderAfter()));
-      for (var setting : Setting.values()) update(setting, target.value(setting));
+      update(CompressionSetting.OLDEST_AFTER, Math.max(limits.oldestAfter(), target.oldestAfter()));
+      update(CompressionSetting.OLDER_AFTER, Math.max(limits.olderAfter(), target.olderAfter()));
+      for (var setting : CompressionSetting.values()) update(setting, target.value(setting));
    }
 
-   private void update(Setting setting, int value) {
+   private void update(CompressionSetting setting, int value) {
       var updated = limits.with(setting, value);
       if (!updated.equals(limits)) {
          limits = updated;
@@ -151,7 +151,7 @@ final class MicroOperationCompressionScreen extends Screen {
    private int left() { return (width - panelWidth()) / 2; }
    private boolean wrapped() {
       int widestPrefix = 0;
-      for (var tier : Tier.values()) widestPrefix = Math.max(widestPrefix, font.width(Component.translatable(tier.translationKey())));
+      for (var tier : CompressionTier.values()) widestPrefix = Math.max(widestPrefix, font.width(Component.translatable(tier.translationKey())));
       return widestPrefix + 2 * FIELD_WIDTH + font.width(text("after")) + font.width(text("every"))
          + font.width(text("records")) + 18 > panelWidth();
    }

@@ -3,13 +3,13 @@ package io.github.fastformer.client.quickshape;
 import io.github.fastformer.client.input.ClientInteractionFeedback;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectContext;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
 import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.network.payload.preview.QuickShapeSubmissionParametersPayload;
+import io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload;
 import java.util.concurrent.ForkJoinPool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
@@ -37,7 +37,7 @@ public final class QuickShapeSubmissionController {
    public static void tick(Minecraft minecraft, QuickShapeSubmissionIntent intent) {
       if (!intent.active()) return;
       var snapshot = intent.snapshot();
-      var current = FastPlaceClientPreview.buildingSubmission();
+      var current = FastPlaceClientPreviewCore.buildingSubmission();
       if (minecraft.player == null || minecraft.level == null || minecraft.getConnection() == null
          || !snapshot.scope().playerId().equals(minecraft.player.getUUID())
          || !snapshot.scope().dimension().equals(minecraft.level.dimension().location())
@@ -46,7 +46,7 @@ public final class QuickShapeSubmissionController {
          return;
       }
       if (intent.waitingForParameters()) {
-         var parameters = FastPlaceClientPreview.submissionParameters(snapshot);
+         var parameters = FastPlaceClientPreviewCore.submissionParameters(snapshot);
          if (parameters.isEmpty()) return;
          if (parameters.orElseThrow().prototype().isAir()) {
             fail(minecraft, intent, "fastformer.message.placement_confirm_failed");
@@ -90,7 +90,7 @@ public final class QuickShapeSubmissionController {
       var data = snapshot.data();
       var modes = new FastPlaceGeometry.Modes(data.pointMode(), RaycastPlacement.SURFACE, data.lineMode(),
          data.faceMode(), data.volumeMode(), data.fillMode(), data.angleDegrees(), false,
-         parameters.faceTieBias(), data.faceRasterizationMode());
+         parameters.faceTieBias());
       var placement = data.placementContext();
       var context = new PlacementEffectContext(minecraft.player, minecraft.player.getMainHandItem(), parameters.prototype(),
          placement == null ? Direction.Axis.Y : placement.clickedFace().getAxis(), snapshot.points(), modes,

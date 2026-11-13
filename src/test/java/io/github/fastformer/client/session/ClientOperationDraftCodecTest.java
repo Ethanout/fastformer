@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ClientOperationDraftCodecTest {
    @Test
-   void secondOnlyPointSurvivesStorageAndOlderDraftsStillDecode() throws IOException {
+   void secondOnlyPointSurvivesStorageAndMissingMarkerIsRejected() throws IOException {
       var point = new BlockPos(3, 4, 5);
       var selection = new ClientSelectionSession.DraftState(
          OperationSelectionMode.CUBOID, List.of(point), 0, point, point, true);
@@ -30,9 +30,26 @@ class ClientOperationDraftCodecTest {
       var encoded = ClientOperationDraftCodec.encode(original);
       assertEquals(selection, ClientOperationDraftCodec.decode(encoded, null).selection());
       encoded.getCompound("Selection").remove("SecondPointOnly");
-      var legacy = ClientOperationDraftCodec.decode(encoded, null).selection();
-      assertEquals(point, legacy.firstPoint());
-      assertEquals(null, legacy.secondPoint());
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.decode(encoded, null));
+   }
+
+   @Test
+   void draftOwnershipRequiresAnExplicitCurrentFormatMarker() throws IOException {
+      var root = ClientOperationDraftCodec.encode(sampleDraft());
+      assertEquals(null, ClientOperationDraftCodec.readSubmissionId(root));
+      root.remove("Unsubmitted");
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.decode(root, null));
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.readSubmissionId(root));
+
+      root.putBoolean("Unsubmitted", false);
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.readSubmissionId(root));
+      root.putUUID("SubmissionId", java.util.UUID.randomUUID());
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.decode(root, null));
+      root.putString("Origin", OperationSubmissionOrigin.SERVER_SELECTION.name());
+      assertEquals(root.getUUID("SubmissionId"), ClientOperationDraftCodec.decode(root, null).submissionId());
+
+      root.putBoolean("Unsubmitted", true);
+      assertThrows(IOException.class, () -> ClientOperationDraftCodec.readSubmissionId(root));
    }
 
    @Test

@@ -42,20 +42,7 @@ final class BresenhamColumnVolume {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generate(
-         base, extrusion, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   static Result generate(
-      List<Vec3> base,
-      Vec3 extrusion,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
-      return generate(base, extrusion, maxBlocks, observer, tieBias, rasterizationMode, false, false, false);
+      return generate(base, extrusion, maxBlocks, observer, tieBias, false, false, false);
    }
 
    static Result generateBoundary(
@@ -65,20 +52,7 @@ final class BresenhamColumnVolume {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generateBoundary(
-         base, extrusion, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   static Result generateBoundary(
-      List<Vec3> base,
-      Vec3 extrusion,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
-      return generate(base, extrusion, maxBlocks, observer, tieBias, rasterizationMode, false, true, false);
+      return generate(base, extrusion, maxBlocks, observer, tieBias, false, true, false);
    }
 
    static Result forceAffineFallbackForTesting(
@@ -89,7 +63,7 @@ final class BresenhamColumnVolume {
       LineTieBias tieBias
    ) {
       return generate(
-         base, extrusion, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP,
+         base, extrusion, maxBlocks, observer, tieBias,
          true, false, false
       );
    }
@@ -102,7 +76,7 @@ final class BresenhamColumnVolume {
       LineTieBias tieBias
    ) {
       return generate(
-         base, extrusion, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP,
+         base, extrusion, maxBlocks, observer, tieBias,
          true, true, false
       );
    }
@@ -115,7 +89,7 @@ final class BresenhamColumnVolume {
       LineTieBias tieBias
    ) {
       return generate(
-         base, extrusion, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP,
+         base, extrusion, maxBlocks, observer, tieBias,
          false, false, true
       );
    }
@@ -126,7 +100,6 @@ final class BresenhamColumnVolume {
       int maxBlocks,
       BlockGenerationObserver observer,
       LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode,
       boolean forceAffineFallback,
       boolean boundaryOnly,
       boolean forceFaceCandidateFailure
@@ -171,7 +144,6 @@ final class BresenhamColumnVolume {
             intermediateLimit,
             staging,
             tieBias,
-            rasterizationMode,
             forceFaceCandidateFailure
          );
       if (faceShell.status() == BresenhamFaceSweep.Status.LIMIT_EXCEEDED) {
@@ -190,11 +162,7 @@ final class BresenhamColumnVolume {
       if (!forceAffineFallback) {
          for (int columnAxis : boundedCandidateAxes) {
             ColumnAccumulator candidate = generateCandidate(
-               formalShell,
-               hullVertices,
-               columnAxis,
-               staging,
-               rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL
+               formalShell, columnAxis, staging
             );
             if (candidate == null) {
                continue;
@@ -213,7 +181,7 @@ final class BresenhamColumnVolume {
          if (bestSafeCandidate != null) {
             Result staged = boundaryOnly
                ? bestSafeCandidate.boundaryResult(
-                  maxBlocks, staging, rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL
+                  maxBlocks, staging, true
                )
                : bestSafeCandidate.solidResult(maxBlocks, staging);
             return staged.complete() ? publish(staged, observer) : staged;
@@ -323,25 +291,6 @@ final class BresenhamColumnVolume {
       int maxBlocks,
       BlockGenerationObserver observer,
       LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode,
-      boolean forceCandidateFailure
-   ) {
-      return independentFaceShellPass(
-         faces,
-         maxBlocks,
-         observer,
-         tieBias,
-         rasterizationMode,
-         forceCandidateFailure
-      );
-   }
-
-   private static FaceShellResult independentFaceShellPass(
-      List<List<Vec3>> faces,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode,
       boolean forceCandidateFailure
    ) {
       LinkedHashSet<BlockPos> shell = new LinkedHashSet<>();
@@ -353,19 +302,16 @@ final class BresenhamColumnVolume {
          }
          BresenhamFaceSweep.Attempt attempt = forceCandidateFailure
             ? BresenhamFaceSweep.Attempt.failed(BresenhamFaceSweep.Status.NO_VALID_CANDIDATE)
-            : BoundaryInterpolatedFaceRasterizer.attempt(
-               faceFrame, tieBias, maxBlocks, observer, rasterizationMode
+            : QuadFaceRasterizer.attempt(
+               faceFrame, tieBias, maxBlocks, observer
             );
          Set<BlockPos> fill;
-         Set<BlockPos> outline;
          if (attempt.succeeded()) {
             fill = attempt.result().fill();
-            outline = attempt.result().outline();
          } else {
             return FaceShellResult.failed(attempt.status());
          }
-         Set<BlockPos> faceBlocks = rasterizationMode == FaceRasterizationMode.NORMAL_PLANE_EXPERIMENTAL
-            ? fill : clipToOwnedBoundary(faceFrame, fill, outline);
+         Set<BlockPos> faceBlocks = fill;
          for (BlockPos block : faceBlocks) {
             if (!shell.contains(block) && shell.size() >= maxBlocks) {
                return FaceShellResult.failed(BresenhamFaceSweep.Status.LIMIT_EXCEEDED);
@@ -376,36 +322,6 @@ final class BresenhamColumnVolume {
       return new FaceShellResult(
          Collections.unmodifiableSet(shell),
          BresenhamFaceSweep.Status.SUCCESS
-      );
-   }
-
-   private static Set<BlockPos> clipToOwnedBoundary(
-      ProjectedBresenhamFace.Frame frame,
-      Set<BlockPos> fill,
-      Set<BlockPos> outline
-   ) {
-      HashSet<FaceColumn> boundaryColumns = new HashSet<>();
-      outline.forEach(block -> boundaryColumns.add(faceColumn(frame, block)));
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>();
-      for (BlockPos block : fill) {
-         if (outline.contains(block) || !boundaryColumns.contains(faceColumn(frame, block))) {
-            result.add(block);
-         }
-      }
-      return result;
-   }
-
-   private static FaceColumn faceColumn(ProjectedBresenhamFace.Frame frame, BlockPos block) {
-      long[] delta = {
-         (long)block.getX() - frame.anchor().getX(),
-         (long)block.getY() - frame.anchor().getY(),
-         (long)block.getZ() - frame.anchor().getZ()
-      };
-      int[] order = frame.order();
-      int[] signs = frame.signs();
-      return new FaceColumn(
-         Math.toIntExact(delta[order[0]] * signs[0]),
-         Math.toIntExact(delta[order[1]] * signs[1])
       );
    }
 
@@ -435,36 +351,15 @@ final class BresenhamColumnVolume {
 
    private static ColumnAccumulator generateCandidate(
       Set<BlockPos> shell,
-      List<Vec3> hullVertices,
       int columnAxis,
-      BlockGenerationObserver observer,
-      boolean shellOwned
+      BlockGenerationObserver observer
    ) {
       ColumnAccumulator accumulator = new ColumnAccumulator(columnAxis, observer);
-      if (shellOwned) {
-         // The face samples own every column endpoint. No second analytic solid
-         // may extend or shorten the surface after the edges have been fixed.
-         for (BlockPos block : shell) {
-            accumulator.addSeed(block, true);
-         }
-         return accumulator;
+      // Fixed face samples own the column endpoints; a second analytic solid
+      // must not extend or shorten the authored surface.
+      for (BlockPos block : shell) {
+         accumulator.addSeed(block, true);
       }
-      boolean targetComplete = ArbitraryConvexPolyhedronGenerator.visitSolidSpans(
-         hullVertices,
-         columnAxis,
-         accumulator::addTargetSpan,
-         observer
-      );
-      if (!targetComplete) {
-         return null;
-      }
-      if (accumulator.isEmpty()) {
-         return null;
-      }
-      for (BlockPos seed : shell) {
-         accumulator.addShell(seed);
-      }
-      accumulator.fillUnitOverlayIntervals();
       return accumulator;
    }
 
@@ -545,9 +440,6 @@ final class BresenhamColumnVolume {
       }
    }
 
-   private record FaceColumn(int u, int v) {
-   }
-
    private record ColumnKey(int first, int second) {
    }
 
@@ -622,7 +514,6 @@ final class BresenhamColumnVolume {
       private final LinkedHashSet<BlockPos> overlays = new LinkedHashSet<>();
       private final Map<ColumnKey, Span> spans = new LinkedHashMap<>();
       private long blockCount;
-      private long targetColumnCount;
 
       ColumnAccumulator(int axis, BlockGenerationObserver observer) {
          this.axis = axis;
@@ -657,67 +548,16 @@ final class BresenhamColumnVolume {
          }
       }
 
-      void fillUnitOverlayIntervals() {
-         Map<ColumnKey, java.util.TreeSet<Integer>> coordinates = new LinkedHashMap<>();
-         for (BlockPos overlay : this.overlays) {
-            coordinates.computeIfAbsent(this.key(overlay), ignored -> new java.util.TreeSet<>())
-               .add(coordinate(overlay, this.axis));
-         }
-         ArrayList<BlockPos> additions = new ArrayList<>();
-         for (Map.Entry<ColumnKey, java.util.TreeSet<Integer>> entry : coordinates.entrySet()) {
-            Integer previous = null;
-            for (int current : entry.getValue()) {
-               if (previous != null && (long)current - previous == 2L) {
-                  additions.add(this.position(entry.getKey(), previous + 1));
-               }
-               previous = current;
-            }
-         }
-         for (BlockPos addition : additions) {
-            this.observer.checkCancelled();
-            this.observer.onScanned(1L);
-            this.overlays.add(addition.immutable());
-         }
-      }
+
 
       boolean addTarget(BlockPos seed) {
          this.addSeed(seed, false);
          return true;
       }
 
-      boolean addTargetSpan(int first, int second, int minimum, int maximum) {
-         this.observer.checkCancelled();
-         if (minimum > maximum) {
-            return true;
-         }
-         if (this.targetColumnCount >= CANDIDATE_COLUMN_WORK_CAP) {
-            return false;
-         }
-         this.targetColumnCount++;
-         long scanned = (long)maximum - minimum + 1L;
-         this.observer.onScanned(scanned);
-         ColumnKey key = new ColumnKey(first, second);
-         Span previous = this.spans.get(key);
-         if (previous == null) {
-            this.spans.put(key, new Span(minimum, maximum));
-            this.addCount(scanned);
-            return true;
-         }
-         Span merged = new Span(
-            Math.min(previous.minimum(), minimum),
-            Math.max(previous.maximum(), maximum)
-         );
-         long added = merged.length() - previous.length();
-         if (added > 0L) {
-            this.spans.put(key, merged);
-            this.addCount(added);
-         }
-         return true;
-      }
 
-      boolean isEmpty() {
-         return this.spans.isEmpty();
-      }
+
+
 
       long blockCount() {
          return saturatedAdd(this.blockCount, this.overlays.size());
@@ -956,7 +796,6 @@ final class BresenhamColumnVolume {
          }
          return occupied == 5;
       }
-
 
       private boolean contains(BlockPos position) {
          if (this.overlays.contains(position)) {

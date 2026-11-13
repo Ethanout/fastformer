@@ -1,11 +1,15 @@
 package io.github.fastformer.fastplace.quickshape;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.network.payload.placement.QuickShapePointerPayload;
-import io.github.fastformer.network.payload.placement.StartPlacementPayload;
-import io.github.fastformer.network.sync.PlayerPreviewSync;
+import io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload;
+import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.FastPlaceManager;
 import io.github.fastformer.server.session.OperationManager;
@@ -31,7 +35,7 @@ public final class QuickShapePointerGameTests {
       player.setPos(helper.absolutePos(new BlockPos(1, 4, 1)).getCenter());
       var settings = FastPlaceSettings.load(player);
       settings.setMode(player, PointMode.RAYCAST);
-      PlayerPreviewSync.syncSettings(player);
+      PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
@@ -66,7 +70,7 @@ public final class QuickShapePointerGameTests {
       draft.setFreeScrollOffset(pointer ? BlockPos.ZERO : new BlockPos(3, 0, 0));
       FastPlaceManager.setModifierHeld(player, false);
       player.setPos(first.getCenter());
-      PlayerPreviewSync.syncPreview(player, draft);
+      PreviewSync.syncPreview(player, draft);
       boolean[] submitted = {false};
       helper.succeedWhen(() -> {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
@@ -77,13 +81,13 @@ public final class QuickShapePointerGameTests {
                player.getServer(), player.serverLevel().dimension()), "waiting for world write");
             if (pointer) {
                ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
-                  PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player),
+                  PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
                   QuickShapePointerPayload.Action.SUBMIT_CURRENT, first, player.getEyePosition(), player.getViewVector(1), false, 71));
             } else FastPlaceManager.fillConfirmed(player);
             helper.assertFalse(FastPlaceManager.active(player), "confirmed submission did not end the draft");
             submitted[0] = true;
          }
-         FastPlaceManager.tickWorld(helper.getLevel().getServer());
+         FastPlaceManager.tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
          helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for placement");
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "confirmed point was not placed");
          helper.assertTrue(helper.getLevel().getBlockState(first.offset(3, 0, 0)).isAir(), "ghost candidate was placed");
@@ -99,7 +103,7 @@ public final class QuickShapePointerGameTests {
       settings.setMode(player, FaceMode.COORDINATE_PLANE);
       settings.setMiddleConfirmEnabled(player, true);
       FastPlaceManager.setModifierHeld(player, false);
-      PlayerPreviewSync.syncSettings(player);
+      PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(
@@ -113,27 +117,27 @@ public final class QuickShapePointerGameTests {
             helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
                player.getServer(), player.serverLevel().dimension()), "waiting for world write");
             ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(51L,
-               new StartPlacementPayload.Target(PlayerPreviewSync.buildingRevision(player),
-                  PlayerPreviewSync.callbackScope(player), hit, eye, view)));
+               new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
+                  PreviewSync.callbackScope(player), hit, eye, view)));
             var draft = FastPlaceManager.session(player).orElseThrow();
             helper.assertTrue(draft.points().getFirst().equals(hit.getBlockPos().relative(hit.getDirection())), "surface start did not use the adjacent position");
             helper.assertFalse(draft.modifierHeld(), "embedded start latched Alt on the draft");
             helper.assertFalse(FastPlaceManager.modifierHeld(player), "embedded start latched player Alt");
             draft.setFreeScrollOffset(new BlockPos(2, 0, 0));
             player.setPos(hit.getBlockPos().getCenter().add(0, 1, 0));
-            PlayerPreviewSync.syncPreview(player, draft);
+            PreviewSync.syncPreview(player, draft);
             var nearEye = player.getEyePosition();
             var nearView = player.getViewVector(1);
             var nearHit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(
                player.level(), player, nearEye, nearView).hit();
             var candidate = FastPlaceManager.candidateContext(player).resolve(nearHit, nearEye, nearView);
             ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
-               PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player),
+               PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
                QuickShapePointerPayload.Action.MIDDLE, candidate, nearEye, nearView, false, 52));
             helper.assertFalse(FastPlaceManager.active(player), "middle did not finish a surface-started draft near a block");
             submitted[0] = true;
          }
-         FastPlaceManager.tickWorld(helper.getLevel().getServer());
+         FastPlaceManager.tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
          helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for placement");
          helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos().relative(hit.getDirection())).is(Blocks.GOLD_BLOCK), "middle finish did not place the shape");
       });
@@ -162,12 +166,12 @@ public final class QuickShapePointerGameTests {
       if (face) draft.addPoint(first.offset(3, 0, 0), player.getEyePosition(), player.getViewVector(1));
       draft.setFreeScrollOffset(new BlockPos(0, 0, 3));
       FastPlaceManager.setModifierHeld(player, true);
-      PlayerPreviewSync.syncPreview(player, draft);
+      PreviewSync.syncPreview(player, draft);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       var candidate = FastPlaceManager.candidateContext(player).resolve(hit, eye, view);
-      var request = new QuickShapePointerPayload(PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player),
+      var request = new QuickShapePointerPayload(PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
          QuickShapePointerPayload.Action.MIDDLE, candidate, eye, view, true, 1);
       boolean[] submitted = {false};
       helper.succeedWhen(() -> {
@@ -182,10 +186,10 @@ public final class QuickShapePointerGameTests {
             helper.assertFalse(FastPlaceManager.active(player), "Alt-middle did not finish the draft: points=" + draft.points()
                + ", candidate=" + candidate + ", modifier=" + draft.modifierHeld()
                + ", faceMode=" + FastPlaceSettings.load(player).faceMode()
-               + ", revision=" + PlayerPreviewSync.buildingRevision(player) + "/" + request.revision());
+               + ", revision=" + PreviewSync.buildingRevision(player) + "/" + request.revision());
             submitted[0] = true;
          }
-         FastPlaceManager.tickWorld(helper.getLevel().getServer());
+         FastPlaceManager.tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
          helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for placement");
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "Alt-middle did not place the shape");
       });
@@ -194,7 +198,7 @@ public final class QuickShapePointerGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "quick_shape_pointer", timeoutTicks = 600)
    public static void capturedPointSurvivesViewChangeAndRejectsReplay(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, HISTORY_INITIALIZATION_TIMEOUT_MILLIS);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, HISTORY_INITIALIZATION_TIMEOUT_MILLIS);
       player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
       player.setXRot(-90);
@@ -204,8 +208,8 @@ public final class QuickShapePointerGameTests {
       FastPlaceManager.addPoint(player, first, first);
       var draft = FastPlaceManager.session(player).orElseThrow();
       draft.setFreeScrollOffset(new BlockPos(3, 0, 0));
-      PlayerPreviewSync.syncPreview(player, draft);
-      var request = new QuickShapePointerPayload(PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player),
+      PreviewSync.syncPreview(player, draft);
+      var request = new QuickShapePointerPayload(PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
          QuickShapePointerPayload.Action.POINT, first.offset(3, 0, 0), player.getEyePosition(), player.getViewVector(1), false, 1);
       player.setXRot(0);
       player.setYRot(90);
@@ -217,20 +221,20 @@ public final class QuickShapePointerGameTests {
          helper.assertFalse(io.github.fastformer.server.session.OperationManager.active(player), "selection owns input");
          ServerInputDispatcher.quickShapePointer(player, request);
          helper.assertTrue(draft.points().equals(java.util.List.of(first, first.offset(3, 0, 0))),
-            "press target changed with current view: points=" + draft.points() + " revision=" + PlayerPreviewSync.buildingRevision(player) + " captured=" + request.revision());
+            "press target changed with current view: points=" + draft.points() + " revision=" + PreviewSync.buildingRevision(player) + " captured=" + request.revision());
          ServerInputDispatcher.quickShapePointer(player, request);
          helper.assertTrue(draft.points().size() == 2, "replayed pointer changed newer draft");
          var undo = new QuickShapePointerPayload(request.revision(), request.scope(), QuickShapePointerPayload.Action.UNDO,
             request.candidate(), request.eye(), request.view(), false, 2);
          ServerInputDispatcher.quickShapePointer(player, undo);
          helper.assertTrue(draft.points().equals(java.util.List.of(first)), "ordered undo lost its captured revision");
-         PlayerPreviewSync.syncPreview(player, draft);
+         PreviewSync.syncPreview(player, draft);
          var stale = new QuickShapePointerPayload(request.revision(), request.scope(), QuickShapePointerPayload.Action.POINT,
             request.candidate(), request.eye(), request.view(), false, 3);
          ServerInputDispatcher.quickShapePointer(player, stale);
          helper.assertTrue(draft.points().equals(java.util.List.of(first)), "external revision change accepted old pointer chain");
          draft.setFreeScrollOffset(new BlockPos(2, 3, 4));
-         helper.assertTrue(ServerInputDispatcher.commandBack(player), "command back rejected the active draft");
+         helper.assertTrue(io.github.fastformer.server.intent.PlayerIntentSystem.dispatch(player, io.github.fastformer.core.command.IntentSource.COMMAND, new io.github.fastformer.server.intent.HistoryIntents.Back()).handled(), "command back rejected the active draft");
          helper.assertTrue(draft.points().isEmpty(), "command back kept the last point");
          helper.assertTrue(draft.freeScrollOffset().equals(BlockPos.ZERO), "command back kept candidate offsets");
          helper.assertTrue(FastPlaceManager.session(player).isEmpty(), "command back did not end the empty draft");
@@ -240,7 +244,7 @@ public final class QuickShapePointerGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "quick_shape_pointer", timeoutTicks = 600)
    public static void pointThenCloseFromOneRevisionClosesPolygon(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, HISTORY_INITIALIZATION_TIMEOUT_MILLIS);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, HISTORY_INITIALIZATION_TIMEOUT_MILLIS);
       player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
       player.setXRot(-90);
@@ -251,9 +255,9 @@ public final class QuickShapePointerGameTests {
       var draft = FastPlaceManager.session(player).orElseThrow();
       draft.addPoint(first.offset(3, 0, 0), player.getEyePosition(), player.getViewVector(1));
       draft.addPoint(first.offset(0, 0, 3), player.getEyePosition(), player.getViewVector(1));
-      PlayerPreviewSync.syncPreview(player, draft);
-      long revision = PlayerPreviewSync.buildingRevision(player);
-      var scope = PlayerPreviewSync.callbackScope(player);
+      PreviewSync.syncPreview(player, draft);
+      long revision = PreviewSync.buildingRevision(player);
+      var scope = PreviewSync.callbackScope(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
@@ -274,7 +278,7 @@ public final class QuickShapePointerGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "quick_shape_pointer")
    public static void pointerCodecPreservesCapturedRay(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
-      var request = new QuickShapePointerPayload(7, PlayerPreviewSync.callbackScope(player), QuickShapePointerPayload.Action.MIDDLE,
+      var request = new QuickShapePointerPayload(7, PreviewSync.callbackScope(player), QuickShapePointerPayload.Action.MIDDLE,
          new BlockPos(4, 5, 6), player.getEyePosition(), player.getViewVector(1), false, 9);
       var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
       try {
@@ -289,7 +293,7 @@ public final class QuickShapePointerGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "quick_shape_pointer", timeoutTicks = 600)
    public static void idleStartUsesFrozenRayAndRejectsReplay(GameTestHelper helper) {
       var player = idleStartPlayer(helper);
-      PlayerPreviewSync.syncSettings(player);
+      PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
@@ -315,20 +319,20 @@ public final class QuickShapePointerGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "quick_shape_pointer", timeoutTicks = 600)
    public static void idleStartRejectsStalePreviewIdentity(GameTestHelper helper) {
       var player = idleStartPlayer(helper);
-      PlayerPreviewSync.syncSettings(player);
+      PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       var stale = startRequest(player, 42L, hit, eye, view);
-      PlayerPreviewSync.syncSettings(player);
+      PreviewSync.syncSettings(player);
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), blockedMessage(player, "idle start is blocked by a world task"));
          helper.assertTrue(hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK, "idle start capture missed the test world");
          ServerInputDispatcher.startPlacement(player, stale);
          helper.assertFalse(FastPlaceManager.active(player), "stale inactive preview revision started a draft");
-         var wrongScope = new StartPlacementPayload.Target(PlayerPreviewSync.buildingRevision(player),
-            new io.github.fastformer.network.payload.operation.OperationCallbackScope(player.getUUID(), player.level().dimension().location(), java.util.UUID.randomUUID()),
+         var wrongScope = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
+            new io.github.fastformer.protocol.callback.OperationCallbackScope(player.getUUID(), player.level().dimension().location(), java.util.UUID.randomUUID()),
             hit, eye, view);
          ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(43L, wrongScope));
          helper.assertFalse(FastPlaceManager.active(player), "stale callback scope started a draft");
@@ -340,7 +344,7 @@ public final class QuickShapePointerGameTests {
 
    private static net.minecraft.server.level.ServerPlayer idleStartPlayer(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, HISTORY_INITIALIZATION_TIMEOUT_MILLIS);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, HISTORY_INITIALIZATION_TIMEOUT_MILLIS);
       player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
       helper.setBlock(new BlockPos(1, 3, 1), Blocks.STONE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
@@ -352,13 +356,13 @@ public final class QuickShapePointerGameTests {
    private static StartPlacementPayload startRequest(net.minecraft.server.level.ServerPlayer player, long requestId,
       net.minecraft.world.phys.BlockHitResult hit, net.minecraft.world.phys.Vec3 eye, net.minecraft.world.phys.Vec3 view) {
       return new StartPlacementPayload(requestId, new StartPlacementPayload.Target(
-         PlayerPreviewSync.buildingRevision(player), PlayerPreviewSync.callbackScope(player), hit, eye, view
+         PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player), hit, eye, view
       ));
    }
 
    private static String blockedMessage(net.minecraft.server.level.ServerPlayer player, String message) {
       return message + ": placementTaskActive=" + FastPlaceManager.taskActive(player)
          + ", operationTaskActive=" + OperationManager.taskActive(player)
-         + ", historyBusy=" + WorldHistoryManager.busy(player);
+         + ", historyBusy=" + HistorySystem.of(player).busy(player);
    }
 }

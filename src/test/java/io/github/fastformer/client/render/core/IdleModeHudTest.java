@@ -14,9 +14,9 @@ class IdleModeHudTest {
    @Test void cancellingLastPointStopsSelectionHudBeforeServerAcknowledgesExit() {
       ClientOperationController.onDisconnected();
       try {
-         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.network.payload.operation.OperationPreviewPayload.inactive(0));
+         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.inactive(0));
          ClientOperationController.onClientTick();
-         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.network.payload.operation.OperationPreviewPayload.active(
+         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.active(
             1L, false, true, java.util.List.of(net.minecraft.core.BlockPos.ZERO),
             net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, OperationSelectionMode.CUBOID,
             0, -1, 0, io.github.fastformer.fastplace.selection.OperationMode.MOVE,
@@ -29,7 +29,7 @@ class IdleModeHudTest {
          assertEquals("fastformer.hud.quick_shape_label", key(FastPlaceClientPreviewCore.idleBottomStatus(false, true)));
       } finally {
          ClientOperationController.onDisconnected();
-         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.network.payload.operation.OperationPreviewPayload.inactive());
+         FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.inactive());
       }
    }
 

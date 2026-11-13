@@ -322,9 +322,9 @@ class OperationDraftSettlementTest {
    }
 
    @Test
-   void aReplayOfADraftFromAnOlderFormatStaysUnconfirmed(@TempDir Path directory) throws IOException {
+   void aReplayOfAnUnsubmittedDraftStaysUnconfirmed(@TempDir Path directory) throws IOException {
       Path draftFile = directory.resolve("draft.nbt.gz");
-      // A draft from an older client names no submission. The client cannot prove that
+      // An unsubmitted draft names no submission. The client cannot prove that
       // this file belongs to the applied submission, so it keeps the file and stays
       // unconfirmed.
       writeDraft(draftFile, null);
@@ -459,6 +459,8 @@ class OperationDraftSettlementTest {
       );
       CompoundTag tag = ClientOperationDraftCodec.encode(draft);
       if (submissionId != null) {
+         tag.putBoolean("Unsubmitted", false);
+         tag.putString("Origin", OperationSubmissionOrigin.LOCAL_ONLY.name());
          tag.putUUID("SubmissionId", submissionId);
       }
       OperationClipboardStore.save(file, tag);

@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.mouse.PointerButtonCapture;
+
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.OperationPointDrag;
@@ -23,8 +25,8 @@ import io.github.fastformer.client.operation.input.SelectionPointerEvent;
 import io.github.fastformer.client.operation.input.SelectionPointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
-import io.github.fastformer.client.session.ClientTickMailbox;
-import io.github.fastformer.network.payload.placement.StartPlacementPayload;
+import io.github.fastformer.core.async.TickMailbox;
+import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import net.minecraft.core.BlockPos;
 import java.util.function.BooleanSupplier;
@@ -32,9 +34,12 @@ import java.util.function.Consumer;
 
 /** Transient input state owned by one player environment, never persisted with a draft. */
 public final class ClientInputSession {
+   private final io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures;
+   public io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures() { return selectionGestures; }
    private final ClientSmartFillSession smartFill = new ClientSmartFillSession();
    public ClientSmartFillSession smartFill() { return smartFill; }
    final IdleEntryGesture idleEntry = new IdleEntryGesture();
+   final BindingInputController bindings = new BindingInputController();
    final RightClickInertiaGuard entryPressGuard = new RightClickInertiaGuard();
    final RightClickInertiaGuard cuboidPointPressGuard = new RightClickInertiaGuard();
    int idleEntryButton = -1;
@@ -43,8 +48,8 @@ public final class ClientInputSession {
    IdleSelectionEntryController.Pending idleSelectionEntry;
    final io.github.fastformer.client.quickshape.QuickShapeSubmissionIntent quickShapeSubmission =
       new io.github.fastformer.client.quickshape.QuickShapeSubmissionIntent();
-   private final ClientTickMailbox<ClientSemanticEvent.SubmissionCompleted> submissionEvents =
-      new ClientTickMailbox<>(event -> { });
+   private final TickMailbox<ClientSemanticEvent.SubmissionCompleted> submissionEvents =
+      new TickMailbox<>(event -> { });
    private final PhysicalInputMailbox physicalEvents = new PhysicalInputMailbox();
    final ShortPressTracker undoPress = new ShortPressTracker();
    final QuickShapeUndoGesture quickShapeUndo = new QuickShapeUndoGesture();
@@ -58,6 +63,11 @@ public final class ClientInputSession {
    final ClientInputStateMachine routing;
 
    public ClientInputSession() {
+      this(new io.github.fastformer.client.input.drag.SelectionGestureState());
+   }
+
+   public ClientInputSession(io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures) {
+      this.selectionGestures = java.util.Objects.requireNonNull(selectionGestures, "selectionGestures");
       routing = new ClientInputStateMachine();
    }
    final ModifierGestureState modifier = new ModifierGestureState();
@@ -65,11 +75,11 @@ public final class ClientInputSession {
    long clickGestureToken;
    OperationDrag operationDrag;
    OperationPointDrag operationPointDrag;
-   int operationClickCapturedButton = -1;
+   final PointerButtonCapture operationClick = new PointerButtonCapture();
    GeometryGizmoDrag geometryGizmoDrag;
    OperationTransformCapture operationTransformCapture;
    record OperationTransformCapture(long gestureId, long revision,
-      io.github.fastformer.network.payload.operation.OperationCallbackScope scope) { }
+      io.github.fastformer.protocol.callback.OperationCallbackScope scope) { }
    boolean undoPressCaptured;
    boolean radialChordDown;
    final PathCloseGesture pathClose = new PathCloseGesture();
@@ -111,32 +121,14 @@ public final class ClientInputSession {
 
    public void reset() {
       smartFill.clear();
-      idleEntry.clear();
-      entryPressGuard.clear();
-      cuboidPointPressGuard.clear();
-      idleSelectionEntry = null;
-      idleEntryButton = -1;
-      idleEntrySelectionButton = -1;
+      clearIdleEntry();
       entryConsumedAlt = false;
-      cancelQueuedGeometryInput();
-      java.util.Arrays.fill(this.quickShapeButtons, false);
-      this.quickShapeUndo.cancel();
+      cancelPointerState();
       this.quickShapeSubmission.cancel();
       this.submissionEvents.invalidate();
       this.physicalEvents.invalidate();
-      this.selectionPointer.clear();
-      this.operationPointPointer.clear();
       this.routing.reset();
-      this.pointerGesture.cancel();
-      this.undoPress.cancel();
       this.modifier.reset();
-      this.pointerGestureToken = 0L;
-      this.clickGestureToken = 0L;
-      this.operationDrag = null;
-      this.operationPointDrag = null;
-      this.operationClickCapturedButton = -1;
-      this.geometryGizmoDrag = null;
-      this.undoPressCaptured = false;
       this.radialChordDown = false;
       this.pathClose.reset();
       this.lastOperationPointLeftClickAt = 0L;
@@ -164,33 +156,38 @@ public final class ClientInputSession {
    }
 
    void discardPhysicalEvents() {
+      clearIdleEntry();
+      clearPointerCaptures();
+      this.physicalEvents.invalidate();
+      this.undoPress.cancel();
+      this.undoPressCaptured = false;
+   }
+
+   private void clearIdleEntry() {
+      bindings.reset();
       idleEntry.clear();
       entryPressGuard.clear();
       cuboidPointPressGuard.clear();
       idleSelectionEntry = null;
       idleEntryButton = -1;
       idleEntrySelectionButton = -1;
+   }
+
+   private void clearPointerCaptures() {
       cancelQueuedGeometryInput();
       java.util.Arrays.fill(this.quickShapeButtons, false);
       this.quickShapeUndo.cancel();
-      this.physicalEvents.invalidate();
       this.selectionPointer.clear();
       this.operationPointPointer.clear();
-      this.undoPress.cancel();
-      this.undoPressCaptured = false;
    }
 
    /** Releases all pointer-owned state without touching the active draft. */
    void cancelPointerState() {
-      cancelQueuedGeometryInput();
-      java.util.Arrays.fill(this.quickShapeButtons, false);
-      this.quickShapeUndo.cancel();
-      this.selectionPointer.clear();
-      this.operationPointPointer.clear();
+      clearPointerCaptures();
       this.pointerGesture.cancel();
       this.operationDrag = null;
       this.operationPointDrag = null;
-      this.operationClickCapturedButton = -1;
+      this.operationClick.clear();
       this.geometryGizmoDrag = null;
       this.operationTransformCapture = null;
       this.undoPress.cancel();

@@ -3,8 +3,8 @@ package io.github.fastformer.server.input;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.network.payload.geometry.GeometryPointPayload;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
+import io.github.fastformer.protocol.c2s.geometry.GeometryPointPayload;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -49,29 +49,19 @@ class ServerInputDispatcherTest {
 
    @Test
    void geometryRequestIdsRejectReplays() {
-      UUID owner = UUID.randomUUID();
-
-      try {
-         assertTrue(ServerInputDispatcher.acceptGeometryAction(owner, 1L));
-         assertFalse(ServerInputDispatcher.acceptGeometryAction(owner, 1L));
-         assertFalse(ServerInputDispatcher.acceptGeometryAction(owner, 0L));
-         assertTrue(ServerInputDispatcher.acceptGeometryAction(owner, 2L));
-      } finally {
-         ServerInputDispatcher.clearPlacementActions(owner);
-      }
+      var state = new ServerInputState();
+      assertTrue(state.geometryActions.accept(1L));
+      assertFalse(state.geometryActions.accept(1L));
+      assertFalse(state.geometryActions.accept(0L));
+      assertTrue(state.geometryActions.accept(2L));
    }
 
    @Test
    void operationPointCommandsRejectOlderIdsWithoutRewindingTheSequence() {
-      UUID owner = UUID.randomUUID();
-
-      try {
-         assertTrue(ServerInputDispatcher.acceptOperationCommand(owner, 10L));
-         assertFalse(ServerInputDispatcher.acceptOperationCommand(owner, 9L));
-         assertFalse(ServerInputDispatcher.acceptOperationCommand(owner, 10L));
-         assertTrue(ServerInputDispatcher.acceptOperationCommand(owner, 11L));
-      } finally {
-         ServerInputDispatcher.clearPlacementActions(owner);
-      }
+      var state = new ServerInputState();
+      assertTrue(state.pointCommands.accept(10L));
+      assertFalse(state.pointCommands.accept(9L));
+      assertFalse(state.pointCommands.accept(10L));
+      assertTrue(state.pointCommands.accept(11L));
    }
 }

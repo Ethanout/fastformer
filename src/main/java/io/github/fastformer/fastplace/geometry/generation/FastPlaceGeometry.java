@@ -2,7 +2,6 @@ package io.github.fastformer.fastplace.geometry.generation;
 
 import io.github.fastformer.fastplace.geometry.FillMode;
 
-
 import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
 import io.github.fastformer.fastplace.quickshape.PointMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
@@ -109,8 +108,7 @@ public final class FastPlaceGeometry {
             modes.fillMode(),
             maxBlocks,
             observer,
-            modes.faceTieBias(),
-            modes.faceRasterizationMode()
+            modes.faceTieBias()
          );
       } else {
          return prism(points, modes, maxBlocks, observer);
@@ -169,7 +167,7 @@ public final class FastPlaceGeometry {
       Vec3 anchor = Vec3.atCenterOf(points.get(2));
       Vec3 extrusion = constrainedVolumeExtrusion(base, anchor, Vec3.atCenterOf(points.get(3)), modes.volumeMode());
       return PrismGenerator.generateQuad(
-         base, extrusion, modes.fillMode(), maxBlocks, observer, modes.faceTieBias(), modes.faceRasterizationMode()
+         base, extrusion, modes.fillMode(), maxBlocks, observer, modes.faceTieBias()
       );
    }
 
@@ -703,8 +701,7 @@ public final class FastPlaceGeometry {
       FillMode fillMode,
       double angleDegrees,
       boolean modifierHeld,
-      LineTieBias faceTieBias,
-      FaceRasterizationMode faceRasterizationMode
+      LineTieBias faceTieBias
    ) {
       public Modes(
          PointMode pointMode,
@@ -718,60 +715,39 @@ public final class FastPlaceGeometry {
       ) {
          this(
             pointMode, raycastPlacement, lineMode, faceMode, volumeMode, fillMode, angleDegrees, modifierHeld,
-            LineTieBias.DEFAULT, FaceRasterizationMode.DEFAULT
-         );
-      }
-
-      public Modes(
-         PointMode pointMode,
-         RaycastPlacement raycastPlacement,
-         LineMode lineMode,
-         FaceMode faceMode,
-         VolumeMode volumeMode,
-         FillMode fillMode,
-         double angleDegrees,
-         boolean modifierHeld,
-         LineTieBias faceTieBias
-      ) {
-         this(
-            pointMode, raycastPlacement, lineMode, faceMode, volumeMode, fillMode, angleDegrees, modifierHeld,
-            faceTieBias, FaceRasterizationMode.DEFAULT
+            LineTieBias.DEFAULT
          );
       }
 
       public Modes {
          faceTieBias = faceTieBias == null ? LineTieBias.DEFAULT : faceTieBias;
-         faceRasterizationMode = faceRasterizationMode == null
-            ? FaceRasterizationMode.DEFAULT
-            : faceRasterizationMode;
       }
 
       public FastPlaceGeometry.Modes withRaycastPlacement(RaycastPlacement placement) {
-         return new FastPlaceGeometry.Modes(this.pointMode, placement, this.lineMode, this.faceMode, this.volumeMode, this.fillMode, this.angleDegrees, this.modifierHeld, this.faceTieBias, this.faceRasterizationMode);
+         return new FastPlaceGeometry.Modes(this.pointMode, placement, this.lineMode, this.faceMode, this.volumeMode, this.fillMode, this.angleDegrees, this.modifierHeld, this.faceTieBias);
       }
 
       public FastPlaceGeometry.Modes withModifierHeld(boolean value) {
-         return new FastPlaceGeometry.Modes(this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, this.volumeMode, this.fillMode, this.angleDegrees, value, this.faceTieBias, this.faceRasterizationMode);
+         return new FastPlaceGeometry.Modes(this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, this.volumeMode, this.fillMode, this.angleDegrees, value, this.faceTieBias);
       }
 
       public FastPlaceGeometry.Modes withVolumeMode(VolumeMode value) {
-         return new FastPlaceGeometry.Modes(this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, value, this.fillMode, this.angleDegrees, this.modifierHeld, this.faceTieBias, this.faceRasterizationMode);
+         return new FastPlaceGeometry.Modes(this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, value, this.fillMode, this.angleDegrees, this.modifierHeld, this.faceTieBias);
+      }
+
+      public FastPlaceGeometry.Modes withLineMode(LineMode value) {
+         return new Modes(pointMode, raycastPlacement, value, faceMode, volumeMode, fillMode, angleDegrees,
+            modifierHeld, faceTieBias);
       }
 
       public FastPlaceGeometry.Modes withFillMode(FillMode value) {
-         return new FastPlaceGeometry.Modes(this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, this.volumeMode, value, this.angleDegrees, this.modifierHeld, this.faceTieBias, this.faceRasterizationMode);
+         return new FastPlaceGeometry.Modes(this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, this.volumeMode, value, this.angleDegrees, this.modifierHeld, this.faceTieBias);
       }
 
       public FastPlaceGeometry.Modes withFaceTieBias(LineTieBias value) {
-         return new FastPlaceGeometry.Modes(this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, this.volumeMode, this.fillMode, this.angleDegrees, this.modifierHeld, value, this.faceRasterizationMode);
+         return new FastPlaceGeometry.Modes(this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, this.volumeMode, this.fillMode, this.angleDegrees, this.modifierHeld, value);
       }
 
-      public FastPlaceGeometry.Modes withFaceRasterizationMode(FaceRasterizationMode value) {
-         return new FastPlaceGeometry.Modes(
-            this.pointMode, this.raycastPlacement, this.lineMode, this.faceMode, this.volumeMode, this.fillMode,
-            this.angleDegrees, this.modifierHeld, this.faceTieBias, value
-         );
-      }
    }
 
    private static record PlaneHit(Vec3 normal, Vec3 point) {

@@ -2,7 +2,7 @@ package io.github.fastformer.client.placement;
 
 import io.github.fastformer.client.input.mouse.UsePressSequence;
 import io.github.fastformer.client.interaction.ClientInteractionUpdates;
-import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -29,7 +29,7 @@ public final class ClientForcedPlacement {
    public static boolean consumes(LocalPlayer player, InteractionHand hand, BlockHitResult hit) {
       return hand == InteractionHand.MAIN_HAND && player.isCreative()
          && ClientInteractionUpdates.forcePlacement(player) && !QuickReplaceMode.active()
-         && !FastPlaceClientPreview.operationActive() && PlaceableItems.isPlaceable(player.getMainHandItem())
+         && !FastPlaceClientPreviewCore.operationActive() && PlaceableItems.isPlaceable(player.getMainHandItem())
          && io.github.fastformer.client.input.FastPlaceClientInput.vanillaSession();
    }
 

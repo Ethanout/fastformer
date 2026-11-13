@@ -15,11 +15,11 @@ public final class PointerDragSnapshotView {
    private PointerDragSnapshotView() { }
 
    public static WorkspaceFaceDrag face(ClientInputSession session) {
-      return ClientOperationController.selectionGestures().face();
+      return session.selectionGestures().face();
    }
 
    public static WorkspaceGizmoDrag gizmo(ClientInputSession session) {
-      return ClientOperationController.selectionGestures().gizmo();
+      return session.selectionGestures().gizmo();
    }
 
    public static AxisGizmo.Axis axis(ClientInputSession session) {

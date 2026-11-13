@@ -83,11 +83,6 @@ public final class CuboidSelectionSession {
       return true;
    }
 
-   /** Compatibility alias for callers that use the shorter name. */
-   public boolean expand(BlockPos value) {
-      return expandTo(value);
-   }
-
    public AABB bounds() {
       return new AABB(
          this.minPoint.getX(), this.minPoint.getY(), this.minPoint.getZ(),

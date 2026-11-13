@@ -4,6 +4,7 @@ abstract class VerifySourceLayout extends DefaultTask {
 
     @TaskAction void verify() {
         def violations = []
+        def boundedPackages = [:].withDefault { [] }
         javaSources.files.each { source ->
             String text = source.getText('UTF-8')
             def declaration = text =~ /(?m)^package ([\w.]+);/
@@ -12,12 +13,21 @@ abstract class VerifySourceLayout extends DefaultTask {
                 return
             }
             String packageName = declaration.group(1)
+            String dependencies = text.replaceFirst(/(?m)^package [\w.]+;/, '')
             String path = source.path.replace('\\', '/')
             if (!path.endsWith(packageName.replace('.', '/') + '/' + source.name)) {
                 violations.add("Package path mismatch: ${path}")
             }
             boolean main = path.contains('/src/main/java/')
             boolean gameTest = path.contains('/src/gametest/java/')
+            if (main && (packageName.startsWith('io.github.fastformer.server.history') ||
+                    packageName.startsWith('io.github.fastformer.server.network.upload') ||
+                    packageName.startsWith('io.github.fastformer.protocol.') ||
+                    packageName.startsWith('io.github.fastformer.common.history') ||
+                    packageName.startsWith('io.github.fastformer.common.raycast') ||
+                    packageName.startsWith('io.github.fastformer.common.preview')) && source.name != 'package-info.java') {
+                boundedPackages[packageName].add(source)
+            }
             if (main && packageName == 'io.github.fastformer' && source.name != 'FastFormer.java') {
                 violations.add("Unexpected type in mod entry package: ${path}")
             }
@@ -27,8 +37,19 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (source.name.contains('GameTests') || source.name == 'RecoveryProcessTests.java')) {
                 violations.add("Test harness in production source: ${path}")
             }
-            if (main && (text =~ /\b(?:[\w]+GameTests|RecoveryProcessTests)\b/).find()) {
+            if (main && (text =~ /\b(?:[\w]+GameTests|[\w]*TestAccess|RecoveryProcessTests)\b/).find()) {
                 violations.add("Production source depends on test harness: ${path}")
+            }
+            if (main && (text =~ /\b(?:FaceRasterizationMode|BoundaryInterpolatedFaceRasterizer)\b/).find()) {
+                violations.add("Retired quad rasterization mode or solver: ${path}")
+            }
+            if (main && (text =~ /\b(?:VersionedHistoryEnvelope|HistoryEnvelopeFile)\b/).find()) {
+                violations.add("Retired history envelope bypasses shared persistence: ${path}")
+            }
+            if (main && (packageName.startsWith('io.github.fastformer.server.recovery') ||
+                    packageName.startsWith('io.github.fastformer.server.history.store')) &&
+                    (text =~ /(?:\bCRC32\b|NbtIo\.(?:readCompressed|writeCompressed)|\bMessageDigest\b)/).find()) {
+                violations.add("History or recovery bypasses the shared current-format envelope: ${path}")
             }
             boolean shared = packageName.startsWith('io.github.fastformer.workspace') ||
                     packageName.startsWith('io.github.fastformer.network.codec') ||
@@ -36,12 +57,117 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && shared && (text =~ /(?:io\.github\.fastformer|net\.minecraft)\.client\./).find()) {
                 violations.add("Shared source depends on client runtime: ${path}")
             }
+            if (main && packageName.startsWith('io.github.fastformer.protocol.') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|server|network)\.|net\.minecraft\.(?:client|server)\.|\bFastPlaceSettings\b)/).find()) {
+                violations.add("Protocol depends on runtime state or a network handler: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.protocol.c2s.') &&
+                    (dependencies =~ /io\.github\.fastformer\.protocol\.s2c\./).find() ||
+                    main && packageName.startsWith('io.github.fastformer.protocol.s2c.') &&
+                    (dependencies =~ /io\.github\.fastformer\.protocol\.c2s\./).find()) {
+                violations.add("Directional protocol depends on the opposite direction: ${path}")
+            }
+            if (main && (packageName.startsWith('io.github.fastformer.common.history') ||
+                    packageName.startsWith('io.github.fastformer.common.raycast') ||
+                    packageName.startsWith('io.github.fastformer.common.preview')) &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|server|network|protocol)\.|net\.minecraft\.(?:client|server)\.|\bFastPlaceSettings\b)/).find()) {
+                violations.add("Shared data model depends on a runtime or wire implementation: ${path}")
+            }
+            if (main && (text =~ /io\.github\.fastformer\.network\.(?:payload|sync)\./).find()) {
+                violations.add("Retired protocol or sync package reference: ${path}")
+            }
             if (main && packageName.startsWith('io.github.fastformer.workspace') &&
                     (text =~ /io\.github\.fastformer\.network\./).find()) {
                 violations.add("Workspace model depends on network transport: ${path}")
             }
+            if (main && packageName.startsWith('io.github.fastformer.core.') &&
+                    (text =~ /(?:net\.minecraft\.|net\.neoforged\.|io\.github\.fastformer\.(?!core\.))/).find()) {
+                violations.add("Core infrastructure depends on game or feature code: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.common.tinker') &&
+                    (text =~ /(?:io\.github\.fastformer\.(?:client|server|network|fastplace)\.|net\.minecraft\.(?:client|server)\.)/).find()) {
+                violations.add("Shared tinker rules depend on runtime admission or world writes: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.recovery') &&
+                    (text =~ /io\.github\.fastformer\.(?:fastplace|server)\.history\./).find()) {
+                violations.add("Recovery depends on history implementation instead of its reconciliation SPI: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.history.commit') &&
+                    (text =~ /(?:net\.minecraft\.|net\.neoforged\.|io\.github\.fastformer\.(?!server\.history\.commit[.;]))/).find()) {
+                violations.add("Commit state machine depends on storage or world runtime: ${path}")
+            }
+            if (main && source.name == 'HistoryService.java' && (text =~ /\b\w+ForTest\b/).find()) {
+                violations.add("History service exposes a test-only hook: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.intent') &&
+                    (dependencies =~ /io\.github\.fastformer\.(?:network\.|server\.input\.ServerInputDispatcher)/).find()) {
+                violations.add("Player intent handling depends on a transport or input facade: ${path}")
+            }
+            if (main && source.name == 'FastPlaceNetwork.java' && (text =~ /instanceof ServerPlayer/).find()) {
+                violations.add("Network registration bypasses typed server channels: ${path}")
+            }
+            if (main && source.name == 'FastPlaceNetwork.java' &&
+                    (text =~ /\b(?:IncomingPayloadTransfers|WorkspaceDecodeQueue|WorkspaceReceipts|WorkspaceUploads|serverEpoch|WORKSPACE_CALLBACK_SCOPES)\b/).find()) {
+                violations.add("Network registration owns upload state or bypasses its system boundary: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.network.upload') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client\.|network\.FastPlaceNetwork)|\b\w+ForTest\b)/).find()) {
+                violations.add("Upload lifecycle depends on client/registration or exposes a test-only hook: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.protocol.upload') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|server)\.|net\.minecraft\.(?:client|server)\.)/).find()) {
+                violations.add("Upload protocol depends on a runtime owner: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.history.entry') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!history\.entry\.))|net\.neoforged\.)/).find()) {
+                violations.add("History entry depends on orchestration, transport, or live configuration: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.history.compaction') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!history\.(?:entry|compaction)\.))|net\.minecraft\.(?:client|server)\.|net\.neoforged\.)/).find()) {
+                violations.add("Pure history compaction depends on mutable runtime state: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.history.memory') &&
+                    (dependencies =~ /(?:net\.|io\.github\.fastformer\.(?!core\.async\.|server\.history\.(?:entry|memory|compaction)\.))/).find()) {
+                violations.add("History memory depends on world runtime or storage orchestration: ${path}")
+            }
+            if (main && (packageName.startsWith('io.github.fastformer.server.history.memory') ||
+                    source.name in ['HistoryRepository.java', 'DiskHistoryRepository.java', 'HistoryLoading.java', 'OwnerHistory.java']) &&
+                    (dependencies =~ /\bWorldChangeBatch\b/).find()) {
+                violations.add("Generic history storage or ownership depends on block entries: ${path}")
+            }
+            if (main && source.name == 'HistoryReplayTask.java' &&
+                    (dependencies =~ /\b(?:WorldChangeBatch|ReversibleBlockSnapshot|HistoryConflictResolution|WorldJournalPreparation)\b/).find()) {
+                violations.add("Generic history replay bypasses its entry state or journal boundary: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.history.store') &&
+                    (dependencies =~ /(?:net\.|io\.github\.fastformer\.(?!core\.))/).find()) {
+                violations.add("History disk store depends on decoded entries or game runtime: ${path}")
+            }
+            if (main && source.name == 'HistoryWriteQueue.java' &&
+                    (text =~ /(?m)^import (?:net\.|io\.github\.fastformer\.(?!core\.async\.))/).find()) {
+                violations.add("History write ordering depends on game or feature runtime: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.network.transport') &&
+                    (text =~ /(?:io\.github\.fastformer|net\.minecraft)\.(?:client|server)\./).find()) {
+                violations.add("Portable transport depends on a physical-side implementation: ${path}")
+            }
+            if (main && packageName == 'io.github.fastformer.client.network.inbound' &&
+                    source.name != 'ClientInboundSystem.java' &&
+                    (text =~ /io\.github\.fastformer\.client\.(?:input|operation|render|ui)\./).find()) {
+                violations.add("Inbound queue depends on client business handlers: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.session.reconnect') &&
+                    (text =~ /(?:net\.minecraft\.|net\.neoforged\.|io\.github\.fastformer\.(?!client\.session\.reconnect[.;])[a-z])/).find()) {
+                violations.add("Reconnect wait depends on business state: ${path}")
+            }
             if (gameTest && !(source.name.contains('GameTests') || source.name.endsWith('TestAccess.java') || source.name == 'RecoveryProcessTests.java')) {
                 violations.add("Unexpected production type in test source: ${path}")
+            }
+        }
+        boundedPackages.each { name, sources ->
+            if (sources.size() > 12) violations.add("Responsibility package exceeds 12 types: ${name} (${sources.size()})")
+            if (!new File(sources.first().parentFile, 'package-info.java').isFile()) {
+                violations.add("Responsibility package lacks a description: ${name}")
             }
         }
         if (!violations.isEmpty()) throw new GradleException(violations.join('\n'))

@@ -175,7 +175,7 @@ class PendingGhostMeshCacheTest {
 
          cache.mesh(blocks);
          assertTrue(firstFailed.await(2, TimeUnit.SECONDS));
-         assertEquals(PendingGhostMesh.empty(), awaitEmptyThen(cache, blocks, firstFailed));
+         assertEquals(PendingGhostMesh.empty(), awaitEmptyThen(cache, blocks, firstFailed, executor));
          assertEquals(1, attempts.get());
          assertEquals(1, failures.size());
 
@@ -213,7 +213,7 @@ class PendingGhostMeshCacheTest {
 
          clock.addAndGet(PendingGhostMeshCache.INITIAL_RETRY_DELAY_NANOS);
          cache.mesh(blocks);
-         awaitSettled(cache, blocks);
+         awaitSettled(cache, blocks, executor);
          assertEquals(2, attempts.get());
          assertEquals(1, failures.size());
          cache.mesh(blocks);
@@ -341,7 +341,7 @@ class PendingGhostMeshCacheTest {
             return PendingGhostMesh.empty();
          }, failOnError(), clock::get);
 
-         assertEquals(PendingGhostMesh.empty(), awaitSettled(cache, blocks));
+         assertEquals(PendingGhostMesh.empty(), awaitSettled(cache, blocks, executor));
          clock.addAndGet(PendingGhostMeshCache.MAX_RETRY_DELAY_NANOS);
          assertEquals(PendingGhostMesh.empty(), cache.mesh(blocks));
          assertEquals(1, attempts.get());
@@ -351,10 +351,10 @@ class PendingGhostMeshCacheTest {
    }
 
    private static PendingGhostMesh awaitEmptyThen(
-      PendingGhostMeshCache cache, Set<BlockPos> blocks, CountDownLatch alreadyTriggered
-   ) throws InterruptedException {
+      PendingGhostMeshCache cache, Set<BlockPos> blocks, CountDownLatch alreadyTriggered, ThreadPoolExecutor executor
+   ) throws Exception {
       assertEquals(0, alreadyTriggered.getCount());
-      return awaitSettled(cache, blocks);
+      return awaitSettled(cache, blocks, executor);
    }
 
    private static void awaitFailureCount(
@@ -371,25 +371,11 @@ class PendingGhostMeshCacheTest {
       assertEquals(expected, failures.size());
    }
 
-   private static PendingGhostMesh awaitSettled(PendingGhostMeshCache cache, Set<BlockPos> blocks)
-         throws InterruptedException {
-      long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
-      PendingGhostMesh mesh;
-      do {
-         mesh = cache.mesh(blocks);
-         Thread.sleep(5L);
-      } while (System.nanoTime() < deadline && mesh == PendingGhostMesh.empty() && cacheHasInFlightWork(cache));
+   private static PendingGhostMesh awaitSettled(PendingGhostMeshCache cache, Set<BlockPos> blocks,
+      ThreadPoolExecutor executor) throws Exception {
+      cache.mesh(blocks);
+      executor.submit(() -> {}).get(2, TimeUnit.SECONDS);
       return cache.mesh(blocks);
-   }
-
-   private static boolean cacheHasInFlightWork(PendingGhostMeshCache cache) {
-      try {
-         var field = PendingGhostMeshCache.class.getDeclaredField("future");
-         field.setAccessible(true);
-         return field.get(cache) != null;
-      } catch (ReflectiveOperationException exception) {
-         throw new AssertionError(exception);
-      }
    }
 
    private static Set<BlockPos> asynchronousBlocks(int y) {

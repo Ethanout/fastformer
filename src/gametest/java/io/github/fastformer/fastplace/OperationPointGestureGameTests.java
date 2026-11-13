@@ -1,13 +1,17 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.server.history.HistoryTestAccess;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.network.payload.operation.OperationCallbackScope;
-import io.github.fastformer.network.payload.operation.OperationPointClickPayload;
-import io.github.fastformer.network.payload.operation.OperationPointDragPayload;
-import io.github.fastformer.network.sync.PlayerPreviewSync;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
+import io.github.fastformer.protocol.c2s.operation.OperationPointClickPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationPointDragPayload;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.OperationManager;
 import net.minecraft.core.BlockPos;
@@ -29,8 +33,8 @@ public final class OperationPointGestureGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "operation_point_gesture", timeoutTicks = 600)
    public static void finishedDragReplayDoesNotAuthorizeAnotherRemoval(GameTestHelper helper) {
       ServerPlayer player = preparedPrism(helper, new BlockPos(1, 5, 1));
-      long revision = PlayerPreviewSync.operationRevision(player);
-      OperationCallbackScope scope = PlayerPreviewSync.callbackScope(player);
+      long revision = PreviewSync.operationRevision(player);
+      OperationCallbackScope scope = PreviewSync.callbackScope(player);
       OperationPointDragPayload start = drag(1L, revision, scope, 1, point(player, 1), false);
       OperationPointDragPayload finish = finish(1L, revision, scope, 1, point(player, 1));
       OperationPointClickPayload remove = remove(1L, revision, scope, 1);
@@ -51,8 +55,8 @@ public final class OperationPointGestureGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "operation_point_gesture", timeoutTicks = 600)
    public static void changedGestureFieldsDoNotConsumeTheCompletedDrag(GameTestHelper helper) {
       ServerPlayer player = preparedPrism(helper, new BlockPos(1, 5, 1));
-      long revision = PlayerPreviewSync.operationRevision(player);
-      OperationCallbackScope scope = PlayerPreviewSync.callbackScope(player);
+      long revision = PreviewSync.operationRevision(player);
+      OperationCallbackScope scope = PreviewSync.callbackScope(player);
       OperationPointDragPayload start = drag(1L, revision, scope, 1, point(player, 1), false);
       OperationPointDragPayload changedPoint = drag(1L, revision, scope, 2, point(player, 2), false);
       OperationPointDragPayload changedRevision = drag(1L, revision + 1L, scope, 1, point(player, 1), false);
@@ -79,8 +83,8 @@ public final class OperationPointGestureGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "operation_point_gesture", timeoutTicks = 600)
    public static void replacedOrChangedDraftRejectsAnOldCompletedClick(GameTestHelper helper) {
       ServerPlayer player = preparedPrism(helper, new BlockPos(1, 5, 1));
-      long oldRevision = PlayerPreviewSync.operationRevision(player);
-      OperationCallbackScope scope = PlayerPreviewSync.callbackScope(player);
+      long oldRevision = PreviewSync.operationRevision(player);
+      OperationCallbackScope scope = PreviewSync.callbackScope(player);
       OperationPointDragPayload oldFinish = finish(1L, oldRevision, scope, 1, point(player, 1));
       OperationPointClickPayload oldRemove = remove(1L, oldRevision, scope, 1);
 
@@ -92,7 +96,7 @@ public final class OperationPointGestureGameTests {
          ServerInputDispatcher.operationPointClick(player, oldRemove);
          helper.assertTrue(points(player) == 3, "a replaced prism accepted the old completion");
 
-         long revision = PlayerPreviewSync.operationRevision(player);
+         long revision = PreviewSync.operationRevision(player);
          OperationPointDragPayload finish = finish(2L, revision, scope, 1, point(player, 1));
          OperationPointClickPayload remove = remove(2L, revision, scope, 1);
          ServerInputDispatcher.operationPointDrag(player, finish);
@@ -106,8 +110,8 @@ public final class OperationPointGestureGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "operation_point_gesture", timeoutTicks = 600)
    public static void nonzeroControlPointCanCloseAPrismBase(GameTestHelper helper) {
       ServerPlayer player = preparedPrism(helper, new BlockPos(1, 5, 1));
-      long revision = PlayerPreviewSync.operationRevision(player);
-      OperationCallbackScope scope = PlayerPreviewSync.callbackScope(player);
+      long revision = PreviewSync.operationRevision(player);
+      OperationCallbackScope scope = PreviewSync.callbackScope(player);
       OperationPointDragPayload finish = finish(1L, revision, scope, 2, point(player, 2));
       OperationPointClickPayload close = new OperationPointClickPayload(
          1L, revision, scope, OperationPointClickPayload.Action.CLOSE, 2
@@ -125,9 +129,30 @@ public final class OperationPointGestureGameTests {
       });
    }
 
+   @GameTest(template = "fastformergametests.empty", batch = "operation_point_gesture", timeoutTicks = 600)
+   public static void dragRejectsWorldHeightAndPacketJumpButAllowsEditorDistance(GameTestHelper helper) {
+      var player = preparedPrism(helper, new BlockPos(1, 5, 1));
+      var session = OperationManager.session(player).orElseThrow();
+      var original = point(player, 1);
+      player.setPos(original.getX() + 50, original.getY(), original.getZ());
+      helper.assertTrue(player.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(original)) > 25,
+         "fixture must exceed vanilla reach");
+      OperationManager.dragPoint(player, 1, original.offset(1, 0, 0), OperationPointDragConstraint.FREE, true);
+      helper.assertTrue(point(player, 1).equals(original.offset(1, 0, 0)), "valid far editor drag was rejected");
+      var before = session.points();
+      OperationManager.dragPoint(player, 1, original.offset(130, 0, 0), OperationPointDragConstraint.FREE, true);
+      helper.assertTrue(session.points().equals(before), "oversized packet jump was accepted");
+      session.setSecond(new BlockPos(original.getX(), helper.getLevel().getMaxBuildHeight() - 1, original.getZ()));
+      before = session.points();
+      OperationManager.dragPoint(player, 1, before.get(1).above(), OperationPointDragConstraint.FREE, true);
+      helper.assertTrue(session.points().equals(before), "drag escaped dimension height");
+      OperationManager.cancel(player);
+      helper.succeed();
+   }
+
    private static ServerPlayer preparedPrism(GameTestHelper helper, BlockPos origin) {
       ServerPlayer player = helper.makeMockServerPlayerInLevel();
-      WorldHistoryManager.awaitInitialHistoryLoadForTest(player, HISTORY_INITIALIZATION_TIMEOUT_MILLIS);
+      HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, HISTORY_INITIALIZATION_TIMEOUT_MILLIS);
       player.setGameMode(GameType.CREATIVE);
       preparePrism(player, helper.absolutePos(origin));
       return player;

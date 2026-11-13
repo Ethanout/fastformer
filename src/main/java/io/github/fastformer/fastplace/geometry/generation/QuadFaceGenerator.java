@@ -25,29 +25,16 @@ public final class QuadFaceGenerator {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generate(
-         vertices, fillMode, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   public static Set<BlockPos> generate(
-      List<Vec3> vertices,
-      FillMode fillMode,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
       if (vertices.size() != 4 || maxBlocks <= 0) {
          return Set.of();
       }
       if (fillMode == FillMode.OUTLINE) {
          return PlanarFaceRasterizer.interpolatedQuadOutline(
-            vertices, maxBlocks, observer, tieBias, rasterizationMode
+            vertices, maxBlocks, observer, tieBias
          );
       }
       Set<BlockPos> result = PlanarFaceRasterizer.generateInterpolatedQuad(
-         vertices, maxBlocks, observer, tieBias, rasterizationMode
+         vertices, maxBlocks, observer, tieBias
       );
       if (!result.isEmpty()) {
          return result;

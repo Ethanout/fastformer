@@ -7,7 +7,7 @@ import io.github.fastformer.client.interaction.InteractionVisibility;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.client.session.ClientTickMailbox;
+import io.github.fastformer.core.async.TickMailbox;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import java.util.List;
 import java.util.UUID;
@@ -21,8 +21,8 @@ public final class ClientSelectionSession {
    private final ClientOperationWorkspace workspace = new ClientOperationWorkspace();
    private UUID interactionOwnerId = UUID.randomUUID();
    private final InteractionHover hover = new InteractionHover();
-   private final ClientTickMailbox<InteractionHover.Event> hoverEvents =
-      new ClientTickMailbox<>(event -> { });
+   private final TickMailbox<InteractionHover.Event> hoverEvents =
+      new TickMailbox<>(event -> { });
    private final SelectionGestureState gestures = new SelectionGestureState();
    private final SelectionSessionLifecycle lifecycle = new SelectionSessionLifecycle();
    private SelectionInteractionScene interactionScene = SelectionInteractionScene.empty(this.interactionOwnerId);
@@ -44,8 +44,8 @@ public final class ClientSelectionSession {
 
    public ClientSelectionStack stack() { return this.workspace.selections(); }
    /** World history changes blocks without reopening or replacing a selection session. */
-   public void onWorldHistory(io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind kind) {
-      if (kind == io.github.fastformer.network.payload.world.WorldHistoryEventPayload.Kind.RECORD) workspace.clearHistory();
+   public void onWorldHistory(io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload.Kind kind) {
+      if (kind == io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload.Kind.RECORD) workspace.clearHistory();
    }
 
    public void closeUndoably() {

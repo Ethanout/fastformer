@@ -2,30 +2,46 @@ package io.github.fastformer.server.input;
 
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.geometry.GeometryPointerSequence;
-import java.util.UUID;
-import java.util.Map;
-import java.util.HashMap;
+import io.github.fastformer.fastplace.quickshape.QuickShapePointerSequence;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
+import io.github.fastformer.core.lifecycle.Scoped;
+import io.github.fastformer.core.lifecycle.ScopedKey;
+import io.github.fastformer.server.player.PlayerStateRegistry;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 
-final class ServerInputState {
-   final InputRequestSequence LAST_PLACEMENT_ACTION = new InputRequestSequence();
-   final InputRequestSequence LAST_GEOMETRY_ACTION = new InputRequestSequence();
-   final InputRequestSequence LAST_GEOMETRY_DRAG_ACTION = new InputRequestSequence();
-   final InputRequestSequence LAST_OPERATION_POINT_COMMAND = new InputRequestSequence();
-   final Map<UUID, OperationExtendIdentity> OPERATION_EXTEND_IDENTITIES = new HashMap<>();
-   final InputRequestSequence LAST_OPERATION_EXTEND = new InputRequestSequence();
-   final InputRequestSequence LAST_OPERATION_TRANSFORM = new InputRequestSequence();
-   final Map<UUID, OperationTransformIdentity> OPERATION_TRANSFORMS = new HashMap<>();
+final class ServerInputState implements Scoped {
+   private static final ScopedKey<ServerInputState> KEY = PlayerStateRegistry.key(
+      ResourceLocation.parse("fastformer:input"), ServerInputState::new);
+
+   static ServerInputState of(ServerPlayer player) { return PlayerStateRegistry.of(player).get(KEY); }
+
+   static void reset(ServerPlayer player) {
+      PlayerStateRegistry.find(player).flatMap(scope -> scope.find(KEY)).ifPresent(ServerInputState::clear);
+   }
+
+   @Override public void onDetach() { clear(); }
+   @Override public void onDimensionChanged() { clear(); }
+   @Override public void onDiscard() { clear(); }
+   final InputRequestSequence placementActions = new InputRequestSequence();
+   final InputRequestSequence geometryActions = new InputRequestSequence();
+   final InputRequestSequence geometryDragActions = new InputRequestSequence();
+   final InputRequestSequence pointCommands = new InputRequestSequence();
+   OperationExtendIdentity extendGesture;
+   final InputRequestSequence extendActions = new InputRequestSequence();
+   final InputRequestSequence transformActions = new InputRequestSequence();
+   OperationTransformIdentity transformGesture;
    record OperationTransformIdentity(OperationSession session, long gestureId, long revision, int operation, int axis, int direction, boolean finished) { }
 
    record OperationExtendIdentity(OperationSession session, long requestId, long revision,
-      io.github.fastformer.network.payload.operation.OperationCallbackScope scope, int axis, boolean positive) { }
+      OperationCallbackScope scope, int axis, boolean positive) { }
 
-   final Map<UUID, GeometryPointerSequence> GEOMETRY_POINTER_SEQUENCES = new HashMap<>();
-   final Map<UUID, OperationPointGesture> OPERATION_POINT_GESTURES = new HashMap<>();
+   GeometryPointerSequence geometryPointer;
+   OperationPointGesture pointGesture;
 
    record OperationPointGesture(
       OperationSession session, long gestureId, long revision,
-      io.github.fastformer.network.payload.operation.OperationCallbackScope callbackScope,
+      OperationCallbackScope callbackScope,
       int pointIndex, boolean finished, long completedRevision, boolean consumed
    ) {
       OperationPointGesture finished(long value) {
@@ -36,32 +52,18 @@ final class ServerInputState {
       }
    }
 
-   final java.util.Map<UUID, io.github.fastformer.fastplace.quickshape.QuickShapePointerSequence> POINTER_SEQUENCES =
-      new java.util.HashMap<>();
-   void clear(UUID owner) {
-      LAST_PLACEMENT_ACTION.clear(owner);
-      POINTER_SEQUENCES.remove(owner);
-      LAST_GEOMETRY_ACTION.clear(owner);
-      LAST_GEOMETRY_DRAG_ACTION.clear(owner);
-      LAST_OPERATION_POINT_COMMAND.clear(owner);
-      GEOMETRY_POINTER_SEQUENCES.remove(owner);
-      OPERATION_POINT_GESTURES.remove(owner);
-      OPERATION_EXTEND_IDENTITIES.remove(owner);
-      LAST_OPERATION_EXTEND.clear(owner);
-      LAST_OPERATION_TRANSFORM.clear(owner);
-      OPERATION_TRANSFORMS.remove(owner);
-   }
+   QuickShapePointerSequence quickShapePointer;
    void clear() {
-      LAST_PLACEMENT_ACTION.clear();
-      POINTER_SEQUENCES.clear();
-      LAST_GEOMETRY_ACTION.clear();
-      LAST_GEOMETRY_DRAG_ACTION.clear();
-      LAST_OPERATION_POINT_COMMAND.clear();
-      GEOMETRY_POINTER_SEQUENCES.clear();
-      OPERATION_POINT_GESTURES.clear();
-      OPERATION_EXTEND_IDENTITIES.clear();
-      LAST_OPERATION_EXTEND.clear();
-      LAST_OPERATION_TRANSFORM.clear();
-      OPERATION_TRANSFORMS.clear();
+      placementActions.clear();
+      quickShapePointer = null;
+      geometryActions.clear();
+      geometryDragActions.clear();
+      pointCommands.clear();
+      geometryPointer = null;
+      pointGesture = null;
+      extendGesture = null;
+      extendActions.clear();
+      transformActions.clear();
+      transformGesture = null;
    }
 }

@@ -1,5 +1,12 @@
 package io.github.fastformer.fastplace.command;
 
+import io.github.fastformer.core.command.IntentSource;
+import io.github.fastformer.server.intent.PlayerIntentSystem;
+import io.github.fastformer.server.intent.SessionIntents;
+import io.github.fastformer.server.intent.HistoryIntents;
+
+import io.github.fastformer.server.history.HistorySystem;
+
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
@@ -11,18 +18,18 @@ import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.fastplace.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
-import io.github.fastformer.network.payload.settings.OpenSettingsPayload;
+import io.github.fastformer.protocol.s2c.settings.OpenSettingsPayload;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.FastPlaceManager;
 import io.github.fastformer.server.session.GeometryManager;
@@ -67,7 +74,7 @@ public final class FastPlaceCommandRegistry {
                var player = context.getSource().getPlayerOrException();
                boolean value = BoolArgumentType.getBool(context, "enabled");
                FastPlaceSettings.load(player).setForcePlacement(player, value);
-               io.github.fastformer.network.sync.PlayerPreviewSync.syncInteractionUpdates(player);
+               io.github.fastformer.server.sync.PreviewSync.syncInteractionUpdates(player);
                context.getSource().sendSuccess(() -> Component.translatable("fastformer.message.force_placement", value), false);
                return 1;
             })))
@@ -109,7 +116,7 @@ public final class FastPlaceCommandRegistry {
       return Commands.literal("operation")
          .then(Commands.literal("apply").executes(context -> commandCanOperate(context.getSource().getPlayerOrException()) && OperationManager.apply(context.getSource().getPlayerOrException(), false) ? 1 : 0))
          .then(Commands.literal("copy").executes(context -> commandCanOperate(context.getSource().getPlayerOrException()) && OperationManager.apply(context.getSource().getPlayerOrException(), true) ? 1 : 0))
-         .then(Commands.literal("undo").executes(context -> commandCanOperate(context.getSource().getPlayerOrException()) && ServerInputDispatcher.commandWorldUndo(context.getSource().getPlayerOrException(), 1) ? 1 : 0))
+         .then(Commands.literal("undo").executes(context -> commandCanOperate(context.getSource().getPlayerOrException()) && PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new HistoryIntents.Undo(1, HistoryIntents.UndoScope.COMMITTED_WORLD)).handled() ? 1 : 0))
          .then(Commands.literal("mode").executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
             if (!commandCanOperate(player)) {
@@ -134,31 +141,29 @@ public final class FastPlaceCommandRegistry {
    private static LiteralArgumentBuilder<CommandSourceStack> actionCommand() {
       return Commands.literal("action")
          .then(Commands.literal("cycle").executes(context ->
-            ServerInputDispatcher.commandCycleMode(context.getSource().getPlayerOrException()) ? 1 : 0
+            PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new SessionIntents.CycleMode(null)).handled() ? 1 : 0
          ))
          .then(Commands.literal("adjust")
             .then(Commands.argument("steps", IntegerArgumentType.integer(-128, 128)).executes(context ->
-               ServerInputDispatcher.commandAdjust(
-                  context.getSource().getPlayerOrException(),
-                  IntegerArgumentType.getInteger(context, "steps")
-               ) ? 1 : 0
+               PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND,
+                  new SessionIntents.Adjust(IntegerArgumentType.getInteger(context, "steps"))).handled() ? 1 : 0
             )))
          .then(Commands.literal("confirm").executes(context ->
-            ServerInputDispatcher.commandConfirm(context.getSource().getPlayerOrException()) ? 1 : 0
+            PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new SessionIntents.Confirm()).handled() ? 1 : 0
          ))
          .then(Commands.literal("back").executes(context ->
-            ServerInputDispatcher.commandBack(context.getSource().getPlayerOrException()) ? 1 : 0
+            PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new HistoryIntents.Back()).handled() ? 1 : 0
          ))
          .then(Commands.literal("cancel").executes(context -> {
-            ServerInputDispatcher.quit(context.getSource().getPlayerOrException());
+            PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new HistoryIntents.Quit());
             return 1;
          }))
          .then(Commands.literal("submode")
             .then(Commands.literal("on").executes(context ->
-               ServerInputDispatcher.commandSubmode(context.getSource().getPlayerOrException(), true) ? 1 : 0
+               PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new SessionIntents.Submode(true)).handled() ? 1 : 0
             ))
             .then(Commands.literal("off").executes(context ->
-               ServerInputDispatcher.commandSubmode(context.getSource().getPlayerOrException(), false) ? 1 : 0
+               PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new SessionIntents.Submode(false)).handled() ? 1 : 0
             )));
    }
 
@@ -198,12 +203,12 @@ public final class FastPlaceCommandRegistry {
       return Commands.literal("undo")
          .executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            return commandCanOperate(player) && ServerInputDispatcher.commandWorldUndo(player, 1) ? 1 : 0;
+            return commandCanOperate(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Undo(1, HistoryIntents.UndoScope.COMMITTED_WORLD)).handled() ? 1 : 0;
          })
-         .then(Commands.argument("count", IntegerArgumentType.integer(1, WorldHistoryManager.MAX_LIMIT)).executes(context -> {
+         .then(Commands.argument("count", IntegerArgumentType.integer(1, HistoryService.MAX_LIMIT)).executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
             return commandCanOperate(player)
-               && ServerInputDispatcher.commandWorldUndo(player, IntegerArgumentType.getInteger(context, "count")) ? 1 : 0;
+               && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Undo(IntegerArgumentType.getInteger(context, "count"), HistoryIntents.UndoScope.COMMITTED_WORLD)).handled() ? 1 : 0;
          }));
    }
 
@@ -211,12 +216,12 @@ public final class FastPlaceCommandRegistry {
       return Commands.literal("redo")
          .executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            return commandCanOperate(player) && WorldHistoryManager.requestRedo(player, 1) ? 1 : 0;
+            return commandCanOperate(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Redo(1)).handled() ? 1 : 0;
          })
-         .then(Commands.argument("count", IntegerArgumentType.integer(1, WorldHistoryManager.MAX_LIMIT)).executes(context -> {
+         .then(Commands.argument("count", IntegerArgumentType.integer(1, HistoryService.MAX_LIMIT)).executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
             return commandCanOperate(player)
-               && WorldHistoryManager.requestRedo(player, IntegerArgumentType.getInteger(context, "count")) ? 1 : 0;
+               && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Redo(IntegerArgumentType.getInteger(context, "count"))).handled() ? 1 : 0;
          }));
    }
 
@@ -233,7 +238,7 @@ public final class FastPlaceCommandRegistry {
             );
             return 1;
          })
-         .then(Commands.argument("count", IntegerArgumentType.integer(1, WorldHistoryManager.MAX_LIMIT)).executes(context -> {
+         .then(Commands.argument("count", IntegerArgumentType.integer(1, HistoryService.MAX_LIMIT)).executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
             if (!commandCanOperate(player)) {
                return 0;
@@ -283,7 +288,7 @@ public final class FastPlaceCommandRegistry {
       return Commands.literal("history_cleanup")
          .requires(source -> source.hasPermission(2))
          .executes(context -> {
-            WorldHistoryManager.resumeDiskCleanup(context.getSource().getServer());
+            HistorySystem.of(context.getSource().getServer()).resumeDiskCleanup(context.getSource().getServer());
             context.getSource().sendSuccess(() -> Component.literal("FastFormer history cleanup started."), true);
             return 1;
          });
@@ -334,7 +339,6 @@ public final class FastPlaceCommandRegistry {
             player,
             new OpenSettingsPayload(
                settings.middleConfirmEnabled(),
-               settings.faceRasterizationMode(),
                settings.placementConflictMode(),
                settings.placementUpdateMode(),
                settings.enabledPlacementEffects().stream().sorted().toList(),
@@ -797,7 +801,7 @@ public final class FastPlaceCommandRegistry {
          if (!commandCanOperate(player)) {
             return 0;
          }
-         ServerInputDispatcher.shortModifier(player);
+         PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new SessionIntents.CycleMode(null));
          return 1;
       });
    }

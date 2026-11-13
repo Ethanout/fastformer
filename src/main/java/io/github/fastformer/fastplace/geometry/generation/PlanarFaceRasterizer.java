@@ -190,26 +190,13 @@ final class PlanarFaceRasterizer {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generateInterpolatedQuad(
-         vertices, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   static Set<BlockPos> generateInterpolatedQuad(
-      List<Vec3> vertices,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
       ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
-      BresenhamFaceSweep.Attempt attempt = BoundaryInterpolatedFaceRasterizer.attempt(
+      BresenhamFaceSweep.Attempt attempt = QuadFaceRasterizer.attempt(
          frame,
          tieBias,
          maxBlocks,
-         effectiveObserver,
-         rasterizationMode
+         effectiveObserver
       );
       if (attempt.succeeded()) {
          return observedCopy(attempt.result().fill(), maxBlocks, effectiveObserver);
@@ -217,12 +204,8 @@ final class PlanarFaceRasterizer {
       if (attempt.status() == BresenhamFaceSweep.Status.LIMIT_EXCEEDED) {
          return limitSentinel(maxBlocks, effectiveObserver);
       }
-      // The interpolated solver is intentionally experimental.  A failed
-      // ray/interpolation invariant must never surface as a user-visible
-      // placement failure: use the same projected analytic raster plus the
-      // authoritative four edges as a deterministic generation-time safety
-      // net.  This is not a post-process hole fill and does not alter the
-      // normal experimental path.
+      // Preserve authored edges if the constrained raster has no valid candidate.
+      // This deterministic fallback is bounded and still reports cancellation and limits.
       Set<BlockPos> fallback = lastResortOwnedRaster(vertices, maxBlocks, effectiveObserver, tieBias);
       return GenerationLimitExceeded.is(fallback)
          ? fallback
@@ -235,18 +218,6 @@ final class PlanarFaceRasterizer {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return interpolatedQuadOutline(
-         vertices, maxBlocks, observer, tieBias, FaceRasterizationMode.POINT_SWEEP
-      );
-   }
-
-   static Set<BlockPos> interpolatedQuadOutline(
-      List<Vec3> vertices,
-      int maxBlocks,
-      BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
-   ) {
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
       ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
       Set<BlockPos> translated = translatedQuadOutline(vertices, maxBlocks, effectiveObserver, tieBias);
@@ -254,7 +225,7 @@ final class PlanarFaceRasterizer {
          return translated;
       }
       return interpolatedQuadNaturalOutline(
-         vertices, maxBlocks, effectiveObserver, tieBias, rasterizationMode
+         vertices, maxBlocks, effectiveObserver, tieBias
       );
    }
 
@@ -262,17 +233,15 @@ final class PlanarFaceRasterizer {
       List<Vec3> vertices,
       int maxBlocks,
       BlockGenerationObserver observer,
-      LineTieBias tieBias,
-      FaceRasterizationMode rasterizationMode
+      LineTieBias tieBias
    ) {
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
       ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
-      BresenhamFaceSweep.Attempt attempt = BoundaryInterpolatedFaceRasterizer.attempt(
+      BresenhamFaceSweep.Attempt attempt = QuadFaceRasterizer.attempt(
          frame,
          tieBias,
          maxBlocks,
-         effectiveObserver,
-         rasterizationMode
+         effectiveObserver
       );
       if (attempt.succeeded()) {
          return observedCopy(attempt.result().outline(), maxBlocks, effectiveObserver);

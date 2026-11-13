@@ -1,24 +1,27 @@
 package io.github.fastformer.client.session;
 
-import java.util.concurrent.*;
+import io.github.fastformer.client.lifecycle.ClientBackgroundTasks;
+import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /** Serial disk work with bounded admission and client-thread completions. */
 public final class ClientStorageQueue {
-   private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS,
-      new ArrayBlockingQueue<>(8), task -> { var thread = new Thread(task, "fastformer-client-storage"); thread.setDaemon(true); return thread; });
-   private final java.util.concurrent.ConcurrentLinkedQueue<Runnable> results = new java.util.concurrent.ConcurrentLinkedQueue<>();
+   private final ThreadPoolExecutor worker;
+   private final ConcurrentLinkedQueue<Runnable> results = new ConcurrentLinkedQueue<>();
    private final Semaphore slots = new Semaphore(3);
    public ClientStorageQueue() {
-      Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-         worker.shutdown();
-         try {
-            if (!worker.awaitTermination(5, TimeUnit.SECONDS)) {
-               org.slf4j.LoggerFactory.getLogger(ClientStorageQueue.class).warn("Client storage did not finish within the shutdown deadline");
-            }
-         } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
-      }, "fastformer-client-storage-shutdown"));
+      this(ClientBackgroundTasks.serial("session-storage", 8));
+   }
+
+   public ClientStorageQueue(ThreadPoolExecutor worker) {
+      this.worker = Objects.requireNonNull(worker, "worker");
    }
    public <T> boolean submit(Callable<T> task, BiConsumer<T, Exception> completion) {
       return submitPrepared(() -> new Task<>(task, completion));
@@ -26,15 +29,15 @@ public final class ClientStorageQueue {
 
    public record Task<T>(Callable<T> work, BiConsumer<T, Exception> completion) {
       public Task {
-         java.util.Objects.requireNonNull(work, "work");
-         java.util.Objects.requireNonNull(completion, "completion");
+         Objects.requireNonNull(work, "work");
+         Objects.requireNonNull(completion, "completion");
       }
    }
 
    public <T> boolean submitPrepared(Supplier<Task<T>> preparation) {
       if (!slots.tryAcquire()) return false;
       try {
-         Task<T> task = java.util.Objects.requireNonNull(preparation.get(), "prepared task");
+         Task<T> task = Objects.requireNonNull(preparation.get(), "prepared task");
          worker.execute(() -> run(task));
          return true;
       } catch (RejectedExecutionException exception) { slots.release(); return false; }
@@ -61,5 +64,10 @@ public final class ClientStorageQueue {
    }
    public void drain() {
       for (int i = results.size(); i > 0; i--) { Runnable result = results.poll(); if (result != null) result.run(); }
+   }
+
+   /** Includes completed work whose client-thread callback has not yet run. */
+   public boolean idle() {
+      return slots.availablePermits() == 3;
    }
 }

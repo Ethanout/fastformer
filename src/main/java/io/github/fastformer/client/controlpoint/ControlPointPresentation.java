@@ -5,8 +5,8 @@ import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointFeedback
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.network.payload.operation.OperationPreviewPayload;
-import io.github.fastformer.network.payload.preview.BuildingPreviewPayload;
+import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
+import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -33,7 +33,7 @@ public final class ControlPointPresentation {
       return List.copyOf(result);
    }
 
-   public static List<ControlPoint> building(BuildingPreviewPayload snapshot, BlockPos candidate, BlockPos hoveredPoint) {
+   public static List<ControlPoint> building(BuildingPreviewSnapshot snapshot, BlockPos candidate, BlockPos hoveredPoint) {
       if (snapshot.points().isEmpty() && candidate == null) {
          return List.of();
       }
@@ -112,7 +112,7 @@ public final class ControlPointPresentation {
    }
 
    public static Set<BlockPos> candidateBlocks(
-      BuildingPreviewPayload snapshot, BlockPos candidate, BlockPos hoveredPoint
+      BuildingPreviewSnapshot snapshot, BlockPos candidate, BlockPos hoveredPoint
    ) {
       return candidate == null
          || snapshot.polygonHeightConfirmed()
@@ -123,7 +123,7 @@ public final class ControlPointPresentation {
    }
 
    public static boolean closingCandidate(
-      BuildingPreviewPayload snapshot, BlockPos hoveredPoint
+      BuildingPreviewSnapshot snapshot, BlockPos hoveredPoint
    ) {
       return snapshot.faceMode() == FaceMode.POLYGON
          && !snapshot.polygonClosed()

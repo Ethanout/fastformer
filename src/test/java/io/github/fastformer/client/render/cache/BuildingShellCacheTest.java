@@ -26,15 +26,12 @@ class BuildingShellCacheTest {
          var attempts = new java.util.concurrent.atomic.AtomicInteger();
          var executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>()) {
             @Override
-            public <T> java.util.concurrent.Future<T> submit(java.util.concurrent.Callable<T> task) {
+            public void execute(Runnable task) {
                attempts.incrementAndGet();
                if (failureMode == 0) {
                   throw new java.util.concurrent.RejectedExecutionException("temporary rejection");
                }
-               var future = new java.util.concurrent.CompletableFuture<T>();
-               if (failureMode == 1) future.cancel(false);
-               else future.completeExceptionally(new java.util.concurrent.CancellationException());
-               return future;
+               ((java.util.concurrent.Future<?>) task).cancel(false);
             }
          };
          try {
@@ -154,10 +151,8 @@ class BuildingShellCacheTest {
    private static ThreadPoolExecutor failingExecutor() {
       return new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>()) {
          @Override
-         public <T> java.util.concurrent.Future<T> submit(java.util.concurrent.Callable<T> task) {
-            java.util.concurrent.CompletableFuture<T> failed = new java.util.concurrent.CompletableFuture<>();
-            failed.completeExceptionally(new IllegalStateException("background mesh failure"));
-            return failed;
+         public void execute(Runnable task) {
+            throw new java.util.concurrent.RejectedExecutionException("background mesh failure");
          }
       };
    }

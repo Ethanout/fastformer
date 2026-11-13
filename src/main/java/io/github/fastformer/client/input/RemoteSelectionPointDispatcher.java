@@ -3,7 +3,7 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
-import io.github.fastformer.network.payload.operation.OperationPointPayload;
+import io.github.fastformer.protocol.c2s.operation.OperationPointPayload;
 import java.util.function.Consumer;
 
 final class RemoteSelectionPointDispatcher {

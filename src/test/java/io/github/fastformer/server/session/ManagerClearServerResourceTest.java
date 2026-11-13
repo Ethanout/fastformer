@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -97,7 +97,7 @@ class ManagerClearServerResourceTest {
          Level.OVERWORLD,
          new BlockingCompressionDeque<>(List.of(snapshot(position, "before")), historyStarted, finishHistory),
          Map.of(position, snapshot(position, "after")),
-         null
+         null, taskBody -> CompletableFuture.runAsync(taskBody)
       );
       setField(task, "operationCommit", commit);
       try {

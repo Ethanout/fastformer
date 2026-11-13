@@ -3,13 +3,31 @@ package io.github.fastformer.fastplace.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.recovery.JournalPreparation;
-import io.github.fastformer.fastplace.recovery.WorldJournalPreparation;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import org.junit.jupiter.api.Test;
 
 class RecoveryJournalPreparationTest {
+   @Test
+   void rejectedSubmissionFailsWithoutLosingTheCancellationBoundary() {
+      WorldJournalPreparation preparation = new WorldJournalPreparation(task -> {
+         throw new java.util.concurrent.RejectedExecutionException("stopped worker");
+      });
+      assertEquals(JournalPreparation.FAILED, preparation.poll(Optional::empty));
+      assertEquals("RejectedExecutionException", preparation.failureReason());
+      assertTrue(preparation.completion().isDone());
+      preparation.cancel();
+      assertEquals(JournalPreparation.FAILED, preparation.poll(Optional::empty));
+   }
+
+   @Test
+   void unboundPreparationReportsItsMissingContext() {
+      WorldJournalPreparation preparation = new WorldJournalPreparation();
+      assertEquals(JournalPreparation.FAILED, preparation.poll(Optional::empty));
+      assertEquals("IllegalStateException", preparation.failureReason());
+   }
    @Test
    void emptyJournalResultBecomesAnExplicitFailure() {
       WorldJournalPreparation preparation = new WorldJournalPreparation(Runnable::run);

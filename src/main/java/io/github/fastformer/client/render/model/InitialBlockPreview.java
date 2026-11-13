@@ -32,7 +32,7 @@ public record InitialBlockPreview(BlockPos position, BlockState state, ShapeShel
       var level = selection ? player.level() : PreviewBlockOcclusion.level(Set.of(position), state, Map.of());
       var shape = selection
          ? SelectionTargetShape.resolve(level, position, CollisionContext.of(player),
-            io.github.fastformer.fastplace.geometry.raycast.InteractionRaycastRules.passesThroughFluids(player, FastPlaceClientInput.modifierHeld()))
+            io.github.fastformer.common.raycast.InteractionRaycastRules.passesThroughFluids(player, FastPlaceClientInput.modifierHeld()))
          : state.getShape(level, position, CollisionContext.of(player));
       var boxes = shape.toAabbs();
       return new InitialBlockPreview(position, state, mesh(position, boxes));

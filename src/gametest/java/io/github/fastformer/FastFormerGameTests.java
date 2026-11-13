@@ -1,9 +1,13 @@
 package io.github.fastformer;
 
+import io.github.fastformer.server.history.HistorySystem;
+
+import io.github.fastformer.server.history.rollback.RollbackRequest;
+
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
 import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
-import io.github.fastformer.fastplace.history.WorldHistoryManager;
+import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
@@ -193,7 +197,7 @@ public final class FastFormerGameTests {
    @net.neoforged.bus.api.SubscribeEvent
    public static void register(RegisterGameTestsEvent event) {
       event.register(FastFormerGameTests.class);
-      event.register(io.github.fastformer.fastplace.recovery.JournalRecoveryGameTests.class);
+      event.register(io.github.fastformer.server.recovery.JournalRecoveryGameTests.class);
       event.register(io.github.fastformer.server.session.TaskCommitFailureGameTests.class);
    }
 
@@ -281,19 +285,19 @@ public final class FastFormerGameTests {
       ReversibleBlockSnapshot after = ReversibleBlockSnapshot.capture(level, position).orElseThrow();
       UUID owner = UUID.randomUUID();
 
-      if (!WorldHistoryManager.startRollback(
+      if (!HistorySystem.of(helper.getLevel().getServer()).rollback(RollbackRequest.ready(
          new WorldTaskContext(level.getServer(), owner),
          level.dimension(),
          new ArrayDeque<>(List.of(before)),
          Map.of(position, after),
          null
-      )) {
+      ))) {
          helper.fail("real-level recovery was not accepted");
          return;
       }
 
       helper.succeedWhen(() -> {
-         if (level.getBlockState(position).equals(before.state()) && !WorldHistoryManager.busy(owner)) {
+         if (level.getBlockState(position).equals(before.state()) && !HistorySystem.of(helper.getLevel().getServer()).busy(owner)) {
             helper.succeed();
          }
       });
@@ -309,13 +313,13 @@ public final class FastFormerGameTests {
       var after = ReversibleBlockSnapshot.capture(level, position).orElseThrow();
       UUID owner = UUID.randomUUID();
 
-      if (!WorldHistoryManager.startRollback(
+      if (!HistorySystem.of(helper.getLevel().getServer()).rollback(RollbackRequest.ready(
          new WorldTaskContext(level.getServer(), owner),
          level.dimension(),
          new ArrayDeque<>(List.of(before)),
          Map.of(position, after),
          null
-      )) {
+      ))) {
          helper.fail("block entity recovery was not accepted");
          return;
       }
@@ -323,7 +327,7 @@ public final class FastFormerGameTests {
       helper.succeedWhen(() -> {
          if (level.getBlockState(position).is(Blocks.CHEST)
             && level.getBlockEntity(position) != null
-            && !WorldHistoryManager.busy(owner)) {
+            && !HistorySystem.of(helper.getLevel().getServer()).busy(owner)) {
             helper.succeed();
          }
       });
@@ -339,20 +343,20 @@ public final class FastFormerGameTests {
       var after = ReversibleBlockSnapshot.capture(level, position).orElseThrow();
       UUID owner = UUID.randomUUID();
 
-      if (!WorldHistoryManager.startRollback(
+      if (!HistorySystem.of(helper.getLevel().getServer()).rollback(RollbackRequest.ready(
          new WorldTaskContext(level.getServer(), owner),
          level.dimension(),
          new ArrayDeque<>(List.of(before)),
          Map.of(position, after),
          null
-      )) {
+      ))) {
          helper.fail("fluid recovery was not accepted");
          return;
       }
 
       helper.succeedWhen(() -> {
          if (level.getFluidState(position).is(Fluids.WATER)
-            && !WorldHistoryManager.busy(owner)) {
+            && !HistorySystem.of(helper.getLevel().getServer()).busy(owner)) {
             helper.succeed();
          }
       });
@@ -368,13 +372,13 @@ public final class FastFormerGameTests {
       ReversibleBlockSnapshot after = ReversibleBlockSnapshot.capture(level, position).orElseThrow();
       UUID owner = UUID.randomUUID();
 
-      if (!WorldHistoryManager.startRollback(
+      if (!HistorySystem.of(helper.getLevel().getServer()).rollback(RollbackRequest.ready(
          new WorldTaskContext(level.getServer(), owner),
          level.dimension(),
          new ArrayDeque<>(List.of(before)),
          Map.of(position, after),
          null
-      )) {
+      ))) {
          helper.fail("conflict recovery was not accepted");
          return;
       }
@@ -384,7 +388,7 @@ public final class FastFormerGameTests {
       level.setBlock(position, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
       helper.succeedWhen(() -> {
          if (level.getBlockState(position).is(Blocks.GOLD_BLOCK)
-            && !WorldHistoryManager.busy(owner)) {
+            && !HistorySystem.of(helper.getLevel().getServer()).busy(owner)) {
             helper.succeed();
          }
       });

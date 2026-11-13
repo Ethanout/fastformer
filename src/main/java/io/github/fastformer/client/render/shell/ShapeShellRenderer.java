@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render.shell;
 
-import io.github.fastformer.client.render.FastPlaceClientPreview;
+import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import java.util.List;
@@ -28,7 +28,7 @@ public final class ShapeShellRenderer {
          Vec3 normal = Vec3.atLowerCornerOf(face.direction().getNormal()).scale(FACE_OFFSET);
          List<Vec3> vertices = face.vertices();
          ShapeShellMesh.Color color = face.color();
-         FastPlaceClientPreview.addGhostQuad(
+         FastPlaceClientPreviewCore.addGhostQuad(
             poseStack,
             consumer,
             vertices.get(0).add(normal),
@@ -55,7 +55,7 @@ public final class ShapeShellRenderer {
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       for (ShapeShellMesh.StyledEdge edge : edges) {
          ShapeShellMesh.Color color = edge.color();
-         FastPlaceClientPreview.renderLine(
+         FastPlaceClientPreviewCore.renderLine(
             poseStack,
             consumer,
             edge.from(),
@@ -106,7 +106,7 @@ public final class ShapeShellRenderer {
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       for (GuideLine edge : confirmed) {
-         FastPlaceClientPreview.renderLine(
+         FastPlaceClientPreviewCore.renderLine(
             poseStack, consumer, edge.from(), edge.to(), ink.red(), ink.green(), ink.blue(), alpha
          );
       }
