@@ -11,7 +11,7 @@ import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
-import static io.github.fastformer.server.command.CommandChecks.commandCanOperate;
+import static io.github.fastformer.server.gate.CommandAdmission.available;
 import static io.github.fastformer.server.command.CommandChecks.validNumber;
 import io.github.fastformer.server.command.syntax.CommandParameter;
 import io.github.fastformer.server.command.syntax.IntentCommands;
@@ -44,7 +44,7 @@ public final class QuickShapeCommands {
       return Commands.argument("value", DoubleArgumentType.doubleArg())
          .executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            if (!commandCanOperate(player)) {
+            if (!available(player)) {
                return 0;
             }
             double value = DoubleArgumentType.getDouble(context, "value");
@@ -55,7 +55,7 @@ public final class QuickShapeCommands {
          })
          .then(Commands.argument("x", DoubleArgumentType.doubleArg()).executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            if (!commandCanOperate(player)) {
+            if (!available(player)) {
                return 0;
             }
             double y = DoubleArgumentType.getDouble(context, "value");
@@ -117,7 +117,7 @@ public final class QuickShapeCommands {
    }
 
    private static int setFaceAngle(ServerPlayer player, double degrees) {
-      if (!commandCanOperate(player)) {
+      if (!available(player)) {
          return 0;
       }
       if (!validNumber(player, degrees)) {

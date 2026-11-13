@@ -10,7 +10,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
-import static io.github.fastformer.server.command.CommandChecks.commandCanOperate;
+import static io.github.fastformer.server.gate.CommandAdmission.available;
 
 /** Feature-owned command declarations and execution adapters. */
 public final class ActionCommands {
@@ -55,7 +55,7 @@ public final class ActionCommands {
    public static LiteralArgumentBuilder<CommandSourceStack> modeCommand() {
       return Commands.literal("mode").executes(context -> {
          ServerPlayer player = context.getSource().getPlayerOrException();
-         if (!commandCanOperate(player)) {
+         if (!available(player)) {
             return 0;
          }
          PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new SessionIntents.CycleMode(null));

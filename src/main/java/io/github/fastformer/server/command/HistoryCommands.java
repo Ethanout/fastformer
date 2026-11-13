@@ -11,7 +11,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import static io.github.fastformer.server.command.CommandChecks.commandCanOperate;
+import static io.github.fastformer.server.gate.CommandAdmission.available;
 
 /** Feature-owned command declarations and execution adapters. */
 public final class HistoryCommands {
@@ -21,11 +21,11 @@ public final class HistoryCommands {
       return Commands.literal("undo")
          .executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            return commandCanOperate(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Undo(1, HistoryIntents.UndoScope.COMMITTED_WORLD)).handled() ? 1 : 0;
+            return available(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Undo(1, HistoryIntents.UndoScope.COMMITTED_WORLD)).handled() ? 1 : 0;
          })
          .then(Commands.argument("count", IntegerArgumentType.integer(1, HistoryService.MAX_LIMIT)).executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            return commandCanOperate(player)
+            return available(player)
                && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Undo(IntegerArgumentType.getInteger(context, "count"), HistoryIntents.UndoScope.COMMITTED_WORLD)).handled() ? 1 : 0;
          }));
    }
@@ -34,11 +34,11 @@ public final class HistoryCommands {
       return Commands.literal("redo")
          .executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            return commandCanOperate(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Redo(1)).handled() ? 1 : 0;
+            return available(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Redo(1)).handled() ? 1 : 0;
          })
          .then(Commands.argument("count", IntegerArgumentType.integer(1, HistoryService.MAX_LIMIT)).executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            return commandCanOperate(player)
+            return available(player)
                && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new HistoryIntents.Redo(IntegerArgumentType.getInteger(context, "count"))).handled() ? 1 : 0;
          }));
    }

@@ -117,6 +117,19 @@ public final class SessionSystem implements AutoCloseable {
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.quit"));
    }
 
+   /** Cancels editing and world work when creative editing or recovery admission is unavailable. */
+   public void stopUnavailable(ServerPlayer player) {
+      SmartFillSystem.cancel(player);
+      boolean taskWasActive = placements.active(player) || operationTasks.active(player);
+      cancelEditing(player);
+      placements.cancel(player);
+      operationTasks.cancel(player);
+      HistorySystem.of(player).cancel(player);
+      if (taskWasActive && !io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
+         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
+      }
+   }
+
    /** Drops player-bound editing state; queued world work keeps its own lifetime. */
    public void discardPlayer(ServerPlayer player) {
       SmartFillSystem.forget(player);

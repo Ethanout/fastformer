@@ -146,7 +146,7 @@ public final class FastPlaceEvents {
          }
          if (!ServerInputDispatcher.canOperate(player)) {
             QuickReplaceSystem.forget(player);
-            ServerInputDispatcher.stopBecauseUnavailable(player);
+            io.github.fastformer.server.session.SessionSystem.of(player).stopUnavailable(player);
             FastPlaceNetwork.syncActivity(player);
             return;
          }

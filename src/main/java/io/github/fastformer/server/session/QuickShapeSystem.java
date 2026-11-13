@@ -692,12 +692,6 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       return true;
    }
 
-   public void setMaxPlacement(ServerPlayer player, int value) {
-      FastPlaceSettings settings = FastPlaceSettings.load(player);
-      settings.setMaxPlacement(player, value);
-      FastPlaceMessages.chat(player, "fastformer.message.max_placement", settings.maxPlacement());
-   }
-
    void discardPlayer(UUID owner) {
       sessions.discard(owner);
    }

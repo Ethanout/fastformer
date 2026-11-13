@@ -128,6 +128,10 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /\bGeometrySystem\b/).find()) {
                 violations.add("Geometry commands bypass the player intent handlers: ${path}")
             }
+            if (main && packageName.startsWith('io.github.fastformer.server.command') &&
+                    (dependencies =~ /(?:\b(?:QuickShapeSystem|OperationSystem|ServerInputDispatcher)\b|FastPlaceSettings\.load\s*\()/).find()) {
+                violations.add("Command syntax owns workflow or settings behavior instead of constructing intents: ${path}")
+            }
             if (main && (dependencies =~ /\bFastPlaceCommandRegistry\b|io\.github\.fastformer\.fastplace\.command\./).find()) {
                 violations.add("Retired monolithic command registration: ${path}")
             }

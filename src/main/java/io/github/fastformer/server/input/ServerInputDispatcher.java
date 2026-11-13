@@ -26,7 +26,6 @@ import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.interaction.SpecialItemHandlers;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
-import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
@@ -79,18 +78,6 @@ public final class ServerInputDispatcher {
    /** A world task owns all editing input until it releases its resources. */
    public static boolean interactionBlocked(ServerPlayer player) {
       return !ServerOperationGates.CONTINUE_INTERACTION.test(player).allowed();
-   }
-
-   public static void stopBecauseUnavailable(ServerPlayer player) {
-      io.github.fastformer.server.fill.SmartFillSystem.cancel(player);
-      boolean taskWasActive = SessionSystem.of(player).placementTasks().active(player) || SessionSystem.of(player).operationTasks().active(player);
-      SessionSystem.of(player).cancelEditing(player);
-      SessionSystem.of(player).placementTasks().cancel(player);
-      SessionSystem.of(player).operationTasks().cancel(player);
-      HistorySystem.of(player).cancel(player);
-      if (taskWasActive && !RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
-      }
    }
 
    public static boolean rightClickBlock(ServerPlayer player, BlockHitResult hit) {

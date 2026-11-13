@@ -6,6 +6,7 @@ import io.github.fastformer.core.command.IntentContext;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.server.settings.SettingsIntentHandlers;
+import io.github.fastformer.server.settings.PlayerSettingsIntentHandlers;
 import io.github.fastformer.server.intent.quickshape.QuickShapeIntentHandlers;
 import io.github.fastformer.server.intent.selection.SelectionIntentHandlers;
 import net.minecraft.server.level.ServerPlayer;
@@ -19,6 +20,7 @@ public final class PlayerIntentSystem {
       SelectionIntentHandlers.register(bus);
       HistoryIntentHandlers.register(bus);
       SettingsIntentHandlers.register(bus);
+      PlayerSettingsIntentHandlers.register(bus);
    });
 
    private PlayerIntentSystem() {}

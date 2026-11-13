@@ -9,7 +9,7 @@ import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import static io.github.fastformer.server.command.CommandChecks.commandCanOperate;
+import static io.github.fastformer.server.gate.CommandAdmission.available;
 import static io.github.fastformer.server.command.CommandChecks.validNumber;
 import static io.github.fastformer.server.command.edit.RotationCommands.rotateCommand;
 import io.github.fastformer.server.command.syntax.CommandChoices;
@@ -60,7 +60,7 @@ public final class GeometryCommands {
       var z = CommandParameter.number("z", 0.125, 8.0);
       return IntentCommands.routeCommand("ellipse", context -> {
          var player = context.getSource().getPlayerOrException();
-         if (!commandCanOperate(player) || !validNumber(player, x.read(context), z.read(context))) return 0;
+         if (!available(player) || !validNumber(player, x.read(context), z.read(context))) return 0;
          return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
             new GeometryIntents.ConeEllipse(x.read(context), z.read(context))).handled() ? 1 : 0;
       }, x, z);

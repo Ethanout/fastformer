@@ -10,7 +10,7 @@ import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
-import static io.github.fastformer.server.command.CommandChecks.commandCanOperate;
+import static io.github.fastformer.server.gate.CommandAdmission.available;
 import io.github.fastformer.server.command.syntax.CommandParameter;
 import io.github.fastformer.server.command.syntax.IntentCommands;
 
@@ -35,7 +35,7 @@ public final class RotationCommands {
             return 0;
          }
          ServerPlayer player = context.getSource().getPlayerOrException();
-         return commandCanOperate(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
+         return available(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
             new GeometryIntents.Matrix(values)).handled() ? 1 : 0;
       })));
       root.then(Commands.literal("snap").then(rotateSnapCommand(false)));
@@ -55,13 +55,13 @@ public final class RotationCommands {
                return 0;
             }
             ServerPlayer player = context.getSource().getPlayerOrException();
-            return commandCanOperate(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
+            return available(player) && PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
                new GeometryIntents.RotationStep(axis, IntegerArgumentType.getInteger(context, "steps"), fine)).handled() ? 1 : 0;
          }));
    }
 
    private static int rotateFromSpec(ServerPlayer player, String spec) {
-      if (!commandCanOperate(player)) {
+      if (!available(player)) {
          return 0;
       }
       String normalized = spec.strip().toLowerCase(java.util.Locale.ROOT);

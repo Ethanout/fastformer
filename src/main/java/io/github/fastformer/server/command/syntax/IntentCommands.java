@@ -6,7 +6,7 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import io.github.fastformer.core.command.Intent;
 import io.github.fastformer.core.command.IntentSource;
-import io.github.fastformer.server.command.CommandChecks;
+import io.github.fastformer.server.gate.CommandAdmission;
 import io.github.fastformer.server.intent.PlayerIntentSystem;
 import java.util.HashSet;
 import java.util.Objects;
@@ -48,7 +48,7 @@ public final class IntentCommands {
       Objects.requireNonNull(intent, "intent");
       return context -> {
          var player = context.getSource().getPlayerOrException();
-         if (!CommandChecks.commandCanOperate(player)) return 0;
+         if (!CommandAdmission.available(player)) return 0;
          return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, intent.apply(context)).handled() ? 1 : 0;
       };
    }

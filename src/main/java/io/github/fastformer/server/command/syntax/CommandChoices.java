@@ -5,7 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import io.github.fastformer.core.command.Intent;
 import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.server.command.CommandChecks;
+import io.github.fastformer.server.gate.CommandAdmission;
 import io.github.fastformer.server.intent.PlayerIntentSystem;
 import java.util.Map;
 import java.util.Objects;
@@ -33,13 +33,13 @@ public record CommandChoices<T>(Map<String, T> values, String usage) {
       Objects.requireNonNull(intent, "intent");
       return Commands.literal(literal).then(Commands.argument("mode", StringArgumentType.word()).executes(context -> {
          var player = context.getSource().getPlayerOrException();
-         if (admitFirst && !CommandChecks.commandCanOperate(player)) return 0;
+         if (admitFirst && !CommandAdmission.available(player)) return 0;
          T value = values.get(StringArgumentType.getString(context, "mode"));
          if (value == null) {
             FastPlaceMessages.chat(player, FastPlaceMessages.text(usage));
             return 0;
          }
-         if (!admitFirst && !CommandChecks.commandCanOperate(player)) return 0;
+         if (!admitFirst && !CommandAdmission.available(player)) return 0;
          return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, intent.apply(value)).handled() ? 1 : 0;
       }));
    }

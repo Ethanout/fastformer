@@ -10,7 +10,7 @@ import io.github.fastformer.workspace.submission.OperationConflictMode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
-import static io.github.fastformer.server.command.CommandChecks.commandCanOperate;
+import static io.github.fastformer.server.gate.CommandAdmission.available;
 import io.github.fastformer.server.command.syntax.CommandChoices;
 import java.util.Map;
 
@@ -20,12 +20,12 @@ public final class SelectionCommands {
 
    public static LiteralArgumentBuilder<CommandSourceStack> operationCommand() {
       return Commands.literal("operation")
-         .then(Commands.literal("apply").executes(context -> commandCanOperate(context.getSource().getPlayerOrException()) && PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new SelectionIntents.Apply(false)).handled() ? 1 : 0))
-         .then(Commands.literal("copy").executes(context -> commandCanOperate(context.getSource().getPlayerOrException()) && PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new SelectionIntents.Apply(true)).handled() ? 1 : 0))
-         .then(Commands.literal("undo").executes(context -> commandCanOperate(context.getSource().getPlayerOrException()) && PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new HistoryIntents.Undo(1, HistoryIntents.UndoScope.COMMITTED_WORLD)).handled() ? 1 : 0))
+         .then(Commands.literal("apply").executes(context -> available(context.getSource().getPlayerOrException()) && PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new SelectionIntents.Apply(false)).handled() ? 1 : 0))
+         .then(Commands.literal("copy").executes(context -> available(context.getSource().getPlayerOrException()) && PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new SelectionIntents.Apply(true)).handled() ? 1 : 0))
+         .then(Commands.literal("undo").executes(context -> available(context.getSource().getPlayerOrException()) && PlayerIntentSystem.dispatch(context.getSource().getPlayerOrException(), IntentSource.COMMAND, new HistoryIntents.Undo(1, HistoryIntents.UndoScope.COMMITTED_WORLD)).handled() ? 1 : 0))
          .then(Commands.literal("mode").executes(context -> {
             ServerPlayer player = context.getSource().getPlayerOrException();
-            if (!commandCanOperate(player)) {
+            if (!available(player)) {
                return 0;
             }
             return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new SelectionIntents.CycleMode()).handled() ? 1 : 0;
