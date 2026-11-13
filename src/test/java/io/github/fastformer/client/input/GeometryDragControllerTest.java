@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -81,7 +83,7 @@ class GeometryDragControllerTest {
    private static ClientInputSession capture(PointerGestureState.Kind kind) {
       var session = new ClientInputSession();
       session.pointerGestureToken = session.pointerGesture.begin(kind);
-      session.geometryGizmoDrag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X,
+      session.geometryGizmoDrag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, Axis.X,
          Vec3.ZERO, new Vec3(1, 0, 0), 0, 0, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO,
          AxisGizmo.Direction.POSITIVE, 0).withCapture(session.pointerGestureToken);
       return session;

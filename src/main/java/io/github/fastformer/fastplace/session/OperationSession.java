@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.common.selection.PointMotionLimits;
 import java.util.function.Predicate;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
@@ -351,7 +353,7 @@ public final class OperationSession {
       return true;
    }
 
-   public boolean beginTransform(AxisGizmo.Operation operation, AxisGizmo.Axis axis, int direction) {
+   public boolean beginTransform(AxisGizmo.Operation operation, Axis axis, int direction) {
       if (!this.operationReady() || operation == null || axis == null || !this.acceptsTransform(operation)) {
          return false;
       }
@@ -468,7 +470,7 @@ public final class OperationSession {
 
    public boolean adjustOperationTransform(
       io.github.fastformer.fastplace.geometry.AxisGizmo.Operation operation,
-      io.github.fastformer.fastplace.geometry.AxisGizmo.Axis axis,
+      Axis axis,
       int steps
    ) {
       if (!this.selectionConfirmed || steps == 0 || operation == null || axis == null) {
@@ -1110,7 +1112,7 @@ public final class OperationSession {
 
    private record TransformDrag(
       AxisGizmo.Operation operation,
-      AxisGizmo.Axis axis,
+      Axis axis,
       int direction,
       SessionSnapshot sessionBaseline,
       TransformSnapshot baseline

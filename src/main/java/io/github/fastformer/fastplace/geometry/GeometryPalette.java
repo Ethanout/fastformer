@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.core.math.Axis;
+
 import java.util.Map;
 
 /**
@@ -123,7 +125,7 @@ public final class GeometryPalette {
    public static Color screenLabel() { return io.github.fastformer.fastplace.geometry.GeometryPalette.color("screenLabel", s().screenLabel()); }
 
    /** Axis color for soft in-world axis hints. */
-   public static Color softAxis(AxisGizmo.Axis axis) {
+   public static Color softAxis(Axis axis) {
       Swatches swatches = s();
       return switch (axis) {
          case X -> io.github.fastformer.fastplace.geometry.GeometryPalette.color("softX", swatches.softX());
@@ -133,7 +135,7 @@ public final class GeometryPalette {
    }
 
    /** Axis color for gizmo handles. */
-   public static Color gizmoAxis(AxisGizmo.Axis axis) {
+   public static Color gizmoAxis(Axis axis) {
       Swatches swatches = s();
       return switch (axis) {
          case X -> io.github.fastformer.fastplace.geometry.GeometryPalette.color("gizmoX", swatches.gizmoX());

@@ -1,10 +1,11 @@
 package io.github.fastformer.workspace.preview;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.workspace.geometry.WorkspaceGeometryCost;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -28,7 +29,7 @@ class WorkspacePreviewComposerSparseScaleTest {
 
    @Test
    void shrinkingSparsePrismToSingleEmptySampleReturnsEmptyMapWithoutThrowing() {
-      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 1.0 / 3.0);
+      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(Axis.X, 1.0 / 3.0);
 
       Map<BlockPos, String> resolved = assertDoesNotThrow(() ->
          WorkspacePreviewComposer.resolveValues(sparseAlongX(), shrink));
@@ -38,7 +39,7 @@ class WorkspacePreviewComposerSparseScaleTest {
 
    @Test
    void shrinkingSparsePrismStaysEmptyThroughRenderingPath() {
-      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 1.0 / 3.0);
+      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(Axis.X, 1.0 / 3.0);
       Map<BlockPos, String> source = sparseAlongX();
 
       assertTrue(WorkspacePreviewComposer.canResolveForRendering(source, shrink));
@@ -47,13 +48,13 @@ class WorkspacePreviewComposerSparseScaleTest {
 
    @Test
    void shrinkingToEmptyProducesNoOutputOnTheShrunkAxis() {
-      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 1.0 / 4.0);
+      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(Axis.X, 1.0 / 4.0);
       Map<BlockPos, String> resolved = assertDoesNotThrow(() ->
          WorkspacePreviewComposer.resolveValues(sparseAlongX(), shrink));
       assertTrue(resolved.isEmpty());
 
       // A single-cell axis width cannot shrink below one, so the sample stays occupied.
-      for (AxisGizmo.Axis axis : new AxisGizmo.Axis[]{AxisGizmo.Axis.Y, AxisGizmo.Axis.Z}) {
+      for (Axis axis : new Axis[]{Axis.Y, Axis.Z}) {
          WorkspaceTransform other = WorkspaceTransform.IDENTITY.withScale(axis, 1.0 / 4.0);
          assertEquals(
             sparseAlongX(),
@@ -65,7 +66,7 @@ class WorkspacePreviewComposerSparseScaleTest {
 
    @Test
    void repeatedShrinkingToEmptyStillReturnsEmptyMap() {
-      OperationStackRegion repeats = OperationStackRegion.origin().repeat(AxisGizmo.Axis.Y, 1, 3);
+      OperationStackRegion repeats = OperationStackRegion.origin().repeat(Axis.Y, 1, 3);
       WorkspaceTransform shrinkAndRepeat = new WorkspaceTransform(
          Vec3.ZERO, Vec3.ZERO, repeats, BlockPos.ZERO, new Vec3(0.25, 1.0, 1.0)
       );
@@ -78,7 +79,7 @@ class WorkspacePreviewComposerSparseScaleTest {
 
    @Test
    void shrinkingDensePrismKeepsOneSampledVoxel() {
-      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 1.0 / 3.0);
+      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(Axis.X, 1.0 / 3.0);
       Map<BlockPos, String> dense = Map.of(
          new BlockPos(0, 64, 0), "a",
          new BlockPos(1, 64, 0), "b",
@@ -99,7 +100,7 @@ class WorkspacePreviewComposerSparseScaleTest {
          new BlockPos(3, 0, 0), "d",
          new BlockPos(4, 0, 0), "e"
       );
-      WorkspaceTransform half = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 0.5);
+      WorkspaceTransform half = WorkspaceTransform.IDENTITY.withScale(Axis.X, 0.5);
 
       // Width 5 with scale 0.5 is exactly 2.5. Math.round gives 3, Math.rint would give 2.
       Map<BlockPos, String> sampled = WorkspacePreviewComposer.scaleValues(dense, half.scale());

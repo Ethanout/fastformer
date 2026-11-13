@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.controller;
 
+import io.github.fastformer.core.math.Axis;
+
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.operation.clipboard.ClipboardCopy;
@@ -1036,7 +1038,7 @@ public final class ClientOperationController {
       List<ClientSelectionPart> baseline,
       boolean common,
       AxisGizmo.Operation operation,
-      AxisGizmo.Axis axis,
+      Axis axis,
       int direction,
       int totalSteps,
       double rotationRadians
@@ -1047,7 +1049,7 @@ public final class ClientOperationController {
 
    public static String updateTransformGesture(
       ClientOperationWorkspace.EditToken editToken, List<ClientSelectionPart> baseline, boolean common,
-      AxisGizmo.Operation operation, AxisGizmo.Axis axis, int direction, int totalSteps, double rotationRadians,
+      AxisGizmo.Operation operation, Axis axis, int direction, int totalSteps, double rotationRadians,
       Vec3 rotationAxis, Vec3 rotationPivot
    ) {
       if (workspaceSubmissionPending() || !workspace().ownsEdit(editToken)) {

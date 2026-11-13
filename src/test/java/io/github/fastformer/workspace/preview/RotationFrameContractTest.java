@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.preview;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -8,7 +10,6 @@ import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.workspace.transform.VoxelRotation;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -65,7 +66,7 @@ class RotationFrameContractTest {
       AABB envelope = WorkspaceSelectionBounds.transformedBox(AIR_SELECTION, transform, frame);
 
       assertEquals(1, frame.rotationSteps().size());
-      assertEquals(AxisGizmo.Axis.Y, frame.rotationSteps().getFirst().axis());
+      assertEquals(Axis.Y, frame.rotationSteps().getFirst().axis());
       assertEquals(new Vec3(0.5, 0.5, 0.5), frame.rotationSteps().getFirst().pivot());
 
       // The only block sits at (0,0,0). Rotating the box about that block's centre puts the

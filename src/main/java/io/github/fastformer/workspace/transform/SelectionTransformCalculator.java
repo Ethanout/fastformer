@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -24,25 +26,25 @@ public final class SelectionTransformCalculator {
    }
 
    public static Result calculate(List<ClientSelectionPart> baseline, boolean common,
-      AxisGizmo.Operation operation, AxisGizmo.Axis axis, int direction, int totalSteps, double rotationRadians) {
+      AxisGizmo.Operation operation, Axis axis, int direction, int totalSteps, double rotationRadians) {
       return calculate(baseline, common, operation, axis, direction, totalSteps, rotationRadians,
          WorkspaceRotation.unitAxis(axis), null);
    }
 
    public static Result calculate(List<ClientSelectionPart> baseline, boolean common,
-      AxisGizmo.Operation operation, AxisGizmo.Axis axis, int direction, int totalSteps, double rotationRadians,
+      AxisGizmo.Operation operation, Axis axis, int direction, int totalSteps, double rotationRadians,
       Vec3 rotationAxis, Vec3 rotationPivot) {
       return calculate(baseline, common, operation, axis, direction, totalSteps, rotationRadians, rotationAxis, rotationPivot, false);
    }
 
    /** Uses the handle's stack calculation, with a scroll boundary that can cross the source cell. */
-   public static Result scrollStack(List<ClientSelectionPart> baseline, AxisGizmo.Axis axis, int side, int steps) {
+   public static Result scrollStack(List<ClientSelectionPart> baseline, Axis axis, int side, int steps) {
       return calculate(baseline, baseline.size() > 1, AxisGizmo.Operation.SCALE, axis, side, steps, Double.NaN,
          WorkspaceRotation.unitAxis(axis), null, true);
    }
 
    private static Result calculate(List<ClientSelectionPart> baseline, boolean common,
-      AxisGizmo.Operation operation, AxisGizmo.Axis axis, int direction, int totalSteps, double rotationRadians,
+      AxisGizmo.Operation operation, Axis axis, int direction, int totalSteps, double rotationRadians,
       Vec3 rotationAxis, Vec3 rotationPivot, boolean crossStackOrigin) {
       if (totalSteps == 0) return new Result(baseline, null);
       int directedSteps = direction * totalSteps;
@@ -131,7 +133,7 @@ public final class SelectionTransformCalculator {
          : "fastformer.message.workspace_result_too_large");
    }
 
-   private static Vec3 axisVector(AxisGizmo.Axis axis) {
+   private static Vec3 axisVector(Axis axis) {
       return switch (axis) {
          case X -> new Vec3(1.0, 0.0, 0.0);
          case Y -> new Vec3(0.0, 1.0, 0.0);
@@ -139,7 +141,7 @@ public final class SelectionTransformCalculator {
       };
    }
 
-   private static double axisComponent(Vec3 value, AxisGizmo.Axis axis) {
+   private static double axisComponent(Vec3 value, Axis axis) {
       return switch (axis) {
          case X -> value.x;
          case Y -> value.y;

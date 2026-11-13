@@ -1,10 +1,11 @@
 package io.github.fastformer.workspace.geometry;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
@@ -47,9 +48,9 @@ class WorkspaceGeometryBudgetTest {
       // bounding volume of 101 cells and rejected the submission.
       Map<BlockPos, String> sparse = sparseAlongX();
       OccupiedBlockBounds bounds = OccupiedBlockBounds.from(sparse.keySet()).orElseThrow();
-      long boundingVolume = (long)bounds.width(AxisGizmo.Axis.X)
-         * bounds.width(AxisGizmo.Axis.Y)
-         * bounds.width(AxisGizmo.Axis.Z);
+      long boundingVolume = (long)bounds.width(Axis.X)
+         * bounds.width(Axis.Y)
+         * bounds.width(Axis.Z);
       WorkspaceGeometryCost.Cost cost = WorkspaceGeometryCost.of(sparse.keySet(), WorkspaceTransform.IDENTITY);
 
       assertEquals(2L, cost.sourceCount(), "the part submits two real voxels, so it is not an empty plan");
@@ -74,7 +75,7 @@ class WorkspaceGeometryBudgetTest {
    void realUpscaleSpendsItsScanVolumeAndRejects() {
       WorkspaceGeometryCost.Cost upscaled = WorkspaceGeometryCost.of(
          Map.of(new BlockPos(0, 0, 0), "a", new BlockPos(1, 0, 0), "b").keySet(),
-         WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 500.0)
+         WorkspaceTransform.IDENTITY.withScale(Axis.X, 500.0)
       );
 
       assertEquals(1000L, upscaled.projectedUpperBound());

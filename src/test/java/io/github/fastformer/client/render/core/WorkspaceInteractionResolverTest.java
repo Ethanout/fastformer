@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -175,7 +177,7 @@ class WorkspaceInteractionResolverTest {
          var targets = io.github.fastformer.client.input.drag.WorkspaceGizmoDrag.targets(workspace, 1, false);
          assertTrue(workspace.beginEdit());
          io.github.fastformer.client.operation.controller.ClientOperationController.updateTransformGesture(
-            workspace.activeEditToken(), targets, false, AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, 3, Double.NaN
+            workspace.activeEditToken(), targets, false, AxisGizmo.Operation.MOVE, Axis.X, 1, 3, Double.NaN
          );
          assertEquals(first.transform().translation().add(3, 0, 0), workspace.part(1).orElseThrow().transform().translation());
          assertEquals(second.transform(), workspace.part(2).orElseThrow().transform());
@@ -454,14 +456,14 @@ class WorkspaceInteractionResolverTest {
       var scaleGizmo = gizmos.get(1);
 
       // Move handles stay in world space.
-      assertEquals(new Vec3(1.0, 0.0, 0.0), worldGizmo.axisVector(AxisGizmo.Axis.X));
+      assertEquals(new Vec3(1.0, 0.0, 0.0), worldGizmo.axisVector(Axis.X));
       assertTrue(worldGizmo.handles().stream().anyMatch(handle -> handle.operation() == AxisGizmo.Operation.MOVE));
       assertTrue(worldGizmo.handles().stream().noneMatch(handle -> handle.operation() == AxisGizmo.Operation.ROTATE));
       assertTrue(worldGizmo.handles().stream().noneMatch(handle -> handle.operation() == AxisGizmo.Operation.SCALE));
 
       // Scale handles and rotation rings share the part orientation.
-      assertEquals(0.0, scaleGizmo.axisVector(AxisGizmo.Axis.X).x, 1.0E-6);
-      assertEquals(-1.0, scaleGizmo.axisVector(AxisGizmo.Axis.X).z, 1.0E-6);
+      assertEquals(0.0, scaleGizmo.axisVector(Axis.X).x, 1.0E-6);
+      assertEquals(-1.0, scaleGizmo.axisVector(Axis.X).z, 1.0E-6);
       assertTrue(scaleGizmo.handles().stream().allMatch(handle -> handle.operation() == AxisGizmo.Operation.SCALE));
       var rotationGizmo = gizmos.get(2);
       assertEquals(scaleGizmo.frame(), rotationGizmo.frame());
@@ -488,7 +490,7 @@ class WorkspaceInteractionResolverTest {
          part, Vec3.ZERO, new io.github.fastformer.client.gizmo.GizmoViewScale(1.0, 0.1)
       );
 
-      assertEquals(new Vec3(1.0, 0.0, 0.0), gizmos.get(0).axisVector(AxisGizmo.Axis.X));
-      assertEquals(new Vec3(1.0, 0.0, 0.0), gizmos.get(1).axisVector(AxisGizmo.Axis.X));
+      assertEquals(new Vec3(1.0, 0.0, 0.0), gizmos.get(0).axisVector(Axis.X));
+      assertEquals(new Vec3(1.0, 0.0, 0.0), gizmos.get(1).axisVector(Axis.X));
    }
 }

@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.workflow;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
@@ -42,7 +44,7 @@ public interface GeometryWorkflow {
       GeometrySession session,
       GeometryActionContext context,
       AxisGizmo.Operation operation,
-      AxisGizmo.Axis axis,
+      Axis axis,
       int steps
    ) {
       return false;

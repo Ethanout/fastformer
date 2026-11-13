@@ -1,10 +1,11 @@
 package io.github.fastformer.workspace.geometry;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.Map;
@@ -50,7 +51,7 @@ class WorkspaceGeometryCostTest {
          new BlockPos(1, 0, 0), "b",
          new BlockPos(2, 0, 0), "c"
       );
-      WorkspaceTransform negligible = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 1.0001);
+      WorkspaceTransform negligible = WorkspaceTransform.IDENTITY.withScale(Axis.X, 1.0001);
 
       WorkspaceGeometryCost.Cost cost = WorkspaceGeometryCost.of(source.keySet(), negligible);
 
@@ -64,7 +65,7 @@ class WorkspaceGeometryCostTest {
          new BlockPos(0, 0, 0), "a",
          new BlockPos(1, 0, 0), "b"
       );
-      WorkspaceTransform upscaled = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 500.0);
+      WorkspaceTransform upscaled = WorkspaceTransform.IDENTITY.withScale(Axis.X, 500.0);
 
       WorkspaceGeometryCost.Cost cost = WorkspaceGeometryCost.of(source.keySet(), upscaled);
 
@@ -81,7 +82,7 @@ class WorkspaceGeometryCostTest {
          new BlockPos(1, 64, 0), "b",
          new BlockPos(2, 64, 0), "c"
       );
-      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 1.0 / 3.0);
+      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(Axis.X, 1.0 / 3.0);
 
       WorkspaceGeometryCost.Cost cost = WorkspaceGeometryCost.of(dense.keySet(), shrink);
 
@@ -100,7 +101,7 @@ class WorkspaceGeometryCostTest {
          new BlockPos(4, 0, 0), "e"
       );
       // Width 5 with scale 0.5 is exactly 2.5. Math.round gives 3, Math.rint would give 2.
-      WorkspaceTransform half = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 0.5);
+      WorkspaceTransform half = WorkspaceTransform.IDENTITY.withScale(Axis.X, 0.5);
 
       WorkspaceGeometryCost.Cost cost = WorkspaceGeometryCost.of(dense.keySet(), half);
 
@@ -129,8 +130,8 @@ class WorkspaceGeometryCostTest {
          new BlockPos(2_000_000_000, 2_000_000_000, 0), "b"
       );
       WorkspaceTransform hostile = WorkspaceTransform.IDENTITY
-         .withScale(AxisGizmo.Axis.X, 1024.0)
-         .withScale(AxisGizmo.Axis.Y, 1024.0);
+         .withScale(Axis.X, 1024.0)
+         .withScale(Axis.Y, 1024.0);
 
       WorkspaceGeometryCost.Cost cost = WorkspaceGeometryCost.of(wide.keySet(), hostile);
 

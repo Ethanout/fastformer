@@ -1,8 +1,9 @@
 package io.github.fastformer.fastplace.selection;
 
+import io.github.fastformer.core.math.Axis;
 
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -27,7 +28,7 @@ public record OperationStackRegion(BlockPos min, BlockPos max) {
       return ORIGIN;
    }
 
-   public OperationStackRegion repeat(AxisGizmo.Axis axis, int direction, int copies) {
+   public OperationStackRegion repeat(Axis axis, int direction, int copies) {
       if (axis == null || direction == 0 || copies <= 0) {
          return this;
       }
@@ -54,7 +55,7 @@ public record OperationStackRegion(BlockPos min, BlockPos max) {
     * A positive face therefore never becomes a negative face (and vice versa): it
     * simply stops at the source cell when pulled back past the origin.
     */
-   public OperationStackRegion withAxisEndpoint(AxisGizmo.Axis axis, int direction, int delta) {
+   public OperationStackRegion withAxisEndpoint(Axis axis, int direction, int delta) {
       if (axis == null || direction == 0 || delta == 0) {
          return this;
       }
@@ -70,7 +71,7 @@ public record OperationStackRegion(BlockPos min, BlockPos max) {
    }
 
    /** Scroll toward an axis direction: retract opposite copies first, then grow past zero. */
-   public OperationStackRegion stepAcrossOrigin(AxisGizmo.Axis axis, int direction) {
+   public OperationStackRegion stepAcrossOrigin(Axis axis, int direction) {
       if (axis == null || direction == 0) return this;
       int sign = Integer.signum(direction);
       boolean retract = sign > 0 ? coordinate(this.min, axis.ordinal()) < 0

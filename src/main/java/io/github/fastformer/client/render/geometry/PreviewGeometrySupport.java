@@ -1,10 +1,11 @@
 package io.github.fastformer.client.render.geometry;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
@@ -147,7 +148,7 @@ public final class PreviewGeometrySupport {
          || Math.abs(rotation.z - Math.rint(rotation.z / quarterTurn) * quarterTurn) > 1.0E-5;
    }
 
-   public static float[] softLocalAxisColor(AxisGizmo.Axis axis) {
+   public static float[] softLocalAxisColor(Axis axis) {
       var color = io.github.fastformer.fastplace.geometry.GeometryPalette.softAxis(axis);
       return new float[]{color.red(), color.green(), color.blue()};
    }

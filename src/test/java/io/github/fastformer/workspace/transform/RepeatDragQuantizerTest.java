@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 
@@ -7,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.Map;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
@@ -44,8 +45,8 @@ class RepeatDragQuantizerTest {
          1, ClientSelectionPart.Source.WORLD, selection, Map.of(), WorkspaceTransform.IDENTITY, false
       );
 
-      assertEquals(6, RepeatDragQuantizer.structureExtent(part, AxisGizmo.Axis.X));
-      assertEquals(2, RepeatDragQuantizer.structureExtent(part, AxisGizmo.Axis.Y));
-      assertEquals(3, RepeatDragQuantizer.structureExtent(part, AxisGizmo.Axis.Z));
+      assertEquals(6, RepeatDragQuantizer.structureExtent(part, Axis.X));
+      assertEquals(2, RepeatDragQuantizer.structureExtent(part, Axis.Y));
+      assertEquals(3, RepeatDragQuantizer.structureExtent(part, Axis.Z));
    }
 }

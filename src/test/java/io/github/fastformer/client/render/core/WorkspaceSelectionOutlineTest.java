@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.client.interaction.PartInteractionBounds;
@@ -42,7 +44,7 @@ class WorkspaceSelectionOutlineTest {
          BlockPos.ZERO, new BlockPos(2, 1, 1), BlockPos.ZERO, BlockPos.ZERO
       );
       var transform = WorkspaceTransform.IDENTITY
-         .withScale(io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.X, 2.0)
+         .withScale(Axis.X, 2.0)
          .withRepeats(new io.github.fastformer.fastplace.selection.OperationStackRegion(
             BlockPos.ZERO, new BlockPos(1, 0, 0)), BlockPos.ZERO);
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,

@@ -1,6 +1,7 @@
 package io.github.fastformer.fastplace.session;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.GeometryPoint;
@@ -229,14 +230,14 @@ public final class GeometrySession {
       return true;
    }
 
-   public void adjustConeScale(AxisGizmo.Axis axis, int steps, double radius) {
+   public void adjustConeScale(Axis axis, int steps, double radius) {
       if (steps == 0 || !GeometryNumbers.finite(radius) || radius < 1.0E-7) {
          return;
       }
       double delta = (double)steps * 0.5 / radius;
-      if (axis == AxisGizmo.Axis.X) {
+      if (axis == Axis.X) {
          this.setConeScale(this.coneScaleX() + delta, this.coneScaleZ());
-      } else if (axis == AxisGizmo.Axis.Z) {
+      } else if (axis == Axis.Z) {
          this.setConeScale(this.coneScaleX(), this.coneScaleZ() + delta);
       }
    }
@@ -444,7 +445,7 @@ public final class GeometrySession {
       convex.points().set(index, point.withLocation(new Vec3(snappedHalf(location.x), snappedHalf(location.y), snappedHalf(location.z))));
    }
 
-   public Vec3 polyhedronGizmoAxis(AxisGizmo.Axis axis) {
+   public Vec3 polyhedronGizmoAxis(Axis axis) {
       if (!(this.state instanceof PolyhedronGeometryState polyhedron) || !polyhedron.gizmoLocal) {
          return switch (axis) {
             case X -> new Vec3(1.0, 0.0, 0.0);
@@ -459,7 +460,7 @@ public final class GeometrySession {
       };
    }
 
-   public void adjustPolyhedronScale(AxisGizmo.Axis axis, int steps) {
+   public void adjustPolyhedronScale(Axis axis, int steps) {
       if (steps == 0 || !(this.state instanceof PolyhedronGeometryState polyhedron) || !this.hasPolyhedronRadiusPoint()) {
          return;
       }
@@ -474,7 +475,7 @@ public final class GeometrySession {
       }
    }
 
-   public void rotatePolyhedron(AxisGizmo.Axis axis, int steps, int divisor) {
+   public void rotatePolyhedron(Axis axis, int steps, int divisor) {
       if (steps == 0 || !(this.state instanceof PolyhedronGeometryState polyhedron)) {
          return;
       }
@@ -677,7 +678,7 @@ public final class GeometrySession {
       return GeometryNumbers.finite(values);
    }
 
-   private static double scaleComponent(Vec3 scale, AxisGizmo.Axis axis) {
+   private static double scaleComponent(Vec3 scale, Axis axis) {
       return switch (axis) {
          case X -> scale.x;
          case Y -> scale.y;
@@ -685,7 +686,7 @@ public final class GeometrySession {
       };
    }
 
-   private static Vec3 withScaleComponent(Vec3 scale, AxisGizmo.Axis axis, double value) {
+   private static Vec3 withScaleComponent(Vec3 scale, Axis axis, double value) {
       return switch (axis) {
          case X -> new Vec3(value, scale.y, scale.z);
          case Y -> new Vec3(scale.x, value, scale.z);

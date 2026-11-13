@@ -1,12 +1,13 @@
 package io.github.fastformer.workspace.preview;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class WorkspaceCompositionLimitTest {
    @Test
    void aScaleBeyondIntegerRangeCannotWrapIntoASmallSuccess() {
-      WorkspaceTransform transform = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 4294967297.0);
+      WorkspaceTransform transform = WorkspaceTransform.IDENTITY.withScale(Axis.X, 4294967297.0);
       Composition<String> result = WorkspacePreviewComposer.composeValues(
          Map.of(BlockPos.ZERO, "a"), transform, CompositionBudget.INTERACTION
       );
@@ -38,7 +39,7 @@ class WorkspaceCompositionLimitTest {
 
    @Test
    void aLegalEmptyDownscaleIsComposedNotOverBudget() {
-      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 0.01);
+      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(Axis.X, 0.01);
       Map<BlockPos, String> source = Map.of(
          new BlockPos(0, 0, 0), "a",
          new BlockPos(100, 0, 0), "b"
@@ -54,7 +55,7 @@ class WorkspaceCompositionLimitTest {
 
    @Test
    void aScanThatExceedsWorkIsWorkNotOutput() {
-      WorkspaceTransform stretch = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 50.0);
+      WorkspaceTransform stretch = WorkspaceTransform.IDENTITY.withScale(Axis.X, 50.0);
       CompositionBudget budget = new CompositionBudget(100, 20);
       Composition<String> composition = WorkspacePreviewComposer.composeValues(
          Map.of(BlockPos.ZERO, "a", new BlockPos(1, 0, 0), "b"), stretch, budget

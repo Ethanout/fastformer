@@ -1,12 +1,13 @@
 package io.github.fastformer.workspace.preview;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.workspace.transform.VoxelRotation;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
@@ -164,7 +165,7 @@ public final class WorkspaceSelectionBounds {
       );
    }
 
-   public static int extent(AABB bounds, AxisGizmo.Axis axis) {
+   public static int extent(AABB bounds, Axis axis) {
       if (bounds == null) return 0;
       double size = switch (axis) {
          case X -> bounds.getXsize();
@@ -233,7 +234,7 @@ public final class WorkspaceSelectionBounds {
       if (steps.isEmpty()) {
          Vec3 pivot = base.getCenter();
          List<VoxelRotation.RotationStep> fallback = new java.util.ArrayList<>(3);
-         for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+         for (Axis axis : Axis.values()) {
             double radians = axisComponent(transform.rotation(), axis);
             if (Math.abs(radians) > VoxelRotation.POSITION_EPSILON) {
                fallback.add(new VoxelRotation.RotationStep(axis, radians, pivot));
@@ -257,7 +258,7 @@ public final class WorkspaceSelectionBounds {
       return result;
    }
 
-   private static double axisComponent(Vec3 value, AxisGizmo.Axis axis) {
+   private static double axisComponent(Vec3 value, Axis axis) {
       return switch (axis) {
          case X -> value.x;
          case Y -> value.y;

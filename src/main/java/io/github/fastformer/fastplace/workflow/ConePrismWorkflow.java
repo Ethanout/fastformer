@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.workflow;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
@@ -103,7 +105,7 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
       GeometrySession session,
       GeometryActionContext context,
       AxisGizmo.Operation operation,
-      AxisGizmo.Axis axis,
+      Axis axis,
       int steps
    ) {
       if (steps == 0 || session.coneStage() != ConePrismStage.ADJUST) {
@@ -126,13 +128,13 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
             if (Math.abs(normalComponent) >= Math.max(Math.abs(uComponent), Math.abs(vComponent))) {
                session.adjustConeHeight(base.center(), base.normal(), (double)steps * 0.5);
             } else if (Math.abs(uComponent) >= Math.abs(vComponent)) {
-               session.adjustConeScale(AxisGizmo.Axis.X, steps, base.radius());
+               session.adjustConeScale(Axis.X, steps, base.radius());
             } else {
-               session.adjustConeScale(AxisGizmo.Axis.Z, steps, base.radius());
+               session.adjustConeScale(Axis.Z, steps, base.radius());
             }
          }
          case ROTATE -> {
-            if (!session.coneGizmoLocal() || axis != AxisGizmo.Axis.Y) {
+            if (!session.coneGizmoLocal() || axis != Axis.Y) {
                return false;
             }
             session.rotateCone(steps, 1024);
@@ -423,7 +425,7 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
 
    private static List<AxisGizmo.Handle> coneHandles(boolean local) {
       ArrayList<AxisGizmo.Handle> handles = new ArrayList<>();
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+      for (Axis axis : Axis.values()) {
          handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, axis, AxisGizmo.Direction.POSITIVE, io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE));
          handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, axis, AxisGizmo.Direction.NEGATIVE, io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE));
          handles.add(new AxisGizmo.Handle(AxisGizmo.Operation.SCALE, axis, AxisGizmo.Direction.POSITIVE, io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE));
@@ -432,7 +434,7 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
       if (local) {
          handles.add(new AxisGizmo.Handle(
             AxisGizmo.Operation.ROTATE,
-            AxisGizmo.Axis.Y,
+            Axis.Y,
             AxisGizmo.Direction.BIDIRECTIONAL,
             io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole.GIZMO_HANDLE
          ));

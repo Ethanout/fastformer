@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,7 +81,7 @@ class GeometryStageActionTest {
          session,
          new GeometryActionContext(null, false),
          io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.ROTATE,
-         io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.Y,
+         Axis.Y,
          16
       ));
    }

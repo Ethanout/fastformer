@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.preview.WorkspaceSelectionBounds;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
@@ -38,7 +40,7 @@ public final class RepeatStrideSemantics {
       boolean common,
       int partId,
       List<ClientSelectionPart> baseline,
-      AxisGizmo.Axis axis
+      Axis axis
    ) {
       if (axis == null || !repeatsWholeGroup(operation, baseline)) {
          return 1;
@@ -54,7 +56,7 @@ public final class RepeatStrideSemantics {
    }
 
    /** Uses the stored lattice when one exists, otherwise the original local envelope. */
-   public static int cellStride(ClientSelectionPart part, AxisGizmo.Axis axis) {
+   public static int cellStride(ClientSelectionPart part, Axis axis) {
       if (part == null || axis == null) return 1;
       int saved = switch (axis) {
          case X -> part.transform().repeatStride().getX();
@@ -66,7 +68,7 @@ public final class RepeatStrideSemantics {
    }
 
    /** Envelope extent along the axis. Never below one block. */
-   public static int stride(AABB wholeBox, AxisGizmo.Axis axis) {
+   public static int stride(AABB wholeBox, Axis axis) {
       return Math.max(1, WorkspaceSelectionBounds.extent(wholeBox, axis));
    }
 

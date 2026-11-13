@@ -1,10 +1,11 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,17 +43,17 @@ class VoxelRotationGeometryTest {
       Vec3 point = new Vec3(1.0, 2.0, 3.0);
       Vec3 origin = Vec3.ZERO;
 
-      assertEquals(new Vec3(3.0, 2.0, -1.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.Y, QUARTER));
-      assertEquals(new Vec3(-3.0, 2.0, 1.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.Y, -QUARTER));
-      assertEquals(new Vec3(-1.0, 2.0, -3.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.Y, Math.PI));
+      assertEquals(new Vec3(3.0, 2.0, -1.0), VoxelRotation.rotatePoint(point, origin, Axis.Y, QUARTER));
+      assertEquals(new Vec3(-3.0, 2.0, 1.0), VoxelRotation.rotatePoint(point, origin, Axis.Y, -QUARTER));
+      assertEquals(new Vec3(-1.0, 2.0, -3.0), VoxelRotation.rotatePoint(point, origin, Axis.Y, Math.PI));
 
-      assertEquals(new Vec3(1.0, -3.0, 2.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.X, QUARTER));
-      assertEquals(new Vec3(1.0, 3.0, -2.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.X, -QUARTER));
-      assertEquals(new Vec3(1.0, -2.0, -3.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.X, Math.PI));
+      assertEquals(new Vec3(1.0, -3.0, 2.0), VoxelRotation.rotatePoint(point, origin, Axis.X, QUARTER));
+      assertEquals(new Vec3(1.0, 3.0, -2.0), VoxelRotation.rotatePoint(point, origin, Axis.X, -QUARTER));
+      assertEquals(new Vec3(1.0, -2.0, -3.0), VoxelRotation.rotatePoint(point, origin, Axis.X, Math.PI));
 
-      assertEquals(new Vec3(-2.0, 1.0, 3.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.Z, QUARTER));
-      assertEquals(new Vec3(2.0, -1.0, 3.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.Z, -QUARTER));
-      assertEquals(new Vec3(-1.0, -2.0, 3.0), VoxelRotation.rotatePoint(point, origin, AxisGizmo.Axis.Z, Math.PI));
+      assertEquals(new Vec3(-2.0, 1.0, 3.0), VoxelRotation.rotatePoint(point, origin, Axis.Z, QUARTER));
+      assertEquals(new Vec3(2.0, -1.0, 3.0), VoxelRotation.rotatePoint(point, origin, Axis.Z, -QUARTER));
+      assertEquals(new Vec3(-1.0, -2.0, 3.0), VoxelRotation.rotatePoint(point, origin, Axis.Z, Math.PI));
    }
 
    @Test
@@ -64,7 +65,7 @@ class VoxelRotationGeometryTest {
          new BlockPos(0, 0, -1),
          new BlockPos(-2, 3, 4)
       );
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+      for (Axis axis : Axis.values()) {
          for (double radians : RIGHT_ANGLES) {
             Map<BlockPos, String> rotated = VoxelRotation.rotateValues(source, pivot, axis, radians);
             Map<BlockPos, String> expected = new LinkedHashMap<>();
@@ -76,13 +77,13 @@ class VoxelRotationGeometryTest {
 
    @Test
    void evenAndOddWidthLinesKeepCountAndFaceAdjacencyOnEveryAxis() {
-      for (AxisGizmo.Axis lineAxis : AxisGizmo.Axis.values()) {
+      for (Axis lineAxis : Axis.values()) {
          Map<BlockPos, String> even = line(lineAxis, 2);
          Map<BlockPos, String> odd = line(lineAxis, 3);
          Vec3 occupiedPivot = OccupiedBlockBounds.from(even.keySet()).orElseThrow().center();
          Vec3 oddPivot = OccupiedBlockBounds.from(odd.keySet()).orElseThrow().center();
          Vec3 translatedPivot = occupiedPivot.add(8.0, -3.0, 5.0);
-         for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+         for (Axis axis : Axis.values()) {
             for (double radians : RIGHT_ANGLES) {
                assertPreserved("even occupied " + lineAxis + " " + axis, even, occupiedPivot, axis, radians);
                assertPreserved("odd occupied " + lineAxis + " " + axis, odd, oddPivot, axis, radians);
@@ -101,7 +102,7 @@ class VoxelRotationGeometryTest {
          new BlockPos(-4, 0, -5)
       );
       Vec3 pivot = OccupiedBlockBounds.from(source.keySet()).orElseThrow().center();
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+      for (Axis axis : Axis.values()) {
          for (double radians : RIGHT_ANGLES) {
             Map<BlockPos, String> rotated = VoxelRotation.rotateValues(source, pivot, axis, radians);
             assertEquals(4, rotated.size(), axis + " " + radians);
@@ -115,7 +116,7 @@ class VoxelRotationGeometryTest {
       Map<BlockPos, String> source = labelled(BlockPos.ZERO, new BlockPos(1, 0, 0));
 
       Map<BlockPos, String> rotated = VoxelRotation.rotateValues(
-         source, new Vec3(0.5, 0.5, 0.5), AxisGizmo.Axis.Y, Math.toRadians(45.0)
+         source, new Vec3(0.5, 0.5, 0.5), Axis.Y, Math.toRadians(45.0)
       );
 
       assertEquals("c0", rotated.get(BlockPos.ZERO));
@@ -125,7 +126,7 @@ class VoxelRotationGeometryTest {
    }
 
    private static void assertPreserved(
-      String label, Map<BlockPos, String> source, Vec3 pivot, AxisGizmo.Axis axis, double radians
+      String label, Map<BlockPos, String> source, Vec3 pivot, Axis axis, double radians
    ) {
       Map<BlockPos, String> rotated = VoxelRotation.rotateValues(source, pivot, axis, radians);
       assertEquals(source.size(), rotated.size(), label + " count");
@@ -145,7 +146,7 @@ class VoxelRotationGeometryTest {
       }
    }
 
-   private static BlockPos cellOf(BlockPos source, Vec3 pivot, AxisGizmo.Axis axis, double radians) {
+   private static BlockPos cellOf(BlockPos source, Vec3 pivot, Axis axis, double radians) {
       Vec3 rotated = VoxelRotation.rotatePoint(Vec3.atCenterOf(source), pivot, axis, radians);
       return BlockPos.containing(Math.floor(rotated.x), Math.floor(rotated.y), Math.floor(rotated.z));
    }
@@ -154,7 +155,7 @@ class VoxelRotationGeometryTest {
       return Math.abs(a.getX() - b.getX()) + Math.abs(a.getY() - b.getY()) + Math.abs(a.getZ() - b.getZ()) == 1;
    }
 
-   private static Map<BlockPos, String> line(AxisGizmo.Axis axis, int length) {
+   private static Map<BlockPos, String> line(Axis axis, int length) {
       BlockPos[] positions = new BlockPos[length];
       for (int index = 0; index < length; index++) {
          positions[index] = switch (axis) {

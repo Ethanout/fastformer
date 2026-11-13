@@ -1,6 +1,7 @@
 package io.github.fastformer.workspace.model;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.core.math.Axis;
+
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.phys.Vec3;
 
@@ -65,9 +66,9 @@ public record WorkspaceSymmetry(int x, int y, int z, Vec3 offset) {
       return new WorkspaceSymmetry(-3, 2, 1, Vec3.ZERO);
    }
 
-   public static WorkspaceSymmetry reflection(AxisGizmo.Axis axis) {
-      return new WorkspaceSymmetry(axis == AxisGizmo.Axis.X ? -1 : 1,
-         axis == AxisGizmo.Axis.Y ? -2 : 2, axis == AxisGizmo.Axis.Z ? -3 : 3, Vec3.ZERO);
+   public static WorkspaceSymmetry reflection(Axis axis) {
+      return new WorkspaceSymmetry(axis == Axis.X ? -1 : 1,
+         axis == Axis.Y ? -2 : 2, axis == Axis.Z ? -3 : 3, Vec3.ZERO);
    }
 
    public boolean identityOrientation() {

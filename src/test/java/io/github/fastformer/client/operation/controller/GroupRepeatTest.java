@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.controller;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -46,7 +48,7 @@ class GroupRepeatTest {
             var edit = ClientOperationController.workspace().activeEditToken();
             var baseline = ClientOperationController.workspace().selectedParts();
             assertNull(ClientOperationController.updateTransformGesture(edit, baseline, false,
-               AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, steps, Double.NaN));
+               AxisGizmo.Operation.SCALE, Axis.X, 1, steps, Double.NaN));
             assertTrue(ClientOperationController.finishTransformGesture(edit));
          }
          var adjusted = ClientOperationController.workspace().part(1).orElseThrow();
@@ -73,7 +75,7 @@ class GroupRepeatTest {
             ClientOperationController.onDisconnected();
             ClientSelectionPart first = cuboidPart(1, BlockPos.ZERO, 1, 0, 0);
             WorkspaceTransform oversized = workLimit
-               ? first.transform().withScale(AxisGizmo.Axis.X, 9_000_000)
+               ? first.transform().withScale(Axis.X, 9_000_000)
                : first.transform().withRepeats(
                   new OperationStackRegion(BlockPos.ZERO, new BlockPos(100, 100, 100)),
                   new BlockPos(1, 1, 1)
@@ -91,10 +93,10 @@ class GroupRepeatTest {
                long revision = ClientOperationController.workspace().revision();
 
                assertEquals(expected, ClientOperationController.updateTransformGesture(
-                  edit, baseline, true, AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.Y, 1, 1, 0.1
+                  edit, baseline, true, AxisGizmo.Operation.ROTATE, Axis.Y, 1, 1, 0.1
                ));
                assertNull(ClientOperationController.updateTransformGesture(
-                  edit, baseline, true, AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.Y, 1, 2, 0.2
+                  edit, baseline, true, AxisGizmo.Operation.ROTATE, Axis.Y, 1, 2, 0.2
                ));
                assertEquals(baseline, ClientOperationController.workspace().selectedParts());
                assertEquals(revision, ClientOperationController.workspace().revision());
@@ -123,7 +125,7 @@ class GroupRepeatTest {
             var baseline = ClientOperationController.workspace().selectedParts();
 
             ClientOperationController.updateTransformGesture(
-               edit, baseline, true, operation, AxisGizmo.Axis.X, 1, -1, Double.NaN
+               edit, baseline, true, operation, Axis.X, 1, -1, Double.NaN
             );
 
             var updated = ClientOperationController.workspace().part(1).orElseThrow();
@@ -151,7 +153,7 @@ class GroupRepeatTest {
       List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
 
       ClientOperationController.updateTransformGesture(
-         edit, baseline, true, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, 1, Double.NaN
+         edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
       ClientSelectionPart updatedFirst = ClientOperationController.workspace().part(1).orElseThrow();
@@ -181,7 +183,7 @@ class GroupRepeatTest {
       List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
 
       ClientOperationController.updateTransformGesture(
-         edit, baseline, true, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, 1, Double.NaN
+         edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
       ClientSelectionPart updatedFirst = ClientOperationController.workspace().part(1).orElseThrow();
@@ -224,7 +226,7 @@ class GroupRepeatTest {
       // Three blocks of travel, as FastPlaceClientInput sends for a gesture without
       // whole-group repeats.
       ClientOperationController.updateTransformGesture(
-         edit, baseline, true, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, 3, Double.NaN
+         edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 3, Double.NaN
       );
 
       ClientSelectionPart updatedCuboid = ClientOperationController.workspace().part(1).orElseThrow();
@@ -260,7 +262,7 @@ class GroupRepeatTest {
       List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
 
       ClientOperationController.updateTransformGesture(
-         edit, baseline, true, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, 1, Double.NaN
+         edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
       Set<BlockPos> firstBlocks = resolved(ClientOperationController.workspace().part(1).orElseThrow());

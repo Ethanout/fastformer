@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.client.render.PreviewStyle;
 
 import static io.github.fastformer.client.gizmo.GizmoRenderer.operationGizmoAlpha;
@@ -361,7 +363,7 @@ final class OperationPreviewRenderer {
             poseStack, buffers, camera, worldGizmo, scaleGizmo, rotationGizmo, (selected || hovered ? 1.0F : 0.52F) * selectionOpacity
          );
          if (PreviewGeometrySupport.hasNonOrthogonalRotation(part.transform().rotation())) {
-            AxisGizmo.Axis highlightedLocalAxis = hoveredGizmo != null
+            Axis highlightedLocalAxis = hoveredGizmo != null
                && !hoveredGizmo.common()
                && hoveredGizmo.partId() == part.id()
                && hoveredGizmo.hit().handle().operation() == AxisGizmo.Operation.SCALE

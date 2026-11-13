@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.selection;
 
+import io.github.fastformer.core.math.Axis;
+
 
 import io.github.fastformer.fastplace.world.*;
 
@@ -9,7 +11,6 @@ import io.github.fastformer.fastplace.workflow.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -41,8 +42,8 @@ class OperationStackRegionTest {
    @Test
    void repeatingAlongTheSameAxisAddsCopiesLinearly() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, 3)
-         .repeat(AxisGizmo.Axis.X, 1, 1);
+         .repeat(Axis.X, 1, 3)
+         .repeat(Axis.X, 1, 1);
 
       assertEquals(new BlockPos(0, 0, 0), region.min());
       assertEquals(new BlockPos(4, 0, 0), region.max());
@@ -52,7 +53,7 @@ class OperationStackRegionTest {
    @Test
    void negativeStackExpandsTheMinimumEndpoint() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.Z, -1, 2);
+         .repeat(Axis.Z, -1, 2);
 
       assertEquals(new BlockPos(0, 0, -2), region.min());
       assertEquals(BlockPos.ZERO, region.max());
@@ -61,11 +62,11 @@ class OperationStackRegionTest {
    @Test
    void reverseRepeatRetractsOnlyTheDraggedSideAndNeverFlipsTheFace() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, 3)
-         .repeat(AxisGizmo.Axis.X, -1, 2);
+         .repeat(Axis.X, 1, 3)
+         .repeat(Axis.X, -1, 2);
 
-      OperationStackRegion positiveRetracted = region.withAxisEndpoint(AxisGizmo.Axis.X, 1, -9);
-      OperationStackRegion negativeRetracted = region.withAxisEndpoint(AxisGizmo.Axis.X, -1, -1);
+      OperationStackRegion positiveRetracted = region.withAxisEndpoint(Axis.X, 1, -9);
+      OperationStackRegion negativeRetracted = region.withAxisEndpoint(Axis.X, -1, -1);
 
       assertEquals(new BlockPos(-2, 0, 0), positiveRetracted.min());
       assertEquals(BlockPos.ZERO, positiveRetracted.max(), "the +X handle stops at the origin instead of becoming -X");
@@ -75,7 +76,7 @@ class OperationStackRegionTest {
 
    @Test
    void scrollingCrossesZeroInBothDirectionsOnEveryAxis() {
-      for (var axis : AxisGizmo.Axis.values()) {
+      for (var axis : Axis.values()) {
          for (int side : new int[] {-1, 1}) {
             var region = OperationStackRegion.origin().repeat(axis, side, 2);
             region = region.stepAcrossOrigin(axis, -side);
@@ -91,24 +92,24 @@ class OperationStackRegionTest {
 
    @Test
    void scrollingRetractsOppositeCopiesAndKeepsOtherAxesAndLimits() {
-      var base = OperationStackRegion.origin().repeat(AxisGizmo.Axis.X, 1, 3);
-      var both = base.repeat(AxisGizmo.Axis.Y, -1, 2).repeat(AxisGizmo.Axis.Y, 1, 2);
-      assertEquals(base.repeat(AxisGizmo.Axis.Y, -1, 1).repeat(AxisGizmo.Axis.Y, 1, 2),
-         both.stepAcrossOrigin(AxisGizmo.Axis.Y, 1));
-      assertEquals(base.repeat(AxisGizmo.Axis.Y, -1, 2).repeat(AxisGizmo.Axis.Y, 1, 1),
-         both.stepAcrossOrigin(AxisGizmo.Axis.Y, -1));
+      var base = OperationStackRegion.origin().repeat(Axis.X, 1, 3);
+      var both = base.repeat(Axis.Y, -1, 2).repeat(Axis.Y, 1, 2);
+      assertEquals(base.repeat(Axis.Y, -1, 1).repeat(Axis.Y, 1, 2),
+         both.stepAcrossOrigin(Axis.Y, 1));
+      assertEquals(base.repeat(Axis.Y, -1, 2).repeat(Axis.Y, 1, 1),
+         both.stepAcrossOrigin(Axis.Y, -1));
       for (int side : new int[] {-1, 1}) {
-         var limit = base.repeat(AxisGizmo.Axis.Y, side, OperationStackRegion.ENDPOINT_LIMIT);
-         assertSame(limit, limit.stepAcrossOrigin(AxisGizmo.Axis.Y, side));
+         var limit = base.repeat(Axis.Y, side, OperationStackRegion.ENDPOINT_LIMIT);
+         assertSame(limit, limit.stepAcrossOrigin(Axis.Y, side));
       }
    }
 
    @Test
    void axesFormACartesianProduct() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, 1)
-         .repeat(AxisGizmo.Axis.Y, -1, 2)
-         .repeat(AxisGizmo.Axis.Z, 1, 3);
+         .repeat(Axis.X, 1, 1)
+         .repeat(Axis.Y, -1, 2)
+         .repeat(Axis.Z, 1, 3);
 
       assertEquals(24L, region.cellCount());
       assertEquals(24, region.repetitions(100).size());
@@ -117,9 +118,9 @@ class OperationStackRegionTest {
    @Test
    void onlyRepeatsOnDifferentAxesMultiplyTheCurrentRegion() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, 3)
-         .repeat(AxisGizmo.Axis.X, 1, 1)
-         .repeat(AxisGizmo.Axis.Y, 1, 1);
+         .repeat(Axis.X, 1, 3)
+         .repeat(Axis.X, 1, 1)
+         .repeat(Axis.Y, 1, 1);
 
       assertEquals(10L, region.cellCount());
    }
@@ -128,15 +129,15 @@ class OperationStackRegionTest {
    void zeroCopiesPreservesTheSameImmutableValue() {
       OperationStackRegion origin = OperationStackRegion.origin();
 
-      assertSame(origin, origin.repeat(AxisGizmo.Axis.X, 1, 0));
+      assertSame(origin, origin.repeat(Axis.X, 1, 0));
    }
 
    @Test
    void endpointsAndEnumerationAreBoundedByOperationLimit() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, Integer.MAX_VALUE)
-         .repeat(AxisGizmo.Axis.Y, -1, Integer.MAX_VALUE)
-         .repeat(AxisGizmo.Axis.Z, 1, Integer.MAX_VALUE);
+         .repeat(Axis.X, 1, Integer.MAX_VALUE)
+         .repeat(Axis.Y, -1, Integer.MAX_VALUE)
+         .repeat(Axis.Z, 1, Integer.MAX_VALUE);
 
       assertEquals(new BlockPos(0, -128, 0), region.min());
       assertEquals(new BlockPos(128, 0, 128), region.max());
@@ -147,9 +148,9 @@ class OperationStackRegionTest {
    /** The largest region the repeat gesture can build: 129 cells on each axis. */
    private static OperationStackRegion limitSizedRegion() {
       return OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, Integer.MAX_VALUE)
-         .repeat(AxisGizmo.Axis.Y, -1, Integer.MAX_VALUE)
-         .repeat(AxisGizmo.Axis.Z, 1, Integer.MAX_VALUE);
+         .repeat(Axis.X, 1, Integer.MAX_VALUE)
+         .repeat(Axis.Y, -1, Integer.MAX_VALUE)
+         .repeat(Axis.Z, 1, Integer.MAX_VALUE);
    }
 
    @Test
@@ -185,9 +186,9 @@ class OperationStackRegionTest {
    @Test
    void theVisitorOrderMatchesTheLegacyList() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, 1)
-         .repeat(AxisGizmo.Axis.Y, -1, 2)
-         .repeat(AxisGizmo.Axis.Z, 1, 2);
+         .repeat(Axis.X, 1, 1)
+         .repeat(Axis.Y, -1, 2)
+         .repeat(Axis.Z, 1, 2);
       List<BlockPos> delivered = new ArrayList<>();
 
       long visited = region.visitRepetitions(100, position -> {

@@ -1,6 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.TransformFrame;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import net.minecraft.world.phys.Vec3;
@@ -10,20 +11,20 @@ public final class WorkspaceRotation {
    private WorkspaceRotation() {
    }
 
-   public static Vec3 localAxis(WorkspaceTransform transform, AxisGizmo.Axis axis) {
+   public static Vec3 localAxis(WorkspaceTransform transform, Axis axis) {
       return transform.symmetry().vector(rotateVector(unitAxis(axis), transform.rotation()));
    }
 
    public static TransformFrame frame(WorkspaceTransform transform, Vec3 center) {
-      return TransformFrame.local(center, localAxis(transform, AxisGizmo.Axis.X),
-         localAxis(transform, AxisGizmo.Axis.Y), localAxis(transform, AxisGizmo.Axis.Z));
+      return TransformFrame.local(center, localAxis(transform, Axis.X),
+         localAxis(transform, Axis.Y), localAxis(transform, Axis.Z));
    }
 
    public static Vec3 rotateWorld(WorkspaceTransform transform, Vec3 worldAxis, double radians) {
       Vec3 normal = transform.symmetry().localRotationAxis(worldAxis).normalize();
-      Vec3 x = rotateAroundAxis(rotateVector(unitAxis(AxisGizmo.Axis.X), transform.rotation()), normal, radians);
-      Vec3 y = rotateAroundAxis(rotateVector(unitAxis(AxisGizmo.Axis.Y), transform.rotation()), normal, radians);
-      Vec3 z = rotateAroundAxis(rotateVector(unitAxis(AxisGizmo.Axis.Z), transform.rotation()), normal, radians);
+      Vec3 x = rotateAroundAxis(rotateVector(unitAxis(Axis.X), transform.rotation()), normal, radians);
+      Vec3 y = rotateAroundAxis(rotateVector(unitAxis(Axis.Y), transform.rotation()), normal, radians);
+      Vec3 z = rotateAroundAxis(rotateVector(unitAxis(Axis.Z), transform.rotation()), normal, radians);
       // Decompose Rz * Ry * Rx. At the pole, one canonical angle replaces the two
       // equivalent angles without losing the composed orientation.
       double pitch = Math.asin(Math.clamp(-x.z, -1.0, 1.0));
@@ -42,12 +43,12 @@ public final class WorkspaceRotation {
    }
 
    private static Vec3 rotateVector(Vec3 value, Vec3 rotation) {
-      value = VoxelRotation.rotatePoint(value, Vec3.ZERO, AxisGizmo.Axis.X, rotation.x);
-      value = VoxelRotation.rotatePoint(value, Vec3.ZERO, AxisGizmo.Axis.Y, rotation.y);
-      return VoxelRotation.rotatePoint(value, Vec3.ZERO, AxisGizmo.Axis.Z, rotation.z);
+      value = VoxelRotation.rotatePoint(value, Vec3.ZERO, Axis.X, rotation.x);
+      value = VoxelRotation.rotatePoint(value, Vec3.ZERO, Axis.Y, rotation.y);
+      return VoxelRotation.rotatePoint(value, Vec3.ZERO, Axis.Z, rotation.z);
    }
 
-   public static Vec3 unitAxis(AxisGizmo.Axis axis) {
+   public static Vec3 unitAxis(Axis axis) {
       return switch (axis) {
          case X -> new Vec3(1, 0, 0);
          case Y -> new Vec3(0, 1, 0);

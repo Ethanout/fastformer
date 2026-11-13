@@ -1,10 +1,11 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -41,7 +42,7 @@ class VoxelRotationFrameTest {
       );
 
       assertEquals(2, result.steps().size());
-      assertEquals(AxisGizmo.Axis.Y, result.steps().get(0).axis());
+      assertEquals(Axis.Y, result.steps().get(0).axis());
       assertEquals(OccupiedBlockBounds.from(source.keySet()).orElseThrow().center(), result.steps().get(0).pivot());
 
       VoxelRotation.RotationStep yStep = result.steps().get(0);
@@ -50,7 +51,7 @@ class VoxelRotationFrameTest {
 
       // The second axis re-centres on the result of the first axis. One fixed pivot would keep
       // the original centre and separate the render envelope from the blocks it describes.
-      assertEquals(AxisGizmo.Axis.Z, result.steps().get(1).axis());
+      assertEquals(Axis.Z, result.steps().get(1).axis());
       assertEquals(rotatedCentre, result.steps().get(1).pivot());
       assertNotEquals(result.steps().get(0).pivot(), result.steps().get(1).pivot());
    }
@@ -62,10 +63,10 @@ class VoxelRotationFrameTest {
 
       VoxelRotation.RotationResult<String> stage = VoxelRotation.rotateStage(source, rotation);
       Map<BlockPos, String> manual = source;
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
-         double radians = axis == AxisGizmo.Axis.X
+      for (Axis axis : Axis.values()) {
+         double radians = axis == Axis.X
             ? rotation.x
-            : axis == AxisGizmo.Axis.Y ? rotation.y : rotation.z;
+            : axis == Axis.Y ? rotation.y : rotation.z;
          OccupiedBlockBounds bounds = OccupiedBlockBounds.from(manual.keySet()).orElse(null);
          if (bounds != null && Math.abs(radians) > VoxelRotation.POSITION_EPSILON) {
             manual = VoxelRotation.rotateValues(manual, bounds.center(), axis, radians);

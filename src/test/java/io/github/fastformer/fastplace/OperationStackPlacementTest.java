@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.submission.OperationExecutionSemantics;
 
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
@@ -13,7 +15,6 @@ import io.github.fastformer.fastplace.workflow.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -26,8 +27,8 @@ class OperationStackPlacementTest {
    @Test
    void sameAxisRepeatsAndTranslationProduceALinearTargetGrid() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, 3)
-         .repeat(AxisGizmo.Axis.X, 1, 1);
+         .repeat(Axis.X, 1, 3)
+         .repeat(Axis.X, 1, 1);
 
       assertEquals(
          List.of(
@@ -41,9 +42,9 @@ class OperationStackPlacementTest {
    @Test
    void negativeAndMultipleAxesUseSelectionDimensions() {
       OperationStackRegion region = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, -1, 1)
-         .repeat(AxisGizmo.Axis.Y, 1, 1)
-         .repeat(AxisGizmo.Axis.Z, -1, 1);
+         .repeat(Axis.X, -1, 1)
+         .repeat(Axis.Y, 1, 1)
+         .repeat(Axis.Z, -1, 1);
 
       assertEquals(8, OperationGeometry.stackTargets(BOUNDS, region, BlockPos.ZERO, 100).size());
       assertEquals(

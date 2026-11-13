@@ -1,9 +1,10 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.world.phys.AABB;
 
 /** Converts scale-handle travel into whole structure-sized repeat steps. */
@@ -21,7 +22,7 @@ public final class RepeatDragQuantizer {
          : (int)(offset / extent);
    }
 
-   public static int structureExtent(ClientSelectionPart part, AxisGizmo.Axis axis) {
+   public static int structureExtent(ClientSelectionPart part, Axis axis) {
       if (part == null || axis == null) {
          return 1;
       }
@@ -36,7 +37,7 @@ public final class RepeatDragQuantizer {
       return (int)Math.clamp(Math.round(extent * scale), 1L, (long)Integer.MAX_VALUE);
    }
 
-   private static double boundsExtent(AABB bounds, AxisGizmo.Axis axis) {
+   private static double boundsExtent(AABB bounds, Axis axis) {
       return switch (axis) {
          case X -> bounds.maxX - bounds.minX;
          case Y -> bounds.maxY - bounds.minY;

@@ -1,7 +1,8 @@
 package io.github.fastformer.client.operation.clipboard;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 
@@ -11,7 +12,7 @@ public final class PastePlacement {
    }
 
    public static Vec3 inWorkspace(OccupiedBlockBounds bounds) {
-      AxisGizmo.Axis axis = bounds.smallestAxis();
+      Axis axis = bounds.smallestAxis();
       int width = bounds.width(axis);
       return switch (axis) {
          case X -> new Vec3(width, 0.0, 0.0);

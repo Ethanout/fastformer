@@ -1,5 +1,7 @@
 package io.github.fastformer.client.gizmo;
 
+import io.github.fastformer.core.math.Axis;
+
 import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -82,7 +84,7 @@ public final class GizmoRenderer {
       poseStack.translate(-camera.x, -camera.y, -camera.z);
 
       VertexConsumer lines = buffers.getBuffer(GIZMO_LINES);
-      for (AxisGizmo.Axis gizmoAxis : AxisGizmo.Axis.values()) {
+      for (Axis gizmoAxis : Axis.values()) {
          Vec3 axis = gizmo.axisVector(gizmoAxis);
          float[] color = gizmoAxisColor(gizmoAxis);
          AxisGizmo.Handle positiveMove = gizmo.handles().stream()
@@ -119,13 +121,13 @@ public final class GizmoRenderer {
       Vec3 camera,
       io.github.fastformer.fastplace.geometry.TransformFrame frame,
       double axisLength,
-      AxisGizmo.Axis highlightedAxis,
+      Axis highlightedAxis,
       float alphaScale
    ) {
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       VertexConsumer lines = buffers.getBuffer(GIZMO_LINES);
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+      for (Axis axis : Axis.values()) {
          Vec3 localAxis = frame.axis(axis);
          Vec3 center = frame.origin();
          boolean highlighted = axis == highlightedAxis;
@@ -211,7 +213,7 @@ public final class GizmoRenderer {
       return OperationGizmoPresentation.alpha(nearCenter);
    }
 
-   private static float[] gizmoAxisColor(AxisGizmo.Axis axis) {
+   private static float[] gizmoAxisColor(Axis axis) {
       int color = AxisGizmo.axisColor(axis);
       return new float[]{
          ((color >>> 16) & 0xFF) / 255.0F,

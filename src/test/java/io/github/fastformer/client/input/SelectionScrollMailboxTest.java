@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
@@ -143,13 +145,13 @@ class SelectionScrollMailboxTest {
    private ScrollInputSnapshot captureStack(int direction) {
       var action = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(),
          ClientOperationController.workspace(), new SelectionScrollAction.Stack(
-            io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.X, 1, direction)).orElseThrow();
+            Axis.X, 1, direction)).orElseThrow();
       return new ScrollInputSnapshot(direction, action);
    }
 
    @Test
    void scrollingDownPastZeroStacksOnNegativeYAndUndoRestoresPositiveY() {
-      var axis = io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.Y;
+      var axis = Axis.Y;
       var workspace = ClientOperationController.workspace();
       var up = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(), workspace,
          new SelectionScrollAction.Stack(axis, 1, 1)).orElseThrow();
@@ -177,7 +179,7 @@ class SelectionScrollMailboxTest {
       workspace.updatePart(part.withTransform(part.transform().withRotation(new Vec3(0, Math.PI / 2, 0))));
       workspace.finishEdit();
       var stack = SelectionScrollAction.stackAlongView(transform(), new Vec3(0, 0, -1), 1);
-      assertEquals(io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.X, stack.axis());
+      assertEquals(Axis.X, stack.axis());
       assertEquals(1, stack.side());
       var action = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(), workspace, stack).orElseThrow();
       input.postScroll(new ScrollInputSnapshot(1, action));

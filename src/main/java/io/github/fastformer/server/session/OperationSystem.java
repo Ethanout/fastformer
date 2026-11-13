@@ -1,5 +1,7 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.core.math.Axis;
+
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -326,7 +328,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       int axis = axisStep.getX() != 0 ? 0 : axisStep.getY() != 0 ? 1 : 2;
       int amount = axis == 0 ? axisStep.getX() : axis == 1 ? axisStep.getY() : axisStep.getZ();
       var operation = io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.MOVE;
-      session.beginTransform(operation, io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.values()[axis], Integer.signum(amount));
+      session.beginTransform(operation, Axis.values()[axis], Integer.signum(amount));
       session.updateTransform(Math.abs(amount));
       session.finishTransform();
       FastPlaceNetwork.syncOperation(player, session);
@@ -335,7 +337,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    public void adjustTransform(
       ServerPlayer player,
       io.github.fastformer.fastplace.geometry.AxisGizmo.Operation operation,
-      io.github.fastformer.fastplace.geometry.AxisGizmo.Axis axis,
+      Axis axis,
       int direction,
       int totalSteps,
       boolean finish

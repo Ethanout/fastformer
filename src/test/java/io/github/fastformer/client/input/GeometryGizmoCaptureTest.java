@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.core.math.Axis;
+
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 class GeometryGizmoCaptureTest {
    private GeometryGizmoCapture.Event.Press press(GeometryGizmoCapture capture, int button) {
-      var drag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X,
+      var drag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, Axis.X,
          Vec3.ZERO, new Vec3(1, 0, 0), 0, 0, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO,
          AxisGizmo.Direction.POSITIVE, button);
       return capture.press(1, UUID.randomUUID(), OperationCallbackScope.unscoped(), GeometryMode.WALL, drag);
@@ -124,7 +126,7 @@ class GeometryGizmoCaptureTest {
       var capture = new GeometryGizmoCapture();
       UUID originalDraft = UUID.randomUUID();
       UUID replacementDraft = UUID.randomUUID();
-      var drag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X,
+      var drag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, Axis.X,
          Vec3.ZERO, new Vec3(1, 0, 0), 0, 0, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO,
          AxisGizmo.Direction.POSITIVE, 0);
       var press = capture.press(1, originalDraft, OperationCallbackScope.unscoped(), GeometryMode.WALL, drag);
@@ -138,7 +140,7 @@ class GeometryGizmoCaptureTest {
    @Test
    void legacyPreviewWithoutADraftIdentityCannotActivateAGizmoCapture() {
       var capture = new GeometryGizmoCapture();
-      var drag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X,
+      var drag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, Axis.X,
          Vec3.ZERO, new Vec3(1, 0, 0), 0, 0, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO,
          AxisGizmo.Direction.POSITIVE, 0);
       var press = capture.press(1, null, OperationCallbackScope.unscoped(), GeometryMode.WALL, drag);

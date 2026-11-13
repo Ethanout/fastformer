@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
@@ -22,12 +24,12 @@ public final class PointerDragSnapshotView {
       return session.selectionGestures().gizmo();
    }
 
-   public static AxisGizmo.Axis axis(ClientInputSession session) {
+   public static Axis axis(ClientInputSession session) {
       GeometryGizmoDrag drag = session.geometryGizmoDrag;
       return drag == null ? null : drag.axis();
    }
 
-   public static AxisGizmo.Axis operationAxis(ClientInputSession session) {
+   public static Axis operationAxis(ClientInputSession session) {
       if (ClientOperationController.operationSelectionReady() && session.geometryGizmoDrag != null) {
          return session.geometryGizmoDrag.axis();
       }

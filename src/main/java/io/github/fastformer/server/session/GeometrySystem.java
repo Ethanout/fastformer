@@ -1,5 +1,7 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.server.session.slot.PlayerSessions;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
@@ -167,7 +169,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       }
    }
 
-   public boolean gizmoDrag(ServerPlayer player, AxisGizmo.Operation operation, AxisGizmo.Axis axis, int steps, boolean finish) {
+   public boolean gizmoDrag(ServerPlayer player, AxisGizmo.Operation operation, Axis axis, int steps, boolean finish) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session == null) {
          return false;

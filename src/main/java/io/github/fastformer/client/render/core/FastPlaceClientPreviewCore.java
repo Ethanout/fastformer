@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.client.render.PreviewStyle;
 import io.github.fastformer.fastplace.geometry.GeometryPalette;
 
@@ -350,7 +352,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static void noteGizmoFeedback(
-      AxisGizmo.Axis axis, AxisGizmo.Operation operation, int steps, double baseValue
+      Axis axis, AxisGizmo.Operation operation, int steps, double baseValue
    ) {
       FEEDBACK.noteGizmo(axis, operation, steps,
          GeometryNumbers.finiteOr(baseValue, operation == AxisGizmo.Operation.SCALE ? 1.0 : 0.0), System.nanoTime());
@@ -592,7 +594,7 @@ public final class FastPlaceClientPreviewCore {
       return gizmo.withState(hovered, PointerDragSnapshotView.operationKey(FastPlaceClientInput.currentSession()));
    }
 
-   public static double operationGizmoValue(AxisGizmo.Axis axis, AxisGizmo.Operation operation) {
+   public static double operationGizmoValue(Axis axis, AxisGizmo.Operation operation) {
       if (!operationSelectionReady() || axis == null || operation == null) {
          return 0.0;
       }
@@ -755,7 +757,7 @@ public final class FastPlaceClientPreviewCore {
       return geometryGizmo(view);
    }
 
-   public static double geometryGizmoValue(AxisGizmo.Axis axis, AxisGizmo.Operation operation) {
+   public static double geometryGizmoValue(Axis axis, AxisGizmo.Operation operation) {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
       if (axis == null || operation == null || player == null || !PREVIEW_STATE.geometry().active()) {
@@ -1194,7 +1196,7 @@ public final class FastPlaceClientPreviewCore {
       return (int)Math.ceil(minecraft.font.width(label) * 0.75F);
    }
 
-   private static double axisComponent(Vec3 value, AxisGizmo.Axis axis) {
+   private static double axisComponent(Vec3 value, Axis axis) {
       return switch (axis) {
          case X -> value.x;
          case Y -> value.y;
@@ -1203,7 +1205,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static double geometryGizmoValue(
-      GeometryPreviewPlan geometryPlan, AxisGizmo.Axis axis, AxisGizmo.Operation operation
+      GeometryPreviewPlan geometryPlan, Axis axis, AxisGizmo.Operation operation
    ) {
       TransformStatus transform = transformStatus(geometryPlan);
       if (transform == null) {
@@ -1220,7 +1222,7 @@ public final class FastPlaceClientPreviewCore {
       };
    }
 
-   private static Vec3 axisVector(AxisGizmo.Axis axis) {
+   private static Vec3 axisVector(Axis axis) {
       return switch (axis) {
          case X -> new Vec3(1.0, 0.0, 0.0);
          case Y -> new Vec3(0.0, 1.0, 0.0);
@@ -1447,8 +1449,8 @@ public final class FastPlaceClientPreviewCore {
          return;
       }
       GizmoHudInput hudInput = gizmoHudInput(geometryPlan);
-      AxisGizmo.Axis dragAxis = hudInput.dragAxis();
-      AxisGizmo.Axis axis = dragAxis;
+      Axis dragAxis = hudInput.dragAxis();
+      Axis axis = dragAxis;
       AxisGizmo.Operation operation = dragAxis == null ? null : hudInput.dragOperation();
       AxisGizmo displayedGizmo = hudInput.gizmo();
       boolean retainedGizmo = false;
@@ -1566,7 +1568,7 @@ public final class FastPlaceClientPreviewCore {
    private static double gizmoHudValue(
       GizmoHudInput input,
       GeometryPreviewPlan geometryPlan,
-      AxisGizmo.Axis axis,
+      Axis axis,
       AxisGizmo.Operation operation
    ) {
       if (!input.operationSelection()) {
@@ -1587,7 +1589,7 @@ public final class FastPlaceClientPreviewCore {
       return value;
    }
 
-   private static int gizmoAxisHudColor(AxisGizmo.Axis axis) {
+   private static int gizmoAxisHudColor(Axis axis) {
       return 0xFF000000 | AxisGizmo.axisColor(axis);
    }
 
@@ -1616,7 +1618,7 @@ public final class FastPlaceClientPreviewCore {
    private static int drawGizmoActionLabel(
       GuiGraphics graphics,
       Minecraft minecraft,
-      AxisGizmo.Axis axis,
+      Axis axis,
       AxisGizmo.Operation operation,
       int x,
       int y,
@@ -1636,7 +1638,7 @@ public final class FastPlaceClientPreviewCore {
    private static int drawGizmoAxisLabel(
       GuiGraphics graphics,
       Minecraft minecraft,
-      AxisGizmo.Axis axis,
+      Axis axis,
       int x,
       int y,
       int color
@@ -1665,8 +1667,8 @@ public final class FastPlaceClientPreviewCore {
          Vec3 offset = PREVIEW_STATE.geometry().coneTopOffset();
          return new ScrollFeedbackData(
             List.of(
-               new AxisFeedback("X", GeometryNumbers.fixed(offset.x, 2), FEEDBACK.axisColor(AxisGizmo.Axis.X)),
-               new AxisFeedback("Z", GeometryNumbers.fixed(offset.z, 2), FEEDBACK.axisColor(AxisGizmo.Axis.Z))
+               new AxisFeedback("X", GeometryNumbers.fixed(offset.x, 2), FEEDBACK.axisColor(Axis.X)),
+               new AxisFeedback("Z", GeometryNumbers.fixed(offset.z, 2), FEEDBACK.axisColor(Axis.Z))
             ),
             ""
          );

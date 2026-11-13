@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.submission;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 
 import io.github.fastformer.fastplace.world.*;
@@ -14,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -144,7 +145,7 @@ class OperationWorkspaceValidatorTest {
          new BlockPos(0, 0, 0), snapshot,
          new BlockPos(1, 0, 0), snapshot
       );
-      WorkspaceTransform upscaled = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 500.0);
+      WorkspaceTransform upscaled = WorkspaceTransform.IDENTITY.withScale(Axis.X, 500.0);
 
       var result = OperationWorkspaceValidator.validate(
          new OperationWorkspacePlan(List.of(part(1, dense, upscaled, false))),
@@ -202,7 +203,7 @@ class OperationWorkspaceValidatorTest {
          new BlockPos(0, 64, 0), snapshot,
          new BlockPos(2, 64, 0), snapshot
       );
-      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, 1.0 / 3.0);
+      WorkspaceTransform shrink = WorkspaceTransform.IDENTITY.withScale(Axis.X, 1.0 / 3.0);
 
       var result = OperationWorkspaceValidator.validate(
          new OperationWorkspacePlan(List.of(part(1, threeWide, shrink, false))),

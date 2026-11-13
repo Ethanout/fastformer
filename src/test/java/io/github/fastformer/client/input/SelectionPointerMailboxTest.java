@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.drag.DeferredDragClick;
@@ -72,10 +74,10 @@ class SelectionPointerMailboxTest {
       assertTrue(workspace.beginEdit());
       var token = workspace.activeEditToken();
       ClientOperationController.updateTransformGesture(token, List.of(original), false,
-         AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, 2, Double.NaN);
+         AxisGizmo.Operation.MOVE, Axis.X, 1, 2, Double.NaN);
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
       ClientOperationController.updateTransformGesture(token, List.of(original), false,
-         AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, 0, Double.NaN);
+         AxisGizmo.Operation.MOVE, Axis.X, 1, 0, Double.NaN);
       assertEquals(original.transform(), workspace.part(1).orElseThrow().transform());
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
       ClientOperationController.finishTransformGesture(token);

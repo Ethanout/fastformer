@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input.drag;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
@@ -12,7 +14,7 @@ public record WorkspaceGizmoDrag(
    int partId,
    boolean common,
    AxisGizmo.Operation operation,
-   AxisGizmo.Axis axis,
+   Axis axis,
    Vec3 origin,
    Vec3 axisVector,
    int sentSteps,
@@ -30,7 +32,7 @@ public record WorkspaceGizmoDrag(
       baseline = List.copyOf(baseline);
    }
 
-   public WorkspaceGizmoDrag(int partId, boolean common, AxisGizmo.Operation operation, AxisGizmo.Axis axis,
+   public WorkspaceGizmoDrag(int partId, boolean common, AxisGizmo.Operation operation, Axis axis,
       Vec3 origin, Vec3 axisVector, int sentSteps, Vec3 center, Vec3 startRadial, Vec3 startTangent,
       AxisGizmo.Direction direction, SelectionDragCapture capture, List<ClientSelectionPart> baseline,
       ClientOperationWorkspace.EditToken editToken) {

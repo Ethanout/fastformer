@@ -1,5 +1,6 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
 import io.github.fastformer.fastplace.geometry.interaction.HoverFeedback;
 import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
@@ -368,12 +369,6 @@ public record AxisGizmo(
       MOVE,
       SCALE,
       ROTATE
-   }
-
-   public enum Axis {
-      X,
-      Y,
-      Z
    }
 
    public enum Direction {

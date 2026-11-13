@@ -1,7 +1,8 @@
 package io.github.fastformer.workspace.model;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
@@ -76,7 +77,7 @@ public record WorkspaceTransform(
       return new WorkspaceTransform(this.translation, this.rotation, value, stride, this.scale, this.symmetry);
    }
 
-   public WorkspaceTransform withRepeatStride(AxisGizmo.Axis axis, int value) {
+   public WorkspaceTransform withRepeatStride(Axis axis, int value) {
       BlockPos stride = switch (axis) {
          case X -> new BlockPos(value, this.repeatStride.getY(), this.repeatStride.getZ());
          case Y -> new BlockPos(this.repeatStride.getX(), value, this.repeatStride.getZ());
@@ -85,7 +86,7 @@ public record WorkspaceTransform(
       return new WorkspaceTransform(this.translation, this.rotation, this.repeats, stride, this.scale, this.symmetry);
    }
 
-   public WorkspaceTransform withScale(AxisGizmo.Axis axis, double value) {
+   public WorkspaceTransform withScale(Axis axis, double value) {
       Vec3 updated = switch (axis) {
          case X -> new Vec3(value, this.scale.y, this.scale.z);
          case Y -> new Vec3(this.scale.x, value, this.scale.z);

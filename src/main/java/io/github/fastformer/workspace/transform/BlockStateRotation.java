@@ -1,6 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.WorkspaceSymmetry;
 import java.util.HashMap;
 import java.util.ArrayList;
@@ -73,12 +74,12 @@ final class BlockStateRotation {
       return property.getValue(target).map(candidate -> state.setValue(property, candidate)).orElse(state);
    }
 
-   static BlockState rotate(BlockState state, AxisGizmo.Axis axis, int turns) {
+   static BlockState rotate(BlockState state, Axis axis, int turns) {
       int normalized = Math.floorMod(turns, 4);
       if (normalized == 0) {
          return state;
       }
-      if (axis == AxisGizmo.Axis.Y) {
+      if (axis == Axis.Y) {
          return state.rotate(switch (normalized) {
             case 1 -> Rotation.COUNTERCLOCKWISE_90;
             case 2 -> Rotation.CLOCKWISE_180;
@@ -96,7 +97,7 @@ final class BlockStateRotation {
    }
 
    private static <T extends Comparable<T>> BlockState rotateProperty(
-      BlockState state, Property<T> property, AxisGizmo.Axis axis, int turns
+      BlockState state, Property<T> property, Axis axis, int turns
    ) {
       T value = state.getValue(property);
       String target;
@@ -111,18 +112,18 @@ final class BlockStateRotation {
       return property.getValue(target).map(candidate -> state.setValue(property, candidate)).orElse(state);
    }
 
-   private static Direction rotateDirection(Direction direction, AxisGizmo.Axis axis, int turns) {
+   private static Direction rotateDirection(Direction direction, Axis axis, int turns) {
       BlockPos vector = rotateVector(direction.getStepX(), direction.getStepY(), direction.getStepZ(), axis, turns);
       return Direction.fromDelta(vector.getX(), vector.getY(), vector.getZ());
    }
 
    /** Reuses the cell transform so state and position cannot disagree about axis signs. */
-   private static BlockPos rotateVector(int x, int y, int z, AxisGizmo.Axis axis, int turns) {
+   private static BlockPos rotateVector(int x, int y, int z, Axis axis, int turns) {
       Vec3 rotated = VoxelRotation.rotatePoint(new Vec3(x, y, z), Vec3.ZERO, axis, turns * Math.PI * 0.5);
       return new BlockPos((int)Math.round(rotated.x), (int)Math.round(rotated.y), (int)Math.round(rotated.z));
    }
 
-   private static BlockState rotateStairs(BlockState state, AxisGizmo.Axis axis, int turns) {
+   private static BlockState rotateStairs(BlockState state, Axis axis, int turns) {
       return transformStairs(state, vector -> rotateVector(vector.getX(), vector.getY(), vector.getZ(), axis, turns),
          rotateDirection(state.getValue(StairBlock.FACING), axis, turns));
    }

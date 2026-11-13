@@ -1,11 +1,12 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.WorkspaceSymmetry;
 import io.github.fastformer.workspace.preview.Composition;
 import io.github.fastformer.workspace.preview.CompositionCounter;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -32,7 +33,7 @@ public final class VoxelRotation {
     * <p>Render geometry applies these exact steps to a selection envelope. Deriving its
     * own pivot would move the outline and Gizmo away from the blocks they describe.
     */
-   public record RotationStep(AxisGizmo.Axis axis, double radians, Vec3 pivot) {
+   public record RotationStep(Axis axis, double radians, Vec3 pivot) {
    }
 
    /** The mapped cells and the ordered steps that produced them. */
@@ -46,7 +47,7 @@ public final class VoxelRotation {
     * value stage therefore take the same axis and the same angle.
     */
    public interface ValueRotation<T> {
-      Function<T, T> forAxis(AxisGizmo.Axis axis, double radians);
+      Function<T, T> forAxis(Axis axis, double radians);
 
       default Function<T, T> forSymmetry(WorkspaceSymmetry symmetry) {
          return value -> value;
@@ -62,7 +63,7 @@ public final class VoxelRotation {
    public static ValueRotation<ClientBlockSnapshot> snapshotValues() {
       return new ValueRotation<>() {
          @Override
-         public Function<ClientBlockSnapshot, ClientBlockSnapshot> forAxis(AxisGizmo.Axis axis, double radians) {
+         public Function<ClientBlockSnapshot, ClientBlockSnapshot> forAxis(Axis axis, double radians) {
             return snapshot -> rotateSnapshot(snapshot, axis, radians);
          }
 
@@ -121,7 +122,7 @@ public final class VoxelRotation {
    ) {
       Map<BlockPos, T> current = source;
       List<RotationStep> steps = new ArrayList<>(3);
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+      for (Axis axis : Axis.values()) {
          double radians = axisComponent(rotation, axis);
          OccupiedBlockBounds bounds = OccupiedBlockBounds.from(current.keySet()).orElse(null);
          if (bounds == null || Math.abs(radians) <= POSITION_EPSILON) {
@@ -160,7 +161,7 @@ public final class VoxelRotation {
    private record AxisRotation<T>(Map<BlockPos, T> values, Composition.OverBudget<T> overBudget) {
    }
 
-   private static double axisComponent(Vec3 value, AxisGizmo.Axis axis) {
+   private static double axisComponent(Vec3 value, Axis axis) {
       return switch (axis) {
          case X -> value.x;
          case Y -> value.y;
@@ -171,7 +172,7 @@ public final class VoxelRotation {
    public static Map<BlockPos, ClientBlockSnapshot> rotate(
       Map<BlockPos, ClientBlockSnapshot> source,
       Vec3 pivot,
-      AxisGizmo.Axis axis,
+      Axis axis,
       double radians
    ) {
       return rotate(source, pivot, axis, radians, snapshot -> rotateSnapshot(snapshot, axis, radians));
@@ -180,7 +181,7 @@ public final class VoxelRotation {
    public static <T> Map<BlockPos, T> rotateValues(
       Map<BlockPos, T> source,
       Vec3 pivot,
-      AxisGizmo.Axis axis,
+      Axis axis,
       double radians
    ) {
       return rotate(source, pivot, axis, radians, Function.identity());
@@ -189,7 +190,7 @@ public final class VoxelRotation {
    private static <T> Map<BlockPos, T> rotate(
       Map<BlockPos, T> source,
       Vec3 pivot,
-      AxisGizmo.Axis axis,
+      Axis axis,
       double radians,
       Function<T, T> valueTransform
    ) {
@@ -203,7 +204,7 @@ public final class VoxelRotation {
    private static <T> AxisRotation<T> rotate(
       Map<BlockPos, T> source,
       Vec3 pivot,
-      AxisGizmo.Axis axis,
+      Axis axis,
       double radians,
       Function<T, T> valueTransform,
       CompositionCounter counter
@@ -262,7 +263,7 @@ public final class VoxelRotation {
       return counter == null ? null : counter.checkOutput(uniqueCells);
    }
 
-   private static BlockPos rotatedCell(BlockPos source, Vec3 pivot, AxisGizmo.Axis axis, double radians) {
+   private static BlockPos rotatedCell(BlockPos source, Vec3 pivot, Axis axis, double radians) {
       Vec3 rotated = rotatePoint(Vec3.atCenterOf(source), pivot, axis, radians);
       return BlockPos.containing(Math.floor(rotated.x), Math.floor(rotated.y), Math.floor(rotated.z));
    }
@@ -271,7 +272,7 @@ public final class VoxelRotation {
       Map<BlockPos, T> result, BlockPos from, BlockPos to, T value, CompositionCounter counter
    ) {
       BlockPos cursor = from;
-      for (AxisGizmo.Axis bridgeAxis : AxisGizmo.Axis.values()) {
+      for (Axis bridgeAxis : Axis.values()) {
          int difference = coordinate(to, bridgeAxis) - coordinate(cursor, bridgeAxis);
          if (difference != 0) {
             cursor = withCoordinate(cursor, bridgeAxis, coordinate(to, bridgeAxis));
@@ -291,7 +292,7 @@ public final class VoxelRotation {
       return null;
    }
 
-   private static int coordinate(BlockPos position, AxisGizmo.Axis axis) {
+   private static int coordinate(BlockPos position, Axis axis) {
       return switch (axis) {
          case X -> position.getX();
          case Y -> position.getY();
@@ -299,7 +300,7 @@ public final class VoxelRotation {
       };
    }
 
-   private static BlockPos withCoordinate(BlockPos position, AxisGizmo.Axis axis, int value) {
+   private static BlockPos withCoordinate(BlockPos position, Axis axis, int value) {
       return switch (axis) {
          case X -> new BlockPos(value, position.getY(), position.getZ());
          case Y -> new BlockPos(position.getX(), value, position.getZ());
@@ -311,11 +312,11 @@ public final class VoxelRotation {
     * Rotates one point about a pivot. The envelope code uses this same method, so a
     * selection box and its blocks can never drift apart through a second formula.
     */
-   public static Vec3 rotatePoint(Vec3 point, Vec3 pivot, AxisGizmo.Axis axis, double radians) {
+   public static Vec3 rotatePoint(Vec3 point, Vec3 pivot, Axis axis, double radians) {
       return rotateVector(point.subtract(pivot), axis, radians).add(pivot);
    }
 
-   private static Vec3 rotateVector(Vec3 value, AxisGizmo.Axis axis, double radians) {
+   private static Vec3 rotateVector(Vec3 value, Axis axis, double radians) {
       double sin = sin(radians);
       double cos = cos(radians);
       return switch (axis) {
@@ -363,7 +364,7 @@ public final class VoxelRotation {
     * the original state because Minecraft cannot represent arbitrary orientations.
     */
    private static ClientBlockSnapshot rotateSnapshot(
-      ClientBlockSnapshot snapshot, AxisGizmo.Axis axis, double radians
+      ClientBlockSnapshot snapshot, Axis axis, double radians
    ) {
       int quarterTurns = (int)Math.rint(radians / QUARTER_TURN);
       if (Math.abs(radians - quarterTurns * QUARTER_TURN) > ORTHOGONAL_EPSILON) {

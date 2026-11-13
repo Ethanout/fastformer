@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input.math;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -43,12 +45,12 @@ public final class ClientInputMath {
          : operation == AxisGizmo.Operation.SCALE ? 1 : 2;
    }
 
-   public static int geometryAxisIndex(AxisGizmo.Axis axis) {
-      return axis == AxisGizmo.Axis.X ? 0 : axis == AxisGizmo.Axis.Y ? 1 : 2;
+   public static int geometryAxisIndex(Axis axis) {
+      return axis == Axis.X ? 0 : axis == Axis.Y ? 1 : 2;
    }
 
-   public static double axisComponent(Vec3 value, AxisGizmo.Axis axis) {
-      return axis == AxisGizmo.Axis.X ? value.x : axis == AxisGizmo.Axis.Y ? value.y : value.z;
+   public static double axisComponent(Vec3 value, Axis axis) {
+      return axis == Axis.X ? value.x : axis == Axis.Y ? value.y : value.z;
    }
 
    public static int clampDragSteps(int steps, int limit) {

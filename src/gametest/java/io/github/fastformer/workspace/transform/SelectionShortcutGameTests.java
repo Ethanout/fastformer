@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
@@ -62,7 +64,7 @@ public final class SelectionShortcutGameTests {
       for (int index = 0; index < 2; index++) {
          helper.assertTrue(resolved(workspace.parts().get(index)).equals(original.get(index).blocks()), "four turns did not restore the original content");
       }
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+      for (Axis axis : Axis.values()) {
          var before = workspace.parts();
          apply(helper, workspace, WorkspaceSymmetry.reflection(axis));
          apply(helper, workspace, WorkspaceSymmetry.reflection(axis));
@@ -87,7 +89,7 @@ public final class SelectionShortcutGameTests {
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void mirrorsPreserveStairGeometryWaterAndPistonFacing(GameTestHelper helper) {
       Vec3 center = new Vec3(0.5, 0.5, 0.5);
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+      for (Axis axis : Axis.values()) {
          var symmetry = WorkspaceSymmetry.IDENTITY.then(WorkspaceSymmetry.reflection(axis), center);
          for (Direction facing : StairBlock.FACING.getPossibleValues()) {
             for (Half half : Half.values()) {
@@ -119,7 +121,7 @@ public final class SelectionShortcutGameTests {
       var workspace = new ClientOperationWorkspace();
       workspace.addParts(List.of(part(BlockPos.ZERO), part(new BlockPos(4, 0, 0))));
       apply(helper, workspace, WorkspaceSymmetry.quarterTurnY());
-      apply(helper, workspace, WorkspaceSymmetry.reflection(AxisGizmo.Axis.X));
+      apply(helper, workspace, WorkspaceSymmetry.reflection(Axis.X));
       var registry = helper.getLevel().registryAccess().lookupOrThrow(Registries.BLOCK);
       var plan = new OperationWorkspacePlan(WorkspaceContentPreparer.confirmedParts(workspace.parts()));
       var decoded = OperationWorkspacePlanCodec.decodeCompressed(OperationWorkspacePlanCodec.encodeCompressed(plan), registry);
@@ -155,13 +157,13 @@ public final class SelectionShortcutGameTests {
       }
       var volume = OperationSelectionVolume.cuboid(new BlockPos(-1, -1, -1), new BlockPos(1, 1, 1), null, null);
       Vec3 pivot = new Vec3(0.5, 0.5, 0.5);
-      for (AxisGizmo.Axis mirror : AxisGizmo.Axis.values()) {
+      for (Axis mirror : Axis.values()) {
          var symmetry = WorkspaceSymmetry.IDENTITY.then(WorkspaceSymmetry.quarterTurnY(), pivot)
             .then(WorkspaceSymmetry.reflection(mirror), pivot);
          var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume, blocks,
             WorkspaceTransform.IDENTITY.withSymmetry(symmetry), false).fixed();
          var before = resolved(part);
-         for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+         for (Axis axis : Axis.values()) {
             Vec3 normal = WorkspaceRotation.localAxis(part.transform(), axis);
             var result = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.ROTATE,
                axis, 1, 256, Math.PI / 2, normal, pivot);
@@ -190,13 +192,13 @@ public final class SelectionShortcutGameTests {
       var symmetry = WorkspaceSymmetry.IDENTITY.then(WorkspaceSymmetry.quarterTurnY(), new Vec3(2.5, 0.5, 0.5));
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume, blocks,
          WorkspaceTransform.IDENTITY.withSymmetry(symmetry), false).fixed();
-      helper.assertTrue(RepeatStrideSemantics.stride(AxisGizmo.Operation.SCALE, false, part.id(), List.of(part), AxisGizmo.Axis.X) == 5,
+      helper.assertTrue(RepeatStrideSemantics.stride(AxisGizmo.Operation.SCALE, false, part.id(), List.of(part), Axis.X) == 5,
          "local X repeat handle used the world X width");
-      var result = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, 1, 0);
+      var result = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, 0);
       var after = resolved(result.parts().getFirst());
       helper.assertTrue(after.size() == 10, "repeat copies overlapped because the local stride was wrong");
       var bounds = io.github.fastformer.workspace.selection.OccupiedBlockBounds.from(after.keySet()).orElseThrow();
-      helper.assertTrue(bounds.width(AxisGizmo.Axis.Z) == 10 && bounds.width(AxisGizmo.Axis.X) == 1,
+      helper.assertTrue(bounds.width(Axis.Z) == 10 && bounds.width(Axis.X) == 1,
          "repeat did not extend along the displayed local handle");
       helper.succeed();
    }
@@ -209,12 +211,12 @@ public final class SelectionShortcutGameTests {
       Vec3 pivot = new Vec3(2.5, 0.5, 0.5);
       for (Vec3 rotation : List.of(new Vec3(0, Math.PI / 2, 0), new Vec3(0, Math.atan2(3, 4), 0), new Vec3(0.37, 0.63, -0.29))) {
          for (var symmetry : List.of(WorkspaceSymmetry.IDENTITY,
-            WorkspaceSymmetry.IDENTITY.then(WorkspaceSymmetry.reflection(AxisGizmo.Axis.Z), pivot))) {
+            WorkspaceSymmetry.IDENTITY.then(WorkspaceSymmetry.reflection(Axis.Z), pivot))) {
             var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume, blocks,
                WorkspaceTransform.IDENTITY.withRotation(rotation).withSymmetry(symmetry), false).fixed();
             var before = resolved(part);
             var beforeBox = io.github.fastformer.workspace.preview.WorkspaceSelectionBounds.resolve(part);
-            for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) for (int direction : new int[]{-1, 1}) {
+            for (Axis axis : Axis.values()) for (int direction : new int[]{-1, 1}) {
                var result = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.SCALE, axis, direction, 1, 0);
                helper.assertTrue(result.failureKey() == null, "scale failed");
                var expanded = result.parts().getFirst();
@@ -244,14 +246,14 @@ public final class SelectionShortcutGameTests {
       for (int x = 0; x < 5; x++) blocks.put(new BlockPos(x, 0, 0), new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null));
       var volume = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(4, 0, 0), null, null);
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume, blocks, WorkspaceTransform.IDENTITY, false).fixed();
-      part = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, 1, 0).parts().getFirst();
+      part = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, 0).parts().getFirst();
       Vec3 center = io.github.fastformer.workspace.preview.WorkspaceSelectionBounds.resolve(part).getCenter();
-      var rotated = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.Y,
-         1, 256, Math.PI / 2, WorkspaceRotation.unitAxis(AxisGizmo.Axis.Y), center);
+      var rotated = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.ROTATE, Axis.Y,
+         1, 256, Math.PI / 2, WorkspaceRotation.unitAxis(Axis.Y), center);
       var after = resolved(rotated.parts().getFirst());
       for (BlockPos original : resolved(part).keySet()) {
          BlockPos expected = BlockPos.containing(WorkspaceRotation.rotateAroundAxis(Vec3.atCenterOf(original).subtract(center),
-            WorkspaceRotation.unitAxis(AxisGizmo.Axis.Y), Math.PI / 2).add(center));
+            WorkspaceRotation.unitAxis(Axis.Y), Math.PI / 2).add(center));
          helper.assertTrue(after.containsKey(expected), "rotation after scaling did not use the whole selection centre");
       }
       helper.succeed();

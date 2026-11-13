@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.hud;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.GeometryPalette;
 
 import io.github.fastformer.client.render.PreviewFeedbackState;
@@ -22,9 +24,9 @@ public final class PreviewFeedbackHud {
    private static final int AXIS_SPACING = 14;
 
    private final PreviewFeedbackState state = new PreviewFeedbackState();
-   private final Function<AxisGizmo.Axis, Integer> axisColor;
+   private final Function<Axis, Integer> axisColor;
 
-   public PreviewFeedbackHud(Function<AxisGizmo.Axis, Integer> axisColor) {
+   public PreviewFeedbackHud(Function<Axis, Integer> axisColor) {
       this.axisColor = axisColor;
    }
 
@@ -69,22 +71,22 @@ public final class PreviewFeedbackHud {
 
    public ScrollFeedbackData coordinates(BlockPos value) {
       return new ScrollFeedbackData(List.of(
-         axis("X", Integer.toString(value.getX()), AxisGizmo.Axis.X),
-         axis("Y", Integer.toString(value.getY()), AxisGizmo.Axis.Y),
-         axis("Z", Integer.toString(value.getZ()), AxisGizmo.Axis.Z)
+         axis("X", Integer.toString(value.getX()), Axis.X),
+         axis("Y", Integer.toString(value.getY()), Axis.Y),
+         axis("Z", Integer.toString(value.getZ()), Axis.Z)
       ), "");
    }
 
    public ScrollFeedbackData coordinates(Vec3 value) {
       Vec3 clean = GeometryNumbers.cleanZero(value);
       return new ScrollFeedbackData(List.of(
-         axis("X", HudValueFormatter.coordinate(clean.x), AxisGizmo.Axis.X),
-         axis("Y", HudValueFormatter.coordinate(clean.y), AxisGizmo.Axis.Y),
-         axis("Z", HudValueFormatter.coordinate(clean.z), AxisGizmo.Axis.Z)
+         axis("X", HudValueFormatter.coordinate(clean.x), Axis.X),
+         axis("Y", HudValueFormatter.coordinate(clean.y), Axis.Y),
+         axis("Z", HudValueFormatter.coordinate(clean.z), Axis.Z)
       ), "");
    }
 
-   public int axisColor(AxisGizmo.Axis axis) {
+   public int axisColor(Axis axis) {
       return this.axisColor.apply(axis);
    }
 
@@ -108,7 +110,7 @@ public final class PreviewFeedbackHud {
       }
    }
 
-   public void noteGizmo(AxisGizmo.Axis axis, AxisGizmo.Operation operation, int steps, double baseValue, long now) {
+   public void noteGizmo(Axis axis, AxisGizmo.Operation operation, int steps, double baseValue, long now) {
       this.state.noteGizmo(axis, operation, steps, baseValue);
       this.state.gizmo().touch(now);
    }
@@ -134,7 +136,7 @@ public final class PreviewFeedbackHud {
       return this.state.gizmo().alpha(now, multiplier);
    }
 
-   public AxisGizmo.Axis lastGizmoAxis() {
+   public Axis lastGizmoAxis() {
       return this.state.lastGizmoAxis();
    }
 
@@ -156,7 +158,7 @@ public final class PreviewFeedbackHud {
          && building.points().size() <= 1;
    }
 
-   private AxisFeedback axis(String label, String value, AxisGizmo.Axis axis) {
+   private AxisFeedback axis(String label, String value, Axis axis) {
       return new AxisFeedback(label, value, axisColor(axis));
    }
 

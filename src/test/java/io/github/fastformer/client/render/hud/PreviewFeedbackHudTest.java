@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.hud;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.client.render.model.AxisFeedback;
 import io.github.fastformer.client.render.model.ScrollFeedbackData;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
@@ -32,7 +34,7 @@ class PreviewFeedbackHudTest {
    @Test
    void clearResetsGizmoFeedbackOwnedByTheHudComponent() {
       PreviewFeedbackHud feedback = new PreviewFeedbackHud(axis -> 0xFFFFFFFF);
-      feedback.noteGizmo(AxisGizmo.Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5, 100L);
+      feedback.noteGizmo(Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5, 100L);
 
       feedback.clear();
 
@@ -45,7 +47,7 @@ class PreviewFeedbackHudTest {
    @Test
    void leavingEveryGizmoHandleDoesNotRestoreFadedAlpha() {
       PreviewFeedbackHud feedback = new PreviewFeedbackHud(axis -> 0xFFFFFFFF);
-      feedback.noteGizmo(AxisGizmo.Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5, 0L);
+      feedback.noteGizmo(Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5, 0L);
       Object hovered = "Y:SCALE";
 
       assertEquals(255, feedback.gizmoAlpha(100_000_000L, hovered, feedback.gizmoDwellMultiplier(hovered, 100_000_000L)));
@@ -57,10 +59,10 @@ class PreviewFeedbackHudTest {
    @Test
    void freshGizmoInputShowsFeedbackAgainAtFullAlpha() {
       PreviewFeedbackHud feedback = new PreviewFeedbackHud(axis -> 0xFFFFFFFF);
-      feedback.noteGizmo(AxisGizmo.Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5, 0L);
+      feedback.noteGizmo(Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5, 0L);
       assertEquals(0, feedback.gizmoAlpha(2_000_000_000L, "Y:SCALE", 1.0));
 
-      feedback.noteGizmo(AxisGizmo.Axis.Y, AxisGizmo.Operation.SCALE, 5, 2.75, 3_000_000_000L);
+      feedback.noteGizmo(Axis.Y, AxisGizmo.Operation.SCALE, 5, 2.75, 3_000_000_000L);
 
       assertEquals(255, feedback.gizmoAlpha(3_500_000_000L, "Y:SCALE", 1.0));
    }

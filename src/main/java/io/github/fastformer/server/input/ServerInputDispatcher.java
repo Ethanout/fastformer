@@ -1,5 +1,7 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.core.command.IntentSource;
@@ -330,7 +332,7 @@ public final class ServerInputDispatcher {
          return false;
       }
       AxisGizmo.Operation operation = gizmoOperation(payload.operation());
-      AxisGizmo.Axis axis = gizmoAxis(payload.axis());
+      Axis axis = gizmoAxis(payload.axis());
       if (operation == null || axis == null) return false;
       GeometryPointerSequence sequence = acceptGeometryPointer(player, payload.requestId(), payload.revision(),
          payload.callbackScope(), session, ServerInputState.of(player).geometryDragActions);
@@ -637,7 +639,7 @@ public final class ServerInputDispatcher {
       int operation = payload.operation(), axis = payload.axis(), direction = payload.direction(), totalSteps = payload.totalSteps();
       boolean finish = payload.finish();
       AxisGizmo.Operation[] operations = AxisGizmo.Operation.values();
-      AxisGizmo.Axis[] axes = AxisGizmo.Axis.values();
+      Axis[] axes = Axis.values();
       if (operation < 0 || operation >= operations.length || axis < 0 || axis >= axes.length) {
          return;
       }
@@ -837,11 +839,11 @@ public final class ServerInputDispatcher {
       return hit != null && !vanillaOwnsInput;
    }
 
-   private static AxisGizmo.Axis gizmoAxis(int axis) {
+   private static Axis gizmoAxis(int axis) {
       return switch (axis) {
-         case 0 -> AxisGizmo.Axis.X;
-         case 1 -> AxisGizmo.Axis.Y;
-         case 2 -> AxisGizmo.Axis.Z;
+         case 0 -> Axis.X;
+         case 1 -> Axis.Y;
+         case 2 -> Axis.Z;
          default -> null;
       };
    }

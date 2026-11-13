@@ -1,12 +1,13 @@
 package io.github.fastformer.workspace.preview;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -73,7 +74,7 @@ class WorkspaceSelectionBoundsTest {
          blocks.put(new BlockPos(x, 0, 0), "block");
       }
       for (double scale : new double[] {0.5, 0.9, 1.3}) {
-         WorkspaceTransform transform = WorkspaceTransform.IDENTITY.withScale(AxisGizmo.Axis.X, scale);
+         WorkspaceTransform transform = WorkspaceTransform.IDENTITY.withScale(Axis.X, scale);
          var frame = WorkspacePreviewComposer.geometryFrame(blocks, transform);
          AABB envelope = WorkspaceSelectionBounds.transformedBox(new AABB(0, 0, 0, 5, 1, 1), transform, frame);
          AABB occupied = io.github.fastformer.workspace.selection.OccupiedBlockBounds
@@ -96,8 +97,8 @@ class WorkspaceSelectionBoundsTest {
 
       AABB bounds = WorkspaceSelectionBounds.resolve(part);
 
-      assertEquals(5, WorkspaceSelectionBounds.extent(bounds, AxisGizmo.Axis.X));
-      assertEquals(1, WorkspaceSelectionBounds.extent(bounds, AxisGizmo.Axis.Y));
+      assertEquals(5, WorkspaceSelectionBounds.extent(bounds, Axis.X));
+      assertEquals(1, WorkspaceSelectionBounds.extent(bounds, Axis.Y));
    }
 
    @Test
@@ -116,9 +117,9 @@ class WorkspaceSelectionBoundsTest {
       );
 
       // The displayed box holds both copies. The base box keeps the original unit.
-      assertEquals(10, WorkspaceSelectionBounds.extent(WorkspaceSelectionBounds.resolve(stacked), AxisGizmo.Axis.X));
+      assertEquals(10, WorkspaceSelectionBounds.extent(WorkspaceSelectionBounds.resolve(stacked), Axis.X));
       // The cell box is one copy, so a repeat gesture never moves a placed copy.
-      assertEquals(5, WorkspaceSelectionBounds.extent(WorkspaceSelectionBounds.resolveBase(stacked), AxisGizmo.Axis.X));
+      assertEquals(5, WorkspaceSelectionBounds.extent(WorkspaceSelectionBounds.resolveBase(stacked), Axis.X));
    }
 
    @Test
@@ -131,8 +132,8 @@ class WorkspaceSelectionBoundsTest {
       AABB whole = WorkspaceSelectionBounds.wholeBox(parts);
       AABB base = WorkspaceSelectionBounds.baseBox(parts);
 
-      assertEquals(24, WorkspaceSelectionBounds.extent(whole, AxisGizmo.Axis.X));
-      assertEquals(12, WorkspaceSelectionBounds.extent(base, AxisGizmo.Axis.X));
+      assertEquals(24, WorkspaceSelectionBounds.extent(whole, Axis.X));
+      assertEquals(12, WorkspaceSelectionBounds.extent(base, Axis.X));
    }
 
    private static ClientSelectionPart cuboidPart(
@@ -158,7 +159,7 @@ class WorkspaceSelectionBoundsTest {
 
       AABB group = WorkspaceSelectionBounds.union(first, second);
 
-      assertEquals(10, WorkspaceSelectionBounds.extent(group, AxisGizmo.Axis.X));
+      assertEquals(10, WorkspaceSelectionBounds.extent(group, Axis.X));
    }
 
    @Test

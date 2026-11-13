@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.core.math.Axis;
+
 import net.minecraft.world.phys.Vec3;
 
 public record TransformFrame(Vec3 origin, Vec3 xAxis, Vec3 yAxis, Vec3 zAxis, Kind kind) {
@@ -21,7 +23,7 @@ public record TransformFrame(Vec3 origin, Vec3 xAxis, Vec3 yAxis, Vec3 zAxis, Ki
       return new TransformFrame(origin, xAxis, yAxis, zAxis, Kind.LOCAL);
    }
 
-   public Vec3 axis(AxisGizmo.Axis axis) {
+   public Vec3 axis(Axis axis) {
       return switch (axis) {
          case X -> this.xAxis;
          case Y -> this.yAxis;

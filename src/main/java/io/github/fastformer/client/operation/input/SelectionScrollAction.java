@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.input;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import java.util.Map;
 import java.util.Optional;
@@ -7,7 +9,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.transform.WorkspaceRotation;
 
@@ -17,7 +18,7 @@ public record SelectionScrollAction(UUID owner, Map<Integer, Long> targets, Gest
    public record Move(BlockPos offset) implements Gesture {
       public Move { offset = offset.immutable(); }
    }
-   public record Stack(AxisGizmo.Axis axis, int side, int steps) implements Gesture {
+   public record Stack(Axis axis, int side, int steps) implements Gesture {
       public Stack {
          java.util.Objects.requireNonNull(axis);
          if (Math.abs(side) != 1 || Math.abs(steps) != 1) throw new IllegalArgumentException("Stack side and steps must be -1 or 1");
@@ -25,9 +26,9 @@ public record SelectionScrollAction(UUID owner, Map<Integer, Long> targets, Gest
    }
 
    public static Stack stackAlongView(WorkspaceTransform transform, Vec3 view, int steps) {
-      AxisGizmo.Axis closest = AxisGizmo.Axis.X;
+      Axis closest = Axis.X;
       double projection = view.dot(WorkspaceRotation.localAxis(transform, closest));
-      for (var axis : AxisGizmo.Axis.values()) {
+      for (var axis : Axis.values()) {
          double candidate = view.dot(WorkspaceRotation.localAxis(transform, axis));
          if (Math.abs(candidate) > Math.abs(projection)) {
             closest = axis;

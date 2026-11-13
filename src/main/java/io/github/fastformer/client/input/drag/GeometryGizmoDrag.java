@@ -1,12 +1,14 @@
 package io.github.fastformer.client.input.drag;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import net.minecraft.world.phys.Vec3;
 
 /** Immutable state for geometry and confirmed-operation gizmo dragging. */
 public record GeometryGizmoDrag(
    AxisGizmo.Operation operation,
-   AxisGizmo.Axis axis,
+   Axis axis,
    Vec3 origin,
    Vec3 axisVector,
    int sentSteps,
@@ -18,7 +20,7 @@ public record GeometryGizmoDrag(
    int mouseButton,
    long captureToken
 ) {
-   public GeometryGizmoDrag(AxisGizmo.Operation operation, AxisGizmo.Axis axis, Vec3 origin,
+   public GeometryGizmoDrag(AxisGizmo.Operation operation, Axis axis, Vec3 origin,
       Vec3 axisVector, int sentSteps, double baseValue, Vec3 center, Vec3 startRadial,
       Vec3 startTangent, AxisGizmo.Direction direction, int mouseButton) {
       this(operation, axis, origin, axisVector, sentSteps, baseValue, center, startRadial,

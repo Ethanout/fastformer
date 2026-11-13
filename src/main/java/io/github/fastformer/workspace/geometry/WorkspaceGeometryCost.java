@@ -1,6 +1,7 @@
 package io.github.fastformer.workspace.geometry;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import java.util.Collection;
@@ -83,12 +84,12 @@ public final class WorkspaceGeometryCost {
 
    /** Returns the sampler cell count, or 0 when scaling cannot change an occupied width. */
    private static long scanVolume(OccupiedBlockBounds bounds, WorkspaceTransform transform) {
-      long x = scaledWidth(bounds.width(AxisGizmo.Axis.X), transform.scale().x);
-      long y = scaledWidth(bounds.width(AxisGizmo.Axis.Y), transform.scale().y);
-      long z = scaledWidth(bounds.width(AxisGizmo.Axis.Z), transform.scale().z);
-      boolean unchanged = x == bounds.width(AxisGizmo.Axis.X)
-         && y == bounds.width(AxisGizmo.Axis.Y)
-         && z == bounds.width(AxisGizmo.Axis.Z);
+      long x = scaledWidth(bounds.width(Axis.X), transform.scale().x);
+      long y = scaledWidth(bounds.width(Axis.Y), transform.scale().y);
+      long z = scaledWidth(bounds.width(Axis.Z), transform.scale().z);
+      boolean unchanged = x == bounds.width(Axis.X)
+         && y == bounds.width(Axis.Y)
+         && z == bounds.width(Axis.Z);
       return unchanged ? 0L : saturatingMultiply(saturatingMultiply(x, y), z);
    }
 

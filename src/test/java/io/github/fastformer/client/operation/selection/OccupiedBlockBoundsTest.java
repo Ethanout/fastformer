@@ -1,9 +1,10 @@
 package io.github.fastformer.client.operation.selection;
+
+import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -18,9 +19,9 @@ class OccupiedBlockBoundsTest {
 
       assertEquals(new BlockPos(2, 4, -3), bounds.min());
       assertEquals(new BlockPos(4, 9, 1), bounds.max());
-      assertEquals(3, bounds.width(AxisGizmo.Axis.X));
-      assertEquals(6, bounds.width(AxisGizmo.Axis.Y));
-      assertEquals(5, bounds.width(AxisGizmo.Axis.Z));
+      assertEquals(3, bounds.width(Axis.X));
+      assertEquals(6, bounds.width(Axis.Y));
+      assertEquals(5, bounds.width(Axis.Z));
       assertEquals(new Vec3(3.5, 7.0, -0.5), bounds.center());
    }
 
@@ -31,6 +32,6 @@ class OccupiedBlockBoundsTest {
 
       assertEquals(new BlockPos(0, 0, 0), union.min());
       assertEquals(new BlockPos(1, 4, 1), union.max());
-      assertEquals(AxisGizmo.Axis.X, union.smallestAxis());
+      assertEquals(Axis.X, union.smallestAxis());
    }
 }

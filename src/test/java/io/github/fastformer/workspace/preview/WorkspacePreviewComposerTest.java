@@ -1,4 +1,6 @@
 package io.github.fastformer.workspace.preview;
+
+import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -6,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -17,8 +18,8 @@ class WorkspacePreviewComposerTest {
    @Test
    void repeatUsesOccupiedIntegerWidthAndSameAxisCountsLinearly() {
       OperationStackRegion repeats = OperationStackRegion.origin()
-         .repeat(AxisGizmo.Axis.X, 1, 3)
-         .repeat(AxisGizmo.Axis.X, 1, 1);
+         .repeat(Axis.X, 1, 3)
+         .repeat(Axis.X, 1, 1);
       WorkspaceTransform transform = new WorkspaceTransform(new Vec3(10, 0, 0), Vec3.ZERO, repeats);
 
       Map<BlockPos, String> resolved = WorkspacePreviewComposer.resolveValues(
@@ -55,7 +56,7 @@ class WorkspacePreviewComposerTest {
          new Vec3(0.37, 0.63, -0.29))) {
          WorkspaceTransform base = WorkspaceTransform.IDENTITY.withRotation(angles);
          var before = (Composition.Composed<String>)WorkspacePreviewComposer.composeValues(source, base, CompositionBudget.INTERACTION);
-         for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) for (int direction : new int[]{-1, 1}) {
+         for (Axis axis : Axis.values()) for (int direction : new int[]{-1, 1}) {
             var transform = base.withRepeats(OperationStackRegion.origin().repeat(axis, direction, 1), BlockPos.ZERO);
             var after = (Composition.Composed<String>)WorkspacePreviewComposer.composeValues(source, transform, CompositionBudget.INTERACTION);
             assertEquals(before.frame().rotationSteps(), after.frame().rotationSteps(), "repetition moved the rotation pivot");

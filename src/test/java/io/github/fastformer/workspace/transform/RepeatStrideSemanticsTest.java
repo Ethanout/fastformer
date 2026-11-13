@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -24,10 +26,10 @@ class RepeatStrideSemanticsTest {
 
       // Placed copies do not change the drag unit.
       assertEquals(5, WorkspaceSelectionBounds.extent(
-         WorkspaceSelectionBounds.resolveBase(stacked), AxisGizmo.Axis.X
+         WorkspaceSelectionBounds.resolveBase(stacked), Axis.X
       ));
       int stride = RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.SCALE, false, 1, List.of(stacked), AxisGizmo.Axis.X
+         AxisGizmo.Operation.SCALE, false, 1, List.of(stacked), Axis.X
       );
       assertEquals(5, stride);
 
@@ -39,14 +41,14 @@ class RepeatStrideSemanticsTest {
    @Test
    void aSingleHandleKeepsItsSavedStrideAfterACommonStack() {
       ClientSelectionPart stacked = stackedCuboid(1, 4, 2, 12);
-      assertEquals(12, RepeatStrideSemantics.stride(AxisGizmo.Operation.SCALE, false, 1, List.of(stacked), AxisGizmo.Axis.X));
+      assertEquals(12, RepeatStrideSemantics.stride(AxisGizmo.Operation.SCALE, false, 1, List.of(stacked), Axis.X));
    }
 
    @Test
    void commonHandleUsesOneBaseGroupAfterEarlierCopies() {
       var first = stackedCuboid(1, 4, 2, 13);
       var second = cuboid(2, 10, 12, first.transform());
-      assertEquals(13, RepeatStrideSemantics.stride(AxisGizmo.Operation.SCALE, true, 0, List.of(first, second), AxisGizmo.Axis.X));
+      assertEquals(13, RepeatStrideSemantics.stride(AxisGizmo.Operation.SCALE, true, 0, List.of(first, second), Axis.X));
    }
 
    @Test
@@ -55,10 +57,10 @@ class RepeatStrideSemanticsTest {
       ClientSelectionPart empty = cuboid(2, 0, 4, WorkspaceTransform.IDENTITY);
 
       assertEquals(5, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.SCALE, false, 2, List.of(empty), AxisGizmo.Axis.X
+         AxisGizmo.Operation.SCALE, false, 2, List.of(empty), Axis.X
       ));
       assertEquals(1, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.SCALE, false, 2, List.of(empty), AxisGizmo.Axis.Y
+         AxisGizmo.Operation.SCALE, false, 2, List.of(empty), Axis.Y
       ));
    }
 
@@ -70,14 +72,14 @@ class RepeatStrideSemanticsTest {
 
       // The common handle repeats the whole group, so the union is the unit.
       assertEquals(13, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.SCALE, true, 0, baseline, AxisGizmo.Axis.X
+         AxisGizmo.Operation.SCALE, true, 0, baseline, Axis.X
       ));
       // A single part handle keeps its own box, like the writer does.
       assertEquals(5, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.SCALE, false, 1, baseline, AxisGizmo.Axis.X
+         AxisGizmo.Operation.SCALE, false, 1, baseline, Axis.X
       ));
       assertEquals(3, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.SCALE, false, 2, baseline, AxisGizmo.Axis.X
+         AxisGizmo.Operation.SCALE, false, 2, baseline, Axis.X
       ));
    }
 
@@ -87,15 +89,15 @@ class RepeatStrideSemanticsTest {
       List<ClientSelectionPart> baseline = List.of(part);
 
       assertEquals(1, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.MOVE, false, 1, baseline, AxisGizmo.Axis.X
+         AxisGizmo.Operation.MOVE, false, 1, baseline, Axis.X
       ));
       assertEquals(1, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.ROTATE, true, 1, baseline, AxisGizmo.Axis.X
+         AxisGizmo.Operation.ROTATE, true, 1, baseline, Axis.X
       ));
       assertEquals(1, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.SCALE, false, 99, baseline, AxisGizmo.Axis.X
+         AxisGizmo.Operation.SCALE, false, 99, baseline, Axis.X
       ));
-      assertEquals(1, RepeatStrideSemantics.stride(null, AxisGizmo.Axis.X));
+      assertEquals(1, RepeatStrideSemantics.stride(null, Axis.X));
       assertEquals(true, RepeatStrideSemantics.repeatsWholeGroup(AxisGizmo.Operation.SCALE, baseline));
       assertEquals(false, RepeatStrideSemantics.repeatsWholeGroup(AxisGizmo.Operation.MOVE, baseline));
       assertEquals(false, RepeatStrideSemantics.repeatsWholeGroup(AxisGizmo.Operation.SCALE, null));
@@ -109,7 +111,7 @@ class RepeatStrideSemanticsTest {
       assertEquals(true, selection != null && selection.prism() != null);
       assertEquals(false, RepeatStrideSemantics.repeatsWholeGroup(AxisGizmo.Operation.SCALE, List.of(prism)));
       assertEquals(1, RepeatStrideSemantics.stride(
-         AxisGizmo.Operation.SCALE, false, 3, List.of(prism), AxisGizmo.Axis.X
+         AxisGizmo.Operation.SCALE, false, 3, List.of(prism), Axis.X
       ));
    }
 

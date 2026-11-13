@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -32,7 +34,7 @@ class ConePrismGizmoTest {
       List<Vec3> originalPoints = session.pointLocations();
       double originalHeight = height(session);
 
-      assertTrue(workflow.onGizmoDrag(session, context, AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 2));
+      assertTrue(workflow.onGizmoDrag(session, context, AxisGizmo.Operation.MOVE, Axis.X, 2));
       Vec3 translation = session.pointLocations().getFirst().subtract(originalPoints.getFirst());
       assertEquals(1.0, translation.length(), 1.0E-9);
       for (int index = 0; index < originalPoints.size(); index++) {
@@ -41,11 +43,11 @@ class ConePrismGizmoTest {
       assertEquals(Vec3.ZERO, session.coneTopOffset());
       assertEquals(originalHeight, height(session), 1.0E-9);
 
-      assertTrue(workflow.onGizmoDrag(session, context, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 2));
+      assertTrue(workflow.onGizmoDrag(session, context, AxisGizmo.Operation.SCALE, Axis.X, 2));
       assertTrue(session.coneScaleX() > 1.0);
       assertEquals(0.0, session.coneTopScaleOffset());
 
-      assertTrue(workflow.onGizmoDrag(session, context, AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.Y, 256));
+      assertTrue(workflow.onGizmoDrag(session, context, AxisGizmo.Operation.ROTATE, Axis.Y, 256));
       assertEquals(Math.PI * 0.5, session.coneRotationRadians(), 1.0E-9);
    }
 

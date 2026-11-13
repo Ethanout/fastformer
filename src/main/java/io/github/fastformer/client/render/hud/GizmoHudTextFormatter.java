@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.hud;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.text.GizmoTextContext;
@@ -13,7 +15,7 @@ public final class GizmoHudTextFormatter {
    }
 
    public static GizmoTextContext operationTransformTextContext(
-      AxisGizmo.Axis axis,
+      Axis axis,
       AxisGizmo.Operation operation,
       double baseValue,
       double currentValue,
@@ -33,12 +35,12 @@ public final class GizmoHudTextFormatter {
    public static String formatValue(
       AxisGizmo.Operation operation, double baseValue, double currentValue, int fallbackSteps
    ) {
-      GizmoTextContext context = textContext(AxisGizmo.Axis.X, operation, baseValue, currentValue, fallbackSteps);
+      GizmoTextContext context = textContext(Axis.X, operation, baseValue, currentValue, fallbackSteps);
       return context.base() + context.delta();
    }
 
    public static GizmoTextContext textContext(
-      AxisGizmo.Axis axis,
+      Axis axis,
       AxisGizmo.Operation operation,
       double baseValue,
       double currentValue,

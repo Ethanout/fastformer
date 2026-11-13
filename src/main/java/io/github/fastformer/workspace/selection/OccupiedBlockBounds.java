@@ -1,6 +1,7 @@
 package io.github.fastformer.workspace.selection;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.core.math.Axis;
+
 import java.util.Collection;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -58,7 +59,7 @@ public record OccupiedBlockBounds(BlockPos min, BlockPos max) {
       );
    }
 
-   public int width(AxisGizmo.Axis axis) {
+   public int width(Axis axis) {
       return switch (axis) {
          case X -> this.max.getX() - this.min.getX() + 1;
          case Y -> this.max.getY() - this.min.getY() + 1;
@@ -66,10 +67,10 @@ public record OccupiedBlockBounds(BlockPos min, BlockPos max) {
       };
    }
 
-   public AxisGizmo.Axis smallestAxis() {
-      AxisGizmo.Axis result = AxisGizmo.Axis.X;
+   public Axis smallestAxis() {
+      Axis result = Axis.X;
       int width = this.width(result);
-      for (AxisGizmo.Axis axis : new AxisGizmo.Axis[]{AxisGizmo.Axis.Y, AxisGizmo.Axis.Z}) {
+      for (Axis axis : new Axis[]{Axis.Y, Axis.Z}) {
          int candidate = this.width(axis);
          if (candidate < width) {
             result = axis;

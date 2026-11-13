@@ -1,5 +1,7 @@
 package io.github.fastformer.protocol.c2s.operation;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
@@ -40,7 +42,7 @@ public record OperationTransformPayload(
    public boolean valid() {
       return requestId > 0 && gestureId > 0 && revision >= 0 && scope != null
          && this.operation >= 0 && this.operation < AxisGizmo.Operation.values().length
-         && this.axis >= 0 && this.axis < AxisGizmo.Axis.values().length
+         && this.axis >= 0 && this.axis < Axis.values().length
          && this.direction >= -1 && this.direction <= 1
          && this.totalSteps >= -128 && this.totalSteps <= 128
          && (this.operation == AxisGizmo.Operation.ROTATE.ordinal() || this.direction != 0);

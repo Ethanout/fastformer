@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -13,7 +15,7 @@ import org.junit.jupiter.api.Test;
 class AxisGizmoTest {
    @Test
    void moveShaftAcceptsExpandedToleranceButRejectsDistantRays() {
-      var handle = new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X,
+      var handle = new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, Axis.X,
          AxisGizmo.Direction.POSITIVE, ControlPointRole.GIZMO_HANDLE);
       var gizmo = new AxisGizmo(Vec3.ZERO, 4, 0.25, TransformFrame.world(Vec3.ZERO), List.of(handle));
       assertNotNull(gizmo.hitTest(new Vec3(2, 0.28, 6), new Vec3(0, 0, -1), 32));
@@ -23,7 +25,7 @@ class AxisGizmoTest {
    @Test
    void endpointsAcceptExpandedToleranceWithoutChangingVisualSize() {
       for (var operation : List.of(AxisGizmo.Operation.MOVE, AxisGizmo.Operation.SCALE)) {
-         var handle = new AxisGizmo.Handle(operation, AxisGizmo.Axis.X,
+         var handle = new AxisGizmo.Handle(operation, Axis.X,
             AxisGizmo.Direction.POSITIVE, ControlPointRole.GIZMO_HANDLE);
          var gizmo = new AxisGizmo(Vec3.ZERO, 4, 0.25, TransformFrame.world(Vec3.ZERO), List.of(handle));
          double radius = gizmo.visualRadius(handle);
@@ -36,7 +38,7 @@ class AxisGizmoTest {
 
    @Test
    void rotationRingAcceptsExpandedToleranceButRejectsDistantRays() {
-      var handle = new AxisGizmo.Handle(AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.Z,
+      var handle = new AxisGizmo.Handle(AxisGizmo.Operation.ROTATE, Axis.Z,
          AxisGizmo.Direction.BIDIRECTIONAL, ControlPointRole.GIZMO_HANDLE);
       var gizmo = new AxisGizmo(Vec3.ZERO, 4, 0.25, TransformFrame.world(Vec3.ZERO), List.of(handle));
       double radius = gizmo.rotationRingRadius(handle);
@@ -48,7 +50,7 @@ class AxisGizmoTest {
    void moveAxisShaftCanBeHoveredAndDragged() {
       AxisGizmo.Handle moveX = new AxisGizmo.Handle(
          AxisGizmo.Operation.MOVE,
-         AxisGizmo.Axis.X,
+         Axis.X,
          AxisGizmo.Direction.POSITIVE,
          ControlPointRole.GIZMO_HANDLE
       );
@@ -65,10 +67,10 @@ class AxisGizmoTest {
    @Test
    void moveHandleOutranksAnOverlappingRotationHandle() {
       AxisGizmo.Handle move = new AxisGizmo.Handle(
-         AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, AxisGizmo.Direction.POSITIVE, ControlPointRole.GIZMO_HANDLE
+         AxisGizmo.Operation.MOVE, Axis.X, AxisGizmo.Direction.POSITIVE, ControlPointRole.GIZMO_HANDLE
       );
       AxisGizmo.Handle rotate = new AxisGizmo.Handle(
-         AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.X, AxisGizmo.Direction.BIDIRECTIONAL, ControlPointRole.GIZMO_HANDLE
+         AxisGizmo.Operation.ROTATE, Axis.X, AxisGizmo.Direction.BIDIRECTIONAL, ControlPointRole.GIZMO_HANDLE
       );
       AxisGizmo.Hit preferred = AxisGizmo.preferHit(List.of(
          new AxisGizmo.Hit(rotate, Vec3.ZERO, 1.0, 0.01),
@@ -81,10 +83,10 @@ class AxisGizmoTest {
    @Test
    void moveEndpointSitsWellOutsideRotationRing() {
       AxisGizmo.Handle move = new AxisGizmo.Handle(
-         AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, AxisGizmo.Direction.POSITIVE, ControlPointRole.GIZMO_HANDLE
+         AxisGizmo.Operation.MOVE, Axis.X, AxisGizmo.Direction.POSITIVE, ControlPointRole.GIZMO_HANDLE
       );
       AxisGizmo.Handle rotate = new AxisGizmo.Handle(
-         AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.X, AxisGizmo.Direction.BIDIRECTIONAL, ControlPointRole.GIZMO_HANDLE
+         AxisGizmo.Operation.ROTATE, Axis.X, AxisGizmo.Direction.BIDIRECTIONAL, ControlPointRole.GIZMO_HANDLE
       );
       AxisGizmo gizmo = new AxisGizmo(Vec3.ZERO, 4.0, 0.25, TransformFrame.world(Vec3.ZERO), List.of(move, rotate));
 
@@ -96,10 +98,10 @@ class AxisGizmoTest {
       AxisGizmo gizmo = AxisGizmo.world(Vec3.ZERO, 4.0, 0.25);
       AxisGizmo.Handle move = gizmo.handles().stream()
          .filter(handle -> handle.operation() == AxisGizmo.Operation.MOVE
-            && handle.axis() == AxisGizmo.Axis.X
+            && handle.axis() == Axis.X
             && handle.direction() == AxisGizmo.Direction.POSITIVE)
          .findFirst().orElseThrow();
-      Vec3 target = gizmo.center().add(gizmo.axisVector(AxisGizmo.Axis.X).scale(4.25));
+      Vec3 target = gizmo.center().add(gizmo.axisVector(Axis.X).scale(4.25));
       Vec3 eye = new Vec3(4.25, 2.0, 6.0);
 
       AxisGizmo.Hit hit = gizmo.hitTest(eye, target.subtract(eye), 32.0);
@@ -113,7 +115,7 @@ class AxisGizmoTest {
       AxisGizmo gizmo = AxisGizmo.world(Vec3.ZERO, 4.0, 0.25);
       AxisGizmo.Handle scale = gizmo.handles().stream()
          .filter(handle -> handle.operation() == AxisGizmo.Operation.SCALE
-            && handle.axis() == AxisGizmo.Axis.X
+            && handle.axis() == Axis.X
             && handle.direction() == AxisGizmo.Direction.POSITIVE)
          .findFirst().orElseThrow();
       Vec3 target = gizmo.handleCenter(scale);

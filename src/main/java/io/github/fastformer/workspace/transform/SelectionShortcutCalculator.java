@@ -1,6 +1,7 @@
 package io.github.fastformer.workspace.transform;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceSymmetry;
@@ -17,12 +18,12 @@ public final class SelectionShortcutCalculator {
    private SelectionShortcutCalculator() {
    }
 
-   public static AxisGizmo.Axis viewAxis(Vec3 look) {
+   public static Axis viewAxis(Vec3 look) {
       double x = Math.abs(look.x);
       double y = Math.abs(look.y);
       double z = Math.abs(look.z);
-      if (y > x && y > z) return AxisGizmo.Axis.Y;
-      return x > z ? AxisGizmo.Axis.X : AxisGizmo.Axis.Z;
+      if (y > x && y > z) return Axis.Y;
+      return x > z ? Axis.X : Axis.Z;
    }
 
    public static SelectionTransformCalculator.Result calculate(List<ClientSelectionPart> selected, WorkspaceSymmetry operation) {

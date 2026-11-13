@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.client.render.model.AxisFeedback;
 import io.github.fastformer.client.render.model.ScrollFeedbackData;
@@ -14,7 +16,7 @@ class PreviewFeedbackStateTest {
    @Test
    void clearResetsGizmoFeedbackAlongsideTransientTimers() {
       PreviewFeedbackState state = new PreviewFeedbackState();
-      state.noteGizmo(AxisGizmo.Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5);
+      state.noteGizmo(Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5);
       state.gizmo().touch(100L);
       state.gizmoDwell().multiplier("Y:SCALE", 100L);
 

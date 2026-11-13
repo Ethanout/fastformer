@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
@@ -96,7 +98,7 @@ class OperationSelectionSessionTest {
       OperationSession session = readyCuboid();
       List<BlockPos> selection = session.points();
 
-      assertTrue(session.beginTransform(AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1));
+      assertTrue(session.beginTransform(AxisGizmo.Operation.SCALE, Axis.X, 1));
       assertTrue(session.updateTransform(3));
       assertEquals(4L, session.stackRegion().cellCount());
       assertTrue(session.updateTransform(1));
@@ -115,7 +117,7 @@ class OperationSelectionSessionTest {
    void draggingBackToZeroDoesNotCreateAdjustmentHistory() {
       OperationSession session = readyCuboid();
 
-      assertTrue(session.beginTransform(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.Z, -1));
+      assertTrue(session.beginTransform(AxisGizmo.Operation.MOVE, Axis.Z, -1));
       assertTrue(session.updateTransform(5));
       assertTrue(session.updateTransform(0));
       assertFalse(session.finishTransform());
@@ -129,7 +131,7 @@ class OperationSelectionSessionTest {
    void stackDragBackToZeroDoesNotChangeModeOrCreateHistory() {
       OperationSession session = readyCuboid();
 
-      assertTrue(session.beginTransform(AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1));
+      assertTrue(session.beginTransform(AxisGizmo.Operation.SCALE, Axis.X, 1));
       assertTrue(session.updateTransform(2));
       assertTrue(session.updateTransform(0));
       assertFalse(session.finishTransform());
@@ -143,10 +145,10 @@ class OperationSelectionSessionTest {
    void laterRepeatOnTheSameAxisAddsCopiesToItsBaseline() {
       OperationSession session = readyCuboid();
 
-      session.beginTransform(AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1);
+      session.beginTransform(AxisGizmo.Operation.SCALE, Axis.X, 1);
       session.updateTransform(3);
       session.finishTransform();
-      session.beginTransform(AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1);
+      session.beginTransform(AxisGizmo.Operation.SCALE, Axis.X, 1);
       session.updateTransform(1);
       session.finishTransform();
 
@@ -158,12 +160,12 @@ class OperationSelectionSessionTest {
    @Test
    void movingAfterStackPreservesTheCompleteRegion() {
       OperationSession session = readyCuboid();
-      session.beginTransform(AxisGizmo.Operation.SCALE, AxisGizmo.Axis.Y, 1);
+      session.beginTransform(AxisGizmo.Operation.SCALE, Axis.Y, 1);
       session.updateTransform(2);
       session.finishTransform();
       OperationStackRegion stacked = session.stackRegion();
 
-      session.beginTransform(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, -1);
+      session.beginTransform(AxisGizmo.Operation.MOVE, Axis.X, -1);
       session.updateTransform(4);
       session.finishTransform();
 
@@ -175,7 +177,7 @@ class OperationSelectionSessionTest {
    void historyLimitAlsoTrimsIndependentAdjustmentHistory() {
       OperationSession session = readyCuboid();
       for (int amount = 1; amount <= 3; amount++) {
-         session.beginTransform(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1);
+         session.beginTransform(AxisGizmo.Operation.MOVE, Axis.X, 1);
          session.updateTransform(amount);
          session.finishTransform();
       }
@@ -189,7 +191,7 @@ class OperationSelectionSessionTest {
    @Test
    void changingSelectionModeClearsAllAdjustmentsAndTheirHistory() {
       OperationSession session = readyCuboid();
-      session.beginTransform(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1);
+      session.beginTransform(AxisGizmo.Operation.MOVE, Axis.X, 1);
       session.updateTransform(3);
       session.finishTransform();
 
@@ -209,7 +211,7 @@ class OperationSelectionSessionTest {
       session.addSelectionPoint(new BlockPos(0, 0, 4));
       session.closePrismBase();
       session.addSelectionPoint(new BlockPos(0, 5, 0));
-      session.beginTransform(AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1);
+      session.beginTransform(AxisGizmo.Operation.SCALE, Axis.X, 1);
       session.updateTransform(2);
       session.finishTransform();
 
@@ -224,7 +226,7 @@ class OperationSelectionSessionTest {
    @Test
    void undoingSelectionModeChangeCannotResurrectTransformFields() {
       OperationSession session = readyCuboid();
-      session.beginTransform(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1);
+      session.beginTransform(AxisGizmo.Operation.MOVE, Axis.X, 1);
       session.updateTransform(3);
       session.finishTransform();
 
@@ -247,7 +249,7 @@ class OperationSelectionSessionTest {
       session.addSelectionPoint(new BlockPos(0, 0, 4));
       session.closePrismBase();
       session.addSelectionPoint(new BlockPos(0, 5, 0));
-      session.beginTransform(AxisGizmo.Operation.MOVE, AxisGizmo.Axis.Z, 1);
+      session.beginTransform(AxisGizmo.Operation.MOVE, Axis.Z, 1);
       session.updateTransform(2);
       session.finishTransform();
 
@@ -524,7 +526,7 @@ class OperationSelectionSessionTest {
       session.scroll(new BlockPos(0, 1, 0), true);
       assertTrue(session.adjustOperationTransform(
          io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.ROTATE,
-         io.github.fastformer.fastplace.geometry.AxisGizmo.Axis.Z,
+         Axis.Z,
          256
       ));
       session.cycleStageMode();

@@ -135,6 +135,9 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (text =~ /\b(?:FastPlaceManager|OperationManager|GeometryManager)\b/).find()) {
                 violations.add("Retired static workflow facade: ${path}")
             }
+            if (main && (dependencies =~ /\bAxisGizmo\.Axis\b/).find()) {
+                violations.add("Mathematical axis depends on the gizmo model instead of core.math: ${path}")
+            }
             if (main && (text =~ /\bWorldTaskFeature\b/).find()) {
                 violations.add("Retired scheduler and feedback facade: ${path}")
             }

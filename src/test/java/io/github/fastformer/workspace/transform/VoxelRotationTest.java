@@ -1,8 +1,9 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -17,7 +18,7 @@ class VoxelRotationTest {
       source.put(new BlockPos(2, 0, 0), "far");
 
       Map<BlockPos, String> rotated = VoxelRotation.rotateValues(
-         source, new Vec3(0.5, 0.5, 0.5), AxisGizmo.Axis.Y, Math.PI / 2.0
+         source, new Vec3(0.5, 0.5, 0.5), Axis.Y, Math.PI / 2.0
       );
 
       assertEquals(java.util.Set.of(new BlockPos(0, 0, -1), new BlockPos(0, 0, -2)), rotated.keySet());
@@ -30,7 +31,7 @@ class VoxelRotationTest {
       source.put(new BlockPos(0, 0, 0), "first");
 
       Map<BlockPos, String> rotated = VoxelRotation.rotateValues(
-         source, new Vec3(0.5, 0.5, 0.5), AxisGizmo.Axis.Y, Math.toRadians(5.0)
+         source, new Vec3(0.5, 0.5, 0.5), Axis.Y, Math.toRadians(5.0)
       );
 
       assertEquals("first", rotated.get(BlockPos.ZERO));
@@ -43,7 +44,7 @@ class VoxelRotationTest {
       source.put(new BlockPos(1, 0, 0), "right");
 
       Map<BlockPos, String> rotated = VoxelRotation.rotateValues(
-         source, new Vec3(0.5, 0.5, 0.5), AxisGizmo.Axis.Y, Math.toRadians(45.0)
+         source, new Vec3(0.5, 0.5, 0.5), Axis.Y, Math.toRadians(45.0)
       );
 
       assertEquals("left", rotated.get(BlockPos.ZERO));

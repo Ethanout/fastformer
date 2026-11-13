@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render;
 
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.client.render.model.ScrollFeedbackData;
 import net.minecraft.core.BlockPos;
@@ -17,7 +19,7 @@ public final class PreviewFeedbackState {
    private long freeScrollTransitionGraceUntil;
    private BlockPos freeScrollOffset = BlockPos.ZERO;
    private ScrollFeedbackData freeScrollData;
-   private AxisGizmo.Axis lastGizmoAxis;
+   private Axis lastGizmoAxis;
    private AxisGizmo.Operation lastGizmoOperation;
    private int lastGizmoSteps;
    private double lastGizmoBaseValue;
@@ -80,12 +82,12 @@ public final class PreviewFeedbackState {
    private boolean freeScrollTransitionProtected(long now) {
       return now - this.freeScrollTransitionGraceUntil < 0L;
    }
-   public AxisGizmo.Axis lastGizmoAxis() { return this.lastGizmoAxis; }
+   public Axis lastGizmoAxis() { return this.lastGizmoAxis; }
    public AxisGizmo.Operation lastGizmoOperation() { return this.lastGizmoOperation; }
    public int lastGizmoSteps() { return this.lastGizmoSteps; }
    public double lastGizmoBaseValue() { return this.lastGizmoBaseValue; }
 
-   public void noteGizmo(AxisGizmo.Axis axis, AxisGizmo.Operation operation, int steps, double baseValue) {
+   public void noteGizmo(Axis axis, AxisGizmo.Operation operation, int steps, double baseValue) {
       this.lastGizmoAxis = axis;
       this.lastGizmoOperation = operation;
       this.lastGizmoSteps = steps;

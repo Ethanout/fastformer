@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.controller;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -370,7 +372,7 @@ class ClientOperationControllerTest {
       List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
 
       ClientOperationController.updateTransformGesture(
-         edit, baseline, false, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, 1, Double.NaN
+         edit, baseline, false, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
       ClientSelectionPart updated = ClientOperationController.workspace().selectedParts().getFirst();
@@ -461,7 +463,7 @@ class ClientOperationControllerTest {
       List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
 
       ClientOperationController.updateTransformGesture(
-         edit, baseline, false, AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 1, 1, Double.NaN
+         edit, baseline, false, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
       ClientSelectionPart updated = ClientOperationController.workspace().selectedParts().getFirst();

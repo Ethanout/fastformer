@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -78,16 +80,16 @@ class ConvexPolyhedronPointInteractionTest {
       session.selectControlPoint(1);
       ConvexPolyhedronWorkflow workflow = new ConvexPolyhedronWorkflow();
 
-      assertTrue(workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 2));
+      assertTrue(workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.MOVE, Axis.X, 2));
 
       assertEquals(new Vec3(5.5, 0.5, 0.5), session.pointLocations().get(1));
       assertEquals(List.of(point(0.5, 0.5, 0.5), point(5.5, 0.5, 0.5), point(8.5, 0.5, 0.5)), session.pointLocations());
-      assertTrue(!workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.SCALE, AxisGizmo.Axis.X, 2));
-      assertTrue(!workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.ROTATE, AxisGizmo.Axis.Y, 2));
-      assertTrue(!workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.MOVE, AxisGizmo.Axis.Z, 0));
+      assertTrue(!workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.SCALE, Axis.X, 2));
+      assertTrue(!workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.ROTATE, Axis.Y, 2));
+      assertTrue(!workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.MOVE, Axis.Z, 0));
 
       GeometrySession unselected = convexSession();
-      assertTrue(!workflow.onGizmoDrag(unselected, new GeometryActionContext(null, false), AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 2));
+      assertTrue(!workflow.onGizmoDrag(unselected, new GeometryActionContext(null, false), AxisGizmo.Operation.MOVE, Axis.X, 2));
    }
 
    @Test

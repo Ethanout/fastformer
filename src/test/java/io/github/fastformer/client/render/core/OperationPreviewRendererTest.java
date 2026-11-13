@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.core.math.Axis;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -55,7 +57,7 @@ class OperationPreviewRendererTest {
          assertTrue(workspace.beginEdit());
          var token = workspace.activeEditToken();
          ClientOperationController.updateTransformGesture(token, List.of(first), false,
-            AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, 4, Double.NaN);
+            AxisGizmo.Operation.MOVE, Axis.X, 1, 4, Double.NaN);
          if (separateDrag) {
             assertTrue(ClientOperationController.finishTransformGesture(token));
             first = workspace.part(1).orElseThrow();
@@ -63,7 +65,7 @@ class OperationPreviewRendererTest {
             token = workspace.activeEditToken();
          }
          ClientOperationController.updateTransformGesture(token, List.of(first), false,
-            AxisGizmo.Operation.MOVE, AxisGizmo.Axis.X, 1, separateDrag ? -4 : 0, Double.NaN);
+            AxisGizmo.Operation.MOVE, Axis.X, 1, separateDrag ? -4 : 0, Double.NaN);
          var returned = ClientOperationController.interactionScene().parts().get(1);
          assertEquals(selection.bounds(), returned.bounds());
          assertEquals(WorkspaceTransform.IDENTITY, returned.source().transform());

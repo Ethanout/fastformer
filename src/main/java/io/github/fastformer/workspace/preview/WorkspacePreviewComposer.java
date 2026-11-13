@@ -1,6 +1,7 @@
 package io.github.fastformer.workspace.preview;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.core.math.Axis;
+
 import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.workspace.geometry.WorkspaceGeometryBudget;
@@ -372,9 +373,9 @@ public final class WorkspacePreviewComposer {
        Vec3 scaleAnchor = transformedExtents(sourceBounds, transform.scale()) ? sourceBounds.center() : null;
        BlockPos stride = transform.repeatStride();
        BlockPos repeatStrideCells = new BlockPos(
-          stride.getX() == 0 ? scaledBounds.width(AxisGizmo.Axis.X) : Math.abs(stride.getX()),
-          stride.getY() == 0 ? scaledBounds.width(AxisGizmo.Axis.Y) : Math.abs(stride.getY()),
-          stride.getZ() == 0 ? scaledBounds.width(AxisGizmo.Axis.Z) : Math.abs(stride.getZ())
+          stride.getX() == 0 ? scaledBounds.width(Axis.X) : Math.abs(stride.getX()),
+          stride.getY() == 0 ? scaledBounds.width(Axis.Y) : Math.abs(stride.getY()),
+          stride.getZ() == 0 ? scaledBounds.width(Axis.Z) : Math.abs(stride.getZ())
        );
        LinkedHashMap<BlockPos, T> repeated = new LinkedHashMap<>();
        long[] visitedRepeats = {0L};
@@ -459,7 +460,7 @@ public final class WorkspacePreviewComposer {
       if (sourceBounds == null || scale == null) {
          return false;
       }
-      for (AxisGizmo.Axis axis : AxisGizmo.Axis.values()) {
+      for (Axis axis : Axis.values()) {
          long target = scaledExtent(sourceBounds.width(axis), component(scale, axis));
          if (target != sourceBounds.width(axis)) {
             return true;
@@ -468,7 +469,7 @@ public final class WorkspacePreviewComposer {
       return false;
    }
 
-   private static double component(Vec3 value, AxisGizmo.Axis axis) {
+   private static double component(Vec3 value, Axis axis) {
       return switch (axis) {
          case X -> value.x;
          case Y -> value.y;
@@ -499,9 +500,9 @@ public final class WorkspacePreviewComposer {
        if (bounds == null) {
           return new ScaleStage<>(Map.of(), null);
        }
-       int sourceX = bounds.width(AxisGizmo.Axis.X);
-       int sourceY = bounds.width(AxisGizmo.Axis.Y);
-       int sourceZ = bounds.width(AxisGizmo.Axis.Z);
+       int sourceX = bounds.width(Axis.X);
+       int sourceY = bounds.width(Axis.Y);
+       int sourceZ = bounds.width(Axis.Z);
        long extentX = scaledExtent(sourceX, scale.x);
        long extentY = scaledExtent(sourceY, scale.y);
        long extentZ = scaledExtent(sourceZ, scale.z);
