@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 
 import io.github.fastformer.FastFormer;
@@ -71,7 +73,7 @@ public final class QuickShapeSubmissionGameTests {
          helper.assertTrue(QuickShapeSystem.of(player).active(player), "middle ended the polygon draft");
          helper.assertTrue(confirmed.equals(session.points()), "middle changed polygon points");
          helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "middle submitted the polygon");
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       });
    }
 
@@ -155,7 +157,7 @@ public final class QuickShapeSubmissionGameTests {
       io.github.fastformer.server.sync.PreviewSync.forgetActivity(player);
       helper.assertFalse(io.github.fastformer.server.sync.PreviewSync.buildingSubmissionParametersMatch(player),
          "forgotten session retained submission parameters");
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       helper.succeed();
    }
 }

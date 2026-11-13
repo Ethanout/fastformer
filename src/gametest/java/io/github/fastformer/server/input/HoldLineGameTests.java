@@ -1,5 +1,7 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 
 import io.github.fastformer.server.history.HistoryTestAccess;
@@ -55,7 +57,7 @@ public final class HoldLineGameTests {
          helper.assertTrue(settings.storedLineMode() == LineMode.FREE_SCROLL, "profile changed the saved player mode");
          helper.assertTrue(QuickShapeSystem.effectiveModes(settings, draft).lineMode() == LineMode.AXIS, "mode action bypassed the profile lock");
          helper.assertFalse(QuickShapeSystem.of(player).closePolygon(player), "hold line closed a polygon");
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       });
    }
 
@@ -122,7 +124,7 @@ public final class HoldLineGameTests {
          ServerInputDispatcher.startPlacement(player, request(player, 31, frozen, PROFILE));
          var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          helper.assertTrue(draft.points().equals(List.of(target)), "hold anchor was recast against the water surface");
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       });
    }
 

@@ -1,5 +1,7 @@
 package io.github.fastformer.server.intent;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.core.command.IntentBus;
 import io.github.fastformer.core.command.IntentContext;
 import io.github.fastformer.core.command.IntentResult;
@@ -78,7 +80,7 @@ final class SessionIntentHandlers {
       boolean available = ServerOperationGates.AVAILABLE.test(player).allowed();
       if (context.source() == IntentSource.COMMAND && (!available || !hasSession(player))) return IntentResult.pass();
       boolean allowed = available && (!GeometrySystem.of(player).active(player) || GeometrySystem.of(player).allows(player, GeometryAction.SUBMODE));
-      QuickShapeSystem.of(player).setModifierHeld(player, allowed && intent.held());
+      SessionSystem.of(player).setModifierHeld(player, allowed && intent.held());
       return IntentResult.handled(allowed);
    }
 

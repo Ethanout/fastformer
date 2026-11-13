@@ -1,5 +1,7 @@
 package io.github.fastformer.server.settings;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.core.command.IntentBus;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.gate.Gate;
@@ -43,7 +45,7 @@ public final class SettingsIntentHandlers {
          if (value.isEmpty() || !PlacementEffectRegistry.contains(value.orElseThrow().effect())) return IntentResult.pass();
          var effect = value.orElseThrow();
          FastPlaceSettings.load(player).setPlacementEffectEnabled(player, effect.effect(), effect.enabled());
-         QuickShapeSystem.of(player).syncCurrentPreview(player);
+         SessionSystem.of(player).syncCurrentPreview(player);
          return IntentResult.success();
       });
       bindings.register(SettingsKeys.FALLING_DISABLED, SettingsIntentHandlers::falling);
@@ -59,7 +61,7 @@ public final class SettingsIntentHandlers {
    private static <T> void update(SettingBindings<ServerPlayer> bindings, SettingKey<T> key, BiConsumer<ServerPlayer, T> setter) {
       write(bindings, key, (player, value) -> {
          setter.accept(player, value);
-         QuickShapeSystem.of(player).syncCurrentPreview(player);
+         SessionSystem.of(player).syncCurrentPreview(player);
       });
    }
 
@@ -85,7 +87,7 @@ public final class SettingsIntentHandlers {
          PacketDistributor.sendToPlayer(player, new FallingStatePayload(
             BlockActivityRules.get(player.getServer()).fallingDisabled(), allowed));
       }
-      QuickShapeSystem.of(player).syncCurrentPreview(player);
+      SessionSystem.of(player).syncCurrentPreview(player);
       return value.isPresent() && !allowed ? IntentResult.denied("permission") : IntentResult.success();
    }
 }

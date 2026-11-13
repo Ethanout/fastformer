@@ -1,5 +1,7 @@
 package io.github.fastformer.server.network.upload;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.protocol.upload.UploadChunk;
@@ -109,7 +111,7 @@ public final class WorkspaceUploads implements AutoCloseable {
             if (error != null) { receipts.failAdmission(player, transfer); return; }
             try {
                var admission = ServerInputDispatcher.applyWorkspace(player, transfer, plan);
-               if (kind == UploadKind.SHAPE && admission.isQueued()) QuickShapeSystem.of(player).cancel(player);
+               if (kind == UploadKind.SHAPE && admission.isQueued()) SessionSystem.of(player).cancelEditing(player);
                receipts.admission(player, transfer, admission);
             } catch (RuntimeException failure) {
                // A task may already own the transfer. The receipt guard must decide whether failure is still admissible.

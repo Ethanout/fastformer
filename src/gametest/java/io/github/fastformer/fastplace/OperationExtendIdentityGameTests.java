@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistoryTestAccess;
 
 import io.github.fastformer.server.history.HistorySystem;
@@ -138,7 +140,7 @@ public final class OperationExtendIdentityGameTests {
          long revision = PreviewSync.operationRevision(player);
          var scope = PreviewSync.callbackScope(player);
          ServerInputDispatcher.extend(player, new OperationExtendPayload(10, revision, scope, 0, true, 1, false));
-         QuickShapeSystem.of(player).quit(player);
+         SessionSystem.of(player).quit(player);
          BlockPos origin = helper.absolutePos(new BlockPos(1,5,1));
          OperationSystem.of(player).startFirst(player, origin);
          OperationSystem.of(player).startSecond(player, origin.offset(3,0,0));

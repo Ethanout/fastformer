@@ -1,5 +1,7 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistoryTestAccess;
 
 import io.github.fastformer.server.history.HistorySystem;
@@ -53,7 +55,7 @@ public final class IdleEntryGameTests {
       ServerInputDispatcher.startPlacement(player, request(player, 101, hit));
       var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       helper.assertTrue(draft.points().equals(java.util.List.of(hit.getBlockPos().above())), "entry lost the first press's surface placement rule");
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       helper.succeed();
    }
 
@@ -80,7 +82,7 @@ public final class IdleEntryGameTests {
       helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(placed)),
          "double-click lost the captured placement anchor");
       helper.assertTrue(helper.getLevel().getBlockState(placed.above()).isAir(), "entry placed a second log");
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       });
    }
 
@@ -127,7 +129,7 @@ public final class IdleEntryGameTests {
          } finally {
             buffer.release();
          }
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       });
    }
 
@@ -204,7 +206,7 @@ public final class IdleEntryGameTests {
       var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click moved the first point onto the water surface");
       helper.assertTrue(draft.placementContext().capturedState().state().is(Blocks.OAK_LOG), "first placed state was lost");
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       helper.succeed();
    }
 
@@ -220,7 +222,7 @@ public final class IdleEntryGameTests {
          var expected = embedded ? first.getBlockPos() : first.getBlockPos().above();
          helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(expected)),
             "second click changed embedded=" + embedded);
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       }
       helper.succeed();
    }
@@ -408,7 +410,7 @@ public final class IdleEntryGameTests {
       ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(110, target));
       helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(fluid)),
          "server rejected the Alt surface ray through water");
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       helper.succeed();
    }
 }

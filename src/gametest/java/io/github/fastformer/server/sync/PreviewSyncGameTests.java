@@ -1,5 +1,7 @@
 package io.github.fastformer.server.sync;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import com.mojang.authlib.GameProfile;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
@@ -94,7 +96,7 @@ public final class PreviewSyncGameTests {
          QuickShapeSystem.of(player).addPoint(player, first, first);
          var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          // Park the destination workflow, then simulate its arrival event with the player already in that dimension.
-         QuickShapeSystem.of(player).handleDimensionChange(player, dimension, Level.NETHER);
+         SessionSystem.of(player).handleDimensionChange(player, dimension, Level.NETHER);
          var previousScope = PreviewSync.callbackScope(player);
          NeoForge.EVENT_BUS.post(new PlayerChangedDimensionEvent(player, Level.NETHER, dimension));
          helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow() == draft, "dimension lost the parked workflow");
@@ -102,7 +104,7 @@ public final class PreviewSyncGameTests {
          helper.assertTrue(PreviewSync.buildingSubmissionParametersMatch(player), "dimension erased the submission policy");
          helper.assertFalse(previousScope.equals(PreviewSync.callbackScope(player)), "dimension reused the previous callback scope");
       } finally {
-         QuickShapeSystem.of(player).remove(player);
+         SessionSystem.of(player).discardPlayer(player);
          PlayerStateRegistry.detach(player);
       }
       helper.succeed();

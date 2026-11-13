@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.events;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.server.gate.ServerOperationGates;
@@ -12,6 +14,7 @@ import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.player.TossedItems;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.GeometrySystem;
 import io.github.fastformer.server.session.OperationSystem;
@@ -118,8 +121,8 @@ public final class FastPlaceEvents {
             || !ServerOperationGates.WRITE_AVAILABLE.test(player).allowed())) {
          ItemStack tossed = event.getEntity().getItem().copy();
          event.setCanceled(true);
-         QuickShapeSystem.of(player).restoreTossedItem(player, tossed);
-         QuickShapeSystem.of(player).quit(player);
+         TossedItems.restore(player, tossed);
+         SessionSystem.of(player).quit(player);
          return;
       }
    }

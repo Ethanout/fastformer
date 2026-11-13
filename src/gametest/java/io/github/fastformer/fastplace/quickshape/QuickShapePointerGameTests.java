@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.quickshape;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistoryTestAccess;
 
 import io.github.fastformer.server.history.HistorySystem;
@@ -44,7 +46,7 @@ public final class QuickShapePointerGameTests {
          helper.assertTrue(eye.distanceTo(hit.getLocation()) < 3, "test target was outside close range");
          ServerInputDispatcher.startPlacement(player, startRequest(player, 90L, hit, eye, view));
          helper.assertTrue(QuickShapeSystem.of(player).active(player), "explicit entry did not own the near click");
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       });
    }
 
@@ -68,7 +70,7 @@ public final class QuickShapePointerGameTests {
       QuickShapeSystem.of(player).addPoint(player, first, first);
       var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       draft.setFreeScrollOffset(pointer ? BlockPos.ZERO : new BlockPos(3, 0, 0));
-      QuickShapeSystem.of(player).setModifierHeld(player, false);
+      SessionSystem.of(player).setModifierHeld(player, false);
       player.setPos(first.getCenter());
       PreviewSync.syncPreview(player, draft);
       boolean[] submitted = {false};
@@ -102,7 +104,7 @@ public final class QuickShapePointerGameTests {
       settings.setMode(player, LineMode.FREE_SCROLL);
       settings.setMode(player, FaceMode.COORDINATE_PLANE);
       settings.setMiddleConfirmEnabled(player, true);
-      QuickShapeSystem.of(player).setModifierHeld(player, false);
+      SessionSystem.of(player).setModifierHeld(player, false);
       PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
@@ -122,7 +124,7 @@ public final class QuickShapePointerGameTests {
             var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
             helper.assertTrue(draft.points().getFirst().equals(hit.getBlockPos().relative(hit.getDirection())), "surface start did not use the adjacent position");
             helper.assertFalse(draft.modifierHeld(), "embedded start latched Alt on the draft");
-            helper.assertFalse(QuickShapeSystem.of(player).modifierHeld(player), "embedded start latched player Alt");
+            helper.assertFalse(SessionSystem.of(player).modifierHeld(player), "embedded start latched player Alt");
             draft.setFreeScrollOffset(new BlockPos(2, 0, 0));
             player.setPos(hit.getBlockPos().getCenter().add(0, 1, 0));
             PreviewSync.syncPreview(player, draft);
@@ -165,7 +167,7 @@ public final class QuickShapePointerGameTests {
       var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       if (face) draft.addPoint(first.offset(3, 0, 0), player.getEyePosition(), player.getViewVector(1));
       draft.setFreeScrollOffset(new BlockPos(0, 0, 3));
-      QuickShapeSystem.of(player).setModifierHeld(player, true);
+      SessionSystem.of(player).setModifierHeld(player, true);
       PreviewSync.syncPreview(player, draft);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
@@ -271,7 +273,7 @@ public final class QuickShapePointerGameTests {
          ServerInputDispatcher.quickShapePointer(player,
             new QuickShapePointerPayload(revision, scope, QuickShapePointerPayload.Action.CLOSE, candidate, eye, view, false, 2));
          helper.assertTrue(draft.polygonClosed(), "point consumed the queued close revision");
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       });
    }
 
@@ -309,7 +311,7 @@ public final class QuickShapePointerGameTests {
          helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(
             hit.getBlockPos().relative(hit.getDirection())
          )), "idle surface start did not use the captured placement position");
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
          var replayWithCurrentIdentity = startRequest(player, 41L, hit, eye, view);
          ServerInputDispatcher.startPlacement(player, replayWithCurrentIdentity);
          helper.assertFalse(QuickShapeSystem.of(player).active(player), "replayed idle start recreated a draft");
@@ -338,7 +340,7 @@ public final class QuickShapePointerGameTests {
          helper.assertFalse(QuickShapeSystem.of(player).active(player), "stale callback scope started a draft");
          ServerInputDispatcher.startPlacement(player, startRequest(player, 44L, hit, eye, view));
          helper.assertTrue(QuickShapeSystem.of(player).active(player), "a current idle start was blocked after stale requests");
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       });
    }
 

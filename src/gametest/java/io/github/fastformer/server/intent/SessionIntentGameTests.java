@@ -1,5 +1,7 @@
 package io.github.fastformer.server.intent;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.command.IntentSource;
@@ -51,7 +53,7 @@ public final class SessionIntentGameTests {
       helper.assertTrue(!draft.freeScrollOffset().equals(BlockPos.ZERO), "command did not adjust the draft");
       PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.Adjust(-1000));
       helper.assertTrue(draft.freeScrollOffset().equals(BlockPos.ZERO), "command and network used different clamping");
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       helper.succeed();
    }
 
@@ -59,7 +61,7 @@ public final class SessionIntentGameTests {
    public static void deniedEditingStillAllowsNetworkModifierRelease(GameTestHelper helper) {
       ServerPlayer player = player(helper);
       PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.Submode(true));
-      helper.assertTrue(QuickShapeSystem.of(player).modifierHeld(player), "modifier was not held");
+      helper.assertTrue(SessionSystem.of(player).modifierHeld(player), "modifier was not held");
       LineMode mode = FastPlaceSettings.load(player).lineMode();
       FastPlaceSettings.load(player).toggleEnabled(player);
       helper.assertFalse(FastPlaceSettings.load(player).enabled(), "test did not disable editing");
@@ -68,9 +70,9 @@ public final class SessionIntentGameTests {
       helper.assertTrue(FastPlaceSettings.load(player).lineMode() == mode, "refused cycle changed the mode");
       helper.assertFalse(PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new SessionIntents.Submode(false)).handled(),
          "unavailable command changed the modifier");
-      helper.assertTrue(QuickShapeSystem.of(player).modifierHeld(player), "command release changed the existing latch");
+      helper.assertTrue(SessionSystem.of(player).modifierHeld(player), "command release changed the existing latch");
       PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.Submode(false));
-      helper.assertFalse(QuickShapeSystem.of(player).modifierHeld(player), "network release left the modifier latched");
+      helper.assertFalse(SessionSystem.of(player).modifierHeld(player), "network release left the modifier latched");
       helper.succeed();
    }
 

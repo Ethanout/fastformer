@@ -22,16 +22,16 @@ public final class InteractionModifierGameTests {
    public static void queriesDoNotCreateStateAndDetachClearsPhysicalInput(GameTestHelper helper) {
       var player = unattachedPlayer(helper);
       var shapes = QuickShapeSystem.of(player);
-      helper.assertFalse(shapes.modifierHeld(player), "unbound player inherited a modifier");
-      shapes.detachPlayer(player);
+      helper.assertFalse(SessionSystem.of(player).modifierHeld(player), "unbound player inherited a modifier");
+      SessionSystem.detachPlayer(player);
       helper.assertTrue(PlayerStateRegistry.find(player).isEmpty(), "query or cleanup created player state");
       var draft = new QuickShapeDraft();
       shapes.sessions.activate(player.getUUID(), draft);
       InteractionModifierState.set(player, true);
       draft.setModifierHeld(true);
       try {
-         shapes.detachPlayer(player);
-         helper.assertFalse(shapes.modifierHeld(player), "detach retained physical input");
+         SessionSystem.detachPlayer(player);
+         helper.assertFalse(SessionSystem.of(player).modifierHeld(player), "detach retained physical input");
          helper.assertFalse(draft.modifierHeld(), "detach retained the workflow modifier");
          helper.assertTrue(shapes.sessions.active(player.getUUID()) == draft, "detach removed retained work");
          PlayerStateRegistry.detach(player);
@@ -60,8 +60,8 @@ public final class InteractionModifierGameTests {
       InteractionModifierState.set(player, true);
       try {
          PlayerStateRegistry.dimensionChanged(player);
-         shapes.handleDimensionChange(player, Level.NETHER, Level.OVERWORLD);
-         helper.assertFalse(shapes.modifierHeld(player), "dimension retained physical input");
+         SessionSystem.of(player).handleDimensionChange(player, Level.NETHER, Level.OVERWORLD);
+         helper.assertFalse(SessionSystem.of(player).modifierHeld(player), "dimension retained physical input");
          helper.assertFalse(source.modifierHeld(), "parked source retained its old modifier");
          helper.assertFalse(destination.modifierHeld(), "restored draft retained its old modifier");
          helper.assertTrue(shapes.sessions.active(player.getUUID()) == destination, "destination draft was lost");
@@ -80,15 +80,15 @@ public final class InteractionModifierGameTests {
       var replacement = new ServerPlayer(original.getServer(), helper.getLevel(), original.getGameProfile(),
          ClientInformation.createDefault());
       PlayerStateRegistry.attach(replacement);
-      helper.assertFalse(shapes.modifierHeld(replacement), "replacement inherited old physical input");
+      helper.assertFalse(SessionSystem.of(replacement).modifierHeld(replacement), "replacement inherited old physical input");
       var draft = new QuickShapeDraft();
       shapes.sessions.activate(replacement.getUUID(), draft);
       InteractionModifierState.set(replacement, true);
       draft.setModifierHeld(true);
       try {
-         shapes.detachPlayer(original);
+         SessionSystem.detachPlayer(original);
          PlayerStateRegistry.detach(original);
-         helper.assertTrue(shapes.modifierHeld(replacement), "late cleanup erased replacement input");
+         helper.assertTrue(SessionSystem.of(replacement).modifierHeld(replacement), "late cleanup erased replacement input");
          helper.assertTrue(draft.modifierHeld(), "late cleanup erased replacement workflow input");
       } finally {
          shapes.sessions.discard(replacement.getUUID());

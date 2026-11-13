@@ -135,6 +135,10 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (text =~ /(?:\bWorldTaskBudget\b|task\.(?:prepareJournal|validateSnapshots|finalizeSnapshots|recordBatch|place)\s*\()/).find()) {
                 violations.add("Workflow owns task batch scheduling instead of advancing its queue: ${path}")
             }
+            if (main && source.name == 'QuickShapeSystem.java' &&
+                    (dependencies =~ /(?:runtime\.(?:operation|geometry)\b|\b(?:classify|setModifierHeld|modifierHeld|operationActive|detachPlayer|handleDimensionChange|syncCurrentPreview|restoreActive|restoreTossedItem)\s*\(ServerPlayer\s)/).find()) {
+                violations.add("Quick shape owns cross-session interaction or player lifecycle: ${path}")
+            }
             if (main && packageName == 'io.github.fastformer.server.task.block' &&
                     source.name in ['PlacementTask.java', 'SelectionOperationTask.java', 'SubmittedWorkspaceTask.java']) {
                 if (!(text =~ /extends\s+LeasedJournaledTask\b/).find() ||

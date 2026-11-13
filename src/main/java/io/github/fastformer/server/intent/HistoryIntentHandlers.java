@@ -1,5 +1,7 @@
 package io.github.fastformer.server.intent;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.core.command.IntentBus;
 import io.github.fastformer.core.command.IntentContext;
 import io.github.fastformer.core.command.IntentResult;
@@ -69,8 +71,8 @@ final class HistoryIntentHandlers {
          return IntentResult.success();
       }
       if (SessionRollback.active(player) || QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player)
-         || QuickShapeSystem.of(player).restoreActive(player) || OperationSystem.of(player).restoreActive(player)) {
-         QuickShapeSystem.of(player).quit(player);
+         || HistorySystem.of(player).restoreActive(player)) {
+         SessionSystem.of(player).quit(player);
          return IntentResult.success();
       }
       return IntentResult.pass();

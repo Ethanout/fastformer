@@ -1,5 +1,7 @@
 package io.github.fastformer.network;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.intent.HistoryIntents;
 import io.github.fastformer.server.intent.SessionIntents;
 import io.github.fastformer.server.history.HistorySystem;
@@ -136,7 +138,7 @@ public final class FastPlaceNetwork {
       channels.receive(IdleSelectionEntryPayload.TYPE, IdleSelectionEntryPayload.STREAM_CODEC)
          .handle((payload, player) -> {
          var point = ServerInputDispatcher.idleSelectionEntry(player, payload);
-         QuickShapeSystem.of(player).syncCurrentPreview(player);
+         SessionSystem.of(player).syncCurrentPreview(player);
          syncActivity(player);
          PacketDistributor.sendToPlayer(player, new IdleSelectionEntryResultPayload(payload.requestId(),
             player.level().dimension().location(), point == null ? net.minecraft.core.BlockPos.ZERO : point, point != null));
@@ -294,7 +296,7 @@ public final class FastPlaceNetwork {
    }
 
    private static void acknowledgePlacement(ServerPlayer player, long requestId) {
-      QuickShapeSystem.of(player).syncCurrentPreview(player);
+      SessionSystem.of(player).syncCurrentPreview(player);
       syncActivity(player);
       PacketDistributor.sendToPlayer(player, new PlacementActionAckPayload(requestId, PreviewSync.callbackScope(player)));
    }

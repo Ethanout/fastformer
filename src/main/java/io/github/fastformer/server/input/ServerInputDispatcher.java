@@ -1,5 +1,7 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.server.intent.PlayerIntentSystem;
 import io.github.fastformer.server.intent.SessionIntents;
@@ -84,7 +86,7 @@ public final class ServerInputDispatcher {
    public static void stopBecauseUnavailable(ServerPlayer player) {
       io.github.fastformer.server.fill.SmartFillSystem.cancel(player);
       boolean taskWasActive = QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player);
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       QuickShapeSystem.of(player).cancelTask(player);
       OperationSystem.of(player).cancelTask(player);
       HistorySystem.of(player).cancel(player);
@@ -98,14 +100,14 @@ public final class ServerInputDispatcher {
          return false;
       }
 
-      return switch (QuickShapeSystem.of(player).classify(player)) {
+      return switch (SessionSystem.of(player).classify(player)) {
          // Selection points belong to explicit selection commands, not vanilla item callbacks.
          case OPERATION, VANILLA -> false;
          case GEOMETRY -> rightClickGeometry(player, hit);
          case SPECIAL_ITEM -> SpecialItemHandlers.useOnBlock(player, hit.getBlockPos());
          case BUILDING -> {
             if (!PlaceableItems.isPlaceable(player.getMainHandItem())) {
-               QuickShapeSystem.of(player).quit(player);
+               SessionSystem.of(player).quit(player);
                yield false;
             }
             QuickShapeSystem.of(player).addPoint(player, hit);
@@ -120,7 +122,7 @@ public final class ServerInputDispatcher {
       }
 
       BlockHitResult hit = raycastBlocks(player, EXTENDED_REACH);
-      return switch (QuickShapeSystem.of(player).classify(player)) {
+      return switch (SessionSystem.of(player).classify(player)) {
          case OPERATION -> false;
          case BUILDING -> {
             if (hit.getType() == HitResult.Type.BLOCK) {
@@ -386,7 +388,7 @@ public final class ServerInputDispatcher {
          return;
       }
       LongRangeBlockRaycast.Result raycast = LongRangeBlockRaycast.clipForSelection(
-         player.level(), player, player.getEyePosition(), player.getViewVector(1.0F), QuickShapeSystem.of(player).modifierHeld(player)
+         player.level(), player, player.getEyePosition(), player.getViewVector(1.0F), SessionSystem.of(player).modifierHeld(player)
       );
       BlockHitResult hit = raycast.hit();
       OperationSession session = OperationSystem.of(player).session(player).orElse(null);
@@ -398,7 +400,7 @@ public final class ServerInputDispatcher {
          && !session.prismBaseClosed()
          && session.points().size() >= 3;
       if (!prismHeight && !prismBasePlane && (hit.getType() != HitResult.Type.BLOCK
-         || session == null && IdleInteractionSnapshots.idle(player) && !QuickShapeSystem.of(player).modifierHeld(player))) {
+         || session == null && IdleInteractionSnapshots.idle(player) && !SessionSystem.of(player).modifierHeld(player))) {
          return;
       }
       BlockPos point = prismHeight
@@ -665,10 +667,10 @@ public final class ServerInputDispatcher {
    public static BlockHitResult raycastBlocks(ServerPlayer player, double range) {
       Vec3 start = player.getEyePosition();
       Vec3 view = player.getViewVector(1.0F);
-      LongRangeBlockRaycast.Result result = switch (QuickShapeSystem.of(player).classify(player)) {
+      LongRangeBlockRaycast.Result result = switch (SessionSystem.of(player).classify(player)) {
          case BUILDING -> LongRangeBlockRaycast.clipForPlacement(player.level(), player, start, view);
          case OPERATION -> LongRangeBlockRaycast.clipForSelection(player.level(), player, start, view,
-            QuickShapeSystem.of(player).modifierHeld(player));
+            SessionSystem.of(player).modifierHeld(player));
          default -> LongRangeBlockRaycast.clip(player.level(), player, start, view);
       };
       BlockHitResult hit = result.hit();

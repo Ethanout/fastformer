@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.raycast;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
 import io.github.fastformer.server.session.QuickShapeSystem;
@@ -84,7 +86,7 @@ public final class PartialBlockRaycastGameTests {
             helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(expectedPosition),
                "first point differs from the preview");
          } finally {
-            QuickShapeSystem.of(player).cancel(player);
+            SessionSystem.of(player).cancelEditing(player);
          }
          try {
             var embedded = PlacementContextSnapshot.capture(level, player, stack, actual, true);
@@ -94,7 +96,7 @@ public final class PartialBlockRaycastGameTests {
             helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(target),
                "embedded point moved outside the hit cell");
          } finally {
-            QuickShapeSystem.of(player).cancel(player);
+            SessionSystem.of(player).cancelEditing(player);
          }
       }
    }

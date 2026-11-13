@@ -48,12 +48,12 @@ public final class PlayerLifecycleEvents {
          && event.getEntity() instanceof ServerPlayer newPlayer) {
          FastPlaceSettings.copy(oldPlayer, newPlayer);
          io.github.fastformer.fastplace.settings.PlayerBlockReach.copy(oldPlayer, newPlayer);
-         QuickShapeSystem.of(oldPlayer).detachPlayer(oldPlayer);
+         SessionSystem.detachPlayer(oldPlayer);
          PlayerStateRegistry.detach(oldPlayer);
          PlayerStateRegistry.attach(newPlayer);
          PreviewSync.syncInteractionUpdates(newPlayer);
          // Rebind the retained UUID-owned workflow to the replacement instance.
-         QuickShapeSystem.of(newPlayer).syncCurrentPreview(newPlayer);
+         SessionSystem.of(newPlayer).syncCurrentPreview(newPlayer);
       }
    }
 
@@ -65,7 +65,7 @@ public final class PlayerLifecycleEvents {
          // old environment ends, so old coordinates are never used in the new
          // dimension.
          PlayerStateRegistry.dimensionChanged(player);
-         QuickShapeSystem.of(player).handleDimensionChange(player, event.getFrom(), event.getTo());
+         SessionSystem.of(player).handleDimensionChange(player, event.getFrom(), event.getTo());
       }
    }
 
@@ -78,7 +78,7 @@ public final class PlayerLifecycleEvents {
       io.github.fastformer.fastplace.settings.PlayerBlockReach.initialize(player);
       FastPlaceNetwork.syncSettings(player);
       // Reattach UUID-owned workflows after a reconnect or player replacement.
-      QuickShapeSystem.of(player).syncCurrentPreview(player);
+      SessionSystem.of(player).syncCurrentPreview(player);
       HistorySystem.of(player).trimToSetting(player, FastPlaceSettings.load(player).worldUndoHistoryLimit());
       SessionSystem.of(player.getServer()).feedback().attach(player);
       if (!RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
@@ -109,7 +109,7 @@ public final class PlayerLifecycleEvents {
    private static void onServerStopping(ServerStoppingEvent event) {
       PlayerStateRegistry.discardPlayers(event.getServer());
       for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
-         QuickShapeSystem.of(player).remove(player);
+         SessionSystem.of(player).discardPlayer(player);
       }
       SessionSystem.stop(event.getServer());
       RecoverySystem.of(event.getServer()).awaitIoIdle();

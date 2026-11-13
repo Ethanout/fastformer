@@ -103,7 +103,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
    }
 
    public void addPoint(ServerPlayer player, GeometryHit hit, Vec3 eye, Vec3 view) {
-      addPoint(player, hit, new GeometryActionContext(player, runtime.quickShape.modifierHeld(player), hit, eye, view));
+      addPoint(player, hit, new GeometryActionContext(player, runtime.modifierHeld(player), hit, eye, view));
    }
 
    private void addPoint(ServerPlayer player, GeometryHit hit, GeometryActionContext context) {
@@ -224,7 +224,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (hit == null) {
          return false;
       }
-      if (!workflow.onInteraction(session, new GeometryActionContext(player, runtime.quickShape.modifierHeld(player), null, eye, view),
+      if (!workflow.onInteraction(session, new GeometryActionContext(player, runtime.modifierHeld(player), null, eye, view),
          targetType, index, action, gesture)) {
          return false;
       }
@@ -426,10 +426,10 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
    }
 
    private GeometryActionContext context(ServerPlayer player) {
-      return new GeometryActionContext(player, runtime.quickShape.modifierHeld(player));
+      return new GeometryActionContext(player, runtime.modifierHeld(player));
    }
 
    private GeometryActionContext context(ServerPlayer player, GeometryHit hit) {
-      return new GeometryActionContext(player, runtime.quickShape.modifierHeld(player), hit);
+      return new GeometryActionContext(player, runtime.modifierHeld(player), hit);
    }
 }

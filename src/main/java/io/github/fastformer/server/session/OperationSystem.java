@@ -840,10 +840,6 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          && workspace.transferId().equals(transferId);
    }
 
-   public boolean restoreActive(ServerPlayer player) {
-      return HistorySystem.of(player).restoreActive(player);
-   }
-
    private boolean localTaskBusy(ServerPlayer player) {
       UUID id = player.getUUID();
       return tasks.containsKey(id);

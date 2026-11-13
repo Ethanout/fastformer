@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.command;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.server.intent.PlayerIntentSystem;
 import io.github.fastformer.server.intent.SessionIntents;
@@ -315,7 +317,7 @@ public final class FastPlaceCommandRegistry {
             ServerPlayer player = context.getSource().getPlayerOrException();
             FastPlaceSettings settings = FastPlaceSettings.load(player);
             settings.setMiddleConfirmEnabled(player, BoolArgumentType.getBool(context, "enabled"));
-            QuickShapeSystem.of(player).syncCurrentPreview(player);
+            SessionSystem.of(player).syncCurrentPreview(player);
             FastPlaceMessages.chat(
                player,
                FastPlaceMessages.text(
@@ -755,7 +757,7 @@ public final class FastPlaceCommandRegistry {
          }
          FastPlaceSettings settings = FastPlaceSettings.load(player);
          settings.setFillMode(player, fillMode);
-         QuickShapeSystem.of(player).syncCurrentPreview(player);
+         SessionSystem.of(player).syncCurrentPreview(player);
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.fill_mode_status", FastPlaceMessages.text(fillMode)));
          return 1;
       }));
@@ -778,7 +780,7 @@ public final class FastPlaceCommandRegistry {
          FastPlaceSettings settings = FastPlaceSettings.load(player);
          settings.toggleEnabled(player);
          if (settings.enabled()) {
-            QuickShapeSystem.of(player).cancel(player);
+            SessionSystem.of(player).cancelEditing(player);
          } else {
             ServerInputDispatcher.stopBecauseUnavailable(player);
          }
@@ -790,7 +792,7 @@ public final class FastPlaceCommandRegistry {
 
    private static LiteralArgumentBuilder<CommandSourceStack> cancelCommand() {
       return Commands.literal("cancel").executes(context -> {
-         QuickShapeSystem.of(context.getSource().getPlayerOrException()).quit(context.getSource().getPlayerOrException());
+         SessionSystem.of(context.getSource().getPlayerOrException()).quit(context.getSource().getPlayerOrException());
          return 1;
       });
    }

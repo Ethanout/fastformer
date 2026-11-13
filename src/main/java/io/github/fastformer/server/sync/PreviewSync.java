@@ -1,5 +1,7 @@
 package io.github.fastformer.server.sync;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
@@ -104,8 +106,8 @@ public final class PreviewSync {
             session.stackRegion().max(),
             session.rotation(),
             session.adjustmentStarted(),
-            QuickShapeSystem.of(player).modifierHeld(player),
-            QuickShapeSystem.of(player).modifierHeld(player)
+            SessionSystem.of(player).modifierHeld(player),
+            SessionSystem.of(player).modifierHeld(player)
          )
       );
       syncActivity(player);
@@ -145,7 +147,7 @@ public final class PreviewSync {
             session.pointLocations(),
             session.pointRoles(),
             session.closed(),
-            QuickShapeSystem.of(player).modifierHeld(player),
+            SessionSystem.of(player).modifierHeld(player),
             session.extrusion(),
             session.polyhedronShapeVariant(),
             session.coneShapeVariant(),
@@ -228,7 +230,7 @@ public final class PreviewSync {
    }
 
    private static FastPlaceActivity currentActivity(ServerPlayer player) {
-      if (QuickShapeSystem.of(player).restoreActive(player) || OperationSystem.of(player).restoreActive(player)) {
+      if (io.github.fastformer.server.history.HistorySystem.of(player).restoreActive(player)) {
          return FastPlaceActivity.RESTORE_TASK;
       }
       if (OperationSystem.of(player).taskActive(player)) {

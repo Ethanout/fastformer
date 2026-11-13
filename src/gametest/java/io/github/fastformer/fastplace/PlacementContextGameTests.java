@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.session.QuickShapeSystem;
 
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
@@ -63,7 +65,7 @@ public final class PlacementContextGameTests {
             .equals(PlaceableItems.placementState(stack, player, embedded).orElseThrow()),
             "server draft state differs from embedded preview state");
       } finally {
-         QuickShapeSystem.of(player).cancel(player);
+         SessionSystem.of(player).cancelEditing(player);
       }
       helper.succeed();
    }
@@ -105,7 +107,7 @@ public final class PlacementContextGameTests {
       helper.assertTrue(snapshot.placementPosition().equals(target), "slab merge preview moved outside the target");
       QuickShapeSystem.of(player).addInitialPoint(player, hit, false);
       helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(target), "slab merge selected another cell");
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       helper.getLevel().setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
       snapshot = PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, true);
       helper.assertTrue(snapshot.placementPosition().equals(target)
@@ -113,7 +115,7 @@ public final class PlacementContextGameTests {
          "embedded state was not calculated at the hit block");
       QuickShapeSystem.of(player).addInitialPoint(player, hit, true);
       helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(target), "embedded point moved outside the hit block");
-      QuickShapeSystem.of(player).cancel(player);
+      SessionSystem.of(player).cancelEditing(player);
       helper.succeed();
    }
 }
