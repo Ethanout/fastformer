@@ -37,7 +37,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `server.settings` | 设置的类型化处理器、修改与查询、权限校验及反馈 |
 | `server.network` | 服务端通道注册；统一线程投递和网络到 Intent 的转换 |
 | `server.network.upload` | 单服务器上传准入、分块／解码资源、请求作用域、回执与取消 |
-| `server.sync` | 服务端预览装配、发布、revision 和连接作用域 |
+| `server.sync` | 服务端预览装配与发布；玩家作用域持有 revision、提交参数和回调身份 |
 | `server.session` | 快速起形、几何和选区操作的服务端会话管理 |
 | `server.submission` | 服务端提交账本、去重记录与任务结算接口 |
 | `server.history` | 每个服务器的历史服务装配、玩家资源所有权与存储接口 |
@@ -85,6 +85,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 原 `network.payload` 已移空，不提供旧包路径的转发类。收发方向不能互相导入；共享作用域、设置声明和上传分块契约各自独立。协议检查禁止引用客户端、服务端、旧网络实现及玩家设置对象，且每包最多 12 个类型。协议还引用部分尚未搬迁的 `fastplace`／`workspace` 共享领域类型，完整四层迁移仍未完成。
 
 `BuildingPreviewSnapshot` 是共享预览值，不是消息。删除未注册的旧合并预览 Codec，仅发送当前会话、参数和效果三个分包；接收方验证 revision 后再组合。服务端 `QuickShapePreviews` 负责从草稿和设置装配快照；`PreviewSync` 负责发布。压缩设置改用 `HistoryCompressionLimits`、`CompressionTier` 和 `CompressionSetting`，客户端不再为显示配置而依赖服务端历史实现。
+
+`PreviewSyncState` 由玩家作用域持有，不再使用全局 UUID 表。revision 查询与清理不创建状态；同 UUID 的旧玩家实例不能清除新实例的发布。换维先通知旧环境失效，再恢复目标维度工作流并发布新快照；断线和服务器关闭由玩家作用域统一丢弃，删除预览同步的全局 `clearServer` 入口。
 
 `UploadSystem` 按服务器显式启动和停止 `WorkspaceUploads`，查询不能创建实例。两种上传使用同一接收流程，各自保留独立分块通道；分块、解码和回执作用域均由实例持有。断线、换维和玩家实体替换取消未提交上传，关闭后拒绝新请求。解码取消同时释放待消费的大结果；旧回调按任务身份校验，不能释放同 ID 新请求的名额。tick 保留仍属于分块、解码或世界任务的作用域，清理已无所有者的作用域。内部实现不向包外暴露。
 

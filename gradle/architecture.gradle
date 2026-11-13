@@ -21,6 +21,7 @@ abstract class VerifySourceLayout extends DefaultTask {
             boolean main = path.contains('/src/main/java/')
             boolean gameTest = path.contains('/src/gametest/java/')
             if (main && (packageName.startsWith('io.github.fastformer.server.history') ||
+                    packageName.startsWith('io.github.fastformer.server.sync') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -105,6 +106,10 @@ abstract class VerifySourceLayout extends DefaultTask {
             }
             if (main && source.name == 'FastPlaceNetwork.java' && (text =~ /instanceof ServerPlayer/).find()) {
                 violations.add("Network registration bypasses typed server channels: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.sync') &&
+                    (dependencies =~ /(?:\bstatic\s+final\s+Map\s*<|\bConcurrentHashMap\b|\bclearServer\s*\()/).find()) {
+                violations.add("Preview publications bypass the player scope lifecycle: ${path}")
             }
             if (main && source.name == 'FastPlaceNetwork.java' &&
                     (text =~ /\b(?:IncomingPayloadTransfers|WorkspaceDecodeQueue|WorkspaceReceipts|WorkspaceUploads|serverEpoch|WORKSPACE_CALLBACK_SCOPES)\b/).find()) {

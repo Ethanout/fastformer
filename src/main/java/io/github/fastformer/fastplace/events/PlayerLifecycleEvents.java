@@ -64,9 +64,8 @@ public final class PlayerLifecycleEvents {
          // its original dimension and its operation id. Only the binding to the
          // old environment ends, so old coordinates are never used in the new
          // dimension.
-         FastPlaceManager.handleDimensionChange(player, event.getFrom(), event.getTo());
          PlayerStateRegistry.dimensionChanged(player);
-         PreviewSync.syncInteractionUpdates(player);
+         FastPlaceManager.handleDimensionChange(player, event.getFrom(), event.getTo());
       }
    }
 
@@ -119,7 +118,6 @@ public final class PlayerLifecycleEvents {
       HistorySystem.of(event.getServer()).awaitDiskWritesOnShutdown(event.getServer());
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.of(event.getServer()).close();
-      PreviewSync.clearServer();
       // The ledger belongs to one server instance. A different save must never answer
       // with a result that belongs to this one.
       io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
@@ -131,7 +129,6 @@ public final class PlayerLifecycleEvents {
       FastPlaceManager.clearServer();
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.stop(event.getServer());
-      PreviewSync.clearServer();
       io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());

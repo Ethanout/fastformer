@@ -19,41 +19,31 @@ import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewEffectSnapshot;
 import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
 import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
-import java.util.Map;
+import io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Sends authoritative server snapshots to the current client connection. */
 public final class PreviewSync {
-   private static final Map<UUID, FastPlaceActivity> LAST_ACTIVITY = new ConcurrentHashMap<>();
-   private static final Map<UUID, UUID> CLIENT_CALLBACK_SESSIONS = new ConcurrentHashMap<>();
-   private static final Map<UUID, Long> OPERATION_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
-   private static final Map<UUID, Long> BUILDING_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
-   private static final Map<UUID, io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload> BUILDING_SUBMISSION_PARAMETERS =
-      new ConcurrentHashMap<>();
-   private static final Map<UUID, Long> GEOMETRY_PREVIEW_REVISIONS = new ConcurrentHashMap<>();
-   private static final Map<UUID, Long> ACTIVITY_REVISIONS = new ConcurrentHashMap<>();
-
    private PreviewSync() {
    }
 
    public static long buildingRevision(ServerPlayer player) {
-      return BUILDING_PREVIEW_REVISIONS.getOrDefault(player.getUUID(), 0L);
+      return PreviewSyncState.find(player).map(state -> state.buildingRevision).orElse(0L);
    }
 
    public static long geometryRevision(ServerPlayer player) {
-      return GEOMETRY_PREVIEW_REVISIONS.getOrDefault(player.getUUID(), 0L);
+      return PreviewSyncState.find(player).map(state -> state.geometryRevision).orElse(0L);
    }
 
    public static long operationRevision(ServerPlayer player) {
-      return OPERATION_PREVIEW_REVISIONS.getOrDefault(player.getUUID(), 0L);
+      return PreviewSyncState.find(player).map(state -> state.operationRevision).orElse(0L);
    }
 
    public static boolean buildingSubmissionParametersMatch(ServerPlayer player) {
-      var published = BUILDING_SUBMISSION_PARAMETERS.get(player.getUUID());
+      var published = PreviewSyncState.find(player).map(state -> state.submissionParameters).orElse(null);
       var session = FastPlaceManager.session(player).orElse(null);
       if (published == null || session == null || published.revision() != buildingRevision(player)) return false;
       var settings = FastPlaceSettings.load(player);
@@ -79,7 +69,7 @@ public final class PreviewSync {
    /** Starts a distinct callback scope for a newly connected client. */
    public static void beginClientSession(ServerPlayer player) {
       if (player != null) {
-         CLIENT_CALLBACK_SESSIONS.put(player.getUUID(), UUID.randomUUID());
+         PreviewSyncState.of(player).beginClientSession();
       }
    }
 
@@ -87,7 +77,7 @@ public final class PreviewSync {
       if (player == null) {
          throw new IllegalArgumentException("Operation callback player is required");
       }
-      UUID sessionId = CLIENT_CALLBACK_SESSIONS.computeIfAbsent(player.getUUID(), ignored -> UUID.randomUUID());
+      UUID sessionId = PreviewSyncState.of(player).callbackSession();
       return new OperationCallbackScope(player.getUUID(), player.level().dimension().location(), sessionId);
    }
 
@@ -188,9 +178,11 @@ public final class PreviewSync {
 
    public static void syncActivity(ServerPlayer player) {
       FastPlaceActivity activity = currentActivity(player);
-      if (LAST_ACTIVITY.put(player.getUUID(), activity) == activity) {
+      var state = PreviewSyncState.of(player);
+      if (state.lastActivity == activity) {
          return;
       }
+      state.lastActivity = activity;
       if (player.connection.hasChannel(ActivityStatePayload.TYPE)) {
          PacketDistributor.sendToPlayer(
             player,
@@ -204,51 +196,35 @@ public final class PreviewSync {
       if (player == null) {
          return;
       }
-      LAST_ACTIVITY.remove(player.getUUID());
-      CLIENT_CALLBACK_SESSIONS.remove(player.getUUID());
-      BUILDING_PREVIEW_REVISIONS.remove(player.getUUID());
-      BUILDING_SUBMISSION_PARAMETERS.remove(player.getUUID());
-      OPERATION_PREVIEW_REVISIONS.remove(player.getUUID());
-      GEOMETRY_PREVIEW_REVISIONS.remove(player.getUUID());
-      ACTIVITY_REVISIONS.remove(player.getUUID());
-   }
-
-   public static void clearServer() {
-      LAST_ACTIVITY.clear();
-      CLIENT_CALLBACK_SESSIONS.clear();
-      OPERATION_PREVIEW_REVISIONS.clear();
-      BUILDING_PREVIEW_REVISIONS.clear();
-      BUILDING_SUBMISSION_PARAMETERS.clear();
-      GEOMETRY_PREVIEW_REVISIONS.clear();
-      ACTIVITY_REVISIONS.clear();
+      PreviewSyncState.find(player).ifPresent(PreviewSyncState::clear);
    }
 
    private static long nextOperationPreviewRevision(ServerPlayer player) {
       if (player == null) {
          return 0L;
       }
-      return OPERATION_PREVIEW_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
+      return ++PreviewSyncState.of(player).operationRevision;
    }
 
    private static long nextGeometryPreviewRevision(ServerPlayer player) {
       if (player == null) {
          return 0L;
       }
-      return GEOMETRY_PREVIEW_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
+      return ++PreviewSyncState.of(player).geometryRevision;
    }
 
    private static long nextActivityRevision(ServerPlayer player) {
       if (player == null) {
          return 0L;
       }
-      return ACTIVITY_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
+      return ++PreviewSyncState.of(player).activityRevision;
    }
 
    private static long nextBuildingPreviewRevision(ServerPlayer player) {
       if (player == null) {
          return 0L;
       }
-      return BUILDING_PREVIEW_REVISIONS.merge(player.getUUID(), 1L, Long::sum);
+      return ++PreviewSyncState.of(player).buildingRevision;
    }
 
    private static FastPlaceActivity currentActivity(ServerPlayer player) {
@@ -309,7 +285,7 @@ public final class PreviewSync {
 
    private static void sendSubmissionParameters(ServerPlayer player, BuildingPreviewSnapshot payload, long revision) {
       if (!payload.active()) {
-         BUILDING_SUBMISSION_PARAMETERS.remove(player.getUUID());
+         PreviewSyncState.of(player).submissionParameters = null;
          return;
       }
       var session = FastPlaceManager.session(player).orElse(null);
@@ -317,11 +293,11 @@ public final class PreviewSync {
       var settings = FastPlaceSettings.load(player);
       var state = PlaceableItems.placementState(player.getMainHandItem(), player, session.placementContext())
          .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
-      var parameters = new io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload(
+      var parameters = new QuickShapeSubmissionParametersPayload(
          revision, settings.maxPlacement(), state, FastPlaceManager.effectiveFaceTieBias(session, settings), callbackScope(player)
       );
-      BUILDING_SUBMISSION_PARAMETERS.put(player.getUUID(), parameters);
-      if (player.connection.hasChannel(io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload.TYPE)) {
+      PreviewSyncState.of(player).submissionParameters = parameters;
+      if (player.connection.hasChannel(QuickShapeSubmissionParametersPayload.TYPE)) {
          PacketDistributor.sendToPlayer(player, parameters);
       }
    }
