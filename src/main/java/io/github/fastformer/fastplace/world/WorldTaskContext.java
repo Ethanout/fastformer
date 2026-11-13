@@ -1,6 +1,7 @@
 package io.github.fastformer.fastplace.world;
 
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.session.SessionSystem;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -61,8 +62,8 @@ public record WorldTaskContext(MinecraftServer server, UUID owner, Runnable resu
       ServerPlayer player = this.onlinePlayer();
       if (player != null) {
          FastPlaceMessages.actionBar(player, message);
-      } else {
-         WorldTaskFeature.deferActionBar(this.owner, message);
+      } else if (server != null) {
+         SessionSystem.find(server).ifPresent(runtime -> runtime.feedback().deferActionBar(owner, message));
       }
    }
 
@@ -70,8 +71,8 @@ public record WorldTaskContext(MinecraftServer server, UUID owner, Runnable resu
       ServerPlayer player = this.onlinePlayer();
       if (player != null) {
          FastPlaceMessages.chat(player, message);
-      } else {
-         WorldTaskFeature.deferChat(this.owner, message);
+      } else if (server != null) {
+         SessionSystem.find(server).ifPresent(runtime -> runtime.feedback().deferChat(owner, message));
       }
    }
 }

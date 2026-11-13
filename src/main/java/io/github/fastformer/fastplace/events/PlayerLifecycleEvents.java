@@ -8,7 +8,6 @@ import io.github.fastformer.server.history.HistoryRecoveryReconciler;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.fastplace.world.WorldTaskFeature;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.sync.PreviewSync;
@@ -81,7 +80,7 @@ public final class PlayerLifecycleEvents {
       // Reattach UUID-owned workflows after a reconnect or player replacement.
       QuickShapeSystem.of(player).syncCurrentPreview(player);
       HistorySystem.of(player).trimToSetting(player, FastPlaceSettings.load(player).worldUndoHistoryLimit());
-      WorldTaskFeature.attachPlayer(player);
+      SessionSystem.of(player.getServer()).feedback().attach(player);
       if (!PersistentRecoveryJournal.writesAllowed()) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
       }
@@ -101,7 +100,6 @@ public final class PlayerLifecycleEvents {
       HistorySystem.start(event.getServer());
       UploadSystem.start(event.getServer());
       HistorySystem.of(event.getServer()).clear();
-      WorldTaskFeature.clear();
       WorldWriteCoordinator.clearAll();
       if (PersistentRecoveryJournal.awaitIoIdle(event.getServer())) {
          PersistentRecoveryJournal.recoverAll(event.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(event.getServer())));
@@ -122,7 +120,6 @@ public final class PlayerLifecycleEvents {
       // The ledger belongs to one server instance. A different save must never answer
       // with a result that belongs to this one.
       io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
-      WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());
    }
 
@@ -131,7 +128,6 @@ public final class PlayerLifecycleEvents {
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.stop(event.getServer());
       io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
-      WorldTaskFeature.clear();
       WorldWriteCoordinator.clear(event.getServer());
       ServerBackgroundTasks.stop(event.getServer());
       PlayerStateRegistry.stop(event.getServer());

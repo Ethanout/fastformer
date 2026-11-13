@@ -23,6 +23,8 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (packageName.startsWith('io.github.fastformer.server.history') ||
                     packageName.startsWith('io.github.fastformer.server.sync') ||
                     packageName.startsWith('io.github.fastformer.server.session') ||
+                    packageName.startsWith('io.github.fastformer.server.feedback') ||
+                    packageName.startsWith('io.github.fastformer.server.task') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -114,6 +116,13 @@ abstract class VerifySourceLayout extends DefaultTask {
             }
             if (main && (text =~ /\b(?:FastPlaceManager|OperationManager|GeometryManager)\b/).find()) {
                 violations.add("Retired static workflow facade: ${path}")
+            }
+            if (main && (text =~ /\bWorldTaskFeature\b/).find()) {
+                violations.add("Retired scheduler and feedback facade: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.feedback') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!feedback))\.|\bstatic\s+final\s+Map\s*<|\b\w+ForTest\b)/).find()) {
+                violations.add("Task feedback bypasses its server owner or depends on task orchestration: ${path}")
             }
             if (main && packageName == 'io.github.fastformer.server.session' &&
                     source.name != 'SessionSystem.java' &&

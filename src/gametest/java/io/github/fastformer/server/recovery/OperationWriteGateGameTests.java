@@ -2,8 +2,8 @@ package io.github.fastformer.server.recovery;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.WorkspaceReplayGameTests;
-import io.github.fastformer.fastplace.world.WorldTaskFeature;
-import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
+import io.github.fastformer.server.task.WorldTaskScheduler;
+import io.github.fastformer.server.task.WorldTaskSchedulerTestAccess;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
@@ -46,7 +46,7 @@ public final class OperationWriteGateGameTests {
          1, ClientSelectionPart.Source.WORLD, blocks, WorkspaceTransform.IDENTITY, false
       )));
       try {
-         helper.assertFalse(WorldTaskTestAccess.tickSafely("operation-write-gate-test", () -> {
+         helper.assertFalse(WorldTaskSchedulerTestAccess.tickSafely("operation-write-gate-test", () -> {
             throw new IllegalStateException("expected test failure to close the write gate");
          }), "the write gate did not close");
          helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");
@@ -114,13 +114,13 @@ public final class OperationWriteGateGameTests {
                helper.assertTrue(OperationSystem.of(player).taskActive(player), "an accepted submission queued no task");
                PersistentRecoveryJournal.blockNewWrites();
                helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");
-               WorldTaskFeature.tick(server);
+               WorldTaskScheduler.tick(server);
                helper.assertFalse(OperationSystem.of(player).taskActive(player), "a blocked task stayed in the queue");
                helper.assertTrue(WorkspaceSubmissionLedger.outcomeFor(
                   server, player.getUUID(), dimension, transferId
                ) == OperationSubmissionOutcome.FAILED_RETRYABLE,
                   "a handed-over task without writes did not report a retryable receipt");
-               WorldTaskFeature.tick(server);
+               WorldTaskScheduler.tick(server);
                helper.assertFalse(OperationSystem.of(player).taskActive(player), "the second tick queued work again");
             } catch (RuntimeException exception) {
                phaseFailure[0] = exception;

@@ -154,7 +154,7 @@ public final class FastPlaceEvents {
 
    private static void onServerTick(ServerTickEvent.Post event) {
       io.github.fastformer.server.network.upload.UploadSystem.of(event.getServer()).tick();
-      WorldTaskFeature.tick(event.getServer());
+      io.github.fastformer.server.task.WorldTaskScheduler.tick(event.getServer());
    }
 
 }

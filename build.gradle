@@ -278,7 +278,8 @@ tasks.register('verifyModJar') {
                  'io/github/fastformer/fastplace/world/WorldOperationCommit.class',
                  'io/github/fastformer/fastplace/world/memory/WorldOperationMemory.class',
                  'io/github/fastformer/fastplace/world/WorldTaskContext.class',
-                 'io/github/fastformer/fastplace/world/WorldTaskFeature.class',
+                 'io/github/fastformer/server/task/WorldTaskScheduler.class',
+                 'io/github/fastformer/server/feedback/TaskFeedback.class',
                 'io/github/fastformer/fastplace/geometry/GeometryAction.class',
                 'io/github/fastformer/fastplace/geometry/generation/PlanarFaceRasterizer.class',
                 'io/github/fastformer/fastplace/geometry/generation/ArbitraryConvexPolyhedronGenerator.class'

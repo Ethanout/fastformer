@@ -5,7 +5,7 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
-import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
+import io.github.fastformer.server.task.WorldTaskSchedulerTestAccess;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.QuickShapeSystem;
@@ -217,7 +217,7 @@ public final class WorkspaceReplayGameTests {
          WorkspaceSubmissionLedger.finish(server, player.getUUID(), dimension, transferId, true, false, false);
 
          // The gate closes for the rest of the session, as it does after a journal failure.
-         helper.assertFalse(WorldTaskTestAccess.tickSafely("workspace-replay-gate-test", () -> {
+         helper.assertFalse(WorldTaskSchedulerTestAccess.tickSafely("workspace-replay-gate-test", () -> {
             throw new IllegalStateException("expected test failure to close the write gate");
          }), "the write gate did not close");
          helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");

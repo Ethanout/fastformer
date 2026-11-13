@@ -39,6 +39,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `server.network.upload` | 单服务器上传准入、分块／解码资源、请求作用域、回执与取消 |
 | `server.sync` | 服务端预览装配与发布；玩家作用域持有 revision、提交参数和回调身份 |
 | `server.session` | 单服务器会话系统；拥有快速起形、几何、选区工作流及任务队列 |
+| `server.task` | 恢复优先的世界任务调度、队列所有权与恢复移交 |
+| `server.feedback` | 单服务器的离线任务提示；保留最新进度与最多四条结果 |
 | `server.submission` | 服务端提交账本、去重记录与任务结算接口 |
 | `server.history` | 每个服务器的历史服务装配、玩家资源所有权与存储接口 |
 | `server.history.entry` | 不可变条目、区域边界、顺序组合及按必填 Type 分派的 Codec |
@@ -91,6 +93,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `SessionSystem` 按服务器身份显式启动和停止，实例持有 `QuickShapeSystem`、`OperationSystem`、`GeometrySystem`。三者分别拥有自己的 `PlayerSessions` 和任务队列；不再保留旧静态 Manager 或兼容转发。UUID 工作流与世界任务在断线后继续保留，换维仍按维度停放和恢复。服务器关闭先结束准入，再统一取消任务、释放资源并清空工作流；一个清理失败不会跳过其他任务，旧 resume 回调不能推进已关闭的实例。停服后的迟到 logout 使用非创建查询。
 
 物理 Alt 状态由玩家作用域的 `InteractionModifierState` 持有，断线、换维和实例替换归零。恢复或重新绑定草稿前以当前物理状态更新其修饰键；旧实例的迟到清理不能改变新实例的草稿。会话系统的实例化不等于业务拆分完成，三类系统的进一步职责拆分及剩余服务端状态仍待迁移。
+
+`WorldTaskScheduler` 只负责恢复 → 起形写入 → 选区写入 → 提交账本的推进顺序，不持有玩家消息。写入闸门关闭后仍分别尝试两类任务的恢复移交；调度异常继续关闭闸门并保留日志与租约。原 `WorldTaskFeature` 已删除。离线消息由 `SessionSystem` 的 `TaskFeedback` 持有，不跨服务器或存档共享；玩家重新登录后发送一次。`WorldTaskContext` 只向仍存在的所属运行实例投递，关闭后的迟到消息被丢弃，不创建备用全局状态。
 
 `UploadSystem` 按服务器显式启动和停止 `WorkspaceUploads`，查询不能创建实例。两种上传使用同一接收流程，各自保留独立分块通道；分块、解码和回执作用域均由实例持有。断线、换维和玩家实体替换取消未提交上传，关闭后拒绝新请求。解码取消同时释放待消费的大结果；旧回调按任务身份校验，不能释放同 ID 新请求的名额。tick 保留仍属于分块、解码或世界任务的作用域，清理已无所有者的作用域。内部实现不向包外暴露。
 
