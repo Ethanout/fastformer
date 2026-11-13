@@ -109,7 +109,7 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
    public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
       this.metrics.phase(phaseMetric());
       while (budget.tryConsume() || (firstWriteReady() && budget.tryConsumeFirstWrite())) {
-         if (!PersistentRecoveryJournal.writesAllowed()) {
+         if (!context.writesAllowed()) {
             failed = true;
             return OperationTaskResult.FAILED;
          }
@@ -669,8 +669,8 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
       List<ReversibleBlockSnapshot> slice = journalSegments.prepare(transaction);
       if (slice.isEmpty()) return JournalPreparation.READY;
       JournalPreparation preparation = journalPreparation.journal() == null
-         ? journalPreparation.poll(() -> journalSnapshots(slice).flatMap(prepared -> PersistentRecoveryJournal.begin(
-            context.server(), context.owner(), dimension, prepared.before(), prepared.after(), operationId()
+         ? journalPreparation.poll(() -> journalSnapshots(slice).flatMap(prepared -> context.recovery().begin(
+            context.owner(), dimension, prepared.before(), prepared.after(), operationId()
          )), context)
          : journalPreparation.pollAppend(() -> journalSnapshots(slice)
             .map(prepared -> journalPreparation.journal().appendSegment(prepared.before(), prepared.after()))

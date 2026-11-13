@@ -4,7 +4,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.BlockEditTransaction;
@@ -18,7 +18,7 @@ import net.minecraft.server.level.ServerPlayer;
 public final class ServerOperationGates {
    public static final Gate<ServerPlayer> AVAILABLE = Gate.<ServerPlayer>require("creative", ServerPlayer::isCreative)
       .and(Gate.require("enabled", player -> FastPlaceSettings.load(player).enabled()))
-      .and(Gate.require("recovery", player -> PersistentRecoveryJournal.writesAllowed()));
+      .and(Gate.require("recovery", player -> RecoverySystem.of(player.getServer()).writeGate().writesAllowed()));
 
    public static final Gate<ServerPlayer> WRITE_AVAILABLE = Gate.<ServerPlayer>require("placement_task", player -> !QuickShapeSystem.of(player).taskActive(player))
       .and(Gate.require("selection_task", player -> !OperationSystem.of(player).taskActive(player)))

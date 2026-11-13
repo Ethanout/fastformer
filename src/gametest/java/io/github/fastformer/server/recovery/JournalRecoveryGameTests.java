@@ -49,10 +49,10 @@ public final class JournalRecoveryGameTests {
             else payload.putInt("DataVersion", version);
             RecoveryJournalSegment.write(directory.resolve("segment-000000.dat"), operation, 0, payload);
          }
-         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))),
+         helper.assertTrue(RecoverySystem.of(level.getServer()).recoverAll(new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))),
             "known version incompatibility blocked all operations");
          helper.assertTrue(after.matches(level, position), "incompatible journal mutated the world");
-         helper.assertTrue(PersistentRecoveryJournal.writesAllowed(), "quarantined versions left writes blocked");
+         helper.assertTrue(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "quarantined versions left writes blocked");
          for (Path journal : journals) {
             helper.assertTrue(!Files.exists(journal), "incompatible journal remained in the active namespace");
             try (var entries = Files.list(quarantine)) {
@@ -77,7 +77,7 @@ public final class JournalRecoveryGameTests {
          }
          deleteDirectoryIfEmpty(quarantine);
          deleteDirectoryIfEmpty(root);
-         PersistentRecoveryJournal.resetWriteGateForTest();
+         RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
       }
    }
 
@@ -212,7 +212,7 @@ public final class JournalRecoveryGameTests {
          helper.assertTrue(journal.finalizeAfter(Map.of()).join(), "journal finalization failed");
          helper.assertTrue(journal.sealFinalizedForHistory(), "journal sealing failed");
          before.restore(level, 2);
-         boolean recovered = PersistentRecoveryJournal.recoverAll(level.getServer(), (player, entry) -> {
+         boolean recovered = RecoverySystem.of(level.getServer()).recoverAll((player, entry) -> {
             if (!entry.equals(operation)) return new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer())).reconcile(player, entry);
             identities.add(List.of(player, entry));
             return java.util.concurrent.CompletableFuture.failedFuture(new java.io.IOException("index unavailable"));
@@ -220,9 +220,9 @@ public final class JournalRecoveryGameTests {
          helper.assertFalse(recovered, "failed history reconciliation was accepted");
          helper.assertTrue(after.matches(level, pos), "sealed world changes were not replayed");
          helper.assertTrue(Files.exists(directory.resolve("seal.done")), "failed reconciliation lost the journal");
-         helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "failed reconciliation admitted new writes");
+         helper.assertFalse(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "failed reconciliation admitted new writes");
          int previousSaves = saves[0];
-         recovered = PersistentRecoveryJournal.recoverAll(level.getServer(), (player, entry) -> {
+         recovered = RecoverySystem.of(level.getServer()).recoverAll((player, entry) -> {
             if (!entry.equals(operation)) return new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer())).reconcile(player, entry);
             identities.add(List.of(player, entry));
             return java.util.concurrent.CompletableFuture.completedFuture(null);
@@ -232,13 +232,13 @@ public final class JournalRecoveryGameTests {
             "reconciliation used the wrong owner or operation");
          helper.assertTrue(saves[0] == previousSaves + 1, "successful reconciliation skipped durable world save");
          helper.assertFalse(Files.exists(directory), "reconciled journal was not cleaned up");
-         helper.assertTrue(PersistentRecoveryJournal.writesAllowed(), "successful retry left writes blocked");
+         helper.assertTrue(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "successful retry left writes blocked");
          helper.succeed();
       } finally {
          before.restore(level, 2);
          deleteJournalDirectory(directory);
          deleteDirectoryIfEmpty(root);
-         PersistentRecoveryJournal.resetWriteGateForTest();
+         RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
       }
    }
 
@@ -257,7 +257,7 @@ public final class JournalRecoveryGameTests {
          journal, UUID.randomUUID(), preparedOperation, level.dimension(), List.of(before), List.of(after));
 
       try {
-         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer(), (owner, operation) -> {
+         helper.assertTrue(RecoverySystem.of(level.getServer()).recoverAll((owner, operation) -> {
             if (preparedOperation.equals(operation)) {
                throw new AssertionError("rolled-back journal must not publish committed history");
             }
@@ -266,13 +266,13 @@ public final class JournalRecoveryGameTests {
          }), "startup recovery scan failed");
          helper.assertTrue(before.matches(level, pos), "startup scan did not roll back the prepared journal");
          helper.assertTrue(!Files.exists(journal), "startup scan retained a journal after its durable save");
-         helper.assertTrue(PersistentRecoveryJournal.writesAllowed(), "successful startup recovery left writes blocked");
+         helper.assertTrue(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "successful startup recovery left writes blocked");
          helper.succeed();
       } finally {
          before.restore(level, 2);
          deleteJournalDirectory(journal);
          deleteDirectoryIfEmpty(directory);
-         PersistentRecoveryJournal.resetWriteGateForTest();
+         RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
       }
    }
 
@@ -291,23 +291,23 @@ public final class JournalRecoveryGameTests {
 
       try {
          helper.assertTrue(
-            !PersistentRecoveryJournal.recoverAll(level.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer())), () -> false),
+            !RecoverySystem.of(level.getServer()).recoverAll(new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer())), () -> false),
             "startup recovery ignored a failed durable save"
          );
          helper.assertTrue(before.matches(level, pos), "startup recovery did not apply before the save attempt");
          helper.assertTrue(Files.exists(journal), "startup recovery deleted the journal after a failed save");
-         helper.assertTrue(!PersistentRecoveryJournal.writesAllowed(), "failed durable save did not block writes");
+         helper.assertTrue(!RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "failed durable save did not block writes");
 
-         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))), "startup recovery retry failed");
+         helper.assertTrue(RecoverySystem.of(level.getServer()).recoverAll(new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))), "startup recovery retry failed");
          helper.assertTrue(before.matches(level, pos), "startup recovery retry changed the restored state");
          helper.assertTrue(!Files.exists(journal), "successful retry did not clean up the journal");
-         helper.assertTrue(PersistentRecoveryJournal.writesAllowed(), "successful retry left writes blocked");
+         helper.assertTrue(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "successful retry left writes blocked");
          helper.succeed();
       } finally {
          before.restore(level, 2);
          deleteJournalDirectory(journal);
          deleteDirectoryIfEmpty(directory);
-         PersistentRecoveryJournal.resetWriteGateForTest();
+         RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
       }
    }
 
@@ -332,16 +332,16 @@ public final class JournalRecoveryGameTests {
       );
 
       try {
-         helper.assertTrue(PersistentRecoveryJournal.recoverAll(level.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))), "segmented startup recovery failed");
+         helper.assertTrue(RecoverySystem.of(level.getServer()).recoverAll(new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))), "segmented startup recovery failed");
          helper.assertTrue(before.matches(level, pos), "segmented startup recovery did not roll back the world");
          helper.assertTrue(!Files.exists(journal), "segmented startup journal was not cleaned up after save");
-         helper.assertTrue(PersistentRecoveryJournal.writesAllowed(), "segmented recovery left writes blocked");
+         helper.assertTrue(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "segmented recovery left writes blocked");
          helper.succeed();
       } finally {
          before.restore(level, 2);
          deleteJournalDirectory(journal);
          deleteDirectoryIfEmpty(recoveryDirectory);
-         PersistentRecoveryJournal.resetWriteGateForTest();
+         RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
       }
    }
 
@@ -364,8 +364,8 @@ public final class JournalRecoveryGameTests {
          List.of(unchanged), List.of(unchanged));
 
       try {
-         helper.assertTrue(!PersistentRecoveryJournal.recoverAll(level.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))), "unsafe startup journals were accepted");
-         helper.assertTrue(!PersistentRecoveryJournal.writesAllowed(), "unsafe startup journals did not block new writes");
+         helper.assertTrue(!RecoverySystem.of(level.getServer()).recoverAll(new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(level.getServer()))), "unsafe startup journals were accepted");
+         helper.assertTrue(!RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "unsafe startup journals did not block new writes");
          helper.assertTrue(Files.exists(corrupt), "corrupt startup journal was deleted");
          helper.assertTrue(Files.exists(unknownDimension), "unknown-dimension journal was deleted");
          helper.assertTrue(unchanged.matches(level, pos), "rejected startup journals changed the world");
@@ -374,7 +374,7 @@ public final class JournalRecoveryGameTests {
          deleteJournalDirectory(corrupt);
          deleteJournalDirectory(unknownDimension);
          deleteDirectoryIfEmpty(directory);
-         PersistentRecoveryJournal.resetWriteGateForTest();
+         RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
       }
    }
 

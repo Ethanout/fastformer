@@ -24,7 +24,7 @@ import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.session.InteractionState;
@@ -88,7 +88,7 @@ public final class ServerInputDispatcher {
       QuickShapeSystem.of(player).cancelTask(player);
       OperationSystem.of(player).cancelTask(player);
       HistorySystem.of(player).cancel(player);
-      if (taskWasActive && !PersistentRecoveryJournal.writesAllowed()) {
+      if (taskWasActive && !RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
       }
    }

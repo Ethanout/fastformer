@@ -487,8 +487,7 @@ public final class PlacementTask extends LeasedJournaledTask {
       Collection<ReversibleBlockSnapshot> journalAfter = predictedPlacementAfter(
          registryAccess, journalBefore, this::stateAt, this.plan.conflictMode()
       );
-      return PersistentRecoveryJournal.begin(
-         context.server(),
+      return context.recovery().begin(
          context.owner(),
          this.plan.dimension(),
          journalBefore,

@@ -1,5 +1,6 @@
 package io.github.fastformer.server.history;
 
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.common.persistence.MinecraftDataVersion;
 import io.github.fastformer.core.persist.Envelope;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
@@ -201,7 +202,7 @@ public final class WorldHistoryPersistenceGameTests {
             "next page was not applied: block=" + helper.getLevel().getBlockState(pos)
                + ", source=" + HistoryTestAccess.historyOrder(HistorySystem.of(helper.getLevel().getServer()), owner, undo)
                + ", target=" + HistoryTestAccess.historyOrder(HistorySystem.of(helper.getLevel().getServer()), owner, !undo)
-               + ", writesAllowed=" + PersistentRecoveryJournal.writesAllowed());
+               + ", writesAllowed=" + RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed());
          helper.assertTrue(HistoryTestAccess.historyOrder(HistorySystem.of(helper.getLevel().getServer()), owner, undo).isEmpty(), "source order is not empty");
          helper.assertTrue(HistoryTestAccess.historyOrder(HistorySystem.of(helper.getLevel().getServer()), owner, !undo).equals(undo ? List.of(older, newest) : List.of(newest, older)),
             "target order differs from the applied sequence");
@@ -291,7 +292,7 @@ public final class WorldHistoryPersistenceGameTests {
             "multi-undo did not restore the oldest before-state: block=" + helper.getLevel().getBlockState(pos)
                + ", undo=" + HistoryTestAccess.historyOrder(HistorySystem.of(helper.getLevel().getServer()), owner, true)
                + ", redo=" + HistoryTestAccess.historyOrder(HistorySystem.of(helper.getLevel().getServer()), owner, false)
-               + ", writesAllowed=" + PersistentRecoveryJournal.writesAllowed()
+               + ", writesAllowed=" + RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed()
          );
          helper.assertTrue(
             HistoryTestAccess.historyOrder(HistorySystem.of(helper.getLevel().getServer()), owner, true).isEmpty(),
@@ -317,8 +318,7 @@ public final class WorldHistoryPersistenceGameTests {
       ReversibleBlockSnapshot after = snapshot(pos, Blocks.GOLD_BLOCK);
       WorldChangeBatch batch = batch(helper, operation, before, after);
       var server = helper.getLevel().getServer();
-      PersistentRecoveryJournal journal = PersistentRecoveryJournal.begin(
-         server, owner, helper.getLevel().dimension(), List.of(before), List.of(after), operation
+      PersistentRecoveryJournal journal = RecoverySystem.of(server).begin(owner, helper.getLevel().dimension(), List.of(before), List.of(after), operation
       ).orElseThrow();
       helper.assertTrue(journal.finalizeAfter(Map.of()).join(), "journal finalization failed");
       java.nio.file.Path journalDirectory = journalDirectory(server, operation);
@@ -382,7 +382,7 @@ public final class WorldHistoryPersistenceGameTests {
                reopened.loadIndex(owner).join().orElseThrow().undo().equals(List.of(operation)),
                "retried index omitted the operation"
             );
-            PersistentRecoveryJournal.onLevelSaved(helper.getLevel());
+            RecoverySystem.of(helper.getLevel().getServer()).onLevelSaved(helper.getLevel());
             phase[0] = 3;
          }
 
@@ -407,8 +407,7 @@ public final class WorldHistoryPersistenceGameTests {
       ReversibleBlockSnapshot after = snapshot(pos, Blocks.GOLD_BLOCK);
       WorldChangeBatch batch = batch(helper, operation, before, after);
       var server = helper.getLevel().getServer();
-      PersistentRecoveryJournal journal = PersistentRecoveryJournal.begin(
-         server, owner, helper.getLevel().dimension(), List.of(before), List.of(after), operation
+      PersistentRecoveryJournal journal = RecoverySystem.of(server).begin(owner, helper.getLevel().dimension(), List.of(before), List.of(after), operation
       ).orElseThrow();
       helper.assertTrue(journal.finalizeAfter(Map.of()).join(), "journal finalization failed");
       repository.publishBatchOnly(owner, batch).join();
@@ -427,7 +426,7 @@ public final class WorldHistoryPersistenceGameTests {
                "startup reconciliation did not publish the recovered operation"
             );
             journal.historyPublished();
-            PersistentRecoveryJournal.onLevelSaved(helper.getLevel());
+            RecoverySystem.of(helper.getLevel().getServer()).onLevelSaved(helper.getLevel());
             cleanupStarted[0] = true;
          }
          helper.assertTrue(
@@ -451,8 +450,7 @@ public final class WorldHistoryPersistenceGameTests {
       ReversibleBlockSnapshot after = snapshot(pos, Blocks.GOLD_BLOCK);
       WorldChangeBatch batch = batch(helper, operation, before, after);
       var server = helper.getLevel().getServer();
-      PersistentRecoveryJournal journal = PersistentRecoveryJournal.begin(
-         server, owner, helper.getLevel().dimension(), List.of(before), List.of(after), operation
+      PersistentRecoveryJournal journal = RecoverySystem.of(server).begin(owner, helper.getLevel().dimension(), List.of(before), List.of(after), operation
       ).orElseThrow();
       helper.assertTrue(journal.finalizeAfter(Map.of()).join(), "journal finalization failed");
       repository.publishBatchOnly(owner, batch).join();
@@ -493,7 +491,7 @@ public final class WorldHistoryPersistenceGameTests {
                "startup reconciliation did not publish the recovered operation"
             );
             journal.historyPublished();
-            PersistentRecoveryJournal.onLevelSaved(helper.getLevel());
+            RecoverySystem.of(helper.getLevel().getServer()).onLevelSaved(helper.getLevel());
             reconciled[0] = true;
          }
          helper.assertTrue(!java.nio.file.Files.exists(journalDirectory), "recovered journal cleanup is pending");
@@ -510,7 +508,7 @@ public final class WorldHistoryPersistenceGameTests {
       var before = snapshot(pos, Blocks.STONE);
       var after = snapshot(pos, Blocks.GOLD_BLOCK);
       var batch = batch(helper, operation, before, after);
-      var journal = PersistentRecoveryJournal.begin(server, owner, helper.getLevel().dimension(),
+      var journal = RecoverySystem.of(server).begin(owner, helper.getLevel().dimension(),
          List.of(before), List.of(after), operation).orElseThrow();
       helper.assertTrue(journal.finalizeAfter(Map.of()).join(), "journal finalization failed");
       repository.publishSnapshot(owner, List.of(batch), List.of()).join();
@@ -523,7 +521,7 @@ public final class WorldHistoryPersistenceGameTests {
       helper.assertTrue(reopened.retiredBatches(owner).join().contains(operation), "retirement intent disappeared");
       repository.reconcileCommittedJournal(owner, operation).join();
       helper.assertTrue(reopened.loadIndex(owner).join().orElseThrow().undo().isEmpty(), "recovery revived intentionally removed history");
-      PersistentRecoveryJournal.onLevelSaved(helper.getLevel());
+      RecoverySystem.of(helper.getLevel().getServer()).onLevelSaved(helper.getLevel());
       helper.succeedWhen(() -> {
          helper.assertTrue(!java.nio.file.Files.exists(directory), "journal cleanup is pending");
          reopened.cleanupUnreferencedBatches(owner, java.util.Set.of()).join();

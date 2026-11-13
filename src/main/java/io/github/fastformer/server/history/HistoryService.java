@@ -577,10 +577,10 @@ public final class HistoryService implements AutoCloseable {
       }
    }
 
-   private boolean tickOwner(WorldTaskContext context) {
+   boolean tickOwner(WorldTaskContext context) {
       UUID owner = context.owner();
       OwnerHistory ownerState = ownerState(owner);
-      if (!PersistentRecoveryJournal.writesAllowed()) {
+      if (!context.writesAllowed()) {
          // Discard the continuation before a completed page can resume it.
          ownerState.loading.pages().cancelPageLoad();
       }

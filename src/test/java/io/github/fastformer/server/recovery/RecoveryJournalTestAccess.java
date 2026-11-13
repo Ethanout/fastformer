@@ -6,10 +6,6 @@ import java.nio.file.Path;
 public final class RecoveryJournalTestAccess {
    private RecoveryJournalTestAccess() {}
 
-   public static void resetWriteGate() {
-      PersistentRecoveryJournal.resetWriteGateForTest();
-   }
-
    public static PersistentRecoveryJournal open(Path directory) {
       return new PersistentRecoveryJournal(directory);
    }

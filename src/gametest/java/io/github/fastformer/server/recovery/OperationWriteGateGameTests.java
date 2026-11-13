@@ -46,10 +46,10 @@ public final class OperationWriteGateGameTests {
          1, ClientSelectionPart.Source.WORLD, blocks, WorkspaceTransform.IDENTITY, false
       )));
       try {
-         helper.assertFalse(WorldTaskSchedulerTestAccess.tickSafely("operation-write-gate-test", () -> {
+         helper.assertFalse(WorldTaskSchedulerTestAccess.tickSafely(helper.getLevel().getServer(), "operation-write-gate-test", () -> {
             throw new IllegalStateException("expected test failure to close the write gate");
          }), "the write gate did not close");
-         helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");
+         helper.assertFalse(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "writes are still allowed");
          helper.assertFalse(OperationSystem.of(player).applyWorkspace(player, transferId, plan).isQueued(),
             "a workspace submission was accepted while the write gate was closed");
          helper.assertFalse(OperationSystem.of(player).taskActive(player), "a refused submission started a task");
@@ -59,7 +59,7 @@ public final class OperationWriteGateGameTests {
             transferId
          ) == OperationSubmissionOutcome.UNKNOWN, "a refused submission left a ledger record");
       } finally {
-         PersistentRecoveryJournal.resetWriteGateForTest();
+         RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
       }
       helper.succeed();
    }
@@ -111,8 +111,8 @@ public final class OperationWriteGateGameTests {
          if (!handedOver[0]) {
             try {
                helper.assertTrue(OperationSystem.of(player).taskActive(player), "an accepted submission queued no task");
-               PersistentRecoveryJournal.blockNewWrites();
-               helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");
+               RecoverySystem.of(helper.getLevel().getServer()).writeGate().blockNewWrites();
+               helper.assertFalse(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "writes are still allowed");
                WorldTaskScheduler.tick(server);
                helper.assertFalse(OperationSystem.of(player).taskActive(player), "a blocked task stayed in the queue");
                helper.assertTrue(SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId
@@ -124,7 +124,7 @@ public final class OperationWriteGateGameTests {
                phaseFailure[0] = exception;
                throw exception;
             } finally {
-               PersistentRecoveryJournal.resetWriteGateForTest();
+               RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
             }
             handedOver[0] = true;
          }

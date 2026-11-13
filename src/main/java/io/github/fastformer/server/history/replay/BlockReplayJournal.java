@@ -38,8 +38,8 @@ public final class BlockReplayJournal implements ReplayJournal {
 
    @Override public JournalPreparation prepare(WorldTaskContext context, UUID operationId) {
       if (recovery || journal != null) return JournalPreparation.READY;
-      JournalPreparation result = preparation.poll(() -> PersistentRecoveryJournal.begin(
-         context.server(), context.owner(), batch.dimension(), conflicts.snapshots(batch, undo, false),
+      JournalPreparation result = preparation.poll(() -> context.recovery().begin(
+         context.owner(), batch.dimension(), conflicts.snapshots(batch, undo, false),
          conflicts.snapshots(batch, undo, true), operationId), context);
       if (result == JournalPreparation.READY) journal = preparation.journal();
       return result;

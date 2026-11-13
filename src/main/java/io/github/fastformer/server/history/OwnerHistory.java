@@ -219,8 +219,8 @@ final class OwnerHistory {
    boolean tickReplay(WorldTaskContext context, HistoryReplayTask.HistoryAccess replayAccess) {
       HistoryReplayTask task = active;
       if (task == null) return false;
-      if (!PersistentRecoveryJournal.writesAllowed() && !task.recovery()) {
-         // The global gate may close after an undo/redo was accepted. Do not
+      if (!context.writesAllowed() && !task.recovery()) {
+         // This server's gate may close after an undo/redo was accepted. Do not
          // apply more history targets; requestCancel either discards its
          // unused journal or rolls its already-applied cells back.
          task.requestCancel();

@@ -10,7 +10,7 @@ import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
-import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -475,8 +475,8 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          // reports the state that it already holds.
          return io.github.fastformer.workspace.submission.WorkspaceAdmission.replayed(recorded);
       }
-      if (!PersistentRecoveryJournal.writesAllowed()) {
-         // The global write gate is closed for this server session, because a disk
+      if (!RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
+         // The write gate is closed for this server session, because a disk
          // journal could not be recovered safely. Refuse before the ledger begin so no
          // record claims this transfer was accepted. A later retry uses a new transfer.
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
@@ -615,17 +615,18 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
 
    public void tickWorld(net.minecraft.server.MinecraftServer server, HistoryService history) {
       for (UUID owner : tasks.owners()) {
-         if (!PersistentRecoveryJournal.writesAllowed()) {
+         WorldTaskContext context = new WorldTaskContext(server, owner);
+         if (!context.writesAllowed()) {
             break;
          }
          if (tasks.handingOver(owner)) {
-            handOverBlockedTask(new WorldTaskContext(server, owner), history);
+            handOverBlockedTask(context, history);
             continue;
          }
          if (history.busy(owner) || runtime.quickShape.taskActive(owner)) {
             continue;
          }
-         tickTask(new WorldTaskContext(server, owner), history);
+         tickTask(context, history);
       }
    }
 
@@ -765,7 +766,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    private void resumeTask(WorldTaskContext context, WorldOperationTask task, HistoryService history) {
       if (!runtime.closed() && tasks.get(context.owner()) == task
          && !tasks.handingOver(context.owner())
-         && PersistentRecoveryJournal.writesAllowed()
+         && context.writesAllowed()
          && !history.busy(context.owner())
          && !runtime.quickShape.taskActive(context.owner())) {
          tickTask(context, history);

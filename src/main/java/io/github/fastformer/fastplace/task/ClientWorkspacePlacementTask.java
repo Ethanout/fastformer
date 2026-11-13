@@ -2,7 +2,6 @@ package io.github.fastformer.fastplace.task;
 
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
-import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
@@ -107,7 +106,7 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
       this.metrics.phase(phaseMetric());
       while (budget.tryConsume()
          || (phase == Phase.WRITE && !writable.isEmpty() && !hasWrites() && budget.tryConsumeFirstWrite())) {
-         if (!PersistentRecoveryJournal.writesAllowed()) {
+         if (!context.writesAllowed()) {
             return OperationTaskResult.FAILED;
          }
          switch (phase) {
@@ -372,8 +371,8 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
       List<ReversibleBlockSnapshot> slice = journalSegments.prepare(transaction);
       if (slice.isEmpty()) return JournalPreparation.READY;
       JournalPreparation preparation = journalPreparation.journal() == null
-         ? journalPreparation.poll(() -> PersistentRecoveryJournal.begin(
-            context.server(), context.owner(), dimension, slice, predictedFinalSnapshots(slice), operationId()
+         ? journalPreparation.poll(() -> context.recovery().begin(
+            context.owner(), dimension, slice, predictedFinalSnapshots(slice), operationId()
          ), context)
          : journalPreparation.pollAppend(() ->
             journalPreparation.journal().appendSegment(slice, predictedFinalSnapshots(slice))

@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
@@ -41,7 +42,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class WorldHistoryOwnerLifecycleTest {
-   private static final HistoryService history = new HistoryService(
+   private final HistoryService history = new HistoryService(
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
    private static final ResourceKey<Level> DIMENSION = ResourceKey.create(
@@ -52,7 +53,6 @@ class WorldHistoryOwnerLifecycleTest {
    @AfterEach
    void clearHistory() {
       history.clear();
-      RecoveryJournalTestAccess.resetWriteGate();
    }
 
    @Test
@@ -60,6 +60,8 @@ class WorldHistoryOwnerLifecycleTest {
       for (boolean activeTask : List.of(false, true)) {
          for (boolean completedPage : List.of(false, true)) {
             UUID ownerId = UUID.randomUUID();
+            var gate = new RecoveryWriteGate();
+            var context = new WorldTaskContext(null, ownerId, () -> {}, gate);
             WorldChangeBatch older = batch(BlockPos.ZERO, UUID.randomUUID());
             OwnerHistory owner = history.ownerState(ownerId);
             HistoryMemoryCache<HistoryEntry> memory = new HistoryMemoryCache<HistoryEntry>();
@@ -83,15 +85,15 @@ class WorldHistoryOwnerLifecycleTest {
             if (completedPage) {
                load.complete(List.of(older));
             }
-            PersistentRecoveryJournal.blockNewWrites();
+            gate.blockNewWrites();
 
-            history.tickWorld(null);
+            history.tickOwner(context);
 
             assertFalse(history.busy(ownerId), "closed gate retained a page request");
             assertEquals(0, HistoryTestAccess.undoSize(history, ownerId), "cancelled page entered the cache");
             assertFalse(load.complete(List.of(older)), "late completion survived cancellation");
-            RecoveryJournalTestAccess.resetWriteGate();
-            history.tickWorld(null);
+            gate.finishRecovery(gate.beginRecovery(), true);
+            history.tickOwner(context);
             assertFalse(history.busy(ownerId));
             assertTrue(scheduler.takeCompletedPageLoad().isEmpty());
          }
@@ -359,7 +361,7 @@ class WorldHistoryOwnerLifecycleTest {
       assertEquals(1, HistoryTestAccess.recoveryCaptureCount(history, pendingCapture));
    }
 
-   private static void createDetachedIdleOwnerPressure() {
+   private void createDetachedIdleOwnerPressure() {
       for (int i = 0; i < HistoryService.MAX_IDLE_OWNERS + 20; i++) {
          UUID owner = UUID.randomUUID();
          history.deferUndoAfterRecovery(owner, 1);

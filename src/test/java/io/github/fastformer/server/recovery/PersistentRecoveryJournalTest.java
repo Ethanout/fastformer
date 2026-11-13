@@ -16,10 +16,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class PersistentRecoveryJournalTest {
+   @BeforeAll
+   static void detectGameVersion() {
+      net.minecraft.SharedConstants.tryDetectVersion();
+   }
+
    @TempDir
    Path temporaryDirectory;
 
@@ -274,7 +280,9 @@ class PersistentRecoveryJournalTest {
       try (var workers = new io.github.fastformer.core.async.IoExecutors("journal-barrier-test", ignored -> {})) {
          var executor = workers.serial("recovery", 4);
          CompletableFuture.runAsync(() -> completed.set(true), executor);
-         assertEquals(true, PersistentRecoveryJournal.awaitIoIdle(executor));
+         try (var recovery = new RecoverySystem(null, executor, temporaryDirectory)) {
+            assertEquals(true, recovery.awaitIoIdle());
+         }
          assertEquals(true, completed.get());
       }
    }
@@ -292,6 +300,26 @@ class PersistentRecoveryJournalTest {
       try (var children = Files.list(this.temporaryDirectory)) {
          assertEquals(0L, children.filter(path -> path.getFileName().toString().contains(".tmp-")).count());
       }
+   }
+
+   @Test
+   void historySealingRetainsTheJournalUntilPublicationAndADurableSave() throws Exception {
+      var retention = new CommittedJournalRetention();
+      UUID operation = UUID.randomUUID();
+      Path path = segmentedDirectory(UUID.randomUUID(), operation);
+      var journal = new PersistentRecoveryJournal(path, net.minecraft.world.level.Level.OVERWORLD,
+         operation, Runnable::run, retention);
+      assertEquals(true, journal.finalizeAfter(Map.of()).join());
+      assertEquals(true, journal.sealFinalizedForHistory());
+      var work = new java.util.ArrayDeque<Runnable>();
+      retention.saved(net.minecraft.world.level.Level.OVERWORLD, temporaryDirectory, work::addLast, () -> {});
+      assertEquals(0, work.size(), "unpublished history became eligible for journal cleanup");
+      assertEquals(true, Files.exists(path));
+      journal.historyPublished();
+      retention.saved(net.minecraft.world.level.Level.OVERWORLD, temporaryDirectory, work::addLast, () -> {});
+      assertEquals(1, work.size());
+      work.removeFirst().run();
+      assertEquals(false, Files.exists(path));
    }
 
    private Path segmentedDirectory(UUID owner, UUID operation) throws Exception {

@@ -97,6 +97,14 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (text =~ /io\.github\.fastformer\.(?:fastplace|server)\.history\./).find()) {
                 violations.add("Recovery depends on history implementation instead of its reconciliation SPI: ${path}")
             }
+            if (main && source.name == 'PersistentRecoveryJournal.java' &&
+                    (text =~ /(?:\bstatic\s+(?:volatile\s+boolean|final\s+(?:Map|java\.util\.Set))\s+|\b(?:writesAllowed|blockNewWrites|resetWriteGateForTest|recoverAll|onLevelSaved)\s*\()/).find()) {
+                violations.add("Journal file owns server recovery admission or shared cleanup state: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.recovery.gate') &&
+                    (dependencies =~ /(?:net\.|io\.github\.fastformer\.(?!core\.))/).find()) {
+                violations.add("Recovery gate depends on storage, game runtime, or orchestration: ${path}")
+            }
             if (main && packageName.startsWith('io.github.fastformer.server.history.commit') &&
                     (text =~ /(?:net\.minecraft\.|net\.neoforged\.|io\.github\.fastformer\.(?!server\.history\.commit[.;]))/).find()) {
                 violations.add("Commit state machine depends on storage or world runtime: ${path}")

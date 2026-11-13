@@ -1,5 +1,6 @@
 package io.github.fastformer.server.history;
 
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
@@ -213,10 +214,10 @@ public final class WorkspaceReplayGameTests {
          SessionSystem.of(server).submissions().finish(player.getUUID(), dimension, transferId, true, false, false);
 
          // The gate closes for the rest of the session, as it does after a journal failure.
-         helper.assertFalse(WorldTaskSchedulerTestAccess.tickSafely("workspace-replay-gate-test", () -> {
+         helper.assertFalse(WorldTaskSchedulerTestAccess.tickSafely(server, "workspace-replay-gate-test", () -> {
             throw new IllegalStateException("expected test failure to close the write gate");
          }), "the write gate did not close");
-         helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");
+         helper.assertFalse(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "writes are still allowed");
 
          // The dispatcher must examine the ledger before the gates. A gate refuses new work,
          // and a replay is not new work: it reports a result that already exists.
@@ -234,7 +235,7 @@ public final class WorkspaceReplayGameTests {
          helper.assertTrue(admission.sendsResult(), "an applied replay sent no result");
          helper.assertFalse(admission.retryable(), "an applied replay offered a retry");
       } finally {
-         RecoveryJournalTestAccess.resetWriteGate();
+         RecoveryJournalTestAccess.resetWriteGate(helper.getLevel().getServer());
          // Only this test's own record leaves. The maps of other owners stay untouched.
          SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       }

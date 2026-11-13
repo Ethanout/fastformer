@@ -5,7 +5,7 @@ import io.github.fastformer.server.network.upload.UploadSystem;
 
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistoryRecoveryReconciler;
-import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
@@ -81,7 +81,7 @@ public final class PlayerLifecycleEvents {
       QuickShapeSystem.of(player).syncCurrentPreview(player);
       HistorySystem.of(player).trimToSetting(player, FastPlaceSettings.load(player).worldUndoHistoryLimit());
       SessionSystem.of(player.getServer()).feedback().attach(player);
-      if (!PersistentRecoveryJournal.writesAllowed()) {
+      if (!RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
          FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
       }
    }
@@ -95,15 +95,14 @@ public final class PlayerLifecycleEvents {
 
    private static void onServerStarted(ServerStartedEvent event) {
       ServerBackgroundTasks.start(event.getServer());
+      RecoverySystem.start(event.getServer());
       PlayerStateRegistry.start(event.getServer());
       SessionSystem.start(event.getServer());
       HistorySystem.start(event.getServer());
       UploadSystem.start(event.getServer());
       HistorySystem.of(event.getServer()).clear();
       WorldWriteCoordinator.clear(event.getServer());
-      if (PersistentRecoveryJournal.awaitIoIdle(event.getServer())) {
-         PersistentRecoveryJournal.recoverAll(event.getServer(), new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(event.getServer())));
-      }
+      RecoverySystem.of(event.getServer()).recoverAll(new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(event.getServer())));
       HistorySystem.of(event.getServer()).resumeDiskCleanup(event.getServer());
    }
 
@@ -113,7 +112,7 @@ public final class PlayerLifecycleEvents {
          QuickShapeSystem.of(player).remove(player);
       }
       SessionSystem.stop(event.getServer());
-      PersistentRecoveryJournal.awaitIoIdle(event.getServer());
+      RecoverySystem.of(event.getServer()).awaitIoIdle();
       HistorySystem.of(event.getServer()).awaitDiskWritesOnShutdown(event.getServer());
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.of(event.getServer()).close();
@@ -125,6 +124,7 @@ public final class PlayerLifecycleEvents {
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.stop(event.getServer());
       WorldWriteCoordinator.clear(event.getServer());
+      RecoverySystem.stop(event.getServer());
       ServerBackgroundTasks.stop(event.getServer());
       PlayerStateRegistry.stop(event.getServer());
       HistorySystem.stop(event.getServer());
@@ -132,7 +132,7 @@ public final class PlayerLifecycleEvents {
 
    private static void onLevelSave(LevelEvent.Save event) {
       if (event.getLevel() instanceof ServerLevel level) {
-         PersistentRecoveryJournal.onLevelSaved(level);
+         RecoverySystem.find(level.getServer()).ifPresent(recovery -> recovery.onLevelSaved(level));
       }
    }
 }

@@ -39,7 +39,7 @@ public final class WorldJournalPreparation {
                if (context == null || context.server() == null) {
                   throw new IllegalStateException("Journal preparation requires a server or an injected executor");
                }
-               executor = PersistentRecoveryJournal.executor(context.server());
+               executor = context.recovery().executor();
             }
             this.future = AsyncTasks.submit(executor, factory::get);
          } catch (RuntimeException failure) {

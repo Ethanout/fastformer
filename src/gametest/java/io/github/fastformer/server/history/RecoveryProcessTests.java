@@ -1,5 +1,6 @@
 package io.github.fastformer.server.history;
 
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import io.github.fastformer.server.history.entry.HistoryEntry;
 
@@ -194,7 +195,7 @@ public final class RecoveryProcessTests {
          net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState(), null);
       var batch = WorldChangeBatch.capturePairsByPos(Level.OVERWORLD, List.of(before),
          Map.of(PLACEMENT_POS, after)).orElseThrow().withOperationId(HISTORY_OPERATION);
-      var journal = PersistentRecoveryJournal.begin(server, HISTORY_OWNER, Level.OVERWORLD,
+      var journal = RecoverySystem.of(server).begin(HISTORY_OWNER, Level.OVERWORLD,
          List.of(before), List.of(after), HISTORY_OPERATION).orElseThrow();
       if (!journal.finalizeAfter(Map.of()).join()) {
          throw new IllegalStateException("history journal finalization failed");
@@ -209,7 +210,7 @@ public final class RecoveryProcessTests {
          haltUnsealedHistory(server);
          return;
       }
-      if (!journal.sealFinalizedForHistory() || !PersistentRecoveryJournal.awaitIoIdle(server)) {
+      if (!journal.sealFinalizedForHistory() || !RecoverySystem.of(server).awaitIoIdle()) {
          throw new IllegalStateException("history journal seal failed");
       }
       Path index = server.getWorldPath(LevelResource.ROOT).resolve("fastformer-history")
@@ -250,7 +251,7 @@ public final class RecoveryProcessTests {
          net.minecraft.world.level.material.Fluids.EMPTY.defaultFluidState(), null);
       var batch = WorldChangeBatch.capturePairsByPos(Level.OVERWORLD, List.of(before),
          Map.of(PLACEMENT_POS, after)).orElseThrow().withOperationId(NEWEST_HISTORY_OPERATION);
-      var journal = PersistentRecoveryJournal.begin(server, HISTORY_OWNER, Level.OVERWORLD,
+      var journal = RecoverySystem.of(server).begin(HISTORY_OWNER, Level.OVERWORLD,
          List.of(before), List.of(after), NEWEST_HISTORY_OPERATION).orElseThrow();
       if (!journal.finalizeAfter(Map.of()).join()) {
          throw new IllegalStateException("newest journal finalization failed");
@@ -260,7 +261,7 @@ public final class RecoveryProcessTests {
       if (mode == Mode.CRASH_MIXED_HISTORY) {
          return;
       }
-      if (!journal.sealFinalizedForHistory() || !PersistentRecoveryJournal.awaitIoIdle(server)) {
+      if (!journal.sealFinalizedForHistory() || !RecoverySystem.of(server).awaitIoIdle()) {
          throw new IllegalStateException("newest journal seal failed");
       }
    }
@@ -274,7 +275,7 @@ public final class RecoveryProcessTests {
    }
 
    private static void haltUnsealedHistory(MinecraftServer server) throws IOException {
-      if (!PersistentRecoveryJournal.awaitIoIdle(server) || !server.saveAllChunks(true, true, true)) {
+      if (!RecoverySystem.of(server).awaitIoIdle() || !server.saveAllChunks(true, true, true)) {
          throw new IllegalStateException("unsealed history boundary was not saved");
       }
       IOUtilities.waitUntilIOWorkerComplete();
@@ -327,7 +328,7 @@ public final class RecoveryProcessTests {
       if (!operations.allWritten()) {
          return;
       }
-      if (!PersistentRecoveryJournal.awaitIoIdle(server)
+      if (!RecoverySystem.of(server).awaitIoIdle()
          || operations.placement().journal() == null
          || operations.workspace().journal() == null
          || operations.selection().journal() == null) {
@@ -433,7 +434,7 @@ public final class RecoveryProcessTests {
             }
          }
       }
-      if (!PersistentRecoveryJournal.writesAllowed()) {
+      if (!RecoverySystem.of(server).writeGate().writesAllowed()) {
          throw new IllegalStateException("startup recovery left writes blocked");
       }
       if (WorldWriteCoordinator.busy(server, Level.OVERWORLD)

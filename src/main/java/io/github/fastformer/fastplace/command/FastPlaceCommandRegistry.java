@@ -23,7 +23,7 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
@@ -848,7 +848,7 @@ public final class FastPlaceCommandRegistry {
       FastPlaceMessages.chat(
          player,
          FastPlaceMessages.text(
-            PersistentRecoveryJournal.writesAllowed()
+            RecoverySystem.of(player.getServer()).writeGate().writesAllowed()
                ? "fastformer.message.command_unavailable"
                : "fastformer.message.recovery_journal_blocked"
          )

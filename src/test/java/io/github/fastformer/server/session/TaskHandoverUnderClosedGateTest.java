@@ -39,7 +39,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * The handover the scheduler performs while the global write gate is closed.
+ * The handover the scheduler performs while its server's write gate is closed.
  *
  * <p>A queued task must leave its queue only after the recovery path accepted the
  * snapshot. A refused or failed transfer must keep the queue slot, and one failing owner

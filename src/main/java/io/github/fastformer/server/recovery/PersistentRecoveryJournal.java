@@ -19,10 +19,8 @@ import io.github.fastformer.core.async.AsyncTasks;
 import io.github.fastformer.common.persistence.NbtEnvelopeFile;
 import io.github.fastformer.core.persist.StoragePaths;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.server.lifecycle.ServerBackgroundTasks;
 import io.github.fastformer.server.recovery.RecoveryJournalCodec.EncodedSnapshotKey;
 import io.github.fastformer.server.recovery.RecoveryJournalCodec.PaletteLayout;
-import io.github.fastformer.server.recovery.spi.HistoryReconciler;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,23 +28,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.storage.LevelResource;
-import net.neoforged.neoforge.common.IOUtilities;
 import org.slf4j.Logger;
 
 /**
@@ -59,11 +49,6 @@ import org.slf4j.Logger;
  */
 public final class PersistentRecoveryJournal {
    private static final Logger LOGGER = LogUtils.getLogger();
-   private static final AtomicLong SEQUENCE = new AtomicLong(System.currentTimeMillis() * 1000L);
-   private static final int IO_CAPACITY = 512;
-   private static volatile boolean startupRecoveryBlocked;
-   private static final Map<Path, ResourceKey<Level>> COMMITTED = new ConcurrentHashMap<>();
-   private static final java.util.Set<Path> CLEANUP_PENDING = ConcurrentHashMap.newKeySet();
 
    private static final int SEGMENTED_LIMIT = 65_536;
    private static final int FIRST_SEGMENT_CELLS = 256;
@@ -72,7 +57,8 @@ public final class PersistentRecoveryJournal {
    private final Path file;
    private final ResourceKey<Level> dimension;
    private final UUID operationId;
-   private Executor ioExecutor = Runnable::run;
+   private final Executor ioExecutor;
+   private final CommittedJournalRetention retention;
    private int nextSegmentIndex;
    private boolean committed;
    private volatile boolean finalAfterPrepared;
@@ -91,8 +77,16 @@ public final class PersistentRecoveryJournal {
    private PersistentRecoveryJournal(
       Path file, ResourceKey<Level> dimension, UUID operationId
    ) {
+      this(file, dimension, operationId, Runnable::run, new CommittedJournalRetention());
+   }
+
+   PersistentRecoveryJournal(
+      Path file, ResourceKey<Level> dimension, UUID operationId, Executor ioExecutor, CommittedJournalRetention retention
+   ) {
       this.file = file;
       this.dimension = dimension;
+      this.ioExecutor = java.util.Objects.requireNonNull(ioExecutor);
+      this.retention = java.util.Objects.requireNonNull(retention);
       UUID resolvedOperation = operationId;
       int nextSegment = 0;
       if (file != null && Files.isDirectory(file)) {
@@ -120,75 +114,19 @@ public final class PersistentRecoveryJournal {
       return this.operationId;
    }
 
-   public static Optional<PersistentRecoveryJournal> begin(
-      ServerPlayer player,
-      ResourceKey<Level> dimension,
-      Collection<ReversibleBlockSnapshot> before,
-      Collection<ReversibleBlockSnapshot> after
-   ) {
-      if (player == null || player.getServer() == null) {
-         return Optional.empty();
-      }
-      return begin(player.getServer(), player.getUUID(), dimension, before, after);
-   }
-
-   public static Optional<PersistentRecoveryJournal> begin(
-      MinecraftServer server,
-      UUID owner,
-      ResourceKey<Level> dimension,
-      Collection<ReversibleBlockSnapshot> before,
-      Collection<ReversibleBlockSnapshot> after
-   ) {
-      return begin(server, owner, dimension, before, after, null);
-   }
-
-   public static Optional<PersistentRecoveryJournal> begin(
-      MinecraftServer server,
-      UUID owner,
-      ResourceKey<Level> dimension,
-      Collection<ReversibleBlockSnapshot> before,
-      Collection<ReversibleBlockSnapshot> after,
-      UUID operationId
-   ) {
-      if (server == null || owner == null || dimension == null || before == null || before.isEmpty() || after == null) {
-         return Optional.empty();
-      }
-      if (startupRecoveryBlocked) {
-         return Optional.empty();
-      }
-      Path directory = journalDirectory(server);
-      if (hasOwnerJournal(directory, owner)) {
-         LOGGER.error("Refusing to replace an existing FastFormer recovery journal for {}", owner);
-         startupRecoveryBlocked = true;
-         return Optional.empty();
-      }
-      long sequence = SEQUENCE.updateAndGet(previous -> Math.max(previous + 1L, System.currentTimeMillis() * 1000L));
-      UUID resolvedOperation = operationId == null ? UUID.randomUUID() : operationId;
-      Path operationDirectory = directory.resolve(String.format("%020d-%s-%s", sequence, owner, resolvedOperation));
-      try {
-         PersistentRecoveryJournal journal = writeSegmentedJournal(operationDirectory, owner, resolvedOperation, dimension, before, after);
-         journal.ioExecutor = executor(server);
-         return Optional.of(journal);
-      } catch (IOException | RuntimeException exception) {
-         LOGGER.error("Could not create FastFormer recovery journal for {}", owner, exception);
-         deleteDirectoryQuietly(operationDirectory);
-         return Optional.empty();
-      }
-   }
-
    /** Atomically marks a successful operation committed; cleanup waits for a durable level save. */
    public synchronized boolean complete() {
       if (this.committed) {
          return true;
       }
-      return completeSegmented();
+      return completeSegmented(true);
    }
 
-   private boolean completeSegmented() {
+   private boolean completeSegmented(boolean eligibleForCleanup) {
       Path seal = this.file.resolve(JOURNAL_SEAL);
       try {
          if (Files.exists(seal)) {
-            markSegmentedCommitted();
+            markSegmentedCommitted(eligibleForCleanup);
             return true;
          }
          if (!Files.isDirectory(this.file)) {
@@ -206,18 +144,22 @@ public final class PersistentRecoveryJournal {
          LOGGER.error("Could not seal FastFormer recovery journal {}", this.file, exception);
          return false;
       }
-      markSegmentedCommitted();
+      markSegmentedCommitted(eligibleForCleanup);
       return true;
    }
 
-   private void markSegmentedCommitted() {
+   private void markSegmentedCommitted(boolean eligibleForCleanup) {
       this.committed = true;
-      if (this.dimension != null) {
-         COMMITTED.put(this.file, this.dimension);
+      if (eligibleForCleanup && this.dimension != null) {
+         retention.retain(this.file, this.dimension);
       }
    }
 
    public synchronized boolean completeFinalized() {
+      return finalStatePrepared() && this.complete();
+   }
+
+   private boolean finalStatePrepared() {
       if (!this.finalAfterPrepared) {
          LOGGER.error("Refusing to commit FastFormer journal before final after-state preparation: {}", this.file);
          return false;
@@ -226,22 +168,22 @@ public final class PersistentRecoveryJournal {
          LOGGER.error("Refusing to commit FastFormer journal without its required correction: {}", this.file);
          return false;
       }
-      return this.complete();
+      return true;
    }
 
    public synchronized boolean sealFinalizedForHistory() {
-      if (!this.completeFinalized()) {
+      if (!finalStatePrepared()) {
          return false;
       }
-      COMMITTED.remove(this.file);
-      return true;
+      retention.forget(this.file);
+      return this.committed || completeSegmented(false);
    }
 
    public synchronized void historyPublished() {
       if (!this.committed || this.dimension == null) {
          return;
       }
-      COMMITTED.put(this.file, this.dimension);
+      retention.retain(this.file, this.dimension);
    }
 
    /** Removes a prepared journal for a task that was cancelled before any world write. */
@@ -271,50 +213,13 @@ public final class PersistentRecoveryJournal {
       try {
          deleteDirectoryQuietly(this.file);
          if (Files.exists(this.file)) return false;
-         COMMITTED.remove(this.file);
+         retention.forget(this.file);
       } catch (RuntimeException exception) {
          LOGGER.error("Could not remove FastFormer journal after durable rollback: {}", this.file, exception);
          return false;
       }
       this.committed = true;
       return true;
-   }
-
-   /** Deletes committed markers only after NeoForge's asynchronous chunk IO is durably complete. */
-   public static void onLevelSaved(ServerLevel level) {
-      Path currentDirectory = journalDirectory(level.getServer()).toAbsolutePath().normalize();
-      ResourceKey<Level> savedDimension = level.dimension();
-      List<Path> ready = COMMITTED.entrySet().stream()
-         .filter(entry -> entry.getValue().equals(savedDimension))
-         .filter(entry -> belongsToDirectory(entry.getKey(), currentDirectory))
-         .map(Map.Entry::getKey)
-         .filter(CLEANUP_PENDING::add)
-         .toList();
-      if (ready.isEmpty()) {
-         return;
-      }
-      try {
-         executor(level.getServer()).execute(() -> {
-         try {
-            IOUtilities.waitUntilIOWorkerComplete();
-            for (Path path : ready) {
-               try {
-                  deleteDirectoryQuietly(path);
-                  if (!Files.exists(path)) COMMITTED.remove(path, savedDimension);
-               } catch (RuntimeException exception) {
-                  LOGGER.warn("Committed FastFormer journal will be replayed on next startup: {}", path, exception);
-               }
-            }
-         } catch (RuntimeException exception) {
-            LOGGER.error("Could not confirm durable chunk IO for FastFormer committed journals", exception);
-         } finally {
-            CLEANUP_PENDING.removeAll(ready);
-         }
-         });
-      } catch (RuntimeException failure) {
-         CLEANUP_PENDING.removeAll(ready);
-         LOGGER.warn("Committed journals retained because cleanup could not be queued", failure);
-      }
    }
 
    public CompletableFuture<Boolean> finalizeAfter(
@@ -397,57 +302,6 @@ public final class PersistentRecoveryJournal {
          }
       } catch (IOException | RuntimeException exception) {
          LOGGER.warn("Could not delete orphan FastFormer journal correction for {}", this.file, exception);
-      }
-   }
-
-   /** Replays startup journals with the history implementation supplied by server assembly. */
-   public static boolean recoverAll(MinecraftServer server, HistoryReconciler history) {
-      return recoverAll(server, history, () -> JournalStartupRecovery.saveDurably(server));
-   }
-
-   static boolean recoverAll(MinecraftServer server, HistoryReconciler history, BooleanSupplier durableSave) {
-      startupRecoveryBlocked = false;
-      COMMITTED.clear();
-      CLEANUP_PENDING.clear();
-      boolean success = JournalStartupRecovery.recoverAll(server, journalDirectory(server), history, durableSave);
-      startupRecoveryBlocked = !success;
-      return success;
-   }
-
-   public static boolean writesAllowed() {
-      return !startupRecoveryBlocked;
-   }
-
-   public static void blockNewWrites() {
-      startupRecoveryBlocked = true;
-   }
-
-   static void resetWriteGateForTest() {
-      startupRecoveryBlocked = false;
-   }
-
-   public static Executor executor(MinecraftServer server) {
-      return ServerBackgroundTasks.serial(server, "recovery", IO_CAPACITY);
-   }
-
-   /** Waits until every journal action queued before this call has finished. */
-   public static boolean awaitIoIdle(MinecraftServer server) {
-      return awaitIoIdle(executor(server));
-   }
-
-   static boolean awaitIoIdle(Executor executor) {
-      try {
-         AsyncTasks.run(executor, () -> {}).get(30, java.util.concurrent.TimeUnit.SECONDS);
-         return true;
-      } catch (InterruptedException exception) {
-         Thread.currentThread().interrupt();
-         startupRecoveryBlocked = true;
-         LOGGER.error("Interrupted while waiting for recovery journal work", exception);
-         return false;
-      } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException | RuntimeException | OutOfMemoryError exception) {
-         LOGGER.error("FastFormer recovery journal queue did not reach an idle boundary", exception);
-         startupRecoveryBlocked = true;
-         return false;
       }
    }
 
@@ -545,6 +399,15 @@ public final class PersistentRecoveryJournal {
       Collection<ReversibleBlockSnapshot> before,
       Collection<ReversibleBlockSnapshot> after
    ) throws IOException {
+      return writeSegmentedJournal(operationDirectory, owner, operationId, dimension, before, after,
+         Runnable::run, new CommittedJournalRetention());
+   }
+
+   static PersistentRecoveryJournal writeSegmentedJournal(
+      Path operationDirectory, UUID owner, UUID operationId, ResourceKey<Level> dimension,
+      Collection<ReversibleBlockSnapshot> before, Collection<ReversibleBlockSnapshot> after,
+      Executor executor, CommittedJournalRetention retention
+   ) throws IOException {
       if (operationDirectory == null || owner == null || operationId == null || dimension == null) {
          throw new IllegalArgumentException("Invalid segmented recovery journal identity");
       }
@@ -566,7 +429,7 @@ public final class PersistentRecoveryJournal {
       }
       RecoveryJournalSegment.write(segmentPath(operationDirectory, 0), operationId, 0, payload);
       PersistentRecoveryJournal journal = new PersistentRecoveryJournal(
-         operationDirectory, dimension, operationId
+         operationDirectory, dimension, operationId, executor, retention
       );
       if (canRetainPrediction) {
          journal.rememberInitialPredictedAfter(cachedAfter);
@@ -628,7 +491,7 @@ public final class PersistentRecoveryJournal {
          && !Files.exists(this.file.resolve(JOURNAL_SEAL));
    }
 
-   private static void deleteDirectoryQuietly(Path directory) {
+   static void deleteDirectoryQuietly(Path directory) {
       if (directory == null || !Files.exists(directory)) {
          return;
       }
@@ -653,10 +516,6 @@ public final class PersistentRecoveryJournal {
 
    private static Path correctionPath(Path file) {
       return file.resolve(JOURNAL_CORRECTION);
-   }
-
-   private static Path journalDirectory(MinecraftServer server) {
-      return StoragePaths.recovery(server.getWorldPath(LevelResource.ROOT));
    }
 
    private static Path segmentPath(Path directory, int sequence) {

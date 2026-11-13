@@ -34,7 +34,6 @@ import io.github.fastformer.fastplace.quickshape.QuickShapeWorkflow;
 import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
-import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.session.InteractionState;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
@@ -908,17 +907,18 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
 
    public void tickWorld(net.minecraft.server.MinecraftServer server, HistoryService history) {
       for (UUID owner : tasks.owners()) {
-         if (!PersistentRecoveryJournal.writesAllowed()) {
+         WorldTaskContext context = new WorldTaskContext(server, owner);
+         if (!context.writesAllowed()) {
             break;
          }
          if (tasks.handingOver(owner)) {
-            handOverBlockedTask(new WorldTaskContext(server, owner), history);
+            handOverBlockedTask(context, history);
             continue;
          }
          if (history.busy(owner)) {
             continue;
          }
-         tickTask(new WorldTaskContext(server, owner), history);
+         tickTask(context, history);
       }
    }
 
@@ -932,7 +932,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
    void resumeTask(WorldTaskContext context, PlacementTask task, HistoryService history) {
       if (!runtime.closed() && tasks.get(context.owner()) == task
          && !tasks.handingOver(context.owner())
-         && PersistentRecoveryJournal.writesAllowed()
+         && context.writesAllowed()
          && !history.busy(context.owner())) {
          tickTask(context, history);
       }
@@ -1014,7 +1014,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                }
                long batchStartedAt = System.nanoTime();
                int batchStartProcessed = task.processed();
-               while (PersistentRecoveryJournal.writesAllowed()
+               while (context.writesAllowed()
                    && task.blocks().hasNext()
                    && (budget.tryConsume() || (!task.hasWrites() && budget.tryConsumeFirstWrite()))) {
                    BlockPos pos = task.blocks().next();
@@ -1026,7 +1026,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                }
                task.recordBatch(task.processed() - batchStartProcessed, System.nanoTime() - batchStartedAt);
 
-               if (!PersistentRecoveryJournal.writesAllowed()) {
+               if (!context.writesAllowed()) {
                   settleFailedTask(context, task, history);
                   context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
                   return;
