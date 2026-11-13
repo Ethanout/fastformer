@@ -12,7 +12,6 @@ import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.server.task.block.SelectionOperationTask;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
@@ -86,7 +85,7 @@ public final class WriteFailureGameTests {
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner[0]), "waiting for failure recovery");
          helper.assertTrue(original[0].matches(level, target), "failure did not restore chest and inventory");
          helper.assertTrue(level.getBlockState(source).is(Blocks.GOLD_BLOCK), "copy changed its source");
-         helper.assertTrue(!WorldWriteCoordinator.busy(level.getServer(), level.dimension()), "failure retained write lease");
+         helper.assertTrue(!io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()), "failure retained write lease");
          helper.assertTrue(MemoryReservation.reservedBytes() == baseline, "failure retained memory reservation");
          owner[0] = null;
          scenario[0]++;

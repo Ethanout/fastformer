@@ -110,8 +110,7 @@ public final class VanillaBlockHistoryGameTests {
       boolean[] placed = {false};
       helper.succeedWhen(() -> {
          if (!placed[0]) {
-            helper.assertTrue(!io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-               player.getServer(), player.serverLevel().dimension()), "waiting for preceding batch write lease");
+            helper.assertTrue(!io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension()), "waiting for preceding batch write lease");
             var result = player.gameMode.useItem(player, player.level(), player.getMainHandItem(), InteractionHand.MAIN_HAND);
             helper.assertTrue(result.consumesAction(), "lily pad placement failed");
             helper.assertTrue(helper.getLevel().getBlockState(water.above()).is(Blocks.LILY_PAD), "lily pad was not placed");

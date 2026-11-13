@@ -3,7 +3,6 @@ package io.github.fastformer.server.history.rollback;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
@@ -68,7 +67,7 @@ public final class RollbackQueue {
       if (level == null || !allBefore(level, capture.changes())) return;
       if (capture.journal() != null && !capture.journal().resolveAfterRollback(context.server())) return;
       captures.removeFirst();
-      WorldWriteCoordinator.releaseCurrentLease(context.server(), capture.dimension(), context.owner());
+      context.writeLeases().releaseCurrentLease(capture.dimension(), context.owner());
       context.actionBar(FastPlaceMessages.text("fastformer.message.restore_complete"));
    }
 
@@ -195,7 +194,7 @@ public final class RollbackQueue {
       PersistentRecoveryJournal journal
    ) {
       if (journal == null || journal.resolveAfterRollback(context.server())) {
-         WorldWriteCoordinator.releaseCurrentLease(context.server(), dimension, context.owner());
+         context.writeLeases().releaseCurrentLease(dimension, context.owner());
          return true;
       }
       // The blocks are already correct, but the durable save/journal cleanup

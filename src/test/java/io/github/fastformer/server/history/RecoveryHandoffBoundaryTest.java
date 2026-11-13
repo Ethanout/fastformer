@@ -11,7 +11,7 @@ import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
  * {@link RecoveryHandoffBoundaryGameTests} and fails hard there instead of skipping.
  */
 class RecoveryHandoffBoundaryTest {
-   private final Object server = new Object();
+   private final WorldWriteLeases server = new WorldWriteLeases();
    private static final HistoryService history = new HistoryService(
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
@@ -54,7 +54,7 @@ class RecoveryHandoffBoundaryTest {
    @AfterEach
    void clearState() {
       history.clear();
-      WorldWriteCoordinator.clear(server);
+      server.close();
    }
 
    @Test
@@ -77,25 +77,25 @@ class RecoveryHandoffBoundaryTest {
    @Test
    void theUnusedJournalCleanupKeepsTheLeaseUntilTheJournalSignalSettles() {
       UUID owner = UUID.randomUUID();
-      WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, DIMENSION, owner);
+      WorldWriteLeases.Lease lease = server.acquire(DIMENSION, owner);
       assertNotNull(lease);
       CompletableFuture<Optional<PersistentRecoveryJournal>> journalFuture = new CompletableFuture<>();
 
       // This is the release that the hand-off runs for a snapshot without writes:
-      // WorldWriteCoordinator.releaseAfterUnusedJournal, reached through
+      // Lease.releaseAfterCleanup, reached through
       // WorldJournalPreparation.releaseAfterCancellation.
-      WorldWriteCoordinator.releaseAfterUnusedJournal(lease, null, journalFuture);
+      lease.releaseAfterCleanup(null, journalFuture);
 
       // The cancelled journal may still append, so a successor must not enter yet.
-      assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
-      assertNull(WorldWriteCoordinator.acquire(server, DIMENSION, owner));
+      assertTrue(server.heldBy(DIMENSION, owner));
+      assertNull(server.acquire(DIMENSION, owner));
 
       journalFuture.complete(Optional.empty());
 
       // The journal signal settled, so the cleanup released the lease and the next
       // transaction can start.
-      assertFalse(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
-      assertNotNull(WorldWriteCoordinator.acquire(server, DIMENSION, owner));
+      assertFalse(server.heldBy(DIMENSION, owner));
+      assertNotNull(server.acquire(DIMENSION, owner));
    }
 
    /** A real asynchronous snapshot that the producing writer has not finished yet. */

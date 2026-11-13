@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import java.util.ArrayDeque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -15,11 +16,16 @@ class WorldTaskContextTest {
    @Test
    void resumeCopiesKeepTheOriginalGateAndServerlessContextsDoNotShareState() {
       var gate = new RecoveryWriteGate();
-      var original = new WorldTaskContext(null, java.util.UUID.randomUUID(), () -> {}, gate);
+      var writes = new WorldWriteLeases();
+      var original = new WorldTaskContext(null, java.util.UUID.randomUUID(), () -> {}, gate, writes);
       var resumed = original.withResume(() -> {});
       var unrelated = new WorldTaskContext(null, original.owner());
       gate.blockNewWrites();
       assertSame(gate, resumed.writeGate());
+      assertSame(writes, resumed.writeLeases());
+      var lease = writes.acquire(net.minecraft.world.level.Level.OVERWORLD, original.owner());
+      assertTrue(resumed.writeLeases().heldBy(lease.dimension(), original.owner()));
+      assertFalse(unrelated.writeLeases().busy(lease.dimension()));
       assertFalse(resumed.writesAllowed());
       assertTrue(unrelated.writesAllowed());
    }

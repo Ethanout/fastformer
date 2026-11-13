@@ -153,6 +153,6 @@ public final class HoldLineGameTests {
    private static void ready(GameTestHelper helper, ServerPlayer player) {
       helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for world gate");
       helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for initial history");
-      helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), player.level().dimension()), "waiting for world writer");
+      helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world writer");
    }
 }

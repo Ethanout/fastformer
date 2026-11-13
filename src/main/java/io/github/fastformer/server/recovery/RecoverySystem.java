@@ -7,6 +7,7 @@ import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.lifecycle.ServerBackgroundTasks;
 import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
 import io.github.fastformer.server.recovery.spi.HistoryReconciler;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -33,6 +34,7 @@ public final class RecoverySystem implements AutoCloseable {
    private final Executor executor;
    private final Path directory;
    private final RecoveryWriteGate writeGate = new RecoveryWriteGate();
+   private final WorldWriteLeases writeLeases = new WorldWriteLeases();
    private final CommittedJournalRetention retention = new CommittedJournalRetention();
    private final AtomicLong sequence = new AtomicLong(System.currentTimeMillis() * 1000L);
    private volatile boolean closed;
@@ -68,6 +70,7 @@ public final class RecoverySystem implements AutoCloseable {
    }
 
    public RecoveryWriteGate writeGate() { return writeGate; }
+   public WorldWriteLeases writeLeases() { return writeLeases; }
    public Executor executor() { return executor; }
 
    public Optional<PersistentRecoveryJournal> begin(
@@ -147,6 +150,7 @@ public final class RecoverySystem implements AutoCloseable {
    @Override public void close() {
       closed = true;
       writeGate.close();
+      writeLeases.close();
       retention.close();
    }
 

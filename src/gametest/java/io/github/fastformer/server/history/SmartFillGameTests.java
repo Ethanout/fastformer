@@ -252,8 +252,7 @@ public final class SmartFillGameTests {
             helper.assertTrue(QuickShapeSystem.of(player).taskActive(player), "cube face " + next[0] + " was not recognized; hit="
                + io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clip(
                   player.level(), player, player.getEyePosition(), player.getViewVector(1)).hit().getBlockPos()
-               + "; world busy=" + io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-                  player.getServer(), player.level().dimension()));
+               + "; world busy=" + io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()));
             next[0]++;
             helper.assertTrue(false, "waiting for face fill");
          }

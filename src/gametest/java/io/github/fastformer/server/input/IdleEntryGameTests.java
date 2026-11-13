@@ -63,8 +63,7 @@ public final class IdleEntryGameTests {
    public static void successfulPlacementKeepsThePreInteractionHitShape(GameTestHelper helper) {
       var player = player(helper);
       helper.succeedWhen(() -> {
-      helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-         player.getServer(), player.level().dimension()), "waiting for world writer");
+      helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world writer");
       helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
       player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter().add(0, 2, 0));
       player.setXRot(90);
@@ -93,8 +92,7 @@ public final class IdleEntryGameTests {
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.OAK_STAIRS));
       helper.succeedWhen(() -> {
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
-         helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-            player.getServer(), player.level().dimension()), "waiting for world writer");
+         helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world writer");
          player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter().add(0, 2, 0));
          player.setXRot(90);
          var first = hit(player);
@@ -288,8 +286,7 @@ public final class IdleEntryGameTests {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          if (!submitted[0]) {
             helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-               player.getServer(), player.level().dimension()), "waiting for world writer");
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world writer");
             var target = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
                PreviewSync.callbackScope(player), hit, player.getEyePosition(), player.getViewVector(1), 0, true, true);
             ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(104, target));

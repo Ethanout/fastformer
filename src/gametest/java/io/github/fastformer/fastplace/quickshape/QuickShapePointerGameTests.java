@@ -79,8 +79,7 @@ public final class QuickShapePointerGameTests {
          if (!submitted[0]) {
             helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
             helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-               player.getServer(), player.serverLevel().dimension()), "waiting for world write");
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension()), "waiting for world write");
             if (pointer) {
                ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
                   PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
@@ -116,8 +115,7 @@ public final class QuickShapePointerGameTests {
          if (!submitted[0]) {
             helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
             helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history initialization");
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-               player.getServer(), player.serverLevel().dimension()), "waiting for world write");
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension()), "waiting for world write");
             ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(51L,
                new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
                   PreviewSync.callbackScope(player), hit, eye, view)));
@@ -182,8 +180,7 @@ public final class QuickShapePointerGameTests {
          if (!submitted[0]) {
             helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
             helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history initialization");
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-               player.getServer(), player.serverLevel().dimension()), "waiting for the other test's world write");
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension()), "waiting for the other test's world write");
             ServerInputDispatcher.quickShapePointer(player, request);
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "Alt-middle did not finish the draft: points=" + draft.points()
                + ", candidate=" + candidate + ", modifier=" + draft.modifierHeld()

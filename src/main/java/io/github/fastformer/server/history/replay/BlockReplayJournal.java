@@ -1,7 +1,7 @@
 package io.github.fastformer.server.history.replay;
 
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
@@ -50,7 +50,7 @@ public final class BlockReplayJournal implements ReplayJournal {
       return journal == null || journal.resolveAfterRollback(context.server());
    }
    @Override public void cancelPreparation() { preparation.cancel(); }
-   @Override public void releaseAfterCancellation(WorldWriteCoordinator.Lease lease) {
+   @Override public void releaseAfterCancellation(WorldWriteLeases.Lease lease) {
       preparation.releaseAfterCancellation(lease);
    }
    @Override public String failureReason() { return preparation.failureReason(); }

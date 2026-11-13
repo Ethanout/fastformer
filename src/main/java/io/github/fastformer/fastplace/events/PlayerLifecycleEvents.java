@@ -8,7 +8,6 @@ import io.github.fastformer.server.history.HistoryRecoveryReconciler;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.session.QuickShapeSystem;
@@ -101,7 +100,6 @@ public final class PlayerLifecycleEvents {
       HistorySystem.start(event.getServer());
       UploadSystem.start(event.getServer());
       HistorySystem.of(event.getServer()).clear();
-      WorldWriteCoordinator.clear(event.getServer());
       RecoverySystem.of(event.getServer()).recoverAll(new HistoryRecoveryReconciler(io.github.fastformer.server.history.HistorySystem.of(event.getServer())));
       HistorySystem.of(event.getServer()).resumeDiskCleanup(event.getServer());
    }
@@ -116,14 +114,13 @@ public final class PlayerLifecycleEvents {
       HistorySystem.of(event.getServer()).awaitDiskWritesOnShutdown(event.getServer());
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.of(event.getServer()).close();
-      WorldWriteCoordinator.clear(event.getServer());
+      RecoverySystem.of(event.getServer()).writeLeases().close();
    }
 
    private static void onServerStopped(ServerStoppedEvent event) {
       SessionSystem.stop(event.getServer());
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.stop(event.getServer());
-      WorldWriteCoordinator.clear(event.getServer());
       RecoverySystem.stop(event.getServer());
       ServerBackgroundTasks.stop(event.getServer());
       PlayerStateRegistry.stop(event.getServer());

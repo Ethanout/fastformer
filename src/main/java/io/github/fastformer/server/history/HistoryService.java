@@ -23,7 +23,7 @@ import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.history.rollback.RollbackRequest;
 import io.github.fastformer.server.history.rollback.RollbackQueue;
@@ -364,7 +364,7 @@ public final class HistoryService implements AutoCloseable {
       // player's current dimension.  Accept the single undo request even
       // after a dimension change; tickOwner will retain it in WORLD_UNLOADED
       // state until that level is available and then continue automatically.
-      if (next != null && WorldWriteCoordinator.busy(player.getServer(), next.dimension())) {
+      if (next != null && RecoverySystem.of(player.getServer()).writeLeases().busy(next.dimension())) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
          return false;
       }
@@ -653,7 +653,7 @@ public final class HistoryService implements AutoCloseable {
       }
       HistoryMemoryCache<HistoryEntry> history = owner.history;
       HistoryEntry next = history == null ? null : history.peek(true);
-      if (next != null && WorldWriteCoordinator.busy(player.getServer(), next.dimension())) {
+      if (next != null && RecoverySystem.of(player.getServer()).writeLeases().busy(next.dimension())) {
          return true;
       }
       count = takeDeferredUndo(id);

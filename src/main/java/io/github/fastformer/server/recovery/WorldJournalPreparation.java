@@ -2,7 +2,7 @@ package io.github.fastformer.server.recovery;
 
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.core.async.AsyncTasks;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -179,13 +179,14 @@ public final class WorldJournalPreparation {
     * <p>The lease object carries the transaction identity. A lease of {@code
     * null} means the caller never held one, so there is nothing to release.</p>
     */
-   public void releaseAfterCancellation(WorldWriteCoordinator.Lease lease) {
+   public void releaseAfterCancellation(WorldWriteLeases.Lease lease) {
       cancel();
+      if (lease == null) return;
       // Capture this preparation before a reset can bind a new journal or append.
       PersistentRecoveryJournal cancelledJournal = this.journal;
       CompletableFuture<Optional<PersistentRecoveryJournal>> cancelledCreation = this.future;
       CompletableFuture<Boolean> cancelledAppend = this.appendFuture;
-      Runnable release = () -> WorldWriteCoordinator.releaseAfterUnusedJournal(lease, cancelledJournal, cancelledCreation);
+      Runnable release = () -> lease.releaseAfterCleanup(cancelledJournal, cancelledCreation);
       if (cancelledAppend == null || cancelledAppend.isDone()) {
          release.run();
       } else {

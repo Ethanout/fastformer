@@ -1,6 +1,7 @@
 package io.github.fastformer.server.recovery;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
@@ -33,12 +34,17 @@ class RecoverySystemTest {
       var runtime = new RecoverySystem(null, Runnable::run, directory.resolve("uncreated"));
       var snapshot = new ReversibleBlockSnapshot(BlockPos.ZERO, null, null, null);
       var gate = runtime.writeGate();
+      UUID owner = UUID.randomUUID();
+      var lease = runtime.writeLeases().acquire(Level.OVERWORLD, owner);
       long pendingRecovery = gate.beginRecovery();
       runtime.close();
       runtime.close();
       gate.finishRecovery(pendingRecovery, true);
       assertFalse(runtime.begin(UUID.randomUUID(), Level.OVERWORLD, List.of(snapshot), List.of(snapshot)).isPresent());
       assertFalse(gate.writesAllowed());
+      assertFalse(lease.isCurrent());
+      assertNull(runtime.writeLeases().acquire(Level.OVERWORLD, owner));
+      assertNull(runtime.writeLeases().takeOver(Level.OVERWORLD, owner));
       assertFalse(Files.exists(directory.resolve("uncreated")));
    }
 }

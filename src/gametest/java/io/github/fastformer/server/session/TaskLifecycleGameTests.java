@@ -114,7 +114,7 @@ public final class TaskLifecycleGameTests {
             "waiting for resumed writer");
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner), "resumed writer failed into recovery");
          assertBlockRange(helper, level, origin, 16, Blocks.GOLD_BLOCK);
-         helper.assertTrue(!io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
+         helper.assertTrue(!io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()),
             "resumed writer retained lease");
          active[0] = null;
          waitingChecked[0] = false;

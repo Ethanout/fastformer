@@ -1,7 +1,7 @@
 package io.github.fastformer.server.history.replay;
 
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import java.util.UUID;
 
@@ -11,6 +11,6 @@ public interface ReplayJournal {
    boolean complete();
    boolean resolve(WorldTaskContext context);
    void cancelPreparation();
-   void releaseAfterCancellation(WorldWriteCoordinator.Lease lease);
+   void releaseAfterCancellation(WorldWriteLeases.Lease lease);
    String failureReason();
 }

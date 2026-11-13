@@ -2,7 +2,6 @@ package io.github.fastformer.server.history;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.core.gate.Gate;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.history.entry.HistoryEntry;
 import io.github.fastformer.server.history.entry.HistoryEntryFormat;
@@ -54,7 +53,7 @@ public final class MixedEntryReplayGameTests {
          helper.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "Block entry was not redone");
          helper.assertTrue(counter.events.equals(List.of("prepare", "complete", "prepare", "complete")),
             "Custom journal lifecycle was bypassed: " + counter.events);
-         helper.assertTrue(!WorldWriteCoordinator.heldBy(level.getServer(), level.dimension(), player.getUUID()), "Lease leaked");
+         helper.assertTrue(!io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().heldBy(level.dimension(), player.getUUID()), "Lease leaked");
          history.close();
       });
    }
@@ -77,7 +76,7 @@ public final class MixedEntryReplayGameTests {
          helper.assertTrue(counter.events.equals(List.of("prepare", "resolve")), "Wrong rollback journal lifecycle: " + counter.events);
          helper.assertTrue(HistoryTestAccess.historyOrder(history, player.getUUID(), true).equals(List.of(entry.operationId())),
             "Failed replay committed the history order");
-         helper.assertTrue(!WorldWriteCoordinator.heldBy(level.getServer(), level.dimension(), player.getUUID()), "Lease leaked");
+         helper.assertTrue(!io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().heldBy(level.dimension(), player.getUUID()), "Lease leaked");
          history.close();
       });
    }

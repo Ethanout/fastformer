@@ -1,5 +1,8 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
+import io.github.fastformer.server.recovery.RecoverySystem;
+
 import io.github.fastformer.server.task.WorldTaskContext;
 
 import io.github.fastformer.server.history.HistorySystem;
@@ -115,7 +118,7 @@ public final class BlockEditTransaction {
       if (ObservedBlockChanges.active(player)) return action.get();
       ServerLevel level = player.serverLevel();
       WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-      var lease = WorldWriteCoordinator.acquire(context.server(), level.dimension(), context.owner());
+      var lease = context.writeLeases().acquire(level.dimension(), context.owner());
       if (lease == null) return failure;
       var capture = new ObservedBlockChanges(player);
       int flags = io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags();
@@ -135,7 +138,7 @@ public final class BlockEditTransaction {
                return failure;
             }
          }
-         WorldWriteCoordinator.release(lease);
+         lease.release();
          return result;
       } catch (RuntimeException | Error exception) {
          LOGGER.warn("FastFormer could not record vanilla block interaction; restoring captured blocks", exception);
@@ -151,7 +154,7 @@ public final class BlockEditTransaction {
    /** Vanilla may publish an item event inside its already admitted history transaction. */
    public static boolean continuingObservedAction(ServerPlayer player) {
       return ObservedBlockChanges.active(player)
-         && WorldWriteCoordinator.heldBy(player.getServer(), player.serverLevel().dimension(), player.getUUID());
+         && RecoverySystem.of(player.getServer()).writeLeases().heldBy(player.serverLevel().dimension(), player.getUUID());
    }
 
    public static Outcome restore(ServerPlayer player, ServerLevel level,
@@ -173,7 +176,7 @@ public final class BlockEditTransaction {
       java.util.function.Predicate<BlockPos> write, Map<BlockPos, ReversibleBlockSnapshot> expected,
       int restoreFlags, SnapshotRecorder recorder) {
       WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-      WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(context.server(), level.dimension(), context.owner());
+      WorldWriteLeases.Lease lease = context.writeLeases().acquire(level.dimension(), context.owner());
       if (lease == null) {
          return Outcome.REJECTED_BUSY;
       }
@@ -182,7 +185,7 @@ public final class BlockEditTransaction {
       try {
          for (BlockPos pos : positions) {
             if (!expected.isEmpty() && !expected.get(pos).matches(level, pos)) {
-               WorldWriteCoordinator.release(lease);
+               lease.release();
                return Outcome.NOT_APPLICABLE;
             }
             Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
@@ -204,7 +207,7 @@ public final class BlockEditTransaction {
          if (!recorder.record(before, after)) {
             return fail(level, context, lease, before, after, restoreFlags, "history-record");
          }
-         WorldWriteCoordinator.release(lease);
+         lease.release();
          return Outcome.APPLIED;
       } catch (RuntimeException | Error exception) {
          // A block callback can throw after the world already changed. The live
@@ -230,14 +233,14 @@ public final class BlockEditTransaction {
    private static Outcome fail(
       ServerLevel level,
       WorldTaskContext context,
-      WorldWriteCoordinator.Lease lease,
+      WorldWriteLeases.Lease lease,
       ArrayDeque<ReversibleBlockSnapshot> before,
       Map<BlockPos, ReversibleBlockSnapshot> after,
       int restoreFlags,
       String reason
    ) {
       if (restoreAll(level, before, restoreFlags)) {
-         WorldWriteCoordinator.release(lease);
+         lease.release();
          return Outcome.RESTORED;
       }
       Outcome outcome = handOffRecovery(context, level.dimension(), before, after, HistorySystem.of(context.server()));

@@ -1,7 +1,7 @@
 package io.github.fastformer.testkit;
 
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import io.github.fastformer.server.history.entry.EntryCodec;
 import io.github.fastformer.server.history.entry.EntryCodecRegistry;
 import io.github.fastformer.server.history.entry.HistoryBounds;
@@ -121,9 +121,9 @@ public final class CounterHistory {
             @Override public boolean complete() { events.add("complete"); return true; }
             @Override public boolean resolve(WorldTaskContext context) { events.add("resolve"); return true; }
             @Override public void cancelPreparation() { events.add("cancel"); }
-            @Override public void releaseAfterCancellation(WorldWriteCoordinator.Lease lease) {
+            @Override public void releaseAfterCancellation(WorldWriteLeases.Lease lease) {
                events.add("release");
-               WorldWriteCoordinator.release(lease);
+               if (lease != null) lease.release();
             }
             @Override public String failureReason() { return "counter journal"; }
          };

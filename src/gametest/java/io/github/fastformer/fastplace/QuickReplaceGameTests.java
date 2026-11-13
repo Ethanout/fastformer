@@ -42,8 +42,7 @@ public final class QuickReplaceGameTests {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
          HistorySystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer());
          if (phase[0] == -1) {
-            helper.assertTrue(!io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-               player.getServer(), helper.getLevel().dimension()), "Waiting for the world writer");
+            helper.assertTrue(!io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(helper.getLevel().dimension()), "Waiting for the world writer");
             helper.assertTrue(!QuickReplaceSystem.replaceCrosshair(player), "Inactive session wrote a block");
             helper.assertTrue(QuickReplaceSystem.setActive(player, true), "Session did not start");
             helper.assertTrue(QuickReplaceSystem.replaceCrosshair(player), "Replacement failed");
@@ -124,7 +123,7 @@ public final class QuickReplaceGameTests {
       helper.succeedWhen(() -> {
          HistorySystem.of(player.getServer()).tickWorld(player.getServer());
          if (phase[0] == 0) {
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), player.level().dimension()),
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()),
                "waiting for world writer");
             helper.assertTrue(QuickReplaceSystem.setActive(player, true), "activation failed");
             helper.assertTrue(QuickReplaceSystem.sample(player, 1, false), "first sample failed");
@@ -172,7 +171,7 @@ public final class QuickReplaceGameTests {
       helper.succeedWhen(() -> {
          HistorySystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer());
          if (phase[0] == 0) {
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), player.level().dimension()),
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()),
                "waiting for writer");
             helper.assertTrue(QuickReplaceSystem.setActive(player, true), "activation failed");
             helper.assertTrue(QuickReplaceSystem.sample(player, 10, false), "first sample failed");
@@ -213,7 +212,7 @@ public final class QuickReplaceGameTests {
       helper.succeedWhen(() -> {
          HistorySystem.of(player.getServer()).tickWorld(player.getServer());
          if (phase[0] == 0) {
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), player.level().dimension()),
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()),
                "waiting for world writer");
             helper.assertTrue(QuickReplaceSystem.setActive(player, true), "activation failed");
             helper.assertTrue(QuickReplaceSystem.sample(player, 1, false), "first sample failed");

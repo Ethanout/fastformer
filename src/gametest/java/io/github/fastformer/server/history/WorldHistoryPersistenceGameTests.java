@@ -17,7 +17,6 @@ import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -51,14 +50,14 @@ public final class WorldHistoryPersistenceGameTests {
       level.setBlock(position, Blocks.STONE.defaultBlockState(), 2);
       var before = new ArrayDeque<>(List.of(ReversibleBlockSnapshot.capture(level, position).orElseThrow()));
       level.setBlock(position, Blocks.GOLD_BLOCK.defaultBlockState(), 2);
-      var lease = WorldWriteCoordinator.acquire(level.getServer(), level.dimension(), player.getUUID());
+      var lease = io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().acquire(level.dimension(), player.getUUID());
       helper.assertTrue(lease != null, "test transaction could not acquire its lease");
       try {
          helper.assertTrue(!HistorySystem.of(player).record(player, level, before, Map.of()),
             "incomplete capture falsely reported a recorded history");
          helper.assertTrue(!HistorySystem.of(player).busy(player.getUUID()),
             "failed capture retained a memory-only pending record");
-         helper.assertTrue(WorldWriteCoordinator.heldBy(level.getServer(), level.dimension(), player.getUUID()),
+         helper.assertTrue(io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().heldBy(level.dimension(), player.getUUID()),
             "failed capture released its caller's lease");
          helper.assertTrue(before.size() == 1 && level.getBlockState(position).is(Blocks.GOLD_BLOCK),
             "record failure changed the caller's snapshots or world");
@@ -66,7 +65,7 @@ public final class WorldHistoryPersistenceGameTests {
          helper.assertTrue(level.getBlockState(position).is(Blocks.STONE), "caller restoration lost its before state");
          helper.succeed();
       } finally {
-         WorldWriteCoordinator.release(lease);
+         lease.release();
       }
    }
 

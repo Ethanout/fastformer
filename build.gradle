@@ -274,7 +274,7 @@ tasks.register('verifyModJar') {
                 'io/github/fastformer/server/history/entry/WorldChangeBatch.class',
                  'io/github/fastformer/server/recovery/PersistentRecoveryJournal.class',
                  'io/github/fastformer/server/task/TaskCancellationResult.class',
-                 'io/github/fastformer/fastplace/world/WorldWriteCoordinator.class',
+                 'io/github/fastformer/server/worldwrite/WorldWriteLeases.class',
                  'io/github/fastformer/fastplace/world/WorldOperationCommit.class',
                  'io/github/fastformer/fastplace/world/memory/WorldOperationMemory.class',
                  'io/github/fastformer/server/task/WorldTaskContext.class',

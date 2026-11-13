@@ -39,7 +39,7 @@ public final class ForcedPlacementGameTests {
       player.setPos(pumpkinFloor.getX() + 0.5, pumpkinFloor.getY() + 1, pumpkinFloor.getZ() + 0.5);
       helper.succeedWhen(() -> {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
-         helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
+         helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()),
             "waiting for world writer");
          player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PUMPKIN_SEEDS));
          helper.assertTrue(ForcedPlacement.use(player, new BlockHitResult(Vec3.atLowerCornerOf(pumpkinFloor).add(0.5, 1, 0.5),
@@ -75,7 +75,7 @@ public final class ForcedPlacementGameTests {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          if (phase[0] == 0) {
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()),
                "waiting for world writer");
             var result = player.gameMode.useItemOn(player, level, player.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
             helper.assertTrue(result.consumesAction(), "door click did not stop vanilla placement");
@@ -113,7 +113,7 @@ public final class ForcedPlacementGameTests {
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.OAK_DOOR));
       var hit = new BlockHitResult(Vec3.atLowerCornerOf(floor).add(0.5, 1, 0.5), Direction.UP, floor, false);
       helper.succeedWhen(() -> {
-         helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
+         helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()),
             "waiting for world writer");
          helper.assertTrue(ForcedPlacement.use(player, hit), "blocked door yielded to vanilla");
          helper.assertTrue(level.getBlockState(floor.above()).isAir(), "blocked door left a lower half");
@@ -138,8 +138,7 @@ public final class ForcedPlacementGameTests {
       boolean[] clicked = {false};
       helper.succeedWhen(() -> {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
-         helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-            player.getServer(), helper.getLevel().dimension()), "waiting for world writer");
+         helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(helper.getLevel().dimension()), "waiting for world writer");
          if (!clicked[0]) {
             var result = player.gameMode.useItemOn(player, helper.getLevel(), player.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
             helper.assertTrue(result.consumesAction(), "forced use must stop the vanilla placement path");

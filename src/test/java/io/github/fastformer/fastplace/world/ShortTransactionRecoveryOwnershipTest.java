@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.task.WorldTaskContext;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
+import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
@@ -33,7 +35,7 @@ import org.junit.jupiter.api.Test;
  * exist.</p>
  */
 class ShortTransactionRecoveryOwnershipTest {
-   private final Object server = new Object();
+   private final WorldWriteLeases server = new WorldWriteLeases();
    private static final HistoryService history = new HistoryService(
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
@@ -45,39 +47,39 @@ class ShortTransactionRecoveryOwnershipTest {
    @AfterEach
    void clearState() {
       history.clear();
-      WorldWriteCoordinator.clear(server);
+      server.close();
    }
 
    @Test
    void anAcceptedHandOffGivesTheCaptureToTheRecoveryQueueAndKeepsTheLease() {
       UUID owner = UUID.randomUUID();
-      WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, DIMENSION, owner);
+      WorldWriteLeases.Lease lease = server.acquire(DIMENSION, owner);
       assertNotNull(lease);
       BlockPos pos = new BlockPos(3, 4, 5);
       ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>(List.of(snapshot(pos, "before")));
 
       // An incomplete pair set stays queued, so the recovery queue owns it.
       BlockEditTransaction.Outcome outcome = BlockEditTransaction.handOffRecovery(
-         new WorldTaskContext(null, owner), DIMENSION, before, Map.of()
+         context(owner), DIMENSION, before, Map.of()
       , history);
 
       assertEquals(BlockEditTransaction.Outcome.RECOVERY_PENDING, outcome);
       assertEquals(1, HistoryTestAccess.recoveryCaptureCount(history, owner));
-      assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
+      assertTrue(server.heldBy(DIMENSION, owner));
       assertTrue(outcome.consumedInteraction());
    }
 
    @Test
    void aRefusedHandOffReportsABlockedRecoveryAndNeverClaimsARecovery() {
       UUID owner = UUID.randomUUID();
-      WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, DIMENSION, owner);
+      WorldWriteLeases.Lease lease = server.acquire(DIMENSION, owner);
       assertNotNull(lease);
       BlockPos pos = new BlockPos(6, 7, 8);
       ArrayDeque<ReversibleBlockSnapshot> before = new ArrayDeque<>(List.of(snapshot(pos, "before")));
 
       // A capture without a dimension has no recovery owner.
       BlockEditTransaction.Outcome outcome = BlockEditTransaction.handOffRecovery(
-         new WorldTaskContext(null, owner), null, before, Map.of()
+         context(owner), null, before, Map.of()
       , history);
 
       assertNotEquals(BlockEditTransaction.Outcome.RECOVERY_PENDING, outcome);
@@ -85,7 +87,7 @@ class ShortTransactionRecoveryOwnershipTest {
       assertEquals(0, HistoryTestAccess.recoveryCaptureCount(history, owner));
       // The write lock and the capture stay with the caller, so another writer
       // cannot enter the half-written world.
-      assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
+      assertTrue(server.heldBy(DIMENSION, owner));
       assertEquals(1, before.size());
       assertNotNull(before.peekFirst());
       assertTrue(outcome.consumedInteraction());
@@ -94,21 +96,25 @@ class ShortTransactionRecoveryOwnershipTest {
    @Test
    void anEmptyOrMissingCaptureIsNotHandedOff() {
       UUID owner = UUID.randomUUID();
-      WorldWriteCoordinator.Lease lease = WorldWriteCoordinator.acquire(server, DIMENSION, owner);
+      WorldWriteLeases.Lease lease = server.acquire(DIMENSION, owner);
       assertNotNull(lease);
 
       // No capture means no recovery work. The lease stays with the caller
       // because the transaction never released it.
       assertEquals(
          BlockEditTransaction.Outcome.RECOVERY_BLOCKED,
-         BlockEditTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, new ArrayDeque<>(), Map.of(), history)
+         BlockEditTransaction.handOffRecovery(context(owner), DIMENSION, new ArrayDeque<>(), Map.of(), history)
       );
       assertEquals(
          BlockEditTransaction.Outcome.RECOVERY_BLOCKED,
-         BlockEditTransaction.handOffRecovery(new WorldTaskContext(null, owner), DIMENSION, null, Map.of(), history)
+         BlockEditTransaction.handOffRecovery(context(owner), DIMENSION, null, Map.of(), history)
       );
       assertEquals(0, HistoryTestAccess.recoveryCaptureCount(history, owner));
-      assertTrue(WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
+      assertTrue(server.heldBy(DIMENSION, owner));
+   }
+
+   private WorldTaskContext context(UUID owner) {
+      return new WorldTaskContext(null, owner, () -> {}, new RecoveryWriteGate(), server);
    }
 
    private static ReversibleBlockSnapshot snapshot(BlockPos pos, String marker) {

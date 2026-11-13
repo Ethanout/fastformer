@@ -6,7 +6,6 @@ import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.GeometrySystem;
@@ -25,7 +24,7 @@ public final class ServerOperationGates {
       .and(Gate.require("smart_fill", player -> !SmartFillSystem.active(player)))
       .and(Gate.require("history", player -> !HistorySystem.of(player).busy(player)));
    public static final Gate<ServerPlayer> WORLD_UNLOCKED = Gate.require("world_write",
-      player -> !WorldWriteCoordinator.busy(player.getServer(), player.serverLevel().dimension()));
+      player -> !RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension()));
    public static final Gate<ServerPlayer> START_WRITE = WRITE_AVAILABLE.and(WORLD_UNLOCKED);
    public static final Gate<ServerPlayer> CONTINUE_INTERACTION = WRITE_AVAILABLE.and(
       WORLD_UNLOCKED.or(Gate.require("observed_transaction", BlockEditTransaction::continuingObservedAction)));

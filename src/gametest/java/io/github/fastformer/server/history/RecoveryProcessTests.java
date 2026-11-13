@@ -21,7 +21,6 @@ import io.github.fastformer.server.task.block.SelectionOperationTask;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.TaskBudgets;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
@@ -439,9 +438,9 @@ public final class RecoveryProcessTests {
       if (!RecoverySystem.of(server).writeGate().writesAllowed()) {
          throw new IllegalStateException("startup recovery left writes blocked");
       }
-      if (WorldWriteCoordinator.busy(server, Level.OVERWORLD)
-         || WorldWriteCoordinator.busy(server, Level.NETHER)
-         || WorldWriteCoordinator.busy(server, Level.END)) {
+      if (io.github.fastformer.server.recovery.RecoverySystem.of(server).writeLeases().busy(Level.OVERWORLD)
+         || io.github.fastformer.server.recovery.RecoverySystem.of(server).writeLeases().busy(Level.NETHER)
+         || io.github.fastformer.server.recovery.RecoverySystem.of(server).writeLeases().busy(Level.END)) {
          throw new IllegalStateException("startup recovery left a dimension lease busy");
       }
       if (MemoryReservation.reservedBytes() != 0L) {

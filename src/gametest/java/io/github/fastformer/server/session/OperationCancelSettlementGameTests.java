@@ -7,7 +7,6 @@ import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
@@ -231,7 +230,7 @@ public final class OperationCancelSettlementGameTests {
       return OperationSystem.of(player).taskBusy(player)
          || QuickShapeSystem.of(player).taskBusy(player)
          || HistorySystem.of(player).busy(player)
-         || WorldWriteCoordinator.busy(player.getServer(), player.serverLevel().dimension());
+         || io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension());
    }
 
    private static void runPhaseOnce(boolean[] ran, Throwable[] failure, Runnable phase) {

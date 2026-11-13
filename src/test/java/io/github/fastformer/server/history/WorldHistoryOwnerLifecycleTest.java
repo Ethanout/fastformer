@@ -22,7 +22,7 @@ import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.nio.file.Files;
@@ -61,7 +61,7 @@ class WorldHistoryOwnerLifecycleTest {
          for (boolean completedPage : List.of(false, true)) {
             UUID ownerId = UUID.randomUUID();
             var gate = new RecoveryWriteGate();
-            var context = new WorldTaskContext(null, ownerId, () -> {}, gate);
+            var context = new WorldTaskContext(null, ownerId, () -> {}, gate, new WorldWriteLeases());
             WorldChangeBatch older = batch(BlockPos.ZERO, UUID.randomUUID());
             OwnerHistory owner = history.ownerState(ownerId);
             HistoryMemoryCache<HistoryEntry> memory = new HistoryMemoryCache<HistoryEntry>();
@@ -182,16 +182,16 @@ class WorldHistoryOwnerLifecycleTest {
 
    @Test
    void alreadyRestoredRecoveryExplicitlyReleasesItsWorldLease() {
-      Object server = new Object();
+      WorldWriteLeases server = new WorldWriteLeases();
       UUID owner = UUID.randomUUID();
       try {
-         assertNotNull(WorldWriteCoordinator.acquire(server, DIMENSION, owner));
+         assertNotNull(server.acquire(DIMENSION, owner));
 
-         WorldWriteCoordinator.releaseCurrentLease(server, DIMENSION, owner);
+         server.releaseCurrentLease(DIMENSION, owner);
 
-         assertEquals(false, WorldWriteCoordinator.heldBy(server, DIMENSION, owner));
+         assertEquals(false, server.heldBy(DIMENSION, owner));
       } finally {
-         WorldWriteCoordinator.clear(server);
+         server.close();
       }
    }
 

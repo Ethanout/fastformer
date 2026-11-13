@@ -25,6 +25,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.server.session') ||
                     packageName.startsWith('io.github.fastformer.server.feedback') ||
                     packageName.startsWith('io.github.fastformer.server.task') ||
+                    packageName.startsWith('io.github.fastformer.server.worldwrite') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -157,6 +158,13 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && packageName.startsWith('io.github.fastformer.server.task') &&
                     (dependencies =~ /(?:\btesting(?:Adaptive|SmallOperation)?\s*\(|\b\w+ForTest\b)/).find()) {
                 violations.add("World-task production code exposes a test-only hook: ${path}")
+            }
+            if (main && (text =~ /\bWorldWriteCoordinator\b/).find()) {
+                violations.add("Retired global world-write coordinator: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.server.worldwrite') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|fastplace|server\.(?!worldwrite))\.|\bMinecraftServer\b|\bstatic\s+final\s+Map\s*<|\b\w+ForTest\b)/).find()) {
+                violations.add("World-write leases bypass their instance or depend on journal/orchestration state: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.feedback') &&
                     (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!feedback))\.|\bstatic\s+final\s+Map\s*<|\b\w+ForTest\b)/).find()) {

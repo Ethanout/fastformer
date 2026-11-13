@@ -47,7 +47,7 @@ import org.slf4j.Logger;
  * differ from prediction. A successful operation seals the verified segment set.
  * Startup resolves every remaining operation before accepting another write.</p>
  */
-public final class PersistentRecoveryJournal {
+public final class PersistentRecoveryJournal implements io.github.fastformer.server.worldwrite.UnusedWriteCleanup {
    private static final Logger LOGGER = LogUtils.getLogger();
 
    private static final int SEGMENTED_LIMIT = 65_536;

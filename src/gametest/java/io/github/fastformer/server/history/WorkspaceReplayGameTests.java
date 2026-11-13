@@ -7,7 +7,6 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.server.task.WorldTaskSchedulerTestAccess;
-import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.OperationSystem;
@@ -299,7 +298,7 @@ public final class WorkspaceReplayGameTests {
       return OperationSystem.of(player).taskBusy(player)
          || QuickShapeSystem.of(player).taskBusy(player)
          || HistorySystem.of(player).busy(player)
-         || WorldWriteCoordinator.busy(player.getServer(), player.serverLevel().dimension());
+         || io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension());
    }
 
    /**

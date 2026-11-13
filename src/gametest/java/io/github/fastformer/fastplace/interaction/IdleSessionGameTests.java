@@ -37,8 +37,7 @@ public final class IdleSessionGameTests {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          if (!applied[0]) {
             helper.assertFalse(io.github.fastformer.server.input.ServerInputDispatcher.interactionBlocked(player), "waiting for history");
-            helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
-               player.getServer(), player.level().dimension()), "waiting for world write");
+            helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world write");
             var event = new PlayerInteractEvent.RightClickBlock(player, InteractionHand.MAIN_HAND, pos, hit);
             NeoForge.EVENT_BUS.post(event);
             helper.assertTrue(event.isCanceled(), "wrench was skipped by the idle session");

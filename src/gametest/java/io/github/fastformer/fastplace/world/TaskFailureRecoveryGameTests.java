@@ -81,7 +81,7 @@ public final class TaskFailureRecoveryGameTests {
 
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(context.owner()), "waiting for overlapping move recovery");
-         helper.assertTrue(!WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
+         helper.assertTrue(!io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()),
             "overlapping move recovery retained the world lease");
          helper.assertTrue(level.getBlockState(origin).is(Blocks.EMERALD_BLOCK),
             "recovery overwrote an external source change");
@@ -136,7 +136,7 @@ public final class TaskFailureRecoveryGameTests {
 
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(context.owner()), "waiting for workspace failure recovery");
-         helper.assertTrue(!WorldWriteCoordinator.busy(level.getServer(), level.dimension()),
+         helper.assertTrue(!io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()),
             "workspace recovery retained the world lease");
          for (int index = 0; index < COUNT; index++) {
             BlockPos pos = origin.offset(index, 0, 0);

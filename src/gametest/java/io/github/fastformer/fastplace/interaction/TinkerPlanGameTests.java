@@ -311,7 +311,7 @@ public final class TinkerPlanGameTests {
       var joined = BlockTinker.resolveAction(level, click(pos, Direction.EAST, 1, 0.5, 0.5), true);
       helper.assertTrue(joined.changes().size() == 2, "chest join did not include both halves");
       helper.succeedWhen(() -> {
-      helper.assertFalse(io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(player.getServer(), level.dimension()), "waiting for world writer");
+      helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(level.dimension()), "waiting for world writer");
       helper.assertFalse(io.github.fastformer.server.input.ServerInputDispatcher.interactionBlocked(player), "waiting for history");
       helper.assertTrue(BlockTinker.tinker(player, level, joined.changes(), FLAGS) == BlockEditTransaction.Outcome.APPLIED, "chest join failed");
       helper.assertTrue(((ChestBlockEntity) level.getBlockEntity(pos)).getItem(0).getCount() == 3

@@ -105,7 +105,7 @@ public final class WorkspaceSceneGameTests {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
          OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
-         helper.assertFalse(WorldWriteCoordinator.busy(level.getServer(), level.dimension()) || HistorySystem.of(player).busy(player.getUUID()), "waiting for writes");
+         helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()) || HistorySystem.of(player).busy(player.getUUID()), "waiting for writes");
          if (phase[0] == 0) {
             helper.assertTrue(OperationSystem.of(player).applyWorkspace(player, UUID.randomUUID(), plan).isQueued(), "swap refused");
             phase[0] = 1;

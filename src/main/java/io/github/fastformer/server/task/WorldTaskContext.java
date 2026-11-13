@@ -4,6 +4,7 @@ import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
+import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -20,13 +21,17 @@ import net.minecraft.world.level.Level;
  * Per-tick view of a world-owned task. The durable task stores only its owner
  * UUID and dimension; a ServerPlayer is looked up opportunistically for UI.
  */
-public record WorldTaskContext(MinecraftServer server, UUID owner, Runnable resume, RecoveryWriteGate writeGate) {
+public record WorldTaskContext(MinecraftServer server, UUID owner, Runnable resume,
+   RecoveryWriteGate writeGate, WorldWriteLeases writeLeases) {
    public WorldTaskContext {
       java.util.Objects.requireNonNull(writeGate, "writeGate");
+      java.util.Objects.requireNonNull(writeLeases, "writeLeases");
    }
 
    public WorldTaskContext(MinecraftServer server, UUID owner, Runnable resume) {
-      this(server, owner, resume, server == null ? new RecoveryWriteGate() : RecoverySystem.of(server).writeGate());
+      this(server, owner, resume,
+         server == null ? new RecoveryWriteGate() : RecoverySystem.of(server).writeGate(),
+         server == null ? new WorldWriteLeases() : RecoverySystem.of(server).writeLeases());
    }
 
    public WorldTaskContext(MinecraftServer server, UUID owner) {
@@ -34,7 +39,7 @@ public record WorldTaskContext(MinecraftServer server, UUID owner, Runnable resu
    }
 
    public WorldTaskContext withResume(Runnable resume) {
-      return new WorldTaskContext(server, owner, resume, writeGate);
+      return new WorldTaskContext(server, owner, resume, writeGate, writeLeases);
    }
 
    public boolean writesAllowed() { return writeGate.writesAllowed(); }
@@ -42,7 +47,9 @@ public record WorldTaskContext(MinecraftServer server, UUID owner, Runnable resu
    /** A delayed task may use only the recovery runtime captured when its context was created. */
    public RecoverySystem recovery() {
       RecoverySystem recovery = RecoverySystem.of(server);
-      if (recovery.writeGate() != writeGate) throw new IllegalStateException("Task belongs to a retired recovery runtime");
+      if (recovery.writeGate() != writeGate || recovery.writeLeases() != writeLeases) {
+         throw new IllegalStateException("Task belongs to a retired recovery runtime");
+      }
       return recovery;
    }
 
