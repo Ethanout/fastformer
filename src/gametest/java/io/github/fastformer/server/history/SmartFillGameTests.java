@@ -4,7 +4,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.protocol.c2s.placement.SmartFillCommandPayload;
 import java.util.UUID;
@@ -32,10 +32,10 @@ public final class SmartFillGameTests {
       UUID id = UUID.randomUUID();
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
       helper.assertFalse(SmartFillSystem.active(player), "surface created a confirmation session");
-      helper.assertTrue(FastPlaceManager.taskActive(player), "fill did not use the shared task");
+      helper.assertTrue(QuickShapeSystem.of(player).taskActive(player), "fill did not use the shared task");
       int[] phase = {0};
       helper.succeedWhen(() -> {
-         helper.assertFalse(FastPlaceManager.taskActive(player), "fill task is pending");
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "fill task is pending");
          if (phase[0] == 0) {
             helper.assertTrue(helper.getLevel().getBlockState(target).is(Blocks.GOLD_BLOCK), "first layer was not filled");
             helper.assertTrue(helper.getLevel().getBlockState(target.below()).is(Blocks.STONE), "surface fill changed the backing wall");
@@ -55,13 +55,13 @@ public final class SmartFillGameTests {
       UUID id = UUID.randomUUID();
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
       helper.assertTrue(SmartFillSystem.active(player), "surface overlapping player did not request confirmation");
-      helper.assertFalse(FastPlaceManager.taskActive(player), "preview started a world write");
+      helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "preview started a world write");
       helper.assertTrue(helper.getLevel().getBlockState(target).isAir(), "preview changed the world");
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_BLOCK));
       command(player, id, SmartFillCommandPayload.Action.CONFIRM);
       command(player, id, SmartFillCommandPayload.Action.CONFIRM);
       helper.succeedWhen(() -> {
-         helper.assertFalse(FastPlaceManager.taskActive(player), "fill task is pending");
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "fill task is pending");
          helper.assertTrue(helper.getLevel().getBlockState(target).is(Blocks.GOLD_BLOCK)
             && helper.getLevel().getBlockState(target.below()).is(Blocks.STONE), "confirmation changed material or overwrote the backing wall");
          helper.assertTrue(HistoryTestAccess.historyOrder(HistorySystem.of(helper.getLevel().getServer()), player.getUUID(), true).size() == 1,
@@ -80,12 +80,12 @@ public final class SmartFillGameTests {
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
       command(player, id, SmartFillCommandPayload.Action.CONFIRM);
       helper.assertFalse(SmartFillSystem.active(player), "cancelled id reopened a preview");
-      helper.assertFalse(FastPlaceManager.taskActive(player), "cancelled preview started a write");
+      helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "cancelled preview started a write");
       id = UUID.randomUUID();
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
       helper.getLevel().setBlock(target, Blocks.WATER.defaultBlockState(), 2);
       command(player, id, SmartFillCommandPayload.Action.CONFIRM);
-      helper.assertFalse(FastPlaceManager.taskActive(player), "changed preview was submitted");
+      helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "changed preview was submitted");
       helper.assertTrue(helper.getLevel().getBlockState(target).is(Blocks.WATER), "fluid was overwritten");
       helper.assertTrue(helper.getLevel().getBlockState(target.east()).isAir(), "changed plan wrote partial blocks");
       helper.succeed();
@@ -97,7 +97,7 @@ public final class SmartFillGameTests {
       var player = playerInsideSurface(helper, target);
       command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.DISCOVER);
       helper.assertTrue(SmartFillSystem.active(player), "player inside fill was not protected by confirmation");
-      helper.assertFalse(FastPlaceManager.taskActive(player), "player inside fill started an immediate write");
+      helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "player inside fill started an immediate write");
       SmartFillSystem.cancel(player);
       helper.succeed();
    }
@@ -107,9 +107,9 @@ public final class SmartFillGameTests {
       var mouth = pit(helper, 4);
       var player = player(helper, mouth);
       command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.DISCOVER);
-      helper.assertTrue(FastPlaceManager.taskActive(player), "actual hit plane was not submitted");
+      helper.assertTrue(QuickShapeSystem.of(player).taskActive(player), "actual hit plane was not submitted");
       helper.succeedWhen(() -> {
-         helper.assertFalse(FastPlaceManager.taskActive(player), "fill task is pending");
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "fill task is pending");
          for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {
             helper.assertTrue(helper.getLevel().getBlockState(mouth.offset(x, -3, z)).is(Blocks.GOLD_BLOCK),
                "plane above the actual bottom hit was not filled");
@@ -137,7 +137,7 @@ public final class SmartFillGameTests {
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
       helper.assertTrue(io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode() == after,
          "duplicate rejected request changed the fill mode");
-      helper.assertFalse(FastPlaceManager.taskActive(player), "open hit plane fell back to another plane");
+      helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "open hit plane fell back to another plane");
       helper.assertFalse(SmartFillSystem.active(player), "open hit plane created a fallback preview");
       helper.assertTrue(helper.getLevel().getBlockState(mouth).isAir(), "nearer mouth was filled");
       helper.succeed();
@@ -160,11 +160,11 @@ public final class SmartFillGameTests {
       player.setXRot((float) -Math.toDegrees(Math.asin(ray.y)));
       var before = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode();
       command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.DISCOVER);
-      helper.assertTrue(FastPlaceManager.taskActive(player), "bounded YZ plane was not found from an upward face hit");
+      helper.assertTrue(QuickShapeSystem.of(player).taskActive(player), "bounded YZ plane was not found from an upward face hit");
       helper.assertTrue(io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode() == before,
          "successful fill also cycled the mode");
       helper.succeedWhen(() -> {
-         helper.assertFalse(FastPlaceManager.taskActive(player), "fill task is pending");
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "fill task is pending");
          for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++) {
             var expected = y == -1 && z == 0 ? Blocks.STONE : Blocks.GOLD_BLOCK;
             helper.assertTrue(helper.getLevel().getBlockState(target.offset(0, y, z)).is(expected),
@@ -182,7 +182,7 @@ public final class SmartFillGameTests {
       command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.DISCOVER);
       helper.assertTrue(io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode() == before,
          "ray miss changed the fill mode");
-      helper.assertFalse(FastPlaceManager.taskActive(player), "ray miss started a world task");
+      helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "ray miss started a world task");
       helper.assertFalse(SmartFillSystem.active(player), "ray miss created a fill preview");
       helper.succeed();
    }
@@ -200,10 +200,10 @@ public final class SmartFillGameTests {
          helper.getLevel().setBlock(fluid.relative(side), Blocks.STONE.defaultBlockState(), 2);
       }
       helper.getLevel().setBlock(fluid, Blocks.WATER.defaultBlockState(), 2);
-      helper.assertTrue(FastPlaceManager.queueAirFill(player, java.util.Set.of(target, plant, fluid),
+      helper.assertTrue(QuickShapeSystem.of(player).queueAirFill(player, java.util.Set.of(target, plant, fluid),
          Blocks.GOLD_BLOCK.defaultBlockState()), "air-only task was rejected");
       helper.succeedWhen(() -> {
-         helper.assertFalse(FastPlaceManager.taskActive(player), "air-only skipped cells did not finish");
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "air-only skipped cells did not finish");
          helper.assertTrue(helper.getLevel().getBlockState(target).is(Blocks.GOLD_BLOCK), "air was not filled");
          helper.assertTrue(helper.getLevel().getBlockState(plant).is(Blocks.SHORT_GRASS), "plant was overwritten");
          helper.assertTrue(helper.getLevel().getBlockState(fluid).is(Blocks.WATER), "fluid was overwritten");
@@ -231,7 +231,7 @@ public final class SmartFillGameTests {
       int[] next = {0};
       BlockPos[] backing = {null};
       helper.succeedWhen(() -> {
-         helper.assertFalse(FastPlaceManager.taskActive(player), "previous face fill is pending");
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "previous face fill is pending");
          if (backing[0] != null) {
             helper.getLevel().setBlock(backing[0], Blocks.AIR.defaultBlockState(), 2);
             backing[0] = null;
@@ -249,7 +249,7 @@ public final class SmartFillGameTests {
             player.setXRot((float) -Math.toDegrees(Math.asin(ray.y)));
             command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.DISCOVER);
             helper.assertFalse(SmartFillSystem.active(player), "frame face unexpectedly required a preview");
-            helper.assertTrue(FastPlaceManager.taskActive(player), "cube face " + next[0] + " was not recognized; hit="
+            helper.assertTrue(QuickShapeSystem.of(player).taskActive(player), "cube face " + next[0] + " was not recognized; hit="
                + io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clip(
                   player.level(), player, player.getEyePosition(), player.getViewVector(1)).hit().getBlockPos()
                + "; world busy=" + io.github.fastformer.fastplace.world.WorldWriteCoordinator.busy(
@@ -275,7 +275,7 @@ public final class SmartFillGameTests {
       io.github.fastformer.server.player.PlayerStateRegistry.dimensionChanged(player);
       helper.assertFalse(SmartFillSystem.active(player), "preview survived a dimension boundary");
       command(player, id, SmartFillCommandPayload.Action.CONFIRM);
-      helper.assertFalse(FastPlaceManager.taskActive(player), "stale preview wrote after dimension change");
+      helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "stale preview wrote after dimension change");
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
       helper.assertTrue(SmartFillSystem.active(player), "new dimension inherited old request dedupe");
       io.github.fastformer.server.player.PlayerStateRegistry.detach(player);

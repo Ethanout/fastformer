@@ -46,7 +46,7 @@ public final class IdleSessionGameTests {
             applied[0] = true;
          }
          helper.assertTrue(io.github.fastformer.server.input.IdleInteractionSnapshots.idle(player), "wrench started a session");
-         helper.assertFalse(io.github.fastformer.server.session.OperationManager.active(player), "wrench opened a selection");
+         helper.assertFalse(io.github.fastformer.server.session.OperationSystem.of(player).active(player), "wrench opened a selection");
       });
    }
 }

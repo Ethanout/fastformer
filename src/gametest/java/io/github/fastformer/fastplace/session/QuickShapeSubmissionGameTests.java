@@ -3,7 +3,7 @@ package io.github.fastformer.fastplace.session;
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
@@ -60,18 +60,18 @@ public final class QuickShapeSubmissionGameTests {
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Blocks.GOLD_BLOCK));
       FastPlaceSettings.load(player).setMode(player, FaceMode.POLYGON);
       BlockPos first = helper.absolutePos(new BlockPos(1, 3, 1));
-      FastPlaceManager.addPoint(player, first, first);
-      QuickShapeDraft session = FastPlaceManager.session(player).orElseThrow();
+      QuickShapeSystem.of(player).addPoint(player, first, first);
+      QuickShapeDraft session = QuickShapeSystem.of(player).session(player).orElseThrow();
       session.addPoint(first.offset(3, 0, 0), player.getEyePosition(), player.getViewVector(1.0F));
       var confirmed = java.util.List.copyOf(session.points());
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for the write gate");
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "unexpected input gate");
          ServerInputDispatcher.quickShape(player);
-         helper.assertTrue(FastPlaceManager.active(player), "middle ended the polygon draft");
+         helper.assertTrue(QuickShapeSystem.of(player).active(player), "middle ended the polygon draft");
          helper.assertTrue(confirmed.equals(session.points()), "middle changed polygon points");
-         helper.assertFalse(FastPlaceManager.taskActive(player), "middle submitted the polygon");
-         FastPlaceManager.cancel(player);
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "middle submitted the polygon");
+         QuickShapeSystem.of(player).cancel(player);
       });
    }
 
@@ -83,16 +83,16 @@ public final class QuickShapeSubmissionGameTests {
       for (int x = 0; x <= 3; x++) {
          helper.getLevel().setBlock(first.offset(x, 0, 0), Blocks.AIR.defaultBlockState(), 2);
       }
-      FastPlaceManager.addPoint(player, first, first);
-      FastPlaceManager.session(player).orElseThrow().setFreeScrollOffset(new BlockPos(3, 0, 0));
+      QuickShapeSystem.of(player).addPoint(player, first, first);
+      QuickShapeSystem.of(player).session(player).orElseThrow().setFreeScrollOffset(new BlockPos(3, 0, 0));
       helper.succeedWhen(() -> {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
-         if (FastPlaceManager.active(player)) {
-            FastPlaceManager.fill(player);
-            helper.assertFalse(FastPlaceManager.active(player), "waiting for submission admission");
+         if (QuickShapeSystem.of(player).active(player)) {
+            QuickShapeSystem.of(player).fill(player);
+            helper.assertFalse(QuickShapeSystem.of(player).active(player), "waiting for submission admission");
          }
-         FastPlaceManager.tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(FastPlaceManager.taskActive(player), "placement has not finished");
+         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "placement has not finished");
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "confirmed point was not placed");
          for (int x = 1; x <= 3; x++) {
             helper.assertTrue(
@@ -113,27 +113,27 @@ public final class QuickShapeSubmissionGameTests {
       FastPlaceSettings.load(player).setMode(player, LineMode.FREE_SCROLL);
       BlockPos first = helper.absolutePos(new BlockPos(1, 3, 1));
       helper.getLevel().setBlock(first, Blocks.AIR.defaultBlockState(), 2);
-      FastPlaceManager.addPoint(player, first, first);
+      QuickShapeSystem.of(player).addPoint(player, first, first);
       long oldRevision = io.github.fastformer.server.sync.PreviewSync.buildingRevision(player);
       var scope = io.github.fastformer.server.sync.PreviewSync.callbackScope(player);
-      var session = FastPlaceManager.session(player).orElseThrow();
+      var session = QuickShapeSystem.of(player).session(player).orElseThrow();
       session.setFreeScrollOffset(new BlockPos(2, 0, 0));
       io.github.fastformer.server.sync.PreviewSync.syncPreview(player, session);
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for the write gate");
-         if (FastPlaceManager.active(player)) {
+         if (QuickShapeSystem.of(player).active(player)) {
             ServerInputDispatcher.confirmQuickShape(player,
                new io.github.fastformer.protocol.c2s.placement.QuickShapeConfirmPayload(40, oldRevision, scope));
-            helper.assertTrue(FastPlaceManager.active(player), "stale request ended the newer draft");
-            helper.assertFalse(FastPlaceManager.taskActive(player), "stale request created a world task");
+            helper.assertTrue(QuickShapeSystem.of(player).active(player), "stale request ended the newer draft");
+            helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "stale request created a world task");
             helper.assertTrue(helper.getLevel().getBlockState(first).isAir(), "stale request wrote the world");
             long revision = io.github.fastformer.server.sync.PreviewSync.buildingRevision(player);
             ServerInputDispatcher.confirmQuickShape(player,
                new io.github.fastformer.protocol.c2s.placement.QuickShapeConfirmPayload(41, revision, scope));
-            helper.assertFalse(FastPlaceManager.active(player), "current request was not admitted");
+            helper.assertFalse(QuickShapeSystem.of(player).active(player), "current request was not admitted");
          }
-         FastPlaceManager.tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(FastPlaceManager.taskActive(player), "placement has not finished");
+         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "placement has not finished");
          helper.assertTrue(helper.getLevel().getBlockState(first).is(Blocks.GOLD_BLOCK), "current request did not write");
       });
    }
@@ -143,19 +143,19 @@ public final class QuickShapeSubmissionGameTests {
       ServerPlayer player = helper.makeMockServerPlayerInLevel();
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Blocks.GOLD_BLOCK));
       BlockPos first = helper.absolutePos(new BlockPos(1, 3, 1));
-      FastPlaceManager.addPoint(player, first, first);
+      QuickShapeSystem.of(player).addPoint(player, first, first);
       helper.assertTrue(io.github.fastformer.server.sync.PreviewSync.buildingSubmissionParametersMatch(player),
          "published parameters do not match their original material");
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Blocks.IRON_BLOCK));
       helper.assertFalse(io.github.fastformer.server.sync.PreviewSync.buildingSubmissionParametersMatch(player),
          "old parameters accepted a different material");
-      io.github.fastformer.server.sync.PreviewSync.syncPreview(player, FastPlaceManager.session(player).orElseThrow());
+      io.github.fastformer.server.sync.PreviewSync.syncPreview(player, QuickShapeSystem.of(player).session(player).orElseThrow());
       helper.assertTrue(io.github.fastformer.server.sync.PreviewSync.buildingSubmissionParametersMatch(player),
          "refreshed parameters rejected the new material");
       io.github.fastformer.server.sync.PreviewSync.forgetActivity(player);
       helper.assertFalse(io.github.fastformer.server.sync.PreviewSync.buildingSubmissionParametersMatch(player),
          "forgotten session retained submission parameters");
-      FastPlaceManager.cancel(player);
+      QuickShapeSystem.of(player).cancel(player);
       helper.succeed();
    }
 }

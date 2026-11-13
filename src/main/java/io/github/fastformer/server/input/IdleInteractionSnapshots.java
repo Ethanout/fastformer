@@ -9,9 +9,9 @@ import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
 import io.github.fastformer.protocol.s2c.placement.IdleInteractionSnapshotPayload;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.OperationManager;
-import io.github.fastformer.server.session.GeometryManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.OperationSystem;
+import io.github.fastformer.server.session.GeometrySystem;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;
 import io.github.fastformer.server.player.PlayerStateRegistry;
@@ -45,7 +45,7 @@ public final class IdleInteractionSnapshots {
    private IdleInteractionSnapshots() { }
 
    public static boolean idle(ServerPlayer player) {
-      return !FastPlaceManager.active(player) && !OperationManager.active(player) && !GeometryManager.active(player)
+      return !QuickShapeSystem.of(player).active(player) && !OperationSystem.of(player).active(player) && !GeometrySystem.of(player).active(player)
          && !io.github.fastformer.server.fill.SmartFillSystem.active(player);
    }
 

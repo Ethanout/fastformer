@@ -38,7 +38,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `server.network` | 服务端通道注册；统一线程投递和网络到 Intent 的转换 |
 | `server.network.upload` | 单服务器上传准入、分块／解码资源、请求作用域、回执与取消 |
 | `server.sync` | 服务端预览装配与发布；玩家作用域持有 revision、提交参数和回调身份 |
-| `server.session` | 快速起形、几何和选区操作的服务端会话管理 |
+| `server.session` | 单服务器会话系统；拥有快速起形、几何、选区工作流及任务队列 |
 | `server.submission` | 服务端提交账本、去重记录与任务结算接口 |
 | `server.history` | 每个服务器的历史服务装配、玩家资源所有权与存储接口 |
 | `server.history.entry` | 不可变条目、区域边界、顺序组合及按必填 Type 分派的 Codec |
@@ -87,6 +87,10 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `BuildingPreviewSnapshot` 是共享预览值，不是消息。删除未注册的旧合并预览 Codec，仅发送当前会话、参数和效果三个分包；接收方验证 revision 后再组合。服务端 `QuickShapePreviews` 负责从草稿和设置装配快照；`PreviewSync` 负责发布。压缩设置改用 `HistoryCompressionLimits`、`CompressionTier` 和 `CompressionSetting`，客户端不再为显示配置而依赖服务端历史实现。
 
 `PreviewSyncState` 由玩家作用域持有，不再使用全局 UUID 表。revision 查询与清理不创建状态；同 UUID 的旧玩家实例不能清除新实例的发布。换维先通知旧环境失效，再恢复目标维度工作流并发布新快照；断线和服务器关闭由玩家作用域统一丢弃，删除预览同步的全局 `clearServer` 入口。
+
+`SessionSystem` 按服务器身份显式启动和停止，实例持有 `QuickShapeSystem`、`OperationSystem`、`GeometrySystem`。三者分别拥有自己的 `PlayerSessions` 和任务队列；不再保留旧静态 Manager 或兼容转发。UUID 工作流与世界任务在断线后继续保留，换维仍按维度停放和恢复。服务器关闭先结束准入，再统一取消任务、释放资源并清空工作流；一个清理失败不会跳过其他任务，旧 resume 回调不能推进已关闭的实例。停服后的迟到 logout 使用非创建查询。
+
+物理 Alt 状态由玩家作用域的 `InteractionModifierState` 持有，断线、换维和实例替换归零。恢复或重新绑定草稿前以当前物理状态更新其修饰键；旧实例的迟到清理不能改变新实例的草稿。会话系统的实例化不等于业务拆分完成，三类系统的进一步职责拆分及剩余服务端状态仍待迁移。
 
 `UploadSystem` 按服务器显式启动和停止 `WorkspaceUploads`，查询不能创建实例。两种上传使用同一接收流程，各自保留独立分块通道；分块、解码和回执作用域均由实例持有。断线、换维和玩家实体替换取消未提交上传，关闭后拒绝新请求。解码取消同时释放待消费的大结果；旧回调按任务身份校验，不能释放同 ID 新请求的名额。tick 保留仍属于分块、解码或世界任务的作用域，清理已无所有者的作用域。内部实现不向包外暴露。
 

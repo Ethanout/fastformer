@@ -12,7 +12,7 @@ import io.github.fastformer.protocol.s2c.preview.SmartFillPreviewPayload;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.IdleInteractionSnapshots;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.player.PlayerStateRegistry;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;
@@ -130,7 +130,7 @@ public final class SmartFillSystem {
    }
 
    private static void submit(ServerPlayer player, Pending pending) {
-      if (!FastPlaceManager.queueAirFill(player, pending.plan().targets(), pending.material())) {
+      if (!QuickShapeSystem.of(player).queueAirFill(player, pending.plan().targets(), pending.material())) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_confirm_failed"));
       } else {
          // Publish task ownership before ending the preview on the same connection.

@@ -11,8 +11,8 @@ import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistorySystem;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Routes history operations without blocking task cancellation behind ordinary editing admission. */
@@ -38,12 +38,12 @@ final class HistoryIntentHandlers {
       if (history.snapshotRetryAvailable(player)) return IntentResult.handled(history.requestUndo(player, intent.count()));
       UndoRoute route = undoRoute(history.busy(player),
          intent.scope() == HistoryIntents.UndoScope.SESSION_OR_WORLD && SessionRollback.active(player),
-         FastPlaceManager.taskActive(player), OperationManager.taskActive(player));
+         QuickShapeSystem.of(player).taskActive(player), OperationSystem.of(player).taskActive(player));
       return IntentResult.handled(switch (route) {
          case BLOCKED -> false;
          case SESSION -> SessionRollback.undo(player);
-         case FAST_PLACE_TASK -> finishTaskCancellation(player, FastPlaceManager.cancelTask(player), intent.count());
-         case OPERATION_TASK -> finishTaskCancellation(player, OperationManager.cancelTask(player), intent.count());
+         case FAST_PLACE_TASK -> finishTaskCancellation(player, QuickShapeSystem.of(player).cancelTask(player), intent.count());
+         case OPERATION_TASK -> finishTaskCancellation(player, OperationSystem.of(player).cancelTask(player), intent.count());
          case HISTORY -> history.requestUndo(player, intent.count());
       });
    }
@@ -55,8 +55,8 @@ final class HistoryIntentHandlers {
          return IntentResult.handled(history.requestRedo(player, intent.count()));
       }
       if (history.busy(player)) return IntentResult.pass();
-      if (OperationManager.active(player)) {
-         OperationManager.redo(player);
+      if (OperationSystem.of(player).active(player)) {
+         OperationSystem.of(player).redo(player);
          return IntentResult.success();
       }
       return IntentResult.handled(!SessionRollback.active(player) && history.requestRedo(player, intent.count()));
@@ -68,9 +68,9 @@ final class HistoryIntentHandlers {
          SmartFillSystem.cancel(player);
          return IntentResult.success();
       }
-      if (SessionRollback.active(player) || FastPlaceManager.taskActive(player) || OperationManager.taskActive(player)
-         || FastPlaceManager.restoreActive(player) || OperationManager.restoreActive(player)) {
-         FastPlaceManager.quit(player);
+      if (SessionRollback.active(player) || QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player)
+         || QuickShapeSystem.of(player).restoreActive(player) || OperationSystem.of(player).restoreActive(player)) {
+         QuickShapeSystem.of(player).quit(player);
          return IntentResult.success();
       }
       return IntentResult.pass();

@@ -13,7 +13,7 @@ import io.github.fastformer.protocol.c2s.operation.OperationPointClickPayload;
 import io.github.fastformer.protocol.c2s.operation.OperationPointDragPayload;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -48,7 +48,7 @@ public final class OperationPointGestureGameTests {
          ServerInputDispatcher.operationPointDrag(player, finish);
          ServerInputDispatcher.operationPointClick(player, remove);
          helper.assertTrue(points(player) == 2, "a replayed finish authorized another removal");
-         OperationManager.cancel(player);
+         OperationSystem.of(player).cancel(player);
       });
    }
 
@@ -76,7 +76,7 @@ public final class OperationPointGestureGameTests {
          helper.assertTrue(points(player) == 3, "a changed gesture removed a point");
          ServerInputDispatcher.operationPointClick(player, valid);
          helper.assertTrue(points(player) == 2, "a rejected gesture consumed the valid completion");
-         OperationManager.cancel(player);
+         OperationSystem.of(player).cancel(player);
       });
    }
 
@@ -91,7 +91,7 @@ public final class OperationPointGestureGameTests {
       helper.succeedWhen(() -> {
          ready(helper, player);
          ServerInputDispatcher.operationPointDrag(player, oldFinish);
-         OperationManager.cancel(player);
+         OperationSystem.of(player).cancel(player);
          preparePrism(player, helper.absolutePos(new BlockPos(8, 5, 1)));
          ServerInputDispatcher.operationPointClick(player, oldRemove);
          helper.assertTrue(points(player) == 3, "a replaced prism accepted the old completion");
@@ -100,10 +100,10 @@ public final class OperationPointGestureGameTests {
          OperationPointDragPayload finish = finish(2L, revision, scope, 1, point(player, 1));
          OperationPointClickPayload remove = remove(2L, revision, scope, 1);
          ServerInputDispatcher.operationPointDrag(player, finish);
-         OperationManager.addSelectionPoint(player, helper.absolutePos(new BlockPos(12, 5, 5)));
+         OperationSystem.of(player).addSelectionPoint(player, helper.absolutePos(new BlockPos(12, 5, 5)));
          ServerInputDispatcher.operationPointClick(player, remove);
          helper.assertTrue(points(player) == 4, "a later operation accepted an old completion");
-         OperationManager.cancel(player);
+         OperationSystem.of(player).cancel(player);
       });
    }
 
@@ -122,31 +122,31 @@ public final class OperationPointGestureGameTests {
          ServerInputDispatcher.operationPointDrag(player, finish);
          ServerInputDispatcher.operationPointClick(player, close);
          helper.assertTrue(
-            OperationManager.session(player).orElseThrow().prismBaseClosed(),
+            OperationSystem.of(player).session(player).orElseThrow().prismBaseClosed(),
             "a nonzero control point did not close the prism base"
          );
-         OperationManager.cancel(player);
+         OperationSystem.of(player).cancel(player);
       });
    }
 
    @GameTest(template = "fastformergametests.empty", batch = "operation_point_gesture", timeoutTicks = 600)
    public static void dragRejectsWorldHeightAndPacketJumpButAllowsEditorDistance(GameTestHelper helper) {
       var player = preparedPrism(helper, new BlockPos(1, 5, 1));
-      var session = OperationManager.session(player).orElseThrow();
+      var session = OperationSystem.of(player).session(player).orElseThrow();
       var original = point(player, 1);
       player.setPos(original.getX() + 50, original.getY(), original.getZ());
       helper.assertTrue(player.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(original)) > 25,
          "fixture must exceed vanilla reach");
-      OperationManager.dragPoint(player, 1, original.offset(1, 0, 0), OperationPointDragConstraint.FREE, true);
+      OperationSystem.of(player).dragPoint(player, 1, original.offset(1, 0, 0), OperationPointDragConstraint.FREE, true);
       helper.assertTrue(point(player, 1).equals(original.offset(1, 0, 0)), "valid far editor drag was rejected");
       var before = session.points();
-      OperationManager.dragPoint(player, 1, original.offset(130, 0, 0), OperationPointDragConstraint.FREE, true);
+      OperationSystem.of(player).dragPoint(player, 1, original.offset(130, 0, 0), OperationPointDragConstraint.FREE, true);
       helper.assertTrue(session.points().equals(before), "oversized packet jump was accepted");
       session.setSecond(new BlockPos(original.getX(), helper.getLevel().getMaxBuildHeight() - 1, original.getZ()));
       before = session.points();
-      OperationManager.dragPoint(player, 1, before.get(1).above(), OperationPointDragConstraint.FREE, true);
+      OperationSystem.of(player).dragPoint(player, 1, before.get(1).above(), OperationPointDragConstraint.FREE, true);
       helper.assertTrue(session.points().equals(before), "drag escaped dimension height");
-      OperationManager.cancel(player);
+      OperationSystem.of(player).cancel(player);
       helper.succeed();
    }
 
@@ -159,11 +159,11 @@ public final class OperationPointGestureGameTests {
    }
 
    private static void preparePrism(ServerPlayer player, BlockPos origin) {
-      OperationManager.startFirst(player, origin);
-      OperationManager.session(player).orElseThrow().setSelectionMode(OperationSelectionMode.PRISM);
-      OperationManager.startFirst(player, origin);
-      OperationManager.startSecond(player, origin.offset(3, 0, 0));
-      OperationManager.addSelectionPoint(player, origin.offset(0, 0, 3));
+      OperationSystem.of(player).startFirst(player, origin);
+      OperationSystem.of(player).session(player).orElseThrow().setSelectionMode(OperationSelectionMode.PRISM);
+      OperationSystem.of(player).startFirst(player, origin);
+      OperationSystem.of(player).startSecond(player, origin.offset(3, 0, 0));
+      OperationSystem.of(player).addSelectionPoint(player, origin.offset(0, 0, 3));
    }
 
    private static OperationPointDragPayload finish(long gestureId, long revision, OperationCallbackScope scope, int pointIndex, BlockPos target) {
@@ -181,11 +181,11 @@ public final class OperationPointGestureGameTests {
    }
 
    private static BlockPos point(ServerPlayer player, int pointIndex) {
-      return OperationManager.session(player).orElseThrow().points().get(pointIndex);
+      return OperationSystem.of(player).session(player).orElseThrow().points().get(pointIndex);
    }
 
    private static int points(ServerPlayer player) {
-      return OperationManager.session(player).orElseThrow().points().size();
+      return OperationSystem.of(player).session(player).orElseThrow().points().size();
    }
 
    private static void ready(GameTestHelper helper, ServerPlayer player) {

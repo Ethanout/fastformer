@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
@@ -56,14 +56,14 @@ public final class PlacementContextGameTests {
          "surface chain used water from another cell");
       player.setItemInHand(InteractionHand.MAIN_HAND, stack);
       try {
-         FastPlaceManager.addInitialPoint(player, hit, true);
-         var draft = FastPlaceManager.session(player).orElseThrow();
+         QuickShapeSystem.of(player).addInitialPoint(player, hit, true);
+         var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          helper.assertTrue(draft.points().getFirst().equals(target), "embedded first point differs from state position");
          helper.assertTrue(PlaceableItems.placementState(stack, player, draft.placementContext()).orElseThrow()
             .equals(PlaceableItems.placementState(stack, player, embedded).orElseThrow()),
             "server draft state differs from embedded preview state");
       } finally {
-         FastPlaceManager.cancel(player);
+         QuickShapeSystem.of(player).cancel(player);
       }
       helper.succeed();
    }
@@ -103,17 +103,17 @@ public final class PlacementContextGameTests {
       helper.getLevel().setBlockAndUpdate(target, Blocks.OAK_SLAB.defaultBlockState());
       var snapshot = PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, false);
       helper.assertTrue(snapshot.placementPosition().equals(target), "slab merge preview moved outside the target");
-      FastPlaceManager.addInitialPoint(player, hit, false);
-      helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().getFirst().equals(target), "slab merge selected another cell");
-      FastPlaceManager.cancel(player);
+      QuickShapeSystem.of(player).addInitialPoint(player, hit, false);
+      helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(target), "slab merge selected another cell");
+      QuickShapeSystem.of(player).cancel(player);
       helper.getLevel().setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
       snapshot = PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, true);
       helper.assertTrue(snapshot.placementPosition().equals(target)
          && snapshot.context(player.level(), player, player.getMainHandItem()).getClickedPos().equals(target),
          "embedded state was not calculated at the hit block");
-      FastPlaceManager.addInitialPoint(player, hit, true);
-      helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().getFirst().equals(target), "embedded point moved outside the hit block");
-      FastPlaceManager.cancel(player);
+      QuickShapeSystem.of(player).addInitialPoint(player, hit, true);
+      helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(target), "embedded point moved outside the hit block");
+      QuickShapeSystem.of(player).cancel(player);
       helper.succeed();
    }
 }

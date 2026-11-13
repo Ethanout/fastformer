@@ -7,7 +7,7 @@ import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistoryTestAccess;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -35,7 +35,7 @@ public final class SessionIntentGameTests {
       FastPlaceSettings.load(player).setMode(player, LineMode.AXIS);
       PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.CycleMode(null));
       helper.assertTrue(FastPlaceSettings.load(player).lineMode() == commandMode, "network cycle differs from command cycle");
-      helper.assertFalse(FastPlaceManager.active(player), "idle cycle created a draft");
+      helper.assertFalse(QuickShapeSystem.of(player).active(player), "idle cycle created a draft");
       helper.succeed();
    }
 
@@ -44,14 +44,14 @@ public final class SessionIntentGameTests {
       ServerPlayer player = player(helper);
       FastPlaceSettings.load(player).setMode(player, LineMode.FREE_SCROLL);
       BlockPos first = helper.absolutePos(new BlockPos(2, 4, 2));
-      FastPlaceManager.addPoint(player, first, first);
+      QuickShapeSystem.of(player).addPoint(player, first, first);
       helper.assertTrue(PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new SessionIntents.Adjust(1000)).handled(),
          "command adjust was not handled");
-      var draft = FastPlaceManager.session(player).orElseThrow();
+      var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       helper.assertTrue(!draft.freeScrollOffset().equals(BlockPos.ZERO), "command did not adjust the draft");
       PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.Adjust(-1000));
       helper.assertTrue(draft.freeScrollOffset().equals(BlockPos.ZERO), "command and network used different clamping");
-      FastPlaceManager.cancel(player);
+      QuickShapeSystem.of(player).cancel(player);
       helper.succeed();
    }
 
@@ -59,7 +59,7 @@ public final class SessionIntentGameTests {
    public static void deniedEditingStillAllowsNetworkModifierRelease(GameTestHelper helper) {
       ServerPlayer player = player(helper);
       PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.Submode(true));
-      helper.assertTrue(FastPlaceManager.modifierHeld(player), "modifier was not held");
+      helper.assertTrue(QuickShapeSystem.of(player).modifierHeld(player), "modifier was not held");
       LineMode mode = FastPlaceSettings.load(player).lineMode();
       FastPlaceSettings.load(player).toggleEnabled(player);
       helper.assertFalse(FastPlaceSettings.load(player).enabled(), "test did not disable editing");
@@ -68,9 +68,9 @@ public final class SessionIntentGameTests {
       helper.assertTrue(FastPlaceSettings.load(player).lineMode() == mode, "refused cycle changed the mode");
       helper.assertFalse(PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new SessionIntents.Submode(false)).handled(),
          "unavailable command changed the modifier");
-      helper.assertTrue(FastPlaceManager.modifierHeld(player), "command release changed the existing latch");
+      helper.assertTrue(QuickShapeSystem.of(player).modifierHeld(player), "command release changed the existing latch");
       PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.Submode(false));
-      helper.assertFalse(FastPlaceManager.modifierHeld(player), "network release left the modifier latched");
+      helper.assertFalse(QuickShapeSystem.of(player).modifierHeld(player), "network release left the modifier latched");
       helper.succeed();
    }
 

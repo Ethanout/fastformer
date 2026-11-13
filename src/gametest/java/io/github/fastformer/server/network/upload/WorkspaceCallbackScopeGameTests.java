@@ -2,7 +2,7 @@ package io.github.fastformer.server.network.upload;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.WorkspaceReplayGameTests;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -59,7 +59,7 @@ public final class WorkspaceCallbackScopeGameTests {
          // admission would then be refused for an unrelated reason.
          WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
 
-         WorkspaceAdmission replay = OperationManager.applyWorkspace(player, transferId, plan(helper, 1, 1));
+         WorkspaceAdmission replay = OperationSystem.of(player).applyWorkspace(player, transferId, plan(helper, 1, 1));
          helper.assertTrue(
             replay.kind() == WorkspaceAdmission.Kind.REPLAYED,
             "the second admission was not recognised as a replay"
@@ -232,7 +232,7 @@ public final class WorkspaceCallbackScopeGameTests {
             );
             started[0] = true;
             try {
-               WorkspaceAdmission admission = OperationManager.applyWorkspace(player, transferId, plan(helper, 5, 5));
+               WorkspaceAdmission admission = OperationSystem.of(player).applyWorkspace(player, transferId, plan(helper, 5, 5));
                helper.assertTrue(admission.isQueued(), "the admission did not queue a task");
 
                // A fault between the queue and the record leaves a live task with no ledger
@@ -244,7 +244,7 @@ public final class WorkspaceCallbackScopeGameTests {
                   "the record was not removed"
                );
                helper.assertTrue(
-                  OperationManager.transferActive(player.getUUID(), transferId), "the task is gone"
+                  OperationSystem.of(player).transferActive(player.getUUID(), transferId), "the task is gone"
                );
 
                UploadSystem.of(player).receipts().failAdmission(player, transferId);
@@ -255,7 +255,7 @@ public final class WorkspaceCallbackScopeGameTests {
                      == OperationSubmissionOutcome.UNKNOWN,
                   "a failure report recorded a failure for a live task"
                );
-               OperationManager.cancelTask(player);
+               OperationSystem.of(player).cancelTask(player);
             } catch (RuntimeException exception) {
                phaseFailure[0] = exception;
                throw exception;

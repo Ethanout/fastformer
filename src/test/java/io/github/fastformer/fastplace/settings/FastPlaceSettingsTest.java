@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.settings;
 
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 
 import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
 
@@ -169,10 +169,10 @@ class FastPlaceSettingsTest {
       assertEquals(RaycastPlacement.SURFACE, settings.modes().raycastPlacement());
       QuickShapeDraft session = new QuickShapeDraft();
 
-      assertEquals(RaycastPlacement.SURFACE, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
+      assertEquals(RaycastPlacement.SURFACE, QuickShapeSystem.effectiveModes(settings, session).raycastPlacement());
 
       session.setModifierHeld(true);
-      assertEquals(RaycastPlacement.EMBEDDED, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
+      assertEquals(RaycastPlacement.EMBEDDED, QuickShapeSystem.effectiveModes(settings, session).raycastPlacement());
 
       session.setModifierHeld(false);
       session.addPoint(
@@ -180,10 +180,10 @@ class FastPlaceSettingsTest {
          net.minecraft.world.phys.Vec3.ZERO,
          new net.minecraft.world.phys.Vec3(0.0, 0.0, 1.0)
       );
-      assertEquals(RaycastPlacement.SURFACE, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
+      assertEquals(RaycastPlacement.SURFACE, QuickShapeSystem.effectiveModes(settings, session).raycastPlacement());
 
       session.setModifierHeld(true);
-      assertEquals(RaycastPlacement.EMBEDDED, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
+      assertEquals(RaycastPlacement.EMBEDDED, QuickShapeSystem.effectiveModes(settings, session).raycastPlacement());
    }
 
    @Test
@@ -195,8 +195,8 @@ class FastPlaceSettingsTest {
 
       assertFalse(settings.toTag().contains("raycastPlacement"));
       assertEquals(RaycastPlacement.SURFACE, settings.modes().raycastPlacement());
-      assertEquals(RaycastPlacement.SURFACE, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
+      assertEquals(RaycastPlacement.SURFACE, QuickShapeSystem.effectiveModes(settings, session).raycastPlacement());
       session.setModifierHeld(true);
-      assertEquals(RaycastPlacement.EMBEDDED, FastPlaceManager.effectiveModes(settings, session).raycastPlacement());
+      assertEquals(RaycastPlacement.EMBEDDED, QuickShapeSystem.effectiveModes(settings, session).raycastPlacement());
    }
 }

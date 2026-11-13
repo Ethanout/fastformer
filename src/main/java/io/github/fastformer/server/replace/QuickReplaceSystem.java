@@ -11,9 +11,9 @@ import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.GeometrySystem;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;
 import io.github.fastformer.server.player.PlayerStateRegistry;
@@ -45,8 +45,8 @@ public final class QuickReplaceSystem {
       forget(player);
       if (!active) return false;
       if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player) || HistorySystem.of(player).busy(player)
-         || FastPlaceManager.active(player) || OperationManager.active(player) || GeometryManager.active(player)
-         || FastPlaceManager.taskActive(player) || OperationManager.taskActive(player)) return false;
+         || QuickShapeSystem.of(player).active(player) || OperationSystem.of(player).active(player) || GeometrySystem.of(player).active(player)
+         || QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player)) return false;
       state(player).active = true;
       return true;
    }
@@ -115,11 +115,11 @@ public final class QuickReplaceSystem {
          && !HistorySystem.of(player).busy(player)
          && ServerInputDispatcher.canOperate(player)
          && !ServerInputDispatcher.interactionBlocked(player)
-         && !FastPlaceManager.active(player)
-         && !OperationManager.active(player)
-         && !GeometryManager.active(player)
-         && !FastPlaceManager.taskActive(player)
-         && !OperationManager.taskActive(player)
+         && !QuickShapeSystem.of(player).active(player)
+         && !OperationSystem.of(player).active(player)
+         && !GeometrySystem.of(player).active(player)
+         && !QuickShapeSystem.of(player).taskActive(player)
+         && !OperationSystem.of(player).taskActive(player)
          && PlaceableItems.isPlaceable(player.getMainHandItem());
    }
 

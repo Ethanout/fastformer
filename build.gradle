@@ -262,7 +262,10 @@ tasks.register('verifyModJar') {
     doLast {
         def requiredEntries = [
                 'io/github/fastformer/fastplace/text/FastPlaceMessages.class',
-                'io/github/fastformer/server/session/FastPlaceManager.class',
+                'io/github/fastformer/server/session/QuickShapeSystem.class',
+                'io/github/fastformer/server/session/OperationSystem.class',
+                'io/github/fastformer/server/session/GeometrySystem.class',
+                'io/github/fastformer/server/session/SessionSystem.class',
                 'io/github/fastformer/fastplace/geometry/generation/FastPlaceGeometry.class',
                 'io/github/fastformer/fastplace/workflow/ConvexPolyhedronWorkflow.class',
                 'io/github/fastformer/fastplace/session/FastPlaceActivity.class',

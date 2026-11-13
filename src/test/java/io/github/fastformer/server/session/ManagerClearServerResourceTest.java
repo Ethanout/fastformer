@@ -41,9 +41,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class ManagerClearServerResourceTest {
+   private final SessionSystem runtime = new SessionSystem();
+   private final QuickShapeSystem quickShape = runtime.quickShape;
+   private final OperationSystem operation = runtime.operation;
    @AfterEach
    void clearManagers() {
-      FastPlaceManager.clearServer();
+      runtime.close();
    }
 
    @Test
@@ -85,7 +88,7 @@ class ManagerClearServerResourceTest {
       assertManagerClearLifecycle(task, baseline, false);
    }
 
-   private static void assertManagerClearLifecycle(Object task, long baseline, boolean placement) throws Exception {
+   private void assertManagerClearLifecycle(Object task, long baseline, boolean placement) throws Exception {
       UUID owner = UUID.randomUUID();
       CompletableFuture<Boolean> journalIo = new CompletableFuture<>();
       setField(journalPreparation(task), "appendFuture", journalIo);
@@ -105,13 +108,13 @@ class ManagerClearServerResourceTest {
          assertTrue(MemoryReservation.reservedBytes() > baseline);
 
          if (placement) {
-            FastPlaceManager.addTaskForTest(owner, (PlacementTask)task);
-            FastPlaceManager.clearServer();
-            assertFalse(FastPlaceManager.taskActive(owner));
+            quickShape.tasks.put(owner, (PlacementTask)task);
+            runtime.close();
+            assertFalse(quickShape.taskActive(owner));
          } else {
-            OperationManager.addTaskForTest(owner, (io.github.fastformer.fastplace.task.WorldOperationTask)task);
-            OperationManager.clearServer();
-            assertFalse(OperationManager.taskActive(owner));
+            operation.tasks.put(owner, (io.github.fastformer.fastplace.task.WorldOperationTask)task);
+            runtime.close();
+            assertFalse(operation.taskActive(owner));
          }
          assertTrue(MemoryReservation.reservedBytes() > baseline);
 

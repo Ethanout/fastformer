@@ -4,8 +4,8 @@ import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.protocol.upload.UploadChunk;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.WorkspaceAdmission;
 import java.io.IOException;
@@ -77,7 +77,7 @@ public final class WorkspaceUploads implements AutoCloseable {
 
    private boolean admit(ServerPlayer player, UUID transfer) {
       if (decodes.contains(player.getUUID(), transfer)) return false;
-      var recorded = OperationManager.recordedOutcome(player, transfer);
+      var recorded = OperationSystem.of(player).recordedOutcome(player, transfer);
       if (recorded != OperationSubmissionOutcome.UNKNOWN) {
          receipts.admission(player, transfer, WorkspaceAdmission.replayed(recorded));
          return false;
@@ -108,7 +108,7 @@ public final class WorkspaceUploads implements AutoCloseable {
             if (error != null) { receipts.failAdmission(player, transfer); return; }
             try {
                var admission = ServerInputDispatcher.applyWorkspace(player, transfer, plan);
-               if (kind == UploadKind.SHAPE && admission.isQueued()) FastPlaceManager.cancel(player);
+               if (kind == UploadKind.SHAPE && admission.isQueued()) QuickShapeSystem.of(player).cancel(player);
                receipts.admission(player, transfer, admission);
             } catch (RuntimeException failure) {
                // A task may already own the transfer. The receipt guard must decide whether failure is still admissible.
@@ -127,7 +127,7 @@ public final class WorkspaceUploads implements AutoCloseable {
 
    private boolean owns(UUID owner, UUID transfer) {
       return incoming.contains(owner, transfer) || decodes.contains(owner, transfer)
-         || OperationManager.transferActive(owner, transfer);
+         || OperationSystem.find(server).map(system -> system.transferActive(owner, transfer)).orElse(false);
    }
 
    private void requirePlayer(ServerPlayer player) {

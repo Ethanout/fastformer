@@ -15,7 +15,7 @@ import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.*;
@@ -45,17 +45,17 @@ public final class HoldLineGameTests {
          PreviewSync.syncSettings(player);
          BlockHitResult hit = hit(player);
          ServerInputDispatcher.startPlacement(player, request(player, 1, hit, PROFILE));
-         var draft = FastPlaceManager.session(player).orElseThrow();
+         var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          helper.assertTrue(draft.profileId().equals(PROFILE), "server did not resolve the synchronized profile");
          helper.assertTrue(draft.points().equals(List.of(hit.getBlockPos())), "hold start was not embedded in the frozen hit");
-         helper.assertTrue(FastPlaceManager.effectiveModes(settings, draft).lineMode() == LineMode.AXIS, "profile did not lock the effective line mode");
-         FastPlaceManager.cycleStageMode(player);
-         FastPlaceManager.setStageMode(player, LineMode.RAYCAST);
-         FastPlaceManager.scrollContext(player, 3);
+         helper.assertTrue(QuickShapeSystem.effectiveModes(settings, draft).lineMode() == LineMode.AXIS, "profile did not lock the effective line mode");
+         QuickShapeSystem.of(player).cycleStageMode(player);
+         QuickShapeSystem.of(player).setStageMode(player, LineMode.RAYCAST);
+         QuickShapeSystem.of(player).scrollContext(player, 3);
          helper.assertTrue(settings.storedLineMode() == LineMode.FREE_SCROLL, "profile changed the saved player mode");
-         helper.assertTrue(FastPlaceManager.effectiveModes(settings, draft).lineMode() == LineMode.AXIS, "mode action bypassed the profile lock");
-         helper.assertFalse(FastPlaceManager.closePolygon(player), "hold line closed a polygon");
-         FastPlaceManager.cancel(player);
+         helper.assertTrue(QuickShapeSystem.effectiveModes(settings, draft).lineMode() == LineMode.AXIS, "mode action bypassed the profile lock");
+         helper.assertFalse(QuickShapeSystem.of(player).closePolygon(player), "hold line closed a polygon");
+         QuickShapeSystem.of(player).cancel(player);
       });
    }
 
@@ -74,23 +74,23 @@ public final class HoldLineGameTests {
             PreviewSync.syncSettings(player);
             var start = hit(player);
             ServerInputDispatcher.startPlacement(player, request(player, 11, start, PROFILE));
-            var draft = FastPlaceManager.session(player).orElseThrow();
+            var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
             first[0] = draft.points().getFirst();
             player.setPos(player.position().add(3, 0, 0));
             var eye = player.getEyePosition();
             var view = player.getViewVector(1);
-            var candidate = FastPlaceManager.candidateContext(player).resolve(
+            var candidate = QuickShapeSystem.of(player).candidateContext(player).resolve(
                LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit(), eye, view);
             helper.assertTrue(candidate.distManhattan(first[0]) > 0, "fixture did not produce a line");
             ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
                PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
                QuickShapePointerPayload.Action.MIDDLE, candidate, eye, view, false, 12));
-            helper.assertFalse(FastPlaceManager.active(player), "middle setting prevented hold release submission");
+            helper.assertFalse(QuickShapeSystem.of(player).active(player), "middle setting prevented hold release submission");
             helper.assertTrue(settings.storedLineMode() == LineMode.RAYCAST, "release overwrote the saved line mode");
             submitted[0] = true;
          }
-         FastPlaceManager.tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for line placement");
+         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "waiting for line placement");
          helper.assertTrue(helper.getLevel().getBlockState(first[0]).is(Blocks.GOLD_BLOCK), "embedded starting block was not included");
          helper.assertTrue(helper.getLevel().getBlockState(first[0].above()).isAir(), "surface entry left an extra block above the start");
       });
@@ -102,11 +102,11 @@ public final class HoldLineGameTests {
       helper.succeedWhen(() -> {
          ready(helper, player);
          ServerInputDispatcher.startPlacement(player, request(player, 21, hit(player), ResourceLocation.parse("fastformer:missing")));
-         helper.assertFalse(FastPlaceManager.active(player), "unknown profile created a draft");
+         helper.assertFalse(QuickShapeSystem.of(player).active(player), "unknown profile created a draft");
          player.setPos(player.position().add(0, 20, 0));
          PreviewSync.syncSettings(player);
          ServerInputDispatcher.startPlacement(player, request(player, 22, hit(player), PROFILE));
-         helper.assertFalse(FastPlaceManager.active(player), "hold line started beyond player interaction range");
+         helper.assertFalse(QuickShapeSystem.of(player).active(player), "hold line started beyond player interaction range");
       });
    }
 
@@ -120,9 +120,9 @@ public final class HoldLineGameTests {
          var frozen = hit(player);
          helper.assertTrue(frozen.getBlockPos().equals(target), "frozen outline did not ignore fluid");
          ServerInputDispatcher.startPlacement(player, request(player, 31, frozen, PROFILE));
-         var draft = FastPlaceManager.session(player).orElseThrow();
+         var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          helper.assertTrue(draft.points().equals(List.of(target)), "hold anchor was recast against the water surface");
-         FastPlaceManager.cancel(player);
+         QuickShapeSystem.of(player).cancel(player);
       });
    }
 

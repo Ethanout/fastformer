@@ -18,7 +18,7 @@ import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.fastplace.quickshape.VolumeMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import java.util.HashSet;
 import java.util.Set;
@@ -249,7 +249,7 @@ public final class FastPlaceSettings {
    public void setSessionUndoHistoryLimit(ServerPlayer player, int value) {
       this.sessionUndoHistoryLimit = Math.clamp((long)value, 1, MAX_UNDO_HISTORY_LIMIT);
       this.save(player);
-      OperationManager.updateSessionHistoryLimit(player, this.sessionUndoHistoryLimit);
+      OperationSystem.of(player).updateSessionHistoryLimit(player, this.sessionUndoHistoryLimit);
    }
 
    public OperationConflictMode placementConflictMode() {

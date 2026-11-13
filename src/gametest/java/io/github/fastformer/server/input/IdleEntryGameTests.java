@@ -13,7 +13,7 @@ import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -51,9 +51,9 @@ public final class IdleEntryGameTests {
       helper.getLevel().setBlock(hit.getBlockPos().above(), Blocks.STONE.defaultBlockState(), 2);
       helper.assertTrue(!hit(player).getBlockPos().equals(hit.getBlockPos()), "occluder did not block the ordinary ray");
       ServerInputDispatcher.startPlacement(player, request(player, 101, hit));
-      var draft = FastPlaceManager.session(player).orElseThrow();
+      var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       helper.assertTrue(draft.points().equals(java.util.List.of(hit.getBlockPos().above())), "entry lost the first press's surface placement rule");
-      FastPlaceManager.cancel(player);
+      QuickShapeSystem.of(player).cancel(player);
       helper.succeed();
    }
 
@@ -77,10 +77,10 @@ public final class IdleEntryGameTests {
       var second = hit(player);
       helper.assertTrue(second.getBlockPos().equals(placed), "second ray did not hit the placed shape");
       ServerInputDispatcher.startPlacement(player, request(player, 102, second));
-      helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().equals(java.util.List.of(placed)),
+      helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(placed)),
          "double-click lost the captured placement anchor");
       helper.assertTrue(helper.getLevel().getBlockState(placed.above()).isAir(), "entry placed a second log");
-      FastPlaceManager.cancel(player);
+      QuickShapeSystem.of(player).cancel(player);
       });
    }
 
@@ -109,7 +109,7 @@ public final class IdleEntryGameTests {
          player.setXRot(88);
          helper.getLevel().setBlock(placed, Blocks.STONE.defaultBlockState(), 2);
          ServerInputDispatcher.startPlacement(player, request(player, 105, second));
-         var draft = FastPlaceManager.session(player).orElseThrow();
+         var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          var placement = draft.placementContext();
          helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click lost the captured placement anchor");
          helper.assertTrue(io.github.fastformer.fastplace.placement.context.PlaceableItems.placementState(
@@ -127,7 +127,7 @@ public final class IdleEntryGameTests {
          } finally {
             buffer.release();
          }
-         FastPlaceManager.cancel(player);
+         QuickShapeSystem.of(player).cancel(player);
       });
    }
 
@@ -138,7 +138,7 @@ public final class IdleEntryGameTests {
       IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(103, hit, player.getEyePosition(), player.getViewVector(1)));
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.STONE));
       ServerInputDispatcher.startPlacement(player, request(player, 103, hit));
-      helper.assertFalse(FastPlaceManager.active(player), "old snapshot survived a held-item change");
+      helper.assertFalse(QuickShapeSystem.of(player).active(player), "old snapshot survived a held-item change");
       helper.succeed();
    }
 
@@ -201,10 +201,10 @@ public final class IdleEntryGameTests {
       var second = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, false);
       helper.assertTrue(second.getBlockPos().equals(placed.above()), "second ray should hit the water above the placed block");
       ServerInputDispatcher.startPlacement(player, request(player, 120, second));
-      var draft = FastPlaceManager.session(player).orElseThrow();
+      var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click moved the first point onto the water surface");
       helper.assertTrue(draft.placementContext().capturedState().state().is(Blocks.OAK_LOG), "first placed state was lost");
-      FastPlaceManager.cancel(player);
+      QuickShapeSystem.of(player).cancel(player);
       helper.succeed();
    }
 
@@ -218,9 +218,9 @@ public final class IdleEntryGameTests {
          IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(token, first, player.getEyePosition(), player.getViewVector(1), rules));
          ServerInputDispatcher.startPlacement(player, request(player, token, first));
          var expected = embedded ? first.getBlockPos() : first.getBlockPos().above();
-         helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().equals(java.util.List.of(expected)),
+         helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(expected)),
             "second click changed embedded=" + embedded);
-         FastPlaceManager.cancel(player);
+         QuickShapeSystem.of(player).cancel(player);
       }
       helper.succeed();
    }
@@ -291,11 +291,11 @@ public final class IdleEntryGameTests {
             var target = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
                PreviewSync.callbackScope(player), hit, player.getEyePosition(), player.getViewVector(1), 0, true, true);
             ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(104, target));
-            helper.assertFalse(FastPlaceManager.active(player), "middle entry left a line draft instead of submitting");
+            helper.assertFalse(QuickShapeSystem.of(player).active(player), "middle entry left a line draft instead of submitting");
             submitted[0] = true;
          }
-         FastPlaceManager.tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
-         helper.assertFalse(FastPlaceManager.taskActive(player), "waiting for placement");
+         QuickShapeSystem.of(helper.getLevel().getServer()).tickWorld(helper.getLevel().getServer(), io.github.fastformer.server.history.HistorySystem.of(helper.getLevel().getServer()));
+         helper.assertFalse(QuickShapeSystem.of(player).taskActive(player), "waiting for placement");
          helper.assertFalse(HistorySystem.of(player).busy(player), "waiting for history publication");
          helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos()).is(Blocks.OAK_LOG), "embedded entry did not replace the hit block");
          helper.assertTrue(helper.getLevel().getBlockState(hit.getBlockPos().above()).isAir(), "embedded entry placed an adjacent block");
@@ -406,9 +406,9 @@ public final class IdleEntryGameTests {
       var target = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
          PreviewSync.callbackScope(player), targetHit, eye, view, 0, false, false, true);
       ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(110, target));
-      helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().equals(java.util.List.of(fluid)),
+      helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(fluid)),
          "server rejected the Alt surface ray through water");
-      FastPlaceManager.cancel(player);
+      QuickShapeSystem.of(player).cancel(player);
       helper.succeed();
    }
 }

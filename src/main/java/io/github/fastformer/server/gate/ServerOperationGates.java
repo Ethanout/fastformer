@@ -8,9 +8,9 @@ import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.BlockEditTransaction;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.GeometrySystem;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.fill.SmartFillSystem;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -20,8 +20,8 @@ public final class ServerOperationGates {
       .and(Gate.require("enabled", player -> FastPlaceSettings.load(player).enabled()))
       .and(Gate.require("recovery", player -> PersistentRecoveryJournal.writesAllowed()));
 
-   public static final Gate<ServerPlayer> WRITE_AVAILABLE = Gate.<ServerPlayer>require("placement_task", player -> !FastPlaceManager.taskActive(player))
-      .and(Gate.require("selection_task", player -> !OperationManager.taskActive(player)))
+   public static final Gate<ServerPlayer> WRITE_AVAILABLE = Gate.<ServerPlayer>require("placement_task", player -> !QuickShapeSystem.of(player).taskActive(player))
+      .and(Gate.require("selection_task", player -> !OperationSystem.of(player).taskActive(player)))
       .and(Gate.require("smart_fill", player -> !SmartFillSystem.active(player)))
       .and(Gate.require("history", player -> !HistorySystem.of(player).busy(player)));
    public static final Gate<ServerPlayer> WORLD_UNLOCKED = Gate.require("world_write",
@@ -31,7 +31,7 @@ public final class ServerOperationGates {
       WORLD_UNLOCKED.or(Gate.require("observed_transaction", BlockEditTransaction::continuingObservedAction)));
    public static final Gate<ServerPlayer> OPERATE = AVAILABLE.and(START_WRITE);
    public static final Gate<ServerPlayer> NO_SESSION = Gate.require("active_session",
-      player -> !FastPlaceManager.active(player) && !OperationManager.active(player) && !GeometryManager.active(player));
+      player -> !QuickShapeSystem.of(player).active(player) && !OperationSystem.of(player).active(player) && !GeometrySystem.of(player).active(player));
    public static final Gate<ServerPlayer> WORLD_HISTORY = AVAILABLE.and(WRITE_AVAILABLE).and(NO_SESSION);
 
    private ServerOperationGates() {}

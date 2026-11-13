@@ -6,7 +6,7 @@ import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayl
 import io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.server.submission.WorkspaceResultSink;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
@@ -35,7 +35,7 @@ public final class WorkspaceReceipts implements WorkspaceResultSink {
 
    void remember(ServerPlayer player, UUID transfer, int chunkIndex) {
       requirePlayer(player);
-      if (closed || chunkIndex != 0 || OperationManager.recordedOutcome(player, transfer).open()) return;
+      if (closed || chunkIndex != 0 || OperationSystem.of(player).recordedOutcome(player, transfer).open()) return;
       scopes.putIfAbsent(new RequestKey(player.getUUID(), transfer), PreviewSync.callbackScope(player));
    }
 
@@ -95,8 +95,8 @@ public final class WorkspaceReceipts implements WorkspaceResultSink {
    void failAdmission(ServerPlayer player, UUID transfer) {
       requirePlayer(player);
       if (closed || transfer == null
-         || OperationManager.recordedOutcome(player, transfer) != OperationSubmissionOutcome.UNKNOWN
-         || OperationManager.transferActive(player.getUUID(), transfer)) return;
+         || OperationSystem.of(player).recordedOutcome(player, transfer) != OperationSubmissionOutcome.UNKNOWN
+         || OperationSystem.of(player).transferActive(player.getUUID(), transfer)) return;
       finish(new WorkspaceCompletion(player.getUUID(), player.level().dimension().location(), transfer,
          false, true, false, List.of(), List.of(), WorkspaceFailure.UNKNOWN), player);
    }
@@ -113,7 +113,8 @@ public final class WorkspaceReceipts implements WorkspaceResultSink {
 
    private OperationSubmissionOutcome answer(UUID owner, ResourceLocation dimension, UUID transfer) {
       var recorded = WorkspaceSubmissionLedger.outcomeFor(server, owner, dimension, transfer);
-      if (recorded == OperationSubmissionOutcome.IN_PROGRESS && !OperationManager.transferActive(owner, transfer)) {
+      if (recorded == OperationSubmissionOutcome.IN_PROGRESS
+         && !OperationSystem.find(server).map(system -> system.transferActive(owner, transfer)).orElse(false)) {
          return OperationSubmissionOutcome.UNKNOWN;
       }
       return recorded;

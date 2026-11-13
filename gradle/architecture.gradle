@@ -22,6 +22,7 @@ abstract class VerifySourceLayout extends DefaultTask {
             boolean gameTest = path.contains('/src/gametest/java/')
             if (main && (packageName.startsWith('io.github.fastformer.server.history') ||
                     packageName.startsWith('io.github.fastformer.server.sync') ||
+                    packageName.startsWith('io.github.fastformer.server.session') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -110,6 +111,14 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && packageName.startsWith('io.github.fastformer.server.sync') &&
                     (dependencies =~ /(?:\bstatic\s+final\s+Map\s*<|\bConcurrentHashMap\b|\bclearServer\s*\()/).find()) {
                 violations.add("Preview publications bypass the player scope lifecycle: ${path}")
+            }
+            if (main && (text =~ /\b(?:FastPlaceManager|OperationManager|GeometryManager)\b/).find()) {
+                violations.add("Retired static workflow facade: ${path}")
+            }
+            if (main && packageName == 'io.github.fastformer.server.session' &&
+                    source.name != 'SessionSystem.java' &&
+                    (text =~ /(?:\bstatic\s+final\s+(?:PlayerSessions|WorldTaskQueue|Map)\s*<|\b\w+ForTest\b)/).find()) {
+                violations.add("Workflow bypasses its server instance or exposes a test-only hook: ${path}")
             }
             if (main && source.name == 'FastPlaceNetwork.java' &&
                     (text =~ /\b(?:IncomingPayloadTransfers|WorkspaceDecodeQueue|WorkspaceReceipts|WorkspaceUploads|serverEpoch|WORKSPACE_CALLBACK_SCOPES)\b/).find()) {

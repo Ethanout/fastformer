@@ -48,9 +48,9 @@ import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputState.OperationExtendIdentity;
 import io.github.fastformer.server.input.ServerInputState.OperationPointGesture;
 import io.github.fastformer.server.input.ServerInputState.OperationTransformIdentity;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.GeometrySystem;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -83,10 +83,10 @@ public final class ServerInputDispatcher {
 
    public static void stopBecauseUnavailable(ServerPlayer player) {
       io.github.fastformer.server.fill.SmartFillSystem.cancel(player);
-      boolean taskWasActive = FastPlaceManager.taskActive(player) || OperationManager.taskActive(player);
-      FastPlaceManager.cancel(player);
-      FastPlaceManager.cancelTask(player);
-      OperationManager.cancelTask(player);
+      boolean taskWasActive = QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player);
+      QuickShapeSystem.of(player).cancel(player);
+      QuickShapeSystem.of(player).cancelTask(player);
+      OperationSystem.of(player).cancelTask(player);
       HistorySystem.of(player).cancel(player);
       if (taskWasActive && !PersistentRecoveryJournal.writesAllowed()) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
@@ -98,17 +98,17 @@ public final class ServerInputDispatcher {
          return false;
       }
 
-      return switch (FastPlaceManager.classify(player)) {
+      return switch (QuickShapeSystem.of(player).classify(player)) {
          // Selection points belong to explicit selection commands, not vanilla item callbacks.
          case OPERATION, VANILLA -> false;
          case GEOMETRY -> rightClickGeometry(player, hit);
          case SPECIAL_ITEM -> SpecialItemHandlers.useOnBlock(player, hit.getBlockPos());
          case BUILDING -> {
             if (!PlaceableItems.isPlaceable(player.getMainHandItem())) {
-               FastPlaceManager.quit(player);
+               QuickShapeSystem.of(player).quit(player);
                yield false;
             }
-            FastPlaceManager.addPoint(player, hit);
+            QuickShapeSystem.of(player).addPoint(player, hit);
             yield true;
          }
       };
@@ -120,20 +120,20 @@ public final class ServerInputDispatcher {
       }
 
       BlockHitResult hit = raycastBlocks(player, EXTENDED_REACH);
-      return switch (FastPlaceManager.classify(player)) {
+      return switch (QuickShapeSystem.of(player).classify(player)) {
          case OPERATION -> false;
          case BUILDING -> {
             if (hit.getType() == HitResult.Type.BLOCK) {
-               FastPlaceManager.addPoint(player, hit);
+               QuickShapeSystem.of(player).addPoint(player, hit);
             } else {
-               if (!FastPlaceManager.active(player)) {
+               if (!QuickShapeSystem.of(player).active(player)) {
                   yield false;
                }
-               QuickShapeDraft session = FastPlaceManager.session(player).orElse(null);
+               QuickShapeDraft session = QuickShapeSystem.of(player).session(player).orElse(null);
                BlockPos offset = session != null ? session.freeScrollOffset() : BlockPos.ZERO;
                BlockPos first = session != null && !session.points().isEmpty() ? session.points().getFirst() : BlockPos.ZERO;
                BlockPos anchor = first.offset(offset);
-               FastPlaceManager.addPoint(player, anchor, anchor);
+               QuickShapeSystem.of(player).addPoint(player, anchor, anchor);
             }
             yield true;
          }
@@ -148,9 +148,9 @@ public final class ServerInputDispatcher {
          return;
       }
       if (!PlaceableItems.isPlaceable(player.getMainHandItem())
-         || FastPlaceManager.active(player)
-         || OperationManager.active(player)
-         || GeometryManager.active(player)) {
+         || QuickShapeSystem.of(player).active(player)
+         || OperationSystem.of(player).active(player)
+         || GeometrySystem.of(player).active(player)) {
          return;
       }
       StartPlacementPayload.Target target = payload.target();
@@ -171,14 +171,14 @@ public final class ServerInputDispatcher {
          && (target.anchorToken() > 0 || sameHit(hit, target.hit()))) {
          if (!io.github.fastformer.server.interaction.profile.ProfileEntryRules.accepts(player, profile, target, hit)) return;
          if (entry != null && entry.placement() != null) {
-            FastPlaceManager.beginAtInteraction(player, entry.placement(), target.eye(), target.view());
+            QuickShapeSystem.of(player).beginAtInteraction(player, entry.placement(), target.eye(), target.view());
          } else {
             boolean embedded = entry == null ? target.embedded() : entry.rules().embedded();
             var placement = io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot.capture(
                player.level(), player, player.getMainHandItem(), hit, embedded);
-            FastPlaceManager.beginAtInteraction(player, placement, target.eye(), target.view(), target.profile(), profile);
+            QuickShapeSystem.of(player).beginAtInteraction(player, placement, target.eye(), target.view(), target.profile(), profile);
          }
-         if (target.submitAfterEntry() && FastPlaceManager.active(player)) FastPlaceManager.fillConfirmed(player);
+         if (target.submitAfterEntry() && QuickShapeSystem.of(player).active(player)) QuickShapeSystem.of(player).fillConfirmed(player);
       }
    }
 
@@ -196,40 +196,40 @@ public final class ServerInputDispatcher {
    }
 
    public static void middleClick(ServerPlayer player, BlockPos point) {
-      if (!interactionBlocked(player) && canOperate(player) && OperationManager.active(player)) {
-         OperationManager.session(player).ifPresent(session -> {
+      if (!interactionBlocked(player) && canOperate(player) && OperationSystem.of(player).active(player)) {
+         OperationSystem.of(player).session(player).ifPresent(session -> {
             if (session.selectionMode() == OperationSelectionMode.CUBOID) {
-               OperationManager.expandTo(player, point);
+               OperationSystem.of(player).expandTo(player, point);
             } else {
-               OperationManager.addExtraPoint(player, point);
+               OperationSystem.of(player).addExtraPoint(player, point);
             }
          });
       }
    }
 
    public static void extend(ServerPlayer player, int axis, boolean positive, int steps, boolean finish) {
-      if (interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !OperationSystem.of(player).active(player)) {
          return;
       }
-      OperationManager.extend(player, axis, positive, clampDragSteps(steps), finish);
+      OperationSystem.of(player).extend(player, axis, positive, clampDragSteps(steps), finish);
    }
 
    public static void operationSelectPoint(ServerPlayer player, OperationSelectPointPayload payload) {
       if (payload == null || payload.revision() != PreviewSync.operationRevision(player)
          || !payload.callbackScope().equals(PreviewSync.callbackScope(player))
-         || interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)
+         || interactionBlocked(player) || !canOperate(player) || !OperationSystem.of(player).active(player)
          || !acceptsOperationCommand(player, payload.requestId())) return;
-      OperationManager.selectPoint(player, payload.index());
+      OperationSystem.of(player).selectPoint(player, payload.index());
    }
 
    public static void operationPointDrag(ServerPlayer player, OperationPointDragPayload payload) {
-      if (interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || !OperationSystem.of(player).active(player)) {
          return;
       }
       OperationPointGesture gesture = acceptsOperationPointDrag(player, payload);
       if (gesture == null) return;
       try {
-         OperationManager.dragPoint(player, payload.pointIndex(), payload.target(), payload.constraint(), payload.finish());
+         OperationSystem.of(player).dragPoint(player, payload.pointIndex(), payload.target(), payload.constraint(), payload.finish());
       } finally {
          if (payload.finish()) {
             ServerInputState.of(player).pointGesture = gesture.finished(PreviewSync.operationRevision(player));
@@ -240,7 +240,7 @@ public final class ServerInputDispatcher {
    public static void extend(ServerPlayer player, OperationExtendPayload payload) {
       if (payload == null || !payload.callbackScope().equals(PreviewSync.callbackScope(player))
          || interactionBlocked(player) || !canOperate(player)) return;
-      OperationSession session = OperationManager.session(player).orElse(null);
+      OperationSession session = OperationSystem.of(player).session(player).orElse(null);
       if (session == null) {
          ServerInputState.of(player).extendGesture = null;
          return;
@@ -261,7 +261,7 @@ public final class ServerInputDispatcher {
 
    private static OperationPointGesture acceptsOperationPointDrag(ServerPlayer player, OperationPointDragPayload payload) {
       if (payload == null || !payload.callbackScope().equals(PreviewSync.callbackScope(player))) return null;
-      OperationSession session = OperationManager.session(player).orElse(null);
+      OperationSession session = OperationSystem.of(player).session(player).orElse(null);
       if (session == null) return null;
       OperationPointGesture previous = ServerInputState.of(player).pointGesture;
       long currentRevision = PreviewSync.operationRevision(player);
@@ -279,9 +279,9 @@ public final class ServerInputDispatcher {
    }
 
    public static void operationPointClick(ServerPlayer player, OperationPointClickPayload payload) {
-      if (payload == null || interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) return;
+      if (payload == null || interactionBlocked(player) || !canOperate(player) || !OperationSystem.of(player).active(player)) return;
       OperationPointGesture completed = ServerInputState.of(player).pointGesture;
-      OperationSession session = OperationManager.session(player).orElse(null);
+      OperationSession session = OperationSystem.of(player).session(player).orElse(null);
       if (completed == null || !completed.finished() || completed.consumed() || completed.gestureId() != payload.gestureId()
          || completed.revision() != payload.revision() || !completed.callbackScope().equals(payload.callbackScope())
          || completed.pointIndex() != payload.pointIndex() || completed.session() != session
@@ -289,10 +289,10 @@ public final class ServerInputDispatcher {
          || !payload.callbackScope().equals(PreviewSync.callbackScope(player))) return;
       if (payload.action() == OperationPointClickPayload.Action.CLOSE) {
          ServerInputState.of(player).pointGesture = completed.markConsumed();
-         OperationManager.closePrismBase(player);
+         OperationSystem.of(player).closePrismBase(player);
       } else {
          ServerInputState.of(player).pointGesture = completed.markConsumed();
-         OperationManager.removePoint(player, payload.pointIndex());
+         OperationSystem.of(player).removePoint(player, payload.pointIndex());
       }
    }
 
@@ -300,10 +300,10 @@ public final class ServerInputDispatcher {
       if (payload == null || payload.revision() != PreviewSync.operationRevision(player)
          || !io.github.fastformer.common.raycast.RaySnapshotValidation.near(payload.eye(), player.getEyePosition(), player.blockInteractionRange())
          || !payload.callbackScope().equals(PreviewSync.callbackScope(player))
-         || interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)) {
+         || interactionBlocked(player) || !canOperate(player) || !OperationSystem.of(player).active(player)) {
          return;
       }
-      OperationSession session = OperationManager.session(player).orElse(null);
+      OperationSession session = OperationSystem.of(player).session(player).orElse(null);
       if (session == null || session.selectionMode() != OperationSelectionMode.PRISM) {
          return;
       }
@@ -319,7 +319,7 @@ public final class ServerInputDispatcher {
          raycast.distance()
       );
       if (insertion != null) {
-         OperationManager.insertPoint(player, insertion.insertionIndex(), insertion.point());
+         OperationSystem.of(player).insertPoint(player, insertion.insertionIndex(), insertion.point());
       }
    }
 
@@ -327,7 +327,7 @@ public final class ServerInputDispatcher {
       if (payload == null || interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
-      GeometrySession session = GeometryManager.session(player).orElse(null);
+      GeometrySession session = GeometrySystem.of(player).session(player).orElse(null);
       if (session == null || !session.draftId().equals(payload.draftId())
          || !payload.callbackScope().equals(PreviewSync.callbackScope(player))) {
          return false;
@@ -339,7 +339,7 @@ public final class ServerInputDispatcher {
          payload.callbackScope(), session, ServerInputState.of(player).geometryDragActions);
       if (sequence == null) return false;
       try {
-         return GeometryManager.gizmoDrag(player, operation, axis, clampDragSteps(payload.steps()), payload.finish());
+         return GeometrySystem.of(player).gizmoDrag(player, operation, axis, clampDragSteps(payload.steps()), payload.finish());
       } finally {
          advanceGeometryPointer(player, session, sequence);
       }
@@ -353,7 +353,7 @@ public final class ServerInputDispatcher {
          || IdleInteractionSnapshots.idle(player)) {
          return false;
       }
-      GeometrySession session = GeometryManager.session(player).orElse(null);
+      GeometrySession session = GeometrySystem.of(player).session(player).orElse(null);
       GeometryPointerSequence sequence = acceptGeometryPointer(player, payload.requestId(), payload.revision(),
          payload.callbackScope(), session);
       if (sequence == null) {
@@ -361,9 +361,9 @@ public final class ServerInputDispatcher {
       }
       try {
          if (isCapturedDoubleClickClose(payload)) {
-            return GeometryManager.closePath(player);
+            return GeometrySystem.of(player).closePath(player);
          }
-         return GeometryManager.interaction(player, payload.targetType(), payload.index(), payload.action(), payload.gesture(),
+         return GeometrySystem.of(player).interaction(player, payload.targetType(), payload.index(), payload.action(), payload.gesture(),
             payload.eye(), payload.view());
       } finally {
          advanceGeometryPointer(player, session, sequence);
@@ -386,10 +386,10 @@ public final class ServerInputDispatcher {
          return;
       }
       LongRangeBlockRaycast.Result raycast = LongRangeBlockRaycast.clipForSelection(
-         player.level(), player, player.getEyePosition(), player.getViewVector(1.0F), FastPlaceManager.modifierHeld(player)
+         player.level(), player, player.getEyePosition(), player.getViewVector(1.0F), QuickShapeSystem.of(player).modifierHeld(player)
       );
       BlockHitResult hit = raycast.hit();
-      OperationSession session = OperationManager.session(player).orElse(null);
+      OperationSession session = OperationSystem.of(player).session(player).orElse(null);
       boolean prismPointInput = session != null && session.selectionMode() == OperationSelectionMode.PRISM;
       boolean prismHeight = prismPointInput
          && session.prismBaseClosed()
@@ -398,7 +398,7 @@ public final class ServerInputDispatcher {
          && !session.prismBaseClosed()
          && session.points().size() >= 3;
       if (!prismHeight && !prismBasePlane && (hit.getType() != HitResult.Type.BLOCK
-         || session == null && IdleInteractionSnapshots.idle(player) && !FastPlaceManager.modifierHeld(player))) {
+         || session == null && IdleInteractionSnapshots.idle(player) && !QuickShapeSystem.of(player).modifierHeld(player))) {
          return;
       }
       BlockPos point = prismHeight
@@ -421,29 +421,29 @@ public final class ServerInputDispatcher {
       }
       if (prismPointInput) {
          if (!session.hasFirst()) {
-            OperationManager.startFirst(player, point);
+            OperationSystem.of(player).startFirst(player, point);
          } else if (!session.hasSecond()) {
-            OperationManager.setSecond(player, point);
+            OperationSystem.of(player).setSecond(player, point);
          } else if (session.needsSelectionPoint()) {
-            OperationManager.addSelectionPoint(player, point);
+            OperationSystem.of(player).addSelectionPoint(player, point);
          }
          return;
       }
       if (role == OperationPointPayload.Role.FIRST) {
-         OperationManager.startFirst(player, point);
-      } else if (role == OperationPointPayload.Role.SECOND && !OperationManager.active(player)) {
-         OperationManager.startSecond(player, point);
-      } else if (!OperationManager.active(player)) {
-         OperationManager.startFirst(player, point);
+         OperationSystem.of(player).startFirst(player, point);
+      } else if (role == OperationPointPayload.Role.SECOND && !OperationSystem.of(player).active(player)) {
+         OperationSystem.of(player).startSecond(player, point);
+      } else if (!OperationSystem.of(player).active(player)) {
+         OperationSystem.of(player).startFirst(player, point);
       } else if (role == OperationPointPayload.Role.SECOND) {
-         OperationManager.setSecond(player, point);
-      } else if (OperationManager.needsSelectionPoint(player)) {
-         OperationManager.addSelectionPoint(player, point);
+         OperationSystem.of(player).setSecond(player, point);
+      } else if (OperationSystem.of(player).needsSelectionPoint(player)) {
+         OperationSystem.of(player).addSelectionPoint(player, point);
       } else if (role == OperationPointPayload.Role.EXTRA
          && session != null && session.selectionMode() == OperationSelectionMode.CUBOID) {
-         OperationManager.expandTo(player, point);
+         OperationSystem.of(player).expandTo(player, point);
       } else if (session != null && session.second() != null) {
-         OperationManager.addExtraPoint(player, point);
+         OperationSystem.of(player).addExtraPoint(player, point);
       }
    }
 
@@ -453,24 +453,24 @@ public final class ServerInputDispatcher {
       }
       if (payload == null || !payload.scope().equals(PreviewSync.callbackScope(player))) return;
       long revision = switch (payload.kind()) {
-         case OPERATION -> OperationManager.active(player) ? PreviewSync.operationRevision(player) : -1;
-         case GEOMETRY -> GeometryManager.active(player) ? PreviewSync.geometryRevision(player) : -1;
-         case BUILDING -> FastPlaceManager.active(player) ? PreviewSync.buildingRevision(player) : -1;
+         case OPERATION -> OperationSystem.of(player).active(player) ? PreviewSync.operationRevision(player) : -1;
+         case GEOMETRY -> GeometrySystem.of(player).active(player) ? PreviewSync.geometryRevision(player) : -1;
+         case BUILDING -> QuickShapeSystem.of(player).active(player) ? PreviewSync.buildingRevision(player) : -1;
       };
       if (revision != payload.revision() || !acceptsOperationCommand(player, payload.requestId())) return;
       switch (payload.kind()) {
-         case OPERATION -> OperationManager.closePrismBase(player);
-         case GEOMETRY -> GeometryManager.closePath(player);
-         case BUILDING -> FastPlaceManager.closePolygon(player);
+         case OPERATION -> OperationSystem.of(player).closePrismBase(player);
+         case GEOMETRY -> GeometrySystem.of(player).closePath(player);
+         case BUILDING -> QuickShapeSystem.of(player).closePolygon(player);
       }
    }
 
    public static boolean selectGeometryMode(ServerPlayer player, GeometryMode mode) {
-      if (interactionBlocked(player) || !canOperate(player) || FastPlaceManager.active(player) || OperationManager.active(player)) {
+      if (interactionBlocked(player) || !canOperate(player) || QuickShapeSystem.of(player).active(player) || OperationSystem.of(player).active(player)) {
          return false;
       }
-      if (!GeometryManager.active(player) || GeometryManager.awaitingFirstPoint(player)) {
-         GeometryManager.selectMode(player, mode);
+      if (!GeometrySystem.of(player).active(player) || GeometrySystem.of(player).awaitingFirstPoint(player)) {
+         GeometrySystem.of(player).selectMode(player, mode);
          return true;
       }
       return false;
@@ -481,8 +481,8 @@ public final class ServerInputDispatcher {
       if (interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
-      if (!FastPlaceManager.active(player) || GeometryManager.active(player) || OperationManager.active(player)) return false;
-      FastPlaceManager.cycleFillMode(player);
+      if (!QuickShapeSystem.of(player).active(player) || GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player)) return false;
+      QuickShapeSystem.of(player).cycleFillMode(player);
       return true;
    }
 
@@ -509,28 +509,28 @@ public final class ServerInputDispatcher {
    ) {
       if (payload == null || interactionBlocked(player) || !canOperate(player)
          || !acceptPlacementAction(player, payload.requestId())) return;
-      if (!FastPlaceManager.active(player) || GeometryManager.active(player) || OperationManager.active(player)
+      if (!QuickShapeSystem.of(player).active(player) || GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player)
          || !PreviewSync.buildingSubmissionParametersMatch(player)
          || !payload.matches(PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player))) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_confirm_failed"));
          return;
       }
-      FastPlaceManager.fill(player);
+      QuickShapeSystem.of(player).fill(player);
    }
 
    public static void quickShapePointer(ServerPlayer player,
       io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload payload) {
       if (payload == null || interactionBlocked(player) || !canOperate(player)
-         || !FastPlaceManager.active(player) || GeometryManager.active(player) || OperationManager.active(player)
+         || !QuickShapeSystem.of(player).active(player) || GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player)
          || !PlaceableItems.isPlaceable(player.getMainHandItem())) return;
-      var draft = FastPlaceManager.session(player).orElseThrow();
+      var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       var scope = PreviewSync.callbackScope(player);
       long revision = PreviewSync.buildingRevision(player);
       var sequence = ServerInputState.of(player).quickShapePointer;
       if (!payload.scope().equals(scope)) return;
       if (payload.revision() == revision) {
          sequence = new io.github.fastformer.fastplace.quickshape.QuickShapePointerSequence(draft, scope, revision,
-            FastPlaceManager.candidateContext(player));
+            QuickShapeSystem.of(player).candidateContext(player));
       } else if (sequence == null || !sequence.accepts(draft, scope, payload.revision(), revision)) {
          return;
       }
@@ -539,7 +539,7 @@ public final class ServerInputDispatcher {
       try {
          applyQuickShapePointer(player, payload, sequence.candidateContext());
       } finally {
-         if (FastPlaceManager.session(player).orElse(null) == draft) {
+         if (QuickShapeSystem.of(player).session(player).orElse(null) == draft) {
             sequence.advance(PreviewSync.buildingRevision(player));
          } else {
             ServerInputState.of(player).quickShapePointer = null;
@@ -551,7 +551,7 @@ public final class ServerInputDispatcher {
       io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload payload,
       io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext candidateContext) {
       if (payload.action() == io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload.Action.UNDO) {
-         FastPlaceManager.undo(player);
+         QuickShapeSystem.of(player).undo(player);
          return;
       }
       // Bound the captured ray origin to the player's interaction range before tracing the world.
@@ -559,25 +559,25 @@ public final class ServerInputDispatcher {
       BlockHitResult hit = LongRangeBlockRaycast.clipForPlacement(player.level(), player, payload.eye(), payload.view()).hit();
       switch (payload.action()) {
          case SUBMIT_CURRENT -> {
-            QuickShapeDraft draft = FastPlaceManager.session(player).orElse(null);
+            QuickShapeDraft draft = QuickShapeSystem.of(player).session(player).orElse(null);
             if (draft != null && candidateContext.modifierHeld() == payload.modifierHeld()
                && draft.points().equals(candidateContext.points())
                && candidateContext.resolve(hit, payload.eye(), payload.view()).equals(payload.candidate())
                && io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(
                   draft.points(), payload.candidate(),
                   FastPlaceSettings.load(player).faceMode(), draft.polygonClosed())) {
-               FastPlaceManager.fillConfirmed(player);
+               QuickShapeSystem.of(player).fillConfirmed(player);
             }
          }
-         case CLOSE -> FastPlaceManager.closePolygon(player);
+         case CLOSE -> QuickShapeSystem.of(player).closePolygon(player);
          case UNDO -> throw new IllegalStateException("Undo was already dispatched");
-         case POINT -> FastPlaceManager.confirmCapturedPoint(player, payload, hit, candidateContext);
+         case POINT -> QuickShapeSystem.of(player).confirmCapturedPoint(player, payload, hit, candidateContext);
          case MIDDLE -> {
-            QuickShapeDraft draft = FastPlaceManager.session(player).orElse(null);
+            QuickShapeDraft draft = QuickShapeSystem.of(player).session(player).orElse(null);
             if (draft == null || !io.github.fastformer.server.interaction.profile.ProfileConstraints.middleConfirm(draft, FastPlaceSettings.load(player))
                || io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
                   FastPlaceSettings.load(player).faceMode(), draft.points().size(), draft.polygonClosed())) return;
-            if (FastPlaceManager.confirmCapturedPoint(player, payload, hit, candidateContext) && FastPlaceManager.active(player)) FastPlaceManager.fill(player);
+            if (QuickShapeSystem.of(player).confirmCapturedPoint(player, payload, hit, candidateContext) && QuickShapeSystem.of(player).active(player)) QuickShapeSystem.of(player).fill(player);
          }
       }
    }
@@ -587,7 +587,7 @@ public final class ServerInputDispatcher {
    }
 
    public static void quickShape(ServerPlayer player) {
-      QuickShapeDraft session = FastPlaceManager.session(player).orElse(null);
+      QuickShapeDraft session = QuickShapeSystem.of(player).session(player).orElse(null);
       if (session != null && io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
          FastPlaceSettings.load(player).faceMode(), session.points().size(), session.polygonClosed()
       )) {
@@ -598,11 +598,11 @@ public final class ServerInputDispatcher {
    }
 
    public static void applyOperation(ServerPlayer player, boolean copy, long requestId) {
-      if (interactionBlocked(player) || !canOperate(player) || !OperationManager.active(player)
+      if (interactionBlocked(player) || !canOperate(player) || !OperationSystem.of(player).active(player)
          || !acceptPlacementAction(player, requestId)) {
          return;
       }
-      OperationManager.applyConfirmed(player, copy);
+      OperationSystem.of(player).applyConfirmed(player, copy);
    }
 
    /**
@@ -619,14 +619,14 @@ public final class ServerInputDispatcher {
       ServerPlayer player, UUID transferId, OperationWorkspacePlan plan
    ) {
       io.github.fastformer.workspace.submission.OperationSubmissionOutcome recorded =
-         OperationManager.recordedOutcome(player, transferId);
+         OperationSystem.of(player).recordedOutcome(player, transferId);
       if (recorded != io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN) {
          return io.github.fastformer.workspace.submission.WorkspaceAdmission.replayed(recorded);
       }
       if (interactionBlocked(player) || !canOperate(player)) {
          return io.github.fastformer.workspace.submission.WorkspaceAdmission.rejected();
       }
-      return OperationManager.applyWorkspace(player, transferId, plan);
+      return OperationSystem.of(player).applyWorkspace(player, transferId, plan);
    }
 
    public static void operationTransform(
@@ -636,7 +636,7 @@ public final class ServerInputDispatcher {
          || interactionBlocked(player) || !canOperate(player)) {
          return;
       }
-      var session = OperationManager.session(player).orElse(null);
+      var session = OperationSystem.of(player).session(player).orElse(null);
       if (session == null) return;
       var active = ServerInputState.of(player).transformGesture;
       if (active == null || payload.gestureId() > active.gestureId()) {
@@ -655,20 +655,20 @@ public final class ServerInputDispatcher {
       if (operation < 0 || operation >= operations.length || axis < 0 || axis >= axes.length) {
          return;
       }
-      OperationManager.adjustTransform(player, operations[operation], axes[axis], direction, totalSteps, finish);
+      OperationSystem.of(player).adjustTransform(player, operations[operation], axes[axis], direction, totalSteps, finish);
    }
 
    private static boolean hasActiveSession(ServerPlayer player) {
-      return GeometryManager.active(player) || OperationManager.active(player) || FastPlaceManager.active(player);
+      return GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player) || QuickShapeSystem.of(player).active(player);
    }
 
    public static BlockHitResult raycastBlocks(ServerPlayer player, double range) {
       Vec3 start = player.getEyePosition();
       Vec3 view = player.getViewVector(1.0F);
-      LongRangeBlockRaycast.Result result = switch (FastPlaceManager.classify(player)) {
+      LongRangeBlockRaycast.Result result = switch (QuickShapeSystem.of(player).classify(player)) {
          case BUILDING -> LongRangeBlockRaycast.clipForPlacement(player.level(), player, start, view);
          case OPERATION -> LongRangeBlockRaycast.clipForSelection(player.level(), player, start, view,
-            FastPlaceManager.modifierHeld(player));
+            QuickShapeSystem.of(player).modifierHeld(player));
          default -> LongRangeBlockRaycast.clip(player.level(), player, start, view);
       };
       BlockHitResult hit = result.hit();
@@ -727,12 +727,12 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean geometryPoint(ServerPlayer player, GeometryPointPayload payload) {
-      if (payload == null || interactionBlocked(player) || !canOperate(player) || !GeometryManager.active(player)
+      if (payload == null || interactionBlocked(player) || !canOperate(player) || !GeometrySystem.of(player).active(player)
          || !acceptsGeometryPointSnapshot(payload, PreviewSync.callbackScope(player),
             player.getEyePosition(), player.blockInteractionRange())) {
          return false;
       }
-      GeometrySession session = GeometryManager.session(player).orElse(null);
+      GeometrySession session = GeometrySystem.of(player).session(player).orElse(null);
       GeometryPointerSequence sequence = acceptGeometryPointer(player, payload.requestId(), payload.revision(),
          payload.callbackScope(), session);
       if (sequence == null) {
@@ -748,12 +748,12 @@ public final class ServerInputDispatcher {
 
    /** Applies one captured short-left-click undo to the same geometry draft. */
    public static boolean geometryUndo(ServerPlayer player, GeometryUndoPayload payload) {
-      if (payload == null || interactionBlocked(player) || !canOperate(player) || !GeometryManager.active(player)
+      if (payload == null || interactionBlocked(player) || !canOperate(player) || !GeometrySystem.of(player).active(player)
          || !acceptsGeometryUndoSnapshot(payload, PreviewSync.callbackScope(player), player.getEyePosition(),
             player.blockInteractionRange())) {
          return false;
       }
-      GeometrySession session = GeometryManager.session(player).orElse(null);
+      GeometrySession session = GeometrySystem.of(player).session(player).orElse(null);
       if (session == null || !session.draftId().equals(payload.draftId())) {
          return false;
       }
@@ -820,7 +820,7 @@ public final class ServerInputDispatcher {
    }
 
    private static void advanceGeometryPointer(ServerPlayer player, GeometrySession session, GeometryPointerSequence sequence) {
-      if (GeometryManager.session(player).orElse(null) == session) {
+      if (GeometrySystem.of(player).session(player).orElse(null) == session) {
          sequence.advance(PreviewSync.geometryRevision(player));
       } else {
          ServerInputState.of(player).geometryPointer = null;
@@ -832,17 +832,17 @@ public final class ServerInputDispatcher {
    }
 
    private static boolean rightClickGeometry(ServerPlayer player, BlockHitResult hit, Vec3 eye, Vec3 view) {
-      if (GeometryManager.confirmsOnRightClick(player)) {
-         return hit != null && GeometryManager.fill(player);
+      if (GeometrySystem.of(player).confirmsOnRightClick(player)) {
+         return hit != null && GeometrySystem.of(player).fill(player);
       }
       if (hit == null || hit.getType() != HitResult.Type.BLOCK) {
          return false;
       }
       GeometryHit geometryHit = GeometryHit.from(hit);
-      if (GeometryManager.active(player)) {
-         GeometryManager.addPoint(player, geometryHit, eye, view);
+      if (GeometrySystem.of(player).active(player)) {
+         GeometrySystem.of(player).addPoint(player, geometryHit, eye, view);
       } else {
-         GeometryManager.start(player, geometryHit);
+         GeometrySystem.of(player).start(player, geometryHit);
       }
       return true;
    }

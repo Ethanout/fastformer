@@ -4,6 +4,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.session.slot.PlayerSessions;
+import io.github.fastformer.server.player.PlayerStateRegistry;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
@@ -46,7 +47,6 @@ import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -70,49 +70,47 @@ import org.slf4j.Logger;
 import io.github.fastformer.server.task.WorldTaskQueue;
 import io.github.fastformer.server.fill.SmartFillSystem;
 
-public final class FastPlaceManager {
+public final class QuickShapeSystem implements io.github.fastformer.core.lifecycle.Scoped {
    private static final Logger LOGGER = LogUtils.getLogger();
    /** Generate ordinary placements on the server thread up to this size. */
    private static final long SYNCHRONOUS_PLACEMENT_LIMIT = 262_144L;
-   private static final PlayerSessions<QuickShapeDraft> SESSIONS = new PlayerSessions<>();
-   private static final WorldTaskQueue<PlacementTask> TASKS = new WorldTaskQueue<>();
-   private static final Map<UUID, Boolean> MODIFIER_HELD = new HashMap<>();
-   /**
-    * Sessions of dimensions that the player left. A dimension change keeps this
-    * selection: only the binding to the old environment ends, so the points of
-    * one dimension are never reused with the coordinates of another.
-    */
-
-   private FastPlaceManager() {
+   final PlayerSessions<QuickShapeDraft> sessions = new PlayerSessions<>();
+   final WorldTaskQueue<PlacementTask> tasks = new WorldTaskQueue<>();
+   private final SessionSystem runtime;
+   QuickShapeSystem(SessionSystem runtime) {
+      this.runtime = runtime;
    }
 
-   public static Optional<QuickShapeDraft> session(ServerPlayer player) {
-      return Optional.ofNullable(SESSIONS.active(player.getUUID()));
+   public static QuickShapeSystem of(ServerPlayer player) { return of(player.getServer()); }
+   public static QuickShapeSystem of(net.minecraft.server.MinecraftServer server) { return SessionSystem.of(server).quickShape; }
+
+   public Optional<QuickShapeDraft> session(ServerPlayer player) {
+      return Optional.ofNullable(sessions.active(player.getUUID()));
    }
 
-   public static boolean active(ServerPlayer player) {
-      return SESSIONS.hasActive(player.getUUID());
+   public boolean active(ServerPlayer player) {
+      return sessions.hasActive(player.getUUID());
    }
 
-   public static void setModifierHeld(ServerPlayer player, boolean modifierHeld) {
-      MODIFIER_HELD.put(player.getUUID(), modifierHeld);
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public void setModifierHeld(ServerPlayer player, boolean modifierHeld) {
+      InteractionModifierState.set(player, modifierHeld);
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null) {
          session.setModifierHeld(modifierHeld);
          FastPlaceNetwork.syncPreview(player, session);
       }
-      OperationManager.session(player).ifPresent(operation -> FastPlaceNetwork.syncOperation(player, operation));
-      GeometryManager.session(player).ifPresent(geometry -> FastPlaceNetwork.syncGeometry(player, geometry));
+      runtime.operation.session(player).ifPresent(operation -> FastPlaceNetwork.syncOperation(player, operation));
+      runtime.geometry.session(player).ifPresent(geometry -> FastPlaceNetwork.syncGeometry(player, geometry));
    }
 
-   public static boolean modifierHeld(ServerPlayer player) {
-      return MODIFIER_HELD.getOrDefault(player.getUUID(), false);
+   public boolean modifierHeld(ServerPlayer player) {
+      return InteractionModifierState.held(player);
    }
 
-   public static InteractionState classify(ServerPlayer player) {
-      if (OperationManager.active(player)) {
+   public InteractionState classify(ServerPlayer player) {
+      if (runtime.operation.active(player)) {
          return InteractionState.OPERATION;
-      } else if (GeometryManager.active(player)) {
+      } else if (runtime.geometry.active(player)) {
          return InteractionState.GEOMETRY;
       } else if (active(player)) {
          return InteractionState.BUILDING;
@@ -126,8 +124,8 @@ public final class FastPlaceManager {
       return InteractionState.VANILLA;
    }
 
-   public static boolean operationActive(ServerPlayer player) {
-      return OperationManager.active(player);
+   public boolean operationActive(ServerPlayer player) {
+      return runtime.operation.active(player);
    }
 
    public static FastPlaceGeometry.Modes effectiveModes(FastPlaceSettings settings, QuickShapeDraft session) {
@@ -153,62 +151,62 @@ public final class FastPlaceManager {
       return modes;
    }
 
-   public static void addPoint(ServerPlayer player, BlockHitResult hit) {
+   public void addPoint(ServerPlayer player, BlockHitResult hit) {
       addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit, modifierHeld(player));
    }
 
-   public static void addPoint(ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock) {
+   public void addPoint(ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock) {
       addPoint(player, hitBlock, surfaceBlock, null, modifierHeld(player));
    }
 
-   public static void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean modifierHeld) {
+   public void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean modifierHeld) {
       addInitialPoint(player, hit, modifierHeld, player.getEyePosition(), player.getViewVector(1.0F));
    }
 
    /** Starts a draft with the physical press ray, rather than the server's later camera state. */
-   public static void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean embedded, Vec3 eye, Vec3 view) {
+   public void addInitialPoint(ServerPlayer player, BlockHitResult hit, boolean embedded, Vec3 eye, Vec3 view) {
       addPoint(player, hit.getBlockPos(), hit.getBlockPos().relative(hit.getDirection()), hit,
          modifierHeld(player), eye, view, embedded ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE);
    }
 
-   private static void addPoint(
+   private void addPoint(
       ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld
    ) {
       addPoint(player, hitBlock, surfaceBlock, hit, modifierHeld, player.getEyePosition(), player.getViewVector(1.0F));
    }
 
-   private static void addPoint(
+   private void addPoint(
       ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld, Vec3 eye, Vec3 view
    ) {
       addPoint(player, hitBlock, surfaceBlock, hit, modifierHeld, eye, view, null);
    }
 
    /** Explicit entry anchors point one to the captured interaction, regardless of point mode. */
-   public static void beginAtInteraction(ServerPlayer player, BlockHitResult hit, Vec3 eye, Vec3 view, boolean embedded) {
+   public void beginAtInteraction(ServerPlayer player, BlockHitResult hit, Vec3 eye, Vec3 view, boolean embedded) {
       beginAtInteraction(player, PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, embedded), eye, view);
    }
 
-   public static void beginAtInteraction(ServerPlayer player, PlacementContextSnapshot placement, Vec3 eye, Vec3 view) {
+   public void beginAtInteraction(ServerPlayer player, PlacementContextSnapshot placement, Vec3 eye, Vec3 view) {
       beginAtInteraction(player, placement, eye, view, io.github.fastformer.common.interaction.binding.SessionProfiles.NONE,
          io.github.fastformer.common.interaction.binding.SessionProfile.NONE);
    }
 
-   public static void beginAtInteraction(ServerPlayer player, PlacementContextSnapshot placement, Vec3 eye, Vec3 view,
+   public void beginAtInteraction(ServerPlayer player, PlacementContextSnapshot placement, Vec3 eye, Vec3 view,
       net.minecraft.resources.ResourceLocation profileId, io.github.fastformer.common.interaction.binding.SessionProfile profile) {
       if (active(player)) return;
       QuickShapeDraft draft = new QuickShapeDraft(profileId, profile);
-      SESSIONS.activate(player.getUUID(), draft);
+      sessions.activate(player.getUUID(), draft);
       draft.setModifierHeld(modifierHeld(player));
       draft.capturePlacementContext(placement);
       dispatchQuickShape(player, draft, FastPlaceSettings.load(player).faceMode(),
          new QuickShapeWorkflow.Event.ConfirmPoint(placement.placementPosition(), eye, view, draft.modifierHeld()));
    }
 
-   private static void addPoint(
+   private void addPoint(
       ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld,
       Vec3 eye, Vec3 view, RaycastPlacement initialPlacement
    ) {
-      QuickShapeDraft session = SESSIONS.getOrCreate(player.getUUID(), QuickShapeDraft::new);
+      QuickShapeDraft session = sessions.getOrCreate(player.getUUID(), QuickShapeDraft::new);
       session.setModifierHeld(modifierHeld);
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int previousPointCount = session.points().size();
@@ -240,7 +238,7 @@ public final class FastPlaceManager {
          point, eye, view, modifierHeld));
    }
 
-   private static boolean dispatchQuickShape(ServerPlayer player, QuickShapeDraft draft, FaceMode faceMode,
+   private boolean dispatchQuickShape(ServerPlayer player, QuickShapeDraft draft, FaceMode faceMode,
       QuickShapeWorkflow.Event event) {
       return QuickShapeTransitionExecutor.execute(draft, faceMode, event, new QuickShapeTransitionExecutor.Effects() {
          @Override
@@ -281,18 +279,18 @@ public final class FastPlaceManager {
       });
    }
 
-   public static io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext candidateContext(ServerPlayer player) {
-      QuickShapeDraft draft = SESSIONS.active(player.getUUID());
+   public io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext candidateContext(ServerPlayer player) {
+      QuickShapeDraft draft = sessions.active(player.getUUID());
       if (draft == null) return null;
       return new io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext(draft.points(), draft.polygonClosed(),
          draft.faceBaseOffset(), draft.volumeBaseOffset(), draft.perpendicularAnchor(), draft.freeScrollOffset(),
          effectiveModes(FastPlaceSettings.load(player), draft), draft.modifierHeld());
    }
 
-   public static boolean confirmCapturedPoint(ServerPlayer player,
+   public boolean confirmCapturedPoint(ServerPlayer player,
       io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload input, BlockHitResult hit,
       io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext context) {
-      QuickShapeDraft draft = SESSIONS.active(player.getUUID());
+      QuickShapeDraft draft = sessions.active(player.getUUID());
       if (draft == null || context.modifierHeld() != input.modifierHeld()) return false;
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       BlockPos candidate = context.resolve(hit, input.eye(), input.view());
@@ -301,15 +299,15 @@ public final class FastPlaceManager {
          candidate, input.eye(), input.view(), input.modifierHeld()));
    }
 
-   public static void undo(ServerPlayer player) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public void undo(ServerPlayer player) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null) {
          dispatchQuickShape(player, session, FastPlaceSettings.load(player).faceMode(), QuickShapeWorkflow.Event.Undo.INSTANCE);
       }
    }
 
-   public static void sync(ServerPlayer player) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public void sync(ServerPlayer player) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null) {
          FastPlaceNetwork.syncPreview(player, session);
       } else {
@@ -317,57 +315,53 @@ public final class FastPlaceManager {
       }
    }
 
-   public static void cancel(ServerPlayer player) {
-      QuickShapeDraft session = SESSIONS.end(player.getUUID());
+   public void cancel(ServerPlayer player) {
+      QuickShapeDraft session = sessions.end(player.getUUID());
       if (session != null) {
          session.onDestroyed();
          FastPlaceNetwork.clearPreview(player);
       }
-      OperationManager.cancel(player);
-      GeometryManager.cancel(player);
+      runtime.operation.cancel(player);
+      runtime.geometry.cancel(player);
    }
 
-   public static void quit(ServerPlayer player) {
+   public void quit(ServerPlayer player) {
       SmartFillSystem.cancel(player);
       boolean restoring = HistorySystem.of(player).restoreActive(player);
       cancel(player);
       if (!restoring) {
          cancelTask(player);
-         OperationManager.cancelTask(player);
+         runtime.operation.cancelTask(player);
       }
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.quit"));
    }
 
-   public static TaskCancellationResult cancelTask(ServerPlayer player) {
+   public TaskCancellationResult cancelTask(ServerPlayer player) {
       return cancelTask(new WorldTaskContext(player.getServer(), player.getUUID()), HistorySystem.of(player));
    }
 
-   static TaskCancellationResult cancelTask(WorldTaskContext context, HistoryService history) {
-      PlacementTask task = TASKS.get(context.owner());
+   TaskCancellationResult cancelTask(WorldTaskContext context, HistoryService history) {
+      PlacementTask task = tasks.get(context.owner());
       if (task == null) {
          return TaskCancellationResult.NOT_ACTIVE;
       }
       // Accept first, then drop the queue slot. A refused or failed handover keeps both
       // the task and the extracted snapshot, so the only record of a partial write stays.
-      TaskCancellationResult result = TASKS.transfer(context, task, history::acceptTransferredTask);
+      TaskCancellationResult result = tasks.transfer(context, task, history::acceptTransferredTask);
       if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE
          || result == TaskCancellationResult.ROLLBACK_STARTED) {
-         TASKS.remove(context.owner(), task);
+         tasks.remove(context.owner(), task);
       }
       return result;
    }
 
-   static void addTaskForTest(UUID owner, PlacementTask task) {
-      TASKS.put(owner, task);
-   }
-
-   public static void cycleStageMode(ServerPlayer player) {
+   public void cycleStageMode(ServerPlayer player) {
       cycleStageMode(player, null);
    }
 
-   public static void setStageMode(ServerPlayer player, QuickShapeMode mode) {
+   public void setStageMode(ServerPlayer player, QuickShapeMode mode) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (!io.github.fastformer.server.interaction.profile.ProfileConstraints.allowsModeSwitch(session)) return;
       if (session != null && session.polygonClosed() && mode.stage() == QuickShapeStage.VOLUME) {
          return;
@@ -386,8 +380,8 @@ public final class FastPlaceManager {
       FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.mode_changed", FastPlaceMessages.text(mode.stage()), FastPlaceMessages.text(mode)));
    }
 
-   public static void cycleStageMode(ServerPlayer player, BlockPos lineCandidate) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public void cycleStageMode(ServerPlayer player, BlockPos lineCandidate) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (!io.github.fastformer.server.interaction.profile.ProfileConstraints.allowsModeSwitch(session)) return;
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       if (session != null && session.polygonClosed() && !session.polygonHeightConfirmed()) {
@@ -409,14 +403,14 @@ public final class FastPlaceManager {
       }
    }
 
-   public static void cycleFillMode(ServerPlayer player) {
+   public void cycleFillMode(ServerPlayer player) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       settings.cycleFillMode(player);
       syncCurrentPreview(player);
    }
 
-   public static void adjustFreeScrollOffset(ServerPlayer player, int steps) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public void adjustFreeScrollOffset(ServerPlayer player, int steps) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null && io.github.fastformer.server.interaction.profile.ProfileConstraints.effectiveLineMode(
          session, FastPlaceSettings.load(player)) != LineMode.FREE_SCROLL) return;
       if (session != null && steps != 0) {
@@ -425,16 +419,16 @@ public final class FastPlaceManager {
       }
    }
 
-   public static boolean closePolygon(ServerPlayer player) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public boolean closePolygon(ServerPlayer player) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null && session.profile().maxStage().filter(
          stage -> stage.equals("point") || stage.equals("line")).isPresent()) return false;
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       return session != null && dispatchQuickShape(player, session, settings.faceMode(), QuickShapeWorkflow.Event.ClosePath.INSTANCE);
    }
 
-   public static void scrollContext(ServerPlayer player, int steps) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public void scrollContext(ServerPlayer player, int steps) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null && steps != 0) {
          if (session.polygonClosed()) {
             return;
@@ -466,11 +460,11 @@ public final class FastPlaceManager {
          }
       }
    }
-   public static boolean setContextValue(ServerPlayer player, double value) {
+   public boolean setContextValue(ServerPlayer player, double value) {
       if (!GeometryNumbers.finite(value)) {
          return false;
       }
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session == null) {
          return false;
       }
@@ -506,11 +500,11 @@ public final class FastPlaceManager {
          default -> false;
       };
    }
-   public static boolean setFaceAngle(ServerPlayer player, double value) {
+   public boolean setFaceAngle(ServerPlayer player, double value) {
       if (!GeometryNumbers.finite(value)) {
          return false;
       }
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null && effectiveStage(session, FastPlaceSettings.load(player)) == QuickShapeStage.FACE) {
          FastPlaceSettings settings = FastPlaceSettings.load(player);
          if (settings.faceMode() != FaceMode.POLYGON) {
@@ -525,8 +519,8 @@ public final class FastPlaceManager {
       }
    }
 
-   public static boolean setLineAngleDistance(ServerPlayer player, int value) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public boolean setLineAngleDistance(ServerPlayer player, int value) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null && session.stage(FastPlaceSettings.load(player).faceMode())
          == QuickShapeStage.LINE) {
          FastPlaceSettings settings = FastPlaceSettings.load(player);
@@ -542,8 +536,8 @@ public final class FastPlaceManager {
       }
    }
 
-   public static boolean setVolumeDistance(ServerPlayer player, int value) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   public boolean setVolumeDistance(ServerPlayer player, int value) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null
          && !session.polygonClosed()
          && effectiveStage(session, FastPlaceSettings.load(player)) == QuickShapeStage.VOLUME
@@ -558,16 +552,16 @@ public final class FastPlaceManager {
       }
    }
 
-   public static void fill(ServerPlayer player) {
+   public void fill(ServerPlayer player) {
       fill(player, false);
    }
 
-   public static void fillConfirmed(ServerPlayer player) {
+   public void fillConfirmed(ServerPlayer player) {
       fill(player, true);
    }
 
-   private static void fill(ServerPlayer player, boolean confirmedOnly) {
-      QuickShapeDraft session = SESSIONS.active(player.getUUID());
+   private void fill(ServerPlayer player, boolean confirmedOnly) {
+      QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null) {
          if (placementBusy(player)) {
             FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_task_running"));
@@ -681,12 +675,12 @@ public final class FastPlaceManager {
       }
    }
 
-   public static boolean queuePlacement(ServerPlayer player, Set<BlockPos> blocks, BlockState state) {
+   public boolean queuePlacement(ServerPlayer player, Set<BlockPos> blocks, BlockState state) {
       return queuePlacementResult(player, BlockGenerationResult.fromLegacy(blocks), state);
    }
 
    /** Air-only fill uses the same task, recovery journal and undo record as placement. */
-   public static boolean queueAirFill(ServerPlayer player, Set<BlockPos> blocks, BlockState state) {
+   public boolean queueAirFill(ServerPlayer player, Set<BlockPos> blocks, BlockState state) {
       var settings = FastPlaceSettings.load(player);
       if (blocks.isEmpty() || blocks.size() > settings.maxPlacement() || placementBusy(player)) return false;
       var plan = new PlacementTaskPlan(state, null, io.github.fastformer.workspace.submission.OperationConflictMode.KEEP_EXISTING,
@@ -696,7 +690,7 @@ public final class FastPlaceManager {
       return true;
    }
 
-   private static boolean queuePlacementResult(
+   private boolean queuePlacementResult(
       ServerPlayer player,
       BlockGenerationResult generationResult,
       BlockState state
@@ -726,7 +720,7 @@ public final class FastPlaceManager {
       return true;
    }
 
-   public static boolean queueGeneratedPlacement(
+   public boolean queueGeneratedPlacement(
       ServerPlayer player,
       Supplier<BlockGenerationResult> generator,
       BlockState state,
@@ -782,26 +776,26 @@ public final class FastPlaceManager {
       return true;
    }
 
-   public static void setMaxPlacement(ServerPlayer player, int value) {
+   public void setMaxPlacement(ServerPlayer player, int value) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       settings.setMaxPlacement(player, value);
       FastPlaceMessages.chat(player, "fastformer.message.max_placement", settings.maxPlacement());
    }
 
-   public static boolean remove(ServerPlayer player) {
+   public boolean remove(ServerPlayer player) {
       SmartFillSystem.forget(player);
-      SESSIONS.discard(player.getUUID());
-      MODIFIER_HELD.remove(player.getUUID());
+      sessions.discard(player.getUUID());
+      InteractionModifierState.reset(player);
       QuickReplaceSystem.forget(player);
-      OperationManager.remove(player);
-      GeometryManager.remove(player);
+      runtime.operation.remove(player);
+      runtime.geometry.remove(player);
       HistorySystem.of(player).remove(player);
       ServerInputDispatcher.clearPlacementActions(player);
       FastPlaceNetwork.forgetActivity(player);
       return true;
    }
 
-   private static PlacementTaskPlan taskPlan(
+   private PlacementTaskPlan taskPlan(
       ServerPlayer player,
       FastPlaceSettings settings,
       BlockState state,
@@ -822,19 +816,20 @@ public final class FastPlaceManager {
     * Reconnect and dimension transitions create a new player instance; their
     * state is reconciled when the replacement logs in.
     */
-   public static void detachPlayer(ServerPlayer player) {
+   public void detachPlayer(ServerPlayer player) {
       if (player == null) {
          return;
       }
-      UUID owner = player.getUUID();
-      MODIFIER_HELD.remove(owner);
-      // Modifier state belongs to the old connection, unlike the workflow
-      // points and shape data that remain owned by the player UUID.
-      QuickShapeDraft session = SESSIONS.active(owner);
-      if (session != null) {
-         session.setModifierHeld(false);
+      // Late cleanup of a replaced instance must not change the retained UUID workflow.
+      if (PlayerStateRegistry.find(player).isPresent()) {
+         resetModifier(player);
       }
       FastPlaceNetwork.forgetActivity(player);
+   }
+
+   private void resetModifier(ServerPlayer player) {
+      InteractionModifierState.reset(player);
+      session(player).ifPresent(draft -> draft.setModifierHeld(false));
    }
 
    /**
@@ -846,59 +841,41 @@ public final class FastPlaceManager {
     * dimension moves aside, and the session of the target dimension becomes
     * active. Points that belong to one dimension are never offered to another.</p>
     */
-   public static void handleDimensionChange(ServerPlayer player, ResourceKey<Level> from, ResourceKey<Level> to) {
+   public void handleDimensionChange(ServerPlayer player, ResourceKey<Level> from, ResourceKey<Level> to) {
       if (player == null) {
          return;
       }
       UUID owner = player.getUUID();
-      MODIFIER_HELD.remove(owner);
+      resetModifier(player);
       parkDimensionSession(owner, from);
-      OperationManager.parkDimensionSession(owner, from);
-      GeometryManager.parkDimensionSession(owner, from);
+      runtime.operation.parkDimensionSession(owner, from);
+      runtime.geometry.parkDimensionSession(owner, from);
       ServerInputDispatcher.clearPlacementActions(player);
       restoreDimensionSession(owner, to);
-      OperationManager.restoreDimensionSession(owner, to);
-      GeometryManager.restoreDimensionSession(owner, to);
+      runtime.operation.restoreDimensionSession(owner, to);
+      runtime.geometry.restoreDimensionSession(owner, to);
       FastPlaceNetwork.forgetActivity(player);
       syncCurrentPreview(player);
    }
 
-   static void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
-      SESSIONS.park(owner, dimension);
+   void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+      sessions.park(owner, dimension);
    }
 
-   static void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
-      SESSIONS.restore(owner, dimension);
-   }
-
-   static void putSessionForTest(UUID owner, QuickShapeDraft session) {
-      SESSIONS.activate(owner, session);
-   }
-
-   static boolean activeSessionForTest(UUID owner) {
-      return SESSIONS.hasActive(owner);
-   }
-
-   static boolean parkedSessionForTest(UUID owner, ResourceKey<Level> dimension) {
-      return SESSIONS.parked(owner, dimension) != null;
-   }
-
-   static List<BlockPos> sessionPointsForTest(UUID owner) {
-      QuickShapeDraft session = SESSIONS.active(owner);
-      return session == null ? List.of() : session.points();
+   void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+      sessions.restore(owner, dimension);
    }
 
    /** Drops server-bound sessions/tasks before a world instance is replaced. */
-   public static void clearServer() {
-      for (PlacementTask task : TASKS.tasks()) {
-         task.cancel();
-         task.releaseMemoryReservation();
+   @Override public void onDiscard() {
+      try {
+         tasks.close(task -> {
+            try { task.cancel(); }
+            finally { task.releaseMemoryReservation(); }
+         });
+      } finally {
+         sessions.clear();
       }
-      TASKS.clear();
-      SESSIONS.clear();
-      MODIFIER_HELD.clear();
-      OperationManager.clearServer();
-      GeometryManager.clearServer();
    }
 
    /**
@@ -908,33 +885,33 @@ public final class FastPlaceManager {
     * is closed. A placement task has no gate check inside its own tick, so it cannot end
     * by itself. The queue slot leaves only after the recovery path accepts the snapshot.
     */
-   public static void handOverBlockedTasks(net.minecraft.server.MinecraftServer server, HistoryService history) {
-      for (UUID owner : TASKS.owners()) {
+   public void handOverBlockedTasks(net.minecraft.server.MinecraftServer server, HistoryService history) {
+      for (UUID owner : tasks.owners()) {
          handOverBlockedTask(new WorldTaskContext(server, owner), history);
       }
    }
 
-   private static void handOverBlockedTask(WorldTaskContext context, HistoryService history) {
-      PlacementTask task = TASKS.get(context.owner());
+   private void handOverBlockedTask(WorldTaskContext context, HistoryService history) {
+      PlacementTask task = tasks.get(context.owner());
       if (task == null) {
          return;
       }
-      TaskCancellationResult handover = TASKS.transfer(context, task, history::acceptTransferredTask);
+      TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
       if (handover == TaskCancellationResult.CANCELLED_BEFORE_WRITE
          || handover == TaskCancellationResult.ROLLBACK_STARTED) {
-         TASKS.remove(context.owner(), task);
+         tasks.remove(context.owner(), task);
          context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
          return;
       }
       context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
    }
 
-   public static void tickWorld(net.minecraft.server.MinecraftServer server, HistoryService history) {
-      for (UUID owner : TASKS.owners()) {
+   public void tickWorld(net.minecraft.server.MinecraftServer server, HistoryService history) {
+      for (UUID owner : tasks.owners()) {
          if (!PersistentRecoveryJournal.writesAllowed()) {
             break;
          }
-         if (TASKS.handingOver(owner)) {
+         if (tasks.handingOver(owner)) {
             handOverBlockedTask(new WorldTaskContext(server, owner), history);
             continue;
          }
@@ -945,32 +922,32 @@ public final class FastPlaceManager {
       }
    }
 
-   private static void enqueueTask(ServerPlayer player, PlacementTask task) {
-      TASKS.put(player.getUUID(), task);
+   private void enqueueTask(ServerPlayer player, PlacementTask task) {
+      tasks.put(player.getUUID(), task);
       WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
       HistoryService history = HistorySystem.of(player);
       context.withResume(() -> resumeTask(context, task, history)).enqueueResume();
    }
 
-   static void resumeTask(WorldTaskContext context, PlacementTask task, HistoryService history) {
-      if (TASKS.get(context.owner()) == task
-         && !TASKS.handingOver(context.owner())
+   void resumeTask(WorldTaskContext context, PlacementTask task, HistoryService history) {
+      if (!runtime.closed() && tasks.get(context.owner()) == task
+         && !tasks.handingOver(context.owner())
          && PersistentRecoveryJournal.writesAllowed()
          && !history.busy(context.owner())) {
          tickTask(context, history);
       }
    }
 
-   static void tickTask(WorldTaskContext context, HistoryService history) {
+   void tickTask(WorldTaskContext context, HistoryService history) {
       UUID owner = context.owner();
-      PlacementTask task = TASKS.get(owner);
+      PlacementTask task = tasks.get(owner);
       if (task == null) {
          return;
       }
       try {
          if (task.prepare()) {
             if (task.generationConstraintsFailed()) {
-               TASKS.remove(owner);
+               tasks.remove(owner);
                task.releaseLease(context);
                task.releaseMemoryReservation();
                context.chat(FastPlaceMessages.text("fastformer.message.face_generation_constraints_failed"));
@@ -978,14 +955,14 @@ public final class FastPlaceManager {
                settleFailedTask(context, task, history);
                context.actionBar(FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
             } else if (task.exceededLimit()) {
-               TASKS.remove(owner);
+               tasks.remove(owner);
                task.releaseLease(context);
                context.actionBar(FastPlaceMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement()));
             } else if (task.memoryUnsafe()) {
                settleFailedTask(context, task, history);
                context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
             } else if (task.total() == 0) {
-               TASKS.remove(owner);
+               tasks.remove(owner);
                task.releaseLease(context);
                task.releaseMemoryReservation();
                context.actionBar(FastPlaceMessages.text("fastformer.message.operation_empty"));
@@ -1066,7 +1043,7 @@ public final class FastPlaceManager {
                   context.actionBar(failureStatus(task, context.owner()));
                } else if (task.readyToFinalize()) {
                   if (!task.hasWrites()) {
-                     TASKS.remove(owner, task);
+                     tasks.remove(owner, task);
                      task.releaseAfterCancelledJournal(context);
                      task.releaseMemoryReservation();
                      task.releaseCommittedTransactionState();
@@ -1111,7 +1088,7 @@ public final class FastPlaceManager {
                       settleFailedTask(context, task, history);
                       context.actionBar(failureStatus(task, context.owner()));
                       } else {
-                         TASKS.remove(owner, task);
+                         tasks.remove(owner, task);
                          task.releaseLease(context);
                          task.releaseMemoryReservation();
                          task.releaseCommittedTransactionState();
@@ -1156,15 +1133,15 @@ public final class FastPlaceManager {
       }
    }
 
-   public static boolean undoLast(ServerPlayer player) {
+   public boolean undoLast(ServerPlayer player) {
       return HistorySystem.of(player).requestUndo(player, 1);
    }
 
-   private static boolean placementBusy(ServerPlayer player) {
+   private boolean placementBusy(ServerPlayer player) {
       return !ServerOperationGates.START_WRITE.test(player).allowed();
    }
 
-   private static QuickShapeStage effectiveStage(QuickShapeDraft session, FastPlaceSettings settings) {
+   private QuickShapeStage effectiveStage(QuickShapeDraft session, FastPlaceSettings settings) {
       return session.stage(settings.faceMode());
    }
 
@@ -1175,49 +1152,50 @@ public final class FastPlaceManager {
       return session.effectiveFaceTieBias(session.modifierHeld());
    }
 
-   public static boolean taskBusy(ServerPlayer player) {
+   public boolean taskBusy(ServerPlayer player) {
       return localTaskBusy(player);
    }
 
-   public static boolean taskActive(ServerPlayer player) {
+   public boolean taskActive(ServerPlayer player) {
       return taskActive(player.getUUID());
    }
 
-   public static boolean taskActive(UUID owner) {
-      return TASKS.containsKey(owner);
+   public boolean taskActive(UUID owner) {
+      return tasks.containsKey(owner);
    }
 
-   public static boolean restoreActive(ServerPlayer player) {
+   public boolean restoreActive(ServerPlayer player) {
       return HistorySystem.of(player).restoreActive(player);
    }
 
-   private static boolean localTaskBusy(ServerPlayer player) {
+   private boolean localTaskBusy(ServerPlayer player) {
       UUID id = player.getUUID();
-      return TASKS.containsKey(id);
+      return tasks.containsKey(id);
    }
 
-   public static void syncCurrentPreview(ServerPlayer player) {
+   public void syncCurrentPreview(ServerPlayer player) {
+      session(player).ifPresent(draft -> draft.setModifierHeld(modifierHeld(player)));
       io.github.fastformer.server.sync.PreviewSync.syncInteractionUpdates(player);
-      if (OperationManager.active(player)) {
-         OperationManager.session(player).ifPresent(session -> FastPlaceNetwork.syncOperation(player, session));
-      } else if (GeometryManager.active(player)) {
-         GeometryManager.session(player).ifPresent(session -> FastPlaceNetwork.syncGeometry(player, session));
+      if (runtime.operation.active(player)) {
+         runtime.operation.session(player).ifPresent(session -> FastPlaceNetwork.syncOperation(player, session));
+      } else if (runtime.geometry.active(player)) {
+         runtime.geometry.session(player).ifPresent(session -> FastPlaceNetwork.syncGeometry(player, session));
       } else {
          session(player).ifPresentOrElse(session -> FastPlaceNetwork.syncPreview(player, session), () -> FastPlaceNetwork.syncSettings(player));
       }
    }
 
-   private static void settleFailedTask(WorldTaskContext context, PlacementTask task, HistoryService history) {
-      TaskCancellationResult result = TASKS.transfer(context, task, history::acceptTransferredTask);
+   private void settleFailedTask(WorldTaskContext context, PlacementTask task, HistoryService history) {
+      TaskCancellationResult result = tasks.transfer(context, task, history::acceptTransferredTask);
       if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE || result == TaskCancellationResult.ROLLBACK_STARTED) {
-         TASKS.remove(context.owner(), task);
+         tasks.remove(context.owner(), task);
       }
       if (result.recoveryCreated()) {
          task.markRecoveryTaskCreated();
       }
    }
 
-   private static net.minecraft.network.chat.MutableComponent failureStatus(PlacementTask task, UUID owner) {
+   private net.minecraft.network.chat.MutableComponent failureStatus(PlacementTask task, UUID owner) {
       if (task.failurePhase() == WorldOperationPhase.COMMIT && task.hasWrites()) {
          return FastPlaceMessages.text(
             "fastformer.message.placement_history_unavailable",

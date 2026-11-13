@@ -13,9 +13,9 @@ import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.input.IdleInteractionSnapshots;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.GeometrySystem;
+import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -39,11 +39,11 @@ final class SessionIntentHandlers {
 
    private static IntentResult cycle(IntentContext<ServerPlayer> context, SessionIntents.CycleMode intent) {
       ServerPlayer player = context.actor();
-      if (OperationManager.active(player)) OperationManager.cycleMode(player);
-      else if (GeometryManager.active(player)) return IntentResult.handled(GeometryManager.cycleMode(player));
-      else if (FastPlaceManager.active(player)) FastPlaceManager.cycleStageMode(player, trustedLineCandidate(player, intent.lineCandidate()));
-      else if (PlaceableItems.isPlaceable(player.getMainHandItem())) FastPlaceManager.cycleStageMode(player);
-      else OperationManager.cycleMode(player);
+      if (OperationSystem.of(player).active(player)) OperationSystem.of(player).cycleMode(player);
+      else if (GeometrySystem.of(player).active(player)) return IntentResult.handled(GeometrySystem.of(player).cycleMode(player));
+      else if (QuickShapeSystem.of(player).active(player)) QuickShapeSystem.of(player).cycleStageMode(player, trustedLineCandidate(player, intent.lineCandidate()));
+      else if (PlaceableItems.isPlaceable(player.getMainHandItem())) QuickShapeSystem.of(player).cycleStageMode(player);
+      else OperationSystem.of(player).cycleMode(player);
       return IntentResult.success();
    }
 
@@ -52,13 +52,13 @@ final class SessionIntentHandlers {
       if (intent.steps() == 0) return IntentResult.pass();
       if (context.source() == IntentSource.COMMAND) {
          if (!hasSession(player)
-            || GeometryManager.active(player) && !GeometryManager.allows(player, GeometryAction.SCALAR_ADJUST)
-            || OperationManager.active(player) && !OperationManager.selectionReady(player)) return IntentResult.pass();
+            || GeometrySystem.of(player).active(player) && !GeometrySystem.of(player).allows(player, GeometryAction.SCALAR_ADJUST)
+            || OperationSystem.of(player).active(player) && !OperationSystem.of(player).selectionReady(player)) return IntentResult.pass();
       } else if (IdleInteractionSnapshots.idle(player)) return IntentResult.pass();
       int steps = Math.clamp(intent.steps(), -MAX_ADJUST_STEPS, MAX_ADJUST_STEPS);
-      if (OperationManager.active(player)) OperationManager.scroll(player, steps);
-      else if (GeometryManager.active(player)) GeometryManager.scroll(player, steps);
-      else FastPlaceManager.scrollContext(player, steps);
+      if (OperationSystem.of(player).active(player)) OperationSystem.of(player).scroll(player, steps);
+      else if (GeometrySystem.of(player).active(player)) GeometrySystem.of(player).scroll(player, steps);
+      else QuickShapeSystem.of(player).scrollContext(player, steps);
       return IntentResult.success();
    }
 
@@ -66,10 +66,10 @@ final class SessionIntentHandlers {
       ServerPlayer player = context.actor();
       if (context.source() == IntentSource.COMMAND && !hasSession(player)
          || context.source() != IntentSource.COMMAND && IdleInteractionSnapshots.idle(player)) return IntentResult.pass();
-      if (GeometryManager.active(player)) return IntentResult.handled(GeometryManager.fill(player));
-      if (OperationManager.active(player)) return IntentResult.handled(OperationManager.applyConfirmed(player, false));
-      if (!FastPlaceManager.active(player)) return IntentResult.pass();
-      FastPlaceManager.fill(player);
+      if (GeometrySystem.of(player).active(player)) return IntentResult.handled(GeometrySystem.of(player).fill(player));
+      if (OperationSystem.of(player).active(player)) return IntentResult.handled(OperationSystem.of(player).applyConfirmed(player, false));
+      if (!QuickShapeSystem.of(player).active(player)) return IntentResult.pass();
+      QuickShapeSystem.of(player).fill(player);
       return IntentResult.success();
    }
 
@@ -77,18 +77,18 @@ final class SessionIntentHandlers {
       ServerPlayer player = context.actor();
       boolean available = ServerOperationGates.AVAILABLE.test(player).allowed();
       if (context.source() == IntentSource.COMMAND && (!available || !hasSession(player))) return IntentResult.pass();
-      boolean allowed = available && (!GeometryManager.active(player) || GeometryManager.allows(player, GeometryAction.SUBMODE));
-      FastPlaceManager.setModifierHeld(player, allowed && intent.held());
+      boolean allowed = available && (!GeometrySystem.of(player).active(player) || GeometrySystem.of(player).allows(player, GeometryAction.SUBMODE));
+      QuickShapeSystem.of(player).setModifierHeld(player, allowed && intent.held());
       return IntentResult.handled(allowed);
    }
 
    private static boolean hasSession(ServerPlayer player) {
-      return GeometryManager.active(player) || OperationManager.active(player) || FastPlaceManager.active(player);
+      return GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player) || QuickShapeSystem.of(player).active(player);
    }
 
    private static BlockPos trustedLineCandidate(ServerPlayer player, BlockPos candidate) {
       if (candidate == null) return null;
-      QuickShapeDraft session = FastPlaceManager.session(player).orElse(null);
+      QuickShapeDraft session = QuickShapeSystem.of(player).session(player).orElse(null);
       if (session == null || QuickShapeStage.resolve(session.points().size(),
          FastPlaceSettings.load(player).faceMode(), session.polygonClosed()) != QuickShapeStage.LINE) return null;
       BlockPos first = session.points().getFirst();

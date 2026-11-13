@@ -78,6 +78,25 @@ class WorldTaskQueueTest {
       assertFalse(second.containsKey(owner));
    }
 
+   @Test void closingEndsAdmissionBeforeCallbacksAndCleansEveryTaskDespiteFailures() {
+      var queue = new WorldTaskQueue<Writer>();
+      UUID first = UUID.randomUUID(), second = UUID.randomUUID();
+      queue.put(first, new Writer());
+      queue.put(second, new Writer());
+      var cleaned = new AtomicInteger();
+      var failure = assertThrows(IllegalStateException.class, () -> queue.close(task -> {
+         assertFalse(queue.containsKey(first));
+         assertFalse(queue.containsKey(second));
+         assertThrows(IllegalStateException.class, () -> queue.put(first, new Writer()));
+         cleaned.incrementAndGet();
+         throw new IllegalStateException("injected cleanup failure");
+      }));
+      assertEquals(2, cleaned.get());
+      assertEquals(1, failure.getSuppressed().length);
+      queue.close(task -> fail("repeated close ran cleanup twice"));
+      assertFalse(queue.containsKey(first));
+   }
+
    private static final class Writer implements WorldWriteTask {
       private final WorldRecoverySnapshot snapshot = new WorldRecoverySnapshot(
          new ArrayDeque<>(), Map.of(), CompletableFuture.completedFuture(null));

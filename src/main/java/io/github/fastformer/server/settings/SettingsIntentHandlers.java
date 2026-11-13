@@ -12,7 +12,7 @@ import io.github.fastformer.protocol.settings.SettingKey;
 import io.github.fastformer.protocol.settings.SettingRequest;
 import io.github.fastformer.protocol.settings.SettingsKeys;
 import io.github.fastformer.common.history.CompressionSetting;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import net.minecraft.network.chat.Component;
@@ -43,7 +43,7 @@ public final class SettingsIntentHandlers {
          if (value.isEmpty() || !PlacementEffectRegistry.contains(value.orElseThrow().effect())) return IntentResult.pass();
          var effect = value.orElseThrow();
          FastPlaceSettings.load(player).setPlacementEffectEnabled(player, effect.effect(), effect.enabled());
-         FastPlaceManager.syncCurrentPreview(player);
+         QuickShapeSystem.of(player).syncCurrentPreview(player);
          return IntentResult.success();
       });
       bindings.register(SettingsKeys.FALLING_DISABLED, SettingsIntentHandlers::falling);
@@ -59,7 +59,7 @@ public final class SettingsIntentHandlers {
    private static <T> void update(SettingBindings<ServerPlayer> bindings, SettingKey<T> key, BiConsumer<ServerPlayer, T> setter) {
       write(bindings, key, (player, value) -> {
          setter.accept(player, value);
-         FastPlaceManager.syncCurrentPreview(player);
+         QuickShapeSystem.of(player).syncCurrentPreview(player);
       });
    }
 
@@ -85,7 +85,7 @@ public final class SettingsIntentHandlers {
          PacketDistributor.sendToPlayer(player, new FallingStatePayload(
             BlockActivityRules.get(player.getServer()).fallingDisabled(), allowed));
       }
-      FastPlaceManager.syncCurrentPreview(player);
+      QuickShapeSystem.of(player).syncCurrentPreview(player);
       return value.isPresent() && !allowed ? IntentResult.denied("permission") : IntentResult.success();
    }
 }

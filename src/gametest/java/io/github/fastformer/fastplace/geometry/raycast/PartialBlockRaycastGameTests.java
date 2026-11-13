@@ -2,7 +2,7 @@ package io.github.fastformer.fastplace.geometry.raycast;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -80,21 +80,21 @@ public final class PartialBlockRaycastGameTests {
          BlockPos expectedPosition = merges ? target : target.above();
          helper.assertTrue(snapshot.placementPosition().equals(expectedPosition), "preview moved into the wrong cell");
          try {
-            FastPlaceManager.addInitialPoint(player, actual, false);
-            helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().getFirst().equals(expectedPosition),
+            QuickShapeSystem.of(player).addInitialPoint(player, actual, false);
+            helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(expectedPosition),
                "first point differs from the preview");
          } finally {
-            FastPlaceManager.cancel(player);
+            QuickShapeSystem.of(player).cancel(player);
          }
          try {
             var embedded = PlacementContextSnapshot.capture(level, player, stack, actual, true);
             helper.assertTrue(embedded.clickedFace() == Direction.UP && embedded.hitLocation().equals(actual.getLocation()),
                "embedded placement changed the shape entry face");
-            FastPlaceManager.addInitialPoint(player, actual, true);
-            helper.assertTrue(FastPlaceManager.session(player).orElseThrow().points().getFirst().equals(target),
+            QuickShapeSystem.of(player).addInitialPoint(player, actual, true);
+            helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(target),
                "embedded point moved outside the hit cell");
          } finally {
-            FastPlaceManager.cancel(player);
+            QuickShapeSystem.of(player).cancel(player);
          }
       }
    }

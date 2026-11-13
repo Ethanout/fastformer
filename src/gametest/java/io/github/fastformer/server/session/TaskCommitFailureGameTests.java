@@ -62,10 +62,10 @@ public final class TaskCommitFailureGameTests {
             setField(task[0], "journalPreparation", new WorldJournalPreparation(command -> {
                throw new RejectedExecutionException("Injected journal scheduling failure");
             }));
-            register(owner[0], task[0]);
+            register(level, owner[0], task[0]);
          }
          service(level, task[0]);
-         helper.assertTrue(!active(owner[0]), "waiting for journal failure");
+         helper.assertTrue(!active(level, owner[0]), "waiting for journal failure");
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner[0]), "unwritten task created recovery");
          helper.assertTrue(level.getBlockState(target).is(Blocks.STONE), "journal failure wrote without WAL");
          assertReleased(helper, level, baseline);
@@ -99,9 +99,9 @@ public final class TaskCommitFailureGameTests {
             // Replace only the completed publication result. No live worker or journal is discarded.
             setField(field(commit, "history"), "future", CompletableFuture.failedFuture(
                new IllegalStateException("Injected history publication failure")));
-            register(context[0].owner(), task[0]);
+            register(level, context[0].owner(), task[0]);
             service(level, task[0]);
-            helper.assertTrue(!active(context[0].owner()), "failed publication retained writer");
+            helper.assertTrue(!active(level, context[0].owner()), "failed publication retained writer");
             helper.assertTrue(HistorySystem.of(helper.getLevel().getServer()).busy(context[0].owner()), "failed publication did not create recovery");
             injected[0] = true;
          }
@@ -203,18 +203,18 @@ public final class TaskCommitFailureGameTests {
          PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension());
    }
 
-   private static void register(UUID owner, Object task) {
-      if (task instanceof PlacementTask placement) FastPlaceManager.addTaskForTest(owner, placement);
-      else OperationManager.addTaskForTest(owner, (WorldOperationTask)task);
+   private static void register(ServerLevel level, UUID owner, Object task) {
+      if (task instanceof PlacementTask placement) QuickShapeSystem.of(level.getServer()).tasks.put(owner, placement);
+      else OperationSystem.of(level.getServer()).tasks.put(owner, (WorldOperationTask)task);
    }
 
-   private static boolean active(UUID owner) {
-      return FastPlaceManager.taskActive(owner) || OperationManager.taskActive(owner);
+   private static boolean active(ServerLevel level, UUID owner) {
+      return QuickShapeSystem.of(level.getServer()).taskActive(owner) || OperationSystem.of(level.getServer()).taskActive(owner);
    }
 
    private static void service(ServerLevel level, Object task) {
-      if (task instanceof PlacementTask) FastPlaceManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
-      else OperationManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+      if (task instanceof PlacementTask) QuickShapeSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+      else OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
    }
 
    private static void assertReleased(GameTestHelper helper, ServerLevel level, long baseline) {

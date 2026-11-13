@@ -22,7 +22,7 @@ import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationExecutionSemantics;
 import java.util.ArrayDeque;
@@ -510,7 +510,7 @@ public final class SelectionOperationTask implements WorldOperationTask {
       if (conflictMode != OperationConflictMode.REPLACE && !movingSource && !current.canBeReplaced()) {
          // A move must never be reported as successful after its source was
          // cleared but KEEP_EXISTING skipped the destination. Mark the task
-         // failed so OperationManager transfers the journal to recovery;
+         // failed so OperationSystem transfers the journal to recovery;
          // restoreSkippedSource keeps the source visible until that rollback
          // completes.
          restoreSkippedSource(level, sourceBlock);

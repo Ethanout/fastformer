@@ -52,6 +52,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class TaskRecoveryHandoffTest {
+   private final SessionSystem runtime = new SessionSystem();
+   private final QuickShapeSystem quickShape = runtime.quickShape;
+   private final OperationSystem operation = runtime.operation;
    private static final HistoryService history = new HistoryService(
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true),
       io.github.fastformer.core.gate.Gate.require("test", ignored -> true), new io.github.fastformer.server.history.NoDiskHistoryRepository());
@@ -60,14 +63,14 @@ class TaskRecoveryHandoffTest {
       UUID owner = UUID.randomUUID();
       AtomicInteger starts = new AtomicInteger();
       PlacementTask task = deferredGeneration(starts);
-      FastPlaceManager.addTaskForTest(owner, task);
+      quickShape.tasks.put(owner, task);
 
       assertEquals(TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner), history));
-      FastPlaceManager.tickWorld(null, history);
+         quickShape.cancelTask(new WorldTaskContext(null, owner), history));
+      quickShape.tickWorld(null, history);
 
       assertFalse(task.waitingForGenerationMemory());
-      assertFalse(FastPlaceManager.taskActive(owner));
+      assertFalse(quickShape.taskActive(owner));
       assertFalse(history.busy(owner));
       assertEquals(0, starts.get());
    }
@@ -77,13 +80,13 @@ class TaskRecoveryHandoffTest {
       UUID owner = UUID.randomUUID();
       AtomicInteger starts = new AtomicInteger();
       PlacementTask task = deferredGeneration(starts);
-      FastPlaceManager.addTaskForTest(owner, task);
+      quickShape.tasks.put(owner, task);
 
-      FastPlaceManager.clearServer();
-      FastPlaceManager.tickWorld(null, history);
+      runtime.close();
+      quickShape.tickWorld(null, history);
 
       assertFalse(task.waitingForGenerationMemory());
-      assertFalse(FastPlaceManager.taskActive(owner));
+      assertFalse(quickShape.taskActive(owner));
       assertEquals(0, starts.get());
    }
 
@@ -97,7 +100,7 @@ class TaskRecoveryHandoffTest {
 
    @AfterEach
    void clearTasks() {
-      FastPlaceManager.clearServer();
+      runtime.close();
       history.clear();
    }
 
@@ -110,15 +113,15 @@ class TaskRecoveryHandoffTest {
             null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
          )
       );
-      FastPlaceManager.addTaskForTest(owner, task);
+      quickShape.tasks.put(owner, task);
 
       assertEquals(
          TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner), history)
+         quickShape.cancelTask(new WorldTaskContext(null, owner), history)
       );
       assertEquals(
          TaskCancellationResult.NOT_ACTIVE,
-         FastPlaceManager.cancelTask(new WorldTaskContext(null, owner), history)
+         quickShape.cancelTask(new WorldTaskContext(null, owner), history)
       );
    }
 
@@ -180,7 +183,7 @@ class TaskRecoveryHandoffTest {
       assertPlacementFailureStartsRecovery("memoryUnsafe");
    }
 
-   private static void assertPlacementFailureStartsRecovery(String failureField) throws Exception {
+   private void assertPlacementFailureStartsRecovery(String failureField) throws Exception {
       UUID owner = UUID.randomUUID();
       BlockPos pos = new BlockPos(3, 4, 5);
       PlacementTask task = PlacementTask.ready(
@@ -198,13 +201,13 @@ class TaskRecoveryHandoffTest {
       var terminalField = PlacementTask.class.getDeclaredField(failureField);
       terminalField.setAccessible(true);
       terminalField.setBoolean(task, true);
-      FastPlaceManager.addTaskForTest(owner, task);
+      quickShape.tasks.put(owner, task);
 
-      FastPlaceManager.tickWorld(null, history);
+      quickShape.tickWorld(null, history);
 
       assertTrue(task.recoveryTaskCreated());
       assertTrue(history.busy(owner));
-      assertEquals(TaskCancellationResult.NOT_ACTIVE, FastPlaceManager.cancelTask(new WorldTaskContext(null, owner), history));
+      assertEquals(TaskCancellationResult.NOT_ACTIVE, quickShape.cancelTask(new WorldTaskContext(null, owner), history));
       history.tickWorld(null);
       WorldChangeBatch recovery = HistoryTestAccess.activeRecoveryBatch(history, owner);
       assertNotNull(recovery);
@@ -248,18 +251,18 @@ class TaskRecoveryHandoffTest {
       );
       Map<BlockPos, ReversibleBlockSnapshot> after = Map.of(pos, snapshot(pos, "after"));
       CancellableCompressionTask task = new CancellableCompressionTask(before, after);
-      OperationManager.addTaskForTest(owner, task);
+      operation.tasks.put(owner, task);
 
       assertTrue(compressionStarted.await(5, TimeUnit.SECONDS));
       try {
          assertEquals(
             TaskCancellationResult.ROLLBACK_STARTED,
-            OperationManager.cancelTask(new WorldTaskContext(null, owner), history)
+            operation.cancelTask(new WorldTaskContext(null, owner), history)
          );
          assertEquals(1, task.memoryReleaseCount.get());
          assertEquals(
             TaskCancellationResult.NOT_ACTIVE,
-            OperationManager.cancelTask(new WorldTaskContext(null, owner), history)
+            operation.cancelTask(new WorldTaskContext(null, owner), history)
          );
          assertEquals(1, task.memoryReleaseCount.get());
          history.tickWorld(null);
@@ -281,12 +284,12 @@ class TaskRecoveryHandoffTest {
       assertEquals("before", marker(HistoryTestAccess.targetSnapshots(recovery, true).getFirst()));
    }
 
-   private static void assertOperationTaskTransfersRecoveryOnce(WorldOperationTask task) {
+   private void assertOperationTaskTransfersRecoveryOnce(WorldOperationTask task) {
       UUID owner = UUID.randomUUID();
       BlockPos pos = new BlockPos(3, 4, 5);
       task.transaction().recordBefore(snapshot(pos, "before"));
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
-      OperationManager.addTaskForTest(owner, task);
+      operation.tasks.put(owner, task);
 
       var reported = new java.util.ArrayList<io.github.fastformer.workspace.submission.WorkspaceCompletion>();
       io.github.fastformer.server.submission.WorkspaceResultSink results = (result, online) -> {
@@ -295,12 +298,12 @@ class TaskRecoveryHandoffTest {
       };
       assertEquals(
          TaskCancellationResult.ROLLBACK_STARTED,
-         OperationManager.cancelTask(new WorldTaskContext(null, owner), history, results)
+         operation.cancelTask(new WorldTaskContext(null, owner), history, results)
       );
       assertTrue(history.busy(owner));
       assertEquals(
          TaskCancellationResult.NOT_ACTIVE,
-         OperationManager.cancelTask(new WorldTaskContext(null, owner), history, results)
+         operation.cancelTask(new WorldTaskContext(null, owner), history, results)
       );
       if (task instanceof ClientWorkspacePlacementTask workspace) {
          assertEquals(1, reported.size());

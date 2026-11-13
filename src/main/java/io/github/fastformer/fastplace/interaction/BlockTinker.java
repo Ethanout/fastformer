@@ -14,9 +14,9 @@ import io.github.fastformer.server.history.HistoryStorageConfig;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.BlockEditTransaction;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.GeometrySystem;
+import io.github.fastformer.server.session.OperationSystem;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -35,9 +35,9 @@ public final class BlockTinker {
 
    public static boolean use(ServerPlayer player, BlockHitResult hit) {
       if (!canEdit(player) || !withinInteractionRange(player, hit)
-         || HistorySystem.of(player).busy(player) || FastPlaceManager.active(player)
-         || OperationManager.active(player) || GeometryManager.active(player)
-         || FastPlaceManager.taskActive(player) || OperationManager.taskActive(player)) return false;
+         || HistorySystem.of(player).busy(player) || QuickShapeSystem.of(player).active(player)
+         || OperationSystem.of(player).active(player) || GeometrySystem.of(player).active(player)
+         || QuickShapeSystem.of(player).taskActive(player) || OperationSystem.of(player).taskActive(player)) return false;
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       if (!settings.enabled() || !settings.emptyHandWrench()) return false;
       ServerLevel level = player.serverLevel();

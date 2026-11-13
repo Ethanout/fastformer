@@ -74,13 +74,13 @@ public final class WriteFailureGameTests {
             NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, true, EntityJoinLevelEvent.class, failure);
          }
          if (scenario[0] == 0) {
-            FastPlaceManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+            QuickShapeSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          } else {
-            OperationManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+            OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          }
          helper.assertTrue(injected[0], "waiting for container callback in scenario " + scenario[0]);
          NeoForge.EVENT_BUS.unregister(failure);
-         helper.assertTrue(!FastPlaceManager.taskActive(owner[0]) && !OperationManager.taskActive(owner[0]),
+         helper.assertTrue(!QuickShapeSystem.of(level.getServer()).taskActive(owner[0]) && !OperationSystem.of(level.getServer()).taskActive(owner[0]),
             "failed writer remained active");
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner[0]), "waiting for failure recovery");
@@ -96,16 +96,16 @@ public final class WriteFailureGameTests {
 
    private static void enqueue(ServerLevel level, UUID owner, BlockPos source, BlockPos target, int kind) {
       if (kind == 0) {
-         FastPlaceManager.addTaskForTest(owner, PlacementTask.ready(Set.of(target), new PlacementTaskPlan(
+         QuickShapeSystem.of(level.getServer()).tasks.put(owner, PlacementTask.ready(Set.of(target), new PlacementTaskPlan(
             Blocks.GOLD_BLOCK.defaultBlockState(), null, OperationConflictMode.REPLACE,
             PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension())));
       } else if (kind == 1) {
          var part = new OperationWorkspacePlan.Part(1, ClientSelectionPart.Source.CLIPBOARD,
             Map.of(target, new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)), WorkspaceTransform.IDENTITY, false);
-         OperationManager.addTaskForTest(owner, new ClientWorkspacePlacementTask(UUID.randomUUID(),
+         OperationSystem.of(level.getServer()).tasks.put(owner, new ClientWorkspacePlacementTask(UUID.randomUUID(),
             new OperationWorkspacePlan(List.of(part)), PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension()));
       } else {
-         OperationManager.addTaskForTest(owner, new SelectionOperationTask(
+         OperationSystem.of(level.getServer()).tasks.put(owner, new SelectionOperationTask(
             OperationSelectionVolume.cuboid(source, source, source, source), OperationMode.MOVE,
             OperationConflictMode.REPLACE, true, target.subtract(source), OperationStackRegion.origin(),
             PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension()));

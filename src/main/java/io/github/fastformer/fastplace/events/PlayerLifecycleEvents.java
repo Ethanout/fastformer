@@ -12,7 +12,8 @@ import io.github.fastformer.fastplace.world.WorldTaskFeature;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.server.lifecycle.ServerBackgroundTasks;
 import io.github.fastformer.server.player.PlayerStateRegistry;
 import net.minecraft.server.level.ServerLevel;
@@ -48,12 +49,12 @@ public final class PlayerLifecycleEvents {
          && event.getEntity() instanceof ServerPlayer newPlayer) {
          FastPlaceSettings.copy(oldPlayer, newPlayer);
          io.github.fastformer.fastplace.settings.PlayerBlockReach.copy(oldPlayer, newPlayer);
-         UploadSystem.forget(oldPlayer);
+         QuickShapeSystem.of(oldPlayer).detachPlayer(oldPlayer);
          PlayerStateRegistry.detach(oldPlayer);
          PlayerStateRegistry.attach(newPlayer);
          PreviewSync.syncInteractionUpdates(newPlayer);
          // Rebind the retained UUID-owned workflow to the replacement instance.
-         FastPlaceManager.syncCurrentPreview(newPlayer);
+         QuickShapeSystem.of(newPlayer).syncCurrentPreview(newPlayer);
       }
    }
 
@@ -65,7 +66,7 @@ public final class PlayerLifecycleEvents {
          // old environment ends, so old coordinates are never used in the new
          // dimension.
          PlayerStateRegistry.dimensionChanged(player);
-         FastPlaceManager.handleDimensionChange(player, event.getFrom(), event.getTo());
+         QuickShapeSystem.of(player).handleDimensionChange(player, event.getFrom(), event.getTo());
       }
    }
 
@@ -78,7 +79,7 @@ public final class PlayerLifecycleEvents {
       io.github.fastformer.fastplace.settings.PlayerBlockReach.initialize(player);
       FastPlaceNetwork.syncSettings(player);
       // Reattach UUID-owned workflows after a reconnect or player replacement.
-      FastPlaceManager.syncCurrentPreview(player);
+      QuickShapeSystem.of(player).syncCurrentPreview(player);
       HistorySystem.of(player).trimToSetting(player, FastPlaceSettings.load(player).worldUndoHistoryLimit());
       WorldTaskFeature.attachPlayer(player);
       if (!PersistentRecoveryJournal.writesAllowed()) {
@@ -88,17 +89,17 @@ public final class PlayerLifecycleEvents {
 
    private static void onPlayerLogout(PlayerLoggedOutEvent event) {
       if (event.getEntity() instanceof ServerPlayer player) {
+         SessionSystem.detachPlayer(player);
          PlayerStateRegistry.detach(player);
-         FastPlaceManager.detachPlayer(player);
       }
    }
 
    private static void onServerStarted(ServerStartedEvent event) {
       ServerBackgroundTasks.start(event.getServer());
       PlayerStateRegistry.start(event.getServer());
+      SessionSystem.start(event.getServer());
       HistorySystem.start(event.getServer());
       UploadSystem.start(event.getServer());
-      FastPlaceManager.clearServer();
       HistorySystem.of(event.getServer()).clear();
       WorldTaskFeature.clear();
       WorldWriteCoordinator.clearAll();
@@ -111,9 +112,9 @@ public final class PlayerLifecycleEvents {
    private static void onServerStopping(ServerStoppingEvent event) {
       PlayerStateRegistry.discardPlayers(event.getServer());
       for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
-         FastPlaceManager.remove(player);
+         QuickShapeSystem.of(player).remove(player);
       }
-      FastPlaceManager.clearServer();
+      SessionSystem.stop(event.getServer());
       PersistentRecoveryJournal.awaitIoIdle(event.getServer());
       HistorySystem.of(event.getServer()).awaitDiskWritesOnShutdown(event.getServer());
       HistorySystem.of(event.getServer()).clear();
@@ -126,7 +127,7 @@ public final class PlayerLifecycleEvents {
    }
 
    private static void onServerStopped(ServerStoppedEvent event) {
-      FastPlaceManager.clearServer();
+      SessionSystem.stop(event.getServer());
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.stop(event.getServer());
       io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());

@@ -12,7 +12,7 @@ import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -46,17 +46,17 @@ public final class OperationSelectionModeEntryGameTests {
                   player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(item));
                   helper.assertFalse(ServerInputDispatcher.rightClickBlock(player, hit), "vanilla block callback must not create a selection");
                   helper.assertFalse(ServerInputDispatcher.rightClickItem(player), "vanilla item callback must not create a selection");
-                  helper.assertFalse(OperationManager.active(player), "ordinary item use must leave the selection session idle");
+                  helper.assertFalse(OperationSystem.of(player).active(player), "ordinary item use must leave the selection session idle");
                }
             }
             FastPlaceSettings.load(player).setOperationSelectionMode(player, OperationSelectionMode.CUBOID);
-            OperationManager.startFirst(player, point);
-            var before = OperationManager.session(player).orElseThrow().points();
+            OperationSystem.of(player).startFirst(player, point);
+            var before = OperationSystem.of(player).session(player).orElseThrow().points();
             helper.assertFalse(ServerInputDispatcher.rightClickBlock(player, hit), "vanilla callbacks must not append remote selection points");
             helper.assertFalse(ServerInputDispatcher.rightClickItem(player), "vanilla callbacks must not complete remote selections");
-            helper.assertTrue(OperationManager.session(player).orElseThrow().points().equals(before), "remote points must retain their explicit command owner");
+            helper.assertTrue(OperationSystem.of(player).session(player).orElseThrow().points().equals(before), "remote points must retain their explicit command owner");
          } finally {
-            OperationManager.cancel(player);
+            OperationSystem.of(player).cancel(player);
          }
       });
    }
@@ -69,7 +69,7 @@ public final class OperationSelectionModeEntryGameTests {
 
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for the operation input gate");
-         helper.assertFalse(OperationManager.active(player), "selection session must start empty");
+         helper.assertFalse(OperationSystem.of(player).active(player), "selection session must start empty");
          helper.assertTrue(
             FastPlaceSettings.load(player).operationSelectionMode() == OperationSelectionMode.CUBOID,
             "selection mode should begin as cuboid"
@@ -77,7 +77,7 @@ public final class OperationSelectionModeEntryGameTests {
 
          PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.CycleMode(null));
 
-         helper.assertFalse(OperationManager.active(player), "cycling mode must not create a selection session");
+         helper.assertFalse(OperationSystem.of(player).active(player), "cycling mode must not create a selection session");
          helper.assertTrue(
             FastPlaceSettings.load(player).operationSelectionMode() == OperationSelectionMode.CUBOID,
             "client-owned tool cycling must not create a server smart-point session"

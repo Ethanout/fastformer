@@ -1,10 +1,10 @@
 package io.github.fastformer.server.sync;
 
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.GeometrySystem;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
@@ -44,18 +44,18 @@ public final class PreviewSync {
 
    public static boolean buildingSubmissionParametersMatch(ServerPlayer player) {
       var published = PreviewSyncState.find(player).map(state -> state.submissionParameters).orElse(null);
-      var session = FastPlaceManager.session(player).orElse(null);
+      var session = QuickShapeSystem.of(player).session(player).orElse(null);
       if (published == null || session == null || published.revision() != buildingRevision(player)) return false;
       var settings = FastPlaceSettings.load(player);
       return published.maxPlacement() == settings.maxPlacement()
-         && published.faceTieBias() == FastPlaceManager.effectiveFaceTieBias(session, settings)
+         && published.faceTieBias() == QuickShapeSystem.effectiveFaceTieBias(session, settings)
          && PlaceableItems.placementState(player.getMainHandItem(), player, session.placementContext())
             .filter(published.prototype()::equals).isPresent();
    }
 
    public static void syncPreview(ServerPlayer player, QuickShapeDraft session) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
-      var modes = FastPlaceManager.effectiveModes(settings, session);
+      var modes = QuickShapeSystem.effectiveModes(settings, session);
       var activeEffect = PlaceableItems.placementState(
          player.getMainHandItem(), player, session.placementContext()
       ).flatMap(state -> PlacementEffectResolver.resolve(player, settings, session, state, modes))
@@ -104,8 +104,8 @@ public final class PreviewSync {
             session.stackRegion().max(),
             session.rotation(),
             session.adjustmentStarted(),
-            FastPlaceManager.modifierHeld(player),
-            FastPlaceManager.modifierHeld(player)
+            QuickShapeSystem.of(player).modifierHeld(player),
+            QuickShapeSystem.of(player).modifierHeld(player)
          )
       );
       syncActivity(player);
@@ -145,7 +145,7 @@ public final class PreviewSync {
             session.pointLocations(),
             session.pointRoles(),
             session.closed(),
-            FastPlaceManager.modifierHeld(player),
+            QuickShapeSystem.of(player).modifierHeld(player),
             session.extrusion(),
             session.polyhedronShapeVariant(),
             session.coneShapeVariant(),
@@ -228,22 +228,22 @@ public final class PreviewSync {
    }
 
    private static FastPlaceActivity currentActivity(ServerPlayer player) {
-      if (FastPlaceManager.restoreActive(player) || OperationManager.restoreActive(player)) {
+      if (QuickShapeSystem.of(player).restoreActive(player) || OperationSystem.of(player).restoreActive(player)) {
          return FastPlaceActivity.RESTORE_TASK;
       }
-      if (OperationManager.taskActive(player)) {
+      if (OperationSystem.of(player).taskActive(player)) {
          return FastPlaceActivity.OPERATION_TASK;
       }
-      if (FastPlaceManager.taskActive(player)) {
+      if (QuickShapeSystem.of(player).taskActive(player)) {
          return FastPlaceActivity.PLACEMENT_TASK;
       }
-      if (OperationManager.active(player)) {
+      if (OperationSystem.of(player).active(player)) {
          return FastPlaceActivity.OPERATION_SESSION;
       }
-      if (GeometryManager.active(player)) {
+      if (GeometrySystem.of(player).active(player)) {
          return FastPlaceActivity.GEOMETRY_SESSION;
       }
-      if (FastPlaceManager.active(player)) {
+      if (QuickShapeSystem.of(player).active(player)) {
          return FastPlaceActivity.BUILDING_SESSION;
       }
       return FastPlaceActivity.NONE;
@@ -251,7 +251,7 @@ public final class PreviewSync {
 
    private static void sendPreview(ServerPlayer player, BuildingPreviewSnapshot payload) {
       long revision = nextBuildingPreviewRevision(player);
-      var draft = payload.active() ? FastPlaceManager.session(player).orElse(null) : null;
+      var draft = payload.active() ? QuickShapeSystem.of(player).session(player).orElse(null) : null;
       var settings = FastPlaceSettings.load(player);
       var sessionValue = draft == null ? payload.session() : payload.session().withProfile(draft.profileId(),
          io.github.fastformer.server.interaction.profile.ProfileConstraints.middleConfirm(draft, settings));
@@ -288,13 +288,13 @@ public final class PreviewSync {
          PreviewSyncState.of(player).submissionParameters = null;
          return;
       }
-      var session = FastPlaceManager.session(player).orElse(null);
+      var session = QuickShapeSystem.of(player).session(player).orElse(null);
       if (session == null) return;
       var settings = FastPlaceSettings.load(player);
       var state = PlaceableItems.placementState(player.getMainHandItem(), player, session.placementContext())
          .orElse(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
       var parameters = new QuickShapeSubmissionParametersPayload(
-         revision, settings.maxPlacement(), state, FastPlaceManager.effectiveFaceTieBias(session, settings), callbackScope(player)
+         revision, settings.maxPlacement(), state, QuickShapeSystem.effectiveFaceTieBias(session, settings), callbackScope(player)
       );
       PreviewSyncState.of(player).submissionParameters = parameters;
       if (player.connection.hasChannel(QuickShapeSubmissionParametersPayload.TYPE)) {

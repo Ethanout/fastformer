@@ -16,9 +16,9 @@ import io.github.fastformer.protocol.c2s.geometry.GeometryPointPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryUndoPayload;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.GeometrySystem;
+import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -43,7 +43,7 @@ public final class GeometryPointGameTests {
       helper.setBlock(new BlockPos(1, 3, 1), Blocks.STONE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
       player.setXRot(90);
-      GeometryManager.selectMode(player, GeometryMode.WALL);
+      GeometrySystem.of(player).selectMode(player, GeometryMode.WALL);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1.0F);
       var request = new GeometryPointPayload(
@@ -55,12 +55,12 @@ public final class GeometryPointGameTests {
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "geometry point input is blocked: fastPlaceTask="
-            + FastPlaceManager.taskActive(player) + " operationTask=" + OperationManager.taskActive(player)
+            + QuickShapeSystem.of(player).taskActive(player) + " operationTask=" + OperationSystem.of(player).taskActive(player)
             + " worldHistoryBusy=" + HistorySystem.of(player).busy(player));
          ServerInputDispatcher.geometryPoint(player, request);
-         helper.assertTrue(GeometryManager.session(player).orElseThrow().points().equals(java.util.List.of(target.above())),
+         helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(target.above())),
             "geometry point used the current view instead of the captured ray");
-         GeometryManager.cancel(player);
+         GeometrySystem.of(player).cancel(player);
       });
    }
 
@@ -73,10 +73,10 @@ public final class GeometryPointGameTests {
       helper.setBlock(new BlockPos(1, 3, 1), Blocks.STONE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
       player.setXRot(90);
-      GeometryManager.selectMode(player, GeometryMode.WALL);
-      GeometryManager.addPoint(player, first);
-      GeometryManager.addPoint(player, first.offset(3, 0, 0));
-      GeometryManager.addPoint(player, first.offset(0, 0, 3));
+      GeometrySystem.of(player).selectMode(player, GeometryMode.WALL);
+      GeometrySystem.of(player).addPoint(player, first);
+      GeometrySystem.of(player).addPoint(player, first.offset(3, 0, 0));
+      GeometrySystem.of(player).addPoint(player, first.offset(0, 0, 3));
       var eye = player.getEyePosition();
       var view = player.getViewVector(1.0F);
       var request = new GeometryInteractionPayload(
@@ -91,8 +91,8 @@ public final class GeometryPointGameTests {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
          helper.assertTrue(ServerInputDispatcher.geometryInteraction(player, request),
             "captured geometry interaction used the current view instead of the captured ray");
-         helper.assertTrue(GeometryManager.session(player).orElseThrow().closed(), "captured close did not close the path");
-         GeometryManager.cancel(player);
+         helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().closed(), "captured close did not close the path");
+         GeometrySystem.of(player).cancel(player);
       });
    }
 
@@ -103,11 +103,11 @@ public final class GeometryPointGameTests {
       player.setGameMode(GameType.CREATIVE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
       player.setXRot(0);
-      GeometryManager.selectMode(player, GeometryMode.POLYHEDRON);
+      GeometrySystem.of(player).selectMode(player, GeometryMode.POLYHEDRON);
       BlockPos center = helper.absolutePos(new BlockPos(1, 6, 1));
-      GeometryManager.addPoint(player, center);
-      GeometryManager.addPoint(player, center.offset(3, 0, 0));
-      var draft = GeometryManager.session(player).orElseThrow();
+      GeometrySystem.of(player).addPoint(player, center);
+      GeometrySystem.of(player).addPoint(player, center.offset(3, 0, 0));
+      var draft = GeometrySystem.of(player).session(player).orElseThrow();
       var before = draft.pointLocations();
       var scope = PreviewSync.callbackScope(player);
       long revision = PreviewSync.geometryRevision(player);
@@ -124,14 +124,14 @@ public final class GeometryPointGameTests {
          helper.assertTrue(ServerInputDispatcher.geometryGizmoDrag(player, finish), "drag finish lost the captured revision");
          helper.assertTrue(draft.pointLocations().equals(before.stream().map(point -> point.add(2, 0, 0)).toList()),
             "drag deltas did not move the original draft exactly twice");
-         GeometryManager.selectMode(player, GeometryMode.POLYHEDRON);
-         var replacement = GeometryManager.session(player).orElseThrow();
+         GeometrySystem.of(player).selectMode(player, GeometryMode.POLYHEDRON);
+         var replacement = GeometrySystem.of(player).session(player).orElseThrow();
          var replacementPoints = replacement.pointLocations();
          var stale = new GeometryGizmoDragPayload(4L, PreviewSync.geometryRevision(player), scope,
             move.draftId(), 0, 0, 2, false);
          helper.assertFalse(ServerInputDispatcher.geometryGizmoDrag(player, stale), "old drag mutated the replacement draft");
          helper.assertTrue(replacement.pointLocations().equals(replacementPoints), "replacement draft changed");
-         GeometryManager.cancel(player);
+         GeometrySystem.of(player).cancel(player);
       });
    }
 
@@ -142,11 +142,11 @@ public final class GeometryPointGameTests {
       player.setGameMode(GameType.CREATIVE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
       player.setXRot(0);
-      GeometryManager.selectMode(player, GeometryMode.CONVEX_POLYHEDRON);
-      GeometryManager.addPoint(player, helper.absolutePos(new BlockPos(1, 6, 1)));
-      var draft = GeometryManager.session(player).orElseThrow();
+      GeometrySystem.of(player).selectMode(player, GeometryMode.CONVEX_POLYHEDRON);
+      GeometrySystem.of(player).addPoint(player, helper.absolutePos(new BlockPos(1, 6, 1)));
+      var draft = GeometrySystem.of(player).session(player).orElseThrow();
       draft.selectControlPoint(0);
-      GeometryManager.sync(player);
+      GeometrySystem.of(player).sync(player);
       long revision = PreviewSync.geometryRevision(player);
       var scope = PreviewSync.callbackScope(player);
       var click = GeometryInteractionPayload.clearSelection(1L, revision, scope, PointerGesture.LEFT_CLICK,
@@ -161,7 +161,7 @@ public final class GeometryPointGameTests {
          helper.assertTrue(draft.selectedControlPoint() == -1, "captured click did not clear the selected point");
          helper.assertFalse(ServerInputDispatcher.geometryInteraction(player, click), "replayed click was accepted");
          helper.assertFalse(ServerInputDispatcher.geometryGizmoDrag(player, drag), "replayed drag was accepted");
-         GeometryManager.cancel(player);
+         GeometrySystem.of(player).cancel(player);
       });
    }
 
@@ -174,9 +174,9 @@ public final class GeometryPointGameTests {
       helper.setBlock(new BlockPos(1, 3, 1), Blocks.STONE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
       player.setXRot(90);
-      GeometryManager.selectMode(player, GeometryMode.WALL);
-      GeometryManager.addPoint(player, target.above().offset(3, 0, 0));
-      GeometryManager.addPoint(player, target.above().offset(3, 0, 3));
+      GeometrySystem.of(player).selectMode(player, GeometryMode.WALL);
+      GeometrySystem.of(player).addPoint(player, target.above().offset(3, 0, 0));
+      GeometrySystem.of(player).addPoint(player, target.above().offset(3, 0, 3));
       var eye = player.getEyePosition();
       var view = player.getViewVector(1.0F);
       long revision = PreviewSync.geometryRevision(player);
@@ -195,17 +195,17 @@ public final class GeometryPointGameTests {
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
          helper.assertTrue(ServerInputDispatcher.geometryPoint(player, point), "captured point was not applied");
-         helper.assertTrue(GeometryManager.session(player).orElseThrow().points().size() == 3,
+         helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().points().size() == 3,
             "captured point did not create the third wall point");
          helper.assertTrue(ServerInputDispatcher.geometryInteraction(player, close),
             "double-click close did not accept the point revision");
-         helper.assertTrue(GeometryManager.session(player).orElseThrow().closed(), "double-click close did not close the wall path");
+         helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().closed(), "double-click close did not close the wall path");
          helper.assertFalse(ServerInputDispatcher.geometryPoint(player, point), "replayed point changed the closed path");
          helper.assertFalse(ServerInputDispatcher.geometryInteraction(player, close), "replayed close changed the closed path");
-         GeometryManager.sync(player);
+         GeometrySystem.of(player).sync(player);
          helper.assertFalse(ServerInputDispatcher.geometryInteraction(player, stale),
             "an external preview revision accepted the old pointer sequence");
-         GeometryManager.cancel(player);
+         GeometrySystem.of(player).cancel(player);
       });
    }
 
@@ -218,25 +218,25 @@ public final class GeometryPointGameTests {
       helper.setBlock(new BlockPos(1, 3, 1), Blocks.STONE);
       player.setPos(helper.absolutePos(new BlockPos(1, 30, 1)).getCenter());
       player.setXRot(90);
-      GeometryManager.selectMode(player, GeometryMode.WALL);
-      GeometryManager.addPoint(player, target.above().offset(3, 0, 0));
-      GeometryManager.addPoint(player, target.above().offset(3, 0, 3));
+      GeometrySystem.of(player).selectMode(player, GeometryMode.WALL);
+      GeometrySystem.of(player).addPoint(player, target.above().offset(3, 0, 0));
+      GeometrySystem.of(player).addPoint(player, target.above().offset(3, 0, 3));
       var eye = player.getEyePosition();
       var view = player.getViewVector(1.0F);
       long revision = PreviewSync.geometryRevision(player);
       var scope = PreviewSync.callbackScope(player);
       var point = new GeometryPointPayload(1L, revision, scope, eye, view);
-      var draft = GeometryManager.session(player).orElseThrow();
+      var draft = GeometrySystem.of(player).session(player).orElseThrow();
       var undo = new GeometryUndoPayload(2L, revision, scope, draft.draftId(), eye, view);
 
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
          helper.assertTrue(ServerInputDispatcher.geometryPoint(player, point), "captured point was not applied");
          helper.assertTrue(ServerInputDispatcher.geometryUndo(player, undo), "captured undo was not applied");
-         helper.assertTrue(GeometryManager.session(player).orElseThrow().points().size() == 2,
+         helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().points().size() == 2,
             "captured undo did not remove the captured point");
          helper.assertFalse(ServerInputDispatcher.geometryUndo(player, undo), "replayed undo was accepted");
-         GeometryManager.cancel(player);
+         GeometrySystem.of(player).cancel(player);
       });
    }
 }

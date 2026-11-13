@@ -6,7 +6,7 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.interaction.ProtectedInteractionTick;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -103,11 +103,11 @@ public final class WorkspaceSceneGameTests {
       int[] phase = {0};
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
-         OperationManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+         OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          helper.assertFalse(WorldWriteCoordinator.busy(level.getServer(), level.dimension()) || HistorySystem.of(player).busy(player.getUUID()), "waiting for writes");
          if (phase[0] == 0) {
-            helper.assertTrue(OperationManager.applyWorkspace(player, UUID.randomUUID(), plan).isQueued(), "swap refused");
+            helper.assertTrue(OperationSystem.of(player).applyWorkspace(player, UUID.randomUUID(), plan).isQueued(), "swap refused");
             phase[0] = 1;
             helper.assertTrue(false, "waiting for swap");
          }

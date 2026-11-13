@@ -2,7 +2,7 @@ package io.github.fastformer.fastplace.geometry.generation;
 
 import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 
 import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
 
@@ -33,7 +33,7 @@ class FastPlaceGeometryTest {
    void quickRaycastDefaultUsesTheHitSurface() {
       FastPlaceSettings settings = FastPlaceSettings.fromTag(new net.minecraft.nbt.CompoundTag());
       QuickShapeDraft session = new QuickShapeDraft();
-      FastPlaceGeometry.Modes modes = FastPlaceManager.effectiveModes(settings, session);
+      FastPlaceGeometry.Modes modes = QuickShapeSystem.effectiveModes(settings, session);
 
       assertEquals(RaycastPlacement.SURFACE, modes.raycastPlacement());
       assertEquals(

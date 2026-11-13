@@ -71,7 +71,7 @@ import io.github.fastformer.protocol.c2s.world.WorldRedoPayload;
 import io.github.fastformer.protocol.c2s.world.WorldUndoPayload;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
@@ -136,7 +136,7 @@ public final class FastPlaceNetwork {
       channels.receive(IdleSelectionEntryPayload.TYPE, IdleSelectionEntryPayload.STREAM_CODEC)
          .handle((payload, player) -> {
          var point = ServerInputDispatcher.idleSelectionEntry(player, payload);
-         FastPlaceManager.syncCurrentPreview(player);
+         QuickShapeSystem.of(player).syncCurrentPreview(player);
          syncActivity(player);
          PacketDistributor.sendToPlayer(player, new IdleSelectionEntryResultPayload(payload.requestId(),
             player.level().dimension().location(), point == null ? net.minecraft.core.BlockPos.ZERO : point, point != null));
@@ -294,7 +294,7 @@ public final class FastPlaceNetwork {
    }
 
    private static void acknowledgePlacement(ServerPlayer player, long requestId) {
-      FastPlaceManager.syncCurrentPreview(player);
+      QuickShapeSystem.of(player).syncCurrentPreview(player);
       syncActivity(player);
       PacketDistributor.sendToPlayer(player, new PlacementActionAckPayload(requestId, PreviewSync.callbackScope(player)));
    }

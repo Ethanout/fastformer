@@ -4,7 +4,7 @@ import com.mojang.authlib.GameProfile;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.server.player.PlayerStateRegistry;
-import io.github.fastformer.server.session.FastPlaceManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -91,18 +91,18 @@ public final class PreviewSyncGameTests {
       var dimension = player.level().dimension();
       BlockPos first = helper.absolutePos(new BlockPos(1, 3, 1));
       try {
-         FastPlaceManager.addPoint(player, first, first);
-         var draft = FastPlaceManager.session(player).orElseThrow();
+         QuickShapeSystem.of(player).addPoint(player, first, first);
+         var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          // Park the destination workflow, then simulate its arrival event with the player already in that dimension.
-         FastPlaceManager.handleDimensionChange(player, dimension, Level.NETHER);
+         QuickShapeSystem.of(player).handleDimensionChange(player, dimension, Level.NETHER);
          var previousScope = PreviewSync.callbackScope(player);
          NeoForge.EVENT_BUS.post(new PlayerChangedDimensionEvent(player, Level.NETHER, dimension));
-         helper.assertTrue(FastPlaceManager.session(player).orElseThrow() == draft, "dimension lost the parked workflow");
+         helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow() == draft, "dimension lost the parked workflow");
          helper.assertTrue(PreviewSync.buildingRevision(player) > 0, "dimension erased the newly published revision");
          helper.assertTrue(PreviewSync.buildingSubmissionParametersMatch(player), "dimension erased the submission policy");
          helper.assertFalse(previousScope.equals(PreviewSync.callbackScope(player)), "dimension reused the previous callback scope");
       } finally {
-         FastPlaceManager.remove(player);
+         QuickShapeSystem.of(player).remove(player);
          PlayerStateRegistry.detach(player);
       }
       helper.succeed();

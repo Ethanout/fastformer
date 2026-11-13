@@ -6,8 +6,8 @@ import com.mojang.logging.LogUtils;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import java.util.ArrayDeque;
 import java.util.HashMap;
@@ -39,16 +39,16 @@ public final class WorldTaskFeature {
       // waits for a lease first, so it would never reach the gate check inside the task.
       // The two handovers are independent, so one failure must not skip the other.
       if (PersistentRecoveryJournal.writesAllowed()) {
-         if (!tickSafely("placement", () -> FastPlaceManager.tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server)))) {
+         if (!tickSafely("placement", () -> QuickShapeSystem.of(server).tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server)))) {
             return;
          }
       } else {
-         tickSafely("placement-handover", () -> FastPlaceManager.handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server)));
+         tickSafely("placement-handover", () -> QuickShapeSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server)));
       }
       if (PersistentRecoveryJournal.writesAllowed()) {
-         tickSafely("operation", () -> OperationManager.tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server)));
+         tickSafely("operation", () -> OperationSystem.of(server).tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server)));
       } else {
-         tickSafely("operation-handover", () -> OperationManager.handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server)));
+         tickSafely("operation-handover", () -> OperationSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server)));
       }
       // Finished submission results age out here. A record of work that still runs is
       // never removed, so a query always learns that the work is still in progress.

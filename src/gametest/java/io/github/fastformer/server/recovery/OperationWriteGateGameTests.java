@@ -4,7 +4,7 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.WorkspaceReplayGameTests;
 import io.github.fastformer.fastplace.world.WorldTaskFeature;
 import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -50,9 +50,9 @@ public final class OperationWriteGateGameTests {
             throw new IllegalStateException("expected test failure to close the write gate");
          }), "the write gate did not close");
          helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");
-         helper.assertFalse(OperationManager.applyWorkspace(player, transferId, plan).isQueued(),
+         helper.assertFalse(OperationSystem.of(player).applyWorkspace(player, transferId, plan).isQueued(),
             "a workspace submission was accepted while the write gate was closed");
-         helper.assertFalse(OperationManager.taskActive(player), "a refused submission started a task");
+         helper.assertFalse(OperationSystem.of(player).taskActive(player), "a refused submission started a task");
          helper.assertTrue(WorkspaceSubmissionLedger.outcomeFor(
             helper.getLevel().getServer(),
             player.getUUID(),
@@ -102,7 +102,7 @@ public final class OperationWriteGateGameTests {
          if (!admitted[0]) {
             admitted[0] = true;
             try {
-               helper.assertTrue(OperationManager.applyWorkspace(player, transferId, plan).isQueued(),
+               helper.assertTrue(OperationSystem.of(player).applyWorkspace(player, transferId, plan).isQueued(),
                   "the open gate refused a workspace submission");
             } catch (RuntimeException exception) {
                phaseFailure[0] = exception;
@@ -111,17 +111,17 @@ public final class OperationWriteGateGameTests {
          }
          if (!handedOver[0]) {
             try {
-               helper.assertTrue(OperationManager.taskActive(player), "an accepted submission queued no task");
+               helper.assertTrue(OperationSystem.of(player).taskActive(player), "an accepted submission queued no task");
                PersistentRecoveryJournal.blockNewWrites();
                helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");
                WorldTaskFeature.tick(server);
-               helper.assertFalse(OperationManager.taskActive(player), "a blocked task stayed in the queue");
+               helper.assertFalse(OperationSystem.of(player).taskActive(player), "a blocked task stayed in the queue");
                helper.assertTrue(WorkspaceSubmissionLedger.outcomeFor(
                   server, player.getUUID(), dimension, transferId
                ) == OperationSubmissionOutcome.FAILED_RETRYABLE,
                   "a handed-over task without writes did not report a retryable receipt");
                WorldTaskFeature.tick(server);
-               helper.assertFalse(OperationManager.taskActive(player), "the second tick queued work again");
+               helper.assertFalse(OperationSystem.of(player).taskActive(player), "the second tick queued work again");
             } catch (RuntimeException exception) {
                phaseFailure[0] = exception;
                throw exception;

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,9 +17,11 @@ import org.slf4j.LoggerFactory;
 public final class WorldTaskQueue<T extends WorldWriteTask> {
    private static final Logger LOGGER = LoggerFactory.getLogger(WorldTaskQueue.class);
    private final Map<UUID, Entry<T>> entries = new HashMap<>();
+   private boolean closed;
 
    /** Never replaces a live writer or an extracted recovery record. */
    public void put(UUID owner, T task) {
+      if (closed) throw new IllegalStateException("world task queue is closed");
       Objects.requireNonNull(owner, "owner");
       Objects.requireNonNull(task, "task");
       Entry<T> previous = entries.get(owner);
@@ -38,6 +41,24 @@ public final class WorldTaskQueue<T extends WorldWriteTask> {
    public List<UUID> owners() { return List.copyOf(entries.keySet()); }
    public List<T> tasks() { return entries.values().stream().map(entry -> entry.task).toList(); }
    public void clear() { entries.clear(); }
+
+   /** End admission before callbacks; one failed cleanup must not retain unrelated tasks. */
+   public void close(Consumer<? super T> cleanup) {
+      Objects.requireNonNull(cleanup, "cleanup");
+      if (closed) return;
+      closed = true;
+      var pending = tasks();
+      entries.clear();
+      RuntimeException failure = null;
+      for (T task : pending) {
+         try { cleanup.accept(task); }
+         catch (RuntimeException next) {
+            if (failure == null) failure = next;
+            else if (failure != next) failure.addSuppressed(next);
+         }
+      }
+      if (failure != null) throw failure;
+   }
    public void remove(UUID owner) { entries.remove(owner); }
 
    public boolean remove(UUID owner, T expected) {

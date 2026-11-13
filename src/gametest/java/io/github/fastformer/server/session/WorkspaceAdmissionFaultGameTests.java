@@ -57,14 +57,16 @@ public final class WorkspaceAdmissionFaultGameTests {
             );
             admitted[0] = true;
             try {
-               OperationManager.setAdmissionFeedbackForTest(ignored -> {
+               var operations = OperationSystem.of(player);
+               var feedback = operations.admissionFeedback;
+               operations.admissionFeedback = ignored -> {
                   throw new IllegalStateException("expected feedback fault");
-               });
+               };
                WorkspaceAdmission admission;
                try {
-                  admission = OperationManager.applyWorkspace(player, transferId, plan(helper, 1, 1));
+                  admission = OperationSystem.of(player).applyWorkspace(player, transferId, plan(helper, 1, 1));
                } finally {
-                  OperationManager.setAdmissionFeedbackForTest(null);
+                  operations.admissionFeedback = feedback;
                }
 
                // The fault happened after the queue accepted the task, so the admission stands.
@@ -75,10 +77,10 @@ public final class WorkspaceAdmissionFaultGameTests {
                   "a feedback fault changed the recorded state"
                );
                helper.assertTrue(
-                  OperationManager.transferActive(player.getUUID(), transferId),
+                  OperationSystem.of(player).transferActive(player.getUUID(), transferId),
                   "a feedback fault lost the queued task"
                );
-               OperationManager.cancelTask(player);
+               OperationSystem.of(player).cancelTask(player);
             } catch (RuntimeException exception) {
                admissionFailure[0] = exception;
                throw exception;

@@ -6,7 +6,7 @@ import io.github.fastformer.protocol.c2s.workspace.ShapePlacementPayload;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistoryTestAccess;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.testkit.ServerPlayers;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
@@ -122,7 +122,7 @@ public final class UploadLifecycleGameTests {
          uploads.receive(player, UploadKind.WORKSPACE, new OperationWorkspaceApplyPayload(stale, 1, 2, new byte[] {2}));
          helper.assertTrue(uploads.receipts().requestScope(player.getUUID(), current) == scope,
             "stale failure discarded the current scope");
-         helper.assertTrue(OperationManager.recordedOutcome(player, stale) == OperationSubmissionOutcome.FAILED_RETRYABLE,
+         helper.assertTrue(OperationSystem.of(player).recordedOutcome(player, stale) == OperationSubmissionOutcome.FAILED_RETRYABLE,
             "stale failure was not recorded");
          uploads.receive(player, UploadKind.WORKSPACE, new OperationWorkspaceApplyPayload(current, 1, 2, new byte[] {2}));
          helper.assertTrue(work.size() == 1, "stale failure discarded the current chunks");
@@ -167,11 +167,11 @@ public final class UploadLifecycleGameTests {
          receipts.finish(new WorkspaceCompletion(player.getUUID(), player.level().dimension().location(), transfer,
             true, false, false, List.of(), List.of(), WorkspaceFailure.UNKNOWN), null);
          helper.assertTrue(receipts.requestScope(player.getUUID(), transfer) == null, "offline result retained scope");
-         helper.assertTrue(OperationManager.recordedOutcome(player, transfer) == OperationSubmissionOutcome.APPLIED,
+         helper.assertTrue(OperationSystem.of(player).recordedOutcome(player, transfer) == OperationSubmissionOutcome.APPLIED,
             "offline result was not recorded");
          receipts.finish(new WorkspaceCompletion(player.getUUID(), player.level().dimension().location(), transfer,
             false, true, false, List.of(), List.of(), WorkspaceFailure.UNKNOWN), null);
-         helper.assertTrue(OperationManager.recordedOutcome(player, transfer) == OperationSubmissionOutcome.APPLIED,
+         helper.assertTrue(OperationSystem.of(player).recordedOutcome(player, transfer) == OperationSubmissionOutcome.APPLIED,
             "weaker result replaced applied work");
          uploads.close();
          WorkspaceSubmissionLedger.clearOwner(player.getServer(), player.getUUID());
@@ -193,8 +193,8 @@ public final class UploadLifecycleGameTests {
    }
 
    private static void assertNoWork(GameTestHelper helper, ServerPlayer player, UUID transfer) {
-      helper.assertFalse(OperationManager.taskActive(player), "retired upload started work");
-      helper.assertTrue(OperationManager.recordedOutcome(player, transfer) == OperationSubmissionOutcome.UNKNOWN,
+      helper.assertFalse(OperationSystem.of(player).taskActive(player), "retired upload started work");
+      helper.assertTrue(OperationSystem.of(player).recordedOutcome(player, transfer) == OperationSubmissionOutcome.UNKNOWN,
          "retired upload recorded an outcome");
    }
 }

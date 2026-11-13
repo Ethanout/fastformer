@@ -5,7 +5,7 @@ import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.OperationSystem;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import net.minecraft.core.BlockPos;

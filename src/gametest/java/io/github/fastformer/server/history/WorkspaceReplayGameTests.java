@@ -8,8 +8,8 @@ import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -64,11 +64,11 @@ public final class WorkspaceReplayGameTests {
       int[] phase = {0};
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
-         OperationManager.tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+         OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          helper.assertTrue(!admissionBlocked(player), "Waiting for world writes");
          if (phase[0] == 0) {
-            helper.assertTrue(OperationManager.applyWorkspace(player, transfer, deletion).isQueued(), "Deletion was refused");
+            helper.assertTrue(OperationSystem.of(player).applyWorkspace(player, transfer, deletion).isQueued(), "Deletion was refused");
             phase[0] = 1;
             helper.assertTrue(false, "Deletion is pending");
          }
@@ -99,7 +99,7 @@ public final class WorkspaceReplayGameTests {
          // refused for a reason that has nothing to do with this test.
          WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
 
-         WorkspaceAdmission replay = OperationManager.applyWorkspace(player, transferId, plan);
+         WorkspaceAdmission replay = OperationSystem.of(player).applyWorkspace(player, transferId, plan);
          helper.assertTrue(
             replay.kind() == WorkspaceAdmission.Kind.REPLAYED, "a second admission was not recognised as a replay"
          );
@@ -151,7 +151,7 @@ public final class WorkspaceReplayGameTests {
          );
 
          // The applied entry still answers, so a reconnect query learns the truth.
-         WorkspaceAdmission replay = OperationManager.applyWorkspace(player, transferId, plan(helper, 3, 3));
+         WorkspaceAdmission replay = OperationSystem.of(player).applyWorkspace(player, transferId, plan(helper, 3, 3));
          helper.assertTrue(
             replay.kind() == WorkspaceAdmission.Kind.REPLAYED
                && replay.recorded() == OperationSubmissionOutcome.APPLIED,
@@ -195,7 +195,7 @@ public final class WorkspaceReplayGameTests {
             "a retryable failure replaced a recovery handoff"
          );
 
-         WorkspaceAdmission replay = OperationManager.applyWorkspace(player, transferId, plan(helper, 5, 5));
+         WorkspaceAdmission replay = OperationSystem.of(player).applyWorkspace(player, transferId, plan(helper, 5, 5));
          helper.assertTrue(replay.sendsResult(), "a recovery replay sent no result");
          helper.assertFalse(replay.retryable(), "a recovery replay offered a retry");
       } finally {
@@ -273,7 +273,7 @@ public final class WorkspaceReplayGameTests {
             !admissionBlocked(player), "waiting for the write lease of a neighbouring batch"
          );
          runPhaseOnce(admitted, admissionFailure, () -> {
-            WorkspaceAdmission admission = OperationManager.applyWorkspace(player, transferId, plan(helper, 9, 9));
+            WorkspaceAdmission admission = OperationSystem.of(player).applyWorkspace(player, transferId, plan(helper, 9, 9));
             helper.assertTrue(admission.isQueued(), "the admission did not queue a task");
             // The queued task reports its own result. An answer here would be a second packet
             // for one transfer, and the two could contradict each other.
@@ -283,7 +283,7 @@ public final class WorkspaceReplayGameTests {
                   == OperationSubmissionOutcome.IN_PROGRESS,
                "the queued transfer has no open record"
             );
-            OperationManager.cancelTask(player);
+            OperationSystem.of(player).cancelTask(player);
          });
          // The lease of the queued task is released asynchronously.
          helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
@@ -295,12 +295,12 @@ public final class WorkspaceReplayGameTests {
    /**
     * True when one admission of this player would be refused for a busy reason.
     *
-    * <p>This mirrors the condition that {@code OperationManager} applies. It is the real
+    * <p>This mirrors the condition that {@code OperationSystem} applies. It is the real
     * boundary, not a reset: the test waits for the state instead of clearing it.</p>
     */
    public static boolean admissionBlocked(ServerPlayer player) {
-      return OperationManager.taskBusy(player)
-         || FastPlaceManager.taskBusy(player)
+      return OperationSystem.of(player).taskBusy(player)
+         || QuickShapeSystem.of(player).taskBusy(player)
          || HistorySystem.of(player).busy(player)
          || WorldWriteCoordinator.busy(player.getServer(), player.serverLevel().dimension());
    }

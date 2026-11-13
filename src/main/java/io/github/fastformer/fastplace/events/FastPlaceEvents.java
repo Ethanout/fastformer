@@ -12,9 +12,9 @@ import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.GeometryManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.GeometrySystem;
+import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -118,8 +118,8 @@ public final class FastPlaceEvents {
             || !ServerOperationGates.WRITE_AVAILABLE.test(player).allowed())) {
          ItemStack tossed = event.getEntity().getItem().copy();
          event.setCanceled(true);
-         FastPlaceManager.restoreTossedItem(player, tossed);
-         FastPlaceManager.quit(player);
+         QuickShapeSystem.of(player).restoreTossedItem(player, tossed);
+         QuickShapeSystem.of(player).quit(player);
          return;
       }
    }

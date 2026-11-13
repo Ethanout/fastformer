@@ -8,8 +8,8 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.replace.QuickReplaceSystem;
 import io.github.fastformer.common.replace.QuickReplaceTarget;
-import io.github.fastformer.server.session.FastPlaceManager;
-import io.github.fastformer.server.session.OperationManager;
+import io.github.fastformer.server.session.QuickShapeSystem;
+import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -106,7 +106,7 @@ public final class QuickReplaceGameTests {
             PlayerInteractEvent.LeftClickBlock.Action.START);
          NeoForge.EVENT_BUS.post(attack);
          helper.assertTrue(!attack.isCanceled(), "Quick replace consumed vanilla attack");
-         helper.assertTrue(!FastPlaceManager.active(player) && !OperationManager.active(player), "Attack started an FF session");
+         helper.assertTrue(!QuickShapeSystem.of(player).active(player) && !OperationSystem.of(player).active(player), "Attack started an FF session");
       }
       io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).toggleEnabled(player);
       helper.assertTrue(!QuickReplaceSystem.setActive(player, true) && !QuickReplaceSystem.active(player),
