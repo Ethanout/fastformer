@@ -360,7 +360,7 @@ public final class QuickShapePointerGameTests {
 
    private static String blockedMessage(net.minecraft.server.level.ServerPlayer player, String message) {
       return message + ": placementTaskActive=" + SessionSystem.of(player).placementTasks().active(player)
-         + ", operationTaskActive=" + OperationSystem.of(player).taskActive(player)
+         + ", operationTaskActive=" + SessionSystem.of(player).operationTasks().active(player)
          + ", historyBusy=" + HistorySystem.of(player).busy(player);
    }
 }

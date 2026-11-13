@@ -244,7 +244,7 @@ public final class WorkspaceCallbackScopeGameTests {
                   "the record was not removed"
                );
                helper.assertTrue(
-                  OperationSystem.of(player).transferActive(player.getUUID(), transferId), "the task is gone"
+                  SessionSystem.of(player).operationTasks().transferActive(player.getUUID(), transferId), "the task is gone"
                );
 
                UploadSystem.of(player).receipts().failAdmission(player, transferId);
@@ -255,7 +255,7 @@ public final class WorkspaceCallbackScopeGameTests {
                      == OperationSubmissionOutcome.UNKNOWN,
                   "a failure report recorded a failure for a live task"
                );
-               OperationSystem.of(player).cancelTask(player);
+               SessionSystem.of(player).operationTasks().cancel(player);
             } catch (RuntimeException exception) {
                phaseFailure[0] = exception;
                throw exception;

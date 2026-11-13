@@ -193,7 +193,7 @@ public final class UploadLifecycleGameTests {
    }
 
    private static void assertNoWork(GameTestHelper helper, ServerPlayer player, UUID transfer) {
-      helper.assertFalse(OperationSystem.of(player).taskActive(player), "retired upload started work");
+      helper.assertFalse(SessionSystem.of(player).operationTasks().active(player), "retired upload started work");
       helper.assertTrue(OperationSystem.of(player).recordedOutcome(player, transfer) == OperationSubmissionOutcome.UNKNOWN,
          "retired upload recorded an outcome");
    }

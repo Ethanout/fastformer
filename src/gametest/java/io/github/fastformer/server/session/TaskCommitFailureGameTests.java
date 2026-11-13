@@ -216,16 +216,16 @@ public final class TaskCommitFailureGameTests {
 
    private static void register(ServerLevel level, UUID owner, Object task) {
       if (task instanceof PlacementTask placement) SessionSystem.of(level.getServer()).placementTasks().admit(owner, placement);
-      else OperationSystem.of(level.getServer()).tasks.put(owner, (WorldTask)task);
+      else SessionSystem.of(level.getServer()).operationTasks().admit(owner, (WorldTask)task);
    }
 
    private static boolean active(ServerLevel level, UUID owner) {
-      return SessionSystem.of(level.getServer()).placementTasks().active(owner) || OperationSystem.of(level.getServer()).taskActive(owner);
+      return SessionSystem.of(level.getServer()).placementTasks().active(owner) || SessionSystem.of(level.getServer()).operationTasks().active(owner);
    }
 
    private static void service(ServerLevel level, Object task) {
       if (task instanceof PlacementTask) SessionSystem.of(level.getServer()).placementTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
-      else OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+      else SessionSystem.of(level.getServer()).operationTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
    }
 
    private static void assertReleased(GameTestHelper helper, ServerLevel level, long baseline) {

@@ -59,13 +59,13 @@ class TaskHandoverUnderClosedGateTest {
    void aTaskWithoutWritesLeavesTheQueueWithoutRunning() {
       UUID owner = UUID.randomUUID();
       CountingOperationTask task = new CountingOperationTask(false);
-      operation.tasks.put(owner, task);
+      runtime.operationTasks().admit(owner, task);
 
-      operation.handOverBlockedTasks(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the recovery path did not receive the task");
       assertEquals(0, task.ticks.get(), "the handover ran the task instead of transferring it");
-      assertFalse(operation.taskActive(owner), "the handed-over task stayed in the queue");
+      assertFalse(runtime.operationTasks().active(owner), "the handed-over task stayed in the queue");
       assertFalse(history.busy(owner), "a task without writes started recovery work");
    }
 
@@ -76,12 +76,12 @@ class TaskHandoverUnderClosedGateTest {
       CountingOperationTask task = new CountingOperationTask(false);
       task.transaction().recordBefore(snapshot(pos, "before"));
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
-      operation.tasks.put(owner, task);
+      runtime.operationTasks().admit(owner, task);
 
-      operation.handOverBlockedTasks(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the recovery path did not receive the task");
-      assertFalse(operation.taskActive(owner), "the written task stayed in the queue");
+      assertFalse(runtime.operationTasks().active(owner), "the written task stayed in the queue");
       assertTrue(history.busy(owner), "the written task did not start recovery");
    }
 
@@ -89,27 +89,27 @@ class TaskHandoverUnderClosedGateTest {
    void repeatedHandoverTransfersOneTaskOnce() {
       UUID owner = UUID.randomUUID();
       CountingOperationTask task = new CountingOperationTask(false);
-      operation.tasks.put(owner, task);
+      runtime.operationTasks().admit(owner, task);
 
-      operation.handOverBlockedTasks(null, history);
-      operation.handOverBlockedTasks(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the second tick transferred the task again");
-      assertFalse(operation.taskActive(owner));
+      assertFalse(runtime.operationTasks().active(owner));
    }
 
    @Test
    void aFailedHandoverKeepsTheQueueSlot() {
       UUID owner = UUID.randomUUID();
       CountingOperationTask task = new CountingOperationTask(true);
-      operation.tasks.put(owner, task);
+      runtime.operationTasks().admit(owner, task);
 
-      operation.handOverBlockedTasks(null, history);
-      operation.tickWorld(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
+      runtime.operationTasks().tickWorld(null, history);
 
       assertEquals(2, task.transfers.get(), "the open-gate tick did not retry the failed extraction");
       assertEquals(0, task.ticks.get(), "the task resumed after cancellation failed");
-      assertTrue(operation.taskActive(owner), "a failed handover lost the task");
+      assertTrue(runtime.operationTasks().active(owner), "a failed handover lost the task");
    }
 
    @Test
@@ -118,13 +118,13 @@ class TaskHandoverUnderClosedGateTest {
       UUID healthy = UUID.randomUUID();
       CountingOperationTask broken = new CountingOperationTask(true);
       CountingOperationTask handedOver = new CountingOperationTask(false);
-      operation.tasks.put(failing, broken);
-      operation.tasks.put(healthy, handedOver);
+      runtime.operationTasks().admit(failing, broken);
+      runtime.operationTasks().admit(healthy, handedOver);
 
-      operation.handOverBlockedTasks(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
 
-      assertTrue(operation.taskActive(failing), "the failing owner lost its task");
-      assertFalse(operation.taskActive(healthy), "the healthy owner kept its task");
+      assertTrue(runtime.operationTasks().active(failing), "the failing owner lost its task");
+      assertFalse(runtime.operationTasks().active(healthy), "the healthy owner kept its task");
       assertEquals(1, handedOver.transfers.get());
    }
 
@@ -135,18 +135,18 @@ class TaskHandoverUnderClosedGateTest {
       CountingOperationTask task = new CountingOperationTask(false, true);
       task.transaction().recordBefore(snapshot(pos, "before"));
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
-      operation.tasks.put(owner, task);
+      runtime.operationTasks().admit(owner, task);
 
-      operation.handOverBlockedTasks(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the snapshot was not extracted");
-      assertTrue(operation.taskActive(owner), "a failed acceptance dropped the task");
+      assertTrue(runtime.operationTasks().active(owner), "a failed acceptance dropped the task");
       assertFalse(history.busy(owner), "a failed acceptance started recovery work");
 
-      operation.tickWorld(null, history);
+      runtime.operationTasks().tickWorld(null, history);
 
       assertEquals(1, task.transfers.get(), "the open-gate retry extracted a second, empty snapshot");
-      assertFalse(operation.taskActive(owner), "the retry left the task in the queue");
+      assertFalse(runtime.operationTasks().active(owner), "the retry left the task in the queue");
       assertTrue(history.busy(owner), "the retry did not start recovery");
       WorldChangeBatch recovery = HistoryTestAccess.activeRecoveryBatch(history, owner);
       assertNotNull(recovery, "the retry created no recovery batch");
@@ -174,18 +174,18 @@ class TaskHandoverUnderClosedGateTest {
       CountingOperationTask task = new CountingOperationTask(false, true);
       task.transaction().recordBefore(snapshot(pos, "before"));
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
-      operation.tasks.put(owner, task);
+      runtime.operationTasks().admit(owner, task);
 
-      operation.handOverBlockedTasks(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the snapshot was not extracted");
-      assertTrue(operation.taskActive(owner),
+      assertTrue(runtime.operationTasks().active(owner),
          "unrelated history work was mistaken for an acceptance of this snapshot");
 
-      operation.handOverBlockedTasks(null, history);
+      runtime.operationTasks().handOverBlockedTasks(null, history);
 
       assertEquals(1, task.transfers.get(), "the retry extracted a second, empty snapshot");
-      assertFalse(operation.taskActive(owner), "the retry left the task in the queue");
+      assertFalse(runtime.operationTasks().active(owner), "the retry left the task in the queue");
    }
 
    @Test

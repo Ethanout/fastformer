@@ -74,11 +74,11 @@ public final class WriteFailureGameTests {
          if (scenario[0] == 0) {
             SessionSystem.of(level.getServer()).placementTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          } else {
-            OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+            SessionSystem.of(level.getServer()).operationTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          }
          helper.assertTrue(injected[0], "waiting for container callback in scenario " + scenario[0]);
          NeoForge.EVENT_BUS.unregister(failure);
-         helper.assertTrue(!SessionSystem.of(level.getServer()).placementTasks().active(owner[0]) && !OperationSystem.of(level.getServer()).taskActive(owner[0]),
+         helper.assertTrue(!SessionSystem.of(level.getServer()).placementTasks().active(owner[0]) && !SessionSystem.of(level.getServer()).operationTasks().active(owner[0]),
             "failed writer remained active");
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner[0]), "waiting for failure recovery");
@@ -100,10 +100,10 @@ public final class WriteFailureGameTests {
       } else if (kind == 1) {
          var part = new OperationWorkspacePlan.Part(1, ClientSelectionPart.Source.CLIPBOARD,
             Map.of(target, new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)), WorkspaceTransform.IDENTITY, false);
-         OperationSystem.of(level.getServer()).tasks.put(owner, new SubmittedWorkspaceTask(UUID.randomUUID(),
+         SessionSystem.of(level.getServer()).operationTasks().admit(owner, new SubmittedWorkspaceTask(UUID.randomUUID(),
             new OperationWorkspacePlan(List.of(part)), PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension()));
       } else {
-         OperationSystem.of(level.getServer()).tasks.put(owner, new SelectionOperationTask(
+         SessionSystem.of(level.getServer()).operationTasks().admit(owner, new SelectionOperationTask(
             OperationSelectionVolume.cuboid(source, source, source, source), OperationMode.MOVE,
             OperationConflictMode.REPLACE, true, target.subtract(source), OperationStackRegion.origin(),
             PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension()));

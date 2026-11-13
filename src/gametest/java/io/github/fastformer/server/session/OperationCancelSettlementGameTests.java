@@ -66,11 +66,11 @@ public final class OperationCancelSettlementGameTests {
                "the queued transfer has no open record"
             );
             helper.assertTrue(
-               OperationSystem.of(player).cancelTask(player) == TaskCancellationResult.CANCELLED_BEFORE_WRITE,
+               SessionSystem.of(player).operationTasks().cancel(player) == TaskCancellationResult.CANCELLED_BEFORE_WRITE,
                "a cancel before write did not report the empty snapshot"
             );
             helper.assertFalse(
-               OperationSystem.of(player).taskActive(player),
+               SessionSystem.of(player).operationTasks().active(player),
                "a cancel before write left the task in the queue"
             );
             helper.assertTrue(
@@ -79,10 +79,10 @@ public final class OperationCancelSettlementGameTests {
                "a cancel before write left the ledger open"
             );
             helper.assertTrue(
-               OperationSystem.of(player).cancelTask(player) == TaskCancellationResult.NOT_ACTIVE,
+               SessionSystem.of(player).operationTasks().cancel(player) == TaskCancellationResult.NOT_ACTIVE,
                "a second cancel found a task"
             );
-            OperationSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
+            SessionSystem.of(server).operationTasks().handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
             helper.assertTrue(
                SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.FAILED_RETRYABLE,
@@ -96,7 +96,7 @@ public final class OperationCancelSettlementGameTests {
             );
             helper.assertTrue(replay.retryable(), "a cancel before write did not allow a later retry");
             helper.assertFalse(
-               OperationSystem.of(player).transferActive(player.getUUID(), transferId),
+               SessionSystem.of(player).operationTasks().transferActive(player.getUUID(), transferId),
                "a replay after cancel queued the same transfer again"
             );
          });
@@ -132,17 +132,17 @@ public final class OperationCancelSettlementGameTests {
             ReversibleBlockSnapshot after = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
             task.transaction().recordBefore(before);
             task.transaction().recordAfter(pos, after);
-            OperationSystem.of(player).tasks.put(player.getUUID(), task);
+            SessionSystem.of(player).operationTasks().admit(player.getUUID(), task);
             SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
             helper.assertTrue(task.hasWrites(), "the fixture did not record a write");
             helper.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "the fixture left the original block");
 
             helper.assertTrue(
-               OperationSystem.of(player).cancelTask(player) == TaskCancellationResult.ROLLBACK_STARTED,
+               SessionSystem.of(player).operationTasks().cancel(player) == TaskCancellationResult.ROLLBACK_STARTED,
                "a written cancel did not start recovery"
             );
             helper.assertFalse(
-               OperationSystem.of(player).taskActive(player),
+               SessionSystem.of(player).operationTasks().active(player),
                "a written cancel left the task in the queue"
             );
             helper.assertTrue(
@@ -151,10 +151,10 @@ public final class OperationCancelSettlementGameTests {
                "a written cancel left the ledger open"
             );
             helper.assertTrue(
-               OperationSystem.of(player).cancelTask(player) == TaskCancellationResult.NOT_ACTIVE,
+               SessionSystem.of(player).operationTasks().cancel(player) == TaskCancellationResult.NOT_ACTIVE,
                "a second cancel found a task"
             );
-            OperationSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
+            SessionSystem.of(server).operationTasks().handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
             helper.assertTrue(
                SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.RECOVERY_REQUIRED,
@@ -198,8 +198,8 @@ public final class OperationCancelSettlementGameTests {
                "the open gate refused a workspace submission"
             );
          });
-         if (OperationSystem.of(player).transferActive(player.getUUID(), transferId)) {
-            OperationSystem.of(server).tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server));
+         if (SessionSystem.of(player).operationTasks().transferActive(player.getUUID(), transferId)) {
+            SessionSystem.of(server).operationTasks().tickWorld(server, io.github.fastformer.server.history.HistorySystem.of(server));
             java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
             helper.assertTrue(false, "waiting for the queued workspace to finish");
          }
@@ -210,10 +210,10 @@ public final class OperationCancelSettlementGameTests {
          );
          helper.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "a finished workspace did not write the target");
          helper.assertTrue(
-            OperationSystem.of(player).cancelTask(player) == TaskCancellationResult.NOT_ACTIVE,
+            SessionSystem.of(player).operationTasks().cancel(player) == TaskCancellationResult.NOT_ACTIVE,
             "cancel after completion found a task"
          );
-         OperationSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
+         SessionSystem.of(server).operationTasks().handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
          helper.assertTrue(
             SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                == OperationSubmissionOutcome.APPLIED,
@@ -226,7 +226,7 @@ public final class OperationCancelSettlementGameTests {
    }
 
    private static boolean admissionBlocked(ServerPlayer player) {
-      return OperationSystem.of(player).taskBusy(player)
+      return SessionSystem.of(player).operationTasks().active(player)
          || SessionSystem.of(player).placementTasks().active(player)
          || HistorySystem.of(player).busy(player)
          || io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension());

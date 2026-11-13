@@ -47,7 +47,7 @@ public final class QuickReplaceSystem {
       if (!active) return false;
       if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player) || HistorySystem.of(player).busy(player)
          || QuickShapeSystem.of(player).active(player) || OperationSystem.of(player).active(player) || GeometrySystem.of(player).active(player)
-         || SessionSystem.of(player).placementTasks().active(player) || OperationSystem.of(player).taskActive(player)) return false;
+         || SessionSystem.of(player).placementTasks().active(player) || SessionSystem.of(player).operationTasks().active(player)) return false;
       state(player).active = true;
       return true;
    }
@@ -120,7 +120,7 @@ public final class QuickReplaceSystem {
          && !OperationSystem.of(player).active(player)
          && !GeometrySystem.of(player).active(player)
          && !SessionSystem.of(player).placementTasks().active(player)
-         && !OperationSystem.of(player).taskActive(player)
+         && !SessionSystem.of(player).operationTasks().active(player)
          && PlaceableItems.isPlaceable(player.getMainHandItem());
    }
 

@@ -1,5 +1,7 @@
 package io.github.fastformer.server.network.upload;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistoryTestAccess;
 
 import io.github.fastformer.server.history.HistorySystem;
@@ -35,7 +37,7 @@ public final class UploadAdmissionGameTests {
       UploadSystem.of(player).receive(player, UploadKind.SHAPE, new ShapePlacementPayload(shape, 0, 2, new byte[] {1}));
       helper.assertFalse(UploadSystem.of(player).receipts().requestScope(player.getUUID(), workspace) != null, "workspace upload retained its scope");
       helper.assertFalse(UploadSystem.of(player).receipts().requestScope(player.getUUID(), shape) != null, "shape upload retained its scope");
-      helper.assertFalse(OperationSystem.of(player).taskActive(player), "denied upload started a task");
+      helper.assertFalse(SessionSystem.of(player).operationTasks().active(player), "denied upload started a task");
       helper.assertTrue(OperationSystem.of(player).session(player).orElse(null) == draft, "denied upload cleared the draft");
       OperationSystem.of(player).cancel(player);
       helper.succeed();

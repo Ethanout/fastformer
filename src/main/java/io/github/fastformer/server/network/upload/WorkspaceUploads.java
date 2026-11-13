@@ -6,7 +6,6 @@ import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.protocol.upload.UploadChunk;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
@@ -130,7 +129,8 @@ public final class WorkspaceUploads implements AutoCloseable {
 
    private boolean owns(UUID owner, UUID transfer) {
       return incoming.contains(owner, transfer) || decodes.contains(owner, transfer)
-         || OperationSystem.find(server).map(system -> system.transferActive(owner, transfer)).orElse(false);
+         || SessionSystem.find(server)
+            .map(system -> system.operationTasks().transferActive(owner, transfer)).orElse(false);
    }
 
    private void requirePlayer(ServerPlayer player) {

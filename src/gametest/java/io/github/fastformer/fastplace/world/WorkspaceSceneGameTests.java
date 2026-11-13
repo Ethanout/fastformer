@@ -1,9 +1,10 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.interaction.ProtectedInteractionTick;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.session.OperationSystem;
@@ -103,7 +104,7 @@ public final class WorkspaceSceneGameTests {
       int[] phase = {0};
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
-         OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+         SessionSystem.of(level.getServer()).operationTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(level.getServer()).writeLeases().busy(level.dimension()) || HistorySystem.of(player).busy(player.getUUID()), "waiting for writes");
          if (phase[0] == 0) {

@@ -252,18 +252,18 @@ class TaskRecoveryHandoffTest {
       );
       Map<BlockPos, ReversibleBlockSnapshot> after = Map.of(pos, snapshot(pos, "after"));
       CancellableCompressionTask task = new CancellableCompressionTask(before, after);
-      operation.tasks.put(owner, task);
+      runtime.operationTasks().admit(owner, task);
 
       assertTrue(compressionStarted.await(5, TimeUnit.SECONDS));
       try {
          assertEquals(
             TaskCancellationResult.ROLLBACK_STARTED,
-            operation.cancelTask(new WorldTaskContext(null, owner), history)
+            runtime.operationTasks().cancel(new WorldTaskContext(null, owner), history)
          );
          assertEquals(1, task.memoryReleaseCount.get());
          assertEquals(
             TaskCancellationResult.NOT_ACTIVE,
-            operation.cancelTask(new WorldTaskContext(null, owner), history)
+            runtime.operationTasks().cancel(new WorldTaskContext(null, owner), history)
          );
          assertEquals(1, task.memoryReleaseCount.get());
          history.tickWorld(null);
@@ -290,21 +290,23 @@ class TaskRecoveryHandoffTest {
       BlockPos pos = new BlockPos(3, 4, 5);
       task.transaction().recordBefore(snapshot(pos, "before"));
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
-      operation.tasks.put(owner, task);
 
       var reported = new java.util.ArrayList<io.github.fastformer.workspace.submission.WorkspaceCompletion>();
       io.github.fastformer.server.submission.WorkspaceResultSink results = (result, online) -> {
          assertNull(online);
          reported.add(result);
       };
+      var execution = new io.github.fastformer.server.session.execution.OperationTasks(
+         () -> false, ignored -> false, ignored -> results);
+      execution.admit(owner, task);
       assertEquals(
          TaskCancellationResult.ROLLBACK_STARTED,
-         operation.cancelTask(new WorldTaskContext(null, owner), history, results)
+         execution.cancel(new WorldTaskContext(null, owner), history)
       );
       assertTrue(history.busy(owner));
       assertEquals(
          TaskCancellationResult.NOT_ACTIVE,
-         operation.cancelTask(new WorldTaskContext(null, owner), history, results)
+         execution.cancel(new WorldTaskContext(null, owner), history)
       );
       if (task instanceof SubmittedWorkspaceTask workspace) {
          assertEquals(1, reported.size());

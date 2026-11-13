@@ -62,7 +62,7 @@ public final class WorkspaceReplayGameTests {
       int[] phase = {0};
       helper.succeedWhen(() -> {
          try { Thread.sleep(5); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
-         OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+         SessionSystem.of(level.getServer()).operationTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          HistorySystem.of(level.getServer()).tickWorld(level.getServer());
          helper.assertTrue(!admissionBlocked(player), "Waiting for world writes");
          if (phase[0] == 0) {
@@ -277,7 +277,7 @@ public final class WorkspaceReplayGameTests {
                   == OperationSubmissionOutcome.IN_PROGRESS,
                "the queued transfer has no open record"
             );
-            OperationSystem.of(player).cancelTask(player);
+            SessionSystem.of(player).operationTasks().cancel(player);
          });
          // The lease of the queued task is released asynchronously.
          helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
@@ -293,7 +293,7 @@ public final class WorkspaceReplayGameTests {
     * boundary, not a reset: the test waits for the state instead of clearing it.</p>
     */
    public static boolean admissionBlocked(ServerPlayer player) {
-      return OperationSystem.of(player).taskBusy(player)
+      return SessionSystem.of(player).operationTasks().active(player)
          || SessionSystem.of(player).placementTasks().active(player)
          || HistorySystem.of(player).busy(player)
          || io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension());

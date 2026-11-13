@@ -80,10 +80,10 @@ public final class ServerInputDispatcher {
 
    public static void stopBecauseUnavailable(ServerPlayer player) {
       io.github.fastformer.server.fill.SmartFillSystem.cancel(player);
-      boolean taskWasActive = SessionSystem.of(player).placementTasks().active(player) || OperationSystem.of(player).taskActive(player);
+      boolean taskWasActive = SessionSystem.of(player).placementTasks().active(player) || SessionSystem.of(player).operationTasks().active(player);
       SessionSystem.of(player).cancelEditing(player);
       SessionSystem.of(player).placementTasks().cancel(player);
-      OperationSystem.of(player).cancelTask(player);
+      SessionSystem.of(player).operationTasks().cancel(player);
       HistorySystem.of(player).cancel(player);
       if (taskWasActive && !RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));

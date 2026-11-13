@@ -4,7 +4,6 @@ import com.mojang.logging.LogUtils;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
-import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.session.SessionSystem;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
@@ -26,9 +25,9 @@ public final class WorldTaskScheduler {
          tickSafely(gate, "placement-handover", () -> SessionSystem.of(server).placementTasks().handOverBlockedTasks(server, HistorySystem.of(server)));
       }
       if (gate.writesAllowed()) {
-         tickSafely(gate, "operation", () -> OperationSystem.of(server).tickWorld(server, HistorySystem.of(server)));
+         tickSafely(gate, "operation", () -> SessionSystem.of(server).operationTasks().tickWorld(server, HistorySystem.of(server)));
       } else {
-         tickSafely(gate, "operation-handover", () -> OperationSystem.of(server).handOverBlockedTasks(server, HistorySystem.of(server)));
+         tickSafely(gate, "operation-handover", () -> SessionSystem.of(server).operationTasks().handOverBlockedTasks(server, HistorySystem.of(server)));
       }
       tickSafely(gate, "submission-ledger", () -> SessionSystem.of(server).submissions().tick());
    }

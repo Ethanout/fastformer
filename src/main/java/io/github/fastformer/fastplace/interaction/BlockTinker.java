@@ -38,7 +38,7 @@ public final class BlockTinker {
       if (!canEdit(player) || !withinInteractionRange(player, hit)
          || HistorySystem.of(player).busy(player) || QuickShapeSystem.of(player).active(player)
          || OperationSystem.of(player).active(player) || GeometrySystem.of(player).active(player)
-         || SessionSystem.of(player).placementTasks().active(player) || OperationSystem.of(player).taskActive(player)) return false;
+         || SessionSystem.of(player).placementTasks().active(player) || SessionSystem.of(player).operationTasks().active(player)) return false;
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       if (!settings.enabled() || !settings.emptyHandWrench()) return false;
       ServerLevel level = player.serverLevel();

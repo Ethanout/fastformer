@@ -233,7 +233,7 @@ public final class PreviewSync {
       if (io.github.fastformer.server.history.HistorySystem.of(player).restoreActive(player)) {
          return FastPlaceActivity.RESTORE_TASK;
       }
-      if (OperationSystem.of(player).taskActive(player)) {
+      if (SessionSystem.of(player).operationTasks().active(player)) {
          return FastPlaceActivity.OPERATION_TASK;
       }
       if (SessionSystem.of(player).placementTasks().active(player)) {

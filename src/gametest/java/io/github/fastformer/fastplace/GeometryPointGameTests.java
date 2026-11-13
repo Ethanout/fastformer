@@ -18,7 +18,6 @@ import io.github.fastformer.protocol.c2s.geometry.GeometryUndoPayload;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.GeometrySystem;
-import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -55,7 +54,7 @@ public final class GeometryPointGameTests {
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "geometry point input is blocked: fastPlaceTask="
-            + SessionSystem.of(player).placementTasks().active(player) + " operationTask=" + OperationSystem.of(player).taskActive(player)
+            + SessionSystem.of(player).placementTasks().active(player) + " operationTask=" + SessionSystem.of(player).operationTasks().active(player)
             + " worldHistoryBusy=" + HistorySystem.of(player).busy(player));
          ServerInputDispatcher.geometryPoint(player, request);
          helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(target.above())),

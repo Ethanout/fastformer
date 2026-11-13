@@ -21,7 +21,7 @@ public final class ServerOperationGates {
       .and(Gate.require("recovery", player -> RecoverySystem.of(player.getServer()).writeGate().writesAllowed()));
 
    public static final Gate<ServerPlayer> WRITE_AVAILABLE = Gate.<ServerPlayer>require("placement_task", player -> !SessionSystem.of(player).placementTasks().active(player))
-      .and(Gate.require("selection_task", player -> !OperationSystem.of(player).taskActive(player)))
+      .and(Gate.require("selection_task", player -> !SessionSystem.of(player).operationTasks().active(player)))
       .and(Gate.require("smart_fill", player -> !SmartFillSystem.active(player)))
       .and(Gate.require("history", player -> !HistorySystem.of(player).busy(player)));
    public static final Gate<ServerPlayer> WORLD_UNLOCKED = Gate.require("world_write",

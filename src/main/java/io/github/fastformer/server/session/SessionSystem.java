@@ -9,6 +9,8 @@ import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.feedback.TaskFeedback;
 import io.github.fastformer.server.session.execution.PlacementTasks;
+import io.github.fastformer.server.session.execution.OperationTasks;
+import io.github.fastformer.server.network.upload.UploadSystem;
 import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.input.ServerInputDispatcher;
@@ -34,6 +36,9 @@ public final class SessionSystem implements AutoCloseable {
    private static final Map<MinecraftServer, SessionSystem> SERVERS = Collections.synchronizedMap(new IdentityHashMap<>());
    private final Scope states = new Scope();
    private final PlacementTasks placements = states.get(ScopedKey.create("placement_tasks", () -> new PlacementTasks(() -> this.closed)));
+   private final OperationTasks operationTasks = states.get(ScopedKey.create("operation_tasks", () -> new OperationTasks(
+      () -> this.closed, placements::active,
+      context -> (result, player) -> UploadSystem.of(context.server()).receipts().finish(result, player))));
    final QuickShapeSystem quickShape = states.get(ScopedKey.create("quick_shape", () -> new QuickShapeSystem(this)));
    final OperationSystem operation = states.get(ScopedKey.create("operation", () -> new OperationSystem(this)));
    final GeometrySystem geometry = states.get(ScopedKey.create("geometry", () -> new GeometrySystem(this)));
@@ -107,7 +112,7 @@ public final class SessionSystem implements AutoCloseable {
       cancelEditing(player);
       if (!restoring) {
          placements.cancel(player);
-         operation.cancelTask(player);
+         operationTasks.cancel(player);
       }
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.quit"));
    }
@@ -173,6 +178,7 @@ public final class SessionSystem implements AutoCloseable {
 
    public TaskFeedback feedback() { return feedback; }
    public PlacementTasks placementTasks() { return placements; }
+   public OperationTasks operationTasks() { return operationTasks; }
 
    public WorkspaceSubmissionLedger submissions() { return submissions; }
 

@@ -1,6 +1,5 @@
 package io.github.fastformer.server.session;
 
-import io.github.fastformer.server.task.WorldTaskContext;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -9,9 +8,7 @@ import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.selection.ClientPointValidator;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
@@ -20,16 +17,11 @@ import io.github.fastformer.server.session.slot.PlayerSessions;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
-import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.task.block.SelectionOperationTask;
-import io.github.fastformer.server.task.TaskCancellationResult;
-import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.network.FastPlaceNetwork;
-import io.github.fastformer.server.network.upload.UploadSystem;
-import io.github.fastformer.server.submission.WorkspaceResultSink;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
@@ -43,12 +35,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.slf4j.Logger;
-import io.github.fastformer.server.task.WorldTaskQueue;
 
 public final class OperationSystem implements io.github.fastformer.core.lifecycle.Scoped {
    private static final Logger LOGGER = LogUtils.getLogger();
    final PlayerSessions<OperationSession> sessions = new PlayerSessions<>();
-   final WorldTaskQueue<WorldTask> tasks = new WorldTaskQueue<>();
    private final SessionSystem runtime;
    OperationSystem(SessionSystem runtime) {
       this.runtime = runtime;
@@ -56,9 +46,6 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
 
    public static OperationSystem of(ServerPlayer player) { return of(player.getServer()); }
    public static OperationSystem of(net.minecraft.server.MinecraftServer server) { return SessionSystem.of(server).operation; }
-   public static Optional<OperationSystem> find(net.minecraft.server.MinecraftServer server) {
-      return SessionSystem.find(server).map(runtime -> runtime.operation);
-   }
 
    private OperationSession createSession(ServerPlayer player) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
@@ -409,7 +396,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_task_running"));
          return false;
       }
-      enqueueTask(
+      runtime.operationTasks().enqueue(
          player,
          new SelectionOperationTask(
             selection,
@@ -494,9 +481,9 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       // The task enters the queue first. The world tick loop walks tasks, so a task that
       // reaches the map runs even when scheduling its first resume fails. Every step after
       // this point reports that fact, and none of them may undo it.
-      tasks.put(player.getUUID(), workspaceTask);
+      runtime.operationTasks().admit(player.getUUID(), workspaceTask);
       recordAdmission(player.getUUID(), dimension, transferId);
-      scheduleResume(player, workspaceTask);
+      runtime.operationTasks().scheduleResume(player, workspaceTask);
       reportAdmissionFeedback(player);
       return io.github.fastformer.workspace.submission.WorkspaceAdmission.newQueued();
    }
@@ -519,17 +506,6 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          );
       } catch (RuntimeException exception) {
          LOGGER.warn("FastFormer queued a workspace submission but could not record it", exception);
-      }
-   }
-
-   /** Schedules the first resume of one queued task. A scheduling fault keeps the task. */
-   private void scheduleResume(ServerPlayer player, WorldTask task) {
-      try {
-         WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-         HistoryService history = HistorySystem.of(player);
-      context.withResume(() -> resumeTask(context, task, history)).enqueueResume();
-      } catch (RuntimeException exception) {
-         LOGGER.warn("FastFormer queued a workspace submission but could not schedule its resume", exception);
       }
    }
 
@@ -556,201 +532,6 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_scanning"));
    }
 
-   /**
-    * Hands every write-blocked operation task to the recovery path.
-    *
-    * <p>The scheduler calls this instead of {@link #tickWorld} while the global write gate
-    * is closed. A task must not run again, and it must not be dropped either: the queue
-    * slot leaves only after the recovery path accepts the snapshot. A refused or failed
-    * handover keeps the task, so a later tick can try again.
-    */
-   public void handOverBlockedTasks(net.minecraft.server.MinecraftServer server, HistoryService history) {
-      for (UUID owner : tasks.owners()) {
-         handOverBlockedTask(new WorldTaskContext(server, owner), history);
-      }
-   }
-
-   private void handOverBlockedTask(WorldTaskContext context, HistoryService history) {
-      TaskCancellationResult handover = cancelTask(context, history);
-      if (handover.handled()) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
-      }
-   }
-
-   /**
-    * Stops one queued task and records its workspace outcome when recovery accepts it.
-    *
-    * <p>This is the only owner of that result packet. A later tick, a cancel, or a
-    * closed-gate handover all reach it, so one transfer cannot receive two answers.
-    * Recovery does not finish the ledger: an {@code IN_PROGRESS} record never ages out,
-    * and a missing finish would leave the client waiting.</p>
-    *
-    * @return {@link TaskCancellationResult#NOT_ACTIVE} when no task exists
-    */
-   TaskCancellationResult cancelTask(
-      WorldTaskContext context, HistoryService history, WorkspaceResultSink results
-   ) {
-      WorldTask task = tasks.get(context.owner());
-      if (task == null) {
-         return TaskCancellationResult.NOT_ACTIVE;
-      }
-      TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
-      if (handover != TaskCancellationResult.CANCELLED_BEFORE_WRITE
-         && handover != TaskCancellationResult.ROLLBACK_STARTED) {
-         return handover;
-      }
-      tasks.remove(context.owner(), task);
-      if (task instanceof SubmittedWorkspaceTask workspaceTask) {
-         // No writes: the draft may go again with a new transfer. Writes that reached
-         // recovery report that state, so a retry cannot repeat the same work.
-         results.finish(workspaceTask.completion(context.owner(), false,
-            handover == TaskCancellationResult.CANCELLED_BEFORE_WRITE,
-            handover == TaskCancellationResult.ROLLBACK_STARTED), context.onlinePlayer());
-      }
-      return handover;
-   }
-
-   public void tickWorld(net.minecraft.server.MinecraftServer server, HistoryService history) {
-      for (UUID owner : tasks.owners()) {
-         WorldTaskContext context = new WorldTaskContext(server, owner);
-         if (!context.writesAllowed()) {
-            break;
-         }
-         if (tasks.handingOver(owner)) {
-            handOverBlockedTask(context, history);
-            continue;
-         }
-         if (history.busy(owner) || runtime.placementTasks().active(owner)) {
-            continue;
-         }
-         tickTask(context, history);
-      }
-   }
-
-   void tickTask(WorldTaskContext context, HistoryService history) {
-      UUID owner = context.owner();
-      WorldTask task = tasks.get(owner);
-      if (task == null) {
-         return;
-      }
-      boolean recoveryCreated = false;
-      try {
-      Optional<TaskStep> advanced = tasks.tick(context.withResume(() -> resumeTask(context, task, history)), task);
-      if (advanced.isEmpty()) return;
-      TaskStep result = advanced.orElseThrow();
-      if (result.terminal()) {
-         boolean retryableWorkspaceFailure = !task.hasWrites();
-         boolean failureTransferred = result.recoveryRequired();
-         if (failureTransferred) {
-            TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
-            if (!handoverAccepted(handover)) return;
-            recoveryCreated = handover.recoveryCreated();
-         } else if (task.hasWrites()) {
-            JournalPreparation historyCommit = history.pollPreparedOperation(
-               context, task.preparedBatch(), task.journal()
-            );
-            if (historyCommit == JournalPreparation.PENDING) {
-               context.actionBar(FastPlaceMessages.text("fastformer.message.history_saving"));
-               return;
-            }
-            if (historyCommit == JournalPreparation.FAILED) {
-               result = TaskStep.FAILED;
-               failureTransferred = true;
-               TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
-               if (!handoverAccepted(handover)) return;
-               recoveryCreated = handover.recoveryCreated();
-            } else {
-               task.markComplete();
-               task.releaseCommittedTransactionState();
-               task.releaseLease(context);
-            }
-         } else {
-            // A no-op can still have a prepared .dat. The coordinator must
-            // retain the lease until that unused journal is actually gone;
-            // direct release here would let a later writer cross stale WAL.
-            task.releaseAfterCancelledJournal(context);
-         }
-         if (task instanceof SubmittedWorkspaceTask workspaceTask) {
-            UploadSystem.of(context.server()).receipts().finish(workspaceTask.completion(owner,
-               result == TaskStep.COMPLETE || result == TaskStep.EMPTY,
-               retryableWorkspaceFailure, recoveryCreated), context.onlinePlayer());
-         }
-         if (result == TaskStep.COMPLETE) {
-            task.markComplete();
-         }
-         LOGGER.info("FastFormer operation {} finished with result {}: {}",
-            task.operationId(), result, task.metricsSummary());
-         if (!failureTransferred) {
-            task.releaseMemoryReservation();
-         }
-         tasks.remove(owner, task);
-         context.actionBar(
-            result == TaskStep.COMPLETE
-               ? FastPlaceMessages.text("fastformer.message.operation_complete")
-               : result == TaskStep.EMPTY
-                  ? FastPlaceMessages.text("fastformer.message.operation_empty")
-                  : result == TaskStep.FAILED
-                     ? operationFailureStatus(task, recoveryCreated)
-                      : result == TaskStep.JOURNAL_FAILED
-                         ? FastPlaceMessages.text("fastformer.message.recovery_journal_failed")
-                         : result == TaskStep.MEMORY_UNSAFE
-                            ? FastPlaceMessages.text("fastformer.message.operation_memory_unsafe")
-                            : FastPlaceMessages.text("fastformer.message.operation_too_large_run")
-         );
-      } else {
-         context.actionBar(switch (result) {
-            case WAITING -> FastPlaceMessages.text("fastformer.message.world_write_waiting");
-            case WORLD_UNLOADED -> FastPlaceMessages.text("fastformer.message.history_dimension_failed");
-            default -> FastPlaceMessages.text("fastformer.message.operation_phase", task.phaseName());
-         });
-      }
-      } catch (RuntimeException | OutOfMemoryError exception) {
-         boolean retryableWorkspaceFailure = !task.hasWrites();
-         TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
-         LOGGER.error("FastFormer operation task failed for {} (handover={})", owner, handover, exception);
-         if (!handoverAccepted(handover)) return;
-         recoveryCreated = handover.recoveryCreated();
-         tasks.remove(owner, task);
-         if (task instanceof SubmittedWorkspaceTask workspaceTask) {
-            UploadSystem.of(context.server()).receipts().finish(workspaceTask.completion(owner,
-               false, retryableWorkspaceFailure, recoveryCreated), context.onlinePlayer());
-         }
-         LOGGER.error("FastFormer operation metrics: {}", task.metricsSummary());
-         context.actionBar(operationFailureStatus(task, recoveryCreated));
-      }
-   }
-
-   private void enqueueTask(ServerPlayer player, WorldTask task) {
-      tasks.put(player.getUUID(), task);
-      WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
-      HistoryService history = HistorySystem.of(player);
-      context.withResume(() -> resumeTask(context, task, history)).enqueueResume();
-   }
-
-   private void resumeTask(WorldTaskContext context, WorldTask task, HistoryService history) {
-      if (!runtime.closed() && tasks.get(context.owner()) == task
-         && !tasks.handingOver(context.owner())
-         && context.writesAllowed()
-         && !history.busy(context.owner())
-         && !runtime.placementTasks().active(context.owner())) {
-         tickTask(context, history);
-      }
-   }
-
-
-   private boolean handoverAccepted(TaskCancellationResult result) {
-      return result == TaskCancellationResult.CANCELLED_BEFORE_WRITE || result == TaskCancellationResult.ROLLBACK_STARTED;
-   }
-
-   private net.minecraft.network.chat.MutableComponent operationFailureStatus(
-      WorldTask task, boolean recoveryCreated
-   ) {
-      String key = recoveryCreated
-         ? "fastformer.message.operation_failed_rollback"
-         : "fastformer.message.operation_failed_no_recovery";
-      return FastPlaceMessages.text(key, task.phaseName(), task.operationId(), task.metricsSummary());
-   }
-
    public void cancel(ServerPlayer player) {
       ServerInputDispatcher.endOperationGestures(player);
       OperationSession removed = sessions.end(player.getUUID());
@@ -769,13 +550,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    }
 
    /** Drops server-bound operation sessions/tasks before a world instance is replaced. */
-   @Override public void onDiscard() {
-      try {
-         tasks.close();
-      } finally {
-         sessions.clear();
-      }
-   }
+   @Override public void onDiscard() { sessions.clear(); }
 
    /**
     * Moves the operation session of a dimension aside. A selection is
@@ -790,56 +565,12 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       sessions.restore(owner, dimension);
    }
 
-   public TaskCancellationResult cancelTask(ServerPlayer player) {
-      return cancelTask(new WorldTaskContext(player.getServer(), player.getUUID()), HistorySystem.of(player));
-   }
-
-   TaskCancellationResult cancelTask(WorldTaskContext context, HistoryService history) {
-      // Accept first, then drop the queue slot. A refused or failed handover keeps both
-      // the task and the extracted snapshot, so the only record of a partial write stays.
-      // The shared settler also finishes the workspace ledger. Recovery never does that.
-      return cancelTask(context, history,
-         (result, player) -> UploadSystem.of(context.server()).receipts().finish(result, player));
-   }
-
    public boolean undoLast(ServerPlayer player) {
       return HistorySystem.of(player).requestUndo(player, 1);
    }
 
    private boolean operationBusy(ServerPlayer player) {
       return !ServerOperationGates.START_WRITE.test(player).allowed();
-   }
-
-   public boolean taskBusy(ServerPlayer player) {
-      return localTaskBusy(player);
-   }
-
-   public boolean taskActive(ServerPlayer player) {
-      return taskActive(player.getUUID());
-   }
-
-   public boolean taskActive(UUID owner) {
-      return tasks.containsKey(owner);
-   }
-
-   /**
-    * True when the running task of one owner is the given workspace transfer.
-    *
-    * <p>The owner alone is not enough. A player can start a new task while an older
-    * transfer is still recorded, so a query must match the transfer id.</p>
-    */
-   public boolean transferActive(UUID owner, UUID transferId) {
-      if (owner == null || transferId == null) {
-         return false;
-      }
-      WorldTask task = tasks.get(owner);
-      return task instanceof io.github.fastformer.server.task.block.SubmittedWorkspaceTask workspace
-         && workspace.transferId().equals(transferId);
-   }
-
-   private boolean localTaskBusy(ServerPlayer player) {
-      UUID id = player.getUUID();
-      return tasks.containsKey(id);
    }
 
    private long scanCells(AABB bounds) {

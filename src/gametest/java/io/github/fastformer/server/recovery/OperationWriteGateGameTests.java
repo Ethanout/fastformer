@@ -52,7 +52,7 @@ public final class OperationWriteGateGameTests {
          helper.assertFalse(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "writes are still allowed");
          helper.assertFalse(OperationSystem.of(player).applyWorkspace(player, transferId, plan).isQueued(),
             "a workspace submission was accepted while the write gate was closed");
-         helper.assertFalse(OperationSystem.of(player).taskActive(player), "a refused submission started a task");
+         helper.assertFalse(SessionSystem.of(player).operationTasks().active(player), "a refused submission started a task");
          helper.assertTrue(SessionSystem.of(helper.getLevel().getServer()).submissions().outcomeFor(
             player.getUUID(),
             helper.getLevel().dimension().location(),
@@ -110,16 +110,16 @@ public final class OperationWriteGateGameTests {
          }
          if (!handedOver[0]) {
             try {
-               helper.assertTrue(OperationSystem.of(player).taskActive(player), "an accepted submission queued no task");
+               helper.assertTrue(SessionSystem.of(player).operationTasks().active(player), "an accepted submission queued no task");
                RecoverySystem.of(helper.getLevel().getServer()).writeGate().blockNewWrites();
                helper.assertFalse(RecoverySystem.of(helper.getLevel().getServer()).writeGate().writesAllowed(), "writes are still allowed");
                WorldTaskScheduler.tick(server);
-               helper.assertFalse(OperationSystem.of(player).taskActive(player), "a blocked task stayed in the queue");
+               helper.assertFalse(SessionSystem.of(player).operationTasks().active(player), "a blocked task stayed in the queue");
                helper.assertTrue(SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId
                ) == OperationSubmissionOutcome.FAILED_RETRYABLE,
                   "a handed-over task without writes did not report a retryable receipt");
                WorldTaskScheduler.tick(server);
-               helper.assertFalse(OperationSystem.of(player).taskActive(player), "the second tick queued work again");
+               helper.assertFalse(SessionSystem.of(player).operationTasks().active(player), "the second tick queued work again");
             } catch (RuntimeException exception) {
                phaseFailure[0] = exception;
                throw exception;

@@ -90,12 +90,12 @@ public final class TaskLifecycleGameTests {
                helper.assertTrue(TaskRuntimeFixtures.tickBatch(operation, context[0], level, oneCellBudget()) == TaskStep.ACTIVE,
                   "operation ended before dimension became unavailable");
                helper.assertTrue(operation.hasWrites(), "waiting for operation first write");
-               OperationSystem.of(level.getServer()).tasks.put(owner, operation);
+               SessionSystem.of(level.getServer()).operationTasks().admit(owner, operation);
             }
             assertPartialWrite(helper, level, origin, 16);
             var journal = active[0].journal();
             serviceUnavailableDimension(active[0], owner, HistorySystem.of(level.getServer()), SessionSystem.of(level.getServer()));
-            helper.assertTrue(SessionSystem.of(level.getServer()).placementTasks().active(owner) || OperationSystem.of(level.getServer()).taskActive(owner),
+            helper.assertTrue(SessionSystem.of(level.getServer()).placementTasks().active(owner) || SessionSystem.of(level.getServer()).operationTasks().active(owner),
                "unavailable dimension discarded writer");
             helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner), "unavailable dimension unexpectedly started recovery");
             assertPartialWrite(helper, level, origin, 16);
@@ -108,9 +108,9 @@ public final class TaskLifecycleGameTests {
          if (active[0] instanceof PlacementTask) {
             SessionSystem.of(level.getServer()).placementTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          } else {
-            OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+            SessionSystem.of(level.getServer()).operationTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
          }
-         helper.assertTrue(!SessionSystem.of(level.getServer()).placementTasks().active(owner) && !OperationSystem.of(level.getServer()).taskActive(owner),
+         helper.assertTrue(!SessionSystem.of(level.getServer()).placementTasks().active(owner) && !SessionSystem.of(level.getServer()).operationTasks().active(owner),
             "waiting for resumed writer");
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner), "resumed writer failed into recovery");
          assertBlockRange(helper, level, origin, 16, Blocks.GOLD_BLOCK);
@@ -129,7 +129,7 @@ public final class TaskLifecycleGameTests {
       if (task instanceof PlacementTask) {
          runtime.placementTasks().service(unavailable, history);
       } else {
-         runtime.operation.tickTask(unavailable, history);
+         runtime.operationTasks().service(unavailable, history);
       }
    }
 
@@ -170,11 +170,11 @@ public final class TaskLifecycleGameTests {
          16,
          level.dimension()
       );
-      OperationSystem.of(level.getServer()).tasks.put(owner, task);
+      SessionSystem.of(level.getServer()).operationTasks().admit(owner, task);
 
       helper.succeedWhen(() -> {
-         OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
-         helper.assertTrue(!OperationSystem.of(level.getServer()).taskActive(owner), "waiting for client-only workspace placement");
+         SessionSystem.of(level.getServer()).operationTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+         helper.assertTrue(!SessionSystem.of(level.getServer()).operationTasks().active(owner), "waiting for client-only workspace placement");
          helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner), "floating grass workspace entered recovery");
          helper.assertTrue(level.getBlockState(support).is(Blocks.DIRT), "workspace did not place grass support");
          helper.assertTrue(level.getBlockState(grass).is(Blocks.SHORT_GRASS), "client-only workspace removed floating grass");
@@ -219,15 +219,15 @@ public final class TaskLifecycleGameTests {
             clearRange(level, origin, count);
             owner[0] = UUID.randomUUID();
             active[0] = workspaceTask(level, positions(origin, count));
-            OperationSystem.of(level.getServer()).tasks.put(owner[0], active[0]);
+            SessionSystem.of(level.getServer()).operationTasks().admit(owner[0], active[0]);
          }
-         OperationSystem.of(level.getServer()).tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
-         if (OperationSystem.of(level.getServer()).taskActive(owner[0])) {
+         SessionSystem.of(level.getServer()).operationTasks().tickWorld(level.getServer(), io.github.fastformer.server.history.HistorySystem.of(level.getServer()));
+         if (SessionSystem.of(level.getServer()).operationTasks().active(owner[0])) {
             // GameTestServer skips the normal tick delay. Give asynchronous disk
             // commits real time to run before the test spends its tick budget.
             java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
          }
-         helper.assertTrue(!OperationSystem.of(level.getServer()).taskActive(owner[0]), "waiting for workspace size " + count + ": " + active[0].metricsSummary());
+         helper.assertTrue(!SessionSystem.of(level.getServer()).operationTasks().active(owner[0]), "waiting for workspace size " + count + ": " + active[0].metricsSummary());
          assertBlockRange(helper, level, origin, count, Blocks.GOLD_BLOCK);
          clearRange(level, origin, count);
          owner[0] = null;

@@ -121,9 +121,9 @@ class ManagerClearServerResourceTest {
             runtime.close();
             assertFalse(runtime.placementTasks().active(owner));
          } else {
-            operation.tasks.put(owner, (io.github.fastformer.server.task.WorldTask)task);
+            runtime.operationTasks().admit(owner, (io.github.fastformer.server.task.WorldTask)task);
             runtime.close();
-            assertFalse(operation.taskActive(owner));
+            assertFalse(runtime.operationTasks().active(owner));
          }
          assertTrue(MemoryReservation.reservedBytes() > baseline);
 

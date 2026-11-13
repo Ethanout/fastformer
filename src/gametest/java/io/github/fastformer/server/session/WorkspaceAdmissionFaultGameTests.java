@@ -77,10 +77,10 @@ public final class WorkspaceAdmissionFaultGameTests {
                   "a feedback fault changed the recorded state"
                );
                helper.assertTrue(
-                  OperationSystem.of(player).transferActive(player.getUUID(), transferId),
+                  SessionSystem.of(player).operationTasks().transferActive(player.getUUID(), transferId),
                   "a feedback fault lost the queued task"
                );
-               OperationSystem.of(player).cancelTask(player);
+               SessionSystem.of(player).operationTasks().cancel(player);
             } catch (RuntimeException exception) {
                admissionFailure[0] = exception;
                throw exception;

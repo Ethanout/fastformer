@@ -1,5 +1,7 @@
 package io.github.fastformer.server.network.upload;
 
+import io.github.fastformer.server.session.SessionSystem;
+
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayload;
@@ -100,7 +102,7 @@ public final class WorkspaceReceipts implements WorkspaceResultSink {
       requirePlayer(player);
       if (closed || transfer == null
          || OperationSystem.of(player).recordedOutcome(player, transfer) != OperationSubmissionOutcome.UNKNOWN
-         || OperationSystem.of(player).transferActive(player.getUUID(), transfer)) return;
+         || SessionSystem.of(player).operationTasks().transferActive(player.getUUID(), transfer)) return;
       finish(new WorkspaceCompletion(player.getUUID(), player.level().dimension().location(), transfer,
          false, true, false, List.of(), List.of(), WorkspaceFailure.UNKNOWN), player);
    }
@@ -118,7 +120,8 @@ public final class WorkspaceReceipts implements WorkspaceResultSink {
    private OperationSubmissionOutcome answer(UUID owner, ResourceLocation dimension, UUID transfer) {
       var recorded = submissions.outcomeFor(owner, dimension, transfer);
       if (recorded == OperationSubmissionOutcome.IN_PROGRESS
-         && !OperationSystem.find(server).map(system -> system.transferActive(owner, transfer)).orElse(false)) {
+         && !SessionSystem.find(server)
+            .map(system -> system.operationTasks().transferActive(owner, transfer)).orElse(false)) {
          return OperationSubmissionOutcome.UNKNOWN;
       }
       return recorded;
