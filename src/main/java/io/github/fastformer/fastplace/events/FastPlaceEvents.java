@@ -6,7 +6,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.server.gate.ServerOperationGates;
 
-import io.github.fastformer.fastplace.command.FastPlaceCommandRegistry;
+import io.github.fastformer.server.command.CommandSystem;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
 import io.github.fastformer.server.replace.QuickReplaceSystem;
@@ -47,7 +47,7 @@ public final class FastPlaceEvents {
       NeoForge.EVENT_BUS.addListener(FastPlaceEvents::onServerTick);
       PlayerLifecycleEvents.register();
       NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, WorldWriteSideEffectGuard::onEntityJoin);
-      FastPlaceCommandRegistry.register();
+      CommandSystem.bootstrap();
    }
 
    private static void onRightClickBlock(RightClickBlock event) {

@@ -1,4 +1,4 @@
-package io.github.fastformer.fastplace.command;
+package io.github.fastformer.server.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;

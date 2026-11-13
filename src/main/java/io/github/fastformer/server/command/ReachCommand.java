@@ -1,4 +1,4 @@
-package io.github.fastformer.fastplace.command;
+package io.github.fastformer.server.command;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
