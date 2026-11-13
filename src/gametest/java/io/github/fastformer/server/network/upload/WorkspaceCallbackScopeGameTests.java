@@ -3,7 +3,7 @@ package io.github.fastformer.server.network.upload;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.WorkspaceReplayGameTests;
 import io.github.fastformer.server.session.OperationSystem;
-import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
+import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -57,7 +57,7 @@ public final class WorkspaceCallbackScopeGameTests {
          // The ledger is the authority on the running state. A real queued task would take a
          // per-dimension write lease that a neighbouring batch may still hold, and the
          // admission would then be refused for an unrelated reason.
-         WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
+         SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
 
          WorkspaceAdmission replay = OperationSystem.of(player).applyWorkspace(player, transferId, plan(helper, 1, 1));
          helper.assertTrue(
@@ -80,7 +80,7 @@ public final class WorkspaceCallbackScopeGameTests {
             "the replay changed the remembered request scope"
          );
       } finally {
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
          UploadSystem.forget(player);
       }
       helper.succeed();
@@ -93,7 +93,7 @@ public final class WorkspaceCallbackScopeGameTests {
       var server = helper.getLevel().getServer();
       var dimension = helper.getLevel().dimension().location();
       try {
-         WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
+         SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
 
          // A replay arrives on a later connection. Its chunk zero must not replace the scope
          // of the request that queued the task.
@@ -104,7 +104,7 @@ public final class WorkspaceCallbackScopeGameTests {
             "a replay replaced the scope of a live task"
          );
       } finally {
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
          UploadSystem.forget(player);
       }
       helper.succeed();
@@ -152,7 +152,7 @@ public final class WorkspaceCallbackScopeGameTests {
             "a refusal left its request scope behind"
          );
       } finally {
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
          UploadSystem.forget(player);
       }
       helper.succeed();
@@ -167,17 +167,17 @@ public final class WorkspaceCallbackScopeGameTests {
       try {
          // A queued task owns this transfer. A decode failure of a duplicate upload reaches
          // the same handler, and it must not record a failure for running work.
-         WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
+         SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
 
          UploadSystem.of(player).receipts().failAdmission(player, transferId);
 
          helper.assertTrue(
-            WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+            SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                == OperationSubmissionOutcome.IN_PROGRESS,
             "a failure report overwrote a running transfer"
          );
       } finally {
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }
@@ -194,12 +194,12 @@ public final class WorkspaceCallbackScopeGameTests {
          UploadSystem.of(player).receipts().failAdmission(player, transferId);
 
          helper.assertTrue(
-            WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+            SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                == OperationSubmissionOutcome.FAILED_RETRYABLE,
             "a real admission failure was not recorded"
          );
       } finally {
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }
@@ -237,9 +237,9 @@ public final class WorkspaceCallbackScopeGameTests {
 
                // A fault between the queue and the record leaves a live task with no ledger
                // entry. Reproduce that state on purpose and report a failure into it.
-               WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+               SessionSystem.of(server).submissions().clearOwner(player.getUUID());
                helper.assertTrue(
-                  WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+                  SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                      == OperationSubmissionOutcome.UNKNOWN,
                   "the record was not removed"
                );
@@ -251,7 +251,7 @@ public final class WorkspaceCallbackScopeGameTests {
 
                // The live task is the authority. The failure report must not record anything.
                helper.assertTrue(
-                  WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+                  SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                      == OperationSubmissionOutcome.UNKNOWN,
                   "a failure report recorded a failure for a live task"
                );
@@ -266,7 +266,7 @@ public final class WorkspaceCallbackScopeGameTests {
             !WorkspaceReplayGameTests.admissionBlocked(player), "waiting for the released write lease"
          );
          // Only this test's own record and scope leave. Other owners keep theirs.
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
          UploadSystem.forget(player);
       });
    }

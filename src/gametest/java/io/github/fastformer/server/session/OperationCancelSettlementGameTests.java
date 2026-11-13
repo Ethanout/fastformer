@@ -9,7 +9,7 @@ import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
+import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -63,7 +63,7 @@ public final class OperationCancelSettlementGameTests {
                "the open gate refused a workspace submission"
             );
             helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+               SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.IN_PROGRESS,
                "the queued transfer has no open record"
             );
@@ -76,7 +76,7 @@ public final class OperationCancelSettlementGameTests {
                "a cancel before write left the task in the queue"
             );
             helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+               SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.FAILED_RETRYABLE,
                "a cancel before write left the ledger open"
             );
@@ -86,7 +86,7 @@ public final class OperationCancelSettlementGameTests {
             );
             OperationSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
             helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+               SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.FAILED_RETRYABLE,
                "a later handover replaced the cancel result"
             );
@@ -103,7 +103,7 @@ public final class OperationCancelSettlementGameTests {
             );
          });
          helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       });
    }
 
@@ -135,7 +135,7 @@ public final class OperationCancelSettlementGameTests {
             task.transaction().recordBefore(before);
             task.transaction().recordAfter(pos, after);
             OperationSystem.of(player).tasks.put(player.getUUID(), task);
-            WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
+            SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
             helper.assertTrue(task.hasWrites(), "the fixture did not record a write");
             helper.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "the fixture left the original block");
 
@@ -148,7 +148,7 @@ public final class OperationCancelSettlementGameTests {
                "a written cancel left the task in the queue"
             );
             helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+               SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.RECOVERY_REQUIRED,
                "a written cancel left the ledger open"
             );
@@ -158,7 +158,7 @@ public final class OperationCancelSettlementGameTests {
             );
             OperationSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
             helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+               SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.RECOVERY_REQUIRED,
                "a later handover replaced the recovery result"
             );
@@ -174,7 +174,7 @@ public final class OperationCancelSettlementGameTests {
          helper.assertTrue(!HistorySystem.of(player).busy(player.getUUID()), "waiting for recovery to finish");
          helper.assertTrue(level.getBlockState(pos).is(Blocks.STONE), "recovery did not restore the original block");
          helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       });
    }
 
@@ -206,7 +206,7 @@ public final class OperationCancelSettlementGameTests {
             helper.assertTrue(false, "waiting for the queued workspace to finish");
          }
          helper.assertTrue(
-            WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+            SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                == OperationSubmissionOutcome.APPLIED,
             "a finished workspace did not record applied work"
          );
@@ -217,13 +217,13 @@ public final class OperationCancelSettlementGameTests {
          );
          OperationSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
          helper.assertTrue(
-            WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+            SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                == OperationSubmissionOutcome.APPLIED,
             "cancel after completion replaced the applied result"
          );
          helper.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "cancel after completion changed the applied block");
          helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       });
    }
 

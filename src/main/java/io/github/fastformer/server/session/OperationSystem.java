@@ -445,8 +445,8 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       if (player == null || transferId == null) {
          return io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN;
       }
-      return io.github.fastformer.server.submission.WorkspaceSubmissionLedger.outcomeFor(
-         player.getServer(), player.getUUID(), player.serverLevel().dimension().location(), transferId
+      return runtime.submissions().outcomeFor(
+         player.getUUID(), player.serverLevel().dimension().location(), transferId
       );
    }
 
@@ -464,10 +464,9 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       if (transferId == null || plan == null || plan.parts().isEmpty()) {
          return io.github.fastformer.workspace.submission.WorkspaceAdmission.rejected();
       }
-      net.minecraft.server.MinecraftServer server = player.getServer();
       net.minecraft.resources.ResourceLocation dimension = player.serverLevel().dimension().location();
-      var recorded = io.github.fastformer.server.submission.WorkspaceSubmissionLedger.outcomeFor(
-         server, player.getUUID(), dimension, transferId
+      var recorded = runtime.submissions().outcomeFor(
+         player.getUUID(), dimension, transferId
       );
       if (recorded != io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN) {
          // This transfer already reached the server. A replay can arrive when a client
@@ -499,7 +498,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       // reaches the map runs even when scheduling its first resume fails. Every step after
       // this point reports that fact, and none of them may undo it.
       tasks.put(player.getUUID(), workspaceTask);
-      recordAdmission(server, player.getUUID(), dimension, transferId);
+      recordAdmission(player.getUUID(), dimension, transferId);
       scheduleResume(player, workspaceTask);
       reportAdmissionFeedback(player);
       return io.github.fastformer.workspace.submission.WorkspaceAdmission.newQueued();
@@ -514,12 +513,12 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
     * {@code UNKNOWN}, which keeps the client draft without a resend.</p>
     */
    private void recordAdmission(
-      net.minecraft.server.MinecraftServer server, UUID owner,
+      UUID owner,
       net.minecraft.resources.ResourceLocation dimension, UUID transferId
    ) {
       try {
-         io.github.fastformer.server.submission.WorkspaceSubmissionLedger.begin(
-            server, owner, dimension, transferId
+         runtime.submissions().begin(
+            owner, dimension, transferId
          );
       } catch (RuntimeException exception) {
          LOGGER.warn("FastFormer queued a workspace submission but could not record it", exception);

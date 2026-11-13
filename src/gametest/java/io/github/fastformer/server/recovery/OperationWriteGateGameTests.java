@@ -5,7 +5,7 @@ import io.github.fastformer.server.history.WorkspaceReplayGameTests;
 import io.github.fastformer.server.task.WorldTaskScheduler;
 import io.github.fastformer.server.task.WorldTaskSchedulerTestAccess;
 import io.github.fastformer.server.session.OperationSystem;
-import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
+import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -53,8 +53,7 @@ public final class OperationWriteGateGameTests {
          helper.assertFalse(OperationSystem.of(player).applyWorkspace(player, transferId, plan).isQueued(),
             "a workspace submission was accepted while the write gate was closed");
          helper.assertFalse(OperationSystem.of(player).taskActive(player), "a refused submission started a task");
-         helper.assertTrue(WorkspaceSubmissionLedger.outcomeFor(
-            helper.getLevel().getServer(),
+         helper.assertTrue(SessionSystem.of(helper.getLevel().getServer()).submissions().outcomeFor(
             player.getUUID(),
             helper.getLevel().dimension().location(),
             transferId
@@ -116,8 +115,7 @@ public final class OperationWriteGateGameTests {
                helper.assertFalse(PersistentRecoveryJournal.writesAllowed(), "writes are still allowed");
                WorldTaskScheduler.tick(server);
                helper.assertFalse(OperationSystem.of(player).taskActive(player), "a blocked task stayed in the queue");
-               helper.assertTrue(WorkspaceSubmissionLedger.outcomeFor(
-                  server, player.getUUID(), dimension, transferId
+               helper.assertTrue(SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId
                ) == OperationSubmissionOutcome.FAILED_RETRYABLE,
                   "a handed-over task without writes did not report a retryable receipt");
                WorldTaskScheduler.tick(server);
@@ -133,7 +131,7 @@ public final class OperationWriteGateGameTests {
          // The handed-over task releases its lease asynchronously.
          helper.assertTrue(!WorkspaceReplayGameTests.admissionBlocked(player), "waiting for the released write lease");
          // Only this test's own record leaves. The maps of other owners stay untouched.
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       });
    }
 }

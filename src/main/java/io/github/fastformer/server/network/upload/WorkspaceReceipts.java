@@ -28,10 +28,14 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public final class WorkspaceReceipts implements WorkspaceResultSink {
    private record RequestKey(UUID owner, UUID transfer) {}
    private final MinecraftServer server;
+   private final WorkspaceSubmissionLedger submissions;
    private final Map<RequestKey, OperationCallbackScope> scopes = new HashMap<>();
    private boolean closed;
 
-   WorkspaceReceipts(MinecraftServer server) { this.server = server; }
+   WorkspaceReceipts(MinecraftServer server, WorkspaceSubmissionLedger submissions) {
+      this.server = server;
+      this.submissions = java.util.Objects.requireNonNull(submissions);
+   }
 
    void remember(ServerPlayer player, UUID transfer, int chunkIndex) {
       requirePlayer(player);
@@ -73,7 +77,7 @@ public final class WorkspaceReceipts implements WorkspaceResultSink {
          requirePlayer(player);
          if (!player.getUUID().equals(result.owner())) throw new IllegalArgumentException("Workspace result belongs to another player");
       }
-      var recorded = WorkspaceSubmissionLedger.finish(server, result.owner(), result.dimension(), result.transfer(),
+      var recorded = submissions.finish(result.owner(), result.dimension(), result.transfer(),
          result.applied(), result.retryable(), result.recoveryCreated());
       var scope = scopes.remove(new RequestKey(result.owner(), result.transfer()));
       if (player != null) deliver(player, result.transfer(), recorded, scope, result.failedIds(), result.failedTargets(), result.failure());
@@ -86,7 +90,7 @@ public final class WorkspaceReceipts implements WorkspaceResultSink {
       if (!admission.sendsResult()) return;
       var outcome = admission.deliveredOutcome();
       if (admission.kind() == WorkspaceAdmission.Kind.REJECTED) {
-         outcome = WorkspaceSubmissionLedger.finish(server, player.getUUID(), player.level().dimension().location(),
+         outcome = submissions.finish(player.getUUID(), player.level().dimension().location(),
             transfer, false, true, false);
       }
       deliver(player, transfer, outcome, scope, List.of(), List.of(), WorkspaceFailure.UNKNOWN);
@@ -112,7 +116,7 @@ public final class WorkspaceReceipts implements WorkspaceResultSink {
    }
 
    private OperationSubmissionOutcome answer(UUID owner, ResourceLocation dimension, UUID transfer) {
-      var recorded = WorkspaceSubmissionLedger.outcomeFor(server, owner, dimension, transfer);
+      var recorded = submissions.outcomeFor(owner, dimension, transfer);
       if (recorded == OperationSubmissionOutcome.IN_PROGRESS
          && !OperationSystem.find(server).map(system -> system.transferActive(owner, transfer)).orElse(false)) {
          return OperationSubmissionOutcome.UNKNOWN;

@@ -120,6 +120,10 @@ final class WorkspaceSubmissionBook {
       }
    }
 
+   void clear() {
+      owners.clear();
+   }
+
    int sizeFor(UUID owner) {
       ArrayDeque<WorkspaceSubmissionLedger.Entry> entries = this.owners.get(owner);
       return entries == null ? 0 : entries.size();

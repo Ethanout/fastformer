@@ -1,11 +1,9 @@
 package io.github.fastformer.server.submission;
 
+import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
-import java.util.IdentityHashMap;
-import java.util.Map;
 import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
 
 /**
  * Bounded record of workspace submission outcomes, owned by one server instance.
@@ -22,18 +20,19 @@ import net.minecraft.server.MinecraftServer;
  * <p>The ledger of a server instance is dropped when that server stops. A different
  * save in the same address therefore starts with an empty ledger, and every old
  * transfer answers {@code UNKNOWN} instead of a result that belongs to another save.</p>
+ *
+ * <p>The owning session scope creates and discards this instance. Callers use it only on
+ * that server's thread; no lookup or callback creates another ledger.</p>
  */
-public final class WorkspaceSubmissionLedger {
+public final class WorkspaceSubmissionLedger implements Scoped {
    /** Finished transfers kept for one owner. The oldest finished entry leaves first. */
    public static final int MAX_ENTRIES_PER_OWNER = WorkspaceSubmissionBook.MAX_ENTRIES_PER_OWNER;
    /** Finished transfers kept for one server, over all owners. */
    public static final int MAX_ENTRIES_PER_SERVER = WorkspaceSubmissionBook.MAX_ENTRIES_PER_SERVER;
    /** Age at which a finished entry stops answering. A running entry never ages out. */
    public static final long FINISHED_TTL_MILLIS = WorkspaceSubmissionBook.FINISHED_TTL_MILLIS;
-   private static final Map<MinecraftServer, WorkspaceSubmissionBook> SERVERS = new IdentityHashMap<>();
-
-   private WorkspaceSubmissionLedger() {
-   }
+   private final WorkspaceSubmissionBook book = new WorkspaceSubmissionBook();
+   private boolean closed;
 
    /** One recorded outcome. */
    public record Entry(
@@ -47,10 +46,10 @@ public final class WorkspaceSubmissionLedger {
    }
 
    /** Records that a task was accepted and now runs. */
-   public static void begin(
-      MinecraftServer server, UUID owner, ResourceLocation dimension, UUID transferId
+   public void begin(
+      UUID owner, ResourceLocation dimension, UUID transferId
    ) {
-      record(server, owner, dimension, transferId, OperationSubmissionOutcome.IN_PROGRESS);
+      record(owner, dimension, transferId, OperationSubmissionOutcome.IN_PROGRESS);
    }
 
    /**
@@ -61,14 +60,15 @@ public final class WorkspaceSubmissionLedger {
     * may already hold something stronger.</p>
     *
     * @param recoveryCreated true when the server moved the work to its recovery path
-    * @return the state that this ledger holds for the transfer
+    * @return the state that this ledger holds for the transfer, or UNKNOWN after discard
     */
-   public static OperationSubmissionOutcome finish(
-      MinecraftServer server, UUID owner, ResourceLocation dimension, UUID transferId,
+   public OperationSubmissionOutcome finish(
+      UUID owner, ResourceLocation dimension, UUID transferId,
       boolean accepted, boolean retryable, boolean recoveryCreated
    ) {
+      if (closed) return OperationSubmissionOutcome.UNKNOWN;
       OperationSubmissionOutcome intended = stateFor(accepted, retryable, recoveryCreated);
-      OperationSubmissionOutcome stored = record(server, owner, dimension, transferId, intended);
+      OperationSubmissionOutcome stored = record(owner, dimension, transferId, intended);
       return stored == null ? intended : stored;
    }
 
@@ -100,22 +100,18 @@ public final class WorkspaceSubmissionLedger {
     *
     * @return the recorded state, or {@code UNKNOWN} when this ledger holds no entry
     */
-   public static OperationSubmissionOutcome outcomeFor(
-      MinecraftServer server, UUID owner, ResourceLocation dimension, UUID transferId
+   public OperationSubmissionOutcome outcomeFor(
+      UUID owner, ResourceLocation dimension, UUID transferId
    ) {
-      Entry entry = find(server, owner, dimension, transferId);
+      Entry entry = find(owner, dimension, transferId);
       return entry == null ? OperationSubmissionOutcome.UNKNOWN : entry.outcome();
    }
 
    /** Returns the recorded entry, or null when this ledger holds no matching entry. */
-   public static Entry find(
-      MinecraftServer server, UUID owner, ResourceLocation dimension, UUID transferId
+   public Entry find(
+      UUID owner, ResourceLocation dimension, UUID transferId
    ) {
-      if (server == null || owner == null || dimension == null || transferId == null) {
-         return null;
-      }
-      WorkspaceSubmissionBook book = SERVERS.get(server);
-      return book == null ? null : book.find(owner, dimension, transferId);
+      return closed ? null : book.find(owner, dimension, transferId);
    }
 
    /**
@@ -124,46 +120,26 @@ public final class WorkspaceSubmissionLedger {
     * <p>The world task scheduler calls this each tick. A running entry stays, because a
     * timeout would answer {@code UNKNOWN} for work that the server still performs.</p>
     */
-   public static void tick(MinecraftServer server) {
-      if (server == null) {
-         return;
-      }
-      WorkspaceSubmissionBook book = SERVERS.get(server);
-      if (book != null) {
-         book.expireFinished(System.currentTimeMillis());
-      }
+   public void tick() {
+      if (!closed) book.expireFinished(System.currentTimeMillis());
    }
 
    /** Records one state. Returns the state the book holds after the call, or null. */
-   private static OperationSubmissionOutcome record(
-      MinecraftServer server, UUID owner, ResourceLocation dimension, UUID transferId,
+   private OperationSubmissionOutcome record(
+      UUID owner, ResourceLocation dimension, UUID transferId,
       OperationSubmissionOutcome outcome
    ) {
-      if (server == null) {
-         return null;
-      }
-      return SERVERS
-         .computeIfAbsent(server, ignored -> new WorkspaceSubmissionBook())
-         .record(owner, dimension, transferId, outcome, System.currentTimeMillis());
-   }
-
-   /** Drops the ledger of one server instance. */
-   public static void clearServer(MinecraftServer server) {
-      if (server != null) {
-         SERVERS.remove(server);
-      }
+      return closed ? null : book.record(owner, dimension, transferId, outcome, System.currentTimeMillis());
    }
 
    /** Drops the entries of one owner on one server. */
-   public static void clearOwner(MinecraftServer server, UUID owner) {
-      WorkspaceSubmissionBook book = server == null ? null : SERVERS.get(server);
-      if (book != null) {
-         book.clearOwner(owner);
-      }
+   public void clearOwner(UUID owner) {
+      book.clearOwner(owner);
    }
 
-   /** Drops every ledger. Used by global teardown and by tests. */
-   public static void clearAll() {
-      SERVERS.clear();
+   /** Discarding a server permanently retires this ledger, including late callbacks. */
+   @Override public void onDiscard() {
+      closed = true;
+      book.clear();
    }
 }

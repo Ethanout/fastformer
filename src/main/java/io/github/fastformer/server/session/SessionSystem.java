@@ -3,6 +3,7 @@ package io.github.fastformer.server.session;
 import io.github.fastformer.core.lifecycle.Scope;
 import io.github.fastformer.core.lifecycle.ScopedKey;
 import io.github.fastformer.server.feedback.TaskFeedback;
+import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -21,6 +22,7 @@ public final class SessionSystem implements AutoCloseable {
    final OperationSystem operation = states.get(ScopedKey.create("operation", () -> new OperationSystem(this)));
    final GeometrySystem geometry = states.get(ScopedKey.create("geometry", () -> new GeometrySystem(this)));
    private final TaskFeedback feedback = states.get(ScopedKey.create("task_feedback", TaskFeedback::new));
+   private final WorkspaceSubmissionLedger submissions = states.get(ScopedKey.create("workspace_submissions", WorkspaceSubmissionLedger::new));
    private boolean closed;
 
    SessionSystem() {}
@@ -58,6 +60,8 @@ public final class SessionSystem implements AutoCloseable {
    boolean closed() { return closed; }
 
    public TaskFeedback feedback() { return feedback; }
+
+   public WorkspaceSubmissionLedger submissions() { return submissions; }
 
    @Override public void close() {
       closed = true;

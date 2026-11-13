@@ -10,7 +10,7 @@ import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.OperationSystem;
-import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
+import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -97,7 +97,7 @@ public final class WorkspaceReplayGameTests {
          // running state directly. A real queued task would take a per-dimension write lease,
          // which a neighbouring batch may still hold, and the admission would then be
          // refused for a reason that has nothing to do with this test.
-         WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
+         SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
 
          WorkspaceAdmission replay = OperationSystem.of(player).applyWorkspace(player, transferId, plan);
          helper.assertTrue(
@@ -111,13 +111,13 @@ public final class WorkspaceReplayGameTests {
          // ledger then recorded a failure for work that still runs.
          helper.assertFalse(replay.sendsResult(), "a replay of running work sent a result packet");
          helper.assertTrue(
-            WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+            SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                == OperationSubmissionOutcome.IN_PROGRESS,
             "the replay changed the recorded running state"
          );
       } finally {
          // Only this test's own record leaves. The maps of other owners stay untouched.
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }
@@ -129,23 +129,21 @@ public final class WorkspaceReplayGameTests {
       var server = helper.getLevel().getServer();
       var dimension = helper.getLevel().dimension().location();
       try {
-         WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
-         OperationSubmissionOutcome applied = WorkspaceSubmissionLedger.finish(
-            server, player.getUUID(), dimension, transferId, true, false, false
+         SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
+         OperationSubmissionOutcome applied = SessionSystem.of(server).submissions().finish(player.getUUID(), dimension, transferId, true, false, false
          );
          helper.assertTrue(applied == OperationSubmissionOutcome.APPLIED, "the applied state was not recorded");
 
          // A refused replay reports a retryable failure. The ledger may not accept it,
          // because the world already holds this work.
-         OperationSubmissionOutcome afterFailure = WorkspaceSubmissionLedger.finish(
-            server, player.getUUID(), dimension, transferId, false, true, false
+         OperationSubmissionOutcome afterFailure = SessionSystem.of(server).submissions().finish(player.getUUID(), dimension, transferId, false, true, false
          );
          helper.assertTrue(
             afterFailure == OperationSubmissionOutcome.APPLIED,
             "a retryable failure replaced applied work"
          );
          helper.assertTrue(
-            WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+            SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                == OperationSubmissionOutcome.APPLIED,
             "the stored state is no longer applied"
          );
@@ -164,7 +162,7 @@ public final class WorkspaceReplayGameTests {
          );
       } finally {
          // Only this test's own record leaves. The maps of other owners stay untouched.
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }
@@ -176,9 +174,8 @@ public final class WorkspaceReplayGameTests {
       var server = helper.getLevel().getServer();
       var dimension = helper.getLevel().dimension().location();
       try {
-         WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
-         OperationSubmissionOutcome recovery = WorkspaceSubmissionLedger.finish(
-            server, player.getUUID(), dimension, transferId, false, true, true
+         SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
+         OperationSubmissionOutcome recovery = SessionSystem.of(server).submissions().finish(player.getUUID(), dimension, transferId, false, true, true
          );
          helper.assertTrue(
             recovery == OperationSubmissionOutcome.RECOVERY_REQUIRED,
@@ -187,8 +184,7 @@ public final class WorkspaceReplayGameTests {
 
          // A later retryable failure report must not reopen the option to send the work
          // again, because the journal owns the outcome.
-         OperationSubmissionOutcome afterFailure = WorkspaceSubmissionLedger.finish(
-            server, player.getUUID(), dimension, transferId, false, true, false
+         OperationSubmissionOutcome afterFailure = SessionSystem.of(server).submissions().finish(player.getUUID(), dimension, transferId, false, true, false
          );
          helper.assertTrue(
             afterFailure == OperationSubmissionOutcome.RECOVERY_REQUIRED,
@@ -200,7 +196,7 @@ public final class WorkspaceReplayGameTests {
          helper.assertFalse(replay.retryable(), "a recovery replay offered a retry");
       } finally {
          // Only this test's own record leaves. The maps of other owners stay untouched.
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }
@@ -213,8 +209,8 @@ public final class WorkspaceReplayGameTests {
       var dimension = helper.getLevel().dimension().location();
       try {
          // The world already holds this work.
-         WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
-         WorkspaceSubmissionLedger.finish(server, player.getUUID(), dimension, transferId, true, false, false);
+         SessionSystem.of(server).submissions().begin(player.getUUID(), dimension, transferId);
+         SessionSystem.of(server).submissions().finish(player.getUUID(), dimension, transferId, true, false, false);
 
          // The gate closes for the rest of the session, as it does after a journal failure.
          helper.assertFalse(WorldTaskSchedulerTestAccess.tickSafely("workspace-replay-gate-test", () -> {
@@ -240,7 +236,7 @@ public final class WorkspaceReplayGameTests {
       } finally {
          RecoveryJournalTestAccess.resetWriteGate();
          // Only this test's own record leaves. The maps of other owners stay untouched.
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }
@@ -279,7 +275,7 @@ public final class WorkspaceReplayGameTests {
             // for one transfer, and the two could contradict each other.
             helper.assertFalse(admission.sendsResult(), "a queued admission sent a result of its own");
             helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+               SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                   == OperationSubmissionOutcome.IN_PROGRESS,
                "the queued transfer has no open record"
             );
@@ -288,7 +284,7 @@ public final class WorkspaceReplayGameTests {
          // The lease of the queued task is released asynchronously.
          helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
          // Only this test's own record leaves. The maps of other owners stay untouched.
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       });
    }
 

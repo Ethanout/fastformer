@@ -1,6 +1,7 @@
 package io.github.fastformer.server.network.upload;
 
 import io.github.fastformer.server.lifecycle.ServerBackgroundTasks;
+import io.github.fastformer.server.session.SessionSystem;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import net.minecraft.server.MinecraftServer;
@@ -15,7 +16,8 @@ public final class UploadSystem {
    public static synchronized void start(MinecraftServer server) {
       requireThread(server);
       if (SERVERS.containsKey(server)) throw new IllegalStateException("Upload system already started");
-      SERVERS.put(server, new WorkspaceUploads(server, ServerBackgroundTasks.serial(server, "workspace-decode", 2)));
+      SERVERS.put(server, new WorkspaceUploads(server, ServerBackgroundTasks.serial(server, "workspace-decode", 2),
+         SessionSystem.of(server).submissions()));
    }
 
    public static WorkspaceUploads of(ServerPlayer player) { return of(player.getServer()); }

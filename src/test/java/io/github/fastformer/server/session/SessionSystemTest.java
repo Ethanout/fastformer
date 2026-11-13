@@ -1,6 +1,7 @@
 package io.github.fastformer.server.session;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -13,6 +14,7 @@ import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -99,6 +101,24 @@ class SessionSystemTest {
          assertFalse(first.geometry.sessions.hasActive(owner));
          assertSame(draft, second.quickShape.sessions.active(owner));
          assertTrue(second.quickShape.taskActive(owner));
+      }
+   }
+
+   @Test
+   void closingRuntimeRetiresItsLedgerAndLateReferencesCannotWriteIntoTheNextRuntime() {
+      try (var first = new SessionSystem(); var second = new SessionSystem()) {
+         UUID owner = UUID.randomUUID();
+         UUID transfer = UUID.randomUUID();
+         var dimension = Level.OVERWORLD.location();
+         var retired = first.submissions();
+         retired.begin(owner, dimension, transfer);
+         second.submissions().begin(owner, dimension, transfer);
+         first.close();
+         assertEquals(OperationSubmissionOutcome.UNKNOWN,
+            retired.finish(owner, dimension, transfer, true, false, false));
+         assertEquals(OperationSubmissionOutcome.UNKNOWN, retired.outcomeFor(owner, dimension, transfer));
+         assertEquals(OperationSubmissionOutcome.IN_PROGRESS,
+            second.submissions().outcomeFor(owner, dimension, transfer));
       }
    }
 

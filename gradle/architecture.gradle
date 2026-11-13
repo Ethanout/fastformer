@@ -136,6 +136,11 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!feedback))\.|\bstatic\s+final\s+Map\s*<|\b\w+ForTest\b)/).find()) {
                 violations.add("Task feedback bypasses its server owner or depends on task orchestration: ${path}")
             }
+            if (main && packageName == 'io.github.fastformer.server.submission' &&
+                    source.name in ['WorkspaceSubmissionLedger.java', 'WorkspaceSubmissionBook.java'] &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!submission))\.|net\.minecraft\.server\.|\bstatic\s+final\s+Map\s*<|\bclearAll\s*\()/).find()) {
+                violations.add("Submission state bypasses its instance owner or depends on runtime orchestration: ${path}")
+            }
             if (main && packageName == 'io.github.fastformer.server.session' &&
                     source.name != 'SessionSystem.java' &&
                     (text =~ /(?:\bstatic\s+final\s+(?:PlayerSessions|WorldTaskQueue|Map)\s*<|\b\w+ForTest\b)/).find()) {

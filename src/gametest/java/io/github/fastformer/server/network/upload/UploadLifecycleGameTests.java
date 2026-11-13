@@ -7,7 +7,7 @@ import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.session.OperationSystem;
-import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
+import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.testkit.ServerPlayers;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.WorkspaceFailure;
@@ -29,7 +29,7 @@ public final class UploadLifecycleGameTests {
    public static void tickingDropsOrphanScopesAndKeepsIncompleteAndDecodingRequests(GameTestHelper helper) throws Exception {
       ServerPlayer player = readyPlayer(helper);
       var work = new ArrayDeque<Runnable>();
-      var uploads = new WorkspaceUploads(player.getServer(), work::addLast);
+      var uploads = new WorkspaceUploads(player.getServer(), work::addLast, SessionSystem.of(player.getServer()).submissions());
       UUID orphan = UUID.randomUUID(), partial = UUID.randomUUID();
       try {
          uploads.receipts().remember(player, orphan, 0);
@@ -54,7 +54,7 @@ public final class UploadLifecycleGameTests {
    public static void cancellingAQueuedDecodeAllowsSameTransferAndRetiresTheOldWork(GameTestHelper helper) throws Exception {
       ServerPlayer player = readyPlayer(helper);
       var work = new ArrayDeque<Runnable>();
-      var uploads = new WorkspaceUploads(player.getServer(), work::addLast);
+      var uploads = new WorkspaceUploads(player.getServer(), work::addLast, SessionSystem.of(player.getServer()).submissions());
       UUID transfer = UUID.randomUUID();
       try {
          var chunk = new OperationWorkspaceApplyPayload(transfer, 0, 1, new byte[] {1});
@@ -73,7 +73,7 @@ public final class UploadLifecycleGameTests {
          assertNoWork(helper, player, transfer);
       } finally {
          uploads.close();
-         WorkspaceSubmissionLedger.clearOwner(player.getServer(), player.getUUID());
+         SessionSystem.of(player.getServer()).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }
@@ -83,8 +83,8 @@ public final class UploadLifecycleGameTests {
       ServerPlayer player = readyPlayer(helper);
       var firstWork = new ArrayDeque<Runnable>();
       var secondWork = new ArrayDeque<Runnable>();
-      var first = new WorkspaceUploads(player.getServer(), firstWork::addLast);
-      var second = new WorkspaceUploads(player.getServer(), secondWork::addLast);
+      var first = new WorkspaceUploads(player.getServer(), firstWork::addLast, SessionSystem.of(player.getServer()).submissions());
+      var second = new WorkspaceUploads(player.getServer(), secondWork::addLast, SessionSystem.of(player.getServer()).submissions());
       UUID transfer = UUID.randomUUID();
       try {
          var chunk = new ShapePlacementPayload(transfer, 0, 2, new byte[] {1});
@@ -113,7 +113,7 @@ public final class UploadLifecycleGameTests {
    public static void staleChunkFailurePreservesTheCurrentUpload(GameTestHelper helper) throws Exception {
       ServerPlayer player = readyPlayer(helper);
       var work = new ArrayDeque<Runnable>();
-      var uploads = new WorkspaceUploads(player.getServer(), work::addLast);
+      var uploads = new WorkspaceUploads(player.getServer(), work::addLast, SessionSystem.of(player.getServer()).submissions());
       UUID current = UUID.randomUUID(), stale = UUID.randomUUID();
       try {
          uploads.receive(player, UploadKind.WORKSPACE, new OperationWorkspaceApplyPayload(current, 0, 2, new byte[] {1}));
@@ -129,7 +129,7 @@ public final class UploadLifecycleGameTests {
       } finally {
          uploads.close();
          work.forEach(Runnable::run);
-         WorkspaceSubmissionLedger.clearOwner(player.getServer(), player.getUUID());
+         SessionSystem.of(player.getServer()).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }
@@ -138,7 +138,7 @@ public final class UploadLifecycleGameTests {
    public static void requestScopeChangeRejectsADecodeFrozenByThePreviousConnection(GameTestHelper helper) throws Exception {
       ServerPlayer player = readyPlayer(helper);
       var work = new ArrayDeque<Runnable>();
-      var uploads = new WorkspaceUploads(player.getServer(), work::addLast);
+      var uploads = new WorkspaceUploads(player.getServer(), work::addLast, SessionSystem.of(player.getServer()).submissions());
       UUID transfer = UUID.randomUUID();
       uploads.receive(player, UploadKind.WORKSPACE, new OperationWorkspaceApplyPayload(transfer, 0, 2, new byte[] {1}));
       PreviewSync.beginClientSession(player);
@@ -159,7 +159,7 @@ public final class UploadLifecycleGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "upload_lifecycle", timeoutTicks = 600)
    public static void offlineFinishRecordsBeforeDroppingScopeAndClosedReceiptsCannotRecreateLedger(GameTestHelper helper) {
       ServerPlayer player = helper.makeMockServerPlayerInLevel();
-      var uploads = new WorkspaceUploads(player.getServer(), Runnable::run);
+      var uploads = new WorkspaceUploads(player.getServer(), Runnable::run, SessionSystem.of(player.getServer()).submissions());
       var receipts = uploads.receipts();
       UUID transfer = UUID.randomUUID();
       try {
@@ -174,13 +174,13 @@ public final class UploadLifecycleGameTests {
          helper.assertTrue(OperationSystem.of(player).recordedOutcome(player, transfer) == OperationSubmissionOutcome.APPLIED,
             "weaker result replaced applied work");
          uploads.close();
-         WorkspaceSubmissionLedger.clearOwner(player.getServer(), player.getUUID());
+         SessionSystem.of(player.getServer()).submissions().clearOwner(player.getUUID());
          receipts.finish(new WorkspaceCompletion(player.getUUID(), player.level().dimension().location(), transfer,
             true, false, false, List.of(), List.of(), WorkspaceFailure.UNKNOWN), null);
          assertNoWork(helper, player, transfer);
       } finally {
          uploads.close();
-         WorkspaceSubmissionLedger.clearOwner(player.getServer(), player.getUUID());
+         SessionSystem.of(player.getServer()).submissions().clearOwner(player.getUUID());
       }
       helper.succeed();
    }

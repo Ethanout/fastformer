@@ -2,7 +2,7 @@ package io.github.fastformer.server.session;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.WorkspaceReplayGameTests;
-import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
+import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -72,7 +72,7 @@ public final class WorkspaceAdmissionFaultGameTests {
                // The fault happened after the queue accepted the task, so the admission stands.
                helper.assertTrue(admission.isQueued(), "a feedback fault changed the admission");
                helper.assertTrue(
-                  WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
+                  SessionSystem.of(server).submissions().outcomeFor(player.getUUID(), dimension, transferId)
                      == OperationSubmissionOutcome.IN_PROGRESS,
                   "a feedback fault changed the recorded state"
                );
@@ -91,7 +91,7 @@ public final class WorkspaceAdmissionFaultGameTests {
             !WorkspaceReplayGameTests.admissionBlocked(player), "waiting for the released write lease"
          );
          // Only this test's own record leaves. The maps of other owners stay untouched.
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
+         SessionSystem.of(server).submissions().clearOwner(player.getUUID());
       });
    }
 

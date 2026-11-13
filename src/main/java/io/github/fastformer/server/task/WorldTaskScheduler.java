@@ -5,7 +5,7 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.session.QuickShapeSystem;
-import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
+import io.github.fastformer.server.session.SessionSystem;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 
@@ -29,7 +29,7 @@ public final class WorldTaskScheduler {
       } else {
          tickSafely("operation-handover", () -> OperationSystem.of(server).handOverBlockedTasks(server, HistorySystem.of(server)));
       }
-      tickSafely("submission-ledger", () -> WorkspaceSubmissionLedger.tick(server));
+      tickSafely("submission-ledger", () -> SessionSystem.of(server).submissions().tick());
    }
 
    static boolean tickSafely(String kind, Runnable tick) {

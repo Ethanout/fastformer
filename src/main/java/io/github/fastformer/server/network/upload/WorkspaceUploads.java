@@ -6,6 +6,7 @@ import io.github.fastformer.protocol.upload.UploadChunk;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.OperationSystem;
+import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.WorkspaceAdmission;
 import java.io.IOException;
@@ -24,10 +25,10 @@ public final class WorkspaceUploads implements AutoCloseable {
    private final WorkspaceReceipts receipts;
    private boolean closed;
 
-   WorkspaceUploads(MinecraftServer server, Executor decoder) {
+   WorkspaceUploads(MinecraftServer server, Executor decoder, WorkspaceSubmissionLedger submissions) {
       this.server = server;
       this.decoder = java.util.Objects.requireNonNull(decoder);
-      this.receipts = new WorkspaceReceipts(server);
+      this.receipts = new WorkspaceReceipts(server, submissions);
    }
 
    public WorkspaceReceipts receipts() { return receipts; }

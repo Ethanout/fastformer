@@ -117,9 +117,6 @@ public final class PlayerLifecycleEvents {
       HistorySystem.of(event.getServer()).awaitDiskWritesOnShutdown(event.getServer());
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.of(event.getServer()).close();
-      // The ledger belongs to one server instance. A different save must never answer
-      // with a result that belongs to this one.
-      io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
       WorldWriteCoordinator.clear(event.getServer());
    }
 
@@ -127,7 +124,6 @@ public final class PlayerLifecycleEvents {
       SessionSystem.stop(event.getServer());
       HistorySystem.of(event.getServer()).clear();
       UploadSystem.stop(event.getServer());
-      io.github.fastformer.server.submission.WorkspaceSubmissionLedger.clearServer(event.getServer());
       WorldWriteCoordinator.clear(event.getServer());
       ServerBackgroundTasks.stop(event.getServer());
       PlayerStateRegistry.stop(event.getServer());
