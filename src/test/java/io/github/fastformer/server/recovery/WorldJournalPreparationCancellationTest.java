@@ -7,11 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
+import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -158,5 +161,67 @@ class WorldJournalPreparationCancellationTest {
       assertEquals(JournalPreparation.FAILED, preparation.poll(Optional::empty));
       assertTrue(Files.exists(file));
       assertSame(journal, preparation.journal());
+   }
+
+   @Test
+   void cancelledAppendFinishesBeforeJournalDeletionAndLeaseRelease() throws Exception {
+      Object server = new Object();
+      UUID owner = UUID.randomUUID();
+      var lease = WorldWriteCoordinator.acquire(server, Level.OVERWORLD, owner);
+      var queue = new ArrayDeque<Runnable>();
+      var preparation = new WorldJournalPreparation(queue::addLast);
+      Path file = Files.createDirectory(directory.resolve("cancelled-append"));
+      var journal = new PersistentRecoveryJournal(file);
+      preparation.poll(() -> Optional.of(journal));
+      queue.removeFirst().run();
+      assertEquals(JournalPreparation.READY, preparation.poll(Optional::empty));
+      preparation.pollAppend(() -> {
+         assertTrue(Files.exists(file), "cleanup deleted the directory while append still used it");
+         assertTrue(WorldWriteCoordinator.renew(lease), "cleanup released the lease during append");
+         return true;
+      });
+      try {
+         preparation.releaseAfterCancellation(lease);
+         assertTrue(Files.exists(file));
+         assertTrue(WorldWriteCoordinator.renew(lease));
+         queue.removeFirst().run();
+         assertFalse(Files.exists(file));
+         assertFalse(WorldWriteCoordinator.renew(lease));
+      } finally {
+         WorldWriteCoordinator.clear(server);
+      }
+   }
+
+   @Test
+   void failedCancelledAppendCleanupCannotDeleteNewPreparationOrReleaseSuccessor() throws Exception {
+      Object server = new Object();
+      UUID owner = UUID.randomUUID();
+      var lease = WorldWriteCoordinator.acquire(server, Level.OVERWORLD, owner);
+      var queue = new ArrayDeque<Runnable>();
+      var preparation = new WorldJournalPreparation(queue::addLast);
+      Path oldFile = Files.createDirectory(directory.resolve("old-append"));
+      Path newFile = Files.createDirectory(directory.resolve("replacement-append"));
+      var oldJournal = new PersistentRecoveryJournal(oldFile);
+      var newJournal = new PersistentRecoveryJournal(newFile);
+      preparation.poll(() -> Optional.of(oldJournal));
+      queue.removeFirst().run();
+      preparation.poll(Optional::empty);
+      preparation.pollAppend(() -> { throw new IllegalStateException("injected append failure"); });
+      Runnable append = queue.removeFirst();
+      preparation.releaseAfterCancellation(lease);
+      preparation.reset();
+      preparation.poll(() -> Optional.of(newJournal));
+      queue.removeFirst().run();
+      preparation.poll(Optional::empty);
+      var successor = WorldWriteCoordinator.takeOver(server, Level.OVERWORLD, owner);
+      try {
+         append.run();
+         assertFalse(Files.exists(oldFile));
+         assertTrue(Files.exists(newFile));
+         assertSame(newJournal, preparation.journal());
+         assertTrue(WorldWriteCoordinator.renew(successor));
+      } finally {
+         WorldWriteCoordinator.clear(server);
+      }
    }
 }

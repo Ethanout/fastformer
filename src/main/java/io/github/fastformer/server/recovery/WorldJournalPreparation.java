@@ -181,6 +181,15 @@ public final class WorldJournalPreparation {
     */
    public void releaseAfterCancellation(WorldWriteCoordinator.Lease lease) {
       cancel();
-      WorldWriteCoordinator.releaseAfterUnusedJournal(lease, this.journal, this.future);
+      // Capture this preparation before a reset can bind a new journal or append.
+      PersistentRecoveryJournal cancelledJournal = this.journal;
+      CompletableFuture<Optional<PersistentRecoveryJournal>> cancelledCreation = this.future;
+      CompletableFuture<Boolean> cancelledAppend = this.appendFuture;
+      Runnable release = () -> WorldWriteCoordinator.releaseAfterUnusedJournal(lease, cancelledJournal, cancelledCreation);
+      if (cancelledAppend == null || cancelledAppend.isDone()) {
+         release.run();
+      } else {
+         cancelledAppend.whenComplete((ignored, failure) -> release.run());
+      }
    }
 }
