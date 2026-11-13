@@ -2,7 +2,6 @@ package io.github.fastformer.fastplace.task;
 
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
@@ -40,14 +39,6 @@ public interface WorldOperationTask extends WorldWriteTask {
 
    default boolean hasWrites() {
       return transaction().hasWrites();
-   }
-
-   /** Stops task-owned preparation and transfers recovery storage once. */
-   default WorldRecoverySnapshot stopAndTransferRecovery() {
-      cancelJournalPreparation();
-      WorldOperationCommit commit = operationCommit();
-      CompletableFuture<Void> ready = commit == null ? CompletableFuture.completedFuture(null) : commit.stopForRecovery();
-      return transaction().transferRecoverySnapshot(CompletableFuture.allOf(ready, journalCompletion()));
    }
 
    ResourceKey<Level> dimension();

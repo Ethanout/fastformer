@@ -4,17 +4,12 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
-import io.github.fastformer.fastplace.world.WorldBatchFeedback;
-import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
-import io.github.fastformer.fastplace.task.runtime.TaskWriteLease;
-import io.github.fastformer.fastplace.task.runtime.JournalSegments;
+import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
@@ -36,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -47,7 +41,7 @@ import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 /** Validates and atomically applies a fully client-resolved workspace package. */
-public final class ClientWorkspacePlacementTask implements WorldOperationTask {
+public final class ClientWorkspacePlacementTask extends LeasedJournaledTask implements WorldOperationTask {
    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
    private WorkspaceFailure failureReason = WorkspaceFailure.UNKNOWN;
    public WorkspaceFailure failureReason() { return failureReason; }
@@ -56,22 +50,13 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    private final PlacementUpdateMode updateMode;
    private final int maxPlacement;
    private final ResourceKey<Level> dimension;
-   private final WorldOperationMetrics metrics = new WorldOperationMetrics();
-   private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
-   private final TaskWriteLease writeLease = new TaskWriteLease();
    private WorkspaceTickBarrier tickBarrier;
-   private MemoryReservation memoryReservation;
    private long blockEntityReserve;
-   private boolean memoryThrottled;
-   private final WorldChangeTransaction transaction = new WorldChangeTransaction();
-   private WorldOperationCommit operationCommit;
    private Map<BlockPos, ClientBlockSnapshot> desired = Map.of();
    private Iterator<Map.Entry<BlockPos, ClientBlockSnapshot>> captureIterator;
    private boolean captureComplete;
-   private final JournalSegments journalSegments = new JournalSegments();
    private final ArrayDeque<Map.Entry<BlockPos, ClientBlockSnapshot>> writable = new ArrayDeque<>();
    private Iterator<BlockPos> finalizationIterator;
-   private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
    private List<Integer> invalidPartIds = List.of();
    private final java.util.LinkedHashSet<BlockPos> failedTargetPositions = new java.util.LinkedHashSet<>();
    private Phase phase = Phase.VALIDATE;
@@ -83,6 +68,14 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
       int maxPlacement,
       ResourceKey<Level> dimension
    ) {
+      this(transferId, plan, updateMode, maxPlacement, dimension, new WorldJournalPreparation());
+   }
+
+   ClientWorkspacePlacementTask(
+      UUID transferId, OperationWorkspacePlan plan, PlacementUpdateMode updateMode, int maxPlacement,
+      ResourceKey<Level> dimension, WorldJournalPreparation journalPreparation
+   ) {
+      super(journalPreparation);
       this.transferId = transferId;
       this.plan = plan;
       this.updateMode = updateMode;
@@ -436,11 +429,6 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
          : OperationTaskResult.FAILED;
    }
 
-   @Override
-   public CompletableFuture<Void> journalCompletion() {
-      return journalPreparation.completion();
-   }
-
    private void releaseWriteStagingForCommit() {
       transaction.clearExpected();
       desired = Map.of();
@@ -505,50 +493,8 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    }
 
    @Override
-   public void cancelJournalPreparation() {
-      journalPreparation.cancel();
-   }
-
-   @Override
-   public PersistentRecoveryJournal journal() {
-      return journalPreparation.journal();
-   }
-
-   @Override
-   public boolean acquireLease(WorldTaskContext context) {
-      return writeLease.acquire(context, dimension, metrics);
-   }
-
-   @Override
-   public void releaseLease(WorldTaskContext context) {
-      releaseTickBarrier();
-      writeLease.release();
-   }
-
-   @Override
-   public void releaseAfterCancelledJournal(WorldTaskContext context) {
-      releaseTickBarrier();
-      writeLease.releaseAfterCancellation(journalPreparation, operationCommit);
-   }
-
-   @Override
-   public WorldChangeTransaction transaction() {
-      return transaction;
-   }
-
-   @Override
-   public WorldOperationCommit operationCommit() {
-      return operationCommit;
-   }
-
-   @Override
    public ResourceKey<Level> dimension() {
       return dimension;
-   }
-
-   @Override
-   public UUID operationId() {
-      return metrics.operationId();
    }
 
    @Override
@@ -559,21 +505,6 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    private void reportFailure(WorkspaceFailure reason, BlockPos pos) {
       failureReason = reason;
       LOGGER.warn("Workspace {} failed: reason={}, position={}, phase={}", transferId, reason, pos, phase);
-   }
-
-   @Override
-   public void markWorldUnloaded() {
-      metrics.phase(WorldOperationPhase.WORLD_UNLOADED);
-   }
-
-   @Override
-   public void markComplete() {
-      metrics.complete();
-   }
-
-   @Override
-   public boolean memoryThrottled() {
-      return memoryThrottled;
    }
 
    @Override
@@ -595,46 +526,18 @@ public final class ClientWorkspacePlacementTask implements WorldOperationTask {
    }
 
    @Override
-   public int previousBatchCells() {
-      return batchFeedback.cells();
-   }
-
-   @Override
-   public long previousBatchNanos() {
-      return batchFeedback.elapsedNanos();
-   }
-
-   @Override
-   public void recordBatch(int cells, long elapsedNanos) {
-      batchFeedback.record(cells, elapsedNanos);
-   }
-
-   @Override
-   public void releaseMemoryReservation() {
-      releaseTickBarrier();
-      if (memoryReservation != null) {
-         MemoryReservation reservation = memoryReservation;
-         memoryReservation = null;
-         CompletableFuture<?> publicationCompletion = operationCommit == null
-            ? CompletableFuture.completedFuture(null)
-            : operationCommit.completion();
-         journalPreparation.releaseWhenIdle(reservation, publicationCompletion);
-      }
-   }
-
-   @Override
-   public void releaseCommittedTransactionState() {
-      releaseTickBarrier();
-      transaction.releaseWriteState();
-      operationCommit = null;
+   protected void clearCommittedStaging() {
       desired = Map.of();
       writable.clear();
       captureIterator = null;
       finalizationIterator = null;
    }
 
-   private void releaseTickBarrier() {
-      if (tickBarrier != null) { tickBarrier.close(); tickBarrier = null; }
+   @Override
+   protected void releaseAttachedResources() {
+      WorkspaceTickBarrier released = tickBarrier;
+      tickBarrier = null;
+      if (released != null) released.close();
    }
 
    private WorldOperationPhase phaseMetric() {

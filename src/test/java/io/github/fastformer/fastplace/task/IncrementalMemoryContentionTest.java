@@ -1,12 +1,16 @@
 package io.github.fastformer.fastplace.task;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.WorldJournalPreparation;
+import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -125,7 +129,7 @@ class IncrementalMemoryContentionTest {
       PlacementTask task = placementTask();
       assertTrue(task.prepare());
       assertTrue(task.ensureMemoryReservation());
-      WorldChangeTransaction transaction = (WorldChangeTransaction)field(task, "transaction");
+      WorldChangeTransaction transaction = task.transaction();
       prepareChangedTransaction(transaction);
       task.releaseGenerationState();
       task.resizeMemoryReservationForTransaction();
@@ -136,11 +140,11 @@ class IncrementalMemoryContentionTest {
       MemoryReservation blocker = fillReservationLimit(commitAdmission(transaction));
       try {
          assertEquals(JournalPreparation.PENDING, task.prepareCommit());
-         assertNull(field(task, "operationCommit"));
+         assertNull(task.operationCommit());
 
          blocker.close();
          assertEquals(JournalPreparation.READY, awaitPlacementCommit(task));
-         WorldOperationCommit commit = operationCommit(task);
+         WorldOperationCommit commit = task.operationCommit();
          assertNotNull(commit);
          task.releaseMemoryReservation();
          commit.completion().join();
@@ -149,9 +153,9 @@ class IncrementalMemoryContentionTest {
          blocker.close();
          task.releaseMemoryReservation();
       }
-      assertNull(field(task, "memoryReservation"));
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
       assertTransactionReleased(transaction);
-      assertNull(field(task, "operationCommit"));
+      assertNull(task.operationCommit());
       assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 
@@ -181,7 +185,7 @@ class IncrementalMemoryContentionTest {
          blocker.close();
          task.releaseMemoryReservation();
       }
-      assertNull(field(task, "memoryReservation"));
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
       assertTransactionReleased(task.transaction());
       assertNull(task.operationCommit());
       assertEquals(baseline, MemoryReservation.reservedBytes());
@@ -213,7 +217,7 @@ class IncrementalMemoryContentionTest {
          blocker.close();
          task.releaseMemoryReservation();
       }
-      assertNull(field(task, "memoryReservation"));
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
       assertTransactionReleased(task.transaction());
       assertNull(task.operationCommit());
       assertEquals(baseline, MemoryReservation.reservedBytes());
@@ -222,11 +226,11 @@ class IncrementalMemoryContentionTest {
    @Test
    void placementCommitHardAdmissionRejectsWithoutStartingCommit() throws Exception {
       PlacementTask task = placementTask();
-      prepareHardRejectedTransaction((WorldChangeTransaction)field(task, "transaction"));
+      prepareHardRejectedTransaction(task.transaction());
 
       assertEquals(JournalPreparation.FAILED, task.prepareCommit());
-      assertNull(field(task, "operationCommit"));
-      assertNull(field(task, "memoryReservation"));
+      assertNull(task.operationCommit());
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
    }
 
    @Test
@@ -236,7 +240,7 @@ class IncrementalMemoryContentionTest {
 
       assertEquals(OperationTaskResult.MEMORY_UNSAFE, invoke(task, "prepareCommit"));
       assertNull(task.operationCommit());
-      assertNull(field(task, "memoryReservation"));
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
    }
 
    @Test
@@ -246,7 +250,7 @@ class IncrementalMemoryContentionTest {
 
       assertEquals(JournalPreparation.FAILED, invoke(task, "prepareCommit"));
       assertNull(task.operationCommit());
-      assertNull(field(task, "memoryReservation"));
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
    }
 
    private static MemoryReservation fillReservationLimit(MemoryAdmission target) {
@@ -260,14 +264,14 @@ class IncrementalMemoryContentionTest {
    private static ClientWorkspacePlacementTask workspaceTask() {
       return new ClientWorkspacePlacementTask(
          java.util.UUID.randomUUID(), new OperationWorkspacePlan(List.of()),
-         PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+         PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, new WorldJournalPreparation(Runnable::run)
       );
    }
 
    private static PlacementTask placementTask() {
-      return PlacementTask.ready(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
+      return WorldTaskFixtures.placement(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
          null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
-      ));
+      ), new WorldJournalPreparation(Runnable::run));
    }
 
    private static void prepareChangedTransaction(WorldChangeTransaction transaction) {
@@ -294,40 +298,21 @@ class IncrementalMemoryContentionTest {
    }
 
    private static JournalPreparation awaitPlacementCommit(PlacementTask task) {
-      bindCommitExecutor(task);
       task.prepareCommit();
-      try {
-         operationCommit(task).completion().join();
-      } catch (Exception exception) {
-         throw new IllegalStateException(exception);
-      }
+      task.operationCommit().completion().join();
       return task.prepareCommit();
    }
 
-   private static WorldOperationCommit operationCommit(Object task) throws Exception {
-      return (WorldOperationCommit)field(task, "operationCommit");
-   }
-
-   private static OperationTaskResult awaitOperationCommit(Object task, String method) throws Exception {
-      bindCommitExecutor(task);
+   private static OperationTaskResult awaitOperationCommit(LeasedJournaledTask task, String method) throws Exception {
       invoke(task, method);
-      ((WorldOperationCommit)field(task, "operationCommit")).completion().join();
+      task.operationCommit().completion().join();
       return (OperationTaskResult)invoke(task, method);
    }
 
-   private static JournalPreparation awaitJournalCommit(Object task, String method) throws Exception {
-      bindCommitExecutor(task);
+   private static JournalPreparation awaitJournalCommit(LeasedJournaledTask task, String method) throws Exception {
       invoke(task, method);
-      ((WorldOperationCommit)field(task, "operationCommit")).completion().join();
+      task.operationCommit().completion().join();
       return (JournalPreparation)invoke(task, method);
-   }
-
-   private static void bindCommitExecutor(Object task) {
-      try {
-         setField(task, "journalPreparation", new io.github.fastformer.server.recovery.WorldJournalPreparation(Runnable::run));
-      } catch (Exception failure) {
-         throw new AssertionError("Cannot bind commit fixture executor", failure);
-      }
    }
 
    private static SelectionOperationTask selectionTask() {
@@ -337,7 +322,8 @@ class IncrementalMemoryContentionTest {
             null, List.of(), 0, BlockPos.ZERO, BlockPos.ZERO
          ),
          OperationMode.MOVE, OperationConflictMode.REPLACE, false, new BlockPos(1, 0, 0),
-         OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+         OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD,
+         new WorldJournalPreparation(Runnable::run)
       );
    }
 

@@ -5,7 +5,6 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
@@ -179,101 +178,6 @@ public final class OperationCancelSettlementGameTests {
       });
    }
 
-   @GameTest(template = "fastformergametests.empty", batch = "operation_cancel_preparation_fault", timeoutTicks = 20000)
-   public static void aCancelPreparationFaultKeepsTheOpenLedger(GameTestHelper helper) {
-      ServerPlayer player = helper.makeMockServerPlayerInLevel();
-      UUID transferId = UUID.randomUUID();
-      ServerLevel level = helper.getLevel();
-      MinecraftServer server = level.getServer();
-      var dimension = level.dimension().location();
-      BlockPos pos = helper.absolutePos(BlockPos.ZERO);
-      boolean[] cancelled = {false};
-      Throwable[] phaseFailure = {null};
-      helper.succeedWhen(() -> {
-         if (!cancelled[0]) {
-            helper.assertTrue(!admissionBlocked(player), "waiting for the write lease of a neighbouring batch");
-         }
-         runPhaseOnce(cancelled, phaseFailure, () -> {
-            level.setBlock(pos, Blocks.STONE.defaultBlockState(), 2);
-            ClientWorkspacePlacementTask task = workspaceTask(level, transferId, pos, Blocks.GOLD_BLOCK);
-            ReversibleBlockSnapshot before = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
-            helper.assertTrue(
-               new ReversibleBlockSnapshot(
-                  pos, Blocks.GOLD_BLOCK.defaultBlockState(), Blocks.GOLD_BLOCK.defaultBlockState().getFluidState(), null
-               ).placeAt(level, pos, PlacementUpdateMode.CLIENT_ONLY.flags()),
-               "the fixture could not write the gold block"
-            );
-            ReversibleBlockSnapshot after = ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
-            task.transaction().recordBefore(before);
-            task.transaction().recordAfter(pos, after);
-            OperationSystem.of(player).tasks.put(player.getUUID(), task);
-            WorkspaceSubmissionLedger.begin(server, player.getUUID(), dimension, transferId);
-            WorldJournalPreparation original = journalPreparation(task);
-            try {
-               setJournalPreparation(task, null);
-               helper.assertTrue(
-                  OperationSystem.of(player).cancelTask(player) == TaskCancellationResult.RECOVERY_BLOCKED,
-                  "a cancel-preparation fault did not report the block"
-               );
-               helper.assertTrue(
-                  OperationSystem.of(player).transferActive(player.getUUID(), transferId),
-                  "a cancel-preparation fault dropped the task"
-               );
-               helper.assertTrue(
-                  WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
-                     == OperationSubmissionOutcome.IN_PROGRESS,
-                  "a cancel-preparation fault settled the ledger"
-               );
-               helper.assertTrue(task.hasWrites(), "a cancel-preparation fault extracted the snapshot");
-            } finally {
-               setJournalPreparation(task, original);
-            }
-            WorkspaceSubmissionLedger.tick(server);
-            helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
-                  == OperationSubmissionOutcome.IN_PROGRESS,
-               "an open cancel record aged out"
-            );
-            WorkspaceAdmission replay = OperationSystem.of(player).applyWorkspace(player, transferId, plan(helper));
-            helper.assertTrue(
-               replay.kind() == WorkspaceAdmission.Kind.REPLAYED
-                  && replay.recorded() == OperationSubmissionOutcome.IN_PROGRESS,
-               "a replay of a blocked cancel did not keep the open record"
-            );
-            helper.assertFalse(replay.sendsResult(), "a replay of blocked work sent a result");
-
-            helper.assertTrue(
-               OperationSystem.of(player).cancelTask(player) == TaskCancellationResult.ROLLBACK_STARTED,
-               "the restored cancel did not hand the snapshot to recovery"
-            );
-            helper.assertFalse(
-               OperationSystem.of(player).taskActive(player),
-               "the restored cancel left the task in the queue"
-            );
-            helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
-                  == OperationSubmissionOutcome.RECOVERY_REQUIRED,
-               "the restored cancel left the ledger open"
-            );
-            helper.assertTrue(
-               OperationSystem.of(player).cancelTask(player) == TaskCancellationResult.NOT_ACTIVE,
-               "a later cancel found a task after the restored cancel"
-            );
-            OperationSystem.of(server).handOverBlockedTasks(server, io.github.fastformer.server.history.HistorySystem.of(server));
-            helper.assertTrue(
-               WorkspaceSubmissionLedger.outcomeFor(server, player.getUUID(), dimension, transferId)
-                  == OperationSubmissionOutcome.RECOVERY_REQUIRED,
-               "a later handover replaced the restored cancel result"
-            );
-         });
-         HistorySystem.of(server).tickWorld(server);
-         helper.assertTrue(!HistorySystem.of(player).busy(player.getUUID()), "waiting for recovery to finish");
-         helper.assertTrue(level.getBlockState(pos).is(Blocks.STONE), "recovery did not restore the original block");
-         helper.assertTrue(!admissionBlocked(player), "waiting for the released write lease");
-         WorkspaceSubmissionLedger.clearOwner(server, player.getUUID());
-      });
-   }
-
    @GameTest(template = "fastformergametests.empty", batch = "operation_cancel_completed", timeoutTicks = 20000)
    public static void aCompletedTaskKeepsItsAppliedResultOnCancel(GameTestHelper helper) {
       ServerPlayer player = helper.makeMockServerPlayerInLevel();
@@ -366,33 +270,6 @@ public final class OperationCancelSettlementGameTests {
          16,
          level.dimension()
       );
-   }
-
-   /**
-    * A null preparation makes {@code cancelJournalPreparation} throw before the snapshot
-    * leaves the task. The existing unit test covers a throw after extraction. This case
-    * only covers the preparation fault.
-    */
-   private static WorldJournalPreparation journalPreparation(ClientWorkspacePlacementTask task) {
-      try {
-         var field = ClientWorkspacePlacementTask.class.getDeclaredField("journalPreparation");
-         field.setAccessible(true);
-         return (WorldJournalPreparation)field.get(task);
-      } catch (ReflectiveOperationException exception) {
-         throw new IllegalStateException("Could not read the journal preparation", exception);
-      }
-   }
-
-   private static void setJournalPreparation(
-      ClientWorkspacePlacementTask task, WorldJournalPreparation preparation
-   ) {
-      try {
-         var field = ClientWorkspacePlacementTask.class.getDeclaredField("journalPreparation");
-         field.setAccessible(true);
-         field.set(task, preparation);
-      } catch (ReflectiveOperationException exception) {
-         throw new IllegalStateException("Could not replace the journal preparation", exception);
-      }
    }
 
    private static OperationWorkspacePlan plan(GameTestHelper helper) {

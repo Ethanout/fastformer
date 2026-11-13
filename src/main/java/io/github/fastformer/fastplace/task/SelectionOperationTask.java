@@ -8,18 +8,13 @@ import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.world.WorldBatchFeedback;
-import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
-import io.github.fastformer.fastplace.task.runtime.TaskWriteLease;
-import io.github.fastformer.fastplace.task.runtime.JournalSegments;
+import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.fastplace.world.WorldWriteSideEffectGuard;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.session.OperationSystem;
@@ -33,8 +28,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -44,8 +37,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
-/** Executes the legacy server-side selection move or stack workflow. */
-public final class SelectionOperationTask implements WorldOperationTask {
+/** Executes the server-side selection move or stack workflow. */
+public final class SelectionOperationTask extends LeasedJournaledTask implements WorldOperationTask {
    private final AABB bounds;
    private final OperationSelectionVolume selection;
    private final OperationMode mode;
@@ -56,17 +49,8 @@ public final class SelectionOperationTask implements WorldOperationTask {
    private final PlacementUpdateMode updateMode;
    private final int maxPlacement;
    private final ResourceKey<Level> dimension;
-   private final WorldOperationMetrics metrics = new WorldOperationMetrics();
-   private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
-   private final TaskWriteLease writeLease = new TaskWriteLease();
-   private MemoryReservation memoryReservation;
-   private boolean memoryThrottled;
    private final List<ReversibleBlockSnapshot> source = new ArrayList<>();
-   private final WorldChangeTransaction transaction = new WorldChangeTransaction();
-   private WorldOperationCommit operationCommit;
    private boolean failed;
-   private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
-   private final JournalSegments journalSegments = new JournalSegments();
    private final Set<BlockPos> journaledPositions = new HashSet<>();
    private final Set<BlockPos> overlappingPlacementPositions = new HashSet<>();
    private boolean validateComplete;
@@ -96,6 +80,16 @@ public final class SelectionOperationTask implements WorldOperationTask {
       int maxPlacement,
       ResourceKey<Level> dimension
    ) {
+      this(selection, mode, conflictMode, copy, translation, stackRegion, updateMode, maxPlacement, dimension,
+         new WorldJournalPreparation());
+   }
+
+   SelectionOperationTask(
+      OperationSelectionVolume selection, OperationMode mode, OperationConflictMode conflictMode,
+      boolean copy, BlockPos translation, OperationStackRegion stackRegion, PlacementUpdateMode updateMode,
+      int maxPlacement, ResourceKey<Level> dimension, WorldJournalPreparation journalPreparation
+   ) {
+      super(journalPreparation);
       this.selection = selection;
       this.bounds = selection.bounds();
       this.mode = mode;
@@ -138,11 +132,6 @@ public final class SelectionOperationTask implements WorldOperationTask {
       return phase == Phase.CLEAR && clearSourceIndex < source.size()
          && journaledPositions.contains(source.get(clearSourceIndex).pos())
          && !overlappingPlacementPositions.contains(source.get(clearSourceIndex).pos());
-   }
-
-   @Override
-   public CompletableFuture<Void> journalCompletion() {
-      return journalPreparation.completion();
    }
 
    private Optional<OperationTaskResult> tickPhase(WorldTaskContext context, ServerLevel level) {
@@ -774,68 +763,8 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    @Override
-   public void cancelJournalPreparation() {
-      journalPreparation.cancel();
-   }
-
-   @Override
-   public PersistentRecoveryJournal journal() {
-      return journalPreparation.journal();
-   }
-
-   @Override
-   public boolean acquireLease(WorldTaskContext context) {
-      return writeLease.acquire(context, dimension, metrics);
-   }
-
-   @Override
-   public void releaseLease(WorldTaskContext context) {
-      writeLease.release();
-   }
-
-   @Override
-   public void releaseAfterCancelledJournal(WorldTaskContext context) {
-      writeLease.releaseAfterCancellation(journalPreparation, operationCommit);
-   }
-
-   @Override
-   public WorldChangeTransaction transaction() {
-      return transaction;
-   }
-
-   @Override
-   public WorldOperationCommit operationCommit() {
-      return operationCommit;
-   }
-
-   @Override
    public ResourceKey<Level> dimension() {
       return dimension;
-   }
-
-   @Override
-   public UUID operationId() {
-      return metrics.operationId();
-   }
-
-   @Override
-   public String metricsSummary() {
-      return metrics.summary();
-   }
-
-   @Override
-   public void markWorldUnloaded() {
-      metrics.phase(WorldOperationPhase.WORLD_UNLOADED);
-   }
-
-   @Override
-   public void markComplete() {
-      metrics.complete();
-   }
-
-   @Override
-   public boolean memoryThrottled() {
-      return memoryThrottled;
    }
 
    @Override
@@ -856,37 +785,8 @@ public final class SelectionOperationTask implements WorldOperationTask {
    }
 
    @Override
-   public int previousBatchCells() {
-      return batchFeedback.cells();
-   }
-
-   @Override
-   public long previousBatchNanos() {
-      return batchFeedback.elapsedNanos();
-   }
-
-   @Override
-   public void recordBatch(int cells, long elapsedNanos) {
-      batchFeedback.record(cells, elapsedNanos);
-   }
-
-   @Override
-   public void releaseMemoryReservation() {
-      if (memoryReservation != null) {
-         MemoryReservation reservation = memoryReservation;
-         memoryReservation = null;
-         CompletableFuture<?> publicationCompletion = operationCommit == null
-            ? CompletableFuture.completedFuture(null)
-            : operationCommit.completion();
-         journalPreparation.releaseWhenIdle(reservation, publicationCompletion);
-      }
-   }
-
-   @Override
-   public void releaseCommittedTransactionState() {
+   protected void clearCommittedStaging() {
       source.clear();
-      transaction.releaseWriteState();
-      operationCommit = null;
       finalizationIterator = null;
    }
 

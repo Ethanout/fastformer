@@ -3,22 +3,17 @@ package io.github.fastformer.fastplace.task;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
-import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
-import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
-import io.github.fastformer.fastplace.world.WorldBatchFeedback;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
-import io.github.fastformer.fastplace.task.runtime.TaskWriteLease;
-import io.github.fastformer.fastplace.task.runtime.JournalSegments;
+import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.fastplace.world.WorldWriteSideEffectGuard;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
@@ -35,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -52,20 +46,15 @@ import net.minecraft.world.level.block.state.BlockState;
  * Player-owned placement transaction from asynchronous shape generation through
  * validated world writes and durable history commit.
  */
-public final class PlacementTask implements WorldWriteTask {
+public final class PlacementTask extends LeasedJournaledTask {
    private CompletableFuture<BlockGenerationResult> future;
    private DeferredGeneration deferredGeneration;
    private MemoryReservation generationReservation;
    private final ProgressiveBlockGeneration generationProgress;
    private final PlacementTaskPlan plan;
-   private final WorldOperationMetrics metrics = new WorldOperationMetrics();
-   private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(this.metrics);
-   private final WorldChangeTransaction transaction = new WorldChangeTransaction();
-   private WorldOperationCommit operationCommit;
    private Set<BlockPos> targets;
    private BlockPositionSource generatedPositions;
    private Map<BlockPos, BlockState> resolvedStates = Map.of();
-   private final TaskWriteLease writeLease = new TaskWriteLease();
    private boolean resolvedStatesPrepared;
    private final ArrayDeque<BlockPos> writable = new ArrayDeque<>();
    private final Iterator<BlockPos> blocks = new Iterator<>() {
@@ -82,7 +71,6 @@ public final class PlacementTask implements WorldWriteTask {
    private Iterator<BlockPos> validationIterator;
    private int validationRemaining;
    private boolean snapshotsValidated;
-   private final JournalSegments journalSegments = new JournalSegments();
    private int remaining;
    private int processed;
    private int total;
@@ -91,14 +79,11 @@ public final class PlacementTask implements WorldWriteTask {
    private boolean generationConstraintsFailed;
    private boolean memoryChecked;
    private boolean memoryUnsafe;
-   private boolean memoryThrottled;
    private long blockEntityReserve;
-   private MemoryReservation memoryReservation;
    private boolean failed;
    private boolean recoveryTaskCreated;
    private String failureReason;
    private WorldOperationPhase failurePhase;
-   private final WorldJournalPreparation journalPreparation = new WorldJournalPreparation();
    private Iterator<BlockPos> finalizationIterator;
 
    private PlacementTask(
@@ -108,6 +93,15 @@ public final class PlacementTask implements WorldWriteTask {
       PlacementTaskPlan plan,
       MemoryReservation generationReservation
    ) {
+      this(future, generationProgress, targets, plan, generationReservation, new WorldJournalPreparation());
+   }
+
+   PlacementTask(
+      CompletableFuture<BlockGenerationResult> future, ProgressiveBlockGeneration generationProgress,
+      Set<BlockPos> targets, PlacementTaskPlan plan, MemoryReservation generationReservation,
+      WorldJournalPreparation journalPreparation
+   ) {
+      super(journalPreparation);
       this.future = future;
       this.generationProgress = generationProgress;
       this.targets = targets;
@@ -594,32 +588,6 @@ public final class PlacementTask implements WorldWriteTask {
       return preparation;
    }
 
-   public Optional<WorldChangeBatch> preparedBatch() {
-      return this.operationCommit == null
-         ? Optional.empty()
-         : this.operationCommit.batch().map(batch -> batch.withOperationId(this.operationId()));
-   }
-
-   public PersistentRecoveryJournal journal() {
-      return this.journalPreparation.journal();
-   }
-
-   public boolean acquireLease(WorldTaskContext context) {
-      return writeLease.acquire(context, plan.dimension(), metrics);
-   }
-
-   public void releaseLease(WorldTaskContext context) {
-      writeLease.release();
-   }
-
-   public void releaseAfterCancelledJournal(WorldTaskContext context) {
-      writeLease.releaseAfterCancellation(journalPreparation, operationCommit);
-   }
-
-   public boolean hasWrites() {
-      return this.transaction.hasWrites();
-   }
-
    public int validationRemaining() {
       return Math.max(0, this.validationRemaining);
    }
@@ -631,11 +599,15 @@ public final class PlacementTask implements WorldWriteTask {
 
    /** Stops task activity while retaining its reservation for recovery capture. */
    public void cancelForRecovery() {
+      cancelJournalPreparation();
+   }
+
+   @Override
+   protected void stopTaskActivity() {
       if (this.deferredGeneration != null) {
          this.deferredGeneration = null;
          this.targets = Set.of();
       }
-      this.journalPreparation.cancel();
       if (this.generationProgress != null) {
          this.generationProgress.cancel();
          this.generationProgress.releasePublished();
@@ -643,18 +615,6 @@ public final class PlacementTask implements WorldWriteTask {
       CompletableFuture<BlockGenerationResult> pendingGeneration = this.future;
       this.future = null;
       releaseGenerationReservation(pendingGeneration);
-   }
-
-   /** Releases the task working-set budget after ownership transfers or completion. */
-   public void releaseMemoryReservation() {
-      if (this.memoryReservation != null) {
-         MemoryReservation reservation = this.memoryReservation;
-         this.memoryReservation = null;
-         CompletableFuture<?> publicationCompletion = this.operationCommit == null
-            ? CompletableFuture.completedFuture(null)
-            : this.operationCommit.completion();
-         this.journalPreparation.releaseWhenIdle(reservation, publicationCompletion);
-      }
    }
 
    /** Reacquires the current phase budget after an unloaded dimension releases it. */
@@ -719,9 +679,8 @@ public final class PlacementTask implements WorldWriteTask {
     * succeeded.  Recovery paths deliberately retain these structures until
     * their outcome is known.
     */
-   public void releaseCommittedTransactionState() {
-      this.transaction.releaseWriteState();
-      this.operationCommit = null;
+   @Override
+   protected void clearCommittedStaging() {
       this.finalizationIterator = null;
    }
 
@@ -832,22 +791,6 @@ public final class PlacementTask implements WorldWriteTask {
       return this.memoryUnsafe;
    }
 
-   public boolean memoryThrottled() {
-      return this.memoryThrottled;
-   }
-
-   public int previousBatchCells() {
-      return this.batchFeedback.cells();
-   }
-
-   public long previousBatchNanos() {
-      return this.batchFeedback.elapsedNanos();
-   }
-
-   public void recordBatch(int cells, long elapsedNanos) {
-      this.batchFeedback.record(cells, elapsedNanos);
-   }
-
    public boolean failed() {
       return this.failed;
    }
@@ -866,31 +809,6 @@ public final class PlacementTask implements WorldWriteTask {
 
    public WorldOperationPhase failurePhase() {
       return this.failurePhase == null ? this.metrics.phase() : this.failurePhase;
-   }
-
-   public UUID operationId() {
-      return this.metrics.operationId();
-   }
-
-   public String metricsSummary() {
-      return this.metrics.summary();
-   }
-
-   public void markComplete() {
-      this.metrics.complete();
-   }
-
-   public void markWorldUnloaded() {
-      this.metrics.phase(WorldOperationPhase.WORLD_UNLOADED);
-   }
-
-   /** Stops task-owned work and transfers recovery storage once. */
-   public WorldRecoverySnapshot stopAndTransferRecovery() {
-      cancelForRecovery();
-      CompletableFuture<Void> ready = this.operationCommit == null
-         ? CompletableFuture.completedFuture(null)
-         : this.operationCommit.stopForRecovery();
-      return this.transaction.transferRecoverySnapshot(CompletableFuture.allOf(ready, this.journalPreparation.completion()));
    }
 
    private void fail(WorldOperationPhase phase, String reason) {

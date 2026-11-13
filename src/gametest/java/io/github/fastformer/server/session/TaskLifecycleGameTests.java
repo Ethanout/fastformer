@@ -15,21 +15,22 @@ import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
 import io.github.fastformer.fastplace.task.WorldOperationTask;
+import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import java.lang.reflect.Constructor;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.LongSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -50,7 +51,7 @@ public final class TaskLifecycleGameTests {
       ServerLevel level = helper.getLevel();
       BlockPos origin = helper.absolutePos(new BlockPos(1, 2, 1));
       int[] scenario = {0};
-      Object[] active = {null};
+      LeasedJournaledTask[] active = {null};
       WorldTaskContext[] context = {null};
       boolean[] waitingChecked = {false};
       helper.succeedWhen(() -> {
@@ -92,14 +93,15 @@ public final class TaskLifecycleGameTests {
                OperationSystem.of(level.getServer()).tasks.put(owner, operation);
             }
             assertPartialWrite(helper, level, origin, 16);
+            var journal = active[0].journal();
             serviceUnavailableDimension(active[0], owner, HistorySystem.of(level.getServer()), SessionSystem.of(level.getServer()));
             helper.assertTrue(QuickShapeSystem.of(level.getServer()).taskActive(owner) || OperationSystem.of(level.getServer()).taskActive(owner),
                "unavailable dimension discarded writer");
             helper.assertTrue(!HistorySystem.of(helper.getLevel().getServer()).busy(owner), "unavailable dimension unexpectedly started recovery");
             assertPartialWrite(helper, level, origin, 16);
-            helper.assertTrue(taskField(active[0], "memoryReservation") == null,
+            helper.assertTrue(!TaskRuntimeFixtures.hasWorkingSet(active[0]),
                "unavailable dimension retained active working reservation");
-            helper.assertTrue(taskField(active[0], "journalPreparation") != null,
+            helper.assertTrue(journal != null && active[0].journal() == journal,
                "unavailable dimension discarded journal ownership");
             waitingChecked[0] = true;
          }
@@ -128,16 +130,6 @@ public final class TaskLifecycleGameTests {
          runtime.quickShape.tickTask(unavailable, history);
       } else {
          runtime.operation.tickTask(unavailable, history);
-      }
-   }
-
-   private static Object taskField(Object task, String name) {
-      try {
-         var field = task.getClass().getDeclaredField(name);
-         field.setAccessible(true);
-         return field.get(task);
-      } catch (ReflectiveOperationException exception) {
-         throw new IllegalStateException("Could not inspect task ownership", exception);
       }
    }
 
@@ -343,15 +335,7 @@ public final class TaskLifecycleGameTests {
    }
 
    private static WorldTaskBudget oneCellBudget() {
-      try {
-         Constructor<WorldTaskBudget> constructor = WorldTaskBudget.class.getDeclaredConstructor(
-            int.class, int.class, long.class, LongSupplier.class
-         );
-         constructor.setAccessible(true);
-         return constructor.newInstance(1, 1, 0L, (LongSupplier)() -> 0L);
-      } catch (ReflectiveOperationException exception) {
-         throw new IllegalStateException("Could not create one-cell GameTest budget", exception);
-      }
+      return WorldTaskTestAccess.singleCellBudget();
    }
 
    private static void assertBlockRange(

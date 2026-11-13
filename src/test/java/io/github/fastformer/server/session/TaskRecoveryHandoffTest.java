@@ -23,6 +23,10 @@ import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.task.WorldOperationTask;
+import io.github.fastformer.fastplace.task.WorldTaskFixtures;
+import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
@@ -36,12 +40,15 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -50,8 +57,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TaskRecoveryHandoffTest {
+   @TempDir Path directory;
    private final SessionSystem runtime = new SessionSystem();
    private final QuickShapeSystem quickShape = runtime.quickShape;
    private final OperationSystem operation = runtime.operation;
@@ -136,37 +145,33 @@ class TaskRecoveryHandoffTest {
 
    @Test
    void allTaskTypesWaitForPendingAppendBeforeRecoveryReadsSnapshots() throws Exception {
-      PlacementTask placement = PlacementTask.ready(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
-         null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
-      ));
-      ClientWorkspacePlacementTask workspace = new ClientWorkspacePlacementTask(
-         UUID.randomUUID(), new OperationWorkspacePlan(List.of()), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
-      );
-      SelectionOperationTask selection = new SelectionOperationTask(
-         OperationSelectionVolume.cuboid(BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO),
-         OperationMode.MOVE, OperationConflictMode.REPLACE, true, BlockPos.ZERO.above(),
-         OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
-      );
-      for (Object task : List.of(placement, workspace, selection)) {
-         var preparationField = task.getClass().getDeclaredField("journalPreparation");
-         preparationField.setAccessible(true);
-         WorldJournalPreparation preparation = (WorldJournalPreparation)preparationField.get(task);
-         CompletableFuture<Boolean> append = new CompletableFuture<>();
-         var appendField = WorldJournalPreparation.class.getDeclaredField("appendFuture");
-         appendField.setAccessible(true);
-         appendField.set(preparation, append);
-         var transactionField = task.getClass().getDeclaredField("transaction");
-         transactionField.setAccessible(true);
-         WorldChangeTransaction transaction = (WorldChangeTransaction)transactionField.get(task);
+      for (int kind = 0; kind < 3; kind++) {
+         var io = new ArrayDeque<Runnable>();
+         var preparation = new WorldJournalPreparation(io::addLast);
+         var journal = RecoveryJournalTestAccess.open(Files.createDirectory(directory.resolve("journal-" + kind)));
+         preparation.poll(() -> Optional.of(journal));
+         io.removeFirst().run();
+         assertEquals(JournalPreparation.READY, preparation.poll(Optional::empty));
+         assertEquals(JournalPreparation.PENDING, preparation.pollAppend(() -> true));
+         LeasedJournaledTask task = switch (kind) {
+            case 0 -> WorldTaskFixtures.placement(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
+               null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD), preparation);
+            case 1 -> WorldTaskFixtures.workspace(UUID.randomUUID(), new OperationWorkspacePlan(List.of()),
+               PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, preparation);
+            default -> WorldTaskFixtures.selection(
+               OperationSelectionVolume.cuboid(BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO),
+               OperationMode.MOVE, OperationConflictMode.REPLACE, true, BlockPos.ZERO.above(),
+               OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, preparation);
+         };
+         WorldChangeTransaction transaction = task.transaction();
          transaction.recordBefore(snapshot(BlockPos.ZERO, "before"));
          transaction.recordAfter(BlockPos.ZERO, snapshot(BlockPos.ZERO, "after"));
 
-         WorldRecoverySnapshot recovery = task instanceof PlacementTask ordinary
-            ? ordinary.stopAndTransferRecovery() : ((WorldOperationTask)task).stopAndTransferRecovery();
+         WorldRecoverySnapshot recovery = task.stopAndTransferRecovery();
          assertFalse(recovery.ready(), task.getClass().getSimpleName());
          assertTrue(recovery.hasWrites());
          assertFalse(transaction.hasWrites());
-         append.complete(false);
+         io.removeFirst().run();
          assertTrue(recovery.ready());
          assertEquals("before", marker(recovery.before().getFirst()));
          assertEquals("after", marker(recovery.after().get(BlockPos.ZERO)));
@@ -193,9 +198,7 @@ class TaskRecoveryHandoffTest {
          )
       );
       assertTrue(task.prepare());
-      var transactionField = PlacementTask.class.getDeclaredField("transaction");
-      transactionField.setAccessible(true);
-      WorldChangeTransaction transaction = (WorldChangeTransaction)transactionField.get(task);
+      WorldChangeTransaction transaction = task.transaction();
       transaction.recordBefore(snapshot(pos, "before"));
       transaction.recordAfter(pos, snapshot(pos, "after"));
       var terminalField = PlacementTask.class.getDeclaredField(failureField);

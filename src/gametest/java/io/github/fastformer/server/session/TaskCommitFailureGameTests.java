@@ -14,26 +14,26 @@ import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
 import io.github.fastformer.fastplace.task.OperationTaskResult;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.SelectionOperationTask;
 import io.github.fastformer.fastplace.task.WorldOperationTask;
+import io.github.fastformer.fastplace.task.WorldTaskFixtures;
+import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
+import io.github.fastformer.fastplace.world.WorldTaskTestAccess;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.function.LongSupplier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -52,14 +52,13 @@ public final class TaskCommitFailureGameTests {
       ServerLevel level = helper.getLevel();
       BlockPos target = helper.absolutePos(new BlockPos(1, 2, 1));
       int[] kind = {0};
-      Object[] task = {null};
+      LeasedJournaledTask[] task = {null};
       UUID[] owner = {null};
       long baseline = MemoryReservation.reservedBytes();
       helper.succeedWhen(() -> {
          if (task[0] == null) {
             owner[0] = UUID.randomUUID();
-            task[0] = create(level, target, kind[0]);
-            setField(task[0], "journalPreparation", new WorldJournalPreparation(command -> {
+            task[0] = create(level, target, kind[0], new WorldJournalPreparation(command -> {
                throw new RejectedExecutionException("Injected journal scheduling failure");
             }));
             register(level, owner[0], task[0]);
@@ -80,25 +79,28 @@ public final class TaskCommitFailureGameTests {
       ServerLevel level = helper.getLevel();
       BlockPos target = helper.absolutePos(new BlockPos(1, 2, 1));
       int[] kind = {0};
-      Object[] task = {null};
+      LeasedJournaledTask[] task = {null};
       WorldTaskContext[] context = {null};
       boolean[] injected = {false};
+      var failPublication = new AtomicBoolean();
       long baseline = MemoryReservation.reservedBytes();
       helper.succeedWhen(() -> {
          if (task[0] == null) {
-            task[0] = create(level, target, kind[0]);
+            failPublication.set(false);
+            task[0] = create(level, target, kind[0], new WorldJournalPreparation(command -> {
+               if (failPublication.get()) throw new RejectedExecutionException("Injected history publication rejection");
+               command.run();
+            }));
             context[0] = new WorldTaskContext(level.getServer(), UUID.randomUUID());
          }
          if (!injected[0]) {
-            if (field(task[0], "operationCommit") == null) {
-               advanceToCommit(helper, level, context[0], task[0]);
+            if (task[0].operationCommit() == null) {
+               advanceToCommit(helper, level, context[0], task[0], () -> failPublication.set(true));
             }
-            WorldOperationCommit commit = (WorldOperationCommit)field(task[0], "operationCommit");
+            WorldOperationCommit commit = task[0].operationCommit();
             helper.assertTrue(commit != null && commit.completion().isDone(), "waiting for commit preparation");
             helper.assertTrue(level.getBlockState(target).is(Blocks.GOLD_BLOCK), "fixture did not write before publication");
-            // Replace only the completed publication result. No live worker or journal is discarded.
-            setField(field(commit, "history"), "future", CompletableFuture.failedFuture(
-               new IllegalStateException("Injected history publication failure")));
+            helper.assertTrue(commit.poll() == JournalPreparation.FAILED, "publication rejection did not fail the commit");
             register(level, context[0].owner(), task[0]);
             service(level, task[0]);
             helper.assertTrue(!active(level, context[0].owner()), "failed publication retained writer");
@@ -152,7 +154,8 @@ public final class TaskCommitFailureGameTests {
       });
    }
 
-   private static void advanceToCommit(GameTestHelper helper, ServerLevel level, WorldTaskContext context, Object task) {
+   private static void advanceToCommit(GameTestHelper helper, ServerLevel level, WorldTaskContext context,
+      LeasedJournaledTask task, Runnable beforePublication) {
       if (task instanceof PlacementTask placement) {
          helper.assertTrue(placement.prepare() && placement.ensureMemoryReservation() && placement.acquireLease(context),
             "waiting for placement preparation");
@@ -172,35 +175,43 @@ public final class TaskCommitFailureGameTests {
             placement.releaseGenerationState();
             placement.resizeMemoryReservationForTransaction();
             if (placement.finalizeSnapshots(level, oneCellBudget())) {
+               beforePublication.run();
                placement.prepareCommit();
             }
          }
       } else {
          WorldOperationTask operation = (WorldOperationTask)task;
          helper.assertTrue(operation.acquireLease(context), "waiting for operation lease");
+         // This fixture has one target, so its WAL append is complete before the first write.
+         if (operation.hasWrites()) beforePublication.run();
          OperationTaskResult result = operation.tick(context, level, oneCellBudget());
-         helper.assertTrue(result == OperationTaskResult.ACTIVE || result == OperationTaskResult.COMPLETE,
+         helper.assertTrue(result == OperationTaskResult.ACTIVE || result == OperationTaskResult.COMPLETE
+               || operation.operationCommit() != null,
             "operation failed before publication injection: " + result);
       }
    }
 
-   private static Object create(ServerLevel level, BlockPos target, int kind) {
+   private static LeasedJournaledTask create(ServerLevel level, BlockPos target, int kind) {
+      return create(level, target, kind, new WorldJournalPreparation());
+   }
+
+   private static LeasedJournaledTask create(ServerLevel level, BlockPos target, int kind, WorldJournalPreparation journal) {
       level.setBlock(target, Blocks.STONE.defaultBlockState(), 2);
       BlockPos source = target.above(2);
       level.setBlock(source, Blocks.GOLD_BLOCK.defaultBlockState(), 2);
       if (kind == 0) {
-         return PlacementTask.ready(Set.of(target), new PlacementTaskPlan(Blocks.GOLD_BLOCK.defaultBlockState(), null,
-            OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension()));
+         return WorldTaskFixtures.placement(Set.of(target), new PlacementTaskPlan(Blocks.GOLD_BLOCK.defaultBlockState(), null,
+            OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension()), journal);
       }
       if (kind == 1) {
          var part = new OperationWorkspacePlan.Part(1, ClientSelectionPart.Source.CLIPBOARD,
             Map.of(target, new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)), WorkspaceTransform.IDENTITY, false);
-         return new ClientWorkspacePlacementTask(UUID.randomUUID(), new OperationWorkspacePlan(List.of(part)),
-            PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension());
+         return WorldTaskFixtures.workspace(UUID.randomUUID(), new OperationWorkspacePlan(List.of(part)),
+            PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension(), journal);
       }
-      return new SelectionOperationTask(OperationSelectionVolume.cuboid(source, source, source, source), OperationMode.MOVE,
+      return WorldTaskFixtures.selection(OperationSelectionVolume.cuboid(source, source, source, source), OperationMode.MOVE,
          OperationConflictMode.REPLACE, true, target.subtract(source), OperationStackRegion.origin(),
-         PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension());
+         PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension(), journal);
    }
 
    private static void register(ServerLevel level, UUID owner, Object task) {
@@ -222,34 +233,7 @@ public final class TaskCommitFailureGameTests {
       helper.assertTrue(MemoryReservation.reservedBytes() == baseline, "failed task retained memory reservation");
    }
 
-   private static Object field(Object object, String name) {
-      try {
-         var field = object.getClass().getDeclaredField(name);
-         field.setAccessible(true);
-         return field.get(object);
-      } catch (ReflectiveOperationException exception) {
-         throw new IllegalStateException(exception);
-      }
-   }
-
-   private static void setField(Object object, String name, Object value) {
-      try {
-         var field = object.getClass().getDeclaredField(name);
-         field.setAccessible(true);
-         field.set(object, value);
-      } catch (ReflectiveOperationException exception) {
-         throw new IllegalStateException(exception);
-      }
-   }
-
    private static WorldTaskBudget oneCellBudget() {
-      try {
-         Constructor<WorldTaskBudget> constructor = WorldTaskBudget.class.getDeclaredConstructor(
-            int.class, int.class, long.class, LongSupplier.class);
-         constructor.setAccessible(true);
-         return constructor.newInstance(1, 1, 0L, (LongSupplier)() -> 0L);
-      } catch (ReflectiveOperationException exception) {
-         throw new IllegalStateException(exception);
-      }
+      return WorldTaskTestAccess.singleCellBudget();
    }
 }

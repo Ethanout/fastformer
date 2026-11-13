@@ -17,6 +17,25 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WorldTaskQueueTest {
+   @Test void failureBeforeExtractionKeepsTheWriterUntilRecoveryCanBeTransferred() {
+      var queue = new WorldTaskQueue<Writer>();
+      var context = new WorldTaskContext(null, UUID.randomUUID());
+      var task = new Writer();
+      task.failExtraction = true;
+      queue.put(context.owner(), task);
+      WorldTaskQueue.RecoveryAcceptance<Writer> acceptance = (ignored, writer, snapshot) -> {
+         assertSame(writer.snapshot, snapshot);
+         return TaskCancellationResult.CANCELLED_BEFORE_WRITE;
+      };
+      assertEquals(TaskCancellationResult.RECOVERY_BLOCKED, queue.transfer(context, task, acceptance));
+      assertSame(task, queue.get(context.owner()));
+      assertTrue(queue.handingOver(context.owner()));
+      task.failExtraction = false;
+      assertEquals(TaskCancellationResult.CANCELLED_BEFORE_WRITE, queue.transfer(context, task, acceptance));
+      assertEquals(TaskCancellationResult.CANCELLED_BEFORE_WRITE, queue.transfer(context, task, acceptance));
+      assertEquals(2, task.extractions);
+   }
+
    @Test void rejectedAndFailedAcceptanceRetainTheSameSnapshot() {
       var attempts = new AtomicInteger();
       var queue = new WorldTaskQueue<Writer>();
@@ -101,9 +120,14 @@ class WorldTaskQueueTest {
       private final WorldRecoverySnapshot snapshot = new WorldRecoverySnapshot(
          new ArrayDeque<>(), Map.of(), CompletableFuture.completedFuture(null));
       private int extractions;
+      private boolean failExtraction;
       @Override public ResourceKey<Level> dimension() { return Level.OVERWORLD; }
       @Override public PersistentRecoveryJournal journal() { return null; }
       @Override public void releaseAfterCancelledJournal(WorldTaskContext context) {}
-      @Override public WorldRecoverySnapshot stopAndTransferRecovery() { extractions++; return snapshot; }
+      @Override public WorldRecoverySnapshot stopAndTransferRecovery() {
+         extractions++;
+         if (failExtraction) throw new IllegalStateException("injected stop failure before extraction");
+         return snapshot;
+      }
    }
 }

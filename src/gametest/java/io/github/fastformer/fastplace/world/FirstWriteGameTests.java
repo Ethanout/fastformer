@@ -153,21 +153,14 @@ public final class FirstWriteGameTests {
          if (workspace) {
             var part = new OperationWorkspacePlan.Part(1, ClientSelectionPart.Source.CLIPBOARD,
                desired, WorkspaceTransform.IDENTITY, false);
-            task = new ClientWorkspacePlacementTask(UUID.randomUUID(), new OperationWorkspacePlan(List.of(part)),
-               PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension());
+            task = WorldTaskFixtures.workspace(UUID.randomUUID(), new OperationWorkspacePlan(List.of(part)),
+               PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension(), new WorldJournalPreparation(io::addLast));
          } else {
             BlockPos max = position(origin, count - 1);
             var selection = OperationSelectionVolume.cuboid(origin, max, origin, max);
-            task = new SelectionOperationTask(selection, OperationMode.MOVE, OperationConflictMode.REPLACE,
+            task = WorldTaskFixtures.selection(selection, OperationMode.MOVE, OperationConflictMode.REPLACE,
                true, BlockPos.ZERO.above(), OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY,
-               1024, level.dimension());
-         }
-         try {
-            var field = task.getClass().getDeclaredField("journalPreparation");
-            field.setAccessible(true);
-            field.set(task, new WorldJournalPreparation(io::addLast));
-         } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("Could not control journal scheduling", exception);
+               1024, level.dimension(), new WorldJournalPreparation(io::addLast));
          }
          WorldTaskContext owner = new WorldTaskContext(level.getServer(), UUID.randomUUID());
          context = owner.withResume(() -> {

@@ -9,6 +9,7 @@ import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.task.PlacementTask;
+import io.github.fastformer.fastplace.task.WorldTaskFixtures;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
@@ -89,15 +90,9 @@ public final class PlacementWakeupGameTests {
             positions.add(pos);
             level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
          }
-         task = PlacementTask.ready(positions, new PlacementTaskPlan(Blocks.GOLD_BLOCK.defaultBlockState(),
-            null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension()));
-         try {
-            var field = PlacementTask.class.getDeclaredField("journalPreparation");
-            field.setAccessible(true);
-            field.set(task, new WorldJournalPreparation(io::addLast));
-         } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("Could not control ordinary placement journal", exception);
-         }
+         task = WorldTaskFixtures.placement(positions, new PlacementTaskPlan(Blocks.GOLD_BLOCK.defaultBlockState(),
+            null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 1024, level.dimension()),
+            new WorldJournalPreparation(io::addLast));
          WorldTaskContext owner = new WorldTaskContext(level.getServer(), UUID.randomUUID());
          context = owner.withResume(() -> {
             resumes++;

@@ -11,23 +11,27 @@ import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.MemoryReservationAttempt;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
+import io.github.fastformer.fastplace.task.WorldTaskFixtures;
+import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import java.lang.reflect.Field;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -39,8 +43,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class ManagerClearServerResourceTest {
+   @TempDir Path directory;
+   private final ArrayDeque<Runnable> journalIo = new ArrayDeque<>();
+   private final WorldJournalPreparation preparation = new WorldJournalPreparation(journalIo::addLast);
    private final SessionSystem runtime = new SessionSystem();
    private final QuickShapeSystem quickShape = runtime.quickShape;
    private final OperationSystem operation = runtime.operation;
@@ -52,9 +60,9 @@ class ManagerClearServerResourceTest {
    @Test
    void fastPlaceClearServerDetachesPlacementButWaitsForIoBeforeReleasingMemory() throws Exception {
       long baseline = MemoryReservation.reservedBytes();
-      PlacementTask task = PlacementTask.ready(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
+      PlacementTask task = WorldTaskFixtures.placement(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
          null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
-      ));
+      ), preparation);
       assertTrue(task.prepare());
       assertTrue(task.ensureMemoryReservation());
       assertManagerClearLifecycle(task, baseline, true);
@@ -63,35 +71,36 @@ class ManagerClearServerResourceTest {
    @Test
    void operationClearServerDetachesWorkspaceButWaitsForIoBeforeReleasingMemory() throws Exception {
       long baseline = MemoryReservation.reservedBytes();
-      ClientWorkspacePlacementTask task = new ClientWorkspacePlacementTask(
+      ClientWorkspacePlacementTask task = WorldTaskFixtures.workspace(
          UUID.randomUUID(), new OperationWorkspacePlan(List.of()),
-         PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+         PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, preparation
       );
-      setField(task, "desired", Collections.singletonMap(BlockPos.ZERO, null));
-      assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
+      TaskRuntimeFixtures.reserveWorkingSet(task, 64);
       assertManagerClearLifecycle(task, baseline, false);
    }
 
    @Test
    void operationClearServerDetachesSelectionButWaitsForIoBeforeReleasingMemory() throws Exception {
       long baseline = MemoryReservation.reservedBytes();
-      SelectionOperationTask task = new SelectionOperationTask(
+      SelectionOperationTask task = WorldTaskFixtures.selection(
          new OperationSelectionVolume(
             OperationSelectionMode.CUBOID, new AABB(0, 0, 0, 1, 1, 1),
             null, List.of(), 0, BlockPos.ZERO, BlockPos.ZERO
          ),
          OperationMode.MOVE, OperationConflictMode.REPLACE, false, BlockPos.ZERO.above(),
-         OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
+         OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, preparation
       );
-      source(task).add(snapshot(BlockPos.ZERO, "source"));
-      assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
+      TaskRuntimeFixtures.reserveWorkingSet(task, 64);
       assertManagerClearLifecycle(task, baseline, false);
    }
 
-   private void assertManagerClearLifecycle(Object task, long baseline, boolean placement) throws Exception {
+   private void assertManagerClearLifecycle(LeasedJournaledTask task, long baseline, boolean placement) throws Exception {
       UUID owner = UUID.randomUUID();
-      CompletableFuture<Boolean> journalIo = new CompletableFuture<>();
-      setField(journalPreparation(task), "appendFuture", journalIo);
+      var journal = RecoveryJournalTestAccess.open(directory);
+      preparation.poll(() -> Optional.of(journal));
+      journalIo.removeFirst().run();
+      assertEquals(JournalPreparation.READY, preparation.poll(Optional::empty));
+      assertEquals(JournalPreparation.PENDING, preparation.pollAppend(() -> false));
 
       CountDownLatch historyStarted = new CountDownLatch(1);
       CompletableFuture<Void> finishHistory = new CompletableFuture<>();
@@ -102,7 +111,7 @@ class ManagerClearServerResourceTest {
          Map.of(position, snapshot(position, "after")),
          null, taskBody -> CompletableFuture.runAsync(taskBody)
       );
-      setField(task, "operationCommit", commit);
+      TaskRuntimeFixtures.installCommit(task, commit);
       try {
          assertTrue(historyStarted.await(5, TimeUnit.SECONDS));
          assertTrue(MemoryReservation.reservedBytes() > baseline);
@@ -118,43 +127,23 @@ class ManagerClearServerResourceTest {
          }
          assertTrue(MemoryReservation.reservedBytes() > baseline);
 
-         journalIo.complete(false);
+         journalIo.removeFirst().run();
          assertTrue(MemoryReservation.reservedBytes() > baseline);
          finishHistory.complete(null);
          commit.completion().join();
          awaitReservedBytes(baseline);
       } finally {
-         journalIo.complete(false);
+         if (!journalIo.isEmpty()) journalIo.removeFirst().run();
          finishHistory.complete(null);
          commit.completion().get(5, TimeUnit.SECONDS);
+         journal.discardUnused();
       }
-   }
-
-   private static WorldJournalPreparation journalPreparation(Object task) throws Exception {
-      return (WorldJournalPreparation)field(task, "journalPreparation");
-   }
-
-   @SuppressWarnings("unchecked")
-   private static List<ReversibleBlockSnapshot> source(SelectionOperationTask task) throws Exception {
-      return (List<ReversibleBlockSnapshot>)field(task, "source");
    }
 
    private static ReversibleBlockSnapshot snapshot(BlockPos position, String marker) {
       CompoundTag tag = new CompoundTag();
       tag.putString("marker", marker);
       return new ReversibleBlockSnapshot(position, null, null, new BlockEntitySnapshot(tag));
-   }
-
-   private static Object field(Object target, String name) throws Exception {
-      Field field = target.getClass().getDeclaredField(name);
-      field.setAccessible(true);
-      return field.get(target);
-   }
-
-   private static void setField(Object target, String name, Object value) throws Exception {
-      Field field = target.getClass().getDeclaredField(name);
-      field.setAccessible(true);
-      field.set(target, value);
    }
 
    private static void awaitReservedBytes(long expected) throws InterruptedException {
