@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
@@ -10,6 +12,8 @@ import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.*;
+import io.github.fastformer.server.task.TaskStep;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -47,7 +51,7 @@ public final class FirstWriteGameTests {
          FirstWriteScenario current = active[0];
          if (!current.journalCompleted) {
             helper.assertTrue(current.task.acquireLease(current.context), "waiting for cancellation-test lease");
-            current.task.tick(current.context, level, oneCellBudget());
+            TaskRuntimeFixtures.tickBatch(current.task, current.context, level, oneCellBudget());
             if (!current.io.isEmpty()) {
                current.task.releaseAfterCancelledJournal(current.context);
                current.task.releaseMemoryReservation();
@@ -87,8 +91,8 @@ public final class FirstWriteGameTests {
          FirstWriteScenario current = active[0];
          if (!current.journalCompleted) {
             helper.assertTrue(current.task.acquireLease(current.context), "waiting for first-write lease");
-            OperationTaskResult result = current.task.tick(current.context, level, oneCellBudget());
-            helper.assertTrue(result == OperationTaskResult.ACTIVE, "task ended before its first journal");
+            TaskStep result = TaskRuntimeFixtures.tickBatch(current.task, current.context, level, oneCellBudget());
+            helper.assertTrue(result == TaskStep.ACTIVE, "task ended before its first journal");
             helper.assertTrue(!current.task.hasWrites(), "task wrote before journal I/O completed");
             if (!current.io.isEmpty()) {
                current.journalCompleted = true;
@@ -100,7 +104,7 @@ public final class FirstWriteGameTests {
          boolean workspace = current.task instanceof ClientWorkspacePlacementTask;
          if (workspace && !current.task.hasWrites()) {
             // A workspace journals the entire composed scene before its first write.
-            current.task.tick(current.context, level, oneCellBudget());
+            TaskRuntimeFixtures.tickBatch(current.task, current.context, level, oneCellBudget());
             if (!current.io.isEmpty()) current.io.removeFirst().run();
             helper.assertTrue(false, "waiting for all workspace journal segments");
          }
@@ -135,7 +139,7 @@ public final class FirstWriteGameTests {
    }
 
    private static final class FirstWriteScenario {
-      final WorldOperationTask task;
+      final WorldTask task;
       final WorldTaskContext context;
       final ArrayDeque<Runnable> io = new ArrayDeque<>();
       boolean journalCompleted;
@@ -165,7 +169,7 @@ public final class FirstWriteGameTests {
          WorldTaskContext owner = new WorldTaskContext(level.getServer(), UUID.randomUUID());
          context = owner.withResume(() -> {
             resumes++;
-            task.tick(owner, level, oneCellBudget());
+            TaskRuntimeFixtures.tickBatch(task, owner, level, oneCellBudget());
          });
       }
    }

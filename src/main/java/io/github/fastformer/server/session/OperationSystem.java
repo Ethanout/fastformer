@@ -18,11 +18,10 @@ import io.github.fastformer.server.session.slot.PlayerSessions;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.MemoryReservationAttempt;
-import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.task.WorldOperationTask;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
@@ -40,7 +39,6 @@ import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
@@ -51,7 +49,7 @@ import io.github.fastformer.server.task.WorldTaskQueue;
 public final class OperationSystem implements io.github.fastformer.core.lifecycle.Scoped {
    private static final Logger LOGGER = LogUtils.getLogger();
    final PlayerSessions<OperationSession> sessions = new PlayerSessions<>();
-   final WorldTaskQueue<WorldOperationTask> tasks = new WorldTaskQueue<>();
+   final WorldTaskQueue<WorldTask> tasks = new WorldTaskQueue<>();
    private final SessionSystem runtime;
    OperationSystem(SessionSystem runtime) {
       this.runtime = runtime;
@@ -526,7 +524,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    }
 
    /** Schedules the first resume of one queued task. A scheduling fault keeps the task. */
-   private void scheduleResume(ServerPlayer player, WorldOperationTask task) {
+   private void scheduleResume(ServerPlayer player, WorldTask task) {
       try {
          WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
          HistoryService history = HistorySystem.of(player);
@@ -593,7 +591,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    TaskCancellationResult cancelTask(
       WorldTaskContext context, HistoryService history, WorkspaceResultSink results
    ) {
-      WorldOperationTask task = tasks.get(context.owner());
+      WorldTask task = tasks.get(context.owner());
       if (task == null) {
          return TaskCancellationResult.NOT_ACTIVE;
       }
@@ -632,49 +630,18 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
 
    void tickTask(WorldTaskContext context, HistoryService history) {
       UUID owner = context.owner();
-      WorldOperationTask task = tasks.get(owner);
+      WorldTask task = tasks.get(owner);
       if (task == null) {
          return;
       }
-      WorldTaskBudget budget = null;
-      long batchStartedAt = 0L;
       boolean recoveryCreated = false;
       try {
-      ServerLevel level = context.level(task.dimension());
-      if (level == null) {
-         task.markWorldUnloaded();
-         task.releaseMemoryReservation();
-         LOGGER.warn("FastFormer operation {} is waiting for unloaded dimension {} (phase={})",
-            task.operationId(), task.dimension().location(), task.phaseName());
-         context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
-         return;
-      }
-      var reservation = task.reserveWorkingSet();
-      if (reservation == MemoryReservationAttempt.RETRY) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
-         return;
-      }
-      if (reservation == MemoryReservationAttempt.ACQUIRED && !task.acquireLease(context)) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
-         return;
-      }
-      batchStartedAt = System.nanoTime();
-      budget = WorldTaskBudget.forServerTick(
-         task.memoryThrottled(), task.previousBatchCells(), task.previousBatchNanos()
-      );
-      OperationTaskResult result = reservation == MemoryReservationAttempt.REJECTED
-         ? OperationTaskResult.MEMORY_UNSAFE : task.tick(
-         context.withResume(() -> resumeTask(context, task, history)),
-         level,
-         budget
-      );
-      task.recordBatch(budget.consumed(), System.nanoTime() - batchStartedAt);
-      if (result != OperationTaskResult.ACTIVE) {
+      Optional<TaskStep> advanced = tasks.tick(context.withResume(() -> resumeTask(context, task, history)), task);
+      if (advanced.isEmpty()) return;
+      TaskStep result = advanced.orElseThrow();
+      if (result.terminal()) {
          boolean retryableWorkspaceFailure = !task.hasWrites();
-         boolean failureTransferred = result == OperationTaskResult.FAILED
-            || result == OperationTaskResult.JOURNAL_FAILED
-            || result == OperationTaskResult.MEMORY_UNSAFE
-            || result == OperationTaskResult.EXCEEDED;
+         boolean failureTransferred = result.recoveryRequired();
          if (failureTransferred) {
             TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
             if (!handoverAccepted(handover)) return;
@@ -688,7 +655,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
                return;
             }
             if (historyCommit == JournalPreparation.FAILED) {
-               result = OperationTaskResult.FAILED;
+               result = TaskStep.FAILED;
                failureTransferred = true;
                TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
                if (!handoverAccepted(handover)) return;
@@ -706,10 +673,10 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          }
          if (task instanceof ClientWorkspacePlacementTask workspaceTask) {
             UploadSystem.of(context.server()).receipts().finish(workspaceTask.completion(owner,
-               result == OperationTaskResult.COMPLETE || result == OperationTaskResult.EMPTY,
+               result == TaskStep.COMPLETE || result == TaskStep.EMPTY,
                retryableWorkspaceFailure, recoveryCreated), context.onlinePlayer());
          }
-         if (result == OperationTaskResult.COMPLETE) {
+         if (result == TaskStep.COMPLETE) {
             task.markComplete();
          }
          LOGGER.info("FastFormer operation {} finished with result {}: {}",
@@ -719,28 +686,26 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          }
          tasks.remove(owner, task);
          context.actionBar(
-            result == OperationTaskResult.COMPLETE
+            result == TaskStep.COMPLETE
                ? FastPlaceMessages.text("fastformer.message.operation_complete")
-               : result == OperationTaskResult.EMPTY
+               : result == TaskStep.EMPTY
                   ? FastPlaceMessages.text("fastformer.message.operation_empty")
-                  : result == OperationTaskResult.FAILED
+                  : result == TaskStep.FAILED
                      ? operationFailureStatus(task, recoveryCreated)
-                      : result == OperationTaskResult.JOURNAL_FAILED
+                      : result == TaskStep.JOURNAL_FAILED
                          ? FastPlaceMessages.text("fastformer.message.recovery_journal_failed")
-                         : result == OperationTaskResult.MEMORY_UNSAFE
+                         : result == TaskStep.MEMORY_UNSAFE
                             ? FastPlaceMessages.text("fastformer.message.operation_memory_unsafe")
                             : FastPlaceMessages.text("fastformer.message.operation_too_large_run")
          );
       } else {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.operation_phase", task.phaseName()));
+         context.actionBar(switch (result) {
+            case WAITING -> FastPlaceMessages.text("fastformer.message.world_write_waiting");
+            case WORLD_UNLOADED -> FastPlaceMessages.text("fastformer.message.history_dimension_failed");
+            default -> FastPlaceMessages.text("fastformer.message.operation_phase", task.phaseName());
+         });
       }
       } catch (RuntimeException | OutOfMemoryError exception) {
-         // Preserve the failed tick in latency metrics before transferring
-         // ownership to recovery. This keeps adaptive scheduling evidence
-         // available even when the task exits through an exception.
-         if (budget != null) {
-            task.recordBatch(budget.consumed(), System.nanoTime() - batchStartedAt);
-         }
          boolean retryableWorkspaceFailure = !task.hasWrites();
          TaskCancellationResult handover = tasks.transfer(context, task, history::acceptTransferredTask);
          LOGGER.error("FastFormer operation task failed for {} (handover={})", owner, handover, exception);
@@ -756,14 +721,14 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       }
    }
 
-   private void enqueueTask(ServerPlayer player, WorldOperationTask task) {
+   private void enqueueTask(ServerPlayer player, WorldTask task) {
       tasks.put(player.getUUID(), task);
       WorldTaskContext context = new WorldTaskContext(player.getServer(), player.getUUID());
       HistoryService history = HistorySystem.of(player);
       context.withResume(() -> resumeTask(context, task, history)).enqueueResume();
    }
 
-   private void resumeTask(WorldTaskContext context, WorldOperationTask task, HistoryService history) {
+   private void resumeTask(WorldTaskContext context, WorldTask task, HistoryService history) {
       if (!runtime.closed() && tasks.get(context.owner()) == task
          && !tasks.handingOver(context.owner())
          && context.writesAllowed()
@@ -779,7 +744,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    }
 
    private net.minecraft.network.chat.MutableComponent operationFailureStatus(
-      WorldOperationTask task, boolean recoveryCreated
+      WorldTask task, boolean recoveryCreated
    ) {
       String key = recoveryCreated
          ? "fastformer.message.operation_failed_rollback"
@@ -807,10 +772,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    /** Drops server-bound operation sessions/tasks before a world instance is replaced. */
    @Override public void onDiscard() {
       try {
-         tasks.close(task -> {
-            try { task.cancelJournalPreparation(); }
-            finally { task.releaseMemoryReservation(); }
-         });
+         tasks.close();
       } finally {
          sessions.clear();
       }
@@ -871,7 +833,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       if (owner == null || transferId == null) {
          return false;
       }
-      WorldOperationTask task = tasks.get(owner);
+      WorldTask task = tasks.get(owner);
       return task instanceof io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask workspace
          && workspace.transferId().equals(transferId);
    }

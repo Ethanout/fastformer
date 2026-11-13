@@ -121,7 +121,7 @@ class ManagerClearServerResourceTest {
             runtime.close();
             assertFalse(quickShape.taskActive(owner));
          } else {
-            operation.tasks.put(owner, (io.github.fastformer.fastplace.task.WorldOperationTask)task);
+            operation.tasks.put(owner, (io.github.fastformer.server.task.WorldTask)task);
             runtime.close();
             assertFalse(operation.taskActive(owner));
          }

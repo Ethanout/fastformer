@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
@@ -9,7 +11,7 @@ import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
@@ -60,10 +62,10 @@ public final class OperationTaskGameTests {
          }
          SelectionOperationTask task = active[0];
          helper.assertTrue(task.acquireLease(context[0]), "waiting for selection write lease");
-         OperationTaskResult result = task.tick(context[0], level, WorldTaskBudget.forServerTick());
-         helper.assertTrue(result == OperationTaskResult.ACTIVE || result == OperationTaskResult.COMPLETE,
+         TaskStep result = TaskRuntimeFixtures.tickBatch(task, context[0], level, WorldTaskBudget.forServerTick());
+         helper.assertTrue(result == TaskStep.ACTIVE || result == TaskStep.COMPLETE,
             "selection failed at " + task.phaseName() + " with " + result + " for " + count + " blocks");
-         helper.assertTrue(result == OperationTaskResult.COMPLETE,
+         helper.assertTrue(result == TaskStep.COMPLETE,
             "waiting for selection commit: " + count + " cells, " + task.phaseName() + ", " + task.metricsSummary());
          for (int index = 0; index < count; index++) {
             BlockPos pos = origin.offset(index % width, 0, index / width);
@@ -107,10 +109,10 @@ public final class OperationTaskGameTests {
 
       helper.succeedWhen(() -> {
          helper.assertTrue(task.acquireLease(context), "waiting for overlapping move write lease");
-         OperationTaskResult result = task.tick(context, level, WorldTaskBudget.forServerTick());
-         helper.assertTrue(result == OperationTaskResult.ACTIVE || result == OperationTaskResult.COMPLETE,
+         TaskStep result = TaskRuntimeFixtures.tickBatch(task, context, level, WorldTaskBudget.forServerTick());
+         helper.assertTrue(result == TaskStep.ACTIVE || result == TaskStep.COMPLETE,
             "overlapping move failed at " + task.phaseName() + " with " + result);
-         helper.assertTrue(result == OperationTaskResult.COMPLETE,
+         helper.assertTrue(result == TaskStep.COMPLETE,
             "waiting for overlapping move commit: " + task.phaseName() + ", " + task.metricsSummary());
          helper.assertTrue(level.getBlockState(origin).isAir(), "overlapping move did not clear its first source");
          for (int index = 1; index <= count; index++) {

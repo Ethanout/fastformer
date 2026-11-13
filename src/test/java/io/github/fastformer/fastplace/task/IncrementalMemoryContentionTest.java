@@ -10,6 +10,7 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
@@ -86,7 +87,7 @@ class IncrementalMemoryContentionTest {
          WorldOperationMemory.snapshotAdmission(1L, CAPTURED_NBT_BYTES)
       );
       try {
-         assertEquals(OperationTaskResult.ACTIVE, operationResult(invoke(task, "finishScan")));
+         assertEquals(TaskStep.ACTIVE, operationResult(invoke(task, "finishScan")));
          assertEquals("SCAN_COMPLETE", field(task, "phase").toString());
          assertEquals(1, snapshotList(task).size());
          assertEquals(1, task.transaction().expectedCount());
@@ -120,7 +121,7 @@ class IncrementalMemoryContentionTest {
       snapshotList(selection).add(snapshot(BlockPos.ZERO));
       setField(selection, "blockEntityReserve", Long.MAX_VALUE);
       setEnumField(selection, "phase", "SCAN_COMPLETE");
-      assertEquals(OperationTaskResult.MEMORY_UNSAFE, operationResult(invoke(selection, "finishScan")));
+      assertEquals(TaskStep.MEMORY_UNSAFE, operationResult(invoke(selection, "finishScan")));
    }
 
    @Test
@@ -172,11 +173,11 @@ class IncrementalMemoryContentionTest {
 
       MemoryReservation blocker = fillReservationLimit(commitAdmission(task.transaction()));
       try {
-         assertEquals(OperationTaskResult.ACTIVE, invoke(task, "prepareCommit"));
+         assertEquals(TaskStep.ACTIVE, invoke(task, "prepareCommit"));
          assertNull(task.operationCommit());
 
          blocker.close();
-         assertEquals(OperationTaskResult.COMPLETE, awaitOperationCommit(task, "prepareCommit"));
+         assertEquals(TaskStep.COMPLETE, awaitOperationCommit(task, "prepareCommit"));
          assertNotNull(task.operationCommit());
          task.releaseMemoryReservation();
          task.operationCommit().completion().join();
@@ -238,7 +239,7 @@ class IncrementalMemoryContentionTest {
       ClientWorkspacePlacementTask task = workspaceTask();
       prepareHardRejectedTransaction(task.transaction());
 
-      assertEquals(OperationTaskResult.MEMORY_UNSAFE, invoke(task, "prepareCommit"));
+      assertEquals(TaskStep.MEMORY_UNSAFE, invoke(task, "prepareCommit"));
       assertNull(task.operationCommit());
       assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
    }
@@ -303,10 +304,10 @@ class IncrementalMemoryContentionTest {
       return task.prepareCommit();
    }
 
-   private static OperationTaskResult awaitOperationCommit(LeasedJournaledTask task, String method) throws Exception {
+   private static TaskStep awaitOperationCommit(LeasedJournaledTask task, String method) throws Exception {
       invoke(task, method);
       task.operationCommit().completion().join();
-      return (OperationTaskResult)invoke(task, method);
+      return (TaskStep)invoke(task, method);
    }
 
    private static JournalPreparation awaitJournalCommit(LeasedJournaledTask task, String method) throws Exception {
@@ -344,8 +345,8 @@ class IncrementalMemoryContentionTest {
       return (List<ReversibleBlockSnapshot>)field(task, "source");
    }
 
-   private static OperationTaskResult operationResult(Object optional) {
-      return (OperationTaskResult)((Optional<?>)optional).orElseThrow();
+   private static TaskStep operationResult(Object optional) {
+      return (TaskStep)((Optional<?>)optional).orElseThrow();
    }
 
    private static Class<?> serverLevelClass() throws ClassNotFoundException {

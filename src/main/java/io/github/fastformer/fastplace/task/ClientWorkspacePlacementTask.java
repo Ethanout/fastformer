@@ -8,6 +8,7 @@ import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
@@ -40,7 +41,7 @@ import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 /** Validates and atomically applies a fully client-resolved workspace package. */
-public final class ClientWorkspacePlacementTask extends LeasedJournaledTask implements WorldOperationTask {
+public final class ClientWorkspacePlacementTask extends LeasedJournaledTask {
    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
    private WorkspaceFailure failureReason = WorkspaceFailure.UNKNOWN;
    public WorkspaceFailure failureReason() { return failureReason; }
@@ -101,26 +102,26 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
    }
 
    @Override
-   public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
+   protected TaskStep tickBody(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
       if (tickBarrier == null && !desired.isEmpty()) tickBarrier = new WorkspaceTickBarrier(level, desired.keySet());
       this.metrics.phase(phaseMetric());
       while (budget.tryConsume()
          || (phase == Phase.WRITE && !writable.isEmpty() && !hasWrites() && budget.tryConsumeFirstWrite())) {
          if (!context.writesAllowed()) {
-            return OperationTaskResult.FAILED;
+            return TaskStep.FAILED;
          }
          switch (phase) {
             case VALIDATE -> {
                CaptureStep capture = captureNext(level);
                if (capture == CaptureStep.RETRY) {
-                  return OperationTaskResult.ACTIVE;
+                  return TaskStep.ACTIVE;
                }
                if (capture != CaptureStep.ADVANCED) {
                   return switch (capture) {
-                     case EMPTY -> OperationTaskResult.EMPTY;
-                     case EXCEEDED -> OperationTaskResult.EXCEEDED;
-                     case REJECTED -> OperationTaskResult.MEMORY_UNSAFE;
-                     case FAILED -> OperationTaskResult.FAILED;
+                     case EMPTY -> TaskStep.EMPTY;
+                     case EXCEEDED -> TaskStep.EXCEEDED;
+                     case REJECTED -> TaskStep.MEMORY_UNSAFE;
+                     case FAILED -> TaskStep.FAILED;
                      default -> throw new IllegalStateException("Unexpected workspace capture state " + capture);
                   };
                }
@@ -134,10 +135,10 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
             case JOURNAL -> {
                JournalPreparation preparation = prepareJournal(context);
                if (preparation == JournalPreparation.PENDING) {
-                  return OperationTaskResult.ACTIVE;
+                  return TaskStep.ACTIVE;
                }
                if (preparation == JournalPreparation.FAILED) {
-                  return OperationTaskResult.JOURNAL_FAILED;
+                  return TaskStep.JOURNAL_FAILED;
                }
                if (journalSegments.count() == transaction.expectedCount()) phase = Phase.WRITE;
             }
@@ -155,7 +156,7 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
                   continue;
                }
                if (!write(level, writable.removeFirst())) {
-                  return OperationTaskResult.FAILED;
+                  return TaskStep.FAILED;
                }
             }
             case FINALIZE -> {
@@ -171,7 +172,7 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
                Optional<ReversibleBlockSnapshot> actual = ReversibleBlockSnapshot.capture(level, position);
                if (actual.isEmpty()) {
                   failedTargetPositions.add(position.immutable());
-                  return OperationTaskResult.FAILED;
+                  return TaskStep.FAILED;
                }
                // The write path validates the target synchronously. Capture
                // the final world state so later world ticks do not turn a
@@ -183,13 +184,13 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
             }
          }
       }
-      return OperationTaskResult.ACTIVE;
+      return TaskStep.ACTIVE;
    }
 
    private CaptureStep captureNext(ServerLevel level) {
       if (desired.isEmpty() && !captureComplete) {
-         OperationTaskResult composed = composeDesired(level);
-         if (composed != OperationTaskResult.ACTIVE) {
+         TaskStep composed = composeDesired(level);
+         if (composed != TaskStep.ACTIVE) {
             return switch (composed) {
                case EMPTY -> CaptureStep.EMPTY;
                case EXCEEDED -> CaptureStep.EXCEEDED;
@@ -232,7 +233,7 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
       return CaptureStep.ADVANCED;
    }
 
-   private OperationTaskResult composeDesired(ServerLevel level) {
+   private TaskStep composeDesired(ServerLevel level) {
       OperationWorkspaceValidator.Result validated = OperationWorkspaceValidator.validate(
          plan,
          maxPlacement
@@ -240,21 +241,21 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
       if (!validated.success()) {
          invalidPartIds = validated.invalidPartIds();
          reportFailure(WorkspaceFailure.INVALID_PLAN, null);
-         return OperationTaskResult.FAILED;
+         return TaskStep.FAILED;
       }
       LinkedHashMap<BlockPos, ClientBlockSnapshot> composed = composeDesiredSnapshots(validated);
       if (composed.isEmpty()) {
          captureComplete = true;
-         return OperationTaskResult.EMPTY;
+         return TaskStep.EMPTY;
       }
       if (composed.size() > maxPlacement) {
-         return OperationTaskResult.EXCEEDED;
+         return TaskStep.EXCEEDED;
       }
       metrics.targetCount(composed.size());
       desired = Collections.unmodifiableMap(composed);
       tickBarrier = new WorkspaceTickBarrier(level, desired.keySet());
       captureIterator = desired.entrySet().iterator();
-      return OperationTaskResult.ACTIVE;
+      return TaskStep.ACTIVE;
    }
 
    static LinkedHashMap<BlockPos, ClientBlockSnapshot> composeDesiredSnapshots(
@@ -408,24 +409,24 @@ public final class ClientWorkspacePlacementTask extends LeasedJournaledTask impl
       });
    }
 
-   private OperationTaskResult prepareCommit() {
+   private TaskStep prepareCommit() {
       if (operationCommit == null) {
          MemoryReservationAttempt commitReservation = reserveCommitMemory();
          if (commitReservation == MemoryReservationAttempt.RETRY) {
-            return OperationTaskResult.ACTIVE;
+            return TaskStep.ACTIVE;
          }
          if (commitReservation == MemoryReservationAttempt.REJECTED) {
-            return OperationTaskResult.MEMORY_UNSAFE;
+            return TaskStep.MEMORY_UNSAFE;
          }
          operationCommit = WorldOperationCommit.begin(dimension, transaction, journalPreparation.journal(), journalPreparation.executor());
       }
       JournalPreparation preparation = operationCommit.poll();
       if (preparation == JournalPreparation.PENDING) {
-         return OperationTaskResult.ACTIVE;
+         return TaskStep.ACTIVE;
       }
       return preparation == JournalPreparation.READY
-         ? OperationTaskResult.COMPLETE
-         : OperationTaskResult.FAILED;
+         ? TaskStep.COMPLETE
+         : TaskStep.FAILED;
    }
 
    private void releaseWriteStagingForCommit() {

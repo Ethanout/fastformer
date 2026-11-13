@@ -51,7 +51,7 @@ class PlacementTaskTest {
 
       assertTrue(task.prepare());
       assertEquals(0, task.total());
-      task.cancel();
+      task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
    }
 
    @Test
@@ -83,7 +83,7 @@ class PlacementTaskTest {
 
       assertTrue(MemoryReservation.reservedBytes() > baseline);
       assertTrue(task.prepare());
-      task.cancel();
+      task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
       assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 
@@ -113,7 +113,7 @@ class PlacementTaskTest {
 
       try {
          assertTrue(started.await(5, TimeUnit.SECONDS));
-         task.cancel();
+         task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
 
          assertFalse(worker.isCancelled());
          assertNull(generationFuture(task));
@@ -146,7 +146,7 @@ class PlacementTaskTest {
       );
 
       try {
-         task.cancelForRecovery();
+         task.cancel(io.github.fastformer.server.task.CancelReason.RECOVERY);
 
          assertNull(generationFuture(task));
          assertFalse(task.failed());
@@ -180,7 +180,7 @@ class PlacementTaskTest {
          assertTrue(task.prepare());
 
          assertTrue(MemoryReservation.reservedBytes() > baseline);
-         task.cancel();
+         task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
          assertEquals(baseline, MemoryReservation.reservedBytes());
       } finally {
          reservation.close();
@@ -229,7 +229,7 @@ class PlacementTaskTest {
       assertEquals(baseline, MemoryReservation.reservedBytes());
       assertTrue(task.ensureMemoryReservation());
       assertTrue(MemoryReservation.reservedBytes() > baseline);
-      task.cancel();
+      task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
       assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 
@@ -246,7 +246,7 @@ class PlacementTaskTest {
       task.releaseGenerationState();
 
       assertFalse(task.blocks().hasNext());
-      task.cancel();
+      task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
    }
 
    @Test

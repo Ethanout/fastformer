@@ -129,6 +129,13 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (text =~ /\bWorldTaskFeature\b/).find()) {
                 violations.add("Retired scheduler and feedback facade: ${path}")
             }
+            if (main && (text =~ /\b(?:WorldWriteTask|WorldOperationTask|OperationTaskResult)\b/).find()) {
+                violations.add("Retired split world task contract: ${path}")
+            }
+            if (main && source.name in ['QuickShapeSystem.java', 'OperationSystem.java'] &&
+                    (text =~ /(?:\bWorldTaskBudget\b|task\.(?:prepareJournal|validateSnapshots|finalizeSnapshots|recordBatch|place)\s*\()/).find()) {
+                violations.add("Workflow owns task batch scheduling instead of advancing its queue: ${path}")
+            }
             if (main && packageName == 'io.github.fastformer.fastplace.task' &&
                     source.name in ['PlacementTask.java', 'SelectionOperationTask.java', 'ClientWorkspacePlacementTask.java']) {
                 if (!(text =~ /extends\s+LeasedJournaledTask\b/).find() ||

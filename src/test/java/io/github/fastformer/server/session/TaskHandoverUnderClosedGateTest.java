@@ -13,10 +13,10 @@ import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
-import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.WorldOperationTask;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
@@ -215,7 +215,7 @@ class TaskHandoverUnderClosedGateTest {
    }
 
    /** A task that counts handovers and runs no world work. */
-   private static final class CountingOperationTask implements WorldOperationTask {
+   private static final class CountingOperationTask implements WorldTask {
       private final WorldChangeTransaction transaction = new WorldChangeTransaction();
       private final AtomicInteger transfers = new AtomicInteger();
       private final AtomicInteger ticks = new AtomicInteger();
@@ -243,9 +243,9 @@ class TaskHandoverUnderClosedGateTest {
       }
 
       @Override
-      public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
+      public TaskStep tick(WorldTaskContext context) {
          this.ticks.incrementAndGet();
-         return OperationTaskResult.ACTIVE;
+         return TaskStep.ACTIVE;
       }
 
       @Override
@@ -254,7 +254,7 @@ class TaskHandoverUnderClosedGateTest {
       }
 
       @Override
-      public void cancelJournalPreparation() {
+      public void cancel(io.github.fastformer.server.task.CancelReason reason) {
       }
 
       @Override
@@ -286,8 +286,8 @@ class TaskHandoverUnderClosedGateTest {
       }
 
       @Override
-      public WorldOperationCommit operationCommit() {
-         return null;
+      public java.util.Optional<WorldChangeBatch> preparedBatch() {
+         return java.util.Optional.empty();
       }
 
       @Override
@@ -306,11 +306,13 @@ class TaskHandoverUnderClosedGateTest {
       }
 
       @Override
-      public void markWorldUnloaded() {
+      public void releaseCommittedTransactionState() {
       }
 
       @Override
       public void markComplete() {
       }
+
+      @Override public void releaseMemoryReservation() {}
    }
 }

@@ -14,6 +14,7 @@ import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.world.WorldWriteSideEffectGuard;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
@@ -591,14 +592,25 @@ public final class PlacementTask extends LeasedJournaledTask {
       return Math.max(0, this.validationRemaining);
    }
 
-   public void cancel() {
-      cancelForRecovery();
-      releaseMemoryReservation();
+   @Override
+   protected TaskStep prepareTick(WorldTaskContext context) {
+      return PlacementTaskSteps.prepare(this);
    }
 
-   /** Stops task activity while retaining its reservation for recovery capture. */
-   public void cancelForRecovery() {
-      cancelJournalPreparation();
+   @Override
+   public MemoryReservationAttempt reserveWorkingSet() {
+      if (ensureMemoryReservation()) return MemoryReservationAttempt.ACQUIRED;
+      return memoryUnsafe ? MemoryReservationAttempt.REJECTED : MemoryReservationAttempt.RETRY;
+   }
+
+   @Override
+   protected WorldTaskBudget createBudget() {
+      return WorldTaskBudget.forSmallOperation(memoryThrottled(), total(), previousBatchCells(), previousBatchNanos());
+   }
+
+   @Override
+   protected TaskStep tickBody(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
+      return PlacementTaskSteps.advance(this, context, level, budget);
    }
 
    @Override

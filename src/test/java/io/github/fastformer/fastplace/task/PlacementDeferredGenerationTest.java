@@ -43,7 +43,7 @@ class PlacementDeferredGenerationTest {
          assertFalse(task.waitingForGenerationMemory());
       } finally {
          blocker.close();
-         task.cancel();
+         task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
       }
       awaitReservedBytes(baseline);
    }
@@ -60,7 +60,7 @@ class PlacementDeferredGenerationTest {
       }, 1L);
       try {
          assertFalse(task.prepare());
-         task.cancel();
+         task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
          blocker.close();
 
          assertFalse(task.waitingForGenerationMemory());
@@ -68,7 +68,7 @@ class PlacementDeferredGenerationTest {
          assertEquals(baseline, MemoryReservation.reservedBytes());
       } finally {
          blocker.close();
-         task.cancel();
+         task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
       }
    }
 
@@ -87,14 +87,14 @@ class PlacementDeferredGenerationTest {
          assertTrue(started.await(5, TimeUnit.SECONDS));
          assertTrue(MemoryReservation.reservedBytes() > baseline);
 
-         task.cancel();
+         task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
          assertTrue(MemoryReservation.reservedBytes() > baseline);
 
          finish.countDown();
          awaitReservedBytes(baseline);
       } finally {
          finish.countDown();
-         task.cancel();
+         task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
       }
    }
 

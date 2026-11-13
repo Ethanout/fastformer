@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.world;
 
+import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
@@ -9,7 +11,7 @@ import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -58,8 +60,8 @@ public final class TaskFailureRecoveryGameTests {
       helper.succeedWhen(() -> {
          if (!recovering[0]) {
             helper.assertTrue(task.acquireLease(context), "waiting for overlapping move lease");
-            OperationTaskResult result = task.tick(context, level, oneCellBudget());
-            helper.assertTrue(result == OperationTaskResult.ACTIVE, "overlapping move ended before cancellation: " + result);
+            TaskStep result = TaskRuntimeFixtures.tickBatch(task, context, level, oneCellBudget());
+            helper.assertTrue(result == TaskStep.ACTIVE, "overlapping move ended before cancellation: " + result);
             if (task.transaction().beforeCount() < 1) {
                helper.assertTrue(false, "waiting for first source clear");
             }
@@ -103,8 +105,8 @@ public final class TaskFailureRecoveryGameTests {
       helper.succeedWhen(() -> {
          if (!recovering[0]) {
             helper.assertTrue(task.acquireLease(context), "waiting for workspace failure-test lease");
-            OperationTaskResult result = task.tick(context, level, oneCellBudget());
-            helper.assertTrue(result == OperationTaskResult.ACTIVE || result == OperationTaskResult.FAILED,
+            TaskStep result = TaskRuntimeFixtures.tickBatch(task, context, level, oneCellBudget());
+            helper.assertTrue(result == TaskStep.ACTIVE || result == TaskStep.FAILED,
                "workspace ended unexpectedly before recovery: " + result);
             int writes = task.transaction().beforeCount();
             if (writes < 2) {
@@ -120,7 +122,7 @@ public final class TaskFailureRecoveryGameTests {
                level.setBlock(externalPending[0], Blocks.EMERALD_BLOCK.defaultBlockState(), 2);
                helper.assertTrue(false, "triggering the validated workspace conflict");
             }
-            helper.assertTrue(result == OperationTaskResult.FAILED,
+            helper.assertTrue(result == TaskStep.FAILED,
                "workspace accepted an externally changed validated target");
             helper.assertTrue(task.transaction().beforeCount() == observedWrites[0],
                "failed workspace write changed recovery ownership");

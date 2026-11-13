@@ -3,7 +3,7 @@ package io.github.fastformer.server.task;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.task.WorldWriteTask;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import java.util.ArrayDeque;
 import java.util.Map;
@@ -17,6 +17,26 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WorldTaskQueueTest {
+   @Test void onlyTheCurrentWriterCanAdvanceAndHandoverStopsFurtherTicks() {
+      var queue = new WorldTaskQueue<Writer>();
+      var context = new WorldTaskContext(null, UUID.randomUUID());
+      var old = new Writer();
+      var current = new Writer();
+      queue.put(context.owner(), old);
+      assertEquals(TaskStep.ACTIVE, queue.tick(context, old).orElseThrow());
+      assertTrue(queue.remove(context.owner(), old));
+      queue.put(context.owner(), current);
+      assertTrue(queue.tick(context, old).isEmpty());
+      assertEquals(TaskStep.ACTIVE, queue.tick(context, current).orElseThrow());
+      assertEquals(TaskCancellationResult.RECOVERY_BLOCKED,
+         queue.transfer(context, current, (ignored, writer, snapshot) -> TaskCancellationResult.RECOVERY_BLOCKED));
+      assertTrue(queue.tick(context, current).isEmpty());
+      assertEquals(1, old.ticks);
+      assertEquals(1, current.ticks);
+      queue.close();
+      assertTrue(queue.tick(context, current).isEmpty());
+   }
+
    @Test void failureBeforeExtractionKeepsTheWriterUntilRecoveryCanBeTransferred() {
       var queue = new WorldTaskQueue<Writer>();
       var context = new WorldTaskContext(null, UUID.randomUUID());
@@ -91,7 +111,7 @@ class WorldTaskQueueTest {
       first.put(owner, task);
       var owners = first.owners();
       var tasks = first.tasks();
-      first.clear();
+      first.remove(owner, task);
       assertEquals(java.util.List.of(owner), owners);
       assertEquals(java.util.List.of(task), tasks);
       assertFalse(second.containsKey(owner));
@@ -100,23 +120,45 @@ class WorldTaskQueueTest {
    @Test void closingEndsAdmissionBeforeCallbacksAndCleansEveryTaskDespiteFailures() {
       var queue = new WorldTaskQueue<Writer>();
       UUID first = UUID.randomUUID(), second = UUID.randomUUID();
-      queue.put(first, new Writer());
-      queue.put(second, new Writer());
+      var a = new Writer();
+      var b = new Writer();
+      queue.put(first, a);
+      queue.put(second, b);
       var cleaned = new AtomicInteger();
-      var failure = assertThrows(IllegalStateException.class, () -> queue.close(task -> {
+      Runnable cleanup = () -> {
          assertFalse(queue.containsKey(first));
          assertFalse(queue.containsKey(second));
          assertThrows(IllegalStateException.class, () -> queue.put(first, new Writer()));
          cleaned.incrementAndGet();
          throw new IllegalStateException("injected cleanup failure");
-      }));
+      };
+      a.onCancel = cleanup;
+      b.onCancel = cleanup;
+      var failure = assertThrows(IllegalStateException.class, queue::close);
       assertEquals(2, cleaned.get());
       assertEquals(1, failure.getSuppressed().length);
-      queue.close(task -> fail("repeated close ran cleanup twice"));
+      queue.close();
+      assertEquals(2, cleaned.get());
       assertFalse(queue.containsKey(first));
    }
 
-   private static final class Writer implements WorldWriteTask {
+   private static final class Writer implements WorldTask {
+      private Runnable onCancel = () -> {};
+      private int ticks;
+      private final io.github.fastformer.fastplace.world.WorldChangeTransaction transaction =
+         new io.github.fastformer.fastplace.world.WorldChangeTransaction();
+      @Override public TaskStep tick(WorldTaskContext context) { ticks++; return TaskStep.ACTIVE; }
+      @Override public void cancel(CancelReason reason) { assertEquals(CancelReason.SHUTDOWN, reason); onCancel.run(); }
+      @Override public String phaseName() { return "TEST"; }
+      @Override public UUID operationId() { return new UUID(0, 0); }
+      @Override public String metricsSummary() { return "test"; }
+      @Override public io.github.fastformer.fastplace.world.WorldChangeTransaction transaction() { return transaction; }
+      @Override public java.util.Optional<io.github.fastformer.server.history.entry.WorldChangeBatch> preparedBatch() { return java.util.Optional.empty(); }
+      @Override public boolean acquireLease(WorldTaskContext context) { return true; }
+      @Override public void releaseLease(WorldTaskContext context) {}
+      @Override public void releaseMemoryReservation() {}
+      @Override public void releaseCommittedTransactionState() {}
+      @Override public void markComplete() {}
       private final WorldRecoverySnapshot snapshot = new WorldRecoverySnapshot(
          new ArrayDeque<>(), Map.of(), CompletableFuture.completedFuture(null));
       private int extractions;

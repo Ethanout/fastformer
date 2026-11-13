@@ -57,7 +57,6 @@ import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -67,6 +66,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import io.github.fastformer.server.task.WorldTaskQueue;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.fill.SmartFillSystem;
 
 public final class QuickShapeSystem implements io.github.fastformer.core.lifecycle.Scoped {
@@ -868,10 +868,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
    /** Drops server-bound sessions/tasks before a world instance is replaced. */
    @Override public void onDiscard() {
       try {
-         tasks.close(task -> {
-            try { task.cancel(); }
-            finally { task.releaseMemoryReservation(); }
-         });
+         tasks.close();
       } finally {
          sessions.clear();
       }
@@ -941,196 +938,89 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
    void tickTask(WorldTaskContext context, HistoryService history) {
       UUID owner = context.owner();
       PlacementTask task = tasks.get(owner);
-      if (task == null) {
-         return;
-      }
+      if (task == null) return;
       try {
-         if (task.prepare()) {
-            if (task.generationConstraintsFailed()) {
-               tasks.remove(owner);
-               task.releaseLease(context);
-               task.releaseMemoryReservation();
-               context.chat(FastPlaceMessages.text("fastformer.message.face_generation_constraints_failed"));
-            } else if (task.failed()) {
-               settleFailedTask(context, task, history);
-               context.actionBar(FastPlaceMessages.text("fastformer.message.placement_generation_failed"));
-            } else if (task.exceededLimit()) {
-               tasks.remove(owner);
-               task.releaseLease(context);
-               context.actionBar(FastPlaceMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement()));
-            } else if (task.memoryUnsafe()) {
-               settleFailedTask(context, task, history);
-               context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
-            } else if (task.total() == 0) {
-               tasks.remove(owner);
-               task.releaseLease(context);
-               task.releaseMemoryReservation();
-               context.actionBar(FastPlaceMessages.text("fastformer.message.operation_empty"));
-            } else if (context.level(task.dimension()) == null) {
-               task.markWorldUnloaded();
-               task.releaseMemoryReservation();
-               context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
-            } else if (!task.ensureMemoryReservation()) {
-               if (task.memoryUnsafe()) {
-                  settleFailedTask(context, task, history);
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
-               } else {
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
-               }
-            } else if (!task.acquireLease(context)) {
-               context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
-            } else {
-               WorldTaskBudget budget = WorldTaskBudget.forSmallOperation(
-                  task.memoryThrottled(), task.total(), task.previousBatchCells(), task.previousBatchNanos()
-               );
-               if (!task.validateSnapshots(context.level(task.dimension()), budget)) {
-                context.actionBar(FastPlaceMessages.text("fastformer.message.placement_validating", task.validationRemaining()));
-               } else if (task.memoryUnsafe()) {
-                  settleFailedTask(context, task, history);
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
-               } else if (task.failed()) {
-                  settleFailedTask(context, task, history);
-                  LOGGER.warn(
-                     "FastFormer placement snapshot validation failed for {} ({}): {}",
-                     owner,
-                     task.operationId(),
-                     task.failureReason()
-                  );
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.placement_snapshot_validation_failed"));
-               } else {
-                ServerLevel level = context.level(task.dimension());
-               JournalPreparation journalPreparation = task.prepareJournal(context.withResume(() -> resumeTask(context, task, history)));
-               if (journalPreparation == JournalPreparation.PENDING) {
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_preparing"));
-                  return;
-               }
-               if (journalPreparation == JournalPreparation.FAILED) {
-                  settleFailedTask(context, task, history);
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_failed"));
-                  return;
-               }
-               if (task.memoryThrottled()) {
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.placement_memory_throttled"));
-               }
-               long batchStartedAt = System.nanoTime();
-               int batchStartProcessed = task.processed();
-               while (context.writesAllowed()
-                   && task.blocks().hasNext()
-                   && (budget.tryConsume() || (!task.hasWrites() && budget.tryConsumeFirstWrite()))) {
-                   BlockPos pos = task.blocks().next();
-                   task.consumed();
-                   task.place(context, level, pos);
-                  if (task.failed()) {
-                     break;
-                  }
-               }
-               task.recordBatch(task.processed() - batchStartProcessed, System.nanoTime() - batchStartedAt);
-
-               if (!context.writesAllowed()) {
-                  settleFailedTask(context, task, history);
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
-                  return;
-               }
-
-               if (task.failed()) {
-                  settleFailedTask(context, task, history);
-                  LOGGER.warn(
-                     "FastFormer placement write failed for {}: {} ({})",
-                     owner,
-                     task.failureReason(),
-                     task.metricsSummary()
-                  );
-                  context.actionBar(failureStatus(task, context.owner()));
-               } else if (task.readyToFinalize()) {
-                  if (!task.hasWrites()) {
-                     tasks.remove(owner, task);
-                     task.releaseAfterCancelledJournal(context);
-                     task.releaseMemoryReservation();
-                     task.releaseCommittedTransactionState();
-                     task.markComplete();
-                     context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", 0));
-                     return;
-                  }
-                  task.releaseGenerationState();
-                  task.resizeMemoryReservationForTransaction();
-                  if (!task.finalizeSnapshots(level, budget)) {
-                      context.actionBar(FastPlaceMessages.text("fastformer.message.placement_finalizing"));
-                      return;
-                   }
-                   if (task.failed()) {
-                      settleFailedTask(context, task, history);
-                      LOGGER.warn(
-                         "FastFormer placement finalization failed for {}: {} ({})",
-                         owner,
-                         task.failureReason(),
-                         task.metricsSummary()
-                      );
-                      context.actionBar(failureStatus(task, context.owner()));
-                      return;
-                   }
-                   JournalPreparation finalCommit = task.prepareCommit();
-                   if (finalCommit == JournalPreparation.PENDING) {
-                      context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_finalizing"));
-                      return;
-                   }
-                   if (finalCommit == JournalPreparation.FAILED) {
-                      settleFailedTask(context, task, history);
-                     context.actionBar(failureStatus(task, context.owner()));
-                   } else {
-                      JournalPreparation historyCommit = history.pollPreparedOperation(
-                         context, task.preparedBatch(), task.journal()
-                      );
-                      if (historyCommit == JournalPreparation.PENDING) {
-                         context.actionBar(FastPlaceMessages.text("fastformer.message.history_saving"));
-                         return;
-                      }
-                      if (historyCommit == JournalPreparation.FAILED) {
-                      settleFailedTask(context, task, history);
-                      context.actionBar(failureStatus(task, context.owner()));
-                      } else {
-                         tasks.remove(owner, task);
-                         task.releaseLease(context);
-                         task.releaseMemoryReservation();
-                         task.releaseCommittedTransactionState();
-                         task.markComplete();
-                         LOGGER.info("FastFormer placement operation {} finished: {}", task.operationId(), task.metricsSummary());
-                         context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
-                      }
-                  }
-               } else if (!task.snapshotsComplete()) {
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.placement_validating", task.validationRemaining()));
-               } else {
-                  context.actionBar(FastPlaceMessages.text(
-                     "fastformer.message.placement_progress", task.processed(), task.total(), task.placed()
-                  ));
-                }
-               }
+         Optional<TaskStep> advanced = tasks.tick(context.withResume(() -> resumeTask(context, task, history)), task);
+         if (advanced.isEmpty()) return;
+         TaskStep step = advanced.orElseThrow();
+         if (!step.terminal()) {
+            reportTaskProgress(context, task, step);
+            return;
+         }
+         if (step.recoveryRequired()) {
+            settleFailedTask(context, task, history);
+            LOGGER.warn("FastFormer placement {} ended with {}: {}", task.operationId(), step, task.metricsSummary());
+            context.actionBar(placementFailureStatus(task, owner, step));
+            return;
+         }
+         if (step == TaskStep.COMPLETE && task.hasWrites()) {
+            JournalPreparation historyCommit = history.pollPreparedOperation(context, task.preparedBatch(), task.journal());
+            if (historyCommit == JournalPreparation.PENDING) {
+               context.actionBar(FastPlaceMessages.text("fastformer.message.history_saving"));
+               return;
             }
-         } else if (task.waitingForGenerationMemory()) {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
+            if (historyCommit == JournalPreparation.FAILED) {
+               settleFailedTask(context, task, history);
+               context.actionBar(failureStatus(task, owner));
+               return;
+            }
+            task.releaseLease(context);
          } else {
-            ProgressiveBlockGeneration.Snapshot progress = task.generationProgress();
-            if (progress == null) {
-               context.actionBar(FastPlaceMessages.text("fastformer.message.placement_generating"));
-            } else {
-               context.actionBar(FastPlaceMessages.text(
-                  "fastformer.message.placement_generation_progress",
-                  progress.scanned(),
-                  progress.estimatedScan(),
-                  progress.generated()
-               ));
-            }
+            task.releaseAfterCancelledJournal(context);
+         }
+         tasks.remove(owner, task);
+         task.releaseMemoryReservation();
+         task.releaseCommittedTransactionState();
+         if (step == TaskStep.COMPLETE) {
+            task.markComplete();
+            LOGGER.info("FastFormer placement operation {} finished: {}", task.operationId(), task.metricsSummary());
+            context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
+         } else if (step == TaskStep.CONSTRAINTS_FAILED) {
+            context.chat(FastPlaceMessages.text("fastformer.message.face_generation_constraints_failed"));
+         } else {
+            context.actionBar(FastPlaceMessages.text("fastformer.message.operation_empty"));
          }
       } catch (RuntimeException | OutOfMemoryError exception) {
          settleFailedTask(context, task, history);
-         LOGGER.error(
-            "FastFormer placement task failed for {} and was transferred to recovery: {}",
-            owner,
-            task.metricsSummary(),
-            exception
-         );
-            context.actionBar(failureStatus(task, context.owner()));
+         LOGGER.error("FastFormer placement task failed for {}: {}", owner, task.metricsSummary(), exception);
+         context.actionBar(failureStatus(task, owner));
       }
+   }
+
+   private void reportTaskProgress(WorldTaskContext context, PlacementTask task, TaskStep step) {
+      switch (step) {
+         case WAITING -> context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
+         case WORLD_UNLOADED -> context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
+         case VALIDATING -> context.actionBar(FastPlaceMessages.text(
+            "fastformer.message.placement_validating", task.validationRemaining()));
+         case PREPARING_JOURNAL -> context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_preparing"));
+         case FINALIZING -> context.actionBar(FastPlaceMessages.text("fastformer.message.placement_finalizing"));
+         case COMMITTING -> context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_finalizing"));
+         case GENERATING -> {
+            ProgressiveBlockGeneration.Snapshot progress = task.generationProgress();
+            context.actionBar(progress == null
+               ? FastPlaceMessages.text("fastformer.message.placement_generating")
+               : FastPlaceMessages.text("fastformer.message.placement_generation_progress",
+                  progress.scanned(), progress.estimatedScan(), progress.generated()));
+         }
+         case ACTIVE -> context.actionBar(FastPlaceMessages.text(
+            "fastformer.message.placement_progress", task.processed(), task.total(), task.placed()));
+         default -> throw new IllegalArgumentException("Not a placement progress step: " + step);
+      }
+   }
+
+   private net.minecraft.network.chat.MutableComponent placementFailureStatus(PlacementTask task, UUID owner, TaskStep step) {
+      return switch (step) {
+         case EXCEEDED -> FastPlaceMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement());
+         case MEMORY_UNSAFE -> FastPlaceMessages.text("fastformer.message.operation_memory_unsafe");
+         case JOURNAL_FAILED -> FastPlaceMessages.text("fastformer.message.recovery_journal_failed");
+         case BLOCKED -> FastPlaceMessages.text("fastformer.message.recovery_journal_blocked");
+         default -> switch (task.failurePhase()) {
+            case GENERATION -> FastPlaceMessages.text("fastformer.message.placement_generation_failed");
+            case SNAPSHOT -> FastPlaceMessages.text("fastformer.message.placement_snapshot_validation_failed");
+            default -> failureStatus(task, owner);
+         };
+      };
    }
 
    public boolean undoLast(ServerPlayer player) {

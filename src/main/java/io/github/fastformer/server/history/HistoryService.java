@@ -20,7 +20,7 @@ import com.mojang.logging.LogUtils;
 import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.task.WorldWriteTask;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.text.FastPlaceMessages;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.world.WorldWriteCoordinator;
@@ -394,12 +394,12 @@ public final class HistoryService implements AutoCloseable {
     * compression. The writer's memory is released here. Its world lease stays
     * with the owner until recovery finishes or unused journal cleanup succeeds.
     */
-   public TaskCancellationResult acceptStoppedTask(WorldTaskContext context, WorldWriteTask task) {
+   public TaskCancellationResult acceptStoppedTask(WorldTaskContext context, WorldTask task) {
       return acceptTransferredTask(context, task, task.stopAndTransferRecovery());
    }
 
    public TaskCancellationResult acceptTransferredTask(
-      WorldTaskContext context, WorldWriteTask task, WorldRecoverySnapshot snapshot
+      WorldTaskContext context, WorldTask task, WorldRecoverySnapshot snapshot
    ) {
       return acceptTransferredRecovery(
          context,

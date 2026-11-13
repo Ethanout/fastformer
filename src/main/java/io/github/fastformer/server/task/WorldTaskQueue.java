@@ -2,19 +2,19 @@ package io.github.fastformer.server.task;
 
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.task.WorldWriteTask;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Consumer;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Server-thread queue retaining each task's sole recovery snapshot across rejected handovers. */
-public final class WorldTaskQueue<T extends WorldWriteTask> {
+public final class WorldTaskQueue<T extends WorldTask> {
    private static final Logger LOGGER = LoggerFactory.getLogger(WorldTaskQueue.class);
    private final Map<UUID, Entry<T>> entries = new HashMap<>();
    private boolean closed;
@@ -40,18 +40,23 @@ public final class WorldTaskQueue<T extends WorldWriteTask> {
    public boolean containsKey(UUID owner) { return entries.containsKey(owner); }
    public List<UUID> owners() { return List.copyOf(entries.keySet()); }
    public List<T> tasks() { return entries.values().stream().map(entry -> entry.task).toList(); }
-   public void clear() { entries.clear(); }
+
+   /** A delayed resume can advance only its original, still-active queue entry. */
+   public Optional<TaskStep> tick(WorldTaskContext context, T expected) {
+      Entry<T> entry = entries.get(context.owner());
+      if (closed || entry == null || entry.task != expected || entry.transferring) return Optional.empty();
+      return Optional.of(Objects.requireNonNull(expected.tick(context), "task step"));
+   }
 
    /** End admission before callbacks; one failed cleanup must not retain unrelated tasks. */
-   public void close(Consumer<? super T> cleanup) {
-      Objects.requireNonNull(cleanup, "cleanup");
+   public void close() {
       if (closed) return;
       closed = true;
       var pending = tasks();
       entries.clear();
       RuntimeException failure = null;
       for (T task : pending) {
-         try { cleanup.accept(task); }
+         try { task.cancel(CancelReason.SHUTDOWN); }
          catch (RuntimeException next) {
             if (failure == null) failure = next;
             else if (failure != next) failure.addSuppressed(next);
@@ -59,7 +64,6 @@ public final class WorldTaskQueue<T extends WorldWriteTask> {
       }
       if (failure != null) throw failure;
    }
-   public void remove(UUID owner) { entries.remove(owner); }
 
    public boolean remove(UUID owner, T expected) {
       Entry<T> entry = entries.get(owner);
@@ -97,7 +101,7 @@ public final class WorldTaskQueue<T extends WorldWriteTask> {
 
    /** Acceptance must do no throwing work after taking ownership. */
    @FunctionalInterface
-   public interface RecoveryAcceptance<T extends WorldWriteTask> {
+   public interface RecoveryAcceptance<T extends WorldTask> {
       TaskCancellationResult accept(WorldTaskContext context, T task, WorldRecoverySnapshot snapshot);
    }
 

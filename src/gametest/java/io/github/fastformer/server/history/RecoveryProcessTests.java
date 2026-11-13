@@ -1,5 +1,7 @@
 package io.github.fastformer.server.history;
 
+import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import io.github.fastformer.server.history.entry.HistoryEntry;
@@ -12,7 +14,7 @@ import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
@@ -391,7 +393,7 @@ public final class RecoveryProcessTests {
       if (!operations.workspace().acquireLease(operations.workspaceContext())) {
          return;
       }
-      OperationTaskResult result = operations.workspace().tick(
+      TaskStep result = TaskRuntimeFixtures.tickBatch(operations.workspace(),
          operations.workspaceContext(), level, oneCellBudget()
       );
       requireActiveUntilWrite("workspace", result, operations.workspace().hasWrites());
@@ -404,14 +406,14 @@ public final class RecoveryProcessTests {
       if (!operations.selection().acquireLease(operations.selectionContext())) {
          return;
       }
-      OperationTaskResult result = operations.selection().tick(
+      TaskStep result = TaskRuntimeFixtures.tickBatch(operations.selection(),
          operations.selectionContext(), level, oneCellBudget()
       );
       requireActiveUntilWrite("selection", result, operations.selection().hasWrites());
    }
 
-   private static void requireActiveUntilWrite(String name, OperationTaskResult result, boolean written) {
-      if (!written && result != OperationTaskResult.ACTIVE) {
+   private static void requireActiveUntilWrite(String name, TaskStep result, boolean written) {
+      if (!written && result != TaskStep.ACTIVE) {
          throw new IllegalStateException(name + " ended before its first write: " + result);
       }
    }

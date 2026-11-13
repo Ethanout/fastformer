@@ -1,6 +1,10 @@
 package io.github.fastformer.fastplace.task.runtime;
 
-import io.github.fastformer.fastplace.task.WorldWriteTask;
+import io.github.fastformer.server.task.WorldTask;
+import io.github.fastformer.server.task.TaskStep;
+import io.github.fastformer.server.task.CancelReason;
+import io.github.fastformer.fastplace.task.MemoryReservationAttempt;
+import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldBatchFeedback;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
@@ -16,9 +20,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.minecraft.server.level.ServerLevel;
 
 /** Owns the resources shared by every journaled block writer. Only task algorithms vary. */
-public abstract class LeasedJournaledTask implements WorldWriteTask {
+public abstract class LeasedJournaledTask implements WorldTask {
    protected final WorldOperationMetrics metrics = new WorldOperationMetrics();
    protected final WorldChangeTransaction transaction = new WorldChangeTransaction();
    protected final JournalSegments journalSegments = new JournalSegments();
@@ -28,10 +33,62 @@ public abstract class LeasedJournaledTask implements WorldWriteTask {
    protected boolean memoryThrottled;
    private final WorldBatchFeedback batchFeedback = new WorldBatchFeedback(metrics);
    private final TaskWriteLease writeLease = new TaskWriteLease();
+   private TaskStep terminalStep;
+   private boolean stopped;
 
    protected LeasedJournaledTask(WorldJournalPreparation journalPreparation) {
       this.journalPreparation = Objects.requireNonNull(journalPreparation, "journalPreparation");
    }
+
+   /** Shared admission and batch accounting; subclasses own only their algorithm. */
+   @Override
+   public final TaskStep tick(WorldTaskContext context) {
+      if (stopped) return TaskStep.CANCELLED;
+      if (terminalStep != null) return terminalStep;
+      if (!context.writesAllowed()) return remember(TaskStep.BLOCKED);
+      TaskStep preparation = prepareTick(context);
+      if (preparation != TaskStep.ACTIVE) return remember(preparation);
+      ServerLevel level = context.level(dimension());
+      if (level == null) {
+         markWorldUnloaded();
+         releaseMemoryReservation();
+         return TaskStep.WORLD_UNLOADED;
+      }
+      MemoryReservationAttempt reservation = reserveWorkingSet();
+      if (reservation == MemoryReservationAttempt.REJECTED) return remember(TaskStep.MEMORY_UNSAFE);
+      if (reservation == MemoryReservationAttempt.RETRY || !acquireLease(context)) return TaskStep.WAITING;
+      return tickBatch(context, level, createBudget());
+   }
+
+   /** Package-local batch boundary also used by deterministic task fixtures. */
+   final TaskStep tickBatch(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
+      if (stopped) return TaskStep.CANCELLED;
+      if (terminalStep != null) return terminalStep;
+      long startedAt = System.nanoTime();
+      try {
+         return remember(tickBody(context, level, budget));
+      } finally {
+         recordBatch(budget.consumed(), System.nanoTime() - startedAt);
+      }
+   }
+
+   private TaskStep remember(TaskStep step) {
+      Objects.requireNonNull(step, "task step");
+      if (step.terminal()) terminalStep = step;
+      return step;
+   }
+
+   protected TaskStep prepareTick(WorldTaskContext context) { return TaskStep.ACTIVE; }
+
+   protected WorldTaskBudget createBudget() {
+      return WorldTaskBudget.forServerTick(memoryThrottled(), previousBatchCells(), previousBatchNanos());
+   }
+
+   public MemoryReservationAttempt reserveWorkingSet() { return MemoryReservationAttempt.ACQUIRED; }
+
+   protected abstract TaskStep tickBody(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget);
+
+   public String phaseName() { return metrics.phase().name(); }
 
    public final PersistentRecoveryJournal journal() { return journalPreparation.journal(); }
    public final WorldChangeTransaction transaction() { return transaction; }
@@ -54,13 +111,20 @@ public abstract class LeasedJournaledTask implements WorldWriteTask {
       finally { writeLease.releaseAfterCancellation(journalPreparation, operationCommit); }
    }
 
-   public final void cancelJournalPreparation() {
-      try { stopTaskActivity(); }
-      finally { journalPreparation.cancel(); }
+   @Override
+   public final void cancel(CancelReason reason) {
+      Objects.requireNonNull(reason, "reason");
+      stopped = true;
+      try {
+         try { stopTaskActivity(); }
+         finally { journalPreparation.cancel(); }
+      } finally {
+         if (reason == CancelReason.SHUTDOWN) releaseMemoryReservation();
+      }
    }
 
    public final WorldRecoverySnapshot stopAndTransferRecovery() {
-      cancelJournalPreparation();
+      cancel(CancelReason.RECOVERY);
       CompletableFuture<Void> publication = operationCommit == null
          ? CompletableFuture.completedFuture(null) : operationCommit.stopForRecovery();
       return transaction.transferRecoverySnapshot(CompletableFuture.allOf(publication, journalCompletion()));

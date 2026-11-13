@@ -1,5 +1,7 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
@@ -11,10 +13,10 @@ import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
-import io.github.fastformer.fastplace.task.WorldOperationTask;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.task.WorldTaskFixtures;
 import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
@@ -129,7 +131,7 @@ public final class TaskCommitFailureGameTests {
 
       helper.succeedWhen(() -> {
          helper.assertTrue(task.acquireLease(context), "waiting for workspace write lease");
-         OperationTaskResult result = task.tick(context, level, oneCellBudget());
+         TaskStep result = TaskRuntimeFixtures.tickBatch(task, context, level, oneCellBudget());
          if (!targetChanged[0] && level.getBlockState(target).is(Blocks.GOLD_BLOCK)) {
             // Simulates a block update that removes an unsupported placement
             // after the write phase but before transaction finalization.
@@ -137,11 +139,11 @@ public final class TaskCommitFailureGameTests {
             targetChanged[0] = true;
          }
          if (!targetChanged[0]) {
-            helper.assertTrue(result == OperationTaskResult.ACTIVE, "waiting for workspace target write");
+            helper.assertTrue(result == TaskStep.ACTIVE, "waiting for workspace target write");
             helper.assertTrue(false, "workspace target write is still pending");
          }
-         if (result != OperationTaskResult.COMPLETE) {
-            helper.assertTrue(result == OperationTaskResult.ACTIVE,
+         if (result != TaskStep.COMPLETE) {
+            helper.assertTrue(result == TaskStep.ACTIVE,
                "workspace finalization stopped with " + result + " at " + task.phaseName());
             helper.assertTrue(false, "workspace finalization is still pending");
          }
@@ -180,13 +182,13 @@ public final class TaskCommitFailureGameTests {
             }
          }
       } else {
-         WorldOperationTask operation = (WorldOperationTask)task;
+         WorldTask operation = (WorldTask)task;
          helper.assertTrue(operation.acquireLease(context), "waiting for operation lease");
          // This fixture has one target, so its WAL append is complete before the first write.
          if (operation.hasWrites()) beforePublication.run();
-         OperationTaskResult result = operation.tick(context, level, oneCellBudget());
-         helper.assertTrue(result == OperationTaskResult.ACTIVE || result == OperationTaskResult.COMPLETE
-               || operation.operationCommit() != null,
+         TaskStep result = TaskRuntimeFixtures.tickBatch(operation, context, level, oneCellBudget());
+         helper.assertTrue(result == TaskStep.ACTIVE || result == TaskStep.COMPLETE
+               || task.operationCommit() != null,
             "operation failed before publication injection: " + result);
       }
    }
@@ -216,7 +218,7 @@ public final class TaskCommitFailureGameTests {
 
    private static void register(ServerLevel level, UUID owner, Object task) {
       if (task instanceof PlacementTask placement) QuickShapeSystem.of(level.getServer()).tasks.put(owner, placement);
-      else OperationSystem.of(level.getServer()).tasks.put(owner, (WorldOperationTask)task);
+      else OperationSystem.of(level.getServer()).tasks.put(owner, (WorldTask)task);
    }
 
    private static boolean active(ServerLevel level, UUID owner) {

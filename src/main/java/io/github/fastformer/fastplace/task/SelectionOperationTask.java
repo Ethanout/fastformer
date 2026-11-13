@@ -13,6 +13,7 @@ import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
 import io.github.fastformer.fastplace.world.WorldTaskContext;
 import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.world.WorldWriteSideEffectGuard;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
@@ -38,7 +39,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 /** Executes the server-side selection move or stack workflow. */
-public final class SelectionOperationTask extends LeasedJournaledTask implements WorldOperationTask {
+public final class SelectionOperationTask extends LeasedJournaledTask {
    private final AABB bounds;
    private final OperationSelectionVolume selection;
    private final OperationMode mode;
@@ -106,19 +107,19 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
    }
 
    @Override
-   public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
+   protected TaskStep tickBody(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
       this.metrics.phase(phaseMetric());
       while (budget.tryConsume() || (firstWriteReady() && budget.tryConsumeFirstWrite())) {
          if (!context.writesAllowed()) {
             failed = true;
-            return OperationTaskResult.FAILED;
+            return TaskStep.FAILED;
          }
-         Optional<OperationTaskResult> result = tickPhase(context, level);
+         Optional<TaskStep> result = tickPhase(context, level);
          if (result.isPresent()) {
             return result.orElseThrow();
          }
       }
-      return OperationTaskResult.ACTIVE;
+      return TaskStep.ACTIVE;
    }
 
    private boolean firstWriteReady() {
@@ -134,7 +135,7 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
          && !overlappingPlacementPositions.contains(source.get(clearSourceIndex).pos());
    }
 
-   private Optional<OperationTaskResult> tickPhase(WorldTaskContext context, ServerLevel level) {
+   private Optional<TaskStep> tickPhase(WorldTaskContext context, ServerLevel level) {
       return switch (phase) {
          case SCAN -> scanNext(level);
          case SCAN_COMPLETE -> finishScan();
@@ -147,13 +148,13 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
       };
    }
 
-   private Optional<OperationTaskResult> scanNext(ServerLevel level) {
+   private Optional<TaskStep> scanNext(ServerLevel level) {
       MemoryReservationAttempt currentReservation = reserveMemory(source.size(), blockEntityReserve);
       if (currentReservation == MemoryReservationAttempt.REJECTED) {
-         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+         return Optional.of(TaskStep.MEMORY_UNSAFE);
       }
       if (currentReservation == MemoryReservationAttempt.RETRY) {
-         return Optional.of(OperationTaskResult.ACTIVE);
+         return Optional.of(TaskStep.ACTIVE);
       }
       BlockPos pos = cursorPos();
       BlockState state = level.getBlockState(pos);
@@ -161,7 +162,7 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
          Optional<ReversibleBlockSnapshot> captured = ReversibleBlockSnapshot.capture(level, pos);
          if (captured.isEmpty()) {
             failed = true;
-            return Optional.of(OperationTaskResult.FAILED);
+            return Optional.of(TaskStep.FAILED);
          }
          ReversibleBlockSnapshot snapshot = captured.orElseThrow();
          metrics.snapshotCaptured();
@@ -177,10 +178,10 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
             phase = Phase.SCAN_COMPLETE;
          }
          if (capturedReservation == MemoryReservationAttempt.REJECTED) {
-            return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+            return Optional.of(TaskStep.MEMORY_UNSAFE);
          }
          if (capturedReservation == MemoryReservationAttempt.RETRY) {
-            return Optional.of(OperationTaskResult.ACTIVE);
+            return Optional.of(TaskStep.ACTIVE);
          }
       } else {
          if (!advanceCursor()) {
@@ -193,13 +194,13 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
       return finishScan();
    }
 
-   private Optional<OperationTaskResult> finishScan() {
+   private Optional<TaskStep> finishScan() {
       if (source.isEmpty()) {
-         return Optional.of(OperationTaskResult.EMPTY);
+         return Optional.of(TaskStep.EMPTY);
       }
       long copies = placementRepetitionCount();
       if (copies <= 0L || source.size() > (long)maxPlacement / copies) {
-         return Optional.of(OperationTaskResult.EXCEEDED);
+         return Optional.of(TaskStep.EXCEEDED);
       }
       plannedBlocks = (long)source.size() * copies;
       metrics.targetCount((int)Math.min(Integer.MAX_VALUE, plannedBlocks));
@@ -208,10 +209,10 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
          ? reserveJournalMemory()
          : snapshotReservation;
       if (journalReservation == MemoryReservationAttempt.REJECTED) {
-         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+         return Optional.of(TaskStep.MEMORY_UNSAFE);
       }
       if (journalReservation == MemoryReservationAttempt.RETRY) {
-         return Optional.of(OperationTaskResult.ACTIVE);
+         return Optional.of(TaskStep.ACTIVE);
       }
       indexOverlappingPlacementPositions();
       phase = clearsSource() ? Phase.JOURNAL : Phase.VALIDATE;
@@ -219,13 +220,13 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
       return Optional.empty();
    }
 
-   private Optional<OperationTaskResult> validatePhase(ServerLevel level) {
+   private Optional<TaskStep> validatePhase(ServerLevel level) {
       MemoryReservationAttempt currentReservation = reserveMemory(plannedBlocks, blockEntityReserve);
       if (currentReservation == MemoryReservationAttempt.REJECTED) {
-         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+         return Optional.of(TaskStep.MEMORY_UNSAFE);
       }
       if (currentReservation == MemoryReservationAttempt.RETRY) {
-         return Optional.of(OperationTaskResult.ACTIVE);
+         return Optional.of(TaskStep.ACTIVE);
       }
       if (pendingTargets.size() >= PersistentRecoveryJournal.segmentCapacity(journalSegments.count())) {
          phase = unjournaledCount() > 0 ? Phase.JOURNAL : Phase.PLACE;
@@ -239,20 +240,20 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
          return Optional.empty();
       }
       if (validation == ValidationStep.RETRY) {
-         return Optional.of(OperationTaskResult.ACTIVE);
+         return Optional.of(TaskStep.ACTIVE);
       }
       if (validation == ValidationStep.REJECTED) {
-         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+         return Optional.of(TaskStep.MEMORY_UNSAFE);
       }
       if (validation == ValidationStep.FAILED) {
-         return Optional.of(OperationTaskResult.FAILED);
+         return Optional.of(TaskStep.FAILED);
       }
       MemoryReservationAttempt journalReservation = reserveJournalMemory();
       if (journalReservation == MemoryReservationAttempt.REJECTED) {
-         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+         return Optional.of(TaskStep.MEMORY_UNSAFE);
       }
       if (journalReservation == MemoryReservationAttempt.RETRY) {
-         return Optional.of(OperationTaskResult.ACTIVE);
+         return Optional.of(TaskStep.ACTIVE);
       }
       validateComplete = true;
       if (unjournaledCount() > 0) {
@@ -263,13 +264,13 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
       return Optional.empty();
    }
 
-   private Optional<OperationTaskResult> prepareJournalPhase(WorldTaskContext context) {
+   private Optional<TaskStep> prepareJournalPhase(WorldTaskContext context) {
       JournalPreparation preparation = prepareJournal(context);
       if (preparation == JournalPreparation.PENDING) {
-         return Optional.of(OperationTaskResult.ACTIVE);
+         return Optional.of(TaskStep.ACTIVE);
       }
       if (preparation == JournalPreparation.FAILED) {
-         return Optional.of(OperationTaskResult.JOURNAL_FAILED);
+         return Optional.of(TaskStep.JOURNAL_FAILED);
       }
       if (clearsSource() && clearSourceIndex < source.size()) {
          phase = Phase.CLEAR;
@@ -279,7 +280,7 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
       return Optional.empty();
    }
 
-   private Optional<OperationTaskResult> clearNext(ServerLevel level) {
+   private Optional<TaskStep> clearNext(ServerLevel level) {
       if (clearSourceIndex >= source.size()) {
          phase = Phase.VALIDATE;
          return Optional.empty();
@@ -294,21 +295,21 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
          ReversibleBlockSnapshot expected = expectedCurrent(sourceBlock.pos());
          if (expected == null || !expected.matches(level, sourceBlock.pos())) {
             failed = true;
-            return Optional.of(OperationTaskResult.FAILED);
+            return Optional.of(TaskStep.FAILED);
          }
          return Optional.empty();
       }
       return setBlock(level, sourceBlock.pos(), Blocks.AIR.defaultBlockState())
          ? Optional.empty()
-         : Optional.of(OperationTaskResult.FAILED);
+         : Optional.of(TaskStep.FAILED);
    }
 
-   private Optional<OperationTaskResult> placePhase(ServerLevel level) {
+   private Optional<TaskStep> placePhase(ServerLevel level) {
       if (placeNext(level)) {
          return Optional.empty();
       }
       if (failed) {
-         return Optional.of(OperationTaskResult.FAILED);
+         return Optional.of(TaskStep.FAILED);
       }
       if (phase == Phase.JOURNAL || phase == Phase.VALIDATE) {
          return Optional.empty();
@@ -317,29 +318,29 @@ public final class SelectionOperationTask extends LeasedJournaledTask implements
       return Optional.empty();
    }
 
-   private Optional<OperationTaskResult> finalizePhase(ServerLevel level) {
+   private Optional<TaskStep> finalizePhase(ServerLevel level) {
       if (finalizeNext(level)) {
          return Optional.empty();
       }
       if (failed) {
-         return Optional.of(OperationTaskResult.FAILED);
+         return Optional.of(TaskStep.FAILED);
       }
       releaseWriteStagingForCommit();
       phase = Phase.FINAL_JOURNAL;
       return Optional.empty();
    }
 
-   private Optional<OperationTaskResult> prepareCommitPhase() {
+   private Optional<TaskStep> prepareCommitPhase() {
       JournalPreparation finalJournal = prepareCommit();
       if (finalJournal == JournalPreparation.PENDING) {
-         return Optional.of(OperationTaskResult.ACTIVE);
+         return Optional.of(TaskStep.ACTIVE);
       }
       if (finalJournal == JournalPreparation.FAILED && memoryUnsafe) {
-         return Optional.of(OperationTaskResult.MEMORY_UNSAFE);
+         return Optional.of(TaskStep.MEMORY_UNSAFE);
       }
       return Optional.of(finalJournal == JournalPreparation.READY
-         ? OperationTaskResult.COMPLETE
-         : OperationTaskResult.FAILED);
+         ? TaskStep.COMPLETE
+         : TaskStep.FAILED);
    }
 
    private boolean placeNext(ServerLevel level) {

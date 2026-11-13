@@ -17,12 +17,12 @@ import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
 import io.github.fastformer.fastplace.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.task.WorldOperationTask;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.task.WorldTaskFixtures;
 import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.server.recovery.JournalPreparation;
@@ -287,7 +287,7 @@ class TaskRecoveryHandoffTest {
       assertEquals("before", marker(HistoryTestAccess.targetSnapshots(recovery, true).getFirst()));
    }
 
-   private void assertOperationTaskTransfersRecoveryOnce(WorldOperationTask task) {
+   private void assertOperationTaskTransfersRecoveryOnce(WorldTask task) {
       UUID owner = UUID.randomUUID();
       BlockPos pos = new BlockPos(3, 4, 5);
       task.transaction().recordBefore(snapshot(pos, "before"));
@@ -328,7 +328,7 @@ class TaskRecoveryHandoffTest {
       return snapshot.blockEntity().data().getString("marker");
    }
 
-   private static final class CancellableCompressionTask implements WorldOperationTask {
+   private static final class CancellableCompressionTask implements WorldTask {
       private final ArrayDeque<ReversibleBlockSnapshot> before;
       private final Map<BlockPos, ReversibleBlockSnapshot> after;
       private final WorldChangeTransaction transaction = new WorldChangeTransaction();
@@ -353,8 +353,8 @@ class TaskRecoveryHandoffTest {
       }
 
       @Override
-      public OperationTaskResult tick(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
-         return OperationTaskResult.ACTIVE;
+      public TaskStep tick(WorldTaskContext context) {
+         return TaskStep.ACTIVE;
       }
 
       @Override
@@ -363,7 +363,7 @@ class TaskRecoveryHandoffTest {
       }
 
       @Override
-      public void cancelJournalPreparation() {
+      public void cancel(io.github.fastformer.server.task.CancelReason reason) {
       }
 
       @Override
@@ -390,8 +390,8 @@ class TaskRecoveryHandoffTest {
       }
 
       @Override
-      public WorldOperationCommit operationCommit() {
-         return this.commit;
+      public java.util.Optional<WorldChangeBatch> preparedBatch() {
+         return this.commit.batch();
       }
 
       @Override
@@ -410,7 +410,7 @@ class TaskRecoveryHandoffTest {
       }
 
       @Override
-      public void markWorldUnloaded() {
+      public void releaseCommittedTransactionState() {
       }
 
       @Override

@@ -3,6 +3,10 @@ package io.github.fastformer.fastplace.task.runtime;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
+import io.github.fastformer.fastplace.world.WorldTaskContext;
+import io.github.fastformer.fastplace.world.WorldTaskBudget;
+import io.github.fastformer.server.task.TaskStep;
+import net.minecraft.server.level.ServerLevel;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.MemoryAdmissionStatus;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
@@ -144,6 +148,7 @@ class LeasedJournaledTaskTest {
 
       private Writer(WorldJournalPreparation journal) { super(journal); }
       @Override public ResourceKey<Level> dimension() { return Level.OVERWORLD; }
+      @Override protected TaskStep tickBody(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) { return TaskStep.ACTIVE; }
 
       @Override protected void stopTaskActivity() {
          if (failStop) throw new IllegalStateException("injected activity stop failure");

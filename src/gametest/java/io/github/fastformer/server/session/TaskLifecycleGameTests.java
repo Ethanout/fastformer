@@ -10,11 +10,11 @@ import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.task.ClientWorkspacePlacementTask;
-import io.github.fastformer.fastplace.task.OperationTaskResult;
+import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.fastplace.task.PlacementTask;
 import io.github.fastformer.fastplace.task.PlacementTaskPlan;
 import io.github.fastformer.fastplace.task.SelectionOperationTask;
-import io.github.fastformer.fastplace.task.WorldOperationTask;
+import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.fastplace.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.fastplace.task.runtime.TaskRuntimeFixtures;
 import io.github.fastformer.fastplace.world.WorldTaskBudget;
@@ -85,9 +85,9 @@ public final class TaskLifecycleGameTests {
                helper.assertTrue(placement.hasWrites(), "waiting for placement first write");
                QuickShapeSystem.of(level.getServer()).tasks.put(owner, placement);
             } else {
-               WorldOperationTask operation = (WorldOperationTask)active[0];
+               WorldTask operation = (WorldTask)active[0];
                helper.assertTrue(operation.acquireLease(context[0]), "waiting for operation lease");
-               helper.assertTrue(operation.tick(context[0], level, oneCellBudget()) == OperationTaskResult.ACTIVE,
+               helper.assertTrue(TaskRuntimeFixtures.tickBatch(operation, context[0], level, oneCellBudget()) == TaskStep.ACTIVE,
                   "operation ended before dimension became unavailable");
                helper.assertTrue(operation.hasWrites(), "waiting for operation first write");
                OperationSystem.of(level.getServer()).tasks.put(owner, operation);
@@ -272,8 +272,8 @@ public final class TaskLifecycleGameTests {
       helper.succeedWhen(() -> {
          if (!cancelled[0]) {
             helper.assertTrue(task.acquireLease(context), "waiting for workspace lease");
-            OperationTaskResult result = task.tick(context, level, oneCellBudget());
-            helper.assertTrue(result == OperationTaskResult.ACTIVE, "workspace ended before cancellation: " + result);
+            TaskStep result = TaskRuntimeFixtures.tickBatch(task, context, level, oneCellBudget());
+            helper.assertTrue(result == TaskStep.ACTIVE, "workspace ended before cancellation: " + result);
             helper.assertTrue(task.hasWrites(), "waiting for first workspace write");
             assertPartialWrite(helper, level, origin, 16);
             helper.assertTrue(HistorySystem.of((context).server()).acceptStoppedTask(context, task).recoveryCreated(),
