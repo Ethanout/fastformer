@@ -6,6 +6,8 @@ import io.github.fastformer.core.command.IntentContext;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.server.settings.SettingsIntentHandlers;
+import io.github.fastformer.server.intent.quickshape.QuickShapeIntentHandlers;
+import io.github.fastformer.server.intent.selection.SelectionIntentHandlers;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Assembles the shared player command bus; handlers own their admission and business rules. */
@@ -13,6 +15,8 @@ public final class PlayerIntentSystem {
    private static final IntentBus<ServerPlayer> BUS = IntentBus.create(bus -> {
       SessionIntentHandlers.register(bus);
       GeometryIntentHandlers.register(bus);
+      QuickShapeIntentHandlers.register(bus);
+      SelectionIntentHandlers.register(bus);
       HistoryIntentHandlers.register(bus);
       SettingsIntentHandlers.register(bus);
    });

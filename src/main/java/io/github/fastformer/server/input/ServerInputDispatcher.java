@@ -8,6 +8,7 @@ import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.server.intent.PlayerIntentSystem;
 import io.github.fastformer.server.intent.SessionIntents;
 import io.github.fastformer.server.intent.HistoryIntents;
+import io.github.fastformer.server.intent.selection.SelectionIntents;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.server.gate.ServerOperationGates;
@@ -590,7 +591,7 @@ public final class ServerInputDispatcher {
          || !acceptPlacementAction(player, requestId)) {
          return;
       }
-      OperationSystem.of(player).applyConfirmed(player, copy);
+      PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, requestId, new SelectionIntents.Apply(copy));
    }
 
    /**
