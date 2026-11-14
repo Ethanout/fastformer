@@ -567,3 +567,12 @@
 - 新增帧内只解析一次、物理点击重新解析且不覆盖帧、所有者失效、空帧、失败恢复和多会话隔离测试；架构检查禁止渲染反向解析选区目标及输入调用视觉命中转发。
 - 最终 `.temp/architecture-pointer-frame-final-verified.log`：完整 `check` 与独立新目录 312 项必需 GameTest 通过，包含最终输入修正和新增测试。实际试玩存档与正式仓库配置未改动。
 - 当前只实现选区指针帧，不能视为完整 PreviewFrame；模式按键／指针、服务端模式、统一动画和透明度、完整操作树及布局迁移仍待完成。
+
+## 统一帧动画相位（2026-11-14）
+
+- 选区指针帧阶段已提交并推送：`e1b3b6f`。
+- ClientPointerFrameSystem 扩展并改名为 ClientPreviewFrameSystem：每帧一次采样 AnimationPhase，包含单调时间、扩展样式时间和蜡笔绘制帧。虚线位移、虚影呼吸、蜡笔顶点／材质 shader 和 VisualStyleContext 共用同一相位；删除独立 BoilClock。
+- 保留现有虚线速度／周期、2.4 秒呼吸、资源定义 boil_fps／boil_sheets、相邻绘制帧不重复和静态 sheet 0。稳定哈希提取到 core.math.StableHash，原蜡笔抖动与长短出头种子计算不变。
+- 纯时钟测试覆盖同绘制帧重复采样、下一帧推进、资源设置变化、静态种子、不合法时序拒绝及与原虚线／呼吸公式对照；原绘制帧范围和不重复测试迁至实际时钟。源码检查禁止恢复独立 BoilClock。
+- `.temp/architecture-animation-frame-verified.log`：完整 `check` 与独立新目录 312 项必需 GameTest 通过。实际试玩存档未清除，正式构建仓库配置未修改。
+- worldPreviewOpacity 的隐式传递、完整 PreviewFrame／PreviewMode、模式按键／指针与服务端 Mode、完整操作树和其余手册项目仍需继续完成。

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render.geometry;
 
 import net.minecraft.world.phys.Vec3;
+import static io.github.fastformer.core.math.StableHash.mix;
 import static io.github.fastformer.common.math.MinecraftVectors.dominantAxis;
 
 /** Stable long/short pairs, independent of which endpoint the caller visits first. */
@@ -44,9 +45,4 @@ record PencilStrokeEnds(double start, double end) {
       return longAtStart ? new PencilStrokeEnds(longEnd, shortEnd) : new PencilStrokeEnds(shortEnd, longEnd);
    }
 
-   private static long mix(long value) {
-      value = (value ^ (value >>> 30)) * 0xbf58476d1ce4e5b9L;
-      value = (value ^ (value >>> 27)) * 0x94d049bb133111ebL;
-      return value ^ (value >>> 31);
-   }
 }

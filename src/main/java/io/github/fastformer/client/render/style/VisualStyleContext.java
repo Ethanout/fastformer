@@ -7,7 +7,6 @@ import net.minecraft.resources.ResourceLocation;
 /** Read-only draw context. Positions and matrices remain in the caller's coordinate space. */
 public record VisualStyleContext(ResourceLocation theme, Pass pass, boolean dynamic, double timeSeconds,
    float guiScale, int framebufferWidth, int framebufferHeight) {
-   private static final long START = System.nanoTime();
 
    public enum Pass { STROKE, LINE, OCCLUDED_LINE, HALO, MODEL, MATERIAL }
 
@@ -15,7 +14,8 @@ public record VisualStyleContext(ResourceLocation theme, Pass pass, boolean dyna
       var window = Minecraft.getInstance().getWindow();
       return new VisualStyleContext(ResourceLocation.fromNamespaceAndPath("fastformer",
          GeometryPalette.theme().name().toLowerCase(java.util.Locale.ROOT)), pass, dynamic,
-         (System.nanoTime() - START) / 1.0E9, guiScaleFactor(), window.getWidth(), window.getHeight());
+         io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation().elapsedSeconds(),
+         guiScaleFactor(), window.getWidth(), window.getHeight());
    }
 
    public static float guiScaleFactor() {

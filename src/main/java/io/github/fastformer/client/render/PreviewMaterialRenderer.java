@@ -79,7 +79,7 @@ public final class PreviewMaterialRenderer {
          shader.safeGetUniform("MarkerTint").set(marker ? 1F : 0F);
          shader.safeGetUniform("HatchStrength").set(VisualThemes.value("hatch_strength", 0));
          shader.safeGetUniform("HatchScale").set(VisualThemes.value("hatch_scale", 12));
-         shader.safeGetUniform("BoilFrame").set((float)io.github.fastformer.client.render.geometry.BoilClock.sheet(dynamic));
+         shader.safeGetUniform("BoilFrame").set((float)io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation().sheet(dynamic));
          // Both themes use model depth; the line shader controls the hidden appearance.
          RenderSystem.enableDepthTest();
          RenderSystem.depthFunc(org.lwjgl.opengl.GL11.GL_LEQUAL);

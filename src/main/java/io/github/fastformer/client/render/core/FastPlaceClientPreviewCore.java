@@ -2458,13 +2458,13 @@ public final class FastPlaceClientPreviewCore {
    }
 
    static double pendingGridDashOffset() {
-      double seconds = (System.nanoTime() % 10_000_000_000L) / 1_000_000_000.0;
-      return seconds * PENDING_DASH_SPEED % SELECTION_DASH_PERIOD;
+      return io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation()
+         .dashOffset(PENDING_DASH_SPEED, SELECTION_DASH_PERIOD);
    }
 
    static float ghostBreathPulse() {
-      double phase = (System.nanoTime() % GHOST_BREATH_PERIOD_NANOS) / (double)GHOST_BREATH_PERIOD_NANOS;
-      return (float)(0.5 - Math.cos(phase * Math.PI * 2.0) * 0.5);
+      return io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation()
+         .breathPulse(GHOST_BREATH_PERIOD_NANOS);
    }
 
    private static void renderGhostOutline(

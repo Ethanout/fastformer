@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render.geometry;
 
 import net.minecraft.world.phys.Vec3;
+import static io.github.fastformer.core.math.StableHash.mix;
 
 /** Stable drawing offsets. Shared corners use the same seed on every incident edge. */
 final class BoilJitter {
@@ -28,9 +29,4 @@ final class BoilJitter {
 
    private static double signed(long seed) { return (mix(seed) >>> 11) * 0x1.0p-52 - 1; }
 
-   static long mix(long value) {
-      value = (value ^ (value >>> 30)) * 0xbf58476d1ce4e5b9L;
-      value = (value ^ (value >>> 27)) * 0x94d049bb133111ebL;
-      return value ^ (value >>> 31);
-   }
 }

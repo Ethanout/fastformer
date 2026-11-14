@@ -129,7 +129,7 @@ public final class FastPlaceClientShaders {
          var point = curve.get(i);
          shader.safeGetUniform("WidthCurve" + i).set(point.distance(), point.value(), point.tangent(), 0F);
       }
-      float frame = io.github.fastformer.client.render.geometry.BoilClock.sheet(dynamic);
+      float frame = io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation().sheet(dynamic);
       shader.safeGetUniform("BoilFrame").set(frame);
       var camera = net.minecraft.client.Minecraft.getInstance().gameRenderer.getMainCamera();
       shader.safeGetUniform("CameraRotation").set(new org.joml.Matrix4f().rotation(camera.rotation()));

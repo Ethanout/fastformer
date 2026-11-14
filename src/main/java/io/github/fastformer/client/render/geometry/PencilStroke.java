@@ -54,7 +54,7 @@ public final class PencilStroke {
          segment(pose, vertices, from, to, direction, red, green, blue, alpha, dash.at(0), dash.at(1));
          return;
       }
-      int sheet = BoilClock.sheet(dynamic);
+      int sheet = io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation().sheet(dynamic);
       double fromScale = worldPerPixel(pose, from);
       double toScale = worldPerPixel(pose, to);
       double fromJitterScale = fromScale * jitterMultiplier(pose, from);
