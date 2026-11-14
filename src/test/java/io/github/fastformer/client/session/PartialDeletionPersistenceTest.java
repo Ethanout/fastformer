@@ -1,13 +1,16 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.client.session.scope.ClientScopeId;
-
-import io.github.fastformer.testkit.ClientScopes;
+import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.session.draft.ClientOperationDraft;
+import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
+import io.github.fastformer.client.session.scope.ClientScopeId;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.testkit.ClientScopes;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
@@ -15,18 +18,17 @@ import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import static org.junit.jupiter.api.Assertions.*;
 
 class PartialDeletionPersistenceTest {
    @TempDir Path directory;
 
    @org.junit.jupiter.api.AfterEach void clearLiveFixture() {
-      var session = ClientSessionManager.instance().currentSession();
+      var session = ClientSessionSystem.instance().currentScope();
       if (session != null) { session.detachEnvironment(); session.discardSuspendedOperationDraft(); }
    }
 
    @Test void settlementPromotesOnlyTheRemainderAndCanRepeat() throws Exception {
-      var manager = ClientSessionManager.instance();
+      var manager = ClientSessionSystem.instance();
       UUID player = UUID.randomUUID(), transfer = UUID.randomUUID();
       String connection = "partial-delete-" + player;
       manager.activateScope(player, connection, "minecraft:overworld");
@@ -35,17 +37,17 @@ class PartialDeletionPersistenceTest {
       manager.forScope(key).drafts().useFile(file);
       var original = draft(transfer);
       OperationClipboardStore.save(file, ClientOperationDraftCodec.encode(original));
-      manager.currentSession().stageSuspendedOperationDraft(original);
+      manager.currentScope().stageSuspendedOperationDraft(original);
 
       assertTrue(manager.clearDraftCopies(UUID.randomUUID()).confirmed());
       assertEquals(original, ClientOperationDraftCodec.decode(OperationClipboardStore.loadStrict(file).orElseThrow(), null));
       assertTrue(manager.clearDraftCopies(transfer).confirmed());
       var expected = original.remainder().asDraft();
-      assertEquals(expected, manager.currentSession().suspendedOperationDraftData());
+      assertEquals(expected, manager.currentScope().suspendedOperationDraftData());
       assertEquals(expected, ClientOperationDraftCodec.decode(OperationClipboardStore.loadStrict(file).orElseThrow(), null));
       assertTrue(manager.clearDraftCopies(transfer).confirmed());
-      assertTrue(manager.currentSession().restoreSuspendedOperationDraft(null));
-      assertEquals(expected.selection(), manager.currentSession().selectionSession().draftState());
+      assertTrue(manager.currentScope().restoreSuspendedOperationDraft(null));
+      assertEquals(expected.selection(), manager.currentScope().selectionSession().draftState());
    }
 
    @Test void disconnectRetainsSubmissionRemainder() {

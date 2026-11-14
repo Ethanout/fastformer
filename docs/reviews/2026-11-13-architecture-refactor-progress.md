@@ -421,3 +421,10 @@
 - 仓库返回内容、失败和通知，由管理器协调暂存、恢复及玩家提示。读取不会修改实时工作区；未知回执阻止暂存，已应用回执阻止旧草稿返回。明确丢弃后的 READY 不会因回执恢复而重读。双文件持久化和队列准入仍使用原编排。
 - 驱逐按不可变草稿对象身份确认；旧保存回调不能把相等但不同对象的新草稿标为已保存。结算余量后清掉旧耐久身份，避免旧内容错误获得驱逐资格。补充迟到确认、实时工作跳过读取、未知回执等待／恢复和旧格式拒绝测试。
 - `.temp/architecture-client-draft-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过；随后删除测试专用回执覆盖入口，测试改读真实回执文件，`.temp/architecture-client-draft-final-check.log` 的完整 check 通过。OperationContext、Mode、PreviewFrame、PointerResolver 和实机验收仍未完成。实际试玩存档未清除。
+
+## 客户端会话包与公开入口（2026-11-14）
+
+- 删除 ClientSessionManager 名称，公开协调入口改为 `ClientSessionSystem`；当前对象查询改为 `currentScope`，调用者全部迁移，无兼容别名。
+- 草稿模型／Codec、回执模型／Codec／延迟保存、有界队列／NBT 辅助、提交来源／结算规则分别迁入 draft、receipt、storage、submission；纯能力测试跟随迁包，跨能力回归仍由会话层测试覆盖。共享身份 Codec 方法和队列入口只为真实跨包调用公开。
+- 整个 client.session 树纳入包容量和职责说明检查；补齐 reconnect 的包说明。首轮检查捕获该说明缺失，修正后 `.temp/architecture-client-session-layout-final-verified.log` 的完整 check 与独立新目录全量 312 项必需 GameTest 通过。
+- 作用域仓库、提交编排、OperationContext、Mode、PreviewFrame、PointerResolver 和实机验收仍需继续。实际试玩存档未清除。

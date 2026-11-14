@@ -1,4 +1,4 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.draft;
 
 /**
  * Mutually exclusive result of reading the durable operation draft of one client scope.

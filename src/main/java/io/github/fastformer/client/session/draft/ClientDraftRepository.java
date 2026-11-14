@@ -1,10 +1,7 @@
 package io.github.fastformer.client.session.draft;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
-import io.github.fastformer.client.session.ClientDraftLoadState;
-import io.github.fastformer.client.session.ClientOperationDraft;
-import io.github.fastformer.client.session.ClientOperationDraftCodec;
-import io.github.fastformer.client.session.OperationDraftSettlement;
+import io.github.fastformer.client.session.submission.OperationDraftSettlement;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;

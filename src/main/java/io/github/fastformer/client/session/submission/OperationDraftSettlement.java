@@ -1,4 +1,4 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.submission;
 
 import java.util.UUID;
 import java.util.function.BooleanSupplier;

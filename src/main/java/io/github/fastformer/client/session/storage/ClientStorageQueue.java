@@ -1,4 +1,4 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.storage;
 
 import io.github.fastformer.client.lifecycle.ClientBackgroundTasks;
 import java.util.Objects;

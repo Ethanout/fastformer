@@ -2,6 +2,7 @@ package io.github.fastformer.client.operation.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import org.junit.jupiter.api.Test;
 
 class OperationPointDragCaptureTest {
@@ -60,7 +61,7 @@ class OperationPointDragCaptureTest {
 
    private static OperationPointDragPress snapshot(int button) {
       return new OperationPointDragPress(1L, button, 10L,
-         new io.github.fastformer.client.session.OperationDraftIdentity(
+         new io.github.fastformer.client.session.draft.OperationDraftIdentity(
             io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM, java.util.List.of(), 0,
             net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, 0.0, null, null
          ), 1L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped(), 0,

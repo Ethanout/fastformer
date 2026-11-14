@@ -1,7 +1,5 @@
 package io.github.fastformer.client.session.receipt;
 
-import io.github.fastformer.client.session.OperationSubmissionReceiptCodec;
-import io.github.fastformer.client.session.OperationSubmissionReceiptStore;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;

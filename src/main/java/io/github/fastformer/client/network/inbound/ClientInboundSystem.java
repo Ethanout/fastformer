@@ -1,7 +1,5 @@
 package io.github.fastformer.client.network.inbound;
 
-import io.github.fastformer.protocol.callback.OperationCallbackScope;
-
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.ForwardDashController;
 import io.github.fastformer.client.input.HistoryConflictConfirmation;
@@ -9,13 +7,13 @@ import io.github.fastformer.client.interaction.ClientInteractionUpdates;
 import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
-import io.github.fastformer.client.session.ClientSessionManager;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.ui.FastFormerSettingsScreen;
+import io.github.fastformer.network.transport.ClientboundTransport;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.movement.ForwardDashStartPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
-import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayload;
-import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
 import io.github.fastformer.protocol.s2c.placement.IdleInteractionSnapshotPayload;
 import io.github.fastformer.protocol.s2c.placement.IdleSelectionEntryResultPayload;
 import io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload;
@@ -29,9 +27,10 @@ import io.github.fastformer.protocol.s2c.preview.SmartFillPreviewPayload;
 import io.github.fastformer.protocol.s2c.settings.FallingStatePayload;
 import io.github.fastformer.protocol.s2c.settings.InteractionUpdatesPayload;
 import io.github.fastformer.protocol.s2c.settings.OpenSettingsPayload;
+import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayload;
+import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
 import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
 import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
-import io.github.fastformer.network.transport.ClientboundTransport;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -95,19 +94,19 @@ public final class ClientInboundSystem {
    private static <P extends CustomPacketPayload> void preview(InboundPayloadQueue queue, Class<P> payloadClass,
       CustomPacketPayload.Type<P> type, Function<P, OperationCallbackScope> scope, Consumer<P> handler) {
       queue.register(payloadClass, type, (payload, connection) ->
-         ClientSessionManager.instance().acceptsPreviewCallback(scope.apply(payload), connection), handler);
+         ClientSessionSystem.instance().acceptsPreviewCallback(scope.apply(payload), connection), handler);
    }
 
    private static <P extends CustomPacketPayload> void callback(InboundPayloadQueue queue, Class<P> payloadClass,
       CustomPacketPayload.Type<P> type, Function<P, OperationCallbackScope> scope, Consumer<P> handler) {
       queue.register(payloadClass, type, (payload, connection) ->
-         ClientSessionManager.instance().acceptsCallback(scope.apply(payload), connection), handler);
+         ClientSessionSystem.instance().acceptsCallback(scope.apply(payload), connection), handler);
    }
 
    private static <P extends CustomPacketPayload> void receipt(InboundPayloadQueue queue, Class<P> payloadClass,
       CustomPacketPayload.Type<P> type, Consumer<P> handler) {
       queue.register(payloadClass, type, (payload, connection) ->
-         ClientSessionManager.instance().acceptsReceiptCallback(connection), handler);
+         ClientSessionSystem.instance().acceptsReceiptCallback(connection), handler);
    }
 
    private static void openSettings(OpenSettingsPayload payload) {

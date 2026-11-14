@@ -10,10 +10,12 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.input` | 输入会话与紧密协作的调度控制器；规则、状态和通用手势分别放在 `policy`、`state`、`gesture` |
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
-| `client.session` | 客户端会话、受限磁盘任务与草稿／提交回执存储 |
+| `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
 | `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、选区、工作区和暂存草稿 |
 | `client.session.receipt` | 作用域回执仓库：缓存、严格读取、文件保护、明确重试和驱逐条件 |
 | `client.session.draft` | 作用域草稿仓库：严格解码、回执判定、耐久版本身份、结算和文件删除 |
+| `client.session.storage` | 有界磁盘队列、主线程完成回调和共享的严格 NBT 字段读取 |
+| `client.session.submission` | 提交来源与暂存／耐久草稿分别结算的规则 |
 | `client.session.reconnect` | 有界快照等待；不持有草稿、不决定恢复行为 |
 | `client.session.lifecycle` | 客户端世界离开事件、按顺序通知清理能力并汇总失败 |
 | `client.network.inbound` | 客户端载荷类型注册、连接校验与 tick 投递 |
@@ -98,6 +100,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 每个作用域持有 `ClientReceiptRepository`，内部保存回执缓存、读取结果和文件位置。损坏或不支持的文件保持只读，失败只在实际读取时上报；只有明确重试或进入环境时的暂时失败重试才重新读取。脏回执或失败读取阻止驱逐；写盘成功前不清脏状态。
 
 `ClientDraftRepository` 持有草稿文件位置、读取状态和已保存内容的对象身份，负责严格读取、回执等待、提交归属探测、结算余量和删除。它只返回读取结果，不修改输入或选区。旧写盘回调只能确认原草稿，无法让替换后的未保存草稿变为可驱逐。管理器保留暂存／恢复协调、提示和双文件提交编排，不再用并行映射管理草稿或回执。编辑器实例化及跨仓库提交能力的进一步拆分仍未完成。
+
+旧 `ClientSessionManager` 已删除，由 `ClientSessionSystem` 提供当前作用域及协调入口，查询命名为 `currentScope`。草稿模型和 Codec 位于 draft，回执模型、Codec、缓存及重试保存位于 receipt，队列和 NBT 辅助位于 storage，来源和结算规则位于 submission；相关纯单元测试跟随被测能力迁包。整个 client.session 树执行包容量和职责说明检查，不保留旧路径别名。
 
 `ServerInputDispatcher` 从所属玩家作用域获取 `ServerInputState`。请求水位和手势是单个玩家的字段，不再使用全局 UUID 表。双击快照和扳手 token 使用同一生命周期；退出和玩家实体替换丢弃瞬时状态，换维统一重置。活动工作流、停放会话和世界任务仍由各自的仓库持有，完整服务器实例化尚未完成。
 

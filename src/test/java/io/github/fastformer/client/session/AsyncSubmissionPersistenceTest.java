@@ -1,10 +1,10 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.client.session.scope.ClientScopeId;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
+import io.github.fastformer.client.session.scope.ClientScopeId;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.workspace.model.*;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
@@ -32,7 +32,7 @@ class AsyncSubmissionPersistenceTest {
    }
 
    @Test void fullQueueRejectsSubmissionWithoutInvalidatingTheAcceptedDraft() throws Exception {
-      var manager = ClientSessionManager.instance();
+      var manager = ClientSessionSystem.instance();
       var published = new AtomicBoolean();
       OperationWorkspacePlan plan = null;
       ClientScopeId key = null;
@@ -73,7 +73,7 @@ class AsyncSubmissionPersistenceTest {
    }
 
    private void exercise(boolean cancelled) throws Exception {
-      var manager = ClientSessionManager.instance();
+      var manager = ClientSessionSystem.instance();
       UUID player = UUID.randomUUID(), transfer = UUID.randomUUID();
       String connection = "async-test-" + player;
       var key = new ClientScopeId(connection, "minecraft:overworld", player);

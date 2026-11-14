@@ -1,7 +1,5 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.client.session.scope.ClientScopeId;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -10,6 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.session.draft.ClientDraftLoadState;
+import io.github.fastformer.client.session.draft.ClientOperationDraft;
+import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
+import io.github.fastformer.client.session.scope.ClientScopeId;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import java.nio.file.Path;
 import java.util.List;
@@ -25,7 +28,7 @@ class ClientScopeReclamationTest {
 
    @Test
    void loadedDraftCanBeEvictedAndLoadedIntoANewScope() throws Exception {
-      var manager = new ClientSessionManager();
+      var manager = new ClientSessionSystem();
       UUID player = UUID.randomUUID();
       var key = new ClientScopeId(
          "reclaim-loaded", "minecraft:overworld", player);
@@ -46,7 +49,7 @@ class ClientScopeReclamationTest {
 
    @Test
    void saveCompletionReclaimsAnInactiveScopeWithoutLosingItsDraft() throws Exception {
-      var manager = new ClientSessionManager();
+      var manager = new ClientSessionSystem();
       UUID player = UUID.randomUUID();
       var key = new ClientScopeId(
          "reclaim-saved", "minecraft:overworld", player);
@@ -75,7 +78,7 @@ class ClientScopeReclamationTest {
 
    @Test
    void replacingALoadedDraftWithUnsavedWorkPreventsEviction() throws Exception {
-      var manager = new ClientSessionManager();
+      var manager = new ClientSessionSystem();
       UUID player = UUID.randomUUID();
       var key = new ClientScopeId(
          "reclaim-replaced", "minecraft:overworld", player);

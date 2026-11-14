@@ -1,4 +1,4 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -9,6 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.session.draft.ClientOperationDraft;
+import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceipt;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptCodec;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptStore;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;

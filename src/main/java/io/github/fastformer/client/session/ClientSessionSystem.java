@@ -1,11 +1,22 @@
 package io.github.fastformer.client.session;
 
 import com.mojang.logging.LogUtils;
+import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
+import io.github.fastformer.client.session.draft.ClientDraftLoadState;
+import io.github.fastformer.client.session.draft.ClientDraftRepository.ReceiptVerdict;
+import io.github.fastformer.client.session.draft.ClientOperationDraft;
+import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
+import io.github.fastformer.client.session.draft.OperationDraftIdentity;
+import io.github.fastformer.client.session.receipt.DeferredReceiptSaves;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceipt;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptCodec;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptStore;
+import io.github.fastformer.client.session.receipt.ReceiptReadState;
 import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.scope.ClientScopeId;
-import io.github.fastformer.client.session.draft.ClientDraftRepository.ReceiptVerdict;
-import io.github.fastformer.client.session.receipt.ReceiptReadState;
-import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
+import io.github.fastformer.client.session.storage.ClientStorageQueue;
+import io.github.fastformer.client.session.submission.OperationDraftSettlement;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
@@ -28,8 +39,8 @@ import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 
 /** Owns top-level client session transitions and keeps them out of event handlers. */
-public final class ClientSessionManager {
-   private static final ClientSessionManager INSTANCE = new ClientSessionManager();
+public final class ClientSessionSystem {
+   private static final ClientSessionSystem INSTANCE = new ClientSessionSystem();
    private static final Logger LOGGER = LogUtils.getLogger();
 
    private final Map<ClientScopeId, ClientScope> playerSessions = new HashMap<>();
@@ -57,15 +68,15 @@ public final class ClientSessionManager {
       }
    }
 
-   ClientSessionManager() {
+   ClientSessionSystem() {
    }
 
-   public static ClientSessionManager instance() {
+   public static ClientSessionSystem instance() {
       return INSTANCE;
    }
 
    /** Returns the most recently active player session, including across disconnects. */
-   public ClientScope currentSession() {
+   public ClientScope currentScope() {
       return current;
    }
 

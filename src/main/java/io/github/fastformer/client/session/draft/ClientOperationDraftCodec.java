@@ -1,16 +1,18 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.draft;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.workspace.selection.SelectionBaseline;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.session.storage.ClientStorageNbt;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
+import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.workspace.selection.SelectionBaseline;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -135,7 +137,7 @@ public final class ClientOperationDraftCodec {
    }
 
    /** Encodes one selection identity. Shared with the submission receipt format. */
-   static CompoundTag encodeIdentity(OperationDraftIdentity identity) {
+   public static CompoundTag encodeIdentity(OperationDraftIdentity identity) {
       CompoundTag tag = new CompoundTag();
       tag.putString("Mode", identity.mode().name());
       putBlockPositions(tag, "Points", identity.points());
@@ -149,7 +151,7 @@ public final class ClientOperationDraftCodec {
    }
 
    /** Decodes one selection identity. Shared with the submission receipt format. */
-   static OperationDraftIdentity decodeIdentity(CompoundTag tag) throws IOException {
+   public static OperationDraftIdentity decodeIdentity(CompoundTag tag) throws IOException {
       return new OperationDraftIdentity(
          enumValue(OperationSelectionMode.class, tag.getString("Mode"), "selection mode"),
          readBlockPositions(tag, "Points"),

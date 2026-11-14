@@ -1,5 +1,7 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.receipt;
 
+import io.github.fastformer.client.session.draft.OperationDraftIdentity;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.util.Objects;
 import java.util.UUID;

@@ -1,4 +1,4 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.receipt;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;

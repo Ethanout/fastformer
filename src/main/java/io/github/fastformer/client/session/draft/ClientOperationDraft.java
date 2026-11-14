@@ -1,7 +1,8 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.draft;
 
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import java.util.Objects;
 import java.util.UUID;
 

@@ -1,12 +1,5 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.client.session.scope.ClientScopeId;
-import io.github.fastformer.client.session.receipt.ReceiptReadState;
-
-import io.github.fastformer.client.session.scope.ClientScope;
-
-import io.github.fastformer.testkit.ClientScopes;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,7 +7,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.session.draft.ClientDraftLoadState;
+import io.github.fastformer.client.session.draft.ClientOperationDraft;
+import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceipt;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptCodec;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptStore;
+import io.github.fastformer.client.session.receipt.ReceiptReadState;
+import io.github.fastformer.client.session.scope.ClientScope;
+import io.github.fastformer.client.session.scope.ClientScopeId;
+import io.github.fastformer.client.session.submission.OperationDraftSettlement;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.testkit.ClientScopes;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,7 +51,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aDraftIsNotStagedWhenItsReceiptFileCannotBeRead() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-a", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       UUID transferId = UUID.randomUUID();
@@ -74,7 +79,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aDraftIsStagedWhenItsReceiptFileIsReadableAndHoldsNoEntry() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-b", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       UUID transferId = UUID.randomUUID();
@@ -94,7 +99,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aDraftWithoutASubmissionIdIsStagedEvenWhenTheReceiptFileCannotBeRead() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-c", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       Path draftFile = this.directory.resolve("draft.nbt.gz");
@@ -113,7 +118,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void anAppliedReceiptStillKeepsTheDraftOut() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-d", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       UUID transferId = UUID.randomUUID();
@@ -137,7 +142,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aFailedReceiptReadIsRetriedAtAnEnvironmentBoundary() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-e", "minecraft:overworld", UUID.randomUUID()));
       UUID playerId = session.id().playerId();
       manager.activateScope(playerId, "boundary-e", "minecraft:overworld");
@@ -147,13 +152,13 @@ class ClientReceiptBoundaryTest {
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
       assertTrue(manager.receiptStore(key).readOnly());
-      assertEquals(ReceiptReadState.RETRYABLE_FAILURE, manager.currentSession().receipts().readState());
+      assertEquals(ReceiptReadState.RETRYABLE_FAILURE, manager.currentScope().receipts().readState());
 
       // Leaving and entering the environment again is the retry boundary. The state clears,
       // so the next use reads the file again instead of caching the failure forever.
       manager.activateScope(playerId, "boundary-other", "minecraft:overworld");
       manager.activateScope(playerId, "boundary-e", "minecraft:overworld");
-      assertEquals(ReceiptReadState.NOT_LOADED, manager.currentSession().receipts().readState());
+      assertEquals(ReceiptReadState.NOT_LOADED, manager.currentScope().receipts().readState());
 
       // The file is readable now. The boundary lets the client see the applied result.
       OperationSubmissionReceiptStore receipts = new OperationSubmissionReceiptStore();
@@ -164,7 +169,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aVersionMismatchWaitsForAnExplicitRetry() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-f", "minecraft:overworld", UUID.randomUUID()));
       UUID playerId = session.id().playerId();
       manager.activateScope(playerId, "boundary-f", "minecraft:overworld");
@@ -177,21 +182,21 @@ class ClientReceiptBoundaryTest {
       manager.forScope(key).receipts().useFile(receiptFile);
 
       assertTrue(manager.receiptStore(key).readOnly());
-      assertEquals(ReceiptReadState.VERSION_INCOMPATIBLE, manager.currentSession().receipts().readState());
+      assertEquals(ReceiptReadState.VERSION_INCOMPATIBLE, manager.currentScope().receipts().readState());
 
       // A newer format does not clear at an environment boundary, because only a newer
       // client can read it. An explicit retry is still offered and still re-reads it.
       manager.activateScope(playerId, "boundary-other", "minecraft:overworld");
       manager.activateScope(playerId, "boundary-f", "minecraft:overworld");
-      assertEquals(ReceiptReadState.VERSION_INCOMPATIBLE, manager.currentSession().receipts().readState());
+      assertEquals(ReceiptReadState.VERSION_INCOMPATIBLE, manager.currentScope().receipts().readState());
       assertTrue(manager.retryCurrentReceiptLoad());
-      assertEquals(ReceiptReadState.NOT_LOADED, manager.currentSession().receipts().readState());
+      assertEquals(ReceiptReadState.NOT_LOADED, manager.currentScope().receipts().readState());
       assertTrue(manager.receiptStore(key).readOnly());
    }
 
    @Test
    void aRetryWithoutAFailureReportsNothingToDo() {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = ClientScopes.create(UUID.randomUUID());
       manager.activateScope(session.id().playerId(), "boundary-g", "minecraft:overworld");
 
@@ -203,7 +208,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aSettlementOnAnUnreadableReceiptFileIsNotReportedAsRecorded() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-h", "minecraft:overworld", UUID.randomUUID()));
       UUID transferId = UUID.randomUUID();
       manager.activateScope(session.id().playerId(), "boundary-h", "minecraft:overworld");
@@ -223,7 +228,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aSettlementWithNoReceiptAndAReadableFileIsRecorded() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-i", "minecraft:overworld", UUID.randomUUID()));
       UUID transferId = UUID.randomUUID();
       manager.activateScope(session.id().playerId(), "boundary-i", "minecraft:overworld");
@@ -239,7 +244,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void anAppliedReceiptIsRecordedWhenTheFileIsWritable() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-j", "minecraft:overworld", UUID.randomUUID()));
       UUID transferId = UUID.randomUUID();
       manager.activateScope(session.id().playerId(), "boundary-j", "minecraft:overworld");
@@ -265,7 +270,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aForgetRetriesAWriteThatAnEarlierCallLeftPending() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-k", "minecraft:overworld", UUID.randomUUID()));
       manager.activateScope(session.id().playerId(), "boundary-k", "minecraft:overworld");
       ClientScopeId key = session.id();
@@ -287,7 +292,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void anUpdateFlushesAWriteThatAnEarlierCallLeftPending() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-l", "minecraft:overworld", UUID.randomUUID()));
       manager.activateScope(session.id().playerId(), "boundary-l", "minecraft:overworld");
       ClientScopeId key = session.id();
@@ -310,7 +315,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aFailedWriteStaysPendingAndTheNextCallRetriesIt() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-m", "minecraft:overworld", UUID.randomUUID()));
       manager.activateScope(session.id().playerId(), "boundary-m", "minecraft:overworld");
       ClientScopeId key = session.id();
@@ -349,7 +354,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aRepairedReceiptLetsTheWaitedDraftArrive() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-n", "minecraft:overworld", UUID.randomUUID()));
       manager.activateScope(session.id().playerId(), "boundary-n", "minecraft:overworld");
       ClientScopeId key = session.id();
@@ -376,7 +381,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aRepairedReceiptFileIsNotReadWithoutABoundary() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-o", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       UUID transferId = UUID.randomUUID();
@@ -398,7 +403,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void anAppliedReceiptKeepsTheWaitedDraftOut() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-p", "minecraft:overworld", UUID.randomUUID()));
       manager.activateScope(session.id().playerId(), "boundary-p", "minecraft:overworld");
       ClientScopeId key = session.id();
@@ -426,7 +431,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void aDiscardedDraftDoesNotReturnWhenTheReceiptRecovers() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-q", "minecraft:overworld", UUID.randomUUID()));
       manager.activateScope(session.id().playerId(), "boundary-q", "minecraft:overworld");
       ClientScopeId key = session.id();
@@ -458,7 +463,7 @@ class ClientReceiptBoundaryTest {
 
    @Test
    void liveWorkKeepsTheDurableCopyOutOfTheEditor() throws Exception {
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope session = manager.forScope(new ClientScopeId("boundary-r", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       UUID transferId = UUID.randomUUID();

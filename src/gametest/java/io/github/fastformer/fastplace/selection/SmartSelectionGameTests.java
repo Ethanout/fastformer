@@ -1,14 +1,14 @@
 package io.github.fastformer.fastplace.selection;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.client.operation.selection.SmartSelectionEdits;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
+import io.github.fastformer.client.operation.selection.SmartSelectionEdits;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.client.session.ClientOperationDraft;
-import io.github.fastformer.client.session.ClientOperationDraftCodec;
+import io.github.fastformer.client.session.draft.ClientOperationDraft;
+import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;

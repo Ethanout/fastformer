@@ -1,4 +1,4 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.submission;
 
 /** Whether a server selection identity can confirm a submission after a reconnect. */
 public enum OperationSubmissionOrigin {

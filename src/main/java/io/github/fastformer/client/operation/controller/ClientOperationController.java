@@ -1,7 +1,5 @@
 package io.github.fastformer.client.operation.controller;
 
-import io.github.fastformer.core.math.Axis;
-
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.operation.clipboard.ClipboardCopy;
@@ -19,12 +17,14 @@ import io.github.fastformer.client.operation.workspace.ClientOperationEventStack
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
+import io.github.fastformer.client.session.ClientSessionSystem;
+import io.github.fastformer.client.session.draft.ClientOperationDraft;
+import io.github.fastformer.client.session.draft.OperationDraftIdentity;
+import io.github.fastformer.client.session.receipt.OperationSubmissionReceipt;
 import io.github.fastformer.client.session.scope.ClientScope;
-import io.github.fastformer.client.session.ClientSessionManager;
-import io.github.fastformer.client.session.OperationDraftIdentity;
-import io.github.fastformer.client.session.OperationDraftSettlement;
-import io.github.fastformer.client.session.OperationSubmissionOrigin;
-import io.github.fastformer.client.session.OperationSubmissionReceipt;
+import io.github.fastformer.client.session.submission.OperationDraftSettlement;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
+import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -127,9 +127,9 @@ public final class ClientOperationController {
    private static ClientSelectionSession selectionSession() {
       Minecraft minecraft = Minecraft.getInstance();
       if (minecraft == null || minecraft.player == null) {
-         return ClientSessionManager.instance().selectionSession();
+         return ClientSessionSystem.instance().selectionSession();
       }
-      return ClientSessionManager.instance().forCurrent(minecraft).selectionSession();
+      return ClientSessionSystem.instance().forCurrent(minecraft).selectionSession();
    }
 
    public static SourceBlockRenderMask sourceMask() {
@@ -264,14 +264,14 @@ public final class ClientOperationController {
       if (shouldHoldStoredDraft(
          RECONNECT_BOUNDARY.armed(),
          pendingReconnectPreview != null,
-         ClientSessionManager.instance().currentDraftPending()
+         ClientSessionSystem.instance().currentDraftPending()
       )) {
          if (payload.active()) {
             pendingReconnectPreview = payload;
             serverPreview = OperationPreviewPayload.inactive();
             return false;
          }
-         ClientSessionManager.instance().discardCurrentDraft();
+         ClientSessionSystem.instance().discardCurrentDraft();
       }
       if (RECONNECT_BOUNDARY.armed()) {
          RECONNECT_BOUNDARY.observeSnapshot();
@@ -281,7 +281,7 @@ public final class ClientOperationController {
             serverPreview = OperationPreviewPayload.inactive();
             return false;
          }
-         ClientSessionManager.instance().discardCurrentDraft();
+         ClientSessionSystem.instance().discardCurrentDraft();
       } else if (pendingReconnectPreview != null
          && payload.operationRevision() != pendingReconnectPreview.operationRevision()) {
          // A later revision proves the player is already working with the live
@@ -380,7 +380,7 @@ public final class ClientOperationController {
       OperationPreviewPayload pending = pendingReconnectPreview;
       if (pending == null) return false;
       pendingReconnectPreview = null;
-      ClientSessionManager.instance().restoreCurrentDraft(OperationDraftIdentity.from(pending));
+      ClientSessionSystem.instance().restoreCurrentDraft(OperationDraftIdentity.from(pending));
       // The world-session boundary cleared the source mask. A restored draft keeps world
       // source references, and the snapshot below is skipped while the workspace is not
       // empty, so the mask must be rebuilt here or a restored move shows its source again.
@@ -396,7 +396,7 @@ public final class ClientOperationController {
 
    public static void dismissReconnectRestore() {
       pendingReconnectPreview = null;
-      ClientSessionManager.instance().discardCurrentDraft();
+      ClientSessionSystem.instance().discardCurrentDraft();
    }
 
    public static boolean copySelected() {
@@ -1151,19 +1151,19 @@ public final class ClientOperationController {
             return false;
          }
          WORKSPACE_SUBMISSION.begin(transferId, identity, selectionSession().interactionOwnerId());
-         var playerSession = ClientSessionManager.instance().currentSession();
+         var playerSession = ClientSessionSystem.instance().currentScope();
          if (playerSession != null) {
             var remainder = submittedPartIds == null ? null
                : io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
             playerSession.setSubmissionRemainder(remainder == null || remainder.parts().isEmpty() && (submittedDraft || !selectionDraftActive()) ? null
-               : new io.github.fastformer.client.session.ClientOperationDraft.Remainder(
+               : new io.github.fastformer.client.session.draft.ClientOperationDraft.Remainder(
                   remainder, submittedDraft ? new ClientSelectionSession().draftState() : selectionDraft()));
          }
          workspace().setLocked(true);
          var owner = workspace();
          var connection = minecraft.getConnection();
          var level = minecraft.level;
-         boolean queued = ClientSessionManager.instance().persistSubmittedDraft(identity, origin, transferId, plan,
+         boolean queued = ClientSessionSystem.instance().persistSubmittedDraft(identity, origin, transferId, plan,
             () -> workspace() == owner && transferId.equals(WORKSPACE_SUBMISSION.transferId())
                && minecraft.getConnection() == connection && minecraft.level == level,
             submission -> {
@@ -1211,7 +1211,7 @@ public final class ClientOperationController {
       }
       ResourceLocation dimension = minecraft.level.dimension().location();
       List<OperationSubmissionReceipt> open =
-         ClientSessionManager.instance().openSubmissionReceipts();
+         ClientSessionSystem.instance().openSubmissionReceipts();
       if (open.isEmpty()) {
          return;
       }
@@ -1270,7 +1270,7 @@ public final class ClientOperationController {
       if (!payload.dimension().equals(minecraft.level.dimension().location())) {
          return;
       }
-      ClientSessionManager sessions = ClientSessionManager.instance();
+      ClientSessionSystem sessions = ClientSessionSystem.instance();
       for (OperationWorkspaceReceiptPayload.Entry entry : payload.entries()) {
          OperationSubmissionReceipt receipt = sessions.submissionReceipt(entry.transferId()).orElse(null);
          if (receipt == null || !receipt.dimension().equals(payload.dimension())) {
@@ -1337,7 +1337,7 @@ public final class ClientOperationController {
       if (transferId == null) {
          return;
       }
-      ClientSessionManager.instance().updateSubmissionReceipt(
+      ClientSessionSystem.instance().updateSubmissionReceipt(
          transferId, outcome, System.currentTimeMillis()
       );
    }
@@ -1366,7 +1366,7 @@ public final class ClientOperationController {
          // workspace goes below, because this path holds the lock on the submitted work and
          // the server already wrote it.
          OperationDraftSettlement.Applied applied =
-            ClientSessionManager.instance().settleAppliedSubmission(payload.transferId());
+            ClientSessionSystem.instance().settleAppliedSubmission(payload.transferId());
          Minecraft minecraft = Minecraft.getInstance();
          if (minecraft != null && minecraft.player != null) {
             minecraft.player.displayClientMessage(
@@ -1386,7 +1386,7 @@ public final class ClientOperationController {
          // copy goes with it, so a later reconnect cannot restore work that the server
          // already refused for good.
          settleReceipt(payload.transferId(), OperationSubmissionOutcome.FAILED_NONRETRYABLE);
-         boolean clearedDraft = ClientSessionManager.instance()
+         boolean clearedDraft = ClientSessionSystem.instance()
             .clearDraftCopies(payload.transferId()).confirmed();
          clearWorkspace();
          Minecraft minecraft = Minecraft.getInstance();
@@ -1435,7 +1435,7 @@ public final class ClientOperationController {
    }
 
    private static void clearSubmissionRemainder() {
-      var session = ClientSessionManager.instance().currentSession();
+      var session = ClientSessionSystem.instance().currentScope();
       if (session != null) session.setSubmissionRemainder(null);
    }
 
@@ -1481,17 +1481,17 @@ public final class ClientOperationController {
    /** Ends editable client state when the connection closes. */
    public static void onDisconnected() {
       clearFailedWorkspaceTargets();
-      ClientScope session = ClientSessionManager.instance().currentSession();
+      ClientScope session = ClientSessionSystem.instance().currentScope();
       if (session != null) {
          // The server preview is already inactive when the task was queued, and the
          // server may have cancelled the selection. Use the identity that the send
          // captured, so a submitted draft still reaches the disk.
-         ClientSessionManager.instance().suspendCurrentDraft(
+         ClientSessionSystem.instance().suspendCurrentDraft(
             WORKSPACE_SUBMISSION.identity(), outstandingSubmissionOrigin(), WORKSPACE_SUBMISSION.transferId()
          );
       }
       clearTransientOperationState();
-      ClientSessionManager.instance().clearUnboundInteraction();
+      ClientSessionSystem.instance().clearUnboundInteraction();
       WorkspacePreviewComposer.invalidatePartGeometry();
       WORKSPACE_SUBMISSION.clear();
       RECONNECT_BOUNDARY.arm();
@@ -1517,7 +1517,7 @@ public final class ClientOperationController {
 
    /** Ends a reconnect boundary once the snapshot that followed it has settled. */
    public static void onClientTick() {
-      ClientSessionManager.instance().drainStorageResults();
+      ClientSessionSystem.instance().drainStorageResults();
       long captureDeadline = System.nanoTime() + io.github.fastformer.client.operation.selection.SelectionBlockCapture.NANOS_PER_TICK;
       DRAFT_CAPTURE.tick(captureDeadline); RESIZE_CAPTURE.tick(captureDeadline); DELETE_CAPTURE.tick(captureDeadline);
       SMART_CAPTURE.tick(captureDeadline);

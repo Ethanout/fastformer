@@ -3,16 +3,14 @@ package io.github.fastformer.client.session.receipt;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
-import io.github.fastformer.client.session.OperationSubmissionOrigin;
-import io.github.fastformer.client.session.OperationSubmissionReceipt;
-import io.github.fastformer.client.session.OperationSubmissionReceiptCodec;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
+import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

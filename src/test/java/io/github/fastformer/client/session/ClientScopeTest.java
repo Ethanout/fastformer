@@ -1,16 +1,17 @@
 package io.github.fastformer.client.session;
 
-import io.github.fastformer.client.session.scope.ClientScope;
-import io.github.fastformer.client.session.scope.ClientScopeId;
-
-import io.github.fastformer.testkit.ClientScopes;
-
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.client.session.draft.ClientOperationDraft;
+import io.github.fastformer.client.session.draft.OperationDraftIdentity;
+import io.github.fastformer.client.session.scope.ClientScope;
+import io.github.fastformer.client.session.scope.ClientScopeId;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
+import io.github.fastformer.testkit.ClientScopes;
+import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -38,7 +39,7 @@ class ClientScopeTest {
 
    @Test
    void managerCreatesStateWithTheRequestedIdentity() {
-      var manager = new ClientSessionManager();
+      var manager = new ClientSessionSystem();
       UUID player = UUID.randomUUID();
       var a = manager.forScope(new ClientScopeId("server-a", "minecraft:overworld", player));
       var b = manager.activateScope(player, "server-b", "minecraft:the_nether");
@@ -46,7 +47,7 @@ class ClientScopeTest {
          new ClientScopeId("server-a", "minecraft:overworld", player), a.id());
       org.junit.jupiter.api.Assertions.assertEquals(
          new ClientScopeId("server-b", "minecraft:the_nether", player), b.id());
-      assertSame(b, manager.currentSession());
+      assertSame(b, manager.currentScope());
       org.junit.jupiter.api.Assertions.assertNotSame(a.inputSession(), b.inputSession());
       org.junit.jupiter.api.Assertions.assertNotSame(a.workspace(), b.workspace());
    }
@@ -161,7 +162,7 @@ class ClientScopeTest {
    @Test
    void switchingDimensionKeepsTheDraftStagedForTheLeftScope() {
       UUID playerId = UUID.randomUUID();
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       ClientScope overworld = manager.activateScope(playerId, "server-scope", "minecraft:overworld");
       overworld.workspace().addParts(java.util.List.of(
          ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
@@ -172,7 +173,7 @@ class ClientScopeTest {
       ClientScope nether = manager.activateScope(playerId, "server-scope", "minecraft:the_nether");
 
       org.junit.jupiter.api.Assertions.assertNotSame(overworld, nether);
-      org.junit.jupiter.api.Assertions.assertSame(nether, manager.currentSession());
+      org.junit.jupiter.api.Assertions.assertSame(nether, manager.currentScope());
       org.junit.jupiter.api.Assertions.assertFalse(manager.currentDraftPending());
       org.junit.jupiter.api.Assertions.assertTrue(overworld.suspendedOperationDraft());
       org.junit.jupiter.api.Assertions.assertFalse(overworld.selectionSession().hasDraft());
@@ -184,7 +185,7 @@ class ClientScopeTest {
    @Test
    void emptyInactiveScopesAreReclaimedButUnsavedDraftsStay() {
       UUID playerId = UUID.randomUUID();
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       var first = manager.activateScope(playerId, "reclaim-empty", "minecraft:overworld");
       manager.activateScope(playerId, "reclaim-empty", "minecraft:the_nether");
       var replacement = manager.activateScope(playerId, "reclaim-empty", "minecraft:overworld");
@@ -200,7 +201,7 @@ class ClientScopeTest {
    @Test
    void managerReusesTheSameSessionBoxWithinAScope() {
       UUID playerId = UUID.randomUUID();
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
 
       ClientScope first = manager.forScope(new ClientScopeId("session-reuse", "minecraft:overworld", playerId));
       ClientScope second = manager.forScope(new ClientScopeId("session-reuse", "minecraft:overworld", playerId));
@@ -212,7 +213,7 @@ class ClientScopeTest {
    void managerIsolatesSessionBoxesByConnectionAndDimension() {
       UUID playerId = UUID.randomUUID();
 
-      ClientSessionManager manager = new ClientSessionManager();
+      ClientSessionSystem manager = new ClientSessionSystem();
       manager.activateScope(playerId, "server-a", "minecraft:overworld").selectionSession()
          .addDraftPoint(new net.minecraft.core.BlockPos(1, 2, 3));
       ClientScope overworld = manager.forScope(new ClientScopeId("server-a", "minecraft:overworld", playerId));
@@ -234,19 +235,19 @@ class ClientScopeTest {
          playerId, ResourceLocation.withDefaultNamespace("overworld"), sessionId
       );
 
-      org.junit.jupiter.api.Assertions.assertTrue(ClientSessionManager.matchesOperationCallbackScope(
+      org.junit.jupiter.api.Assertions.assertTrue(ClientSessionSystem.matchesOperationCallbackScope(
          callbackScope, playerId, ResourceLocation.withDefaultNamespace("overworld"), sessionId, currentConnection, currentConnection
       ));
-      org.junit.jupiter.api.Assertions.assertFalse(ClientSessionManager.matchesOperationCallbackScope(
+      org.junit.jupiter.api.Assertions.assertFalse(ClientSessionSystem.matchesOperationCallbackScope(
          callbackScope, playerId, ResourceLocation.withDefaultNamespace("the_nether"), sessionId, currentConnection, currentConnection
       ));
-      org.junit.jupiter.api.Assertions.assertFalse(ClientSessionManager.matchesOperationCallbackScope(
+      org.junit.jupiter.api.Assertions.assertFalse(ClientSessionSystem.matchesOperationCallbackScope(
          callbackScope, playerId, ResourceLocation.withDefaultNamespace("overworld"), sessionId, currentConnection, new Object()
       ));
-      org.junit.jupiter.api.Assertions.assertFalse(ClientSessionManager.matchesOperationCallbackScope(
+      org.junit.jupiter.api.Assertions.assertFalse(ClientSessionSystem.matchesOperationCallbackScope(
          callbackScope, UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), sessionId, currentConnection, currentConnection
       ));
-      org.junit.jupiter.api.Assertions.assertFalse(ClientSessionManager.matchesOperationCallbackScope(
+      org.junit.jupiter.api.Assertions.assertFalse(ClientSessionSystem.matchesOperationCallbackScope(
          callbackScope, playerId, ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID(), currentConnection, currentConnection
       ));
    }

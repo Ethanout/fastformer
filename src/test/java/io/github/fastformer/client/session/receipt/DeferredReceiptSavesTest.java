@@ -1,7 +1,9 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.receipt;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.github.fastformer.client.session.storage.ClientStorageQueue;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.nio.file.Files;
 import java.nio.file.Path;

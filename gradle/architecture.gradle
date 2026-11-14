@@ -28,10 +28,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.server.worldwrite') ||
                     packageName.startsWith('io.github.fastformer.server.intent') ||
                     packageName.startsWith('io.github.fastformer.server.command') ||
-                    packageName.startsWith('io.github.fastformer.client.session.lifecycle') ||
-                    packageName.startsWith('io.github.fastformer.client.session.scope') ||
-                    packageName.startsWith('io.github.fastformer.client.session.receipt') ||
-                    packageName.startsWith('io.github.fastformer.client.session.draft') ||
+                    packageName.startsWith('io.github.fastformer.client.session') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -143,14 +140,14 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /(?:ClientPlayerNetworkEvent\.LoggingOut|LevelEvent\.Unload|\bPreviewSessionLifecycle\b|\.onDisconnected\s*\()/).find()) {
                 violations.add("Rendering owns client world-boundary events or cross-system cleanup: ${path}")
             }
-            if (main && (dependencies =~ /\b(?:ClientPlayerSession|SessionKey)\b/).find()) {
+            if (main && (dependencies =~ /\b(?:ClientPlayerSession|ClientSessionManager|SessionKey)\b/).find()) {
                 violations.add("Client state must carry its explicit ClientScopeId: ${path}")
             }
-            if (main && source.name == 'ClientSessionManager.java' &&
+            if (main && source.name == 'ClientSessionSystem.java' &&
                     (dependencies =~ /private\s+ClientScopeId\s+currentKey\b/).find()) {
                 violations.add("Active scope identity must come from the scope itself: ${path}")
             }
-            if (main && source.name == 'ClientSessionManager.java' &&
+            if (main && source.name == 'ClientSessionSystem.java' &&
                     (dependencies =~ /\b(?:receiptStores|receiptLoadStates|receiptFiles|draftLoadStates|draftFiles|durableDrafts)\b/).find()) {
                 violations.add("Persistent client state belongs to the scope repositories: ${path}")
             }

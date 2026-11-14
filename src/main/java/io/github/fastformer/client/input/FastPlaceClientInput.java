@@ -26,14 +26,14 @@ import io.github.fastformer.client.operation.input.SelectionPointerPress;
 import io.github.fastformer.client.operation.input.SelectionScrollAction;
 import io.github.fastformer.client.operation.input.SubmissionKeyboardSemantics;
 import io.github.fastformer.client.operation.input.WorkspaceKeyboardSemantics;
-import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.placement.ClientForcedPlacement;
+import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionController;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.render.interaction.OperationPointerKind;
 import io.github.fastformer.client.render.interaction.OperationPointerTarget;
-import io.github.fastformer.client.session.ClientSessionManager;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.ui.GeometryRadialScreen;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
@@ -72,7 +72,7 @@ public final class FastPlaceClientInput {
    private static final long MODIFIER_SHORT_PRESS_NANOS = 250_000_000L;
    static final long OPERATION_FACE_SHORT_PRESS_NANOS = 140_000_000L;
    static ClientInputSession inputSession() {
-      return ClientSessionManager.instance().inputSession();
+      return ClientSessionSystem.instance().inputSession();
    }
 
    public static ClientInputSession currentSession() { return inputSession(); }
@@ -1533,7 +1533,7 @@ public final class FastPlaceClientInput {
       Minecraft minecraft = Minecraft.getInstance();
       io.github.fastformer.client.interaction.binding.BindingConfiguration.instance().tick(System.nanoTime());
       resumeSoundAfterSuppressedPause(minecraft);
-      ClientSessionManager.instance().observePlayer(minecraft);
+      ClientSessionSystem.instance().observePlayer(minecraft);
       if (minecraft.player == null || minecraft.getConnection() == null) {
          InputWorldCleanup.clear(minecraft, inputSession());
         return;

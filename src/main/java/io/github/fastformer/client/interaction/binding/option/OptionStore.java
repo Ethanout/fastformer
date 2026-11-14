@@ -1,7 +1,7 @@
 package io.github.fastformer.client.interaction.binding.option;
 
 import com.google.gson.*;
-import io.github.fastformer.client.session.ClientStorageQueue;
+import io.github.fastformer.client.session.storage.ClientStorageQueue;
 import io.github.fastformer.core.persist.AtomicFiles;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;

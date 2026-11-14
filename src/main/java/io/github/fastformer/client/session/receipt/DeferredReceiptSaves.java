@@ -1,6 +1,7 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.receipt;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
+import io.github.fastformer.client.session.storage.ClientStorageQueue;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -10,20 +11,20 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /** Retains unsent receipt writes until admission and durable confirmation both succeed. */
-final class DeferredReceiptSaves {
+public final class DeferredReceiptSaves {
    private static final long RETRY_NANOS = TimeUnit.SECONDS.toNanos(1);
    private final ClientStorageQueue storage;
    private final LongSupplier clock;
    private final BiConsumer<Path, Exception> reportFailure;
    private final Map<Path, PendingSave> pending = new LinkedHashMap<>();
 
-   DeferredReceiptSaves(ClientStorageQueue storage, LongSupplier clock, BiConsumer<Path, Exception> reportFailure) {
+   public DeferredReceiptSaves(ClientStorageQueue storage, LongSupplier clock, BiConsumer<Path, Exception> reportFailure) {
       this.storage = Objects.requireNonNull(storage, "storage");
       this.clock = Objects.requireNonNull(clock, "clock");
       this.reportFailure = Objects.requireNonNull(reportFailure, "reportFailure");
    }
 
-   void request(Path path, OperationSubmissionReceiptStore store) {
+   public void request(Path path, OperationSubmissionReceiptStore store) {
       Path file = path.toAbsolutePath().normalize();
       Objects.requireNonNull(store, "store");
       if (!store.dirty()) return;
@@ -32,7 +33,7 @@ final class DeferredReceiptSaves {
       tick();
    }
 
-   void tick() {
+   public void tick() {
       for (var entry : java.util.List.copyOf(pending.entrySet())) {
          Path path = entry.getKey();
          PendingSave save = entry.getValue();
@@ -68,7 +69,7 @@ final class DeferredReceiptSaves {
       }
    }
 
-   int pendingCount() { return pending.size(); }
+   public int pendingCount() { return pending.size(); }
 
    private static final class PendingSave {
       final OperationSubmissionReceiptStore store;

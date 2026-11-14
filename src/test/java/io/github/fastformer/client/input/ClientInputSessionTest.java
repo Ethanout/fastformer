@@ -1,15 +1,14 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.testkit.ClientScopes;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.input.state.PointerGestureState;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.session.scope.ClientScope;
-import io.github.fastformer.client.session.ClientSessionManager;
-import io.github.fastformer.client.session.OperationSubmissionOrigin;
+import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
+import io.github.fastformer.testkit.ClientScopes;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import java.util.List;
 import java.util.UUID;
@@ -158,7 +157,7 @@ class ClientInputSessionTest {
 
    @Test
    void scopesKeepSeparateOwnersAndReentryDoesNotRestoreSubmissionWait() throws Exception {
-      var constructor = ClientSessionManager.class.getDeclaredConstructor();
+      var constructor = ClientSessionSystem.class.getDeclaredConstructor();
       constructor.setAccessible(true);
       var manager = constructor.newInstance();
       UUID playerId = UUID.randomUUID();
@@ -184,7 +183,7 @@ class ClientInputSessionTest {
 
    @Test
    void changingPlayerOrServerClearsInputWithoutDiscardingLocalWork() throws Exception {
-      var constructor = ClientSessionManager.class.getDeclaredConstructor();
+      var constructor = ClientSessionSystem.class.getDeclaredConstructor();
       constructor.setAccessible(true);
       var manager = constructor.newInstance();
       UUID playerId = UUID.randomUUID();
@@ -222,7 +221,7 @@ class ClientInputSessionTest {
    @Test
    void draftLoadWaitsForSubmissionAndPointerEvenWithoutSelectionData() throws Exception {
       var player = ClientScopes.create(UUID.randomUUID());
-      var gate = ClientSessionManager.class.getDeclaredMethod("liveWorkBlocksDraftRead", ClientScope.class);
+      var gate = ClientSessionSystem.class.getDeclaredMethod("liveWorkBlocksDraftRead", ClientScope.class);
       gate.setAccessible(true);
       assertEquals(false, gate.invoke(null, player));
       player.inputSession().routing.observe(ClientInputStateMachine.State.SELECTING);
@@ -239,21 +238,21 @@ class ClientInputSessionTest {
       assertEquals(false, gate.invoke(null, player));
    }
 
-   private static ClientScope activate(ClientSessionManager manager, UUID player, String server, String dimension)
+   private static ClientScope activate(ClientSessionSystem manager, UUID player, String server, String dimension)
       throws Exception {
-      var method = ClientSessionManager.class.getDeclaredMethod("activateScope", UUID.class, String.class, String.class);
+      var method = ClientSessionSystem.class.getDeclaredMethod("activateScope", UUID.class, String.class, String.class);
       method.setAccessible(true);
       return (ClientScope)method.invoke(manager, player, server, dimension);
    }
 
    @Test
    void unboundInputAndSelectionShareOneOwnerBeforeFirstWorld() throws Exception {
-      var constructor = ClientSessionManager.class.getDeclaredConstructor();
+      var constructor = ClientSessionSystem.class.getDeclaredConstructor();
       constructor.setAccessible(true);
       var manager = constructor.newInstance();
       var input = manager.inputSession();
       var selection = manager.selectionSession();
-      assertNull(manager.currentSession());
+      assertNull(manager.currentScope());
       assertSame(selection.gestures(), input.selectionGestures());
       input.operationTransformCapture = new ClientInputSession.OperationTransformCapture(1L, 1L,
          io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped());

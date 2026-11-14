@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.controller;
 
-import io.github.fastformer.client.session.OperationDraftIdentity;
+import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import java.util.Objects;
 import java.util.UUID;

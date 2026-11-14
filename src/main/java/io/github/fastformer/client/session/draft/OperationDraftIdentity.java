@@ -1,4 +1,4 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.draft;
 
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;

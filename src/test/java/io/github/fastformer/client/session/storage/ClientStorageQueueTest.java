@@ -1,9 +1,10 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.storage;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 class ClientStorageQueueTest {
    @Test
