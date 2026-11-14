@@ -16,6 +16,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.edit` | 绑定选区会话的选点、智能采样、草稿补全、局部撤回和删除捕获 |
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
+| `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
 | `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、编辑上下文、选区、工作区和暂存草稿 |
 | `client.session.receipt` | 作用域回执仓库：缓存、严格读取、文件保护、明确重试和驱逐条件 |
@@ -126,6 +127,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `SelectionEdits` 完整持有选点和智能选区捕获、点击前后逆操作快照、局部撤回及模式切换。会话、预览读取、提交门禁、所有者校验和清理／反馈通过构造传入；内部不查询编辑器或总入口。异步删除通过 `unchanged()` 校验冻结基线，不读取内部历史快照。捕获按同一 tick 截止推进，退出统一取消。
 
 `SelectionDeletions` 绑定相同会话，自管删除扫描、完成和取消。删除选中部件时保护未选中的源位置；未完成草稿按当前预览体扫描，开始前冻结选中 ID、工作区 revision 和选点基线，失去世界／所有者或草稿变化就丢弃结果。空删除本地完成，其余复用 `OperationSubmissions`，不在删除组件重建持久化或请求生命周期。输入直接调用该能力，协调器只推进和清理。
+
+`ClientInputSession` 持有自己的 `PointerResolver`。同一视图的普通轮廓、放置和流体选点分别缓存；返回完整 Result，调用者不能从另一次采样读取距离。玩家／世界身份、眼睛、视线及世界 tick 改变时失效；每次渲染帧和输入状态同步开始显式失效，环境重置释放所有命中。几何计算、工作区面检测和智能选区复用这些采样；已冻结的双击／长按交互仍按自己的原始射线与规则处理。
 
 旧 `ClientSessionManager` 已删除，由 `ClientSessionSystem` 提供当前作用域及协调入口，查询命名为 `currentScope`。草稿模型和 Codec 位于 draft，回执模型、Codec、缓存及重试保存位于 receipt，队列和 NBT 辅助位于 storage，来源和结算规则位于 submission；相关纯单元测试跟随被测能力迁包。整个 client.session 树执行包容量和职责说明检查，不保留旧路径别名。
 

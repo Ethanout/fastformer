@@ -34,6 +34,9 @@ import java.util.function.Consumer;
 
 /** Transient input state owned by one player environment, never persisted with a draft. */
 public final class ClientInputSession {
+   private final io.github.fastformer.client.interaction.pointer.PointerResolver pointer =
+      new io.github.fastformer.client.interaction.pointer.PointerResolver();
+   public io.github.fastformer.client.interaction.pointer.PointerResolver pointer() { return pointer; }
    private final io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures;
    public io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures() { return selectionGestures; }
    private final ClientSmartFillSession smartFill = new ClientSmartFillSession();
@@ -120,6 +123,7 @@ public final class ClientInputSession {
    }
 
    public void reset() {
+      pointer.invalidate();
       smartFill.clear();
       clearIdleEntry();
       entryConsumedAlt = false;

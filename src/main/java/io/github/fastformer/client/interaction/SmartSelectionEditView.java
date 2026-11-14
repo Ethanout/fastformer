@@ -35,8 +35,8 @@ public final class SmartSelectionEditView {
 
    public static BlockHitResult worldTarget(Minecraft minecraft) {
       if (minecraft == null || minecraft.player == null || minecraft.level == null) return null;
-      var hit = LongRangeBlockRaycast.clipForSelection(minecraft.level, minecraft.player,
-         minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), FastPlaceClientInput.modifierHeld()).hit();
+      var hit = ClientSessionSystem.instance().inputSession().pointer()
+         .selection(minecraft.player, FastPlaceClientInput.modifierHeld()).hit();
       return hit.getType() == HitResult.Type.BLOCK ? hit : null;
    }
 

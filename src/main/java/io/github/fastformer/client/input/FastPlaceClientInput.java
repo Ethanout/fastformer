@@ -36,7 +36,6 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.ui.GeometryRadialScreen;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.geometry.CycleStageModePayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryInteractionPayload;
@@ -1591,6 +1590,7 @@ public final class FastPlaceClientInput {
    @SubscribeEvent
    public static void onVisualPointerFrame(net.neoforged.neoforge.client.event.RenderFrameEvent.Pre event) {
       Minecraft minecraft = Minecraft.getInstance();
+      inputSession().pointer().invalidate();
       OperationInteractionIntent intent = null;
       if (minecraft.player != null && minecraft.level != null && minecraft.screen == null
          && minecraft.isWindowActive() && ClientSessionSystem.instance().operations().active()) {
@@ -1797,6 +1797,7 @@ public final class FastPlaceClientInput {
 
    /** Refreshes the routing phase before every event, including same-tick task transitions. */
    private static void synchronizeInputState() {
+      inputSession().pointer().invalidate();
       var observed = observedInputState();
       var routing = inputSession().routing;
       long generation = routing.generation();
@@ -1876,8 +1877,7 @@ public final class FastPlaceClientInput {
     */
    private static BlockHitResult longRangeSelectionBlockHit(Minecraft minecraft) {
       if (minecraft.level == null || minecraft.player == null) return null;
-      var hit = LongRangeBlockRaycast.clipForSelection(minecraft.level, minecraft.player,
-         minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), physicalAltDown(minecraft, false)).hit();
+      var hit = inputSession().pointer().selection(minecraft.player, physicalAltDown(minecraft, false)).hit();
       return hit.getType() == HitResult.Type.BLOCK ? hit : null;
    }
 

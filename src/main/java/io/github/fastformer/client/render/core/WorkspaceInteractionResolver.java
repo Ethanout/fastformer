@@ -207,8 +207,7 @@ public final class WorkspaceInteractionResolver {
       OperationInteractionIntent.Face best = null;
       double worldDistance = REACH;
       if (context.minecraft() != null && context.minecraft().level != null) {
-         BlockHitResult worldHit = LongRangeBlockRaycast.clip(
-            context.minecraft().level, context.player(), context.eye(), context.view()).hit();
+         BlockHitResult worldHit = ClientSessionSystem.instance().inputSession().pointer().outline(context.player()).hit();
          if (worldHit.getType() == Type.BLOCK) worldDistance = context.eye().distanceTo(worldHit.getLocation());
       }
       Set<BlockPos> failedTargets = ClientSessionSystem.instance().operations().failedWorkspaceTargets();
@@ -254,9 +253,8 @@ public final class WorkspaceInteractionResolver {
             || context.minecraft().level == null) {
             return Optional.empty();
          }
-         BlockHitResult hit = LongRangeBlockRaycast.clipForSelection(
-            context.minecraft().level, context.player(), context.eye(), context.view(), context.alternative()
-         ).hit();
+         BlockHitResult hit = ClientSessionSystem.instance().inputSession().pointer()
+            .selection(context.player(), context.alternative()).hit();
          return hit.getType() == Type.BLOCK
             ? Optional.of(new OperationInteractionIntent.CreateSelection(hit.getBlockPos()))
             : Optional.empty();
@@ -268,9 +266,8 @@ public final class WorkspaceInteractionResolver {
          if (context.minecraft().level == null) {
             return Optional.empty();
          }
-         BlockHitResult hit = LongRangeBlockRaycast.clipForSelection(
-            context.minecraft().level, context.player(), context.eye(), context.view(), context.alternative()
-         ).hit();
+         BlockHitResult hit = ClientSessionSystem.instance().inputSession().pointer()
+            .selection(context.player(), context.alternative()).hit();
          point = draftCandidate(context, hit);
       } else {
          if (context.vanillaOwnsPointer()

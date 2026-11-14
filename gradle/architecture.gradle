@@ -34,6 +34,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.client.operation.transform') ||
                     packageName.startsWith('io.github.fastformer.client.operation.submission') ||
                     packageName.startsWith('io.github.fastformer.client.operation.edit') ||
+                    packageName.startsWith('io.github.fastformer.client.interaction.pointer') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -54,6 +55,13 @@ abstract class VerifySourceLayout extends DefaultTask {
             }
             if (main && (text =~ /\bClientOperationController\b/).find()) {
                 violations.add("Retired static operation controller: ${path}")
+            }
+            if (main && (text =~ /\bInteractionRaycastOwner\b/).find()) {
+                violations.add("Retired renderer-owned last-ray cache: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.interaction.pointer') &&
+                    (dependencies =~ /io\.github\.fastformer\.client\.(?:render|input|session|operation)\./).find()) {
+                violations.add("Pointer sampling must use its bound environment, not callers or render state: ${path}")
             }
             if (main && source.name == 'OperationContext.java' &&
                     (text =~ /(?m)^\s*(?:public|private|protected)?\s*static\s+(?!final\b)[\w.<>?,]+\s+\w+\s*(?:=|;)/).find()) {

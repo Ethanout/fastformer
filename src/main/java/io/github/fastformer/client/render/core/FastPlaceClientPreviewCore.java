@@ -180,7 +180,6 @@ public final class FastPlaceClientPreviewCore {
    static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    static float worldPreviewOpacity = 1.0F;
-   private static final InteractionRaycastOwner RAYCAST = new InteractionRaycastOwner();
    private static TransformStatus geometryTransformBaseline;
    private static long lastPreviewFailureLogAt;
    private static final BuildingPreviewCache BUILDING_CACHE = new BuildingPreviewCache(
@@ -425,13 +424,13 @@ public final class FastPlaceClientPreviewCore {
          || operationPointUnderCrosshairIndex() >= 0) {
          return null;
       }
-      raycastBlocks(player);
+      var ray = blockPointer(player);
       return SelectionPrism.resolveEdgeInsertion(
          PREVIEW_STATE.operation().points(),
          PREVIEW_STATE.operation().operationPrismBasePointCount(),
          player.getEyePosition(),
          player.getViewVector(1.0F),
-         RAYCAST.distanceOr(0.0)
+         ray.distance()
       );
    }
 
@@ -464,13 +463,14 @@ public final class FastPlaceClientPreviewCore {
       if (minecraft.player == null || operationSelectionConfirmed()) {
          return null;
       }
-      BlockHitResult hit = raycastBlocks(minecraft.player);
+      var ray = blockPointer(minecraft.player);
+      BlockHitResult hit = ray.hit();
       if (operationPrismBaseOpen() && PREVIEW_STATE.operation().points().size() >= 3) {
          return SelectionPrism.resolveBasePlanePoint(
             PREVIEW_STATE.operation().points(),
             minecraft.player.getEyePosition(),
             minecraft.player.getViewVector(1.0F),
-            RAYCAST.distanceOr(0.0)
+            ray.distance()
          );
       }
       if (operationWaitingForPrismHeight()) {
@@ -479,7 +479,7 @@ public final class FastPlaceClientPreviewCore {
             PREVIEW_STATE.operation().points().subList(0, baseCount),
             minecraft.player.getEyePosition(),
             minecraft.player.getViewVector(1.0F),
-            RAYCAST.distanceOr(0.0)
+            ray.distance()
          );
       }
       return hit.getType() == Type.BLOCK ? hit.getBlockPos() : null;
@@ -1745,7 +1745,7 @@ public final class FastPlaceClientPreviewCore {
          || minecraft.screen != null || minecraft.getCameraEntity() != player
          || !FastPlaceClientInput.modifierHeld() && minecraft.hitResult != null
             && minecraft.hitResult.getType() == Type.ENTITY) return null;
-      var hit = RAYCAST.clipForIdleEntry(player, FastPlaceClientInput.modifierHeld());
+      var hit = ClientSessionSystem.instance().inputSession().pointer().selection(player, FastPlaceClientInput.modifierHeld()).hit();
       boolean embedded = FastPlaceClientInput.modifierHeld() && PlaceableItems.isPlaceable(player.getMainHandItem());
       return embedded || LongRangeBlockRaycast.beyondInteractionRange(player, hit) ? hit : null;
    }
@@ -2181,8 +2181,9 @@ public final class FastPlaceClientPreviewCore {
       if (player == null) {
          return 0.0;
       }
-      BlockHitResult hit = raycastBlocks(player);
-      double limit = RAYCAST.distanceOr(PREVIEW_REACH);
+      var ray = blockPointer(player);
+      BlockHitResult hit = ray.hit();
+      double limit = ray.distance();
       return hit.getType() == Type.BLOCK
          ? GeometryRayVisibility.visibleReach(limit, player.getEyePosition(), hit)
          : limit;
@@ -2256,7 +2257,6 @@ public final class FastPlaceClientPreviewCore {
       geometryTransformBaseline = null;
       OPERATION_FACE_INTERPOLATOR.reset();
       worldPreviewOpacity = 1.0F;
-      RAYCAST.clear();
       BUILDING_CACHE.resetBuildingPreviewCaches();
       cachedGeometryPlanKey = null;
       cachedGeometryPlan = null;
@@ -2298,10 +2298,14 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static BlockHitResult reachRaycast(LocalPlayer player) {
-      return RAYCAST.clip(player, false);
+      return ClientSessionSystem.instance().inputSession().pointer().outline(player).hit();
    }
 
    private static BlockHitResult raycastBlocks(LocalPlayer player) {
+      return blockPointer(player).hit();
+   }
+
+   private static LongRangeBlockRaycast.Result blockPointer(LocalPlayer player) {
       PreviewRenderOwner owner = PreviewRenderOwner.select(
          PREVIEW_STATE.building().active(),
          PREVIEW_STATE.operation().active(),
@@ -2314,7 +2318,9 @@ public final class FastPlaceClientPreviewCore {
       boolean selection = owner == PreviewRenderOwner.OPERATION || ClientSessionSystem.instance().operations().selectionSessionActive()
          || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
          || owner == PreviewRenderOwner.NONE && player.getMainHandItem().isEmpty();
-      return selection ? RAYCAST.clipForSelection(player, FastPlaceClientInput.modifierHeld()) : RAYCAST.clip(player, placement);
+      var pointer = ClientSessionSystem.instance().inputSession().pointer();
+      return selection ? pointer.selection(player, FastPlaceClientInput.modifierHeld())
+         : placement ? pointer.placement(player) : pointer.outline(player);
    }
 
    private static void renderConfirmedBlocks(PoseStack poseStack, BufferSource buffers, Vec3 camera, Set<BlockPos> blocks) {
