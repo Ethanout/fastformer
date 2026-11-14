@@ -1,5 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
 
 import io.github.fastformer.common.geometry.LineTieBias;
 
@@ -75,6 +76,7 @@ public final class TiltedBoxGenerator {
          if (GenerationLimitExceeded.is(solid)) {
             return GenerationLimitExceeded.witness(maxBlocks, observer);
          }
+         if (GenerationFailed.is(solid)) return solid;
          return fillMode == FillMode.SOLID ? solid : hollow(solid, maxBlocks, observer);
       }
       BlockGenerationObserver solidObserver = fillMode == FillMode.SOLID
@@ -214,6 +216,7 @@ public final class TiltedBoxGenerator {
       if (GenerationLimitExceeded.is(face)) {
          return GenerationLimitExceeded.witness(maxBlocks, observer);
       }
+      if (GenerationFailed.is(face)) return face;
       if (face.size() > maxBlocks) {
          return sentinel(maxBlocks);
       }
@@ -256,7 +259,7 @@ public final class TiltedBoxGenerator {
 
    private static BlockGenerationObserver stagingObserver(BlockGenerationObserver observer) {
       BlockGenerationObserver delegate = observer == null ? BlockGenerationObserver.NONE : observer;
-      return new BlockGenerationObserver() {
+      return FacePolicyObserver.forward(delegate, new BlockGenerationObserver() {
          @Override
          public void onScanned(long amount) {
             delegate.onScanned(amount);
@@ -266,7 +269,7 @@ public final class TiltedBoxGenerator {
          public void checkCancelled() {
             delegate.checkCancelled();
          }
-      };
+      });
    }
 
 }

@@ -1,0 +1,219 @@
+{
+  "bindings": [
+    {
+      "id": "fastformer:workspace/delete_selection",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "operation",
+        "workspace_active": true,
+        "!modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.delete",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/delete_selection"
+    },
+    {
+      "id": "fastformer:workspace/delete_selection_backspace",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "operation",
+        "workspace_active": true,
+        "!modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.backspace",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/delete_selection"
+    },
+    {
+      "id": "fastformer:workspace/remove_selected",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "operation",
+        "workspace_active": true,
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.delete",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/remove_selected"
+    },
+    {
+      "id": "fastformer:workspace/remove_selected_backspace",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "operation",
+        "workspace_active": true,
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.backspace",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/remove_selected"
+    },
+    {
+      "id": "fastformer:workspace/undo_blocked",
+      "priority": 40,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "blocked",
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.z",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/undo_pending",
+      "priority": 30,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "workspace_submission_pending": true,
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.z",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/submission_pending"
+    },
+    {
+      "id": "fastformer:workspace/undo_editing",
+      "priority": 20,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "workspace_editing": true,
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.z",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/undo",
+      "priority": 10,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "operation",
+        "workspace_undo_available": true,
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.z",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/undo"
+    },
+    {
+      "id": "fastformer:workspace/undo_idle",
+      "priority": 10,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "vanilla",
+        "workspace_undo_available": true,
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.z",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/undo"
+    },
+    {
+      "id": "fastformer:workspace/world_undo",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "!key_route": "blocked",
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.z",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/world_undo"
+    },
+    {
+      "id": "fastformer:workspace/world_redo",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "!key_route": "blocked",
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.y",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/world_redo"
+    }
+  ]
+}

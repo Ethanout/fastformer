@@ -75,6 +75,18 @@ public final class BindingSystem {
       return dispatchResult(name -> name.equals("*") || keys.contains(name), "key", context, commands);
    }
 
+   /** Expensive pointer facts are captured once, only after a key rule can receive this input. */
+   public BindingAction.Result onKeyResult(Set<String> keys, java.util.function.Supplier<BindingContext> contexts,
+      BindingCommands commands) {
+      return dispatchResult(name -> name.equals("*") || keys.contains(name), "key", contexts, commands);
+   }
+
+   /** Known phase facts reject unrelated wildcard rules before capturing pointer state. */
+   public BindingAction.Result onKeyResult(Set<String> keys, BindingContext knownContext,
+      java.util.function.Supplier<BindingContext> contexts, BindingCommands commands) {
+      return dispatchResult(name -> name.equals("*") || keys.contains(name), "key", knownContext, contexts, commands);
+   }
+
    public boolean onSignal(String name, String gesture, BindingContext context, BindingCommands commands) {
       return dispatch(name, gesture, context, commands);
    }
@@ -119,9 +131,23 @@ public final class BindingSystem {
    }
 
    private BindingAction.Result dispatchResult(Predicate<String> names, String gesture, BindingContext context, BindingCommands commands) {
+      return dispatchResult(names, gesture, () -> context, commands);
+   }
+
+   private BindingAction.Result dispatchResult(Predicate<String> names, String gesture,
+      java.util.function.Supplier<BindingContext> contexts, BindingCommands commands) {
+      return dispatchResult(names, gesture, null, contexts, commands);
+   }
+
+   private BindingAction.Result dispatchResult(Predicate<String> names, String gesture, BindingContext knownContext,
+      java.util.function.Supplier<BindingContext> contexts, BindingCommands commands) {
       synchronizeDefinitions();
+      BindingContext context = null;
       for (Rule rule : rules.get()) {
-         if (!names.test(rule.binding.input().button()) || !matchesContext(rule, gesture, context)) continue;
+         if (!names.test(rule.binding.input().button()) || !enabled(rule.binding, gesture)) continue;
+         if (knownContext != null && !matcher.mayMatch(rule.binding.context(), knownContext)) continue;
+         if (context == null) context = Objects.requireNonNull(contexts.get());
+         if (!matcher.matches(rule.binding.context(), context)) continue;
          var result = rule.action.execute(context, commands);
          if (result.handled()) return result;
       }
@@ -134,7 +160,11 @@ public final class BindingSystem {
 
    private boolean matchesContext(Rule rule, String gesture, BindingContext context) {
       InteractionBinding binding = rule.binding;
+      return enabled(binding, gesture) && matcher.matches(binding.context(), context);
+   }
+
+   private boolean enabled(InteractionBinding binding, String gesture) {
       return binding.enabled() && binding.input().gesture().equals(gesture)
-         && binding.option().map(optionEnabled::test).orElse(true) && matcher.matches(binding.context(), context);
+         && binding.option().map(optionEnabled::test).orElse(true);
    }
 }

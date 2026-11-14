@@ -25,7 +25,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式滚轮／指针决策；快速工具按键已迁入数据绑定 |
 | `client.feedback` | 所属输入环境的调整反馈、计时／悬停衰减、自由滚轮快照过渡与数值显示数据；不依赖绘制或全局会话 |
 | `client.mode.input.pointer` | 不可变鼠标事实、左右键动作与共享捕获优先级；模式只决策，不查询实时客户端 |
-| `client.preview` / `frame` | ClientPreviewSystem 拥有预览能力与异步结果推进；预览模型／绘制契约、显式世界绘制帧和统一动画相位；完整跨模式 PreviewFrame 仍在迁移 |
+| `client.preview` / `frame` | ClientPreviewSystem 拥有预览能力与异步结果推进；注册模式选择完整 PreviewFrame，模型／绘制契约、显式世界绘制帧和统一动画相位 |
 | `client.preview.quickshape` | 起形模型构建、生成任务与降级、方块层与控制点绘制，以及自有外壳／网格缓存和取消 |
 | `client.preview.geometry` | 从共享几何计划构建方块绘制层，绘制控制点／导引线／手柄，并拥有幽灵网格与 GPU 缓存；不重新生成交互计划 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
@@ -35,7 +35,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.session.storage` | 有界磁盘队列、主线程完成回调和共享的严格 NBT 字段读取 |
 | `client.session.submission` | 双文件提交准备、未发送回执重试及暂存／耐久草稿分别结算；每次操作冻结所属作用域 |
 | `client.session.reconnect` | 有界快照等待；不持有草稿、不决定恢复行为 |
-| `client.session.preview` | 会话系统持有的服务端快照、revision、网络应用、起形提交、重连确认与几何连续性；不依赖渲染 |
+| `client.session.preview` | 会话系统持有的服务端快照、revision、网络应用、起形提交、重连确认与几何连续性；缓存同步面规则，hash 不匹配时使旧起形预览失效；不依赖渲染 |
 | `client.session.lifecycle` | 客户端世界离开事件、按顺序通知清理能力并汇总失败；ClientSessionTick 明确编排入站、输入、操作结算与预览推进 |
 | `client.network.inbound` | 客户端载荷类型注册、连接校验与 tick 投递 |
 | `client.network.outbound` | 可选通道检查与向当前连接发送请求；设置界面和放置网关共用 |
@@ -54,6 +54,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `common.history` | 不可变的三档历史压缩参数、设置坐标和层级；客户端与服务端共用 |
 | `common.raycast` | 冻结的命中规则、形状快照和数值校验 |
 | `common.preview.quickshape` | 起形预览的共享快照、会话、参数和效果值；不读玩家设置、不实现网络包 |
+| `common.geometry.raster.face` / `algorithm` / `classify` / `policy` | 面分类、算法注册与链调度；按入口保留默认形状，数据规则 Codec、同步注册表、不可变规则与 hash，以及生成观察者上的规则传递 |
 | `server.lifecycle` | 单个服务器的后台工作线程和显式关闭 |
 | `server.player` | 按服务器隔离的瞬时玩家状态与实例绑定 |
 | `server.replace` | 快速替换模式、笔画与请求去重；状态由玩家作用域持有 |
@@ -98,7 +99,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `fastplace.placement.context` | 放置上下文和可放置物品判断 |
 | `fastplace.placement.effect.woodframe` | 木框朝向与放置效果 |
 | `fastplace.geometry` | 几何数据与算法；锥体、多面体和生成规则放在各自子包 |
-| `fastplace.geometry.generation` | 方块离散生成；四边形共用固定边缘与法向平面求解，算法选择不进入设置或协议 |
+| `fastplace.geometry.generation` | 方块离散生成与原算法适配；四边面、多边面和严格体积面从观察者读取冻结策略，默认各自保留原形状；策略 hash 随预览参数同步 |
 | `fastplace.geometry.controlpoint` / `interaction` / `text` | 控制点、指针交互模型和几何文本契约 |
 | `workspace.geometry` | 工作区几何预算与成本 |
 | `workspace.submission` | 工作区提交计划、校验与冲突语义 |
@@ -110,7 +111,11 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `protocol.settings` | 当前设置键、值类型和查询／修改请求 Codec；消息位于 `protocol.c2s.settings` |
 | `protocol.upload` | 两种当前上传载荷共用的分块字段契约；不持有接收状态 |
 
-`FastPlaceClientPreviewCore` 捕获起形输入和世界绘制帧，交给 `QuickShapePreviewMode.buildModel/drawWorld`。该能力拥有生成任务、降级结果、方块层与外壳资源；世界离开及主题变化明确清理它，不再通过共享渲染资源间接取消。生成执行器、预览状态、修饰键读取与错误记录在装配时传入。外壳及控制点接收透明度和动画相位。初始预览、其他模式资源仍待迁移，不将首个 PreviewMode 实现视为整个渲染系统完成。
+`FastPlaceClientPreviewCore` 已删除。`ClientPreviewSystem` 持有起形、几何、选区、空闲、填充和替换预览能力，注册模式选择冻结的 `PreviewFrame`。各能力拥有自己的模型、绘制和资源；世界离开及主题变化明确清理。起形的执行器、预览状态、修饰键读取与错误记录在装配时传入，外壳及控制点接收同帧透明度和动画相位。客户端实测仍待完成。
+
+`FastPlaceClientInput` 是 119 行事件／外部接口适配器。`ClientModeKeyInput`、`ClientPhysicalInputDispatcher`、`SelectionInputDispatcher`、`ModifierCommandDispatcher`、`ScrollInputDispatcher` 和 `InputWorldCleanup` 拥有相应的路由、状态推进或清理实现；部分旧控制器的体积与职责仍待进一步收口。
+
+工作区快捷键、删除、本地／世界撤销重做以及恢复／选区／起形／几何确认由默认绑定资源选择原子动作。`WorkspaceKeyContext` 与 `ConfirmationKeyContext` 冻结准入事实，物理按下事件保留起形提交快照；输入适配器只执行绑定选中的能力。Q、历史冲突提示以及剩余鼠标子树仍在迁移。
 
 `GeometryPreviewMode` 接收冻结的几何快照、版本、修饰键、视线和候选点；模型缓存不查询客户端或会话装配。模型同时包含计划与方块层，Gizmo 高亮仅更新该帧呈现。计划失败退回控制点，锥体体阶段仍保留底面边界降级。幽灵网格、后台任务和 GPU 缓存归该能力，世界／主题清理不再依赖总入口的共享字段。WorldPreviewFrame 携带同帧动画、透明度、调色板版本与复制后的模型视图／投影矩阵。
 

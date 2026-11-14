@@ -29,9 +29,10 @@ public final class ContextFields {
          "aiming", "tinker_consumes", "range", "in_fluid", "through_fluids", "near_first_point",
          "key_action", "input_phase", "player_present", "idle_actions_allowed", "fill_ready", "can_start_fill",
          "can_replace", "creative", "feature_enabled", "window_active", "interaction_allowed", "use_held", "standard_mouse_button",
-         "key_route", "paste_allowed", "workspace_active", "workspace_editing", "workspace_submission_pending",
+         "key_route", "paste_allowed", "workspace_active", "workspace_editing", "workspace_submission_pending", "workspace_undo_available",
          "vanilla_pointer", "candidate_overlaps", "pointer_channel", "middle_enabled", "middle_ignored", "pointer_captured",
-         "undo_captured", "scroll_context", "modifier_yields")) {
+         "undo_captured", "scroll_context", "modifier_yields",
+         "submission_allowed", "connected", "restore_pending", "can_confirm")) {
          result.register(field, JsonElement::equals);
       }
       for (String field : List.of("items", "aiming_tag", "modifiers")) result.register(field, ContextFields::contains);

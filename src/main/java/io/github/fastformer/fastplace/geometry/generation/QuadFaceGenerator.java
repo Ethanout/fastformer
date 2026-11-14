@@ -1,5 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
 
 import io.github.fastformer.common.geometry.LineTieBias;
 
@@ -31,7 +32,7 @@ public final class QuadFaceGenerator {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generate(vertices, fillMode, maxBlocks, observer, tieBias, FaceRasterPolicies.CURRENT_QUAD);
+      return generate(vertices, fillMode, maxBlocks, observer, tieBias, FacePolicyObserver.policies(observer).quad());
    }
 
    /** A task can freeze its policy before generation without mutating shared render or server state. */

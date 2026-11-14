@@ -531,7 +531,8 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                polygonVolumeShape,
                effect,
                estimatedPlacement,
-               taskPlan(player, settings, state, effect == null ? null : effect.stateOverrides())
+               taskPlan(player, settings, state, effect == null ? null : effect.stateOverrides()),
+               PreviewSync.facePolicies(player)
             );
             var generationAdmission = WorldOperationMemory.generationAdmission(
                generationPlan.estimatedTargetBlocks(), generationPlan.additionalGeneratedBlockSets()

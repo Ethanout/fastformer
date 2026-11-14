@@ -9,13 +9,23 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 import com.google.gson.*;
 import io.github.fastformer.client.interaction.binding.*;
 import io.github.fastformer.client.interaction.binding.action.BindingCommands;
+import io.github.fastformer.client.interaction.binding.action.BindingAction;
+import io.github.fastformer.client.interaction.binding.action.WorkspaceCommand;
+import io.github.fastformer.client.interaction.binding.action.ConfirmationCommand;
 import io.github.fastformer.client.interaction.binding.context.BindingContext;
+import io.github.fastformer.client.interaction.intent.InteractionContext;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
+import io.github.fastformer.client.input.state.ClientInputStateMachine.Dispatch;
+import io.github.fastformer.client.input.state.ClientInputStateMachine.InputKind;
+import io.github.fastformer.client.placement.ClientPlacementRouter;
+import io.github.fastformer.client.quickshape.QuickShapeSubmissionController;
 import io.github.fastformer.common.interaction.binding.SessionProfiles;
 import io.github.fastformer.common.raycast.*;
 import io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext;
 import io.github.fastformer.protocol.c2s.placement.QuitFastPlacePayload;
 import java.util.*;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.*;
@@ -31,6 +41,7 @@ final class BindingInputController {
       public boolean cycleMode() { return true; }
       public boolean tool(io.github.fastformer.client.interaction.binding.action.ToolCommand command) { return true; }
       public boolean workspace(io.github.fastformer.client.interaction.binding.action.WorkspaceCommand command) { return true; }
+      public boolean confirmation(io.github.fastformer.client.interaction.binding.action.ConfirmationCommand command) { return true; }
       public void replayPress(long time) { }
    };
    private BindingSystem system;
@@ -89,6 +100,13 @@ final class BindingInputController {
    boolean onWorkspaceKey(Minecraft minecraft, ClientInputSession owner, Set<String> names, BindingContext context, long now, boolean probe) {
       var result = system(minecraft, owner).onKeyResult(names, context, probe ? WORKSPACE_PROBE : commands(minecraft, owner, null, false, now));
       return probe ? result.consumesVanilla() : result.handled();
+   }
+
+   BindingAction.Result onConfirmationKey(Minecraft minecraft, ClientInputSession owner, Set<String> names, String phase,
+      java.util.function.Supplier<BindingContext> contexts, KeyboardInputSnapshot input, boolean probe) {
+      return system(minecraft, owner).onKeyResult(names, new BindingContext(Map.of("input_phase", new JsonPrimitive(phase))),
+         contexts, probe ? WORKSPACE_PROBE
+         : commands(minecraft, owner, null, false, input.occurredAtNanos(), input));
    }
 
    boolean onToolSignal(Minecraft minecraft, ClientInputSession owner, String name, String gesture, BindingContext context, long now) {
@@ -203,9 +221,62 @@ final class BindingInputController {
       return new BindingContext(facts);
    }
 
+   private static BlockPos workspaceCandidate(Minecraft minecraft) {
+      var operations = ClientSessionSystem.instance().operations();
+      var intent = operations.pointer().resolve(InteractionContext.capture(minecraft)).orElse(null);
+      return operations.selectionEdits().remoteSelectionPointing() ? operations.remotePointer().operationCandidatePoint()
+         : intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null;
+   }
+
+   private static boolean confirm(Minecraft minecraft, ClientInputSession owner, KeyboardInputSnapshot input, ConfirmationCommand command) {
+      switch (command) {
+         case RESTORE_SESSIONS -> {
+            ClientSessionSystem.instance().operations().confirmReconnectRestore();
+            ClientSessionSystem.instance().previewUpdates().confirmReconnectRestore();
+         }
+         case CONFIRM_SELECTION -> {
+            BlockPos candidate = workspaceCandidate(minecraft);
+            finishConfirmationGesture(owner);
+            var result = ClientSessionSystem.instance().operations().confirmSelection(candidate);
+            if (!result.accepted()) ClientInteractionFeedback.showWorkspaceSubmitFailure(minecraft, result);
+         }
+         case SUBMIT_QUICK_SHAPE -> {
+            finishConfirmationGesture(owner);
+            if (!QuickShapeSubmissionController.submit(minecraft, owner.quickShapeSubmission, input.quickShapeSubmission()))
+               ClientInteractionFeedback.show(minecraft, "fastformer.message.placement_confirm_failed");
+         }
+         case CONFIRM_PLACEMENT -> {
+            finishConfirmationGesture(owner);
+            if (!ClientPlacementRouter.confirm(minecraft))
+               ClientInteractionFeedback.show(minecraft, "fastformer.message.placement_confirm_failed");
+         }
+      }
+      return true;
+   }
+
+   private static void finishConfirmationGesture(ClientInputSession owner) {
+      owner.undoPress.cancel();
+      owner.undoPressCaptured = false;
+      if (owner.modifier.held()) owner.modifier.consume();
+   }
+
+   private static boolean sendWorldHistory(Minecraft minecraft, ClientInputSession owner, WorkspaceCommand command) {
+      if (minecraft.getConnection() == null) return false;
+      if (owner.routing.dispatch(InputKind.KEY) == Dispatch.OPERATION) InputWorldCleanup.cancelOperationGesture(minecraft);
+      return WorldHistoryCommandDispatcher.send(minecraft, command == WorkspaceCommand.WORLD_UNDO ? 90 : 89);
+   }
+
    private BindingCommands commands(Minecraft minecraft, ClientInputSession owner, IdlePressSnapshot press, boolean control, long now) {
+      return commands(minecraft, owner, press, control, now, null);
+   }
+
+   private BindingCommands commands(Minecraft minecraft, ClientInputSession owner, IdlePressSnapshot press, boolean control,
+      long now, KeyboardInputSnapshot input) {
       return new BindingCommands() {
-         public boolean workspace(io.github.fastformer.client.interaction.binding.action.WorkspaceCommand command) {
+         public boolean confirmation(io.github.fastformer.client.interaction.binding.action.ConfirmationCommand command) {
+            return input != null && confirm(minecraft, owner, input, command);
+         }
+         public boolean workspace(WorkspaceCommand command) {
             var operations = ClientSessionSystem.instance().operations();
             switch (command) {
                case COPY -> ClientInteractionFeedback.showCopyResult(minecraft, operations.clipboard().copy());
@@ -215,6 +286,12 @@ final class BindingInputController {
                case ROTATE_SELECTION -> operations.transforms().transformSelected(minecraft, false);
                case FLIP_SELECTION -> operations.transforms().transformSelected(minecraft, true);
                case REPORT_SUBMISSION_PENDING -> ClientInteractionFeedback.show(minecraft, "fastformer.message.operation_submit_pending");
+               case DELETE_SELECTION -> operations.deletions().delete(workspaceCandidate(minecraft));
+               case REMOVE_SELECTED -> operations.selectionEdits().removeSelectedParts();
+               case UNDO -> operations.selectionEdits().undo();
+               case WORLD_UNDO, WORLD_REDO -> {
+                  return sendWorldHistory(minecraft, owner, command);
+               }
             }
             return true;
          }

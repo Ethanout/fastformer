@@ -1,5 +1,6 @@
 package io.github.fastformer.client.preview.quickshape;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
 
 import io.github.fastformer.client.preview.style.ControlPointStyle;
 
@@ -157,13 +158,15 @@ final class BuildingPreviewCache {
       BuildingPreviewSnapshot snapshot, List<BlockPos> points, boolean polygonHeightConfirmed,
       FastPlaceGeometry.Modes modes, ProgressiveBlockGeneration progress, int blockLimit
    ) {
+      var observer = FacePolicyObserver.capture(snapshot.facePolicies(),
+         progress == null ? BlockGenerationObserver.NONE : progress);
       return snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()
          ? WallGenerator.generate(
             points,
             false,
             BlockPos.ZERO,
             blockLimit,
-            progress == null ? io.github.fastformer.common.geometry.raster.BlockGenerationObserver.NONE : progress
+            observer
          )
          : FastPlaceGeometry.blocks(
             points,
@@ -171,7 +174,7 @@ final class BuildingPreviewCache {
             polygonHeightConfirmed,
             snapshot.polygonVolumeShape(),
             blockLimit,
-            progress == null ? io.github.fastformer.common.geometry.raster.BlockGenerationObserver.NONE : progress
+            observer
           );
    }
 
@@ -229,7 +232,7 @@ final class BuildingPreviewCache {
                cachedBuildingPreviewBlocks = cachedBuildingFallbackBlocks;
             }
             cachedBuildingPreviewProgress = new ProgressiveBlockGeneration(
-               PreviewAsyncPolicy.estimateScanCells(key.points(), workload), false
+               PreviewAsyncPolicy.estimateScanCells(key.points(), workload), false, snapshot.facePolicies()
             );
             ProgressiveBlockGeneration progress = cachedBuildingPreviewProgress;
             BuildingPreviewKey requestKey = key;

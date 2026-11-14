@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
-import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet;
+import java.util.Objects;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import java.util.AbstractList;
@@ -14,9 +16,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 
 /** Thread-safe progress bridge from a background generator to a client/server tick thread. */
-public final class ProgressiveBlockGeneration implements BlockGenerationObserver {
+public final class ProgressiveBlockGeneration implements FacePolicyObserver {
    private static final int PUBLISH_BLOCKS = 4096;
    private static final int MAX_PUBLISHED_BATCHES = 64;
+   private final FaceRasterPolicySet facePolicies;
    private final long estimatedScan;
    private final boolean publishBatches;
    private final AtomicLong scanned = new AtomicLong();
@@ -37,9 +40,16 @@ public final class ProgressiveBlockGeneration implements BlockGenerationObserver
     * second position working set and producer backpressure deadlock.
     */
    public ProgressiveBlockGeneration(long estimatedScan, boolean publishBatches) {
+      this(estimatedScan, publishBatches, FaceRasterPolicySet.DEFAULT);
+   }
+
+   public ProgressiveBlockGeneration(long estimatedScan, boolean publishBatches, FaceRasterPolicySet facePolicies) {
+      this.facePolicies = Objects.requireNonNull(facePolicies, "facePolicies");
       this.estimatedScan = Math.max(0L, estimatedScan);
       this.publishBatches = publishBatches;
    }
+
+   @Override public FaceRasterPolicySet facePolicies() { return facePolicies; }
 
    @Override
    public void onScanned(long amount) {

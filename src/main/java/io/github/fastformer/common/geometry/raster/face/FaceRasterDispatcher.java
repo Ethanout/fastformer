@@ -51,6 +51,7 @@ public final class FaceRasterDispatcher {
         for (ResourceLocation id : policy.chain(shape.kind())) {
             request.observer().checkCancelled();
             var algorithm = algorithms.require(id);
+            if (exhaustion == ChainExhaustion.RETURN_FAILURE && !algorithm.supportsStrictSurface()) continue;
             if (!algorithm.accepts(shape)) continue;
             FaceRasterResult result = algorithm.rasterize(shape, request);
             if (result instanceof FaceRasterResult.Filled || result instanceof FaceRasterResult.LimitExceeded) return result;

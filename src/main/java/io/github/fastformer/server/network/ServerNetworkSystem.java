@@ -89,7 +89,7 @@ public final class ServerNetworkSystem {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("85").optional();
+      PayloadRegistrar registrar = event.registrar("86").optional();
       var channels = new ServerChannels(registrar);
       channels.receive(ForwardDashPayload.TYPE, ForwardDashPayload.STREAM_CODEC)
          .handle((payload, player) -> {

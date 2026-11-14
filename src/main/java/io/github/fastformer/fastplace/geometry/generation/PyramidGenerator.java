@@ -1,5 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
 
 import io.github.fastformer.common.geometry.model.FillMode;
 import java.util.List;
@@ -40,6 +41,7 @@ public final class PyramidGenerator {
          (int)Math.ceil(Math.max(Math.abs(normal.x * height), Math.max(Math.abs(normal.y * height), Math.abs(normal.z * height))))
       );
       for (int layer = 0; layer <= layers && result.size() < stagingLimit; layer++) {
+         observer.checkCancelled();
          double ratio = (double)layer / (double)layers;
          Vec3 offset = normal.scale(height * ratio);
          double scale = 1.0 - ratio;
@@ -47,7 +49,7 @@ public final class PyramidGenerator {
             .map(vertex -> center.add(vertex.subtract(center).scale(scale)).add(offset))
             .toList();
          Set<BlockPos> sectionBlocks = fillMode == FillMode.SOLID
-            ? PolygonFaceGenerator.generate(section, FillMode.SOLID, stagingLimit)
+            ? PolygonFaceGenerator.generate(section, FillMode.SOLID, stagingLimit, FacePolicyObserver.staging(observer))
             : PlanarFaceGeometry.outline(section, stagingLimit);
          if (GenerationLimitExceeded.is(sectionBlocks)) {
             return GenerationLimitExceeded.witness(maxBlocks, observer);
@@ -55,7 +57,7 @@ public final class PyramidGenerator {
          addUntilLimit(result, sectionBlocks, stagingLimit);
       }
       if (fillMode == FillMode.HOLLOW && result.size() < stagingLimit) {
-         Set<BlockPos> baseBlocks = PolygonFaceGenerator.generate(base, FillMode.SOLID, stagingLimit);
+         Set<BlockPos> baseBlocks = PolygonFaceGenerator.generate(base, FillMode.SOLID, stagingLimit, FacePolicyObserver.staging(observer));
          if (GenerationLimitExceeded.is(baseBlocks)) {
             return GenerationLimitExceeded.witness(maxBlocks, observer);
          }

@@ -14,6 +14,7 @@ public final class EdgeOnlyRaster implements FaceRasterAlgorithm {
 
     @Override public ResourceLocation id() { return ID; }
     @Override public boolean accepts(FaceShape shape) { return true; }
+    @Override public boolean supportsStrictSurface() { return false; }
 
     @Override public FaceRasterResult rasterize(FaceShape shape, FaceRequest request) {
         LinkedHashSet<BlockPos> blocks = new LinkedHashSet<>();

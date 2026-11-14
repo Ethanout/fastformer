@@ -72,7 +72,7 @@ public record BuildingPreviewParametersPayload(
          buffer.readBlockPos(), buffer.readDouble(), buffer.readEnum(PointMode.class),
          buffer.readEnum(RaycastPlacement.class), buffer.readEnum(LineMode.class),
          buffer.readEnum(FaceMode.class), buffer.readEnum(VolumeMode.class), buffer.readEnum(FillMode.class),
-         buffer.readEnum(LineTieBias.class)
+         buffer.readEnum(LineTieBias.class), buffer.readUtf(64)
       ), OperationCallbackScope.STREAM_CODEC.decode(buffer));
    }
 
@@ -90,6 +90,7 @@ public record BuildingPreviewParametersPayload(
       buffer.writeEnum(value.volumeMode());
       buffer.writeEnum(value.fillMode());
       buffer.writeEnum(value.faceTieBias());
+      buffer.writeUtf(value.facePolicyHash(), 64);
       OperationCallbackScope.STREAM_CODEC.encode(buffer, callbackScope);
    }
 

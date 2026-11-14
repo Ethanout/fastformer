@@ -9,5 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 public interface FaceRasterAlgorithm {
     ResourceLocation id();
     boolean accepts(FaceShape shape);
+    /** False for edge fallbacks and legacy entrances that can silently degrade to an outline. */
+    default boolean supportsStrictSurface() { return true; }
     FaceRasterResult rasterize(FaceShape shape, FaceRequest request);
 }

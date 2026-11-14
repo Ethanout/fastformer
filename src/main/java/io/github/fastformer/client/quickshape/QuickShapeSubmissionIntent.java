@@ -30,7 +30,7 @@ public final class QuickShapeSubmissionIntent {
    public void calculate(PlacementGeometryPlan plan, Executor executor) {
       if (!waitingForParameters()) return;
       Pending request = pending;
-      request.progress = new ProgressiveBlockGeneration(plan.estimatedTargetBlocks(), false);
+      request.progress = new ProgressiveBlockGeneration(plan.estimatedTargetBlocks(), false, plan.facePolicies());
       long epoch = results.epoch();
       request.future = new FutureTask<>(() -> validate(plan, request.progress)) {
          @Override

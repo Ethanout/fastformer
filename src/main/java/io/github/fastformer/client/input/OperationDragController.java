@@ -21,7 +21,7 @@ import net.minecraft.world.phys.Vec3;
 /** Owns the transient face and unconfirmed operation-gizmo drag lifecycle. */
 final class OperationDragController {
    private static final int MAX_DRAG_STEPS_PER_PACKET = 128;
-   private static final long FACE_SHORT_PRESS_NANOS = FastPlaceClientInput.OPERATION_FACE_SHORT_PRESS_NANOS;
+   private static final long FACE_SHORT_PRESS_NANOS = 140_000_000L;
 
    private OperationDragController() { }
 

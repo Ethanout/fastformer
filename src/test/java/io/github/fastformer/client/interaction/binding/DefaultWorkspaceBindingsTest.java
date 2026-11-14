@@ -24,7 +24,7 @@ class DefaultWorkspaceBindingsTest {
                boolean active = bit(flags, 0), paste = bit(flags, 1), editing = bit(flags, 2), pending = bit(flags, 3);
                boolean control = bit(flags, 4), screenClosed = bit(flags, 5), player = bit(flags, 6);
                var context = new WorkspaceKeyContext("fastformer:selection", route, paste, active, editing, pending,
-                  screenClosed, player, action, control, false, false).freeze();
+                  screenClosed, player, action, control, false, false, 0).freeze();
                commands.last = null;
                var result = system.onKeyResult(Set.of("key.keyboard." + key), context, commands);
                String expected = previous(key, action, route, active, paste, editing, pending, control, screenClosed, player);
@@ -59,11 +59,11 @@ class DefaultWorkspaceBindingsTest {
       var system = system(defaults());
       for (int action : new int[]{0, 2}) {
          var context = new WorkspaceKeyContext("fastformer:selection", "operation", true, true, false, false, true, true,
-            action, true, true, true).freeze();
+            action, true, true, true, 0).freeze();
          assertFalse(system.onKey(Set.of("key.keyboard.a"), context, commands));
       }
       var withAltShift = new WorkspaceKeyContext("fastformer:selection", "operation", true, true, false, false, true, true,
-         1, true, true, true).freeze();
+         1, true, true, true, 0).freeze();
       assertTrue(system.onKey(Set.of("key.keyboard.a"), withAltShift, commands));
       assertEquals(WorkspaceCommand.TOGGLE_SELECT_ALL, commands.last);
    }
@@ -91,7 +91,7 @@ class DefaultWorkspaceBindingsTest {
 
    private static BindingContext active() {
       return new WorkspaceKeyContext("fastformer:selection", "operation", true, true, false, false, true, true,
-         1, true, false, false).freeze();
+         1, true, false, false, 0).freeze();
    }
 
    private static BindingFile defaults() throws Exception {

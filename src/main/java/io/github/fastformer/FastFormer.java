@@ -5,6 +5,8 @@ import io.github.fastformer.server.network.ServerNetworkSystem;
 import io.github.fastformer.server.history.HistoryStorageConfig;
 import io.github.fastformer.common.placement.context.PlacementFallbacks;
 import io.github.fastformer.common.placement.context.PlacementFallbackRule;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterRules;
+import io.github.fastformer.fastplace.geometry.generation.FaceRasterAdapters;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.bus.api.IEventBus;
@@ -24,6 +26,8 @@ public final class FastFormer {
       modBus.addListener(io.github.fastformer.common.tinker.data.TinkerPropertyRule::register);
       modBus.addListener(io.github.fastformer.common.tinker.data.TinkerWoodFamily::register);
       modBus.addListener(io.github.fastformer.common.interaction.binding.SessionProfiles::register);
+      modBus.addListener((net.neoforged.neoforge.registries.DataPackRegistryEvent.NewRegistry event) ->
+         FaceRasterRules.register(event, FaceRasterAdapters.currentAlgorithms()));
       ServerNetworkSystem.register(modBus);
       FastPlaceEvents.register();
    }

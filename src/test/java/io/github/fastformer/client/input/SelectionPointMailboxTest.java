@@ -53,11 +53,9 @@ class SelectionPointMailboxTest {
    }
 
    @Test
-   void middleOwnsThePointRouteWithoutAWorldHit() throws ReflectiveOperationException {
-      var route = FastPlaceClientInput.class.getDeclaredMethod("selectionPressRoute",
-         net.minecraft.client.Minecraft.class, OperationInteractionIntent.class, int.class);
-      route.setAccessible(true);
-      assertEquals("POINT", route.invoke(null, null, null, MouseButtonInputSemantics.MIDDLE_BUTTON).toString());
+   void middleOwnsThePointRouteWithoutAWorldHit() {
+      assertEquals(SelectionInputDispatcher.SelectionPressRoute.POINT,
+         SelectionInputDispatcher.selectionPressRoute(null, null, MouseButtonInputSemantics.MIDDLE_BUTTON));
    }
 
    @Test

@@ -26,4 +26,16 @@ class ContextMatcherTest {
       var fields = ContextFields.defaults().register("minimum", (expected, actual) -> actual.getAsInt() >= expected.getAsInt()).freeze();
       assertTrue(new ContextMatcher(fields).matches(fields("{\"minimum\":3}"), new BindingContext(fields("{\"minimum\":4}"))));
    }
+
+   @Test void partialFactsRejectKnownMismatchesButLeaveMissingFactsUndecided() {
+      var matcher = new ContextMatcher(ContextFields.defaults().freeze());
+      var known = new BindingContext(fields("{\"input_phase\":\"confirmation\"}"));
+      var candidate = fields("{\"input_phase\":\"confirmation\",\"can_confirm\":true,\"!vanilla_pointer\":true}");
+      assertTrue(matcher.mayMatch(candidate, known));
+      assertFalse(matcher.matches(candidate, known));
+      assertFalse(matcher.mayMatch(fields("{\"input_phase\":\"dispatch\"}"), known));
+      assertFalse(matcher.mayMatch(fields("{\"!input_phase\":\"confirmation\"}"), known));
+      assertFalse(matcher.mayMatch(fields("{\"unknown\":true}"), known));
+      assertFalse(matcher.mayMatch(fields("{\"!unknown\":true}"), known));
+   }
 }

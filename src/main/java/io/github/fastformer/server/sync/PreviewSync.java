@@ -36,6 +36,10 @@ public final class PreviewSync {
       return PreviewSyncState.find(player).map(state -> state.buildingRevision).orElse(0L);
    }
 
+   public static io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet facePolicies(ServerPlayer player) {
+      return PreviewSyncState.of(player).facePolicies(player.registryAccess());
+   }
+
    public static long geometryRevision(ServerPlayer player) {
       return PreviewSyncState.find(player).map(state -> state.geometryRevision).orElse(0L);
    }
@@ -48,6 +52,7 @@ public final class PreviewSync {
       var published = PreviewSyncState.find(player).map(state -> state.submissionParameters).orElse(null);
       var session = QuickShapeSystem.of(player).session(player).orElse(null);
       if (published == null || session == null || published.revision() != buildingRevision(player)) return false;
+      if (!facePolicies(player).hash().equals(PreviewSyncState.of(player).buildingFacePolicyHash)) return false;
       var settings = FastPlaceSettings.load(player);
       return published.maxPlacement() == settings.maxPlacement()
          && published.faceTieBias() == QuickShapeSystem.effectiveFaceTieBias(session, settings)
@@ -226,7 +231,9 @@ public final class PreviewSync {
       var sessionValue = draft == null ? payload.session() : payload.session().withProfile(draft.profileId(),
          io.github.fastformer.server.interaction.profile.ProfileConstraints.middleConfirm(draft, settings));
       var parameterValue = payload.parameters().withLineMode(
-         io.github.fastformer.server.interaction.profile.ProfileConstraints.effectiveLineMode(draft, settings));
+         io.github.fastformer.server.interaction.profile.ProfileConstraints.effectiveLineMode(draft, settings))
+         .withFacePolicyHash(facePolicies(player).hash());
+      PreviewSyncState.of(player).buildingFacePolicyHash = parameterValue.facePolicyHash();
       if (player.connection.hasChannel(BuildingPreviewSessionPayload.TYPE)) {
          PacketDistributor.sendToPlayer(
             player,

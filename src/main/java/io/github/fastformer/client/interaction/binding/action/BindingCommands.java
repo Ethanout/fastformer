@@ -12,6 +12,7 @@ public interface BindingCommands {
    boolean cycleMode();
    default boolean tool(ToolCommand command) { return false; }
    default boolean workspace(WorkspaceCommand command) { return false; }
+   default boolean confirmation(ConfirmationCommand command) { return false; }
    default boolean quickShapeBinding(QuickShapeBindingCommand command) { return false; }
    void replayPress(long occurredAtNanos);
 }

@@ -18,10 +18,9 @@ import net.minecraft.core.Direction;
 public final class QuickShapeSubmissionController {
    private QuickShapeSubmissionController() { }
 
-   /** Handles Enter with the data captured when the key was pressed. */
+   /** Handles an admitted confirmation with the data captured when its key was pressed. */
    public static boolean submit(Minecraft minecraft, QuickShapeSubmissionIntent intent,
-      int key, int action, QuickShapeSubmissionSnapshot snapshot) {
-      if (action != 1 || (key != 257 && key != 335)) return false;
+      QuickShapeSubmissionSnapshot snapshot) {
       if (snapshot == null || !ClientPlacementRouter.canConfirm(minecraft)) return false;
       return begin(minecraft, intent, snapshot);
    }
@@ -98,6 +97,6 @@ public final class QuickShapeSubmissionController {
       var effect = data.activePlacementEffect() == null ? null
          : PlacementEffectRegistry.resolve(data.activePlacementEffect(), context).orElseThrow();
       return new PlacementGeometryPlan(snapshot.points(), modes, data.polygonHeightConfirmed(), data.polygonVolumeShape(),
-         parameters.maxPlacement(), effect);
+         parameters.maxPlacement(), effect, data.facePolicies());
    }
 }

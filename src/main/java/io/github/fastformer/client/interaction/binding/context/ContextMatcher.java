@@ -9,11 +9,22 @@ public final class ContextMatcher {
    public ContextMatcher(ContextFields fields) { this.fields = java.util.Objects.requireNonNull(fields); }
 
    public boolean matches(Map<String, JsonElement> conditions, BindingContext context) {
+      return matches(conditions, context, false);
+   }
+
+   /** Missing facts remain undecided while known facts may rule out expensive context capture. */
+   public boolean mayMatch(Map<String, JsonElement> conditions, BindingContext knownContext) {
+      return matches(conditions, knownContext, true);
+   }
+
+   private boolean matches(Map<String, JsonElement> conditions, BindingContext context, boolean allowMissing) {
       for (var condition : conditions.entrySet()) {
          boolean negated = condition.getKey().startsWith("!");
          String name = negated ? condition.getKey().substring(1) : condition.getKey();
          if (!fields.known(name)) return false;
-         boolean matched = fields.matches(name, condition.getValue(), context.field(name).orElse(null));
+         var actual = context.field(name);
+         if (allowMissing && actual.isEmpty()) continue;
+         boolean matched = fields.matches(name, condition.getValue(), actual.orElse(null));
          if (matched == negated) return false;
       }
       return true;

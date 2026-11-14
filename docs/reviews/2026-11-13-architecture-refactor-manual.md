@@ -1338,19 +1338,21 @@ return EdgeOnlyRaster.rasterize(shape, request)   # 永远有结果
 ### 10.5 “可选”的范围与同步（必须保证预览与写入一致）
 
 **选择权在服务端。** 预览显示的方块必须与实际写入世界的方块一致，所以策略属于服务器规则：
-- 默认策略写在 `FaceRasterPolicies.DEFAULT` 中。
-- 数据包可以用 `data/<ns>/fastformer/face_raster_policy/default.json` 覆盖，格式如下：
+- 默认规则写在 `FaceRasterPolicySet.DEFAULT` 中，分别保留 `CURRENT_QUAD`、`CURRENT_POLYGON` 和 `CURRENT_VOLUME_FACE`；实验策略命名为 `CLASSIFIED`。
+- 数据包可以用 `data/fastformer/fastformer/face_raster_policy/default.json` 共享覆盖，也可以用同目录下的 `quad.json`、`polygon.json`、`volume.json` 分别覆盖。采用完整六类链，格式如下：
   ```json
   { "chains": {
       "axis_rectangle":       ["fastformer:axis_rectangle"],
       "coordinate_plane":     ["fastformer:coordinate_plane", "fastformer:normal_plane"],
       "axis_extrusion":       ["fastformer:axis_extrusion", "fastformer:normal_plane"],
       "tilted_parallelogram": ["fastformer:normal_plane", "fastformer:translated_scan"],
-      "polygon":              ["fastformer:projected_polygon"] } }
+      "polygon":              ["fastformer:projected_polygon"],
+      "degenerate":           ["fastformer:edge_only"] } }
   ```
 
 **同步到客户端**：
 - 策略随数据包注册表同步到客户端，写法与第 9 节的 `SessionProfile` 相同。
+- 此类 NeoForge 数据包注册表在世界启动时加载；修改后重启服务端／重新打开世界，不承诺 `/reload` 热更新。实现与验证见[面策略加载与同步](progress/face-raster-policy-data.md)。
 - 客户端预览使用同一份策略。
 - 策略的哈希写入预览快照的参数。客户端与服务端的哈希不一致时，以服务端为准，并让客户端预览失效。
 

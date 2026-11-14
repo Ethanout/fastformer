@@ -34,6 +34,15 @@ public final class BuiltinBindingActions {
       register(actions, "workspace/rotate", commands -> commands.workspace(WorkspaceCommand.ROTATE_SELECTION));
       register(actions, "workspace/flip", commands -> commands.workspace(WorkspaceCommand.FLIP_SELECTION));
       register(actions, "workspace/submission_pending", commands -> commands.workspace(WorkspaceCommand.REPORT_SUBMISSION_PENDING));
+      register(actions, "workspace/delete_selection", commands -> commands.workspace(WorkspaceCommand.DELETE_SELECTION));
+      register(actions, "workspace/remove_selected", commands -> commands.workspace(WorkspaceCommand.REMOVE_SELECTED));
+      register(actions, "workspace/undo", commands -> commands.workspace(WorkspaceCommand.UNDO));
+      register(actions, "workspace/world_undo", commands -> commands.workspace(WorkspaceCommand.WORLD_UNDO));
+      register(actions, "workspace/world_redo", commands -> commands.workspace(WorkspaceCommand.WORLD_REDO));
+      register(actions, "confirmation/restore", commands -> commands.confirmation(ConfirmationCommand.RESTORE_SESSIONS));
+      register(actions, "confirmation/selection", commands -> commands.confirmation(ConfirmationCommand.CONFIRM_SELECTION));
+      register(actions, "confirmation/quick_shape", commands -> commands.confirmation(ConfirmationCommand.SUBMIT_QUICK_SHAPE));
+      register(actions, "confirmation/placement", commands -> commands.confirmation(ConfirmationCommand.CONFIRM_PLACEMENT));
       register(actions, "quick_shape/input/point", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.POINT));
       register(actions, "quick_shape/input/middle", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.MIDDLE));
       register(actions, "quick_shape/input/capture_pointer", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.CAPTURE_POINTER));

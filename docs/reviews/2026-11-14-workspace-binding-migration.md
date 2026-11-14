@@ -1,11 +1,21 @@
-# 工作区快捷键绑定迁移（2026-11-14）
+# 工作区快捷键绑定迁移（更新至 2026-11-15）
 
 ## 本批范围
 
 - `bindings/default/workspace.json` 接管 Ctrl+A/C/V/D/R/F 的按键、准入、编辑中拦截和提交中提示。Ctrl+X 原来没有实现，本批保持无默认行为。
-- 输入边界冻结所属模式、KEY 路由、PASTE_WORKSPACE 准入、部件／草稿、编辑／提交状态和物理修饰键。绑定核心不查询全局会话。
+- `workspace-history.json` 接管 Delete／Backspace、Ctrl+Delete／Backspace、Ctrl+Z 和 Ctrl+Y。编辑或提交中的 Ctrl+Z 不得进入世界撤销；空工作区只要还有本地历史，仍优先撤销本地步骤。Ctrl+Y 保持原来的准入，不额外增加编辑／提交状态限制。
+- 输入边界冻结所属模式、KEY 路由、PASTE_WORKSPACE 准入、部件／草稿、编辑／提交状态、本地撤销深度和物理修饰键。绑定核心不查询全局会话。
 - `WorkspaceCommand` 只表示原有原子操作；输入适配器调用原有剪贴板、选择集与变换能力，未改变操作结果。
-- 删除旧 `WorkspaceKeyboardSemantics` 的六组物理键与对应准入分支；该类暂只保留 Delete／Backspace／Ctrl+Z。Enter、Q 和其他操作树仍待迁移。
+- `WorkspaceKeyboardSemantics` 已删除。世界撤销／重做仍在发送边界检查连接与协议能力；仅在连接存在时结束选区手势。
+- 本地撤销和世界撤销是独立绑定。只禁用本地规则时，较低优先级的世界规则仍可接管；完全放行该键可同时禁用对应规则，或把本地规则覆盖为 `fastformer:vanilla`。
+
+## 确认子树
+
+- `confirmation.json` 接管 Enter／数字键盘 Enter 的选区确认、起形提交和几何确认。恢复提示仍只默认绑定主 Enter，未新增数字键盘恢复行为。
+- 恢复规则先于忙碌路由检查；普通确认仍受所属 KEY／SUBMIT 路由、界面、玩家、连接、确认通道和原版指针占用事实约束。选区确认保持原有独立准入，不额外要求放置确认通道。
+- 起形提交数据在按下事件入队前捕获，重绑后的键也会携带同一快照。`QuickShapeSubmissionController` 不再校验物理 Enter 键码，只执行已获准的提交。
+- 绑定系统按需构建键上下文，一次匹配过程中只冻结一次。未绑定或已完全禁用的物理键不会构建确认指针事实。
+- 删除 `SubmissionKeyboardSemantics` 和输入入口中的 Enter 后备分支；禁用起形或选区确认后，不得落入通用放置确认。Q、历史冲突提示和其余操作树仍待迁移。
 
 ## 按键生命周期
 
@@ -16,5 +26,7 @@
 
 ## 验证状态
 
-- 新增 `DefaultWorkspaceBindingsTest`：实际 JSON 的旧行为组合对照、禁用／重绑、vanilla 放行及 release／repeat 边界；保留 `MovementKeyInputTest` 的修饰键先后释放与持续移动回归。
-- 本子任务未运行 Gradle。主任务统一验证：`test --tests "*DefaultWorkspaceBindingsTest" --tests "*WorkspaceKeyboardSemanticsTest" --tests "*MovementKeyInputTest" --tests "*DefaultToolBindingsTest" --tests "*BindingSystemTest" verifySourceLayout`，随后执行架构检查。
+- `DefaultWorkspaceBindingsTest`、`DefaultWorkspaceHistoryBindingsTest`、`DefaultConfirmationBindingsTest` 直接读取默认 JSON：组合对照、全部真实输入路由、优先级、禁用／重绑、vanilla 放行、release／repeat 和惰性上下文均有覆盖。旧规则测试中的空工作区撤销、忙碌状态不落世界及真实模式观察回归已迁入数据绑定测试。
+- `BindingFixtures` 和 `RecordingBindingCommands` 提供共享测试装配与无副作用命令记录。`MovementKeyInputTest`、入队事件和起形提交测试保留。
+- 2026-11-15 完整 `check --no-build-cache --offline` 通过：483 个套件、2648 项单测，0 失败、0 错误、1 跳过。架构检查新增债务 0，现存债务 912。`verifyArchitectureStrict` 仍因这些旧债务失败；整份手册尚未验收。
+- 新世界 `build/gametest-keyboard-bindings-20261115` 的 323 项必需 GameTest 全部通过，日志为 `.temp/keyboard-bindings-gametest-20261115.log`。该服务端回归不替代真实客户端键盘与渲染实测。

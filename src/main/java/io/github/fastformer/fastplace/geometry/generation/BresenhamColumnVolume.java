@@ -1,5 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
 
 import io.github.fastformer.common.geometry.LineTieBias;
 import io.github.fastformer.common.geometry.model.FillMode;
@@ -49,7 +50,7 @@ final class BresenhamColumnVolume {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generate(base, extrusion, maxBlocks, observer, tieBias, FaceRasterAdapters.strictQuad());
+      return generate(base, extrusion, maxBlocks, observer, tieBias, FaceRasterAdapters.strictQuad(FacePolicyObserver.policies(observer).volume()));
    }
 
    static Result generate(
@@ -66,7 +67,7 @@ final class BresenhamColumnVolume {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generateBoundary(base, extrusion, maxBlocks, observer, tieBias, FaceRasterAdapters.strictQuad());
+      return generateBoundary(base, extrusion, maxBlocks, observer, tieBias, FaceRasterAdapters.strictQuad(FacePolicyObserver.policies(observer).volume()));
    }
 
    static Result generateBoundary(
@@ -85,7 +86,7 @@ final class BresenhamColumnVolume {
    ) {
       return generate(
          base, extrusion, maxBlocks, observer, tieBias,
-         true, false, false, FaceRasterAdapters.strictQuad()
+         true, false, false, FaceRasterAdapters.strictQuad(FacePolicyObserver.policies(observer).volume())
       );
    }
 
@@ -98,7 +99,7 @@ final class BresenhamColumnVolume {
    ) {
       return generate(
          base, extrusion, maxBlocks, observer, tieBias,
-         true, true, false, FaceRasterAdapters.strictQuad()
+         true, true, false, FaceRasterAdapters.strictQuad(FacePolicyObserver.policies(observer).volume())
       );
    }
 
@@ -111,7 +112,7 @@ final class BresenhamColumnVolume {
    ) {
       return generate(
          base, extrusion, maxBlocks, observer, tieBias,
-         false, false, true, FaceRasterAdapters.strictQuad()
+         false, false, true, FaceRasterAdapters.strictQuad(FacePolicyObserver.policies(observer).volume())
       );
    }
 
@@ -439,7 +440,7 @@ final class BresenhamColumnVolume {
 
    private static BlockGenerationObserver stagingObserver(BlockGenerationObserver observer) {
       BlockGenerationObserver delegate = observer == null ? BlockGenerationObserver.NONE : observer;
-      return new BlockGenerationObserver() {
+      return FacePolicyObserver.forward(delegate, new BlockGenerationObserver() {
          @Override
          public void onScanned(long amount) {
             delegate.onScanned(amount);
@@ -449,7 +450,7 @@ final class BresenhamColumnVolume {
          public void checkCancelled() {
             delegate.checkCancelled();
          }
-      };
+      });
    }
 
    record Result(Set<BlockPos> blocks, boolean complete, Set<BlockPos> shell) {

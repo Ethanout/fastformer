@@ -1,5 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
 
 import io.github.fastformer.common.geometry.model.FillMode;
 import io.github.fastformer.common.geometry.LineTieBias;
@@ -35,7 +36,7 @@ public final class PolygonFaceGenerator {
    }
 
    public static Set<BlockPos> generate(List<Vec3> vertices, FillMode fillMode, int maxBlocks, BlockGenerationObserver observer) {
-      return generate(vertices, fillMode, maxBlocks, observer, FaceRasterPolicies.CURRENT_POLYGON);
+      return generate(vertices, fillMode, maxBlocks, observer, FacePolicyObserver.policies(observer).polygon());
    }
 
    /** A task may pass one immutable policy snapshot to every generated polygon section. */

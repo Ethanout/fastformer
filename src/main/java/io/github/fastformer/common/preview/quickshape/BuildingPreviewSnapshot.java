@@ -5,6 +5,7 @@ import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.geometry.model.FillMode;
 import io.github.fastformer.common.geometry.GeometryNumbers;
 import io.github.fastformer.common.geometry.LineTieBias;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet;
 import io.github.fastformer.common.quickshape.mode.LineMode;
 import io.github.fastformer.common.quickshape.mode.PointMode;
 import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
@@ -40,9 +41,11 @@ public record BuildingPreviewSnapshot(
    FillMode fillMode,
    LineTieBias faceTieBias,
    PlacementContextSnapshot placementContext,
-   ResourceLocation activePlacementEffect
+   ResourceLocation activePlacementEffect,
+   FaceRasterPolicySet facePolicies
 ) {
    public BuildingPreviewSnapshot {
+      java.util.Objects.requireNonNull(facePolicies, "facePolicies");
       polygonVolumeShape = polygonVolumeShape == null ? PolygonVolumeShape.EXTRUDE : polygonVolumeShape;
       faceTieBias = faceTieBias == null ? LineTieBias.DEFAULT : faceTieBias;
       points = points.stream().map(BlockPos::immutable).toList();
@@ -51,6 +54,20 @@ public record BuildingPreviewSnapshot(
       faceBaseOffset = GeometryNumbers.finiteOrZero(faceBaseOffset);
       volumeBaseOffset = GeometryNumbers.finiteOrZero(volumeBaseOffset);
       angleDegrees = GeometryNumbers.finiteOr(angleDegrees, 0.0);
+   }
+
+   public BuildingPreviewSnapshot(
+      boolean enabled, boolean middleConfirmEnabled, boolean active, boolean ctrlHeld,
+      boolean polygonClosed, boolean polygonHeightConfirmed, PolygonVolumeShape polygonVolumeShape,
+      List<BlockPos> points, int angleDistance, BlockPos freeScrollOffset, Vec3 faceBaseOffset,
+      Vec3 volumeBaseOffset, BlockPos perpendicularAnchor, double angleDegrees, PointMode pointMode,
+      RaycastPlacement raycastPlacement, LineMode lineMode, FaceMode faceMode, VolumeMode volumeMode,
+      FillMode fillMode, LineTieBias faceTieBias, PlacementContextSnapshot placementContext, ResourceLocation activePlacementEffect
+   ) {
+      this(enabled, middleConfirmEnabled, active, ctrlHeld, polygonClosed, polygonHeightConfirmed, polygonVolumeShape,
+         points, angleDistance, freeScrollOffset, faceBaseOffset, volumeBaseOffset, perpendicularAnchor, angleDegrees,
+         pointMode, raycastPlacement, lineMode, faceMode, volumeMode, fillMode, faceTieBias, placementContext,
+         activePlacementEffect, FaceRasterPolicySet.DEFAULT);
    }
 
    public BuildingPreviewSnapshot(
@@ -79,12 +96,20 @@ public record BuildingPreviewSnapshot(
    /** Recombines one revision after the recipient has validated all three protocol messages. */
    public static BuildingPreviewSnapshot combine(BuildingPreviewSession session, BuildingPreviewParameters parameters,
       BuildingPreviewEffectSnapshot effect) {
+      return combine(session, parameters, effect, FaceRasterPolicySet.DEFAULT);
+   }
+
+   public static BuildingPreviewSnapshot combine(BuildingPreviewSession session, BuildingPreviewParameters parameters,
+      BuildingPreviewEffectSnapshot effect, FaceRasterPolicySet policies) {
+      if (!parameters.facePolicyHash().equals(policies.hash())) {
+         throw new IllegalArgumentException("Preview parameters and captured face policies differ");
+      }
       return new BuildingPreviewSnapshot(session.enabled(), session.middleConfirmEnabled(), session.active(),
          session.ctrlHeld(), session.polygonClosed(), session.polygonHeightConfirmed(), session.polygonVolumeShape(),
          session.points(), parameters.angleDistance(), session.freeScrollOffset(), parameters.faceBaseOffset(),
          parameters.volumeBaseOffset(), parameters.perpendicularAnchor(), parameters.angleDegrees(), parameters.pointMode(),
          parameters.raycastPlacement(), parameters.lineMode(), parameters.faceMode(), parameters.volumeMode(),
-         parameters.fillMode(), parameters.faceTieBias(), session.placementContext(), effect.activeEffect());
+         parameters.fillMode(), parameters.faceTieBias(), session.placementContext(), effect.activeEffect(), policies);
    }
 
    public BuildingPreviewSession session() {
@@ -94,7 +119,7 @@ public record BuildingPreviewSnapshot(
 
    public BuildingPreviewParameters parameters() {
       return new BuildingPreviewParameters(angleDistance, faceBaseOffset, volumeBaseOffset, perpendicularAnchor,
-         angleDegrees, pointMode, raycastPlacement, lineMode, faceMode, volumeMode, fillMode, faceTieBias);
+         angleDegrees, pointMode, raycastPlacement, lineMode, faceMode, volumeMode, fillMode, faceTieBias, facePolicies.hash());
    }
 
    public BuildingPreviewEffectSnapshot effect() {

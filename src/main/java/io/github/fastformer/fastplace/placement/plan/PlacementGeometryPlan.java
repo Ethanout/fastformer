@@ -2,6 +2,8 @@ package io.github.fastformer.fastplace.placement.plan;
 
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
 import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
@@ -11,8 +13,15 @@ import net.minecraft.core.BlockPos;
 /** World-independent geometry shared by client submission and server placement generation. */
 public record PlacementGeometryPlan(List<BlockPos> points, FastPlaceGeometry.Modes modes,
    boolean polygonHeightConfirmed, PolygonVolumeShape polygonVolumeShape, int maxPlacement,
-   ResolvedPlacementEffect effect) {
+   ResolvedPlacementEffect effect, FaceRasterPolicySet facePolicies) {
+   public PlacementGeometryPlan(List<BlockPos> points, FastPlaceGeometry.Modes modes,
+      boolean polygonHeightConfirmed, PolygonVolumeShape polygonVolumeShape, int maxPlacement,
+      ResolvedPlacementEffect effect) {
+      this(points, modes, polygonHeightConfirmed, polygonVolumeShape, maxPlacement, effect, FaceRasterPolicySet.DEFAULT);
+   }
+
    public PlacementGeometryPlan {
+      java.util.Objects.requireNonNull(facePolicies, "facePolicies");
       points = points.stream().map(BlockPos::immutable).toList();
       if (modes == null || polygonVolumeShape == null || maxPlacement < 1 || maxPlacement == Integer.MAX_VALUE) {
          throw new IllegalArgumentException("Placement geometry requires modes, shape and a bounded limit");
@@ -27,6 +36,7 @@ public record PlacementGeometryPlan(List<BlockPos> points, FastPlaceGeometry.Mod
    public long additionalGeneratedBlockSets() { return effect != null && effect.transformsTargets() ? 1 : 0; }
 
    public BlockGenerationResult generate(BlockGenerationObserver observer) {
+      observer = FacePolicyObserver.capture(facePolicies, observer);
       observer.checkCancelled();
       var base = FastPlaceGeometry.blocksResult(points, modes, polygonHeightConfirmed,
          polygonVolumeShape, maxPlacement + 1, observer);

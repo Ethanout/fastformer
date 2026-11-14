@@ -1,5 +1,6 @@
 package io.github.fastformer.fastplace.placement.plan;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet;
 
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
@@ -21,9 +22,16 @@ public record PlacementGenerationPlan(
    PolygonVolumeShape polygonVolumeShape,
    ResolvedPlacementEffect effect,
    long estimatedBlocks,
-   PlacementTaskPlan taskPlan
+   PlacementTaskPlan taskPlan,
+   FaceRasterPolicySet facePolicies
 ) {
+   public PlacementGenerationPlan(List<BlockPos> points, FastPlaceGeometry.Modes modes, boolean polygonHeightConfirmed,
+      PolygonVolumeShape polygonVolumeShape, ResolvedPlacementEffect effect, long estimatedBlocks, PlacementTaskPlan taskPlan) {
+      this(points, modes, polygonHeightConfirmed, polygonVolumeShape, effect, estimatedBlocks, taskPlan, FaceRasterPolicySet.DEFAULT);
+   }
+
    public PlacementGenerationPlan {
+      java.util.Objects.requireNonNull(facePolicies, "facePolicies");
       points = points.stream().map(BlockPos::immutable).toList();
       if (modes == null || polygonVolumeShape == null || taskPlan == null || estimatedBlocks < 0L) {
          throw new IllegalArgumentException("A placement generation plan requires geometry and task policy");
@@ -47,7 +55,7 @@ public record PlacementGenerationPlan(
    }
 
    public PlacementTask generateAsync(MemoryReservation generationReservation) {
-      ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(this.estimatedTargetBlocks(), false);
+      ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(this.estimatedTargetBlocks(), false, facePolicies);
       CompletableFuture<BlockGenerationResult> targets;
       try {
          targets = CompletableFuture.supplyAsync(() -> generateTracked(progress));
@@ -63,7 +71,7 @@ public record PlacementGenerationPlan(
    }
 
    public PlacementTask waitForGenerationMemory() {
-      ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(this.estimatedTargetBlocks(), false);
+      ProgressiveBlockGeneration progress = new ProgressiveBlockGeneration(this.estimatedTargetBlocks(), false, facePolicies);
       return PlacementTask.waitingForGeneration(() -> generateTracked(progress), progress, this.taskPlan,
          estimatedTargetBlocks(), additionalGeneratedBlockSets());
    }
@@ -83,7 +91,7 @@ public record PlacementGenerationPlan(
 
    private BlockGenerationResult generateTargets(ProgressiveBlockGeneration progress) {
       return new PlacementGeometryPlan(points, modes, polygonHeightConfirmed, polygonVolumeShape,
-         taskPlan.maxPlacement(), effect).generate(progress == null
+         taskPlan.maxPlacement(), effect, facePolicies).generate(progress == null
             ? io.github.fastformer.common.geometry.raster.BlockGenerationObserver.NONE : progress);
    }
 

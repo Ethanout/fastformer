@@ -13,6 +13,8 @@ import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
 import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
 import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
 import java.util.Objects;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterRules;
 
 /** Owns versioned server snapshots and reconnect confirmation for the client session. */
 public final class ClientPreviewState {
@@ -42,6 +44,31 @@ public final class ClientPreviewState {
    private BuildingPreviewParametersPayload heldReconnectBuildingParameters;
    private BuildingPreviewEffectPayload heldReconnectBuildingEffect;
    private GeometryPreviewPayload heldReconnectGeometry;
+   private FaceRasterPolicySet facePolicies = FaceRasterPolicySet.DEFAULT;
+   private Object facePolicyRegistry;
+
+   /** Captures a synchronized registry once, outside worker threads and rendering. */
+   public void observeFacePolicies(net.minecraft.core.RegistryAccess registries) {
+      Object registry = registries.registry(FaceRasterRules.REGISTRY).orElse(null);
+      if (registry == facePolicyRegistry) return;
+      facePolicyRegistry = registry;
+      applyFacePolicies(FaceRasterRules.capture(registries));
+   }
+
+   public void applyFacePolicies(FaceRasterPolicySet policies) {
+      policies = Objects.requireNonNull(policies, "policies");
+      if (facePolicies.equals(policies)) return;
+      facePolicies = policies;
+      invalidateBuilding();
+      rebuildBuilding();
+   }
+
+   private void invalidateBuilding() {
+      building = BuildingPreviewSnapshot.inactive();
+      buildingSubmission = null;
+      revision++;
+      buildingVersion++;
+   }
 
    public BuildingPreviewSnapshot building() {
       return building;
@@ -59,6 +86,7 @@ public final class ClientPreviewState {
 
    public Optional<BuildingPreviewSessionPayload> idleBuildingSession() {
       return !buildingSession.value().active() && buildingSessionRevision > 0
+         && buildingParameters.value().facePolicyHash().equals(facePolicies.hash())
          && !buildingSession.callbackScope().equals(io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped())
          && buildingSessionRevision == buildingParametersRevision
          && buildingSessionRevision == buildingEffectRevision
@@ -149,6 +177,8 @@ public final class ClientPreviewState {
     * next replayed snapshot never becomes visible on its own.
     */
    public void resetConnection() {
+      facePolicyRegistry = null;
+      facePolicies = FaceRasterPolicySet.DEFAULT;
       submissionParameters = null;
       if (building.active() || geometry.active() || reconnectRestorePending) {
          beginReconnectRestore();
@@ -308,6 +338,7 @@ public final class ClientPreviewState {
       }
       buildingParameters = payload;
       buildingParametersRevision = payload.revision();
+      if (!payload.value().facePolicyHash().equals(building.facePolicies().hash())) invalidateBuilding();
       return rebuildBuilding();
    }
 
@@ -329,7 +360,11 @@ public final class ClientPreviewState {
       var sessionValue = buildingSession.value();
       var parameterValue = buildingParameters.value();
       var effectValue = buildingEffect.value();
-      building = BuildingPreviewSnapshot.combine(sessionValue, parameterValue, effectValue);
+      if (!parameterValue.facePolicyHash().equals(facePolicies.hash())) {
+         invalidateBuilding();
+         return false;
+      }
+      building = BuildingPreviewSnapshot.combine(sessionValue, parameterValue, effectValue, facePolicies);
       var scope = buildingSession.callbackScope();
       buildingSubmission = building.active() && buildingSessionRevision > 0
          && !scope.equals(OperationCallbackScope.unscoped())

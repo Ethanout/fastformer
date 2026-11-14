@@ -206,6 +206,7 @@ public final class ClientSessionSystem {
       if (minecraft == null || minecraft.player == null || minecraft.getConnection() == null) {
          return;
       }
+      previews.observeFacePolicies(minecraft.player.registryAccess());
       String connection = connectionIdentity(minecraft);
       String dimension = minecraft.level == null ? "" : minecraft.level.dimension().location().toString();
       ClientScope session = activateScope(minecraft.player.getUUID(), connection, dimension);

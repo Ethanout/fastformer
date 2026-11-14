@@ -94,7 +94,8 @@ class BuildingPreviewCodecTest {
          UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID()
       );
       BuildingPreviewSessionPayload session = new BuildingPreviewSessionPayload(12L, source.session(), scope);
-      BuildingPreviewParametersPayload parameters = new BuildingPreviewParametersPayload(12L, source.parameters(), scope);
+      BuildingPreviewParametersPayload parameters = new BuildingPreviewParametersPayload(12L,
+         source.parameters().withFacePolicyHash("a".repeat(64)).withLineMode(LineMode.AXIS), scope);
       BuildingPreviewEffectPayload effect = new BuildingPreviewEffectPayload(12L, source.effect(), scope);
 
       FriendlyByteBuf sessionBuffer = new FriendlyByteBuf(Unpooled.buffer());

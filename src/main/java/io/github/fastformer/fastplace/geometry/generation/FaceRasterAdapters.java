@@ -15,6 +15,7 @@ import io.github.fastformer.common.geometry.raster.face.algorithm.FaceRasterAlgo
 import io.github.fastformer.common.geometry.raster.face.classify.FaceShape;
 import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicies;
 import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicy;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
 import java.util.Set;
 import java.util.List;
 import java.util.function.Function;
@@ -107,6 +108,12 @@ public final class FaceRasterAdapters {
         return STRICT_QUAD;
     }
 
+    public static FaceRasterDispatcher strictQuad(FaceRasterPolicy policy) {
+        if (policy == FaceRasterPolicies.CURRENT_VOLUME_FACE) return STRICT_QUAD;
+        return new FaceRasterDispatcher(ALGORITHMS, policy, ChainExhaustion.RETURN_FAILURE,
+                (shape, request) -> quadOutline(request), (id, shape) -> {});
+    }
+
     private static FaceRasterResult quadOutline(FaceRequest request) {
         var attempt = QuadFaceRasterizer.attempt(
                 ProjectedBresenhamFace.Frame.create(request.vertices(), request.observer()),
@@ -126,6 +133,9 @@ public final class FaceRasterAdapters {
         return new FaceRasterAlgorithm() {
             @Override public ResourceLocation id() { return id; }
             @Override public boolean accepts(FaceShape shape) { return true; }
+            @Override public boolean supportsStrictSurface() {
+                return !id.equals(FaceRasterPolicies.QUAD_ALGORITHM) && !id.equals(FaceRasterPolicies.POLYGON_ALGORITHM);
+            }
             @Override public FaceRasterResult rasterize(FaceShape shape, FaceRequest request) {
                 request.observer().checkCancelled();
                 return function.apply(request);
@@ -148,9 +158,9 @@ public final class FaceRasterAdapters {
 
     /** Only final dispatcher output is generated; rejected candidates must not report accepted blocks. */
     private static BlockGenerationObserver scanningObserver(FaceRequest request) {
-        return new BlockGenerationObserver() {
+        return FacePolicyObserver.forward(request.observer(), new BlockGenerationObserver() {
             @Override public void onScanned(long amount) { request.observer().onScanned(amount); }
             @Override public void checkCancelled() { request.observer().checkCancelled(); }
-        };
+        });
     }
 }

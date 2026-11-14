@@ -1,0 +1,212 @@
+{
+  "bindings": [
+    {
+      "id": "fastformer:confirmation/restore",
+      "priority": 0,
+      "context": {
+        "input_phase": "restore",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "restore_pending": true
+      },
+      "input": {
+        "button": "key.keyboard.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/restore"
+    },
+    {
+      "id": "fastformer:confirmation/selection",
+      "priority": 0,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "operation"
+      },
+      "input": {
+        "button": "key.keyboard.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/selection"
+    },
+    {
+      "id": "fastformer:confirmation/selection_keypad",
+      "priority": 0,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "operation"
+      },
+      "input": {
+        "button": "key.keyboard.keypad.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/selection"
+    },
+    {
+      "id": "fastformer:confirmation/quick_shape",
+      "priority": 10,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "building",
+        "submission_allowed": true,
+        "connected": true,
+        "can_confirm": true,
+        "vanilla_pointer": false
+      },
+      "input": {
+        "button": "key.keyboard.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/quick_shape"
+    },
+    {
+      "id": "fastformer:confirmation/quick_shape_keypad",
+      "priority": 10,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "key_route": "building",
+        "submission_allowed": true,
+        "connected": true,
+        "can_confirm": true,
+        "vanilla_pointer": false
+      },
+      "input": {
+        "button": "key.keyboard.keypad.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/quick_shape"
+    },
+    {
+      "id": "fastformer:confirmation/placement_geometry",
+      "priority": 0,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "submission_allowed": true,
+        "connected": true,
+        "can_confirm": true,
+        "vanilla_pointer": false,
+        "key_route": "geometry"
+      },
+      "input": {
+        "button": "key.keyboard.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/placement"
+    },
+    {
+      "id": "fastformer:confirmation/placement_vanilla",
+      "priority": 0,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "submission_allowed": true,
+        "connected": true,
+        "can_confirm": true,
+        "vanilla_pointer": false,
+        "key_route": "vanilla"
+      },
+      "input": {
+        "button": "key.keyboard.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/placement"
+    },
+    {
+      "id": "fastformer:confirmation/placement_cancel",
+      "priority": 0,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "submission_allowed": true,
+        "connected": true,
+        "can_confirm": true,
+        "vanilla_pointer": false,
+        "key_route": "cancel"
+      },
+      "input": {
+        "button": "key.keyboard.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/placement"
+    },
+    {
+      "id": "fastformer:confirmation/placement_keypad_geometry",
+      "priority": 0,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "submission_allowed": true,
+        "connected": true,
+        "can_confirm": true,
+        "vanilla_pointer": false,
+        "key_route": "geometry"
+      },
+      "input": {
+        "button": "key.keyboard.keypad.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/placement"
+    },
+    {
+      "id": "fastformer:confirmation/placement_keypad_vanilla",
+      "priority": 0,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "submission_allowed": true,
+        "connected": true,
+        "can_confirm": true,
+        "vanilla_pointer": false,
+        "key_route": "vanilla"
+      },
+      "input": {
+        "button": "key.keyboard.keypad.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/placement"
+    },
+    {
+      "id": "fastformer:confirmation/placement_keypad_cancel",
+      "priority": 0,
+      "context": {
+        "input_phase": "confirmation",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "submission_allowed": true,
+        "connected": true,
+        "can_confirm": true,
+        "vanilla_pointer": false,
+        "key_route": "cancel"
+      },
+      "input": {
+        "button": "key.keyboard.keypad.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:confirmation/placement"
+    }
+  ]
+}

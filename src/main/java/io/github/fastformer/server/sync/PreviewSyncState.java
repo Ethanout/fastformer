@@ -27,7 +27,19 @@ final class PreviewSyncState implements Scoped {
    long geometryRevision;
    long activityRevision;
    QuickShapeSubmissionParametersPayload submissionParameters;
+   String buildingFacePolicyHash;
+   private Object facePolicyRegistry;
+   private io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet facePolicies;
    private UUID callbackSession;
+
+   io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet facePolicies(net.minecraft.core.RegistryAccess registries) {
+      Object registry = registries.registry(io.github.fastformer.common.geometry.raster.face.policy.FaceRasterRules.REGISTRY).orElse(null);
+      if (facePolicies == null || registry != facePolicyRegistry) {
+         facePolicyRegistry = registry;
+         facePolicies = io.github.fastformer.common.geometry.raster.face.policy.FaceRasterRules.capture(registries);
+      }
+      return facePolicies;
+   }
 
    UUID callbackSession() {
       if (callbackSession == null) beginClientSession();
@@ -44,6 +56,9 @@ final class PreviewSyncState implements Scoped {
       geometryRevision = 0;
       activityRevision = 0;
       submissionParameters = null;
+      buildingFacePolicyHash = null;
+      facePolicyRegistry = null;
+      facePolicies = null;
    }
 
    @Override public void onDetach() { clear(); }

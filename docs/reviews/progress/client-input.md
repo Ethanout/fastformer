@@ -88,3 +88,7 @@
 - PointerDragSnapshotView、工作区指针与渲染只读 SelectionGestureSnapshot；纯拖动值和数学迁入 `client/interaction/drag`。AabbAdjustDecision 移到共享值模型，避免手势端口与变换实现形成包环。保留 140ms 面短按、Ctrl 自由旋转／默认90度、repeat stride 与局部轴计算。
 - 新增 15 项能力／旋转规则测试及 2 项真实作用域所有权测试；排队按压／松开、作用域与指针测试改用真实能力入口，删除旧裸状态注入和相关反射。旧类型引用与能力反向依赖静态扫描均为0，diff whitespace 检查通过。Gradle 与 GameTest 由主代理统一执行，本阶段尚未据此声明运行通过。
 - 本批只收口本地选区面／Gizmo 变换。远端确认选区、几何／起形手势及完整操作树生命周期仍按剩余计划推进。
+
+## 输入总入口拆分（2026-11-15）
+
+接续工作区已完成 `FastPlaceClientInput` 拆分，入口现为 119 行。按键、物理鼠标、选区、修饰键、滚轮和世界清理分别由现有控制器拥有。完整 check 和新世界 GameTest 已覆盖本批继承改动；具体控制器仍有超限旧债务，不能据此宣布整个输入系统重构完成。
