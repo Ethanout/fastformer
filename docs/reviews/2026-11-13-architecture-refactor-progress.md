@@ -387,3 +387,9 @@
 - `Vectors` 提供无游戏依赖的主轴选择、分量和轴向量构造；`MinecraftVectors` 适配 Vec3，并区分有符号步进与正向基轴。删除四处重复主轴方法和工作区缩放的分量方法，调用方直接复用。
 - 保留绝对分量 X／Y／Z 平局优先级、非有限分量的比较结果和 signed zero。起形滚轮方向、体积回退轴、棱柱投影及铅笔线哈希序号不变，没有将原版 Direction 最近方向的判定替换成不同平局规则。
 - 新增随机输入对照、平局／非有限值、轴分量及符号零测试。`.temp/architecture-vector-axes-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过，正常停服。其他数学原语、Intent、客户端和 Mode 等主线仍未完成。
+
+## 格点四边形判定（2026-11-14）
+
+- `common.math.BlockQuads` 统一四边形对角坐标和判定，QuadFaceRasterizer、PlanarFaceRasterizer 和 TranslatedScanFaceRasterizer 直接复用；删除 BresenhamFaceSweep 中无调用者的重复方法。
+- 保留整数 long 求和避免溢出、浮点顶点先按 BlockPos.containing 落格、按周边排列顶点以及退化仍可能满足恒等式的原有语义。落格入口不再创建流和中间列表，其他几何／预算校验归生成器。
+- 新增整数极值、退化、顺序、负坐标落格和随机公式对照测试。`.temp/architecture-block-quads-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过，正常停服。体素等其余数学原语及客户端／Mode 等主线仍未完成。

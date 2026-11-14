@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
+import static io.github.fastformer.common.math.BlockQuads.isParallelogram;
+
 import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -289,7 +291,7 @@ final class TranslatedScanFaceRasterizer {
       BlockPos p10 = vertices.get(1);
       BlockPos p11 = vertices.get(2);
       BlockPos p01 = vertices.get(3);
-      if (!Model.isParallelogram(p00, p10, p11, p01)) {
+      if (!isParallelogram(p00, p10, p11, p01)) {
          return BresenhamFaceSweep.Attempt.failed(BresenhamFaceSweep.Status.NOT_APPLICABLE);
       }
 
@@ -2094,12 +2096,6 @@ final class TranslatedScanFaceRasterizer {
       double realHeight(Pixel pixel) {
          return -(this.frame.normal().x * pixel.u() + this.frame.normal().y * pixel.v())
             / this.frame.normal().z;
-      }
-
-      private static boolean isParallelogram(BlockPos p00, BlockPos p10, BlockPos p11, BlockPos p01) {
-         return (long)p00.getX() + p11.getX() == (long)p10.getX() + p01.getX()
-            && (long)p00.getY() + p11.getY() == (long)p10.getY() + p01.getY()
-            && (long)p00.getZ() + p11.getZ() == (long)p10.getZ() + p01.getZ();
       }
 
       private static boolean insideConvex(Pixel point, List<Pixel> polygon) {

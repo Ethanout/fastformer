@@ -85,16 +85,6 @@ final class BresenhamFaceSweep {
       );
    }
 
-   private static boolean isParallelogram(List<BlockPos> vertices) {
-      BlockPos first = vertices.getFirst();
-      BlockPos second = vertices.get(1);
-      BlockPos third = vertices.get(2);
-      BlockPos fourth = vertices.get(3);
-      return (long)first.getX() + third.getX() == (long)second.getX() + fourth.getX()
-         && (long)first.getY() + third.getY() == (long)second.getY() + fourth.getY()
-         && (long)first.getZ() + third.getZ() == (long)second.getZ() + fourth.getZ();
-   }
-
    private static int safeInt(long value) {
       return value < Integer.MIN_VALUE ? Integer.MIN_VALUE : value > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)value;
    }

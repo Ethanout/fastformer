@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
+import static io.github.fastformer.common.math.BlockQuads.isParallelogramAfterFlooring;
+
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -75,7 +77,7 @@ final class PlanarFaceRasterizer {
       }
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
       ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
-      if (vertices.size() == 4 && frame != null && isParallelogram(vertices)) {
+      if (vertices.size() == 4 && frame != null && isParallelogramAfterFlooring(vertices)) {
          LinkedHashSet<BlockPos> exact = new LinkedHashSet<>();
          List<BlockPos> corners = vertices.stream().map(BlockPos::containing).toList();
          for (int index = 0; index < corners.size(); index++) {
@@ -263,7 +265,7 @@ final class PlanarFaceRasterizer {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      if (vertices.size() != 4 || maxBlocks <= 0 || !isParallelogram(vertices)) {
+      if (vertices.size() != 4 || maxBlocks <= 0 || !isParallelogramAfterFlooring(vertices)) {
          return null;
       }
       List<BlockPos> corners = vertices.stream().map(BlockPos::containing).toList();
@@ -313,20 +315,6 @@ final class PlanarFaceRasterizer {
     */
    private static Set<BlockPos> limitSentinel(int maxBlocks, BlockGenerationObserver observer) {
       return GenerationLimitExceeded.witness(maxBlocks, observer);
-   }
-
-   private static boolean isParallelogram(List<Vec3> vertices) {
-      if (vertices.size() != 4) {
-         return false;
-      }
-      List<BlockPos> blocks = vertices.stream().map(BlockPos::containing).toList();
-      BlockPos first = blocks.getFirst();
-      BlockPos second = blocks.get(1);
-      BlockPos third = blocks.get(2);
-      BlockPos fourth = blocks.get(3);
-      return (long)first.getX() + third.getX() == (long)second.getX() + fourth.getX()
-         && (long)first.getY() + third.getY() == (long)second.getY() + fourth.getY()
-         && (long)first.getZ() + third.getZ() == (long)second.getZ() + fourth.getZ();
    }
 
 }

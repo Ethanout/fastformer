@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
+import static io.github.fastformer.common.math.BlockQuads.isParallelogram;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -182,12 +184,6 @@ final class QuadFaceRasterizer {
          (long)position.getZ() - frame.anchor().getZ()
       };
       return safeInt(delta[frame.order()[2]] * frame.signs()[2]);
-   }
-
-   private static boolean isParallelogram(List<BlockPos> points) {
-      return (long)points.get(0).getX() + points.get(2).getX() == (long)points.get(1).getX() + points.get(3).getX()
-         && (long)points.get(0).getY() + points.get(2).getY() == (long)points.get(1).getY() + points.get(3).getY()
-         && (long)points.get(0).getZ() + points.get(2).getZ() == (long)points.get(1).getZ() + points.get(3).getZ();
    }
 
    private static int safeInt(long value) {
