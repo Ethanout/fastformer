@@ -4,7 +4,7 @@ import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.Optional;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;
@@ -22,7 +22,7 @@ public final class ClientPreviewState {
    private BuildingPreviewEffectPayload buildingEffect = new BuildingPreviewEffectPayload(building.activePlacementEffect());
    private OperationPreviewPayload operation = OperationPreviewPayload.inactive();
    private GeometryPreviewPayload geometry = GeometryPreviewPayload.inactive();
-   private FastPlaceActivity activity = FastPlaceActivity.NONE;
+   private SessionActivity activity = SessionActivity.NONE;
    private long revision;
    private long buildingVersion;
    private long geometryVersion;
@@ -96,7 +96,7 @@ public final class ClientPreviewState {
       return geometry;
    }
 
-   public FastPlaceActivity activity() {
+   public SessionActivity activity() {
       return activity;
    }
 
@@ -161,7 +161,7 @@ public final class ClientPreviewState {
       applyBuilding(BuildingPreviewSnapshot.inactive());
       applyOperation(OperationPreviewPayload.inactive());
       applyGeometry(GeometryPreviewPayload.inactive());
-      applyActivity(new ActivityStatePayload(FastPlaceActivity.NONE));
+      applyActivity(new ActivityStatePayload(SessionActivity.NONE));
       // A new connection or level cannot answer the question of the old one.
       clearPendingReconnectRestore();
    }

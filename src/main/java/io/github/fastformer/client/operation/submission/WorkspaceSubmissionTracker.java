@@ -1,7 +1,7 @@
 package io.github.fastformer.client.operation.submission;
 
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -49,11 +49,11 @@ final class WorkspaceSubmissionTracker {
       return this.identity;
    }
 
-   void observeActivity(FastPlaceActivity activity) {
+   void observeActivity(SessionActivity activity) {
       if (!pending()) {
          return;
       }
-      if (activity == FastPlaceActivity.OPERATION_TASK) {
+      if (activity == SessionActivity.OPERATION_TASK) {
          phase = Phase.TASK_ACTIVE;
          waitTicks = 0;
       } else if (phase == Phase.TASK_ACTIVE) {

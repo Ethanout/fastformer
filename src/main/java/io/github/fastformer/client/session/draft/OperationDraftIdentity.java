@@ -1,6 +1,6 @@
 package io.github.fastformer.client.session.draft;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import java.util.List;
 import net.minecraft.core.BlockPos;

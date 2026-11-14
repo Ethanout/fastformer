@@ -4,5 +4,6 @@ package io.github.fastformer.client.preview.frame;
 public interface PreviewMode<I, M> {
    M buildModel(I input);
    void drawWorld(WorldPreviewFrame frame, M model);
+   default void drawAfterLevel(WorldPreviewFrame frame, M model) {}
    void clear();
 }

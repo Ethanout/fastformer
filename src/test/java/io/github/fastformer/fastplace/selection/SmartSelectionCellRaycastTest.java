@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.selection;
 
+import io.github.fastformer.common.selection.smart.SmartSelectionRaycast;
+
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.Set;
 import net.minecraft.core.BlockPos;

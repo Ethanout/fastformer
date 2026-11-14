@@ -2,16 +2,16 @@ package io.github.fastformer.fastplace;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
 
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.selection.OperationStackRegion;
 
-import io.github.fastformer.fastplace.selection.OperationStageMode;
+import io.github.fastformer.common.selection.OperationStageMode;
 
-import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationMode;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionStage;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionStage;
 
 import io.github.fastformer.fastplace.world.*;
 

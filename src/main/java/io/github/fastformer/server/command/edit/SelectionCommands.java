@@ -5,7 +5,7 @@ import io.github.fastformer.server.intent.PlayerIntentSystem;
 import io.github.fastformer.server.intent.HistoryIntents;
 import io.github.fastformer.server.intent.selection.SelectionIntents;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;

@@ -1,7 +1,6 @@
 package io.github.fastformer.client.mode.builtin;
 
 import static io.github.fastformer.client.input.state.ClientInputStateMachine.Dispatch.*;
-
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
 import io.github.fastformer.common.mode.BuiltinModes;
@@ -10,12 +9,15 @@ import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
 import java.util.Map;
 import java.util.Optional;
+import io.github.fastformer.client.mode.PreviewObservation;
 
 /** Declares idle ownership and its phase input rules. */
 public final class IdleMode implements ClientMode {
    private static final Map<State, ModeInputPolicy> PHASES = Map.of(State.IDLE, new ModeInputPolicy(VANILLA, BLOCKED, BLOCKED, VANILLA, BLOCKED, false, false, false));
 
    @Override public ModeId id() { return BuiltinModes.IDLE; }
+   @Override public boolean previewActive(PreviewObservation observation) { return observation.idle(); }
+   @Override public int previewPriority(PreviewObservation observation) { return 400; }
    @Override public int priority() { return 0; }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }
    @Override public Optional<State> observe(ModeObservation observation) {

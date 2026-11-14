@@ -1,5 +1,6 @@
 package io.github.fastformer.client.render;
 
+import io.github.fastformer.client.preview.frame.PreviewDrawContext;
 import java.util.Collection;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
@@ -47,11 +48,20 @@ public final class WorkspacePreviewRenderer {
       Map<BlockPos, BlockSnapshot> blocks, Map<BlockPos, BlockSnapshot> occlusionBlocks,
       float red, float green, float blue, float alpha, float worldOpacity, boolean dynamic
    ) {
-      if (minecraft.level != null && FastPlaceClientShaders.previewMaterial() != null) {
+      renderBlocks(poseStack, buffers, PreviewDrawContext.capture(minecraft), camera, blocks, occlusionBlocks,
+         red, green, blue, alpha, worldOpacity, dynamic);
+   }
+
+   public static void renderBlocks(
+      PoseStack poseStack, BufferSource buffers, PreviewDrawContext graphics, Vec3 camera,
+      Map<BlockPos, BlockSnapshot> blocks, Map<BlockPos, BlockSnapshot> occlusionBlocks,
+      float red, float green, float blue, float alpha, float worldOpacity, boolean dynamic
+   ) {
+      if (graphics.level() != null && FastPlaceClientShaders.previewMaterial() != null) {
          Map<BlockPos, net.minecraft.world.level.block.state.BlockState> states = new java.util.HashMap<>();
          occlusionBlocks.forEach((pos, snapshot) -> states.put(pos, snapshot.state()));
-         PreviewMaterialRenderer.draw(poseStack, buffers, minecraft, camera, blocks,
-            PreviewBlockOcclusion.level(minecraft.level, states), red, green, blue, alpha * worldOpacity, dynamic);
+         PreviewMaterialRenderer.draw(poseStack, buffers, graphics, camera, blocks,
+            PreviewBlockOcclusion.level(graphics.level(), states), red, green, blue, alpha * worldOpacity, dynamic);
          return;
       }
       buffers.endBatch();
@@ -61,10 +71,10 @@ public final class WorkspacePreviewRenderer {
       try {
          Map<BlockPos, net.minecraft.world.level.block.state.BlockState> states = new java.util.HashMap<>();
          occlusionBlocks.forEach((pos, snapshot) -> states.put(pos, snapshot.state()));
-         net.minecraft.world.level.BlockAndTintGetter previewLevel = minecraft.level == null
-            ? null : PreviewBlockOcclusion.level(minecraft.level, states);
+         net.minecraft.world.level.BlockAndTintGetter previewLevel = graphics.level() == null
+            ? null : PreviewBlockOcclusion.level(graphics.level(), states);
          if (previewLevel != null) renderBlockModels(poseStack, buffers.getBuffer(PreviewRenderTypes.WORKSPACE_BLOCKS),
-            minecraft, camera, blocks, previewLevel);
+            graphics, camera, blocks, previewLevel);
       } finally {
          buffers.endBatch(PreviewRenderTypes.WORKSPACE_BLOCKS);
          com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
@@ -75,7 +85,12 @@ public final class WorkspacePreviewRenderer {
    /** Uses snapshot states and vanilla models for both moving previews and x-ray previews. */
    public static void renderBlockModels(PoseStack pose, VertexConsumer vertices, Minecraft minecraft, Vec3 origin,
       Map<BlockPos, BlockSnapshot> blocks, net.minecraft.world.level.BlockAndTintGetter previewLevel) {
-      BlockRenderDispatcher renderer = minecraft.getBlockRenderer();
+      renderBlockModels(pose, vertices, PreviewDrawContext.capture(minecraft), origin, blocks, previewLevel);
+   }
+
+   public static void renderBlockModels(PoseStack pose, VertexConsumer vertices, PreviewDrawContext graphics, Vec3 origin,
+      Map<BlockPos, BlockSnapshot> blocks, net.minecraft.world.level.BlockAndTintGetter previewLevel) {
+      BlockRenderDispatcher renderer = graphics.blockRenderer();
       for (var entry : blocks.entrySet()) {
          pose.pushPose();
          try {
@@ -93,13 +108,20 @@ public final class WorkspacePreviewRenderer {
       PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
        Vec3 anchor, Component text, float scale, int textColor, int backgroundColor
    ) {
+      renderPartLabel(poseStack, buffers, PreviewDrawContext.capture(minecraft), camera, anchor, text, scale, textColor, backgroundColor);
+   }
+
+   public static void renderPartLabel(
+      PoseStack poseStack, BufferSource buffers, PreviewDrawContext graphics, Vec3 camera,
+      Vec3 anchor, Component text, float scale, int textColor, int backgroundColor
+   ) {
       poseStack.pushPose();
       poseStack.translate(anchor.x - camera.x, anchor.y - camera.y, anchor.z - camera.z);
-      poseStack.mulPose(minecraft.gameRenderer.getMainCamera().rotation());
+      poseStack.mulPose(graphics.cameraRotation());
        poseStack.scale(-scale, -scale, scale);
-      float x = -minecraft.font.width(text) * 0.5F;
-      minecraft.font.drawInBatch(
-         text, x, -minecraft.font.lineHeight * 0.5F,
+      float x = -graphics.font().width(text) * 0.5F;
+      graphics.font().drawInBatch(
+         text, x, -graphics.font().lineHeight * 0.5F,
           textColor,
          false, poseStack.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
           backgroundColor, 0x00F000F0
@@ -111,12 +133,18 @@ public final class WorkspacePreviewRenderer {
       PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
       Vec3 position, String text
    ) {
+      renderHintLabel(poseStack, buffers, PreviewDrawContext.capture(minecraft), camera, position, text);
+   }
+
+   public static void renderHintLabel(
+      PoseStack poseStack, BufferSource buffers, PreviewDrawContext graphics, Vec3 camera, Vec3 position, String text
+   ) {
       poseStack.pushPose();
       poseStack.translate(position.x - camera.x, position.y - camera.y, position.z - camera.z);
-      poseStack.mulPose(minecraft.gameRenderer.getMainCamera().rotation());
+      poseStack.mulPose(graphics.cameraRotation());
       poseStack.scale(-PreviewStyle.LABEL_SCALE, -PreviewStyle.LABEL_SCALE, PreviewStyle.LABEL_SCALE);
-      minecraft.font.drawInBatch(
-         text, -minecraft.font.width(text) * 0.5F, -minecraft.font.lineHeight - 3.0F,
+      graphics.font().drawInBatch(
+         text, -graphics.font().width(text) * 0.5F, -graphics.font().lineHeight - 3.0F,
          GeometryPalette.paperInk().argb(), false, poseStack.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
          GeometryPalette.paper().argb(200), LightTexture.FULL_BRIGHT
       );

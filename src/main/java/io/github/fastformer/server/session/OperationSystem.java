@@ -11,12 +11,12 @@ import io.github.fastformer.server.gate.ServerOperationGates;
 
 import io.github.fastformer.server.selection.ClientPointValidator;
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.RecoverySystem;
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.server.session.slot.PlayerSessions;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;

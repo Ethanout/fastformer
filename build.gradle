@@ -268,7 +268,7 @@ tasks.register('verifyModJar') {
                 'io/github/fastformer/server/session/SessionSystem.class',
                 'io/github/fastformer/fastplace/geometry/generation/FastPlaceGeometry.class',
                 'io/github/fastformer/fastplace/workflow/ConvexPolyhedronWorkflow.class',
-                'io/github/fastformer/fastplace/session/FastPlaceActivity.class',
+                'io/github/fastformer/common/mode/SessionActivity.class',
                 'io/github/fastformer/fastplace/world/snapshot/ReversibleBlockSnapshot.class',
                 'io/github/fastformer/server/history/HistoryService.class',
                 'io/github/fastformer/server/history/entry/WorldChangeBatch.class',

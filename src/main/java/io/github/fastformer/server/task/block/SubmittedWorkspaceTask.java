@@ -20,7 +20,7 @@ import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import io.github.fastformer.workspace.submission.OperationWorkspaceValidator;
 import io.github.fastformer.workspace.submission.WorkspaceFailure;
 import io.github.fastformer.workspace.submission.WorkspaceCompletion;
-import io.github.fastformer.workspace.preview.WorkspaceScene;
+import io.github.fastformer.common.workspace.preview.WorkspaceScene;
 import io.github.fastformer.fastplace.world.WorkspaceWriteScope;
 import io.github.fastformer.fastplace.world.WorkspaceTickBarrier;
 import java.util.ArrayDeque;

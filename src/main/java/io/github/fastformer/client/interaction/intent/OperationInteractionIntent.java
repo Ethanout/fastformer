@@ -2,7 +2,7 @@ package io.github.fastformer.client.interaction.intent;
 
 import io.github.fastformer.client.interaction.InteractionTooltip;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;

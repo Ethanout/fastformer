@@ -2,7 +2,7 @@ package io.github.fastformer.client.operation.input;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import org.junit.jupiter.api.Test;
 
 class OperationInputSemanticsTest {

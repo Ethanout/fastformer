@@ -10,7 +10,7 @@ import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.quickshape.mode.LineMode;
 import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 
 import io.github.fastformer.fastplace.world.*;
 

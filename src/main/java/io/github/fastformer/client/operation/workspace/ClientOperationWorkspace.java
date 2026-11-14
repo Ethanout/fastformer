@@ -1,7 +1,10 @@
 package io.github.fastformer.client.operation.workspace;
 
+import io.github.fastformer.common.selection.smart.SmartSelectionTopology;
+import io.github.fastformer.common.workspace.model.WorkspaceLimits;
+
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.selection.ClientSelectionStack;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,7 +21,7 @@ import net.minecraft.core.BlockPos;
 /** Client-owned edit state. World writes are deliberately outside this type. */
 public final class ClientOperationWorkspace {
    /** Codec compatibility sentinel; the client workspace itself is unbounded. */
-   public static final int MAX_PARTS = io.github.fastformer.workspace.WorkspaceLimits.MAX_PARTS;
+   public static final int MAX_PARTS = io.github.fastformer.common.workspace.model.WorkspaceLimits.MAX_PARTS;
 
    private final ClientSelectionStack selections = new ClientSelectionStack();
    private final io.github.fastformer.client.operation.selection.SmartSelectionTopologyCache smartTopologies =
@@ -46,7 +49,7 @@ public final class ClientOperationWorkspace {
 
    public ClientSelectionStack selections() { return this.selections; }
 
-   public io.github.fastformer.fastplace.selection.SmartSelectionTopology smartTopology(ClientSelectionPart part) {
+   public io.github.fastformer.common.selection.smart.SmartSelectionTopology smartTopology(ClientSelectionPart part) {
       return this.smartTopologies.get(part);
    }
 

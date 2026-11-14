@@ -1,6 +1,6 @@
 package io.github.fastformer.client.session.preview;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;
@@ -16,10 +16,10 @@ import java.util.function.Predicate;
 public final class ClientPreviewUpdates {
    private final ClientPreviewState state;
    private final Predicate<OperationPreviewPayload> synchronizeOperation;
-   private final Consumer<FastPlaceActivity> observeActivity;
+   private final Consumer<SessionActivity> observeActivity;
 
    public ClientPreviewUpdates(ClientPreviewState state, Predicate<OperationPreviewPayload> synchronizeOperation,
-      Consumer<FastPlaceActivity> observeActivity) {
+      Consumer<SessionActivity> observeActivity) {
       this.state = Objects.requireNonNull(state, "state");
       this.synchronizeOperation = Objects.requireNonNull(synchronizeOperation, "synchronizeOperation");
       this.observeActivity = Objects.requireNonNull(observeActivity, "observeActivity");

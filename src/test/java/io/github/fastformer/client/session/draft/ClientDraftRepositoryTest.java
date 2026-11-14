@@ -7,7 +7,7 @@ import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.session.draft.ClientDraftRepository.ReceiptVerdict;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;

@@ -1,7 +1,9 @@
 package io.github.fastformer.client.operation.workspace;
 
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -252,7 +254,7 @@ class ClientOperationWorkspaceTest {
    void sourceMaskOnlyReplacesTransformedOrDeletedWorldParts() {
       ClientSelectionPart original = new ClientSelectionPart(
          1, ClientSelectionPart.Source.WORLD,
-         io.github.fastformer.fastplace.selection.OperationSelectionVolume.cuboid(
+         io.github.fastformer.common.selection.OperationSelectionVolume.cuboid(
             new BlockPos(0, 0, 0), new BlockPos(0, 0, 0), null, null),
          java.util.Map.of(), WorkspaceTransform.IDENTITY, false
       );

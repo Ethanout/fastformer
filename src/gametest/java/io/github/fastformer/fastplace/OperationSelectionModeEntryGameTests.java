@@ -9,7 +9,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.OperationSystem;

@@ -1,12 +1,12 @@
 package io.github.fastformer.client.interaction;
 
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.preview.Composition;
-import io.github.fastformer.workspace.preview.CompositionBudget;
-import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.workspace.preview.WorkspaceSelectionBounds;
-import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.preview.Composition;
+import io.github.fastformer.common.workspace.preview.CompositionBudget;
+import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.preview.WorkspaceSelectionBounds;
+import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
 import net.minecraft.world.phys.AABB;
 
 /** World-space geometry shared by the visible frame and its selection targets. */

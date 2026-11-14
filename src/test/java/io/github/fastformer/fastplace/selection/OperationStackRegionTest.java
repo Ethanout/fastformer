@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.selection;
 
+import io.github.fastformer.common.selection.OperationStackRegion;
+
 import io.github.fastformer.core.math.Axis;
 
 

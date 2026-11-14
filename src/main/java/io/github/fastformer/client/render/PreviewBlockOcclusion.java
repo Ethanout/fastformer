@@ -1,8 +1,8 @@
 package io.github.fastformer.client.render;
 
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
-import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
-import io.github.fastformer.fastplace.geometry.BlockPositionSets;
+import io.github.fastformer.common.world.BlockPositionMaps;
+import io.github.fastformer.common.world.BlockPositionSets;
 import java.util.Set;
 import java.util.Map;
 import net.minecraft.core.BlockPos;

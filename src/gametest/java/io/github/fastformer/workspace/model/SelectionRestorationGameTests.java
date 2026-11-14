@@ -1,12 +1,15 @@
 package io.github.fastformer.workspace.model;
 
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.client.preview.block.BlockPreviewInput;
 import io.github.fastformer.client.preview.block.BlockPreviewMode;
 import io.github.fastformer.client.preview.block.BlockPreviewModel;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

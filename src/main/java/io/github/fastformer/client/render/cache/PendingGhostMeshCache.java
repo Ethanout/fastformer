@@ -1,7 +1,7 @@
 package io.github.fastformer.client.render.cache;
 
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
-import io.github.fastformer.fastplace.geometry.BlockPositionSets;
+import io.github.fastformer.common.world.BlockPositionSets;
 import io.github.fastformer.client.render.model.PendingGhostMesh;
 import io.github.fastformer.core.async.LatestOnlyTask;
 import java.util.Set;

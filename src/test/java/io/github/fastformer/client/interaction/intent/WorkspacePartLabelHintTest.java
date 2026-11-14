@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;

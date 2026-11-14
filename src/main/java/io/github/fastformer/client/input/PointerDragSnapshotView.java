@@ -9,8 +9,8 @@ import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.interaction.selectiongesture.WorkspaceFaceDrag;
 import io.github.fastformer.client.interaction.selectiongesture.WorkspaceGizmoDrag;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.SelectionPrism;
 import net.minecraft.core.BlockPos;
 
 /** Read-only presentation view of the currently captured pointer drag. */

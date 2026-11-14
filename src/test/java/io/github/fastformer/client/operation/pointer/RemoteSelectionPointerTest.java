@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.selection.OperationMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationStageMode;
+import io.github.fastformer.common.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationStageMode;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;

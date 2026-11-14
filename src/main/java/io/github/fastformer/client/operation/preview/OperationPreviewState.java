@@ -2,7 +2,7 @@ package io.github.fastformer.client.operation.preview;
 
 import io.github.fastformer.client.session.reconnect.ReconnectSnapshotWindow;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 
 /** Owns one scope's preview revisions and explicit reconnect confirmation. */
 public final class OperationPreviewState {

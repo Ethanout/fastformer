@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.common.world.BlockPositionMaps;
+
 import org.junit.jupiter.api.Test;
 import net.minecraft.core.BlockPos;
 import static org.junit.jupiter.api.Assertions.*;

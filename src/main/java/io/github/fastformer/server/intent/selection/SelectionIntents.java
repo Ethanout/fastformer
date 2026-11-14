@@ -1,8 +1,8 @@
 package io.github.fastformer.server.intent.selection;
 
 import io.github.fastformer.core.command.Intent;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
 import net.minecraft.core.BlockPos;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import java.util.Objects;

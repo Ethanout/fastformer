@@ -5,7 +5,7 @@ import io.github.fastformer.common.placement.context.PlacementContexts;
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.preview.style.ControlPointStyle;
-import io.github.fastformer.fastplace.geometry.raycast.SelectionTargetShape;
+import io.github.fastformer.common.raycast.SelectionTargetShape;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import java.util.List;

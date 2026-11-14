@@ -5,7 +5,7 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.mode.BuiltinModes;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.common.interaction.InteractionState;
 import io.github.fastformer.fastplace.session.OperationSession;

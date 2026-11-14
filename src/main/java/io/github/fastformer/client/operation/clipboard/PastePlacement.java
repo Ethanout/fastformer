@@ -2,7 +2,7 @@ package io.github.fastformer.client.operation.clipboard;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 

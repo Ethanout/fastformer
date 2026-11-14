@@ -1,5 +1,13 @@
 package io.github.fastformer.fastplace.selection;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.smart.SmartSelectionRaycast;
+import io.github.fastformer.common.selection.smart.SmartSelectionSimilarity;
+import io.github.fastformer.common.selection.smart.SmartSelectionTopology;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.selection.SmartSelectionEdits;
@@ -103,10 +111,10 @@ public final class SmartSelectionGameTests {
       helper.assertTrue(workspace.isEmpty(), "Component removal stopped at a different block type");
       helper.assertTrue(workspace.undo(), "Component removal had no undo");
       SmartSelectionEdits.remove(workspace, BlockPos.ZERO.east(), true);
-      workspace.addParts(List.of(new io.github.fastformer.workspace.model.ClientSelectionPart(0,
-         io.github.fastformer.workspace.model.ClientSelectionPart.Source.WORLD,
+      workspace.addParts(List.of(new io.github.fastformer.common.workspace.model.ClientSelectionPart(0,
+         io.github.fastformer.common.workspace.model.ClientSelectionPart.Source.WORLD,
          OperationSelectionVolume.cuboid(new BlockPos(20, 0, 0), new BlockPos(20, 0, 0), null, null),
-         Map.of(new BlockPos(20, 0, 0), planks), io.github.fastformer.workspace.model.WorkspaceTransform.IDENTITY, false)));
+         Map.of(new BlockPos(20, 0, 0), planks), io.github.fastformer.common.workspace.model.WorkspaceTransform.IDENTITY, false)));
       var draft = new ClientOperationDraft(null, workspace.draftState(),
          new ClientSelectionSession.DraftState(OperationSelectionMode.SMART, List.of(), 0, null, null));
       var decoded = ClientOperationDraftCodec.decode(ClientOperationDraftCodec.encode(draft),

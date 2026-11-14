@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.common.world.BlockPositionSets;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.render.model.BuildingBlockResult;

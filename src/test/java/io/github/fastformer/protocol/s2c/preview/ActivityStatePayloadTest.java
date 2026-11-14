@@ -2,7 +2,7 @@ package io.github.fastformer.protocol.s2c.preview;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.netty.buffer.Unpooled;
 import java.util.UUID;
@@ -16,7 +16,7 @@ class ActivityStatePayloadTest {
       OperationCallbackScope scope = new OperationCallbackScope(
          UUID.randomUUID(), ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID()
       );
-      ActivityStatePayload payload = new ActivityStatePayload(42L, FastPlaceActivity.GEOMETRY_SESSION, scope);
+      ActivityStatePayload payload = new ActivityStatePayload(42L, SessionActivity.GEOMETRY_SESSION, scope);
       FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
 
       ActivityStatePayload.STREAM_CODEC.encode(buffer, payload);

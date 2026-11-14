@@ -4,11 +4,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
 import io.github.fastformer.testkit.SubmissionFixture;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.ArrayList;

@@ -2,8 +2,8 @@ package io.github.fastformer.server.intent.selection;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.core.command.IntentSource;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.intent.PlayerIntentSystem;

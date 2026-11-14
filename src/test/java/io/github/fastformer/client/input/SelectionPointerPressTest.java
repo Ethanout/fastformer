@@ -1,5 +1,8 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -10,7 +13,7 @@ import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.input.SelectionPointerPress;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -172,8 +175,8 @@ class SelectionPointerPressTest {
       var session = new ClientSelectionSession();
       for (int i = 0; i < 4; i++) {
          session.workspace().addParts(List.of(new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
-            io.github.fastformer.fastplace.selection.OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2), BlockPos.ZERO, BlockPos.ZERO),
-            Map.of(), io.github.fastformer.workspace.model.WorkspaceTransform.IDENTITY, false)));
+            io.github.fastformer.common.selection.OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2), BlockPos.ZERO, BlockPos.ZERO),
+            Map.of(), io.github.fastformer.common.workspace.model.WorkspaceTransform.IDENTITY, false)));
       }
       session.workspace().selectAll();
       session.publishInteractionScene();

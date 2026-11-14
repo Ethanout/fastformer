@@ -40,18 +40,6 @@ public final class PlanarFaceGeometry {
    }
 
    public static Vec3 normal(List<Vec3> vertices) {
-      if (vertices.size() < 3) {
-         return Vec3.ZERO;
-      }
-      Vec3 origin = vertices.getFirst();
-      for (int first = 1; first < vertices.size() - 1; first++) {
-         for (int second = first + 1; second < vertices.size(); second++) {
-            Vec3 normal = vertices.get(first).subtract(origin).cross(vertices.get(second).subtract(origin));
-            if (normal.lengthSqr() >= 1.0E-7) {
-               return normal.normalize();
-            }
-         }
-      }
-      return Vec3.ZERO;
+      return io.github.fastformer.common.math.MinecraftVectors.planarNormal(vertices);
    }
 }

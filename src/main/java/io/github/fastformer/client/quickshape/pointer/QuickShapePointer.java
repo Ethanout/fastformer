@@ -102,4 +102,8 @@ public final class QuickShapePointer {
    private static PlacementContextSnapshot capturePlacement(InteractionContext c, BlockHitResult hit, boolean embedded) {
       return PlacementContexts.capture(c.player().level(), c.player(), c.player().getMainHandItem(), hit, embedded);
    }
+   public double faceBaseOffsetValue(Vec3 view) {
+      var snapshot = preview.get();
+      return FastPlaceGeometry.faceBaseOffsetValue(snapshot.points(), snapshot.faceBaseOffset(), view);
+   }
 }

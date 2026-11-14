@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
 import java.lang.reflect.Field;
 import java.util.List;

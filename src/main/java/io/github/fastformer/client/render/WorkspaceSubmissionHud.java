@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 
 /**
  * Decides what the HUD shows while a workspace submission waits for the server.
@@ -108,10 +108,10 @@ public final class WorkspaceSubmissionHud {
     * the phase where the server task is active. The cancel key reports the pending
     * state and sends no cancel in that phase, so the hint would be false.</p>
     */
-   public static boolean showsCancelHint(FastPlaceActivity activity, boolean submissionPending) {
+   public static boolean showsCancelHint(SessionActivity activity, boolean submissionPending) {
       return activity.task()
          && activity.cancellable()
-         && activity != FastPlaceActivity.RESTORE_TASK
+         && activity != SessionActivity.RESTORE_TASK
          && !submissionPending;
    }
 

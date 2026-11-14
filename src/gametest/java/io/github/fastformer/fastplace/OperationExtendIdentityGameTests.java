@@ -10,7 +10,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.c2s.operation.OperationExtendPayload;
 import io.github.fastformer.server.sync.PreviewSync;

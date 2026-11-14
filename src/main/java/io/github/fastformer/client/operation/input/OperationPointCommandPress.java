@@ -2,7 +2,6 @@ package io.github.fastformer.client.operation.input;
 
 import io.github.fastformer.client.session.ClientSessionSystem;
 
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.Objects;

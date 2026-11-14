@@ -2,9 +2,9 @@ package io.github.fastformer.protocol.s2c.operation;
 
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 
-import io.github.fastformer.fastplace.selection.OperationMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationStageMode;
+import io.github.fastformer.common.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationStageMode;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;

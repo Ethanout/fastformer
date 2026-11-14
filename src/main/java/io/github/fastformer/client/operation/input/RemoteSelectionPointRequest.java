@@ -1,7 +1,7 @@
 package io.github.fastformer.client.operation.input;
 
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.c2s.operation.OperationPointPayload;
 import java.util.Objects;
 import java.util.UUID;

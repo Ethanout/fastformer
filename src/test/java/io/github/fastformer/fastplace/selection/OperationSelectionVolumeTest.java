@@ -1,5 +1,8 @@
 package io.github.fastformer.fastplace.selection;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+
 
 import io.github.fastformer.fastplace.world.*;
 

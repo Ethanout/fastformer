@@ -2,7 +2,7 @@ package io.github.fastformer.server.intent.selection;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 

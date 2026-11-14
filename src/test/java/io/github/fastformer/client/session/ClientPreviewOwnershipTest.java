@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +13,7 @@ class ClientPreviewOwnershipTest {
       var first = new ClientSessionSystem();
       var second = new ClientSessionSystem();
       assertNotSame(first.previews(), second.previews());
-      first.previews().applyActivity(new ActivityStatePayload(FastPlaceActivity.RESTORE_TASK));
+      first.previews().applyActivity(new ActivityStatePayload(SessionActivity.RESTORE_TASK));
       assertEquals(State.RESTORING, first.modeView().observedPhase());
       assertEquals(State.IDLE, second.modeView().observedPhase());
       assertEquals(1L, first.previews().revision());
@@ -24,11 +24,11 @@ class ClientPreviewOwnershipTest {
       var system = new ClientSessionSystem();
       var before = system.modeView();
       system.previews().applyBuilding(BuildingPreviewSnapshot.inactive());
-      system.previews().applyActivity(new ActivityStatePayload(FastPlaceActivity.RESTORE_TASK));
+      system.previews().applyActivity(new ActivityStatePayload(SessionActivity.RESTORE_TASK));
       assertEquals(State.RESTORING, system.modeView().observedPhase());
       assertTrue(before.idleActionsAllowed());
       system.previews().resetConnection();
       assertEquals(before, system.modeView());
-      assertEquals(FastPlaceActivity.NONE, system.previews().activity());
+      assertEquals(SessionActivity.NONE, system.previews().activity());
    }
 }

@@ -1,5 +1,7 @@
 package io.github.fastformer.client.interaction;
 
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
@@ -93,8 +95,8 @@ class PartLabelInteractionTest {
    void reusedDisplayNumberDoesNotReuseTheLabelObjectIdentity() {
       var session = new ClientSelectionSession();
       var workspace = session.workspace();
-      var part = io.github.fastformer.workspace.model.ClientSelectionPart.empty(
-         io.github.fastformer.workspace.model.ClientSelectionPart.Source.WORLD);
+      var part = io.github.fastformer.common.workspace.model.ClientSelectionPart.empty(
+         io.github.fastformer.common.workspace.model.ClientSelectionPart.Source.WORLD);
       workspace.addParts(java.util.List.of(part));
       var before = PartLabelInteraction.create(
          session.interactionOwnerId(), workspace.interactionId(1), 1, new AABB(BlockPos.ZERO));

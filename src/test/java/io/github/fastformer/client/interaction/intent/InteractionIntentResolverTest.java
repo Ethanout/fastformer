@@ -1,5 +1,7 @@
 package io.github.fastformer.client.interaction.intent;
 
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
+
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,7 +55,7 @@ class InteractionIntentResolverTest {
       assertEquals(true, new OperationInteractionIntent.Part(1, 1.0).hoverText().isPresent());
       assertEquals(true, new OperationInteractionIntent.Face(
          1, new net.minecraft.world.phys.AABB(BlockPos.ZERO),
-         new io.github.fastformer.fastplace.geometry.OperationGeometry.RayHit(
+         new io.github.fastformer.common.selection.geometry.OperationGeometry.RayHit(
             Vec3.ZERO, Vec3.ZERO, 0.0, 0
          ), true
       ).hoverText().isPresent());
@@ -91,7 +93,7 @@ class InteractionIntentResolverTest {
       OperationInteractionIntent.Face face = new OperationInteractionIntent.Face(
          1,
          new net.minecraft.world.phys.AABB(BlockPos.ZERO),
-         new io.github.fastformer.fastplace.geometry.OperationGeometry.RayHit(
+         new io.github.fastformer.common.selection.geometry.OperationGeometry.RayHit(
             Vec3.ZERO, new Vec3(1.0, 0.0, 0.0), 0.5, 0
          ),
          true

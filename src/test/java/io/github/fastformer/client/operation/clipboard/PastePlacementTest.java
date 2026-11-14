@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.clipboard;
 
-import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import net.minecraft.core.BlockPos;

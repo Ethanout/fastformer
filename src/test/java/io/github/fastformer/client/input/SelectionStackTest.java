@@ -1,5 +1,10 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.common.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationStageMode;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -8,8 +13,8 @@ import io.github.fastformer.client.operation.input.SelectionDraftPress;
 import io.github.fastformer.client.operation.input.SelectionPointPress;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.selection.ClientSelectionStack;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.AfterEach;
@@ -25,8 +30,8 @@ class SelectionStackTest {
          ClientSessionSystem.instance().operations().onClientTick();
          var preview = io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.active(
             1L, false, true, List.of(A), BlockPos.ZERO, BlockPos.ZERO, mode, 0, -1, 0,
-            io.github.fastformer.fastplace.selection.OperationMode.MOVE,
-            io.github.fastformer.fastplace.selection.OperationStageMode.TRANSFORM,
+            io.github.fastformer.common.selection.OperationMode.MOVE,
+            io.github.fastformer.common.selection.OperationStageMode.TRANSFORM,
             BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, net.minecraft.world.phys.Vec3.ZERO, false, false, false);
          assertTrue(ClientSessionSystem.instance().operations().synchronize(preview));
          assertTrue(ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing());
@@ -216,10 +221,10 @@ class SelectionStackTest {
    }
 
    private static ClientSelectionPart smartPart() {
-      var volume = new io.github.fastformer.fastplace.selection.OperationSelectionVolume(OperationSelectionMode.SMART,
+      var volume = new io.github.fastformer.common.selection.OperationSelectionVolume(OperationSelectionMode.SMART,
          new net.minecraft.world.phys.AABB(A), null, List.of(), 0, null, null);
       return new ClientSelectionPart(0, ClientSelectionPart.Source.WORLD, volume, java.util.Map.of(),
-         io.github.fastformer.workspace.model.WorkspaceTransform.IDENTITY, false);
+         io.github.fastformer.common.workspace.model.WorkspaceTransform.IDENTITY, false);
    }
 
    @Test void enterIncludesUnselectedPartsWithoutLeavingASessionUndo() {

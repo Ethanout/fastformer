@@ -2,7 +2,7 @@ package io.github.fastformer.client.input;
 
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 
-import io.github.fastformer.fastplace.geometry.raycast.*;
+import io.github.fastformer.common.raycast.*;
 import io.github.fastformer.common.raycast.InteractionShapeSnapshot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.*;

@@ -1,6 +1,6 @@
 package io.github.fastformer.workspace.submission;
 
-import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationMode;
 
 import io.github.fastformer.fastplace.world.*;
 

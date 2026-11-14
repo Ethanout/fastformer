@@ -1,13 +1,16 @@
 package io.github.fastformer.client.operation.clipboard;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.workspace.ClipboardPreparation;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
-import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.common.world.BlockPositionMaps;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -44,8 +47,8 @@ public record OperationClipboard(List<Part> parts) {
    public List<ClientSelectionPart> instantiate() {
       return this.parts.stream().map(part -> {
          OccupiedBlockBounds bounds = OccupiedBlockBounds.from(part.blocks.keySet()).orElseThrow();
-         var selection = io.github.fastformer.fastplace.selection.OperationSelectionVolume.create(
-            io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID,
+         var selection = io.github.fastformer.common.selection.OperationSelectionVolume.create(
+            io.github.fastformer.common.selection.OperationSelectionMode.CUBOID,
             List.of(bounds.min(), bounds.max()),
             BlockPos.ZERO,
             BlockPos.ZERO,

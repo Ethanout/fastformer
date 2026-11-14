@@ -3,8 +3,8 @@ package io.github.fastformer.client.render.cache;
 import io.github.fastformer.client.preview.style.GeometryPalette;
 
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
-import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
-import io.github.fastformer.fastplace.geometry.BlockPositionSets;
+import io.github.fastformer.common.world.BlockPositionMaps;
+import io.github.fastformer.common.world.BlockPositionSets;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.model.BuildingSpecialBlock;
 import io.github.fastformer.core.async.LatestOnlyTask;

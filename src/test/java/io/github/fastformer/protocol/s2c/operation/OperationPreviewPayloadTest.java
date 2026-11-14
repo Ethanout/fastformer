@@ -4,9 +4,9 @@ import io.github.fastformer.protocol.callback.OperationCallbackScope;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.selection.OperationMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationStageMode;
+import io.github.fastformer.common.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationStageMode;
 import io.netty.buffer.Unpooled;
 import java.util.List;
 import java.util.UUID;

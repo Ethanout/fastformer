@@ -4,25 +4,25 @@ import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.common.selection.PointMotionLimits;
 import java.util.function.Predicate;
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
 import io.github.fastformer.common.history.SessionHistoryLimits;
 
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.selection.OperationStackRegion;
 
-import io.github.fastformer.fastplace.selection.OperationStageMode;
+import io.github.fastformer.common.selection.OperationStageMode;
 
-import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationMode;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionStage;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionStage;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
 
 import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.common.selection.geometry.SelectionPrism;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;

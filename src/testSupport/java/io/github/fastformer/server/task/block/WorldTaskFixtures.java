@@ -1,9 +1,9 @@
 package io.github.fastformer.server.task.block;
 
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.selection.OperationMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationStackRegion;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;

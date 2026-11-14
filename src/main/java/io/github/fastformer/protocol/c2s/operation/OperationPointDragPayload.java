@@ -2,7 +2,7 @@ package io.github.fastformer.protocol.c2s.operation;
 
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

@@ -3,7 +3,7 @@ package io.github.fastformer.client.operation.edit;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;

@@ -2,7 +2,7 @@ package io.github.fastformer.workspace.submission;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.selection.OperationStackRegion;
 
 import io.github.fastformer.fastplace.world.*;
 
@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;

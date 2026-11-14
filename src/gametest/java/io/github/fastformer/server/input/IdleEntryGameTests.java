@@ -9,7 +9,7 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
-import io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast;
+import io.github.fastformer.common.raycast.SessionEntryRaycast;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import io.github.fastformer.server.sync.PreviewSync;
@@ -190,13 +190,13 @@ public final class IdleEntryGameTests {
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var rules = io.github.fastformer.common.raycast.InteractionRaycastRules.VANILLA_OUTLINE;
-      var first = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, rules.throughFluids());
+      var first = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, eye, view, rules.throughFluids());
       helper.assertTrue(first.getBlockPos().equals(floor), "first placement ray did not pass through water");
       IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(120, first, eye, view, rules));
       // A second click's different policy must not replace the policy stored before the first use.
       level.setBlock(placed, Blocks.OAK_LOG.defaultBlockState(), 2);
       IdleInteractionSnapshots.placed(player, placed);
-      var second = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, false);
+      var second = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, eye, view, false);
       helper.assertTrue(second.getBlockPos().equals(placed.above()), "second ray should hit the water above the placed block");
       ServerInputDispatcher.startPlacement(player, request(player, 120, second));
       var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
@@ -235,7 +235,7 @@ public final class IdleEntryGameTests {
       player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE).setBaseValue(20);
       player.setPos(floor.getCenter().add(0, 4, 0));
       var blackOutline = (net.minecraft.world.phys.BlockHitResult)player.pick(player.blockInteractionRange(), 1, false);
-      var fluidRay = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(
+      var fluidRay = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(
          player, player.getEyePosition(), player.getViewVector(1), false);
       helper.assertTrue(blackOutline.getBlockPos().equals(floor), "vanilla black outline did not point through the water");
       helper.assertTrue(fluidRay.getBlockPos().equals(floor.above(2)), "setup did not distinguish FF's fluid ray from the black outline");
@@ -263,8 +263,8 @@ public final class IdleEntryGameTests {
       var eye = player.getEyePosition().subtract(0, player.getEyeHeight(), 0);
       var view = new net.minecraft.world.phys.Vec3(0, 0, 1);
       var rules = io.github.fastformer.common.raycast.InteractionRaycastRules.VANILLA_OUTLINE;
-      var snapshot = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(player, pos, rules);
-      var generic = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(helper.getLevel(), pos, rules);
+      var snapshot = io.github.fastformer.common.raycast.SessionEntryRaycast.snapshot(player, pos, rules);
+      var generic = io.github.fastformer.common.raycast.SessionEntryRaycast.snapshot(helper.getLevel(), pos, rules);
       var expected = Blocks.SCAFFOLDING.defaultBlockState().getShape(helper.getLevel(), pos,
          net.minecraft.world.phys.shapes.CollisionContext.of(player)).clip(eye, eye.add(view.scale(4)), pos);
       var captured = snapshot.clip(eye, view);
@@ -378,19 +378,19 @@ public final class IdleEntryGameTests {
          level.setBlock(fluid, state, 2);
          var eye = player.getEyePosition();
          var view = player.getViewVector(1);
-         var normal = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, false);
-         var snapshot = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(level, fluid).clip(eye, view);
+         var normal = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, eye, view, false);
+         var snapshot = io.github.fastformer.common.raycast.SessionEntryRaycast.snapshot(level, fluid).clip(eye, view);
          helper.assertTrue(normal.getBlockPos().equals(fluid), "normal entry skipped fluid: " + state);
          helper.assertTrue(snapshot != null && snapshot.getDirection() == normal.getDirection()
             && snapshot.getLocation().distanceTo(normal.getLocation()) < 1.0E-6,
             "snapshot and normal entry disagree: " + state);
-         var alt = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, true);
+         var alt = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, eye, view, true);
          helper.assertTrue(alt.getBlockPos().equals(state.is(Blocks.OAK_SLAB) ? fluid : floor),
             "Alt did not ignore only the fluid shape: " + state);
          if (state.is(Blocks.OAK_SLAB)) {
             helper.assertTrue(alt.getLocation().y < normal.getLocation().y, "Alt ignored the solid slab too");
          }
-         var transparentSnapshot = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(level, fluid,
+         var transparentSnapshot = io.github.fastformer.common.raycast.SessionEntryRaycast.snapshot(level, fluid,
             io.github.fastformer.common.raycast.InteractionRaycastRules.VANILLA_OUTLINE).clip(eye, view);
          helper.assertTrue(state.is(Blocks.OAK_SLAB)
             ? transparentSnapshot != null && transparentSnapshot.getLocation().distanceTo(alt.getLocation()) < 1.0E-6
@@ -399,7 +399,7 @@ public final class IdleEntryGameTests {
       level.setBlock(fluid, Blocks.WATER.defaultBlockState(), 2);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
-      var targetHit = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, eye, view, true);
+      var targetHit = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, eye, view, true);
       var target = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
          PreviewSync.callbackScope(player), targetHit, eye, view, 0, false, false, true);
       ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(110, target));

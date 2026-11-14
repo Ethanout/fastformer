@@ -2,15 +2,15 @@ package io.github.fastformer.network.codec;
 
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.selection.OperationStackRegion;
 
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.WorkspaceLimits;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.model.WorkspaceSymmetry;
+import io.github.fastformer.common.workspace.model.WorkspaceLimits;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.model.WorkspaceSymmetry;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

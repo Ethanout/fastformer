@@ -2,9 +2,9 @@ package io.github.fastformer.client.input.drag;
 
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.common.math.MinecraftVectors;
-import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.SelectionPrism;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 

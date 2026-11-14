@@ -1,7 +1,6 @@
 package io.github.fastformer.client.mode.builtin;
 
 import static io.github.fastformer.client.input.state.ClientInputStateMachine.Dispatch.*;
-
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
 import io.github.fastformer.common.mode.BuiltinModes;
@@ -15,12 +14,15 @@ import io.github.fastformer.client.mode.ModeObservation;
 import io.github.fastformer.client.mode.input.pointer.*;
 import java.util.Map;
 import java.util.Optional;
+import io.github.fastformer.client.mode.PreviewObservation;
 
 /** Declares quick shape ownership and its phase input rules. */
 public final class QuickShapeMode implements ClientMode {
    private static final Map<State, ModeInputPolicy> PHASES = Map.of(State.BUILDING, new ModeInputPolicy(BUILDING, BUILDING, BLOCKED, BLOCKED, CANCEL, true, true, true));
 
    @Override public ModeId id() { return BuiltinModes.QUICK_SHAPE; }
+   @Override public boolean previewActive(PreviewObservation observation) { return observation.quickShape(); }
+   @Override public int previewPriority(PreviewObservation observation) { return 200; }
    @Override public PointerDecision onPointer(PointerInput input, PointerView view) {
       if (!(view instanceof PointerView.Left left) || !input.press(0)) return PointerDecision.Flow.PASS;
       var captured = PointerCaptureRules.left(left);

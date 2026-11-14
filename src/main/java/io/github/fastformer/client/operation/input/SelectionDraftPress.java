@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.input;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;

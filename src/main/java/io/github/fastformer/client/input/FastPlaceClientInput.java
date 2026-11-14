@@ -1,5 +1,8 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+
 import io.github.fastformer.client.operation.controller.OperationContext;
 import io.github.fastformer.client.interaction.selectiongesture.SelectionGesturePress;
 import io.github.fastformer.client.interaction.selectiongesture.SelectionFaceHit;
@@ -45,7 +48,7 @@ import io.github.fastformer.client.operation.pointer.OperationPointerTarget;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.ui.GeometryRadialScreen;
 import io.github.fastformer.common.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.geometry.CycleStageModePayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryInteractionPayload;
@@ -1165,7 +1168,7 @@ public final class FastPlaceClientInput {
          || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()) return false;
       if (button == MouseButtonInputSemantics.LEFT_BUTTON
          && io.github.fastformer.client.operation.selection.SelectionToolPreference.get()
-            == io.github.fastformer.fastplace.selection.OperationSelectionMode.SMART) return true;
+            == io.github.fastformer.common.selection.OperationSelectionMode.SMART) return true;
       if (point == null) return false;
       ClientSessionSystem.instance().operations().selectionEdits().enterLocalSelectionSession();
       inputSession().routing.observe(ClientInputStateMachine.State.SELECTING);
@@ -1294,10 +1297,10 @@ public final class FastPlaceClientInput {
    private static void queueSelectionPoint(Minecraft minecraft, int button, long occurredAtNanos) {
       var workspace = ClientSessionSystem.instance().operations().workspace();
       int partId = button == MouseButtonInputSemantics.MIDDLE_BUTTON
-         ? workspace.selections().topPart().map(io.github.fastformer.workspace.model.ClientSelectionPart::id).orElse(0)
+         ? workspace.selections().topPart().map(io.github.fastformer.common.workspace.model.ClientSelectionPart::id).orElse(0)
          : workspace.activeId();
       BlockHitResult hit = longRangeSelectionBlockHit(minecraft);
-      if (ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID
+      if (ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode() == io.github.fastformer.common.selection.OperationSelectionMode.CUBOID
          && !inputSession().acceptCuboidPointPress(button, hit == null ? null : hit.getBlockPos(), occurredAtNanos)) return;
       inputSession().captureSelectionPress(new SelectionPointPress(ClientSessionSystem.instance().operations().interactionScene().owner(),
          partId, workspace.interactionId(partId), button, physicalCtrlDown(minecraft, false),
@@ -1314,7 +1317,7 @@ public final class FastPlaceClientInput {
       var session = inputSession();
       if (button < 0 || button > 2) return false;
       if (button == MouseButtonInputSemantics.LEFT_BUTTON
-         && ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID
+         && ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode() == io.github.fastformer.common.selection.OperationSelectionMode.CUBOID
          && !(target instanceof OperationInteractionIntent.Gizmo)
          && (ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || target == null || target instanceof OperationInteractionIntent.CreateSelection)) {
          queueCuboidPointUndo(minecraft, alt, occurredAtNanos);
@@ -1353,7 +1356,7 @@ public final class FastPlaceClientInput {
 
    private static void queueCuboidPointUndo(Minecraft minecraft, boolean alt, long occurredAtNanos) {
       inputSession().captureSelectionPress(new SelectionDraftPress(ClientSessionSystem.instance().operations().interactionScene().owner(),
-         io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID, MouseButtonInputSemantics.LEFT_BUTTON,
+         io.github.fastformer.common.selection.OperationSelectionMode.CUBOID, MouseButtonInputSemantics.LEFT_BUTTON,
          null, alt, physicalCtrlDown(minecraft, false), occurredAtNanos));
    }
 
@@ -1620,7 +1623,7 @@ public final class FastPlaceClientInput {
             BlockPos offset = OperationGeometry.viewAxisStep(minecraft.player.getViewVector(1.0F), scroll.direction());
             var workspace = ClientSessionSystem.instance().operations().workspace();
             var reference = workspace.selectedParts().stream()
-               .min(java.util.Comparator.comparingInt(io.github.fastformer.workspace.model.ClientSelectionPart::id)).orElse(null);
+               .min(java.util.Comparator.comparingInt(io.github.fastformer.common.workspace.model.ClientSelectionPart::id)).orElse(null);
             SelectionScrollAction.Gesture gesture = physicalCtrlDown(minecraft, false) && reference != null
                ? SelectionScrollAction.stackAlongView(reference.transform(), minecraft.player.getViewVector(1.0F), scroll.direction())
                : new SelectionScrollAction.Move(offset);
@@ -1803,8 +1806,8 @@ public final class FastPlaceClientInput {
          || pointerIntent instanceof OperationInteractionIntent.Part;
       return OperationInputSemantics.decideLeftPress(new OperationInputSemantics.LeftPressSnapshot(
          ClientSessionSystem.instance().operations().operationPrism()
-            ? io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM
-            : io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID,
+            ? io.github.fastformer.common.selection.OperationSelectionMode.PRISM
+            : io.github.fastformer.common.selection.OperationSelectionMode.CUBOID,
          operationActive && (ClientSessionSystem.instance().operations().operationSelectionReady() || ClientSessionSystem.instance().operations().active()),
          operationActive && (ClientSessionSystem.instance().operations().operationAdjustmentStarted() || ClientSessionSystem.instance().operations().active()),
          operationActive && gizmoHit,

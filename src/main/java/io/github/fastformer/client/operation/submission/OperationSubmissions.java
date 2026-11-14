@@ -5,9 +5,9 @@ import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.List;
@@ -182,7 +182,7 @@ public final class OperationSubmissions {
       effects.changed().run();
    }
 
-   public void observeActivity(FastPlaceActivity activity) { if (pending()) tracker.observeActivity(activity); }
+   public void observeActivity(SessionActivity activity) { if (pending()) tracker.observeActivity(activity); }
 
    public void tick() {
       if (!pending() || !tracker.tick()) return;

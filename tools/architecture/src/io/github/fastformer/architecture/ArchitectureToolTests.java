@@ -93,7 +93,9 @@ public final class ArchitectureToolTests {
         require(ArchitectureRules.strictBoundary(root + "client.input.Keys", root + "client.render.Lines"), "Input/render dependency");
         require(ArchitectureRules.strictBoundary(root + "client.feedback.State", root + "client.session.Scope"), "Feedback/assembly dependency");
         require(!ArchitectureRules.strictBoundary(root + "client.feedback.State", root + "common.Model"), "Feedback domain dependency");
-        for (String owner : Set.of(root + "client.preview.hud.HudModel", root + "client.render.hud.HudFrameRenderer")) {
+        for (String owner : Set.of(root + "client.preview.hud.HudModel", root + "client.render.hud.HudFrameRenderer",
+                root + "client.preview.selection.OperationPreviewRenderer", root + "client.preview.selection.SmartSelectionRenderer",
+                root + "client.preview.selection.SmartSelectionIsolationRenderer")) {
             for (String target : Set.of(root + "client.input.Keys", root + "client.session.Scope",
                     root + "client.operation.pointer.Resolver", root + "client.geometry.pointer.GeometryPointer",
                     root + "client.render.core.Adapter", "net.minecraft.client.Minecraft")) {

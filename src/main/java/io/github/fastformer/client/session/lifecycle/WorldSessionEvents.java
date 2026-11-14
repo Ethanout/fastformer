@@ -3,7 +3,7 @@ package io.github.fastformer.client.session.lifecycle;
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.client.preview.ClientPreviewEvents;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -20,7 +20,7 @@ public final class WorldSessionEvents {
       @Override public void disconnectOperation() { ClientSessionSystem.instance().operations().onDisconnected(); }
       @Override public void clearInteractionCache() { ClientSessionSystem.instance().operations().pointer().clear(); }
       @Override public void clearFeedback() { ClientSessionSystem.instance().inputSession().feedback().clear(); }
-      @Override public void clearWorldRenderState() { FastPlaceClientPreviewCore.clearWorldRenderState(); }
+      @Override public void clearWorldRenderState() { ClientPreviewEvents.clearWorldRenderState(); }
    });
 
    private WorldSessionEvents() {}

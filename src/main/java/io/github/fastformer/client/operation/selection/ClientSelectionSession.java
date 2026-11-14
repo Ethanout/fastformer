@@ -7,7 +7,7 @@ import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.core.async.TickMailbox;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;

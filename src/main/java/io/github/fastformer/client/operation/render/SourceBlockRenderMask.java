@@ -1,7 +1,7 @@
 package io.github.fastformer.client.operation.render;
 
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
 import io.github.fastformer.client.render.mask.SourceMaskRenderHooks;
 import java.util.Collection;

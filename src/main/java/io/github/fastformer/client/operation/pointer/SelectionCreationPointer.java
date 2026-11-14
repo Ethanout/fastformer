@@ -6,8 +6,8 @@ import io.github.fastformer.client.interaction.intent.OperationInteractionIntent
 import io.github.fastformer.client.interaction.pointer.PointerResolver;
 import io.github.fastformer.client.operation.edit.SelectionEdits;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.geometry.SelectionPrism;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import java.util.Objects;
 import java.util.Optional;

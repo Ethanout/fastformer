@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;

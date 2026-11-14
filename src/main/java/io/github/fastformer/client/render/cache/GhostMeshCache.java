@@ -1,7 +1,7 @@
 package io.github.fastformer.client.render.cache;
 
 import io.github.fastformer.client.render.model.GhostMesh;
-import io.github.fastformer.fastplace.geometry.BlockPositionSets;
+import io.github.fastformer.common.world.BlockPositionSets;
 import java.util.Set;
 import java.util.function.Function;
 import net.minecraft.core.BlockPos;

@@ -88,6 +88,14 @@ public final class ClientModeRegistry {
       return owners.get(Objects.requireNonNull(state, "state")).id();
    }
 
+   /** Selects visual ownership independently of input routing, using the same registered modes. */
+   public java.util.Optional<ModeId> preview(PreviewObservation observation) {
+      Objects.requireNonNull(observation, "observation");
+      return ordered().stream().filter(definition -> definition.mode().previewActive(observation))
+         .max(Comparator.comparingInt(definition -> definition.mode().previewPriority(observation)))
+         .map(Definition::id);
+   }
+
    private List<Definition> ordered() {
       if (ordered == null) throw new IllegalStateException("Client modes are not frozen");
       return ordered;

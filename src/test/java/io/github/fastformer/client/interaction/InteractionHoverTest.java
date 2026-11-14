@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

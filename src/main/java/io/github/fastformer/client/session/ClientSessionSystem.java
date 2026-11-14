@@ -1,5 +1,8 @@
 package io.github.fastformer.client.session;
 
+import io.github.fastformer.common.mode.SessionActivity;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
@@ -71,7 +74,7 @@ public final class ClientSessionSystem {
       var c = io.github.fastformer.client.interaction.intent.InteractionContext.capture(Minecraft.getInstance());
       var operation = previews.operation();
       var geometry = previews.geometry();
-      var operationPath = operation.active() && operation.operationSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM
+      var operationPath = operation.active() && operation.operationSelectionMode() == io.github.fastformer.common.selection.OperationSelectionMode.PRISM
          && operation.operationPrismBasePointCount() == 0 ? operation.points() : java.util.List.<BlockPos>of();
       var geometryPath = geometry.active() && geometry.mode() == io.github.fastformer.common.geometry.GeometryMode.WALL
          && !geometry.closed() ? geometry.points() : java.util.List.<BlockPos>of();
@@ -108,7 +111,7 @@ public final class ClientSessionSystem {
       var operations = operations();
       var input = inputSession();
       var observation = new io.github.fastformer.client.mode.ModeObservation(
-         previews.activity() == io.github.fastformer.fastplace.session.FastPlaceActivity.RESTORE_TASK,
+         previews.activity() == io.github.fastformer.common.mode.SessionActivity.RESTORE_TASK,
          previews.activity().task(),
          operations.active() || operations.selectionSessionActive(),
          operations.active(), operations.operationSelectionConfirmed(),

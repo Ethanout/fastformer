@@ -1,0 +1,72 @@
+package io.github.fastformer.client.preview;
+
+import io.github.fastformer.common.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationStageMode;
+
+import io.github.fastformer.client.session.ClientSessionSystem;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import io.github.fastformer.client.operation.selection.SelectionToolPreference;
+import io.github.fastformer.client.preview.style.GeometryPalette;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
+import org.junit.jupiter.api.Test;
+
+class IdleModeHudTest {
+   @Test void cancellingLastPointStopsSelectionHudBeforeServerAcknowledgesExit() {
+      ClientSessionSystem.instance().operations().onDisconnected();
+      try {
+         ClientSessionSystem.instance().previewUpdates().operation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.inactive(0));
+         ClientSessionSystem.instance().operations().onClientTick();
+         ClientSessionSystem.instance().previewUpdates().operation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.active(
+            1L, false, true, java.util.List.of(net.minecraft.core.BlockPos.ZERO),
+            net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, OperationSelectionMode.CUBOID,
+            0, -1, 0, io.github.fastformer.common.selection.OperationMode.MOVE,
+            io.github.fastformer.common.selection.OperationStageMode.TRANSFORM,
+            net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO,
+            net.minecraft.world.phys.Vec3.ZERO, false, false, false));
+         assertTrue(ClientSessionSystem.instance().operationActive());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
+         assertFalse(ClientSessionSystem.instance().operationActive());
+         assertEquals("fastformer.hud.quick_shape_label", key(io.github.fastformer.client.preview.assembly.ClientHudCapture.idleBottomStatus(false, true)));
+      } finally {
+         ClientSessionSystem.instance().operations().onDisconnected();
+         ClientSessionSystem.instance().previewUpdates().operation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.inactive());
+      }
+   }
+
+   @Test void emptyHandShowsRememberedSelectionTool() {
+      var previous = SelectionToolPreference.get();
+      try {
+         for (var mode : new OperationSelectionMode[] {OperationSelectionMode.CUBOID, OperationSelectionMode.SMART}) {
+            SelectionToolPreference.set(mode);
+            var status = io.github.fastformer.client.preview.assembly.ClientHudCapture.idleBottomStatus(true, false);
+            assertEquals("fastformer.hud.selection_label", key(status));
+            var highlighted = status.getSiblings().stream().filter(component -> component.getStyle().getColor() != null
+               && component.getStyle().getColor().getValue() == GeometryPalette.accent().rgb()).toList();
+            assertEquals(1, highlighted.size());
+            assertEquals(mode.translationKey(), key(highlighted.getFirst()));
+         }
+      } finally {
+         SelectionToolPreference.set(previous);
+      }
+   }
+
+   @Test void heldBlockShowsModesWithoutAStagePrompt() {
+      var status = io.github.fastformer.client.preview.assembly.ClientHudCapture.idleBottomStatus(false, true);
+      assertEquals("fastformer.hud.quick_shape_label", key(status));
+      var modes = status.getSiblings().stream()
+         .filter(component -> component.getContents() instanceof TranslatableContents).toList();
+      assertEquals(java.util.List.of("fastformer.mode.line.axis", "fastformer.mode.line.free_scroll", "fastformer.mode.line.raycast"),
+         modes.stream().map(IdleModeHudTest::key).toList());
+      assertEquals(1, modes.stream().filter(component -> component.getStyle().getColor() != null
+         && component.getStyle().getColor().getValue() == GeometryPalette.accent().rgb()).count());
+      assertEquals("fastformer.hud.selection_label", key(io.github.fastformer.client.preview.assembly.ClientHudCapture.idleBottomStatus(false, false)));
+   }
+
+   private static String key(Component component) {
+      return ((TranslatableContents) component.getContents()).getKey();
+   }
+}

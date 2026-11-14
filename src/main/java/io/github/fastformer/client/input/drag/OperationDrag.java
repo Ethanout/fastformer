@@ -4,7 +4,7 @@ import io.github.fastformer.client.interaction.drag.DeferredDragClick;
 import io.github.fastformer.client.interaction.drag.DragAxisFrame;
 
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import net.minecraft.world.phys.Vec3;
 

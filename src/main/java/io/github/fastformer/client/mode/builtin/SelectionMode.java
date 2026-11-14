@@ -1,7 +1,6 @@
 package io.github.fastformer.client.mode.builtin;
 
 import static io.github.fastformer.client.input.state.ClientInputStateMachine.Dispatch.*;
-
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
 import io.github.fastformer.common.mode.BuiltinModes;
@@ -15,6 +14,7 @@ import io.github.fastformer.client.mode.ModeObservation;
 import io.github.fastformer.client.mode.input.pointer.*;
 import java.util.Map;
 import java.util.Optional;
+import io.github.fastformer.client.mode.PreviewObservation;
 
 /** Declares selection ownership and its phase input rules. */
 public final class SelectionMode implements ClientMode {
@@ -23,6 +23,12 @@ public final class SelectionMode implements ClientMode {
       State.ADJUSTING, new ModeInputPolicy(OPERATION, OPERATION, OPERATION, OPERATION, CANCEL, true, true, false));
 
    @Override public ModeId id() { return BuiltinModes.SELECTION; }
+   @Override public boolean previewActive(PreviewObservation observation) {
+      return observation.selection() || observation.selectionCandidate();
+   }
+   @Override public int previewPriority(PreviewObservation observation) {
+      return observation.selectionCandidate() ? 250 : 100;
+   }
    @Override public PointerDecision onPointer(PointerInput input, PointerView view) {
       if (view instanceof PointerView.Left left && input.press(0)) {
          var captured = PointerCaptureRules.left(left);

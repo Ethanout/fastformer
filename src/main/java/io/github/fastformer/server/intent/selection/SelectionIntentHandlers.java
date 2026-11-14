@@ -1,5 +1,7 @@
 package io.github.fastformer.server.intent.selection;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+
 import io.github.fastformer.core.command.IntentBus;
 import io.github.fastformer.core.command.IntentContext;
 import io.github.fastformer.core.command.IntentResult;
@@ -53,7 +55,7 @@ public final class SelectionIntentHandlers {
          var player = context.actor();
          var selection = OperationSystem.of(player);
          var session = selection.session(player).orElseThrow();
-         if (session.selectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID) {
+         if (session.selectionMode() == io.github.fastformer.common.selection.OperationSelectionMode.CUBOID) {
             selection.expandTo(player, intent.point());
          } else selection.addExtraPoint(player, intent.point());
          return IntentResult.success();

@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.pointer;
 
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import net.minecraft.core.BlockPos;
 
 /** Immutable result of resolving an operation pointer against world and selection targets. */

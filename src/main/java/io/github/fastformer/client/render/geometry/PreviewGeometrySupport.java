@@ -7,7 +7,7 @@ import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 import io.github.fastformer.common.quickshape.mode.VolumeMode;
 import io.github.fastformer.common.geometry.model.GuideLine;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.common.selection.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
 import java.util.ArrayList;
 import java.util.HashSet;

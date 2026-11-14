@@ -1,0 +1,53 @@
+package io.github.fastformer.common.workspace.transform;
+
+import io.github.fastformer.common.math.RepeatStepQuantizer;
+import io.github.fastformer.core.math.Axis;
+
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import java.util.Map;
+import net.minecraft.world.phys.AABB;
+import org.junit.jupiter.api.Test;
+
+class RepeatDragQuantizerTest {
+   @Test
+   void waitsForAWholeStructureBeforeAddingARepeat() {
+      assertEquals(0, RepeatStepQuantizer.copiesForOffset(5.99, 6));
+      assertEquals(1, RepeatStepQuantizer.copiesForOffset(6.0, 6));
+      assertEquals(1, RepeatStepQuantizer.copiesForOffset(11.99, 6));
+      assertEquals(2, RepeatStepQuantizer.copiesForOffset(12.0, 6));
+   }
+
+   @Test
+   void reverseDragUsesTheSameWholeStructureThreshold() {
+      assertEquals(0, RepeatStepQuantizer.copiesForOffset(-5.99, 6));
+      assertEquals(-1, RepeatStepQuantizer.copiesForOffset(-6.0, 6));
+      assertEquals(-2, RepeatStepQuantizer.copiesForOffset(-12.0, 6));
+   }
+
+   @Test
+   void singleBlockStructureRespondsBeforeAFullBlockOfTravel() {
+      assertEquals(0, RepeatStepQuantizer.copiesForOffset(0.49, 1));
+      assertEquals(1, RepeatStepQuantizer.copiesForOffset(0.5, 1));
+      assertEquals(-1, RepeatStepQuantizer.copiesForOffset(-0.5, 1));
+   }
+
+   @Test
+   void cuboidUsesSelectionExtentEvenWhenItsEdgeContainsNoBlocks() {
+      OperationSelectionVolume selection = new OperationSelectionVolume(
+         OperationSelectionMode.CUBOID, new AABB(2, 3, 4, 8, 5, 7), null, java.util.List.of(), 0, null, null
+      );
+      ClientSelectionPart part = new ClientSelectionPart(
+         1, ClientSelectionPart.Source.WORLD, selection, Map.of(), WorkspaceTransform.IDENTITY, false
+      );
+
+      assertEquals(6, RepeatDragQuantizer.structureExtent(part, Axis.X));
+      assertEquals(2, RepeatDragQuantizer.structureExtent(part, Axis.Y));
+      assertEquals(3, RepeatDragQuantizer.structureExtent(part, Axis.Z));
+   }
+}

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.common.geometry.GeometryMode;
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;
@@ -38,16 +38,16 @@ class ClientPreviewUpdatesTest {
 
    @Test void onlyAcceptedActivityRevisionsReachSubmissionObservation() {
       var state = new ClientPreviewState();
-      var calls = new ArrayList<FastPlaceActivity>();
+      var calls = new ArrayList<SessionActivity>();
       var updates = new ClientPreviewUpdates(state, ignored -> true, activity -> {
          assertEquals(activity, state.activity());
          calls.add(activity);
       });
-      var latest = new ActivityStatePayload(4, FastPlaceActivity.RESTORE_TASK);
+      var latest = new ActivityStatePayload(4, SessionActivity.RESTORE_TASK);
       updates.activity(latest);
       updates.activity(latest);
-      updates.activity(new ActivityStatePayload(3, FastPlaceActivity.NONE));
-      assertEquals(List.of(FastPlaceActivity.RESTORE_TASK), calls);
+      updates.activity(new ActivityStatePayload(3, SessionActivity.NONE));
+      assertEquals(List.of(SessionActivity.RESTORE_TASK), calls);
       assertEquals(1, state.revision());
    }
 

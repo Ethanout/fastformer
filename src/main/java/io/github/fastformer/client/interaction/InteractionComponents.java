@@ -1,5 +1,7 @@
 package io.github.fastformer.client.interaction;
 
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+
 import java.util.Objects;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.AABB;
@@ -35,8 +37,8 @@ public final class InteractionComponents {
    public enum SelectionRole {
       ORIGINAL_SELECTION, TRANSFORMED_PART, CLIPBOARD_PART;
 
-      public static SelectionRole from(io.github.fastformer.workspace.model.ClientSelectionPart part) {
-         if (part.source() == io.github.fastformer.workspace.model.ClientSelectionPart.Source.CLIPBOARD) {
+      public static SelectionRole from(io.github.fastformer.common.workspace.model.ClientSelectionPart part) {
+         if (part.source() == io.github.fastformer.common.workspace.model.ClientSelectionPart.Source.CLIPBOARD) {
             return CLIPBOARD_PART;
          }
          return part.isOriginalSelection() ? ORIGINAL_SELECTION : TRANSFORMED_PART;

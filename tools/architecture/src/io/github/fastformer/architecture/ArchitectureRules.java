@@ -77,7 +77,10 @@ final class ArchitectureRules {
                     || target.startsWith(ROOT + "client.operation.controller.")
                     || target.equals("net.minecraft.client.Minecraft");
         }
-        if (owner.startsWith(ROOT + "client.preview.hud.") || owner.equals(ROOT + "client.render.hud.HudFrameRenderer")) {
+        if (owner.startsWith(ROOT + "client.preview.hud.") || owner.equals(ROOT + "client.render.hud.HudFrameRenderer")
+                || Set.of(ROOT + "client.preview.selection.OperationPreviewRenderer",
+                    ROOT + "client.preview.selection.SmartSelectionRenderer",
+                    ROOT + "client.preview.selection.SmartSelectionIsolationRenderer").contains(owner)) {
             return target.startsWith(ROOT + "client.input.") || target.startsWith(ROOT + "client.session.")
                     || target.startsWith(ROOT + "client.operation.") || target.startsWith(ROOT + "client.placement.")
                     || target.startsWith(ROOT + "client.geometry.pointer.")

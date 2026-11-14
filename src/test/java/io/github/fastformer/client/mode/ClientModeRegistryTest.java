@@ -16,6 +16,21 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ClientModeRegistryTest {
+   @Test void allVisualCombinationsKeepThePreviousDisplayPriority() {
+      for (int flags = 0; flags < 128; flags++) {
+         var observation = new PreviewObservation(bit(flags, 0), bit(flags, 1), bit(flags, 2), bit(flags, 3),
+            bit(flags, 4), bit(flags, 5), bit(flags, 6));
+         var expected = observation.fill() ? BuiltinModes.SMART_FILL
+            : observation.replacement() ? BuiltinModes.QUICK_REPLACE
+            : observation.idle() ? BuiltinModes.IDLE
+            : observation.geometry() ? BuiltinModes.GEOMETRY
+            : observation.selectionCandidate() ? BuiltinModes.SELECTION
+            : observation.quickShape() ? BuiltinModes.QUICK_SHAPE
+            : observation.selection() ? BuiltinModes.SELECTION : null;
+         assertEquals(Optional.ofNullable(expected), ClientModes.registry().preview(observation), "flags=" + flags);
+      }
+   }
+
    @Test void everyPhaseKeepsItsStableTypedModeIdentity() {
       var expected = Map.of(
          State.IDLE, BuiltinModes.IDLE,

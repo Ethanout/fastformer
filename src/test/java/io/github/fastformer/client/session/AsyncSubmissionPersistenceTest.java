@@ -1,5 +1,8 @@
 package io.github.fastformer.client.session;
 
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+
 import io.github.fastformer.common.world.BlockSnapshot;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -7,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.session.scope.ClientScopeId;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.workspace.model.*;
+import io.github.fastformer.common.workspace.model.*;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.nio.file.*;

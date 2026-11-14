@@ -1,7 +1,7 @@
 package io.github.fastformer.client.operation.selection;
 
-import io.github.fastformer.fastplace.selection.SmartSelectionTopology;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.selection.smart.SmartSelectionTopology;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

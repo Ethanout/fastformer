@@ -1,6 +1,8 @@
 package io.github.fastformer.client.operation.selection;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+
+import io.github.fastformer.common.selection.OperationSelectionVolume;
 import java.util.ArrayList;
 import net.minecraft.core.BlockPos;
 
@@ -15,7 +17,7 @@ public final class SelectionDraftPreview {
          else points.add(candidate);
       }
       var volume = OperationSelectionVolume.create(draft.selectionMode(), points, draft.prismBaseCount(), BlockPos.ZERO, BlockPos.ZERO, 0);
-      if (volume != null && draft.selectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID) {
+      if (volume != null && draft.selectionMode() == io.github.fastformer.common.selection.OperationSelectionMode.CUBOID) {
          volume = volume.expandCuboidTo(draft.minPoint()).expandCuboidTo(draft.maxPoint());
       }
       return volume;

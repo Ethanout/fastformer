@@ -9,12 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationStackRegion;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;

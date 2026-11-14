@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +22,7 @@ class WorkspaceSubmissionTrackerTest {
    void activeServerTaskDisablesTheStartTimeout() {
       WorkspaceSubmissionTracker tracker = tracker();
       tracker.begin(UUID.randomUUID(), null, null);
-      tracker.observeActivity(FastPlaceActivity.OPERATION_TASK);
+      tracker.observeActivity(SessionActivity.OPERATION_TASK);
 
       assertFalse(tick(tracker, 1_200));
       assertEquals(WorkspaceSubmissionTracker.Phase.TASK_ACTIVE, tracker.phase());
@@ -32,8 +32,8 @@ class WorkspaceSubmissionTrackerTest {
    void taskExitStartsAResultGracePeriod() {
       WorkspaceSubmissionTracker tracker = tracker();
       tracker.begin(UUID.randomUUID(), null, null);
-      tracker.observeActivity(FastPlaceActivity.OPERATION_TASK);
-      tracker.observeActivity(FastPlaceActivity.NONE);
+      tracker.observeActivity(SessionActivity.OPERATION_TASK);
+      tracker.observeActivity(SessionActivity.NONE);
 
       assertFalse(tick(tracker, 39));
       assertTrue(tracker.tick());

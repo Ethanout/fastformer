@@ -1,18 +1,20 @@
 package io.github.fastformer.client.session.draft;
 
+import io.github.fastformer.common.workspace.model.WorkspaceSymmetry;
+
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.session.storage.ClientStorageNbt;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.SelectionPrism;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationStackRegion;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.selection.SelectionBaseline;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.selection.SelectionBaseline;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -399,7 +401,7 @@ public final class ClientOperationDraftCodec {
          new OperationStackRegion(BlockPos.of(tag.getLong("RepeatMin")), BlockPos.of(tag.getLong("RepeatMax"))),
          BlockPos.of(tag.getLong("RepeatStride")),
          decodeVec3(requiredCompound(tag, "Scale")),
-         io.github.fastformer.workspace.model.WorkspaceSymmetry.decode(requiredCompound(tag, "Symmetry"))
+         io.github.fastformer.common.workspace.model.WorkspaceSymmetry.decode(requiredCompound(tag, "Symmetry"))
       );
    }
 

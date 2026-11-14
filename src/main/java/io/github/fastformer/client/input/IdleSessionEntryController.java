@@ -7,7 +7,7 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.ClientBlockTinker;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast;
+import io.github.fastformer.common.raycast.SessionEntryRaycast;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;

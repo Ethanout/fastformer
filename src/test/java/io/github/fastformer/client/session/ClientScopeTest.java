@@ -7,11 +7,11 @@ import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.scope.ClientScopeId;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.testkit.ClientScopes;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -115,8 +115,8 @@ class ClientScopeTest {
       var workspace = session.workspace();
       var selection = session.selectionSession();
       workspace.addParts(java.util.List.of(
-         io.github.fastformer.workspace.model.ClientSelectionPart.empty(
-            io.github.fastformer.workspace.model.ClientSelectionPart.Source.WORLD)));
+         io.github.fastformer.common.workspace.model.ClientSelectionPart.empty(
+            io.github.fastformer.common.workspace.model.ClientSelectionPart.Source.WORLD)));
       workspace.setLocked(true);
       selection.addDraftPoint(new net.minecraft.core.BlockPos(80, 64, 80));
       selection.setAltHeld(true);

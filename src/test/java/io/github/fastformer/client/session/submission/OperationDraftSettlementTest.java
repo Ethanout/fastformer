@@ -14,7 +14,7 @@ import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
 import io.github.fastformer.client.session.receipt.OperationSubmissionReceipt;
 import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptCodec;
 import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptStore;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.nio.file.Files;

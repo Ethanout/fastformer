@@ -11,7 +11,7 @@ import io.github.fastformer.client.interaction.binding.*;
 import io.github.fastformer.client.interaction.binding.action.BindingCommands;
 import io.github.fastformer.client.interaction.binding.context.BindingContext;
 import io.github.fastformer.common.interaction.binding.SessionProfiles;
-import io.github.fastformer.fastplace.geometry.raycast.*;
+import io.github.fastformer.common.raycast.*;
 import io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext;
 import io.github.fastformer.protocol.c2s.placement.QuitFastPlacePayload;
 import java.util.*;

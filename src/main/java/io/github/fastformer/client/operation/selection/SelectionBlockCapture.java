@@ -1,8 +1,10 @@
 package io.github.fastformer.client.operation.selection;
 
+import io.github.fastformer.common.world.BlockPositionMaps;
+
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
 import java.util.Map;
 import java.util.Set;
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
@@ -116,12 +118,12 @@ public final class SelectionBlockCapture {
       ClientSelectionPart baseline, ScanCursor cursor, BooleanSupplier owned,
       Consumer<Map<BlockPos, BlockSnapshot>> complete, Consumer<String> failed,
       Set<BlockPos> hiddenSources,
-      io.github.fastformer.fastplace.geometry.BlockPositionMaps.Builder<BlockSnapshot> blocks) {
+      io.github.fastformer.common.world.BlockPositionMaps.Builder<BlockSnapshot> blocks) {
       Job(SnapshotSource world, OperationSelectionVolume selection, ClientSelectionPart baseline,
          ScanCursor cursor, BooleanSupplier owned, Consumer<Map<BlockPos, BlockSnapshot>> complete, Consumer<String> failed) {
          this(world, selection, baseline, cursor, owned, complete, failed,
             Set.copyOf(SourceMaskRenderFilter.instance().positions()),
-            new io.github.fastformer.fastplace.geometry.BlockPositionMaps.Builder<>());
+            new io.github.fastformer.common.world.BlockPositionMaps.Builder<>());
       }
    }
 }

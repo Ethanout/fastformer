@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.selection;
 
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import net.minecraft.core.BlockPos;
@@ -25,8 +27,8 @@ class SelectionSessionLifecycleTest {
    void environmentExitKeepsDataUntilExplicitCleanup() {
       var session = new ClientSelectionSession();
       session.workspace().addParts(java.util.List.of(
-         io.github.fastformer.workspace.model.ClientSelectionPart.empty(
-            io.github.fastformer.workspace.model.ClientSelectionPart.Source.CLIPBOARD)));
+         io.github.fastformer.common.workspace.model.ClientSelectionPart.empty(
+            io.github.fastformer.common.workspace.model.ClientSelectionPart.Source.CLIPBOARD)));
       session.addDraftPoint(BlockPos.ZERO);
       session.clearTransientInteraction();
       assertEquals(SelectionSessionLifecycle.Phase.IDLE, session.lifecyclePhase());

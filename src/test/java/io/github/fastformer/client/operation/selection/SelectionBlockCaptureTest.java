@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.selection;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.common.world.BlockSnapshot;
 import net.minecraft.core.BlockPos;
 import java.util.concurrent.atomic.*;

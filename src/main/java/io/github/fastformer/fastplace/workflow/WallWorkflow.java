@@ -12,7 +12,7 @@ import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.geometry.preview.GeometryPreviewBlocks;
 import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.common.geometry.controlpoint.ControlPointFeedback;
 import io.github.fastformer.common.geometry.ControlPointRole;

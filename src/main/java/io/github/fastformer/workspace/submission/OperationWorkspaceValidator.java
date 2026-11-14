@@ -1,17 +1,19 @@
 package io.github.fastformer.workspace.submission;
 
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.workspace.preview.WorkspaceScene;
+
+import io.github.fastformer.common.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
-import io.github.fastformer.workspace.WorkspaceLimits;
-import io.github.fastformer.workspace.geometry.WorkspaceGeometryBudget;
-import io.github.fastformer.workspace.geometry.WorkspaceGeometryCost;
+import io.github.fastformer.common.workspace.model.WorkspaceLimits;
+import io.github.fastformer.common.workspace.geometry.WorkspaceGeometryBudget;
+import io.github.fastformer.common.workspace.geometry.WorkspaceGeometryCost;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.preview.Composition;
-import io.github.fastformer.workspace.preview.CompositionBudget;
-import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.preview.Composition;
+import io.github.fastformer.common.workspace.preview.CompositionBudget;
+import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -61,7 +63,7 @@ public final class OperationWorkspaceValidator {
          return Result.failed(List.of());
       }
 
-      var scene = new io.github.fastformer.workspace.preview.WorkspaceScene<BlockSnapshot>(snapshot -> !snapshot.state().isAir());
+      var scene = new io.github.fastformer.common.workspace.preview.WorkspaceScene<BlockSnapshot>(snapshot -> !snapshot.state().isAir());
       for (OperationWorkspacePlan.Part part : parts) {
          if (part.source() == ClientSelectionPart.Source.WORLD) {
             scene.clearSources(part.blocks().keySet());

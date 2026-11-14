@@ -1,5 +1,8 @@
 package io.github.fastformer.fastplace.selection;
 
+import io.github.fastformer.common.selection.smart.SmartSelectionSearch;
+import io.github.fastformer.common.selection.smart.SmartSelectionTopology;
+
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.Set;
 import net.minecraft.core.BlockPos;

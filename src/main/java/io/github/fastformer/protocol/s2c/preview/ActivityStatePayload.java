@@ -1,6 +1,6 @@
 package io.github.fastformer.protocol.s2c.preview;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -8,7 +8,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
 public record ActivityStatePayload(
-   long revision, FastPlaceActivity activity, OperationCallbackScope callbackScope
+   long revision, SessionActivity activity, OperationCallbackScope callbackScope
 ) implements CustomPacketPayload {
    public static final Type<ActivityStatePayload> TYPE = new Type<>(
       ResourceLocation.fromNamespaceAndPath("fastformer", "activity_state")
@@ -19,23 +19,23 @@ public record ActivityStatePayload(
 
    public ActivityStatePayload {
       revision = Math.max(0L, revision);
-      activity = activity == null ? FastPlaceActivity.NONE : activity;
+      activity = activity == null ? SessionActivity.NONE : activity;
       if (callbackScope == null) {
          throw new IllegalArgumentException("Activity callback scope is required");
       }
    }
 
-   public ActivityStatePayload(FastPlaceActivity activity) {
+   public ActivityStatePayload(SessionActivity activity) {
       this(0L, activity, OperationCallbackScope.unscoped());
    }
 
-   public ActivityStatePayload(long revision, FastPlaceActivity activity) {
+   public ActivityStatePayload(long revision, SessionActivity activity) {
       this(revision, activity, OperationCallbackScope.unscoped());
    }
 
    private ActivityStatePayload(FriendlyByteBuf buffer) {
       this(
-         buffer.readVarLong(), buffer.readEnum(FastPlaceActivity.class), OperationCallbackScope.STREAM_CODEC.decode(buffer)
+         buffer.readVarLong(), buffer.readEnum(SessionActivity.class), OperationCallbackScope.STREAM_CODEC.decode(buffer)
       );
    }
 

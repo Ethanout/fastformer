@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import net.minecraft.world.phys.Vec3;

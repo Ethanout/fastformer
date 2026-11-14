@@ -1,8 +1,8 @@
 package io.github.fastformer.client.operation.selection;
 
 import io.github.fastformer.client.operation.selection.ClientSelectionSession.DraftState;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

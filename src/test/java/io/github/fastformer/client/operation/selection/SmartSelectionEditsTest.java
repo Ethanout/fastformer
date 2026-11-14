@@ -1,12 +1,16 @@
 package io.github.fastformer.client.operation.selection;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+
 import static org.junit.jupiter.api.Assertions.*;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
-import io.github.fastformer.fastplace.selection.SmartSelectionTopology;
+import io.github.fastformer.common.selection.smart.SmartSelectionTopology;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -145,11 +149,11 @@ class SmartSelectionEditsTest {
       var workspace = new ClientOperationWorkspace();
       SmartSelectionEdits.add(workspace, row(0));
       var before = workspace.draftState();
-      var cuboid = io.github.fastformer.fastplace.selection.OperationSelectionVolume.create(
-         io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID,
+      var cuboid = io.github.fastformer.common.selection.OperationSelectionVolume.create(
+         io.github.fastformer.common.selection.OperationSelectionMode.CUBOID,
          List.of(new BlockPos(8, 0, 0)), 0, BlockPos.ZERO, BlockPos.ZERO, 0);
       workspace.addParts(List.of(new ClientSelectionPart(0, ClientSelectionPart.Source.WORLD, cuboid,
-         row(8), io.github.fastformer.workspace.model.WorkspaceTransform.IDENTITY, false)));
+         row(8), io.github.fastformer.common.workspace.model.WorkspaceTransform.IDENTITY, false)));
       assertFalse(workspace.parts().getFirst().smartEditable());
       assertTrue(workspace.undo());
       assertEquals(before, workspace.draftState());

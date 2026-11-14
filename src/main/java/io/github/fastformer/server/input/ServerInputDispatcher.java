@@ -20,14 +20,14 @@ import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPointerSequence;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
+import io.github.fastformer.common.selection.geometry.SelectionPrism;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
 import io.github.fastformer.common.geometry.interaction.PointerGesture;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.feedback.PlayerMessages;
@@ -118,7 +118,7 @@ public final class ServerInputDispatcher {
          ? IdleInteractionSnapshots.consumeEntry(player, target.anchorToken(), target.eye(), target.view()) : null;
       BlockHitResult hit = target.anchorToken() > 0
          ? entry == null ? null : entry.hit()
-         : io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, target.eye(), target.view(),
+         : io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, target.eye(), target.view(),
             new io.github.fastformer.common.raycast.InteractionRaycastRules(target.embedded(), target.throughFluids()));
       if (hit != null && hit.getType() == HitResult.Type.BLOCK
          && (target.anchorToken() > 0 || sameHit(hit, target.hit()))) {
@@ -633,7 +633,7 @@ public final class ServerInputDispatcher {
    public static void tinker(ServerPlayer player, io.github.fastformer.protocol.c2s.placement.TinkerInteractionPayload payload) {
       if (!canOperate(player) || interactionBlocked(player) || !IdleInteractionSnapshots.idle(player)
          || !IdleInteractionSnapshots.validRay(player, payload.eye(), payload.view())) return;
-      var hit = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(player, payload.eye(), payload.view(),
+      var hit = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, payload.eye(), payload.view(),
          io.github.fastformer.common.raycast.InteractionRaycastRules.VANILLA_OUTLINE);
       if (sameHit(hit, payload.hit())) {
          IdleInteractionSnapshots.tinker(player, payload);

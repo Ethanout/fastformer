@@ -10,7 +10,7 @@ import io.github.fastformer.client.session.draft.ClientOperationDraft;
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.client.session.receipt.ClientReceiptRepository;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.Objects;
 import java.util.UUID;
 

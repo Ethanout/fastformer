@@ -2,7 +2,7 @@ package io.github.fastformer.client.network.inbound;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
@@ -28,7 +28,7 @@ class ClientInboundSystemTest {
       List<CustomPacketPayload> payloads = List.of(
          new BuildingPreviewSessionPayload(BuildingPreviewSnapshot.inactive().session()),
          OperationPreviewPayload.inactive(), GeometryPreviewPayload.inactive(),
-         new ActivityStatePayload(FastPlaceActivity.NONE),
+         new ActivityStatePayload(SessionActivity.NONE),
          new OperationWorkspaceResultPayload(UUID.randomUUID(), false, List.of()),
          new OperationWorkspaceReceiptPayload(ResourceLocation.withDefaultNamespace("overworld"), List.of()),
          new OpenSettingsPayload(true, io.github.fastformer.workspace.submission.OperationConflictMode.REPLACE,

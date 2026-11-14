@@ -1,8 +1,8 @@
 package io.github.fastformer.client.operation.selection;
 
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
-import io.github.fastformer.fastplace.selection.SmartSelectionSearch;
-import io.github.fastformer.fastplace.selection.SmartSelectionSimilarity;
+import io.github.fastformer.common.selection.smart.SmartSelectionSearch;
+import io.github.fastformer.common.selection.smart.SmartSelectionSimilarity;
 import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.LinkedHashMap;
 import java.util.Map;

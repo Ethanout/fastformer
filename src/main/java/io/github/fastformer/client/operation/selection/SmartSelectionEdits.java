@@ -1,12 +1,12 @@
 package io.github.fastformer.client.operation.selection;
 
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

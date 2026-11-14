@@ -2,7 +2,7 @@ package io.github.fastformer.client.operation.selection;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;

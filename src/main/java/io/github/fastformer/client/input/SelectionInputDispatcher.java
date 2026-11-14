@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
@@ -59,7 +61,7 @@ final class SelectionInputDispatcher {
       if (press.alt()) {
          ClientSessionSystem.instance().operations().setAltMode(true);
          session.modifier.consume();
-         if (press.point() != null || press.button() == 0 && press.mode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID)
+         if (press.point() != null || press.button() == 0 && press.mode() == io.github.fastformer.common.selection.OperationSelectionMode.CUBOID)
             ClientSessionSystem.instance().operations().selectionEdits().handleAltCreateClick(press.button(), press.point());
       } else {
          ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(press.button(), press.point());

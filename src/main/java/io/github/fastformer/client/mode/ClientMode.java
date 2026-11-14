@@ -21,6 +21,9 @@ public interface ClientMode {
    default ScrollDecision onScroll(ScrollInput input, ScrollView view) { return ScrollDecision.pass(); }
    default PointerDecision onPointer(PointerInput input, PointerView view) { return PointerDecision.Flow.PASS; }
 
+   default boolean previewActive(PreviewObservation observation) { return false; }
+   default int previewPriority(PreviewObservation observation) { return priority(); }
+
    /** Tasks are not editable interaction sessions, even when they own input. */
    default boolean interactive() { return true; }
 }

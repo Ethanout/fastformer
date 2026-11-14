@@ -1,6 +1,6 @@
 package io.github.fastformer.client.interaction;
 
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import java.util.UUID;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;

@@ -1,8 +1,8 @@
 package io.github.fastformer.client.operation.clipboard;
 
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.preview.Composition;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.preview.Composition;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;

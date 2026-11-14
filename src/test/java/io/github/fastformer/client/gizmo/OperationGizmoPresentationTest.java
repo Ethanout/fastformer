@@ -2,7 +2,7 @@ package io.github.fastformer.client.gizmo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.selection.OperationStageMode;
+import io.github.fastformer.common.selection.OperationStageMode;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import java.util.List;
 import net.minecraft.core.BlockPos;

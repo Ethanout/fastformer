@@ -20,7 +20,7 @@ public final class InteractionFeedback {
    private long capturedFrame;
    private boolean frameCaptured;
 
-   public InteractionFeedback() { this(axis -> 0xFF000000 | io.github.fastformer.client.gizmo.GizmoColors.axis(axis)); }
+   public InteractionFeedback() { this(axis -> 0xFF000000 | io.github.fastformer.client.preview.style.GeometryPalette.gizmoAxis(axis).rgb()); }
 
    public InteractionFeedback(Function<Axis, Integer> axisColor) {
       this.axisColor = Objects.requireNonNull(axisColor, "axisColor");

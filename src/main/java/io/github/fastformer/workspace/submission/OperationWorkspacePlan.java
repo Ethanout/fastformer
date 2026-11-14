@@ -3,9 +3,9 @@ package io.github.fastformer.workspace.submission;
 import io.github.fastformer.fastplace.world.*;
 
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.world.BlockPositionMaps;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;

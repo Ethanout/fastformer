@@ -1,12 +1,14 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.common.workspace.transform.VoxelRotation;
+
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.selection.OperationStackRegion;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;

@@ -2,7 +2,7 @@ package io.github.fastformer.server.sync;
 
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload;
 import io.github.fastformer.server.player.PlayerStateRegistry;
 import java.util.Optional;
@@ -21,7 +21,7 @@ final class PreviewSyncState implements Scoped {
       return PlayerStateRegistry.find(player).flatMap(scope -> scope.find(KEY));
    }
 
-   FastPlaceActivity lastActivity;
+   SessionActivity lastActivity;
    long operationRevision;
    long buildingRevision;
    long geometryRevision;

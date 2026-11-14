@@ -1,5 +1,7 @@
 package io.github.fastformer.client.session.receipt;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -40,7 +42,7 @@ class OperationSubmissionReceiptTest {
    /** Builds a server selection identity that a receipt can carry. */
    private static OperationDraftIdentity identity(int seed) {
       return new OperationDraftIdentity(
-         io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID,
+         io.github.fastformer.common.selection.OperationSelectionMode.CUBOID,
          List.of(new net.minecraft.core.BlockPos(seed, 0, 0)),
          0,
          null,

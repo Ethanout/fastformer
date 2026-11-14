@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.pointer;
 
+import io.github.fastformer.common.selection.OperationSelectionMode;
+
 import io.github.fastformer.client.input.ClientInputSession;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardRepository;
 import io.github.fastformer.client.operation.controller.OperationContext;
@@ -15,10 +17,10 @@ import io.github.fastformer.client.interaction.PartLabelInteraction;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -358,7 +360,7 @@ class WorkspacePointerResolverTest {
    @Test
    void emptyUntransformedPrismRemainsSelectableWithoutPreviewBlocks() {
       var selection = OperationSelectionVolume.create(
-         io.github.fastformer.fastplace.selection.OperationSelectionMode.CONVEX_HULL,
+         io.github.fastformer.common.selection.OperationSelectionMode.CONVEX_HULL,
          java.util.List.of(BlockPos.ZERO, new BlockPos(3, 0, 0), new BlockPos(0, 0, 3)),
          BlockPos.ZERO,
          BlockPos.ZERO,

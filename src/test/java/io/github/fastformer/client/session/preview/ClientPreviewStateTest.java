@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
@@ -85,12 +85,12 @@ class ClientPreviewStateTest {
       state.applyBuilding(building);
       state.applyOperation(operation);
       state.applyGeometry(geometry);
-      state.applyActivity(new ActivityStatePayload(FastPlaceActivity.OPERATION_SESSION));
+      state.applyActivity(new ActivityStatePayload(SessionActivity.OPERATION_SESSION));
 
       assertSame(building, state.building());
       assertSame(operation, state.operation());
       assertSame(geometry, state.geometry());
-      assertEquals(FastPlaceActivity.OPERATION_SESSION, state.activity());
+      assertEquals(SessionActivity.OPERATION_SESSION, state.activity());
       assertEquals(4L, state.revision());
       assertEquals(1L, state.buildingVersion());
       assertEquals(1L, state.geometryVersion());
@@ -103,7 +103,7 @@ class ClientPreviewStateTest {
       assertEquals(BuildingPreviewSnapshot.inactive(), state.building());
       assertEquals(OperationPreviewPayload.inactive(), state.operation());
       assertFalse(state.geometry().active());
-      assertEquals(FastPlaceActivity.NONE, state.activity());
+      assertEquals(SessionActivity.NONE, state.activity());
       assertEquals(0L, state.revision());
       assertEquals(0L, state.buildingVersion());
       assertEquals(0L, state.geometryVersion());
@@ -128,14 +128,14 @@ class ClientPreviewStateTest {
    @Test
    void ignoresLateActivityRevisions() {
       ClientPreviewState state = new ClientPreviewState();
-      ActivityStatePayload latest = new ActivityStatePayload(3L, FastPlaceActivity.GEOMETRY_SESSION);
+      ActivityStatePayload latest = new ActivityStatePayload(3L, SessionActivity.GEOMETRY_SESSION);
 
       assertTrue(state.applyActivity(latest));
       long stateRevision = state.revision();
 
-      assertFalse(state.applyActivity(new ActivityStatePayload(2L, FastPlaceActivity.NONE)));
+      assertFalse(state.applyActivity(new ActivityStatePayload(2L, SessionActivity.NONE)));
       assertFalse(state.applyActivity(latest));
-      assertEquals(FastPlaceActivity.GEOMETRY_SESSION, state.activity());
+      assertEquals(SessionActivity.GEOMETRY_SESSION, state.activity());
       assertEquals(stateRevision, state.revision());
    }
 
@@ -199,10 +199,10 @@ class ClientPreviewStateTest {
       state.applyBuildingEffect(new BuildingPreviewEffectPayload(8L, new BuildingPreviewEffectSnapshot(null)));
 
       state.applyOperation(OperationPreviewPayload.inactive(4L));
-      state.applyActivity(new ActivityStatePayload(FastPlaceActivity.OPERATION_SESSION));
+      state.applyActivity(new ActivityStatePayload(SessionActivity.OPERATION_SESSION));
       state.resetConnection();
       assertEquals(OperationPreviewPayload.inactive(), state.operation());
-      assertEquals(FastPlaceActivity.NONE, state.activity());
+      assertEquals(SessionActivity.NONE, state.activity());
       assertFalse(state.geometry().active());
       state.applyBuildingSession(new BuildingPreviewSessionPayload(1L, inactive.session()));
       state.applyBuildingParameters(new BuildingPreviewParametersPayload(1L, inactive.parameters()));
@@ -219,14 +219,14 @@ class ClientPreviewStateTest {
       var session = activeBuildingSession(11L);
       var parameters = new BuildingPreviewParametersPayload(11L, BuildingPreviewSnapshot.inactive().parameters());
       var effect = new BuildingPreviewEffectPayload(11L, new BuildingPreviewEffectSnapshot(null));
-      var activity = new ActivityStatePayload(1L, FastPlaceActivity.BUILDING_SESSION);
+      var activity = new ActivityStatePayload(1L, SessionActivity.BUILDING_SESSION);
 
       assertTrue(state.holdReconnectBuildingSession(session));
       assertTrue(state.holdReconnectBuildingParameters(parameters));
       assertTrue(state.holdReconnectBuildingEffect(effect));
       state.applyActivity(activity);
       assertFalse(state.building().active());
-      assertEquals(FastPlaceActivity.BUILDING_SESSION, state.activity());
+      assertEquals(SessionActivity.BUILDING_SESSION, state.activity());
 
       ClientPreviewState.HeldReconnectPreviews held = state.takeHeldReconnectPreviews();
       assertFalse(state.reconnectRestorePending());

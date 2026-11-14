@@ -28,7 +28,7 @@ import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
 import io.github.fastformer.core.async.TickMailbox;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import net.minecraft.core.BlockPos;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;

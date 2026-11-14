@@ -2,7 +2,7 @@ package io.github.fastformer.server.sync;
 
 import io.github.fastformer.server.session.SessionSystem;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.session.GeometrySystem;
@@ -147,7 +147,7 @@ public final class PreviewSync {
    }
 
    public static void syncActivity(ServerPlayer player) {
-      FastPlaceActivity activity = currentActivity(player);
+      SessionActivity activity = currentActivity(player);
       var state = PreviewSyncState.of(player);
       if (state.lastActivity == activity) {
          return;
@@ -197,26 +197,26 @@ public final class PreviewSync {
       return ++PreviewSyncState.of(player).buildingRevision;
    }
 
-   private static FastPlaceActivity currentActivity(ServerPlayer player) {
+   private static SessionActivity currentActivity(ServerPlayer player) {
       if (io.github.fastformer.server.history.HistorySystem.of(player).restoreActive(player)) {
-         return FastPlaceActivity.RESTORE_TASK;
+         return SessionActivity.RESTORE_TASK;
       }
       if (SessionSystem.of(player).operationTasks().active(player)) {
-         return FastPlaceActivity.OPERATION_TASK;
+         return SessionActivity.OPERATION_TASK;
       }
       if (SessionSystem.of(player).placementTasks().active(player)) {
-         return FastPlaceActivity.PLACEMENT_TASK;
+         return SessionActivity.PLACEMENT_TASK;
       }
       if (OperationSystem.of(player).active(player)) {
-         return FastPlaceActivity.OPERATION_SESSION;
+         return SessionActivity.OPERATION_SESSION;
       }
       if (GeometrySystem.of(player).active(player)) {
-         return FastPlaceActivity.GEOMETRY_SESSION;
+         return SessionActivity.GEOMETRY_SESSION;
       }
       if (QuickShapeSystem.of(player).active(player)) {
-         return FastPlaceActivity.BUILDING_SESSION;
+         return SessionActivity.BUILDING_SESSION;
       }
-      return FastPlaceActivity.NONE;
+      return SessionActivity.NONE;
    }
 
    private static void sendPreview(ServerPlayer player, BuildingPreviewSnapshot payload) {

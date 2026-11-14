@@ -1,5 +1,8 @@
 package io.github.fastformer.client.operation.input;
 
+import io.github.fastformer.common.selection.OperationPointDragConstraint;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
@@ -62,11 +65,11 @@ class OperationPointDragCaptureTest {
    private static OperationPointDragPress snapshot(int button) {
       return new OperationPointDragPress(1L, button, 10L,
          new io.github.fastformer.client.session.draft.OperationDraftIdentity(
-            io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM, java.util.List.of(), 0,
+            io.github.fastformer.common.selection.OperationSelectionMode.PRISM, java.util.List.of(), 0,
             net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, 0.0, null, null
          ), 1L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped(), 0,
          net.minecraft.core.BlockPos.ZERO, null, net.minecraft.world.phys.Vec3.ZERO, null, 0.0,
-         net.minecraft.world.phys.Vec3.ZERO, io.github.fastformer.fastplace.selection.OperationPointDragConstraint.FREE,
+         net.minecraft.world.phys.Vec3.ZERO, io.github.fastformer.common.selection.OperationPointDragConstraint.FREE,
          net.minecraft.world.phys.Vec3.ZERO, new net.minecraft.world.phys.Vec3(0.0, 0.0, 1.0));
    }
 }

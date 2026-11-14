@@ -16,7 +16,7 @@ import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptSto
 import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.scope.ClientScopeId;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;

@@ -1,9 +1,9 @@
 package io.github.fastformer.client.operation.workspace;
 
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.preview.WorkspaceScene;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.preview.WorkspaceScene;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.List;
 import java.util.Set;

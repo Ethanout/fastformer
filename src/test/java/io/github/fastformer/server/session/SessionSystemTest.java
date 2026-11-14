@@ -12,7 +12,7 @@ import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.fastplace.session.OperationSession;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;

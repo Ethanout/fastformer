@@ -4,7 +4,7 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.selection.SmartSelectionRaycast;
+import io.github.fastformer.common.selection.smart.SmartSelectionRaycast;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.BlockHitResult;

@@ -9,7 +9,7 @@ import io.github.fastformer.client.session.draft.ClientOperationDraft;
 import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
 import io.github.fastformer.client.session.scope.ClientScopeId;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.testkit.ClientScopes;
 import java.nio.file.Path;
 import java.util.List;

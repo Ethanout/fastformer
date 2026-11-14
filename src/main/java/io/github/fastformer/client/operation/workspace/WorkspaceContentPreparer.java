@@ -2,10 +2,10 @@ package io.github.fastformer.client.operation.workspace;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboard;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.preview.Composition;
-import io.github.fastformer.workspace.preview.CompositionBatch;
-import io.github.fastformer.workspace.preview.CompositionBudget;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.preview.Composition;
+import io.github.fastformer.common.workspace.preview.CompositionBatch;
+import io.github.fastformer.common.workspace.preview.CompositionBudget;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.ArrayList;
 import java.util.List;

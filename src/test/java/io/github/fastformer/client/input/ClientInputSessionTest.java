@@ -7,7 +7,7 @@ import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.testkit.ClientScopes;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;

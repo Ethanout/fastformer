@@ -1,15 +1,18 @@
 package io.github.fastformer.client.interaction;
 
+import io.github.fastformer.common.workspace.model.WorkspaceSymmetry;
+import io.github.fastformer.common.workspace.transform.WorkspaceRotation;
+
 import io.github.fastformer.core.math.Axis;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.gizmo.GizmoViewScale;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import java.util.List;
 import java.util.Map;
@@ -81,13 +84,13 @@ class SelectionGizmoInteractionTest {
    @Test
    void rotationAndScaleUseTheTransformedSelectionFrame() {
       var transform = WorkspaceTransform.IDENTITY.withRotation(new net.minecraft.world.phys.Vec3(0.2, 0.8, -0.3))
-         .withSymmetry(io.github.fastformer.workspace.model.WorkspaceSymmetry.reflection(Axis.X));
+         .withSymmetry(io.github.fastformer.common.workspace.model.WorkspaceSymmetry.reflection(Axis.X));
       var source = part(OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(3, 3, 3), BlockPos.ZERO, BlockPos.ZERO))
          .withTransform(transform);
       var object = SelectionGizmoInteraction.createPart(java.util.UUID.randomUUID(), 1, source, net.minecraft.world.phys.Vec3.ZERO);
       var geometry = SelectionGizmoInteraction.resolvePart(object, new GizmoViewScale(1, 0.1));
       for (Axis axis : Axis.values()) {
-         var expected = io.github.fastformer.workspace.transform.WorkspaceRotation.localAxis(transform, axis);
+         var expected = io.github.fastformer.common.workspace.transform.WorkspaceRotation.localAxis(transform, axis);
          assertEquals(0.0, expected.distanceToSqr(geometry.rotation().axisVector(axis)), 1.0E-12);
          assertEquals(0.0, expected.distanceToSqr(geometry.scale().axisVector(axis)), 1.0E-12);
       }

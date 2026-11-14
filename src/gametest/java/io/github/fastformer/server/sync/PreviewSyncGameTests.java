@@ -4,7 +4,7 @@ import io.github.fastformer.server.session.SessionSystem;
 
 import com.mojang.authlib.GameProfile;
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.server.player.PlayerStateRegistry;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import java.util.UUID;
@@ -55,13 +55,13 @@ public final class PreviewSyncGameTests {
       state.operationRevision = 8;
       state.geometryRevision = 9;
       state.activityRevision = 10;
-      state.lastActivity = FastPlaceActivity.BUILDING_SESSION;
+      state.lastActivity = SessionActivity.BUILDING_SESSION;
       PlayerStateRegistry.dimensionChanged(player);
       assertNoPublications(helper, player);
       helper.assertTrue(state.activityRevision == 0 && state.lastActivity == null, "dimension retained activity state");
       helper.assertFalse(oldScope.equals(PreviewSync.callbackScope(player)), "dimension retained the old callback scope");
       state.buildingRevision = 11;
-      state.lastActivity = FastPlaceActivity.OPERATION_SESSION;
+      state.lastActivity = SessionActivity.OPERATION_SESSION;
       PlayerStateRegistry.detach(player);
       helper.assertTrue(state.buildingRevision == 0 && state.lastActivity == null, "discard retained publication state");
       helper.succeed();

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render;
 
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import io.github.fastformer.client.preview.frame.PreviewDrawContext;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -36,17 +37,23 @@ public final class PreviewMaterialRenderer {
    public static void draw(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
       Map<BlockPos, BlockSnapshot> blocks, BlockAndTintGetter previewLevel,
       float red, float green, float blue, float alpha, boolean dynamic) {
-      draw(pose, buffers, minecraft, camera, blocks, previewLevel, red, green, blue, alpha, dynamic, false);
+      draw(pose, buffers, PreviewDrawContext.capture(minecraft), camera, blocks, previewLevel, red, green, blue, alpha, dynamic, false);
    }
 
    /** Semantic markers use bright pigment over a faint model texture. */
    public static void drawMarker(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
       Map<BlockPos, BlockSnapshot> blocks, BlockAndTintGetter previewLevel,
       float red, float green, float blue, float alpha, boolean dynamic) {
-      draw(pose, buffers, minecraft, camera, blocks, previewLevel, red, green, blue, alpha, dynamic, true);
+      draw(pose, buffers, PreviewDrawContext.capture(minecraft), camera, blocks, previewLevel, red, green, blue, alpha, dynamic, true);
    }
 
-   private static void draw(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
+   public static void draw(PoseStack pose, BufferSource buffers, PreviewDrawContext graphics, Vec3 camera,
+      Map<BlockPos, BlockSnapshot> blocks, BlockAndTintGetter previewLevel,
+      float red, float green, float blue, float alpha, boolean dynamic) {
+      draw(pose, buffers, graphics, camera, blocks, previewLevel, red, green, blue, alpha, dynamic, false);
+   }
+
+   private static void draw(PoseStack pose, BufferSource buffers, PreviewDrawContext graphics, Vec3 camera,
       Map<BlockPos, BlockSnapshot> blocks, BlockAndTintGetter previewLevel,
       float red, float green, float blue, float alpha, boolean dynamic, boolean marker) {
       if (blocks.isEmpty() || alpha <= 0) return;
@@ -54,21 +61,21 @@ public final class PreviewMaterialRenderer {
          io.github.fastformer.client.render.style.VisualStyleContext.Pass.MATERIAL, dynamic);
       if (shader == null) return;
       buffers.endBatch();
-      var main = minecraft.getMainRenderTarget();
-      if (level != minecraft.level) { clear(); level = minecraft.level; }
-      if (target == null) target = new TextureTarget(main.width, main.height, true, Minecraft.ON_OSX);
-      else if (target.width != main.width || target.height != main.height) target.resize(main.width, main.height, Minecraft.ON_OSX);
+      var main = graphics.mainTarget();
+      if (level != graphics.level()) { clear(); level = graphics.level(); }
+      if (target == null) target = new TextureTarget(main.width, main.height, true, graphics.mac());
+      else if (target.width != main.width || target.height != main.height) target.resize(main.width, main.height, graphics.mac());
       Matrix4f inverse = new Matrix4f(RenderSystem.getProjectionMatrix())
          .mul(RenderSystem.getModelViewMatrix()).mul(pose.last().pose()).invert();
       float[] previous = RenderSystem.getShaderColor().clone();
       try {
          target.setClearColor(0, 0, 0, 0);
-         target.clear(Minecraft.ON_OSX);
+         target.clear(graphics.mac());
          target.copyDepthFrom(main);
          target.bindWrite(true);
          RenderSystem.setShaderColor(1, 1, 1, 1);
          WorkspacePreviewRenderer.renderBlockModels(pose, buffers.getBuffer(PreviewRenderTypes.PREVIEW_MODEL_TARGET),
-            minecraft, camera, blocks, previewLevel);
+            graphics, camera, blocks, previewLevel);
          buffers.endBatch(PreviewRenderTypes.PREVIEW_MODEL_TARGET);
          main.bindWrite(true);
          shader.setSampler("PreviewColor", target.getColorTextureId());

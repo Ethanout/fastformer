@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.selection;
 
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 
 /** User tool choice outlives selection sessions and is not part of undo snapshots. */
 public final class SelectionToolPreference {

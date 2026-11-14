@@ -7,7 +7,7 @@ import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptSto
 import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.scope.ClientScopeId;
 import io.github.fastformer.client.session.storage.ClientStorageQueue;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.nio.file.Files;

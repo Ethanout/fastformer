@@ -4,7 +4,7 @@ import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.common.geometry.controlpoint.ControlPointFeedback;
 import io.github.fastformer.common.geometry.ControlPointRole;
 import io.github.fastformer.common.quickshape.mode.FaceMode;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.ArrayList;

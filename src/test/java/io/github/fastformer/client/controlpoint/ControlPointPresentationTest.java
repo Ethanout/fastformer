@@ -2,7 +2,7 @@ package io.github.fastformer.client.controlpoint;
 
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.common.geometry.ControlPointRole;
-import io.github.fastformer.fastplace.selection.OperationSelectionMode;
+import io.github.fastformer.common.selection.OperationSelectionMode;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;

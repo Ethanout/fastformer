@@ -97,3 +97,12 @@
 - 新增缓存完整键、同键复用、明确清理、不同所有者隔离、标记占格排除，以及失败后 revision 恢复测试。源码守护禁止几何预览依赖输入／会话／渲染总入口或查询全局客户端。
 - 首次编译发现深度偏移导入和智能选区执行器依赖遗漏，已修复；新增测试首次使用不存在的 Builder.pending，已改为既有图层构造。`.temp/architecture-geometry-preview-verified.log` 完整 check 和独立新目录 312 项必需 GameTest 全部通过。
 - HUD、几何指针事实采集、其他预览模式、完整模式生命周期和手册其余任务仍待迁移。实际试玩数据未清除。
+
+## 完整预览帧与共享选区领域（2026-11-14）
+
+- 删除 `FastPlaceClientPreviewCore`、`PreviewRenderOwner` 和旧渲染资源总入口。`ClientPreviewEvents` 仅适配 GUI、方块高亮与世界绘制事件（138 行）；`ClientPreviewFrameSystem` 采样并发布 `PreviewFrame`，模式注册表选择世界层，隔离层独立保留原有绘制顺序。
+- `SelectionPreviewModels` 在采样阶段冻结选区工作区、变换目标、修饰键、远端指针、草稿体积及控制点。三个选区绘制器只能消费模型与显式图形资源；架构字节码规则禁止重新访问输入、会话、操作控制器和 Minecraft 总对象。`ClientHudCapture` 采样 HUD，`SessionHudText` 只从参数生成文本。
+- `PreviewLayer` 测试确认模型只构建一次；模式测试穷举 128 组视觉状态。选区测试覆盖工作区集合和可变坐标防御复制、拖动面投影、空草稿与候选点分离，以及绘制前完成草稿体积／控制点构建。
+- 选区体积、棱柱几何、智能选区、工作区模型／合成／变换及坐标集合迁入 `common`；`SessionActivity` 替代旧活动类型。修复对应测试包和打包清单，未修改网络字段或面算法形状。
+- 验证：`.temp/preview-final-check.log` 的完整 `check --no-build-cache` 通过，480 个套件、2648 项单测（0 失败、0 错误、1 跳过），架构工具 12 组自测通过。架构旧债务 1206→918，新增 0、严格边界违规 0；全量架构验收仍未达标。新世界 `build/gametest-preview-20261114-c` 的 320 项必需 GameTest 全过，日志 `.temp/preview-gametest-20261114-c.log`。
+- 继续项：拆分 1928 行输入总入口并保留物理回调／tick 队列顺序；完成服务端几何模式、完整数据操作树、剩余包结构和策略同步；最终执行客户端实测。当前不能宣称整份手册完成。

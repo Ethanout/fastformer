@@ -67,8 +67,8 @@ public final class IdleInteractionSnapshots {
       var level = player.serverLevel();
       var position = request.hit().getBlockPos();
       if (!level.isInWorldBounds(position) || !level.hasChunkAt(position) || !level.getWorldBorder().isWithinBounds(position)) return;
-      var shape = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.snapshot(player, position, request.rules());
-      var actual = io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast.clip(
+      var shape = io.github.fastformer.common.raycast.SessionEntryRaycast.snapshot(player, position, request.rules());
+      var actual = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(
          player, request.eye(), request.view(), request.rules());
       if (shape.clip(request.eye(), request.view()) == null || !actual.getBlockPos().equals(position)
          || actual.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) return;

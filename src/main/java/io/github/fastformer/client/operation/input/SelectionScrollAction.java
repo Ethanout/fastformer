@@ -9,8 +9,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
-import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.transform.WorkspaceRotation;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.transform.WorkspaceRotation;
 
 /** Freezes the gesture and target identities at the physical scroll callback. */
 public record SelectionScrollAction(UUID owner, Map<Integer, Long> targets, Gesture gesture, long timestampNanos) {

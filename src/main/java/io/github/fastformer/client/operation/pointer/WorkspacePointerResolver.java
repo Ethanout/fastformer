@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.pointer;
 
+import io.github.fastformer.common.selection.smart.SmartSelectionRaycast;
+
 import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.interaction.pointer.PointerResolver;
 import io.github.fastformer.client.interaction.InteractionComponents;
@@ -13,11 +15,11 @@ import io.github.fastformer.client.interaction.intent.InteractionIntentResolver;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
@@ -279,7 +281,7 @@ public final class WorkspacePointerResolver {
       if (!part.smart()) return OperationGeometry.raycast(bounds.inflate(0.012), eye, view, REACH);
       if (OperationGeometry.raycast(bounds.inflate(0.5), eye, view, REACH) == null) return null;
       var minecraft = context == null ? null : context.minecraft();
-      return io.github.fastformer.fastplace.selection.SmartSelectionRaycast.hit(visibleBlocks(part),
+      return io.github.fastformer.common.selection.smart.SmartSelectionRaycast.hit(visibleBlocks(part),
          minecraft == null ? null : minecraft.level,
          minecraft == null || minecraft.player == null ? net.minecraft.world.phys.shapes.CollisionContext.empty()
             : net.minecraft.world.phys.shapes.CollisionContext.of(minecraft.player), eye, view, REACH);

@@ -6,18 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.common.mode.SessionActivity;
 import org.junit.jupiter.api.Test;
 
 class WorkspaceSubmissionHudTest {
    @Test
    void pendingTaskDoesNotOfferTheCancelKeyThatInputRejects() {
       assertFalse(WorkspaceSubmissionHud.showsCancelHint(
-         io.github.fastformer.fastplace.session.FastPlaceActivity.OPERATION_TASK, true));
+         io.github.fastformer.common.mode.SessionActivity.OPERATION_TASK, true));
       assertTrue(WorkspaceSubmissionHud.showsCancelHint(
-         io.github.fastformer.fastplace.session.FastPlaceActivity.OPERATION_TASK, false));
+         io.github.fastformer.common.mode.SessionActivity.OPERATION_TASK, false));
       assertFalse(WorkspaceSubmissionHud.showsCancelHint(
-         io.github.fastformer.fastplace.session.FastPlaceActivity.RESTORE_TASK, false));
+         io.github.fastformer.common.mode.SessionActivity.RESTORE_TASK, false));
    }
 
    @Test
@@ -208,8 +208,8 @@ class WorkspaceSubmissionHudTest {
    @Test
    void theActivityLineOffersTheCancelHintWhileNoSubmissionWaits() {
       // Only a task reports the hint. Both cancellable tasks keep it.
-      assertTrue(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.OPERATION_TASK, NOT_PENDING));
-      assertTrue(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.PLACEMENT_TASK, NOT_PENDING));
+      assertTrue(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.OPERATION_TASK, NOT_PENDING));
+      assertTrue(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.PLACEMENT_TASK, NOT_PENDING));
    }
 
    @Test
@@ -217,18 +217,18 @@ class WorkspaceSubmissionHudTest {
       // The tracker stays pending through the phase where the server task is
       // active, and the cancel key reports the pending state instead of
       // cancelling there. The exit hint would be false.
-      assertFalse(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.OPERATION_TASK, PENDING));
-      assertFalse(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.PLACEMENT_TASK, PENDING));
+      assertFalse(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.OPERATION_TASK, PENDING));
+      assertFalse(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.PLACEMENT_TASK, PENDING));
    }
 
    @Test
    void theActivityLineKeepsItsOtherConditions() {
       // The caller draws this line only for a task, and the restore task never
       // offers cancel. A session reports no task, so it never reaches this hint.
-      assertFalse(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.RESTORE_TASK, NOT_PENDING));
-      assertFalse(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.OPERATION_SESSION, NOT_PENDING));
-      assertFalse(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.BUILDING_SESSION, NOT_PENDING));
-      assertFalse(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.GEOMETRY_SESSION, NOT_PENDING));
-      assertFalse(WorkspaceSubmissionHud.showsCancelHint(FastPlaceActivity.NONE, NOT_PENDING));
+      assertFalse(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.RESTORE_TASK, NOT_PENDING));
+      assertFalse(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.OPERATION_SESSION, NOT_PENDING));
+      assertFalse(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.BUILDING_SESSION, NOT_PENDING));
+      assertFalse(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.GEOMETRY_SESSION, NOT_PENDING));
+      assertFalse(WorkspaceSubmissionHud.showsCancelHint(SessionActivity.NONE, NOT_PENDING));
    }
 }

@@ -1,5 +1,6 @@
 package io.github.fastformer.common.math;
 
+import java.util.List;
 import io.github.fastformer.core.math.Epsilon;
 import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.core.math.Vectors;
@@ -42,5 +43,20 @@ public final class MinecraftVectors {
    private static Vec3 create(double x, double y, double z) {
       return (Double.doubleToRawLongBits(x) | Double.doubleToRawLongBits(y)
          | Double.doubleToRawLongBits(z)) == 0 ? Vec3.ZERO : new Vec3(x, y, z);
+   }
+   public static Vec3 planarNormal(List<Vec3> vertices) {
+      if (vertices.size() < 3) {
+         return Vec3.ZERO;
+      }
+      Vec3 origin = vertices.getFirst();
+      for (int first = 1; first < vertices.size() - 1; first++) {
+         for (int second = first + 1; second < vertices.size(); second++) {
+            Vec3 normal = vertices.get(first).subtract(origin).cross(vertices.get(second).subtract(origin));
+            if (normal.lengthSqr() >= 1.0E-7) {
+               return normal.normalize();
+            }
+         }
+      }
+      return Vec3.ZERO;
    }
 }

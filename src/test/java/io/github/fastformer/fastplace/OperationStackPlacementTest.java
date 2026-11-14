@@ -4,9 +4,9 @@ import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.workspace.submission.OperationExecutionSemantics;
 
-import io.github.fastformer.fastplace.selection.OperationStackRegion;
+import io.github.fastformer.common.selection.OperationStackRegion;
 
-import io.github.fastformer.fastplace.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationMode;
 
 import io.github.fastformer.fastplace.world.*;
 
@@ -15,7 +15,7 @@ import io.github.fastformer.fastplace.workflow.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.geometry.OperationGeometry;
+import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
