@@ -142,7 +142,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 
 ShapeShellRenderer 与 BuildingShellFaceBuffer 直接使用 PencilStroke／PreviewQuads，不反向调用 FastPlaceClientPreviewCore。SelectionVolumeRenderer 独立绘制权威选区体轮廓，输入为几何体和显式 alpha；原总入口中的体轮廓、线和写面转发及无调用的虚线盒／旧轮廓已删除。
 
-`ClientModeRegistry` 冻结模式优先级、所属阶段与输入策略；拒绝重复 ID／阶段、缺少阶段、冻结后注册和观察其他模式的阶段。`ModeObservation` 仅携带工作流事实；空闲、起形、几何、选区、替换、填充和任务分别声明规则，不持有客户端全局状态。ClientInputStateMachine 继续独占提交请求、取消和手势代次；分派及提交准入查询注册策略。旧 ObservedInputState 已删除，空闲／活动判断和草稿读取门禁复用同一注册表。滚轮由模式 onScroll 决策，PASS 才回落空闲；输入边界捕获事实并执行返回命令。按键／指针事件与预览注册尚待迁移。
+`ClientModeRegistry` 冻结模式优先级、所属阶段与输入策略；拒绝重复 ID／阶段、缺少阶段、冻结后注册和观察其他模式的阶段。`ModeObservation` 仅携带工作流事实；空闲、起形、几何、选区、替换、填充和任务分别声明规则，不持有客户端全局状态。ClientInputStateMachine 继续独占提交请求、取消和手势代次；分派及提交准入查询注册策略。旧 ObservedInputState 已删除，空闲／活动判断和草稿读取门禁复用同一注册表。滚轮由模式 onScroll 决策，专用工具键由 onKey 决策，PASS 才回落空闲；输入边界捕获事实并执行返回命令。其余通用按键、指针事件与预览注册尚待迁移。
 
 旧 `ClientSessionManager` 已删除，由 `ClientSessionSystem` 提供当前作用域及协调入口，查询命名为 `currentScope`。草稿模型和 Codec 位于 draft，回执模型、Codec、缓存及重试保存位于 receipt，队列和 NBT 辅助位于 storage，来源和结算规则位于 submission；相关纯单元测试跟随被测能力迁包。整个 client.session 树执行包容量和职责说明检查，不保留旧路径别名。
 

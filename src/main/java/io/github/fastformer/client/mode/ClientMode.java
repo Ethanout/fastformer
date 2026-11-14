@@ -4,6 +4,9 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.input.ScrollDecision;
 import io.github.fastformer.client.mode.input.ScrollInput;
 import io.github.fastformer.client.mode.input.ScrollView;
+import io.github.fastformer.client.mode.input.KeyDecision;
+import io.github.fastformer.client.mode.input.KeyInput;
+import io.github.fastformer.client.mode.input.KeyView;
 import java.util.Map;
 import java.util.Optional;
 
@@ -15,6 +18,7 @@ public interface ClientMode {
    Optional<State> observe(ModeObservation observation);
 
    default ScrollDecision onScroll(ScrollInput input, ScrollView view) { return ScrollDecision.pass(); }
+   default KeyDecision onKey(KeyInput input, KeyView view) { return KeyDecision.PASS; }
 
    /** Tasks are not editable interaction sessions, even when they own input. */
    default boolean interactive() { return true; }

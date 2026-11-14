@@ -242,23 +242,11 @@ public final class FastPlaceClientInput {
       }
       if (HistoryConflictConfirmation.handleKey(minecraft, event)) return;
       synchronizeInputState();
-      if (QuickReplaceMode.active()) {
-         if (minecraft.screen == null && event.action() == 1) {
-            if (event.key() == 82 && !event.controlDown()) QuickReplaceMode.toggle(minecraft);
-            else if (event.controlDown() && (event.key() == 90 || event.key() == 89)) {
-               QuickReplaceMode.finishStroke(minecraft);
-               minecraft.options.keyUse.setDown(false);
-               WorldHistoryCommandDispatcher.send(minecraft, event.key());
-            }
-         }
-         return;
-      }
-      ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY);
-      if (inputSession().smartFill().handleKey(minecraft, event,
-         inputRoute == ClientInputStateMachine.Dispatch.VANILLA && !QuickReplaceMode.active())) {
+      if (ClientModeKeyInput.handle(minecraft, inputSession(), event)) {
          synchronizeInputState();
          return;
       }
+      ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY);
       boolean buildingSession = inputRoute == ClientInputStateMachine.Dispatch.BUILDING;
       boolean geometrySession = inputRoute == ClientInputStateMachine.Dispatch.GEOMETRY;
       boolean operationSession = inputRoute == ClientInputStateMachine.Dispatch.OPERATION;
@@ -311,11 +299,6 @@ public final class FastPlaceClientInput {
             if (!result.accepted()) {
                ClientInteractionFeedback.showWorkspaceSubmitFailure(minecraft, result);
             }
-            return;
-         }
-         if (event.key() == 82 && !controlDown
-            && inputRoute == ClientInputStateMachine.Dispatch.VANILLA) {
-            QuickReplaceMode.toggle(minecraft);
             return;
          }
          if (handleWorkspaceShortcut(minecraft, event.action(), event.key(), controlDown, inputRoute)) {

@@ -37,23 +37,11 @@ public final class ClientSmartFillSession {
          && NetworkRegistry.hasChannel(minecraft.getConnection(), SmartFillPreviewPayload.TYPE.id());
    }
 
-   boolean handleKey(Minecraft minecraft, KeyboardInputSnapshot input, boolean idle) {
-      if (minecraft.screen != null || minecraft.player == null) return false;
-      boolean fillKey = !input.controlDown() && minecraft.options.keySwapOffhand.matches(input.key(), input.scanCode());
-      boolean enter = input.key() == 257 || input.key() == 335;
-      if (active()) {
-         if ((fillKey || enter) && input.action() == 1 && ready()) {
-            UUID id = phase.id();
-            phase = new Confirming(id, System.nanoTime());
-            send(minecraft, id, SmartFillCommandPayload.Action.CONFIRM);
-         }
-         return fillKey || enter;
-      }
-      if (!idle || !fillKey || !canStart(minecraft)) return false;
-      if (input.action() == 1) {
-         start(minecraft);
-      }
-      return true;
+   void confirm(Minecraft minecraft) {
+      if (!ready()) return;
+      UUID id = phase.id();
+      phase = new Confirming(id, System.nanoTime());
+      send(minecraft, id, SmartFillCommandPayload.Action.CONFIRM);
    }
 
    void start(Minecraft minecraft) {

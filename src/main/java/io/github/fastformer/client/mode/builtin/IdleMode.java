@@ -4,6 +4,9 @@ import static io.github.fastformer.client.input.state.ClientInputStateMachine.Di
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
+import io.github.fastformer.client.mode.input.KeyDecision;
+import io.github.fastformer.client.mode.input.KeyInput;
+import io.github.fastformer.client.mode.input.KeyView;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
 import java.util.Map;
@@ -15,6 +18,12 @@ public final class IdleMode implements ClientMode {
 
    @Override public String id() { return "fastformer:idle"; }
    @Override public int priority() { return 0; }
+   @Override public KeyDecision onKey(KeyInput input, KeyView view) {
+      if (!view.playerReady() || !view.idleActionsAllowed()) return KeyDecision.PASS;
+      if (view.fillKey() && view.canStartFill()) return input.press() ? KeyDecision.START_FILL : KeyDecision.CONSUME;
+      return input.press() && input.key() == 82 && !input.controlDown()
+         ? KeyDecision.TOGGLE_REPLACEMENT : KeyDecision.PASS;
+   }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }
    @Override public Optional<State> observe(ModeObservation observation) {
       return Optional.of(State.IDLE);

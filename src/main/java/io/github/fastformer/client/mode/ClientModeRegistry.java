@@ -4,6 +4,9 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.input.ScrollDecision;
 import io.github.fastformer.client.mode.input.ScrollInput;
 import io.github.fastformer.client.mode.input.ScrollView;
+import io.github.fastformer.client.mode.input.KeyDecision;
+import io.github.fastformer.client.mode.input.KeyInput;
+import io.github.fastformer.client.mode.input.KeyView;
 import io.github.fastformer.core.registry.Registry;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -74,6 +77,17 @@ public final class ClientModeRegistry {
          Objects.requireNonNull(input, "input"), Objects.requireNonNull(view, "view")), "scroll decision");
       if (result.command() == ScrollDecision.Command.NONE && owner != owners.get(State.IDLE)) {
          return Objects.requireNonNull(owners.get(State.IDLE).mode().onScroll(input, view), "idle scroll decision");
+      }
+      return result;
+   }
+
+   public KeyDecision onKey(State state, KeyInput input, KeyView view) {
+      ordered();
+      Definition owner = owners.get(Objects.requireNonNull(state, "state"));
+      KeyDecision result = Objects.requireNonNull(owner.mode().onKey(
+         Objects.requireNonNull(input, "input"), Objects.requireNonNull(view, "view")), "key decision");
+      if (result == KeyDecision.PASS && owner != owners.get(State.IDLE)) {
+         return Objects.requireNonNull(owners.get(State.IDLE).mode().onKey(input, view), "idle key decision");
       }
       return result;
    }

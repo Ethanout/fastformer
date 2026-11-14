@@ -592,3 +592,12 @@
 - ShapeShellRenderer、BuildingShellFaceBuffer 直接使用 PencilStroke／PreviewQuads；控制点回退直接创建显式参数的 ControlPointRenderer。删除 Core 的写面／画线公开适配，以及无调用的虚线盒和旧轮廓分支；源码约束禁止 shell／cache 依赖渲染总入口。
 - 首轮 `.temp/architecture-render-primitives-verified.log`：check 通过，但 separatePressesAndRepeatedPositionsRetainDistinctUndoBoundaries 超时，停在等待第二次按压撤销；未改生产历史逻辑或测试断言。未改代码的新目录复验 `.temp/architecture-render-primitives-recheck.log`：完整 check 与 312 项必需 GameTest 全部通过。单次超时尚未稳定复现，不将其记为已修复。
 - 实际试玩存档和正式构建仓库配置未修改。完整 PreviewFrame／PreviewMode、模式按键／指针和服务端模式、操作树及其余手册项目继续推进。
+
+## 专用工具按键由模式处理（2026-11-14）
+
+- 独立绘制组件阶段已提交并推送：`5d9f3f2`。
+- ClientMode 新增 onKey，KeyInput／KeyView 为不可变事实，KeyDecision 表达动作；注册表按所属模式调用，只有 PASS 回落到空闲。QuickReplaceMode 处理 R 与 Ctrl+Z／Y，SmartFillMode 处理 F／Enter，IdleMode 声明工具进入。ClientModeKeyInput 在输入边界执行动作，模式不引用客户端总入口／网络／渲染。
+- 删除总输入中的工具按键 if 链及 ClientSmartFillSession 的物理按键判断；填充能力只保留 start／confirm。保留绑定和历史冲突优先、任务快照到达时已有工具优先、松开与重复事件只消费不二次确认、Ctrl+F 不触发填充等规则。物理按压时的首个填充请求仍立即建立，避免快回复将排队副本误当作确认。
+- 穷举所有阶段、128 组上下文／修饰状态、8 个按键与三种动作，对照原规则；补充填充确认／取消通过及活动会话不继承空闲入口用例。
+- `.temp/architecture-mode-key-verified.log`：完整 `check` 与独立新目录 312 项必需 GameTest 通过；实际试玩存档和正式构建仓库配置未修改。
+- 这是专用工具键迁移，通用快捷键／取消／提交和指针处理仍在原输入流程；服务端 Mode、完整 PreviewFrame／PreviewMode、操作树与其余手册项目尚未完成。

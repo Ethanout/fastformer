@@ -7,6 +7,9 @@ import io.github.fastformer.client.mode.ClientMode;
 import io.github.fastformer.client.mode.input.ScrollDecision;
 import io.github.fastformer.client.mode.input.ScrollInput;
 import io.github.fastformer.client.mode.input.ScrollView;
+import io.github.fastformer.client.mode.input.KeyDecision;
+import io.github.fastformer.client.mode.input.KeyInput;
+import io.github.fastformer.client.mode.input.KeyView;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
 import java.util.Map;
@@ -18,6 +21,10 @@ public final class SmartFillMode implements ClientMode {
 
    @Override public String id() { return "fastformer:smart_fill"; }
    @Override public int priority() { return 500; }
+   @Override public KeyDecision onKey(KeyInput input, KeyView view) {
+      if (!view.playerReady() || !view.fillKey() && !input.enter()) return KeyDecision.PASS;
+      return input.press() && view.fillReady() ? KeyDecision.CONFIRM_FILL : KeyDecision.CONSUME;
+   }
    @Override public ScrollDecision onScroll(ScrollInput input, ScrollView view) { return ScrollDecision.block(); }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }
    @Override public Optional<State> observe(ModeObservation observation) {
