@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input.state;
 
 import java.util.Objects;
+import io.github.fastformer.client.mode.ClientModes;
 
 /** Owns input routing, cancellation, and the lifetime of a mouse gesture. */
 public final class ClientInputStateMachine {
@@ -141,41 +142,12 @@ public final class ClientInputStateMachine {
    }
 
    public enum State {
-      IDLE(Dispatch.VANILLA, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.VANILLA, Dispatch.BLOCKED, false, true),
-      QUICK_REPLACE(Dispatch.VANILLA, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, true),
-      FILL_PREVIEW(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, false, true),
-      BUILDING(Dispatch.BUILDING, Dispatch.BUILDING, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, true, true),
-      GEOMETRY(Dispatch.GEOMETRY, Dispatch.GEOMETRY, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, true, true),
-      SELECTING(Dispatch.OPERATION, Dispatch.BLOCKED, Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.CANCEL, false, true),
-      ADJUSTING(Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.OPERATION, Dispatch.CANCEL, true, true),
-      SUBMITTING(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, false, false),
-      PLACING(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.CANCEL, false, true),
-      RESTORING(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, true),
-      CANCELLING(Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, Dispatch.BLOCKED, false, false);
+      IDLE(true), QUICK_REPLACE(true), FILL_PREVIEW(true), BUILDING(true), GEOMETRY(true),
+      SELECTING(true), ADJUSTING(true), SUBMITTING(false), PLACING(true), RESTORING(true), CANCELLING(false);
 
-      private final Dispatch regular;
-      private final Dispatch submit;
-      private final Dispatch createSelection;
-      private final Dispatch pasteWorkspace;
-      private final Dispatch cancel;
-      private final boolean canSubmit;
       private final boolean serverObservable;
 
-      State(
-         Dispatch regular,
-         Dispatch submit,
-         Dispatch createSelection,
-         Dispatch pasteWorkspace,
-         Dispatch cancel,
-         boolean canSubmit,
-         boolean serverObservable
-      ) {
-         this.regular = regular;
-         this.submit = submit;
-         this.createSelection = createSelection;
-         this.pasteWorkspace = pasteWorkspace;
-         this.cancel = cancel;
-         this.canSubmit = canSubmit;
+      State(boolean serverObservable) {
          this.serverObservable = serverObservable;
       }
 
@@ -187,7 +159,7 @@ public final class ClientInputStateMachine {
                observation.state() == this || !acceptsObservation(observation.state())
                   ? InteractionTransition.Stay.INSTANCE
                   : new InteractionTransition.Switch(observation.state(), InteractionTransition.Cause.OBSERVATION);
-            case ClientSemanticEvent.Cancel ignored -> this.cancel == Dispatch.CANCEL
+            case ClientSemanticEvent.Cancel ignored -> dispatch(InputKind.CANCEL) == Dispatch.CANCEL
                ? new InteractionTransition.Switch(CANCELLING, InteractionTransition.Cause.CANCEL)
                : new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
             case ClientSemanticEvent.Reset ignored ->
@@ -204,7 +176,7 @@ public final class ClientInputStateMachine {
       private InteractionTransition submitTransition(
          ClientSemanticEvent.Submit request, ClientSemanticEvent.Submit activeRequest
       ) {
-         if (!this.canSubmit && !(this == SELECTING && request instanceof ClientSemanticEvent.Submit.Workspace)) {
+         if (!ClientModes.registry().policy(this).accepts(request)) {
             return new InteractionTransition.Rejected(InteractionTransition.Rejection.INPUT_BLOCKED);
          }
          return validatedSubmission(request, activeRequest);
@@ -250,13 +222,7 @@ public final class ClientInputStateMachine {
       }
 
       Dispatch dispatch(InputKind input) {
-         return switch (input) {
-            case KEY, POINTER, INTERACTION, SCROLL -> regular;
-            case SUBMIT -> submit;
-            case CREATE_SELECTION -> createSelection;
-            case PASTE_WORKSPACE -> pasteWorkspace;
-            case CANCEL -> cancel;
-         };
+         return ClientModes.registry().policy(this).dispatch(input);
       }
 
       boolean serverObservable() {

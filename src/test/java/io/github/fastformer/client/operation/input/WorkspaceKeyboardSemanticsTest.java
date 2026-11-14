@@ -5,7 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
-import io.github.fastformer.client.input.state.ObservedInputState;
+import io.github.fastformer.client.mode.ClientModes;
+import io.github.fastformer.client.mode.ModeObservation;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -214,7 +215,7 @@ class WorkspaceKeyboardSemanticsTest {
     */
    @Test
    void theRealEntryPathLetsAnEmptyWorkspaceUndoItsOwnStep() {
-      ClientInputStateMachine.State observed = ObservedInputState.stateFor(ObservedInputState.Sessions.idle());
+      ClientInputStateMachine.State observed = ClientModes.registry().observe(ModeObservation.idle());
       assertEquals(ClientInputStateMachine.State.IDLE, observed);
       ClientInputStateMachine.Dispatch route = machineIn(observed).dispatch(ClientInputStateMachine.InputKind.KEY);
       assertEquals(VANILLA, route);
@@ -230,7 +231,7 @@ class WorkspaceKeyboardSemanticsTest {
    @Test
    void theRealEntryPathStillReachesTheWorldRequestWithoutALocalStep() {
       ClientInputStateMachine.Dispatch route = machineIn(
-         ObservedInputState.stateFor(ObservedInputState.Sessions.idle())
+         ClientModes.registry().observe(ModeObservation.idle())
       ).dispatch(ClientInputStateMachine.InputKind.KEY);
 
       WorkspaceKeyboardSemantics.Decision decision = decideUndo(route, false, 0, false, false);
@@ -242,10 +243,8 @@ class WorkspaceKeyboardSemanticsTest {
    /** A building session on the same path keeps its undo from the stale local chain. */
    @Test
    void theRealEntryPathKeepsABuildingUndo() {
-      ObservedInputState.Sessions sessions = new ObservedInputState.Sessions(
-         false, false, false, false, false, false, true
-      );
-      ClientInputStateMachine.State observed = ObservedInputState.stateFor(sessions);
+      ModeObservation sessions = new ModeObservation(false, false, false, false, false, false, true, false, false);
+      ClientInputStateMachine.State observed = ClientModes.registry().observe(sessions);
       assertEquals(ClientInputStateMachine.State.BUILDING, observed);
       ClientInputStateMachine.Dispatch route = machineIn(observed).dispatch(ClientInputStateMachine.InputKind.KEY);
 
@@ -258,20 +257,20 @@ class WorkspaceKeyboardSemanticsTest {
    /** The observation order keeps its priority for every flag combination. */
    @Test
    void theObservationOrderKeepsItsPriority() {
-      assertEquals(ClientInputStateMachine.State.RESTORING, ObservedInputState.stateFor(
-         new ObservedInputState.Sessions(true, true, true, true, true, true, true)));
-      assertEquals(ClientInputStateMachine.State.PLACING, ObservedInputState.stateFor(
-         new ObservedInputState.Sessions(false, true, true, true, true, true, true)));
-      assertEquals(ClientInputStateMachine.State.ADJUSTING, ObservedInputState.stateFor(
-         new ObservedInputState.Sessions(false, false, true, true, false, true, true)));
-      assertEquals(ClientInputStateMachine.State.SELECTING, ObservedInputState.stateFor(
-         new ObservedInputState.Sessions(false, false, true, false, false, true, true)));
-      assertEquals(ClientInputStateMachine.State.GEOMETRY, ObservedInputState.stateFor(
-         new ObservedInputState.Sessions(false, false, false, false, false, true, true)));
-      assertEquals(ClientInputStateMachine.State.BUILDING, ObservedInputState.stateFor(
-         new ObservedInputState.Sessions(false, false, false, false, false, false, true)));
-      assertEquals(ClientInputStateMachine.State.IDLE, ObservedInputState.stateFor(
-         ObservedInputState.Sessions.idle()));
+      assertEquals(ClientInputStateMachine.State.RESTORING, ClientModes.registry().observe(
+         new ModeObservation(true, true, true, true, true, true, true, false, false)));
+      assertEquals(ClientInputStateMachine.State.PLACING, ClientModes.registry().observe(
+         new ModeObservation(false, true, true, true, true, true, true, false, false)));
+      assertEquals(ClientInputStateMachine.State.ADJUSTING, ClientModes.registry().observe(
+         new ModeObservation(false, false, true, true, false, true, true, false, false)));
+      assertEquals(ClientInputStateMachine.State.SELECTING, ClientModes.registry().observe(
+         new ModeObservation(false, false, true, false, false, true, true, false, false)));
+      assertEquals(ClientInputStateMachine.State.GEOMETRY, ClientModes.registry().observe(
+         new ModeObservation(false, false, false, false, false, true, true, false, false)));
+      assertEquals(ClientInputStateMachine.State.BUILDING, ClientModes.registry().observe(
+         new ModeObservation(false, false, false, false, false, false, true, false, false)));
+      assertEquals(ClientInputStateMachine.State.IDLE, ClientModes.registry().observe(
+         ModeObservation.idle()));
    }
 
    /**

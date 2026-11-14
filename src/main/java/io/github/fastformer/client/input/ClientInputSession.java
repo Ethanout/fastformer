@@ -113,10 +113,7 @@ public final class ClientInputSession {
    }
 
    public boolean blocksDraftLoad() {
-      boolean activeOperation = switch (this.routing.state()) {
-         case IDLE, SELECTING, ADJUSTING -> false;
-         default -> true;
-      };
+      boolean activeOperation = io.github.fastformer.client.mode.ClientModes.registry().policy(routing.state()).blocksDraftLoad();
       return activeOperation
          || this.physicalEvents.hasUnfinishedEvents() || this.submissionEvents.hasUnfinishedEvents()
          || this.selectionPointer.active()

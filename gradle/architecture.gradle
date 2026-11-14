@@ -36,6 +36,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.client.operation.edit') ||
                     packageName.startsWith('io.github.fastformer.client.operation.pointer') ||
                     packageName.startsWith('io.github.fastformer.client.interaction.pointer') ||
+                    packageName.startsWith('io.github.fastformer.client.mode') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -62,6 +63,13 @@ abstract class VerifySourceLayout extends DefaultTask {
             }
             if (main && (text =~ /\bWorkspaceInteractionResolver\b/).find()) {
                 violations.add("Retired static renderer workspace resolver: ${path}")
+            }
+            if (main && (text =~ /\bObservedInputState\b/).find()) {
+                violations.add("Mode ownership must come from the registered definitions: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.mode') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render|session|operation|placement)\.|Minecraft\.getInstance\s*\()/).find()) {
+                violations.add("Client mode definitions must consume explicit workflow observations: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.client.operation.pointer') &&
                     (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render\.|input\.|session\.|operation\.controller\.)|Minecraft\.getInstance\s*\()/).find()) {

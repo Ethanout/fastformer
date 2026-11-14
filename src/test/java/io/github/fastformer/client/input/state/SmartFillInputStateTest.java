@@ -1,12 +1,15 @@
 package io.github.fastformer.client.input.state;
 
+import io.github.fastformer.client.mode.ClientModes;
+import io.github.fastformer.client.mode.ModeObservation;
+
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class SmartFillInputStateTest {
    @Test void previewOwnsInputAndCancelReturnsThroughIdle() {
       var machine = new ClientInputStateMachine();
-      machine.observe(ObservedInputState.stateFor(new ObservedInputState.Sessions(
+      machine.observe(ClientModes.registry().observe(new ModeObservation(
          false, false, false, false, false, false, false, false, true)));
       assertEquals(ClientInputStateMachine.State.FILL_PREVIEW, machine.state());
       assertEquals(ClientInputStateMachine.Dispatch.BLOCKED, machine.dispatch(ClientInputStateMachine.InputKind.POINTER));
@@ -18,9 +21,9 @@ class SmartFillInputStateTest {
       assertTrue(machine.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION));
    }
    @Test void worldTasksOwnInputAfterFillConfirmation() {
-      assertEquals(ClientInputStateMachine.State.PLACING, ObservedInputState.stateFor(new ObservedInputState.Sessions(
+      assertEquals(ClientInputStateMachine.State.PLACING, ClientModes.registry().observe(new ModeObservation(
          false, true, false, false, false, false, false, false, true)));
-      assertEquals(ClientInputStateMachine.State.RESTORING, ObservedInputState.stateFor(new ObservedInputState.Sessions(
+      assertEquals(ClientInputStateMachine.State.RESTORING, ClientModes.registry().observe(new ModeObservation(
          true, true, false, false, false, false, false, false, true)));
    }
 }

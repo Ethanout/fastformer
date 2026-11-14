@@ -12,7 +12,8 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.input.state.InputContextBoundary;
 import io.github.fastformer.client.input.state.ModifierGestureState;
-import io.github.fastformer.client.input.state.ObservedInputState;
+import io.github.fastformer.client.mode.ClientModes;
+import io.github.fastformer.client.mode.ModeObservation;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
@@ -1183,11 +1184,8 @@ public final class FastPlaceClientInput {
 
    public static boolean vanillaSession() {
       return inputSession().routing.state() == ClientInputStateMachine.State.IDLE
-         && !inputSession().smartFill().active()
          && !inputSession().ownsQuickShapeStart()
-         && !ClientSessionSystem.instance().operations().active() && !ClientSessionSystem.instance().operations().selectionSessionActive()
-         && !FastPlaceClientPreviewCore.active() && !FastPlaceClientPreviewCore.operationActive()
-         && !FastPlaceClientPreviewCore.geometryActive();
+         && observedInputState() == ClientInputStateMachine.State.IDLE;
    }
 
    @SubscribeEvent
@@ -1789,9 +1787,7 @@ public final class FastPlaceClientInput {
    }
 
    private static boolean activeSession() {
-      return inputSession().smartFill().active() || QuickReplaceMode.active() || FastPlaceClientPreviewCore.active()
-         || FastPlaceClientPreviewCore.operationActive()
-         || FastPlaceClientPreviewCore.geometryActive();
+      return ClientModes.registry().hasInteractiveSession(observedSessions());
    }
 
    /** Refreshes the routing phase before every event, including same-tick task transitions. */
@@ -1807,12 +1803,12 @@ public final class FastPlaceClientInput {
    }
 
    private static ClientInputStateMachine.State observedInputState() {
-      return ObservedInputState.stateFor(observedSessions());
+      return ClientModes.registry().observe(observedSessions());
    }
 
-   /** Collects the live session flags. The order of the state lives in ObservedInputState. */
-   private static ObservedInputState.Sessions observedSessions() {
-      return new ObservedInputState.Sessions(
+   /** Collects live facts once; registered modes own priority and phase selection. */
+   private static ModeObservation observedSessions() {
+      return new ModeObservation(
          FastPlaceClientPreviewCore.activity() == io.github.fastformer.fastplace.session.FastPlaceActivity.RESTORE_TASK,
          FastPlaceClientPreviewCore.taskActive(),
          FastPlaceClientPreviewCore.operationActive() || ClientSessionSystem.instance().operations().selectionSessionActive(),
