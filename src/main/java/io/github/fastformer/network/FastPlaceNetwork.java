@@ -92,7 +92,7 @@ public final class FastPlaceNetwork {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("84").optional();
+      PayloadRegistrar registrar = event.registrar("85").optional();
       var channels = new ServerChannels(registrar);
       channels.receive(ForwardDashPayload.TYPE, ForwardDashPayload.STREAM_CODEC)
          .handle((payload, player) -> {

@@ -17,7 +17,7 @@ public final class SmartSelectionEditView {
 
    public static boolean active(Minecraft minecraft) {
       return minecraft != null && minecraft.level != null && minecraft.player != null && minecraft.screen == null
-         && ClientSessionSystem.instance().operations().smartTool() && ClientSessionSystem.instance().operations().selectionSessionActive()
+         && ClientSessionSystem.instance().operations().selectionEdits().smartTool() && ClientSessionSystem.instance().operations().selectionSessionActive()
          && FastPlaceClientInput.modifierHeld()
          && ClientSessionSystem.instance().operations().workspace().parts().stream().anyMatch(part -> part.smartEditable());
    }

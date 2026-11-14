@@ -127,7 +127,7 @@ final class SmartSelectionRenderer {
                   entry.topology.bounds(), -12, color);
             }
          }
-         if (!alt && selected && !ClientSessionSystem.instance().operations().smartEditing()) {
+         if (!alt && selected && !ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) {
             boolean group = ClientSessionSystem.instance().operations().interactionScene().groupGizmo() != null;
             if (!group || !groupLocated) locator(graphics, minecraft, part.id());
             groupLocated |= group;

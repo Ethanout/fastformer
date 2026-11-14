@@ -19,9 +19,9 @@ class ClientScopeRepositoryTest {
       assertNotSame(a.operations(), b.operations());
       assertSame(a.workspace(), a.operations().workspace());
       assertSame(a.selectionSession().gestures(), a.operations().selectionGestures());
-      assertTrue(a.operations().handleCreateClick(1, BlockPos.ZERO));
-      assertTrue(a.operations().selectionDraftActive());
-      assertFalse(b.operations().selectionDraftActive());
+      assertTrue(a.operations().selectionEdits().handleCreateClick(1, BlockPos.ZERO));
+      assertTrue(a.operations().selectionEdits().selectionDraftActive());
+      assertFalse(b.operations().selectionEdits().selectionDraftActive());
       assertTrue(a.operations().synchronize(OperationPreviewPayload.inactive(80)));
       assertTrue(b.operations().synchronize(OperationPreviewPayload.inactive(2)));
       assertFalse(a.operations().synchronize(OperationPreviewPayload.inactive(80)));
@@ -37,7 +37,7 @@ class ClientScopeRepositoryTest {
       UUID player = UUID.randomUUID();
       var aId = new ClientScopeId("a", "minecraft:overworld", player);
       var a = repository.activate(aId);
-      assertTrue(a.operations().handleCreateClick(1, BlockPos.ZERO));
+      assertTrue(a.operations().selectionEdits().handleCreateClick(1, BlockPos.ZERO));
       a.operations().setAltMode(true);
       assertFalse(a.operations().submitWorkspace(null));
 
@@ -45,10 +45,10 @@ class ClientScopeRepositoryTest {
       assertSame(b.operations(), repository.operations());
       assertEquals(ClientSelectionState.POINTING, a.operations().interactionState());
       assertEquals("fallback", a.operations().lastOperationFailureKey("fallback"));
-      assertTrue(a.operations().selectionDraftActive());
-      assertFalse(b.operations().selectionDraftActive());
+      assertTrue(a.operations().selectionEdits().selectionDraftActive());
+      assertFalse(b.operations().selectionEdits().selectionDraftActive());
       assertSame(a.operations(), repository.activate(aId).operations());
-      assertTrue(a.operations().selectionDraftActive());
+      assertTrue(a.operations().selectionEdits().selectionDraftActive());
    }
 
    @Test

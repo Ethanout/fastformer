@@ -53,7 +53,7 @@ final class OperationPreviewRenderer {
    static float selectionOpacity(boolean alt) { return alt ? 0.35F : 1.0F; }
 
    static void renderDraft(RenderLevelStageEvent event, Minecraft minecraft, OperationInteractionIntent intent) {
-      var draft = ClientSessionSystem.instance().operations().selectionDraft();
+      var draft = ClientSessionSystem.instance().operations().selectionEdits().selectionDraft();
       if (draft.points().isEmpty()) return;
       var points = new ArrayList<>(draft.points());
       if (intent instanceof OperationInteractionIntent.CreateSelection create && !points.contains(create.point())) points.add(create.point());
@@ -342,7 +342,7 @@ final class OperationPreviewRenderer {
          }
 
          Vec3 center = boundsCenter;
-         if (ClientSessionSystem.instance().operations().smartEditing()
+         if (ClientSessionSystem.instance().operations().selectionEdits().smartEditing()
             || !SelectionGizmoInteraction.partGizmoVisible(interactionScene, interactionPart.gizmo(), selected)) {
             continue;
          }
@@ -379,7 +379,7 @@ final class OperationPreviewRenderer {
       }
 
       var groupObject = interactionScene.groupGizmo();
-      if (groupObject != null && !ClientSessionSystem.instance().operations().smartEditing()) {
+      if (groupObject != null && !ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) {
          AABB groupBounds = groupObject.require(InteractionComponents.WORLD_BOUNDS);
          if (groupBounds != null) {
             Vec3 center = groupBounds.getCenter();
@@ -484,7 +484,7 @@ final class OperationPreviewRenderer {
       if (WorkspacePointerPrompt.acceptsNewAction(ClientSessionSystem.instance().operations().workspace().locked())) {
          WorkspacePreviewRenderer.renderHintLabel(
             poseStack, buffers, minecraft, camera, Vec3.atCenterOf(position).add(0.0, 0.68, 0.0),
-            ClientSessionSystem.instance().operations().smartTool()
+            ClientSessionSystem.instance().operations().selectionEdits().smartTool()
                ? Component.translatable(FastPlaceClientInput.modifierHeld()
                   ? "fastformer.hud.smart_hover_refine" : "fastformer.hud.smart_hover").getString()
                : create.requireHoverText().getString()

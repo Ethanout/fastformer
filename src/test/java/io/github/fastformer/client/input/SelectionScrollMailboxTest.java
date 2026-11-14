@@ -45,7 +45,7 @@ class SelectionScrollMailboxTest {
       assertEquals(Vec3.ZERO, translation());
       drain();
       assertEquals(new Vec3(2, 0, 0), translation());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(Vec3.ZERO, translation());
    }
 
@@ -58,7 +58,7 @@ class SelectionScrollMailboxTest {
       input.postScroll(new ScrollInputSnapshot(1, second));
       drain();
       assertEquals(new Vec3(2, 0, 0), translation());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(new Vec3(1, 0, 0), translation());
    }
 
@@ -109,7 +109,7 @@ class SelectionScrollMailboxTest {
       assertEquals(new BlockPos(2, 0, 0), transform().repeats().max());
       assertEquals(new BlockPos(3, 0, 0), transform().repeatStride());
       assertEquals(new Vec3(1, 1, 1), transform().scale());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(BlockPos.ZERO, transform().repeats().max());
    }
 
@@ -120,10 +120,10 @@ class SelectionScrollMailboxTest {
       drain();
       assertEquals(new Vec3(1, 0, 0), translation());
       assertEquals(new BlockPos(1, 0, 0), transform().repeats().max());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(Vec3.ZERO, translation());
       assertEquals(new BlockPos(1, 0, 0), transform().repeats().max());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(BlockPos.ZERO, transform().repeats().max());
    }
 
@@ -139,7 +139,7 @@ class SelectionScrollMailboxTest {
       input.postScroll(captureStack(-1));
       drain();
       assertEquals(BlockPos.ZERO, transform().repeats().max());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(new BlockPos(1, 0, 0), transform().repeats().max());
    }
 
@@ -167,7 +167,7 @@ class SelectionScrollMailboxTest {
       assertEquals(new BlockPos(0, -1, 0), transform().repeats().min());
       assertEquals(BlockPos.ZERO, transform().repeats().max());
       assertEquals(new BlockPos(0, 3, 0), transform().repeatStride());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(BlockPos.ZERO, transform().repeats().min());
       assertEquals(new BlockPos(0, 1, 0), transform().repeats().max());
    }
@@ -206,7 +206,7 @@ class SelectionScrollMailboxTest {
          assertEquals(new BlockPos(13, 0, 0), selected.transform().repeatStride());
          assertEquals(new Vec3(1, 1, 1), selected.transform().scale());
       }
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       for (var selected : ClientSessionSystem.instance().operations().workspace().selectedParts()) assertEquals(BlockPos.ZERO, selected.transform().repeats().max());
    }
 

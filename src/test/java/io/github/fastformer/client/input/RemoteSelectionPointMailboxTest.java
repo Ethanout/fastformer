@@ -43,7 +43,7 @@ class RemoteSelectionPointMailboxTest {
       drain(true);
 
       assertEquals(List.of(OperationPointPayload.Role.FIRST, OperationPointPayload.Role.SECOND), sent);
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       assertTrue(ClientSessionSystem.instance().operations().synchronize(preview(3, List.of(first, second))));
       var parts = ClientSessionSystem.instance().operations().workspace().parts();
       assertEquals(1, parts.size());
@@ -58,7 +58,7 @@ class RemoteSelectionPointMailboxTest {
          new OperationInteractionIntent.CreateSelection(new BlockPos(4, 5, 6)), 2, false, 100));
       drain(true);
       assertEquals(List.of(OperationPointPayload.Role.EXTRA), sent);
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
    }
 
    @Test void remoteCuboidContinuationAlsoIgnoresTheSecondPhysicalRightPress() {
@@ -73,12 +73,12 @@ class RemoteSelectionPointMailboxTest {
 
    @Test void cancelledRemoteFirstPointDoesNotStealTheNextLocalDraft() {
       receiveFirstPoint(BlockPos.ZERO);
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
-      assertFalse(ClientSessionSystem.instance().operations().remoteSelectionPointing());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing());
       var next = new BlockPos(8, 9, 10);
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, next));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, next));
       assertTrue(sent.isEmpty());
-      assertEquals(List.of(next), ClientSessionSystem.instance().operations().selectionDraft().points());
+      assertEquals(List.of(next), ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().points());
    }
 
    private void receiveFirstPoint(BlockPos first) {
@@ -86,7 +86,7 @@ class RemoteSelectionPointMailboxTest {
       ClientSessionSystem.instance().operations().onClientTick();
       assertTrue(ClientSessionSystem.instance().operations().synchronize(preview(2, List.of(first))));
       input.routing.observe(ClientInputStateMachine.State.SELECTING);
-      assertTrue(ClientSessionSystem.instance().operations().remoteSelectionPointing());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing());
    }
 
    private static OperationPreviewPayload preview(long revision, List<BlockPos> points) {
@@ -168,8 +168,8 @@ class RemoteSelectionPointMailboxTest {
 
    @Test void localDraftPreventsLateRemoteSelectionCreation() {
       FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
-      ClientSessionSystem.instance().operations().handleCreateClick(1, net.minecraft.core.BlockPos.ZERO);
-      assertTrue(ClientSessionSystem.instance().operations().selectionDraftActive());
+      ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, net.minecraft.core.BlockPos.ZERO);
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       drain(true);
       assertTrue(sent.isEmpty());
    }

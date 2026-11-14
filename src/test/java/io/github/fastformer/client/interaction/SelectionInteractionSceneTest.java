@@ -157,7 +157,7 @@ class SelectionInteractionSceneTest {
          assertTrue(ClientSessionSystem.instance().operations().transforms().moveSelected(new BlockPos(4, 0, 0)));
          var moved = ClientSessionSystem.instance().operations().interactionScene();
          assertEquals(cuboid(0).selection().bounds().move(4, 0, 0), moved.bounds(1));
-         assertTrue(ClientSessionSystem.instance().operations().undo());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
          assertEquals(cuboid(0).selection().bounds(), ClientSessionSystem.instance().operations().interactionScene().bounds(1));
          assertEquals(cuboid(0).selection().bounds().move(4, 0, 0), moved.bounds(1));
       } finally {

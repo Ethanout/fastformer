@@ -1079,9 +1079,9 @@ public final class FastPlaceClientPreviewCore {
       MutableComponent secondary = null;
       if (operationActive()) {
          primary = operationBottomStatus();
-         if (!suppressActionPrompts) secondary = Component.translatable(ClientSessionSystem.instance().operations().smartSampling()
+         if (!suppressActionPrompts) secondary = Component.translatable(ClientSessionSystem.instance().operations().selectionEdits().smartSampling()
             ? "fastformer.hud.smart_sampling" : io.github.fastformer.client.interaction.SmartSelectionEditView.active(minecraft)
-            ? "fastformer.hud.smart_isolation_controls" : ClientSessionSystem.instance().operations().smartTool()
+            ? "fastformer.hud.smart_isolation_controls" : ClientSessionSystem.instance().operations().selectionEdits().smartTool()
             ? "fastformer.hud.smart_controls" : "fastformer.hud.selection_controls")
             .withStyle(GeometryPalette.muted().style());
       } else {
@@ -1345,10 +1345,10 @@ public final class FastPlaceClientPreviewCore {
    }
 
    static MutableComponent operationBottomStatus() {
-      boolean localSelection = ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive();
+      boolean localSelection = ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive();
       boolean confirmed = !localSelection && operationSelectionReady();
       MutableComponent status = Component.translatable(
-         confirmed || ClientSessionSystem.instance().operations().active() && !ClientSessionSystem.instance().operations().selectionDraftActive()
+         confirmed || ClientSessionSystem.instance().operations().active() && !ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
             ? "fastformer.hud.operation_label" : "fastformer.hud.selection_label"
       ).withStyle(GeometryPalette.text().style());
       if (confirmed) {
@@ -1365,7 +1365,7 @@ public final class FastPlaceClientPreviewCore {
          }
          return status;
       }
-      return appendSelectionModes(status, ClientSessionSystem.instance().operations().draftSelectionMode());
+      return appendSelectionModes(status, ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode());
    }
 
    private static MutableComponent appendSelectionModes(MutableComponent status, OperationSelectionMode selected) {
@@ -1727,7 +1727,7 @@ public final class FastPlaceClientPreviewCore {
       var snapshot = PREVIEW_STATE.building();
       var pointer = operationInteractionIntent().orElse(null);
       var owner = PreviewRenderOwner.select(snapshot.active(), PREVIEW_STATE.operation().active(),
-         ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive(), PREVIEW_STATE.geometry().active());
+         ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive(), PREVIEW_STATE.geometry().active());
       if (owner == PreviewRenderOwner.OPERATION || owner == PreviewRenderOwner.GEOMETRY
          || pointer instanceof OperationInteractionIntent.CreateSelection) return true;
       if (InteractionContext.previewVisibility(minecraft) <= 0.01F) return false;
@@ -1785,14 +1785,14 @@ public final class FastPlaceClientPreviewCore {
           OperationInteractionIntent pointerIntent = player == null ? null : operationInteractionIntent().orElse(null);
           boolean selectionCandidate = pointerIntent instanceof OperationInteractionIntent.CreateSelection;
           if (!(snapshot.active() || PREVIEW_STATE.operation().active()
-             || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive() || PREVIEW_STATE.geometry().active() || QuickReplaceMode.active() || selectionCandidate)) {
+             || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || PREVIEW_STATE.geometry().active() || QuickReplaceMode.active() || selectionCandidate)) {
              return;
           }
           worldPreviewOpacity = updateWorldPreviewOpacity(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
          PreviewRenderOwner renderOwner = PreviewRenderOwner.select(
             snapshot.active(),
             PREVIEW_STATE.operation().active(),
-            ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive(),
+            ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive(),
             PREVIEW_STATE.geometry().active()
          );
          if (minecraft.level != null && player != null && renderOwner == PreviewRenderOwner.GEOMETRY) {
@@ -1802,9 +1802,9 @@ public final class FastPlaceClientPreviewCore {
             // The confirmed selection is retained as source data, but the workspace owns
             // its overlay and hit targets from this point on.
             if (OperationPreviewRenderer.shouldRenderServerSelection(
-               PREVIEW_STATE.operation().active() && !ClientSessionSystem.instance().operations().smartTool(),
+               PREVIEW_STATE.operation().active() && !ClientSessionSystem.instance().operations().selectionEdits().smartTool(),
                ClientSessionSystem.instance().operations().active(),
-               ClientSessionSystem.instance().operations().selectionDraftActive()
+               ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
             )) {
                renderOperationSelection(event, minecraft, player, PREVIEW_STATE.operation());
             }
@@ -2309,10 +2309,10 @@ public final class FastPlaceClientPreviewCore {
          PREVIEW_STATE.geometry().active()
       );
       boolean placement = owner == PreviewRenderOwner.BUILDING || owner == PreviewRenderOwner.NONE
-         && !ClientSessionSystem.instance().operations().selectionSessionActive() && !ClientSessionSystem.instance().operations().selectionDraftActive()
+         && !ClientSessionSystem.instance().operations().selectionSessionActive() && !ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
          && io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(player.getMainHandItem());
       boolean selection = owner == PreviewRenderOwner.OPERATION || ClientSessionSystem.instance().operations().selectionSessionActive()
-         || ClientSessionSystem.instance().operations().selectionDraftActive()
+         || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
          || owner == PreviewRenderOwner.NONE && player.getMainHandItem().isEmpty();
       return selection ? RAYCAST.clipForSelection(player, FastPlaceClientInput.modifierHeld()) : RAYCAST.clip(player, placement);
    }

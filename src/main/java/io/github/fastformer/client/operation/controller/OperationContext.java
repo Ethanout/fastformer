@@ -10,19 +10,14 @@ import io.github.fastformer.client.operation.clipboard.OperationClipboardActions
 import io.github.fastformer.client.operation.clipboard.OperationClipboardRepository;
 import io.github.fastformer.client.operation.input.SelectionConfirmation;
 import io.github.fastformer.client.operation.preview.OperationPreviewState;
+import io.github.fastformer.client.operation.edit.SelectionEdits;
 import io.github.fastformer.client.operation.submission.OperationReceipts;
 import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
 import io.github.fastformer.client.operation.selection.SelectionBlockCapture;
-import io.github.fastformer.client.operation.selection.SelectionDraftEvent;
 import io.github.fastformer.client.operation.selection.SelectionDraftPreview;
-import io.github.fastformer.client.operation.selection.SelectionDraftResult;
-import io.github.fastformer.client.operation.selection.SelectionToolPreference;
-import io.github.fastformer.client.operation.selection.SmartSelectionCapture;
-import io.github.fastformer.client.operation.selection.SmartSelectionEdits;
 import io.github.fastformer.client.operation.transform.OperationTransforms;
-import io.github.fastformer.client.operation.workspace.ClientOperationEventStack;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.workspace.SelectionDeletionPlan;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
@@ -63,6 +58,7 @@ public final class OperationContext {
    private final SourceBlockRenderMask sourceMask = new SourceBlockRenderMask();
    private final OperationClipboardActions clipboard;
    private final OperationTransforms transforms;
+   private final SelectionEdits selectionEdits;
    private String lastOperationFailureKey;
    private final WorkspaceSubmissionTracker submission;
    private final OperationPreviewState preview = new OperationPreviewState();
@@ -86,8 +82,12 @@ public final class OperationContext {
       this.clipboard = new OperationClipboardActions(selection.workspace(), clipboard,
          this::workspaceSubmissionPending, this::workspaceEditInProgress, this::synchronizeDerivedWorkspaceState);
       this.submission = java.util.Objects.requireNonNull(submission, "submission");
+      this.selectionEdits = new SelectionEdits(selection, preview::live,
+         () -> selectionReady(preview.live()), this::workspaceSubmissionPending, this::ownsCurrentInteraction,
+         this::cancelTransforms, this::synchronizeDerivedWorkspaceState,
+         () -> { sourceMask.clear(); preview.clearSelection(selection.selectionMode()); }, this::captureFailed);
       this.transforms = new OperationTransforms(selection.workspace(), this::workspaceSubmissionPending,
-         () -> smartCapture.pending() || draftCapture.pending(), this::ownsCurrentInteraction,
+         selectionEdits::capturePending, this::ownsCurrentInteraction,
          this::captureFailed, this::synchronizeDerivedWorkspaceState);
    }
 
@@ -173,7 +173,7 @@ public final class OperationContext {
 
    /** True while a workspace transform gesture holds an open edit. */
    public boolean workspaceEditInProgress() {
-      return workspace().editing() || deleteCapture.pending() || smartCapture.pending();
+      return workspace().editing() || deleteCapture.pending() || selectionEdits.smartSampling();
    }
 
    /**
@@ -187,10 +187,6 @@ public final class OperationContext {
    public void deselectAllWorkspaceParts() {
       workspace().clearSelectionForNewDraft();
       selectionSession().publishInteractionScene();
-   }
-
-   public void enterLocalSelectionSession() {
-      selectionSession().startNewSession();
    }
 
    public OperationDraftIdentity remoteSelectionIdentity() {
@@ -234,15 +230,6 @@ public final class OperationContext {
       selectionSession().setAltHeld(enabled);
    }
 
-   public boolean selectionDraftActive() {
-      return selectionSession().hasDraft();
-   }
-
-   public boolean remoteSelectionPointing() {
-      return preview.live().active() && !selectionReady(preview.live())
-         && !active() && !selectionDraftActive() && !selectionSession().retained();
-   }
-
    public boolean synchronize(OperationPreviewPayload payload) {
       var update = preview.receive(payload, ClientSessionSystem.instance().currentDraftPending());
       if (update.discardStoredDraft()) ClientSessionSystem.instance().discardCurrentDraft();
@@ -256,7 +243,7 @@ public final class OperationContext {
          return true;
       }
       if (selectionSession().retained()) return true;
-      if (!workspace().isEmpty() || selectionDraftActive() || !selectionReady(payload)) {
+      if (!workspace().isEmpty() || selectionEdits.selectionDraftActive() || !selectionReady(payload)) {
          return true;
       }
       OperationSelectionVolume selection = OperationSelectionVolume.create(
@@ -287,13 +274,7 @@ public final class OperationContext {
             payload.operationStackMin(), payload.operationStackMax()
          )
       );
-      draftCapture.start(capturedSelection, null,
-         () -> ownsCurrentInteraction() && workspace() == owner && owner.isEmpty() && preview.live() == payload,
-         blocks -> {
-            owner.addParts(List.of(new ClientSelectionPart(0, ClientSelectionPart.Source.WORLD, capturedSelection, blocks, transform, false)));
-            owner.clearHistory();
-            synchronizeDerivedWorkspaceState();
-         }, this::captureFailed);
+      selectionEdits.captureRemote(capturedSelection, transform, () -> preview.live() == payload);
       return true;
    }
 
@@ -348,6 +329,10 @@ public final class OperationContext {
       ClientSessionSystem.instance().discardCurrentDraft();
    }
 
+   private void cancelTransforms() { transforms.cancel(); }
+
+   public SelectionEdits selectionEdits() { return selectionEdits; }
+
    public OperationTransforms transforms() {
       return transforms;
    }
@@ -364,13 +349,13 @@ public final class OperationContext {
 
    public boolean deleteSelection(Minecraft minecraft, BlockPos candidate) {
       if (workspaceSubmissionPending() || workspaceEditInProgress() || minecraft == null || minecraft.level == null) return false;
-      adoptRemoteDraft();
+      selectionEdits.adoptRemoteDraft();
       var selected = workspace().selectedIds();
-      boolean draft = selectionDraftActive();
+      boolean draft = selectionEdits.selectionDraftActive();
       if (selected.isEmpty() && !draft) return false;
       var parts = new java.util.ArrayList<>(SelectionDeletionPlan.parts(workspace().parts(), selected));
       if (!draft) return submitDeletion(minecraft, parts, selected, false);
-      var volume = SelectionDraftPreview.volume(selectionDraft(), candidate);
+      var volume = SelectionDraftPreview.volume(selectionEdits.selectionDraft(), candidate);
       if (volume == null) return false;
       // The server selection may close while the client scans the preview box.
       // Retain the draft so the later workspace submission stays client-owned
@@ -378,12 +363,12 @@ public final class OperationContext {
       selectionSession().retain();
       var owner = workspace();
       var session = selectionSession();
-      var before = draftSnapshot();
+      var unchanged = selectionEdits.unchanged();
       long revision = owner.revision();
       var protectedSources = SelectionDeletionPlan.protectedSources(owner.parts(), selected);
       int draftId = owner.partIds().stream().mapToInt(Integer::intValue).max().orElse(0) + 1;
       return deleteCapture.start(volume, null,
-         () -> ownsCurrentInteraction() && workspace() == owner && selectionSession() == session && owner.revision() == revision && before.equals(draftSnapshot()), blocks -> {
+         () -> ownsCurrentInteraction() && workspace() == owner && selectionSession() == session && owner.revision() == revision && unchanged.getAsBoolean(), blocks -> {
             var deletable = new java.util.LinkedHashMap<>(blocks);
             deletable.keySet().removeAll(protectedSources);
             if (!deletable.isEmpty()) parts.add(new OperationWorkspacePlan.Part(draftId, ClientSelectionPart.Source.WORLD,
@@ -411,190 +396,27 @@ public final class OperationContext {
 
    private void finishSubmittedParts() {
       var remaining = SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
-      var draft = selectionDraft();
+      var draft = selectionEdits.selectionDraft();
       boolean keepDraft = !submittedDraft;
       clearWorkspace();
       workspace().restoreDraftState(remaining);
       if (keepDraft) selectionSession().restoreDraftState(draft);
-      if (!workspace().isEmpty() || selectionDraftActive()) selectionSession().retain();
-      preview.clearSelection(draftSelectionMode());
+      if (!workspace().isEmpty() || selectionEdits.selectionDraftActive()) selectionSession().retain();
+      preview.clearSelection(selectionEdits.draftSelectionMode());
       synchronizeDerivedWorkspaceState();
-   }
-
-   public boolean cancelLastSelection() {
-      if (workspaceSubmissionPending()) return false;
-      if (smartCapture.pending()) { smartCapture.cancel(); settleSelectionRemoval(); return true; }
-      adoptRemoteDraft();
-      selectionSession().retain();
-      if (workspace().editing()) {
-         transforms.cancel();
-      }
-      draftCapture.cancel();
-      if (selectionSession().stack().peek().isEmpty()) {
-         settleSelectionRemoval();
-         return true;
-      }
-      if (!workspace().popSelection()) return false;
-      settleSelectionRemoval();
-      return true;
-   }
-
-   private void settleSelectionRemoval() {
-      if (selectionSession().stack().peek().isEmpty()) {
-         selectionSession().clearTransientInteraction();
-         sourceMask.clear();
-         preview.clearSelection(draftSelectionMode());
-      } else {
-         selectionSession().retain();
-      }
-      synchronizeDerivedWorkspaceState();
-   }
-
-   private void adoptRemoteDraft() {
-      if (!remoteSelectionPointing()) return;
-      selectionSession().restoreDraftState(new ClientSelectionSession.DraftState(preview.live().operationSelectionMode(),
-         preview.live().points(), preview.live().operationPrismBasePointCount(), preview.live().selectionMin(), preview.live().selectionMax(),
-         preview.live().operationSelectionMode() == OperationSelectionMode.CUBOID && preview.live().points().size() == 1
-            && !preview.live().hasFirst() && preview.live().hasSecond()));
-      selectionSession().retain();
-   }
-
-   public boolean removeSelectedParts() {
-      if (workspaceSubmissionPending()) {
-         return false;
-      }
-      boolean changed = workspace().removeSelectedParts();
-      if (changed) settleSelectionRemoval();
-      return changed;
-   }
-
-   public boolean handleCreateClick(int mouseButton, BlockPos point) {
-      if (smartTool()) return handleSmartClick(mouseButton, point, false);
-      DraftSnapshot before = draftSnapshot();
-      boolean handled = handleCreateClickInternal(mouseButton, point);
-      recordDraftEvent(before);
-      return handled;
-   }
-
-   private boolean handleCreateClickInternal(int mouseButton, BlockPos point) {
-      return handleDraftClick(mouseButton, point, false);
-   }
-
-   /** Alt-prefixed creation deliberately bypasses all existing-part hit testing. */
-   public boolean handleAltCreateClick(int mouseButton, BlockPos point) {
-      if (smartTool()) return handleSmartClick(mouseButton, point, true);
-      DraftSnapshot before = draftSnapshot();
-      boolean handled = handleAltCreateClickInternal(mouseButton, point);
-      recordDraftEvent(before);
-      return handled;
-   }
-
-   private boolean handleAltCreateClickInternal(int mouseButton, BlockPos point) {
-      return handleDraftClick(mouseButton, point, true);
-   }
-
-   public OperationSelectionMode draftSelectionMode() {
-      return selectionSession().selectionMode();
-   }
-
-   public ClientSelectionSession.DraftState selectionDraft() {
-      return selectionSession().draftState();
-   }
-
-   public void cycleIdleSelectionTool() {
-      if (active() || selectionDraftActive() || selectionSessionActive()) return;
-      var next = SelectionToolPreference.get().next();
-      SelectionToolPreference.set(next);
-      selectionSession().setSelectionMode(next);
-   }
-
-   public boolean cycleDraftMode() {
-      if (!active() && !selectionDraftActive() && !selectionSessionActive()) return false;
-      if (workspace().locked() || workspace().editing() || smartCapture.pending() || draftCapture.pending()) return true;
-      adoptRemoteDraft();
-      selectionSession().retain();
-      var session = selectionSession();
-      var before = session.draftState();
-      var next = draftSelectionMode().next();
-      session.clearDraft();
-      session.setSelectionMode(next);
-      SelectionToolPreference.set(next);
-      workspace().pushEvent(() -> session.restoreDraftEdit(before), ClientOperationEventStack.Retention.of(before.points().size() + 1));
-      settleSelectionRemoval();
-      return true;
-   }
-
-   private boolean handleDraftClick(int mouseButton, BlockPos point, boolean alt) {
-      if (mouseButton == 0 && draftSelectionMode() == OperationSelectionMode.CUBOID) {
-         if (workspaceSubmissionPending() || workspace().locked() || workspace().editing()) return false;
-         adoptRemoteDraft();
-         draftCapture.cancel();
-         boolean changed = selectionSession().undoCuboidPoint();
-         if (changed) settleSelectionRemoval();
-         return changed;
-      }
-      if (workspaceSubmissionPending() || workspace().locked() || workspace().editing() || draftCapture.pending()
-         || workspace().size() >= ClientOperationWorkspace.MAX_PARTS) {
-         return false;
-      }
-      if (point == null) return false;
-      var event = SelectionDraftEvent.fromMouse(mouseButton, point, alt);
-      var result = selectionSession().onDraftEvent(event);
-      if (!result.handled()) {
-         return false;
-      }
-      boolean handled = result != SelectionDraftResult.READY
-         || finishDraft(selectionSession().prismBaseCount());
-      if (mouseButton == 0 && handled) settleSelectionRemoval();
-      return handled;
-   }
-
-   public boolean activeSelectionTransformed() {
-      return active() && workspace().part(workspace().activeId()).map(ClientSelectionPart::transformed).orElse(false);
-   }
-
-   public boolean canStartSelectionDraft() {
-      return smartTool() && selectionSessionActive() || selectionDraftActive()
-         || (selectionSession().retained() || active())
-            && selectionSession().stack().topPart().filter(ClientSelectionPart::canAdjustGeometry).isEmpty();
    }
 
    public boolean confirmSelection(Minecraft minecraft, BlockPos candidate) {
-      adoptRemoteDraft();
+      selectionEdits.adoptRemoteDraft();
       var action = SelectionConfirmation.decide(
-         workspace(), workspaceSubmissionPending() || smartCapture.pending() || draftCapture.pending());
+         workspace(), workspaceSubmissionPending() || selectionEdits.capturePending());
       return switch (action) {
          case BLOCKED -> true;
-         case SUBMIT_ALL -> selectionDraftActive()
-            ? completePreview(candidate, () -> {
+         case SUBMIT_ALL -> selectionEdits.selectionDraftActive()
+            ? selectionEdits.completePreview(candidate, () -> {
                if (!submitSelectionParts(minecraft)) captureFailed(lastOperationFailureKey("fastformer.message.operation_submit_invalid"));
             }) : submitSelectionParts(minecraft);
       };
-   }
-
-   private boolean completePreview(BlockPos candidate, Runnable afterCapture) {
-      var volume = SelectionDraftPreview.volume(selectionDraft(), candidate);
-      return volume != null && captureDraft(volume, true, afterCapture);
-   }
-
-   public boolean fixActiveSelection() {
-      if (workspaceSubmissionPending() || workspace().editing() || smartCapture.pending() || draftCapture.pending()) return false;
-      var latest = workspace().selections().topPart().filter(ClientSelectionPart::isOriginalSelection).orElse(null);
-      if (latest == null || !workspace().beginEdit()) return false;
-      workspace().updatePart(latest.fixed());
-      workspace().finishEdit();
-      synchronizeDerivedWorkspaceState();
-      return true;
-   }
-
-   public boolean undo() {
-      if (smartCapture.pending()) { smartCapture.cancel(); settleSelectionRemoval(); return true; }
-      if (workspaceSubmissionPending()) {
-         return false;
-      }
-      boolean changed = workspace().undo();
-      if (changed) settleSelectionRemoval();
-      return changed;
    }
 
    public boolean submitWorkspace(Minecraft minecraft) {
@@ -614,7 +436,7 @@ public final class OperationContext {
    private boolean submitWorkspace(Minecraft minecraft, List<OperationWorkspacePlan.Part> parts) {
       lastOperationFailureKey = null;
       if (workspaceSubmissionPending() || workspace().editing()
-         || minecraft == null || minecraft.getConnection() == null || workspace().isEmpty() && !selectionDraftActive()) {
+         || minecraft == null || minecraft.getConnection() == null || workspace().isEmpty() && !selectionEdits.selectionDraftActive()) {
          lastOperationFailureKey = workspaceSubmissionPending()
             ? "fastformer.message.operation_submit_pending"
             : "fastformer.message.operation_submit_invalid";
@@ -638,7 +460,7 @@ public final class OperationContext {
          // The server preview is still active here. It turns inactive when the server
          // queues the task, so this is the last moment that can read the identity.
          OperationDraftIdentity identity = OperationDraftIdentity.from(preview.live());
-         boolean localOnly = !selectionDraftActive() && workspace().parts().stream()
+         boolean localOnly = !selectionEdits.selectionDraftActive() && workspace().parts().stream()
             .allMatch(part -> part.source() == ClientSelectionPart.Source.CLIPBOARD);
          OperationSubmissionOrigin origin = localOnly
             ? OperationSubmissionOrigin.LOCAL_ONLY : selectionSession().clientOwned()
@@ -662,9 +484,9 @@ public final class OperationContext {
          if (playerSession != null) {
             var remainder = submittedPartIds == null ? null
                : SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
-            playerSession.setSubmissionRemainder(remainder == null || remainder.parts().isEmpty() && (submittedDraft || !selectionDraftActive()) ? null
+            playerSession.setSubmissionRemainder(remainder == null || remainder.parts().isEmpty() && (submittedDraft || !selectionEdits.selectionDraftActive()) ? null
                : new ClientOperationDraft.Remainder(
-                  remainder, submittedDraft ? new ClientSelectionSession().draftState() : selectionDraft()));
+                  remainder, submittedDraft ? new ClientSelectionSession().draftState() : selectionEdits.selectionDraft()));
          }
          workspace().setLocked(true);
          var owner = workspace();
@@ -829,7 +651,7 @@ public final class OperationContext {
    }
 
    private void clearTransientOperationState() {
-      draftCapture.cancel(); transforms.cancel(); deleteCapture.cancel(); smartCapture.cancel();
+      selectionEdits.cancelCaptures(); transforms.cancel(); deleteCapture.cancel();
       submittedPartIds = null;
       submittedDraft = false;
 
@@ -894,8 +716,7 @@ public final class OperationContext {
    public void onClientTick() {
       ClientSessionSystem.instance().drainStorageResults();
       long captureDeadline = System.nanoTime() + SelectionBlockCapture.NANOS_PER_TICK;
-      draftCapture.tick(captureDeadline); transforms.tick(captureDeadline); deleteCapture.tick(captureDeadline);
-      smartCapture.tick(captureDeadline);
+      selectionEdits.tick(captureDeadline); transforms.tick(captureDeadline); deleteCapture.tick(captureDeadline);
       selectionSession().publishInteractionScene();
       WorkspacePreviewComposer.prunePartGeometry();
       if (workspaceSubmissionPending() && submission.tick()) {
@@ -932,39 +753,6 @@ public final class OperationContext {
       return deleteCapture.pending() || submission.pending(selectionSession().interactionOwnerId());
    }
 
-   private final SelectionBlockCapture draftCapture = new SelectionBlockCapture();
-   private final SmartSelectionCapture smartCapture = new SmartSelectionCapture();
-
-   public boolean smartTool() { return draftSelectionMode() == OperationSelectionMode.SMART; }
-   public boolean smartEditing() {
-      return smartCapture.pending() || SmartSelectionEdits.editing(workspace());
-   }
-   public boolean smartSampling() { return smartCapture.pending(); }
-
-   private boolean handleSmartClick(int button, BlockPos position, boolean alternative) {
-      if (position == null || workspaceSubmissionPending() || workspaceEditInProgress() || workspace().locked()) return false;
-      selectionSession().retain();
-      if (button == 0) {
-         SmartSelectionEdits.remove(workspace(), position, alternative);
-         settleSelectionRemoval();
-         return true;
-      }
-      if (button != 1) return true;
-      if (alternative) {
-         var snapshot = SmartSelectionCapture.captureCell(Minecraft.getInstance().level, position);
-         SmartSelectionEdits.addCell(workspace(), position, snapshot);
-         synchronizeDerivedWorkspaceState();
-         return true;
-      }
-      var owner = workspace();
-      var session = selectionSession();
-      long revision = owner.revision();
-      return smartCapture.start(position, alternative,
-         () -> ownsCurrentInteraction() && owner == workspace() && session == selectionSession() && revision == owner.revision() && smartTool(), blocks -> {
-            SmartSelectionEdits.add(owner, blocks);
-            synchronizeDerivedWorkspaceState();
-         }, this::captureFailed);
-   }
    private final SelectionBlockCapture deleteCapture = new SelectionBlockCapture();
    private java.util.Set<Integer> submittedPartIds;
    private boolean submittedDraft;
@@ -972,76 +760,6 @@ public final class OperationContext {
       lastOperationFailureKey = key;
       var player = Minecraft.getInstance().player;
       if (player != null) player.displayClientMessage(Component.translatable(key), true);
-   }
-
-   private boolean finishDraft(int prismBaseCount) {
-      OperationSelectionVolume selection = OperationSelectionVolume.create(
-         selectionSession().selectionMode(),
-         selectionSession().draftPoints(),
-         prismBaseCount,
-         BlockPos.ZERO,
-         BlockPos.ZERO,
-         0
-      );
-      if (selection == null) {
-         return false;
-      }
-      if (selection.mode() == OperationSelectionMode.CUBOID) {
-         selection = selection.expandCuboidTo(selectionSession().draftMinPoint())
-            .expandCuboidTo(selectionSession().draftMaxPoint());
-      }
-      return captureDraft(selection, false, null);
-   }
-
-   private boolean captureDraft(OperationSelectionVolume selection, boolean recordCompletion, Runnable afterCapture) {
-      var capturedSelection = selection;
-      var owner = workspace();
-      var session = selectionSession();
-      var before = draftSnapshot();
-      return draftCapture.start(selection, null,
-         () -> ownsCurrentInteraction() && workspace() == owner && selectionSession() == session && before.equals(draftSnapshot()), blocks -> {
-            var part = new ClientSelectionPart(0, ClientSelectionPart.Source.WORLD,
-               capturedSelection, blocks, WorkspaceTransform.IDENTITY, false);
-            if (owner.addPartsWithoutHistory(List.of(part))) {
-               session.clearDraft();
-               if (recordCompletion) recordDraftEvent(before);
-               synchronizeDerivedWorkspaceState();
-               if (afterCapture != null) afterCapture.run();
-            }
-         }, this::captureFailed);
-   }
-
-   private DraftSnapshot draftSnapshot() {
-      return new DraftSnapshot(
-         selectionSession().selectionMode(),
-         selectionSession().draftPoints(),
-         selectionSession().prismBaseCount(),
-         selectionSession().draftMinPoint(),
-         selectionSession().draftMaxPoint(),
-         selectionSession().draftState().secondPointOnly(),
-         List.copyOf(workspace().parts()),
-         workspace().interactionIdentities(),
-         workspace().selectionState()
-      );
-   }
-
-   /** Records one inverse for the complete click, including selection clearing and draft changes. */
-   private void recordDraftEvent(DraftSnapshot before) {
-      DraftSnapshot after = draftSnapshot();
-      if (before.equals(after)) {
-         return;
-      }
-      workspace().pushEvent(() -> {
-         workspace().restorePartStatesWithoutHistory(before.parts(), before.interactionIdentities());
-         selectionSession().restoreDraftEdit(new ClientSelectionSession.DraftState(
-            before.mode(), before.points(), before.prismBaseCount(), before.minPoint(), before.maxPoint(), before.secondPointOnly()
-         ));
-         workspace().restoreSelectionStateWithoutHistory(before.selection());
-      }, ClientOperationEventStack.Retention.of(
-         1 + before.points().size() + before.parts().size() + before.interactionIdentities().size() + before.selection().ids().size(),
-         before.parts().stream().flatMap(part -> java.util.stream.Stream.of(part.blocks(), part.sourceSnapshot()))
-            .map(blocks -> ClientOperationEventStack.SharedPayload.of(blocks, blocks.size())).toList()
-      ));
    }
 
    private boolean selectionReady(OperationPreviewPayload payload) {
@@ -1059,17 +777,5 @@ public final class OperationContext {
       sourceMask.replace(SourceBlockRenderMask.maskedSourcePositions(workspace().parts()));
    }
 
-   private record DraftSnapshot(
-      OperationSelectionMode mode,
-      List<BlockPos> points,
-      int prismBaseCount,
-      BlockPos minPoint,
-      BlockPos maxPoint,
-      boolean secondPointOnly,
-      List<ClientSelectionPart> parts,
-      java.util.Map<Integer, Long> interactionIdentities,
-      ClientOperationWorkspace.SelectionState selection
-   ) {
-   }
 
 }

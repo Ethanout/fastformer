@@ -65,6 +65,7 @@ public record OperationWorkspaceReceiptPayload(ResourceLocation dimension, List<
    }
 
    private void write(FriendlyByteBuf buffer) {
+      buffer.writeResourceLocation(this.dimension);
       buffer.writeCollection(this.entries, (buf, entry) -> {
          buf.writeUUID(entry.transferId());
          buf.writeVarInt(entry.outcome().ordinal());

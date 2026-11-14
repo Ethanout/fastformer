@@ -284,7 +284,7 @@ public final class FastPlaceClientInput {
       }
       if (cancel != null && operationSession && event.key() == 81) {
          cancelOperationGesture(minecraft);
-         ClientSessionSystem.instance().operations().cancelLastSelection();
+         ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection();
          if (NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
             PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
          }
@@ -302,7 +302,7 @@ public final class FastPlaceClientInput {
       if (minecraft.player != null && minecraft.screen == null && event.action() == 1) {
          if ((event.key() == 257 || event.key() == 335) && operationSession) {
             var intent = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
-            BlockPos candidate = ClientSessionSystem.instance().operations().remoteSelectionPointing()
+            BlockPos candidate = ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing()
                ? FastPlaceClientPreviewCore.operationCandidatePoint()
                : intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null;
             inputSession().undoPress.cancel();
@@ -461,12 +461,12 @@ public final class FastPlaceClientInput {
          case FLIP_SELECTION -> ClientSessionSystem.instance().operations().transforms().transformSelected(minecraft, true);
          case DELETE_SELECTION -> {
             var intent = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
-            BlockPos candidate = ClientSessionSystem.instance().operations().remoteSelectionPointing() ? FastPlaceClientPreviewCore.operationCandidatePoint()
+            BlockPos candidate = ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing() ? FastPlaceClientPreviewCore.operationCandidatePoint()
                : intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null;
             ClientSessionSystem.instance().operations().deleteSelection(minecraft, candidate);
          }
-         case REMOVE_SELECTED -> ClientSessionSystem.instance().operations().removeSelectedParts();
-         case UNDO -> ClientSessionSystem.instance().operations().undo();
+         case REMOVE_SELECTED -> ClientSessionSystem.instance().operations().selectionEdits().removeSelectedParts();
+         case UNDO -> ClientSessionSystem.instance().operations().selectionEdits().undo();
          case NONE -> {
             return false;
          }
@@ -483,8 +483,8 @@ public final class FastPlaceClientInput {
          keyRoute,
          inputSession().routing.dispatch(ClientInputStateMachine.InputKind.PASTE_WORKSPACE),
          new WorkspaceKeyboardSemantics.WorkspaceFacts(
-            ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive()
-               || ClientSessionSystem.instance().operations().remoteSelectionPointing(),
+            ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
+               || ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing(),
             ClientSessionSystem.instance().operations().workspaceUndoDepth(),
             ClientSessionSystem.instance().operations().workspaceEditInProgress(),
             ClientSessionSystem.instance().operations().workspaceSubmissionPending()
@@ -1152,15 +1152,15 @@ public final class FastPlaceClientInput {
    static boolean captureInitialSelection(int button, BlockPos point, boolean alt, boolean control, long occurredAtNanos) {
       if (button < 0 || button > 2
          || inputSession().routing.state() != ClientInputStateMachine.State.IDLE
-         || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive()) return false;
+         || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()) return false;
       if (button == MouseButtonInputSemantics.LEFT_BUTTON
          && io.github.fastformer.client.operation.selection.SelectionToolPreference.get()
             == io.github.fastformer.fastplace.selection.OperationSelectionMode.SMART) return true;
       if (point == null) return false;
-      ClientSessionSystem.instance().operations().enterLocalSelectionSession();
+      ClientSessionSystem.instance().operations().selectionEdits().enterLocalSelectionSession();
       inputSession().routing.observe(ClientInputStateMachine.State.SELECTING);
       inputSession().captureSelectionPress(new SelectionDraftPress(ClientSessionSystem.instance().operations().interactionScene().owner(),
-         ClientSessionSystem.instance().operations().draftSelectionMode(), button, point, alt, control, occurredAtNanos));
+         ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode(), button, point, alt, control, occurredAtNanos));
       return true;
    }
 
@@ -1213,8 +1213,8 @@ public final class FastPlaceClientInput {
       }
       var target = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
       boolean alt = physicalAltDown(minecraft, false);
-      if (ClientSessionSystem.instance().operations().smartTool() && !(target instanceof OperationInteractionIntent.Gizmo)
-         && (ClientSessionSystem.instance().operations().smartEditing() || button == MouseButtonInputSemantics.RIGHT_BUTTON)) {
+      if (ClientSessionSystem.instance().operations().selectionEdits().smartTool() && !(target instanceof OperationInteractionIntent.Gizmo)
+         && (ClientSessionSystem.instance().operations().selectionEdits().smartEditing() || button == MouseButtonInputSemantics.RIGHT_BUTTON)) {
          BlockPos point;
          if (button == MouseButtonInputSemantics.LEFT_BUTTON) {
             var member = io.github.fastformer.client.interaction.SmartSelectionEditView.target(minecraft, alt);
@@ -1229,18 +1229,18 @@ public final class FastPlaceClientInput {
          // A miss is consumed without creating a point command or breaking a world block.
          if (point == null) return true;
          session.captureSelectionPress(new SelectionDraftPress(ClientSessionSystem.instance().operations().interactionScene().owner(),
-            ClientSessionSystem.instance().operations().draftSelectionMode(), button, point,
+            ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode(), button, point,
             alt, physicalCtrlDown(minecraft, false), occurredAtNanos));
          return true;
       }
       boolean altGizmo = MouseButtonInputSemantics.startsAltWorkspaceGizmoTransform(
          alt, target instanceof OperationInteractionIntent.Gizmo, action, button);
       if (button == MouseButtonInputSemantics.MIDDLE_BUTTON && ClientSessionSystem.instance().operations().active()
-         && !ClientSessionSystem.instance().operations().canStartSelectionDraft()) {
+         && !ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft()) {
          queueSelectionPoint(minecraft, button, occurredAtNanos);
          return true;
       }
-      if (button == MouseButtonInputSemantics.MIDDLE_BUTTON && ClientSessionSystem.instance().operations().canStartSelectionDraft()
+      if (button == MouseButtonInputSemantics.MIDDLE_BUTTON && ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft()
          && !(target instanceof OperationInteractionIntent.CreateSelection)) {
          BlockHitResult hit = longRangeSelectionBlockHit(minecraft);
          if (hit == null) return false;
@@ -1296,7 +1296,7 @@ public final class FastPlaceClientInput {
          ? workspace.selections().topPart().map(io.github.fastformer.workspace.model.ClientSelectionPart::id).orElse(0)
          : workspace.activeId();
       BlockHitResult hit = longRangeSelectionBlockHit(minecraft);
-      if (ClientSessionSystem.instance().operations().draftSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID
+      if (ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID
          && !inputSession().acceptCuboidPointPress(button, hit == null ? null : hit.getBlockPos(), occurredAtNanos)) return;
       inputSession().captureSelectionPress(new SelectionPointPress(ClientSessionSystem.instance().operations().interactionScene().owner(),
          partId, workspace.interactionId(partId), button, physicalCtrlDown(minecraft, false),
@@ -1314,14 +1314,14 @@ public final class FastPlaceClientInput {
       var session = inputSession();
       if (button < 0 || button > 2) return false;
       if (button == MouseButtonInputSemantics.LEFT_BUTTON
-         && ClientSessionSystem.instance().operations().draftSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID
+         && ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID
          && !(target instanceof OperationInteractionIntent.Gizmo)
-         && (ClientSessionSystem.instance().operations().selectionDraftActive() || target == null || target instanceof OperationInteractionIntent.CreateSelection)) {
+         && (ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || target == null || target instanceof OperationInteractionIntent.CreateSelection)) {
          queueCuboidPointUndo(minecraft, alt, occurredAtNanos);
          return true;
       }
       // Keep the initial points with their server owner until the selection is complete.
-      if (!alt && ClientSessionSystem.instance().operations().remoteSelectionPointing()) {
+      if (!alt && ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing()) {
          return queueRemoteSelectionContinuation(target, button, occurredAtNanos);
       }
       BlockPos point;
@@ -1330,7 +1330,7 @@ public final class FastPlaceClientInput {
          MouseButtonInputSemantics.PRESS, button)) {
          BlockHitResult hit = longRangeSelectionBlockHit(minecraft);
          point = hit == null ? null : hit.getBlockPos();
-      } else if (!alt && (ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive() || ClientSessionSystem.instance().operations().selectionSessionActive())
+      } else if (!alt && (ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || ClientSessionSystem.instance().operations().selectionSessionActive())
          && acceptsSelectionDraftTarget(target, button)
          && target instanceof OperationInteractionIntent.CreateSelection create) {
          point = create.point();
@@ -1338,13 +1338,13 @@ public final class FastPlaceClientInput {
          return false;
       }
       session.captureSelectionPress(new SelectionDraftPress(ClientSessionSystem.instance().operations().interactionScene().owner(),
-         ClientSessionSystem.instance().operations().draftSelectionMode(), button, point, alt, physicalCtrlDown(minecraft, false), occurredAtNanos));
+         ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode(), button, point, alt, physicalCtrlDown(minecraft, false), occurredAtNanos));
       return true;
    }
 
    static boolean acceptsSelectionDraftTarget(OperationInteractionIntent target, int button) {
       return target instanceof OperationInteractionIntent.CreateSelection
-         && (button != MouseButtonInputSemantics.MIDDLE_BUTTON || ClientSessionSystem.instance().operations().canStartSelectionDraft());
+         && (button != MouseButtonInputSemantics.MIDDLE_BUTTON || ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft());
    }
 
    private static void queueCuboidPointUndo(Minecraft minecraft, long occurredAtNanos) {
@@ -1358,7 +1358,7 @@ public final class FastPlaceClientInput {
    }
 
    private static boolean queueRemoteSelectionContinuation(OperationInteractionIntent target, int button, long occurredAtNanos) {
-      if (!ClientSessionSystem.instance().operations().remoteSelectionPointing() || !ClientSessionSystem.instance().operations().operationCuboid()
+      if (!ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing() || !ClientSessionSystem.instance().operations().operationCuboid()
          || !(target instanceof OperationInteractionIntent.CreateSelection create)) return false;
       OperationPointPayload.Role role = switch (button) {
          case MouseButtonInputSemantics.RIGHT_BUTTON -> nextCuboidPointRole();

@@ -72,8 +72,8 @@ public final class WorkspaceInteractionResolver {
    }
 
    private static Optional<OperationInteractionIntent> resolveGizmo(InteractionContext context) {
-      if (ClientSessionSystem.instance().operations().smartEditing()) return Optional.empty();
-      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive()
+      if (ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) return Optional.empty();
+      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
          || ClientSessionSystem.instance().operations().workspace().locked()) {
          return Optional.empty();
       }
@@ -137,8 +137,8 @@ public final class WorkspaceInteractionResolver {
    }
 
    private static Optional<OperationInteractionIntent> resolvePart(InteractionContext context) {
-      if (ClientSessionSystem.instance().operations().smartEditing()) return Optional.empty();
-      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive() || context.alternative()) {
+      if (ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) return Optional.empty();
+      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || context.alternative()) {
          return Optional.empty();
       }
       var workspace = ClientSessionSystem.instance().operations().workspace();
@@ -199,8 +199,8 @@ public final class WorkspaceInteractionResolver {
    }
 
    private static Optional<OperationInteractionIntent> resolveFace(InteractionContext context) {
-      if (ClientSessionSystem.instance().operations().smartEditing()) return Optional.empty();
-      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive()
+      if (ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) return Optional.empty();
+      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
          || ClientSessionSystem.instance().operations().workspace().locked() || context.control() || context.alternative()) {
          return Optional.empty();
       }
@@ -262,7 +262,7 @@ public final class WorkspaceInteractionResolver {
             : Optional.empty();
       }
       BlockPos point;
-      boolean workspaceCreation = ClientSessionSystem.instance().operations().canStartSelectionDraft()
+      boolean workspaceCreation = ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft()
          || ClientSessionSystem.instance().operations().active();
       if (workspaceCreation) {
          if (context.minecraft().level == null) {
@@ -295,7 +295,7 @@ public final class WorkspaceInteractionResolver {
    }
 
    private static BlockPos draftCandidate(InteractionContext context, BlockHitResult hit) {
-      var draft = ClientSessionSystem.instance().operations().selectionDraft();
+      var draft = ClientSessionSystem.instance().operations().selectionEdits().selectionDraft();
       if (draft.selectionMode() != io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM
          || draft.points().size() < 3) return selectionCreationPoint(hit);
       double distance = context.eye().distanceTo(hit.getLocation());

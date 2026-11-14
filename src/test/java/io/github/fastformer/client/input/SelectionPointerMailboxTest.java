@@ -64,7 +64,7 @@ class SelectionPointerMailboxTest {
       drain();
       assertEquals(Set.of(1), workspace.selectedIds());
       assertEquals(parts, workspace.parts());
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       assertPointerSettled();
    }
 
@@ -83,7 +83,7 @@ class SelectionPointerMailboxTest {
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
       ClientSessionSystem.instance().operations().transforms().finishTransformGesture(token);
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertTrue(workspace.part(1).orElseThrow().canAdjustGeometry());
    }
 
@@ -101,15 +101,15 @@ class SelectionPointerMailboxTest {
          assertTrue(FastPlaceClientInput.acceptsSelectionDraftTarget(location, button));
       }
       assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(location, 2));
-      assertTrue(ClientSessionSystem.instance().operations().fixActiveSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().fixActiveSelection());
       assertTrue(FastPlaceClientInput.acceptsSelectionDraftTarget(location, 2));
    }
 
    @Test
    void retainedSessionStillExpandsItsRemainingUnmovedSelectionWithMiddle() {
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
-      assertFalse(ClientSessionSystem.instance().operations().canStartSelectionDraft());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft());
       assertTrue(ClientSessionSystem.instance().operations().workspace().parts().getFirst().canAdjustGeometry());
    }
 
@@ -117,23 +117,23 @@ class SelectionPointerMailboxTest {
    void cancelRemovesOneSelectionAndExitsAfterTheLast() {
       var workspace = ClientSessionSystem.instance().operations().workspace();
       int active = workspace.activeId();
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertEquals(1, workspace.size());
       assertTrue(workspace.part(active).isEmpty());
       assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertTrue(workspace.isEmpty());
       assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
    }
 
    @Test
    void newClickPreservesExistingSelectionsBeforeStartingDraft() {
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(8, 0, 0)));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, new BlockPos(8, 0, 0)));
       assertTrue(ClientSessionSystem.instance().operations().workspace().parts().stream().allMatch(ClientSelectionPart::canAdjustGeometry));
-      assertTrue(ClientSessionSystem.instance().operations().selectionDraftActive());
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertEquals(2, ClientSessionSystem.instance().operations().workspace().size());
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
    }
 
    @Test
@@ -374,12 +374,12 @@ class SelectionPointerMailboxTest {
       var original = workspace.part(1).orElseThrow();
       workspace.updatePart(original.withTranslation(new BlockPos(3, 0, 0)));
       this.input.captureSelectionPress(new SelectionDraftPress(ClientSessionSystem.instance().operations().interactionScene().owner(),
-         ClientSessionSystem.instance().operations().draftSelectionMode(), 1, new BlockPos(8, 0, 0), true, false, 20));
+         ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode(), 1, new BlockPos(8, 0, 0), true, false, 20));
       assertNull(this.input.selectionPointer.release(0, 30));
       postRelease(1, 40);
       drain();
       assertEquals(original, workspace.part(1).orElseThrow());
-      assertTrue(ClientSessionSystem.instance().operations().selectionDraftActive());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       assertPointerSettled();
    }
 

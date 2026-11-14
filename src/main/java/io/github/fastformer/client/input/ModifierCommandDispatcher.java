@@ -28,11 +28,11 @@ final class ModifierCommandDispatcher {
    }
 
    static void cycle(Minecraft minecraft) {
-      if (ClientSessionSystem.instance().operations().cycleDraftMode()) return;
+      if (ClientSessionSystem.instance().operations().selectionEdits().cycleDraftMode()) return;
       if (minecraft.player != null && !io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
          && !FastPlaceClientPreviewCore.active() && !FastPlaceClientPreviewCore.geometryActive()
          && !io.github.fastformer.client.placement.QuickReplaceMode.active()) {
-         ClientSessionSystem.instance().operations().cycleIdleSelectionTool();
+         ClientSessionSystem.instance().operations().selectionEdits().cycleIdleSelectionTool();
          return;
       }
       if (!NetworkRegistry.hasChannel(minecraft.getConnection(), CycleStageModePayload.TYPE.id())) return;

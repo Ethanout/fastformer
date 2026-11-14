@@ -55,16 +55,16 @@ final class SelectionInputDispatcher {
 
    private static void handleSelectionDraftPress(ClientInputSession session, SelectionDraftPress press) {
       if (session.routing.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION) != ClientInputStateMachine.Dispatch.OPERATION
-         || !press.matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().draftSelectionMode())
+         || !press.matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode())
          || ClientSessionSystem.instance().operations().workspaceSubmissionPending() || ClientSessionSystem.instance().operations().workspace().locked()
          || session.selectionGestures().active()) return;
       if (press.alt()) {
          ClientSessionSystem.instance().operations().setAltMode(true);
          session.modifier.consume();
          if (press.point() != null || press.button() == 0 && press.mode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID)
-            ClientSessionSystem.instance().operations().handleAltCreateClick(press.button(), press.point());
+            ClientSessionSystem.instance().operations().selectionEdits().handleAltCreateClick(press.button(), press.point());
       } else {
-         ClientSessionSystem.instance().operations().handleCreateClick(press.button(), press.point());
+         ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(press.button(), press.point());
       }
    }
 

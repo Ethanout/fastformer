@@ -89,9 +89,9 @@ class OperationPreviewRendererTest {
    void enterFixedSelectionKeepsItsOutlineAndSelectedGizmoWithoutMoving() {
       ClientSessionSystem.instance().operations().clearWorkspace();
       try {
-         assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, BlockPos.ZERO));
-         assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(2, 2, 2)));
-         assertTrue(ClientSessionSystem.instance().operations().fixActiveSelection());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, BlockPos.ZERO));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, new BlockPos(2, 2, 2)));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().fixActiveSelection());
          var part = ClientSessionSystem.instance().operations().interactionScene().parts().get(1);
          assertTrue(OperationPreviewRenderer.shouldRenderPartOutline(part, false));
          assertTrue(InteractionVisibility.isVisible(part.gizmo(), true));

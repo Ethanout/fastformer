@@ -83,8 +83,8 @@ class SelectionFaceCaptureTest {
       var expanded = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
       assertEquals(5.0, expanded.selection().bounds().maxX);
       assertTrue(expanded.canAdjustGeometry());
-      assertFalse(ClientSessionSystem.instance().operations().canStartSelectionDraft());
-      assertTrue(ClientSessionSystem.instance().operations().fixActiveSelection());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().fixActiveSelection());
       assertFalse(ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow().canAdjustGeometry());
    }
 

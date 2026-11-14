@@ -25,7 +25,7 @@ class IdleModeHudTest {
             net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO,
             net.minecraft.world.phys.Vec3.ZERO, false, false, false));
          assertTrue(FastPlaceClientPreviewCore.operationActive());
-         assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
          assertFalse(FastPlaceClientPreviewCore.operationActive());
          assertEquals("fastformer.hud.quick_shape_label", key(FastPlaceClientPreviewCore.idleBottomStatus(false, true)));
       } finally {

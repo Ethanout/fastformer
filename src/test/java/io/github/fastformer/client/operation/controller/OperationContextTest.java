@@ -81,17 +81,17 @@ class OperationContextTest {
    void withdrawingTheOnlyDraftPointEndsTheSelectionSessionAndUndoRestoresIt() {
       ClientSessionSystem.instance().operations().onDisconnected();
       try {
-         assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, BlockPos.ZERO));
-         assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(0, null));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, BlockPos.ZERO));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(0, null));
 
-         assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+         assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
          assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
          assertTrue(ClientSessionSystem.instance().operations().workspace().isEmpty());
          assertTrue(ClientSessionSystem.instance().operations().sourceMask().positions().isEmpty());
 
-         assertTrue(ClientSessionSystem.instance().operations().undo());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
          assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
-         assertEquals(List.of(BlockPos.ZERO), ClientSessionSystem.instance().operations().selectionDraft().points());
+         assertEquals(List.of(BlockPos.ZERO), ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().points());
       } finally {
          ClientSessionSystem.instance().operations().onDisconnected();
       }
@@ -104,11 +104,11 @@ class OperationContextTest {
          var old = ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD);
          assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(old)));
          var parts = List.copyOf(ClientSessionSystem.instance().operations().workspace().parts());
-         assertTrue(ClientSessionSystem.instance().operations().handleAltCreateClick(1, BlockPos.ZERO));
-         assertTrue(ClientSessionSystem.instance().operations().handleAltCreateClick(0, null));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleAltCreateClick(1, BlockPos.ZERO));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleAltCreateClick(0, null));
 
          assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
-         assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+         assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
          assertEquals(parts, ClientSessionSystem.instance().operations().workspace().parts());
       } finally {
          ClientSessionSystem.instance().operations().onDisconnected();
@@ -125,12 +125,12 @@ class OperationContextTest {
             Map.of(), WorkspaceTransform.IDENTITY, false);
          assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(part)));
 
-         assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(0, null));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(0, null));
          assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
-         assertEquals(List.of(BlockPos.ZERO), ClientSessionSystem.instance().operations().selectionDraft().points());
-         assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(0, null));
+         assertEquals(List.of(BlockPos.ZERO), ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().points());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(0, null));
          assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
-         assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+         assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       } finally {
          ClientSessionSystem.instance().operations().onDisconnected();
       }
@@ -145,11 +145,11 @@ class OperationContextTest {
          var cells = Map.of(BlockPos.ZERO, snapshot());
          assertTrue(io.github.fastformer.client.operation.selection.SmartSelectionEdits.add(
             ClientSessionSystem.instance().operations().workspace(), cells));
-         assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(0, BlockPos.ZERO));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(0, BlockPos.ZERO));
 
          assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
          assertTrue(ClientSessionSystem.instance().operations().workspace().isEmpty());
-         assertTrue(ClientSessionSystem.instance().operations().undo());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
          assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
          assertEquals(cells, ClientSessionSystem.instance().operations().workspace().parts().getFirst().blocks());
       } finally {
@@ -198,10 +198,10 @@ class OperationContextTest {
          var selected = Set.copyOf(ClientSessionSystem.instance().operations().workspace().selectedIds());
          ClientSessionSystem.instance().operations().setAltMode(true);
          assertEquals(selected, ClientSessionSystem.instance().operations().workspace().selectedIds());
-         assertTrue(ClientSessionSystem.instance().operations().handleAltCreateClick(1, BlockPos.ZERO));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleAltCreateClick(1, BlockPos.ZERO));
          assertEquals(selected, ClientSessionSystem.instance().operations().workspace().selectedIds());
          assertEquals(1, ClientSessionSystem.instance().operations().workspace().size());
-         assertTrue(ClientSessionSystem.instance().operations().handleAltCreateClick(1, new BlockPos(2, 2, 2)));
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleAltCreateClick(1, new BlockPos(2, 2, 2)));
          assertEquals(2, ClientSessionSystem.instance().operations().workspace().size());
          assertFalse(ClientSessionSystem.instance().operations().workspace().selectedIds().contains(1));
          assertEquals(1, ClientSessionSystem.instance().operations().workspace().selectedIds().size());

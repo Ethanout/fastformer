@@ -29,12 +29,12 @@ class SelectionStackTest {
             io.github.fastformer.fastplace.selection.OperationStageMode.TRANSFORM,
             BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, net.minecraft.world.phys.Vec3.ZERO, false, false, false);
          assertTrue(ClientSessionSystem.instance().operations().synchronize(preview));
-         assertTrue(ClientSessionSystem.instance().operations().remoteSelectionPointing());
-         assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
          assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
-         assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
-         assertTrue(ClientSessionSystem.instance().operations().undo());
-         var restored = ClientSessionSystem.instance().operations().selectionDraft();
+         assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
+         assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
+         var restored = ClientSessionSystem.instance().operations().selectionEdits().selectionDraft();
          assertEquals(List.of(A), restored.points());
          assertEquals(mode == OperationSelectionMode.CUBOID, restored.secondPointOnly());
       }
@@ -48,7 +48,7 @@ class SelectionStackTest {
          assertTrue(FastPlaceClientInput.captureInitialSelection(0, null, true, false, 2));
          drain();
          assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
-         assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+         assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
          assertTrue(workspace().isEmpty());
          assertEquals(io.github.fastformer.client.input.state.ClientInputStateMachine.State.IDLE,
             FastPlaceClientInput.inputSession().routing.state());
@@ -65,19 +65,19 @@ class SelectionStackTest {
       assertTrue(workspace().selectedIds().isEmpty());
       assertEquals(0, workspace().activeId());
       assertEquals(List.of(first, second), workspace().parts());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(java.util.Set.of(first.id(), second.id()), workspace().selectedIds());
    }
    @Test void qExitsWhenItPopsTheLastSelectionEntry() {
-      ClientSessionSystem.instance().operations().enterLocalSelectionSession();
-      ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(1, 2, 3));
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      ClientSessionSystem.instance().operations().selectionEdits().enterLocalSelectionSession();
+      ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, new BlockPos(1, 2, 3));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
       assertFalse(ClientSessionSystem.instance().operations().active());
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
-      assertEquals(new BlockPos(1, 2, 3), ClientSessionSystem.instance().operations().selectionDraft().firstPoint());
+      assertEquals(new BlockPos(1, 2, 3), ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().firstPoint());
    }
    private static final BlockPos A = new BlockPos(1, 2, 3);
    private static final BlockPos B = new BlockPos(4, 5, 6);
@@ -86,8 +86,8 @@ class SelectionStackTest {
       assertTrue(FastPlaceClientInput.captureSelectionEntry(A, false, 1));
       drain();
       assertTrue(workspace().isEmpty());
-      assertEquals(A, ClientSessionSystem.instance().operations().selectionDraft().firstPoint());
-      assertNull(ClientSessionSystem.instance().operations().selectionDraft().secondPoint());
+      assertEquals(A, ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().firstPoint());
+      assertNull(ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().secondPoint());
       post(1, B);
       drain();
       var part = workspace().latestPart().orElseThrow();
@@ -98,8 +98,8 @@ class SelectionStackTest {
       post(0, null);
       drain();
       assertTrue(workspace().isEmpty());
-      assertEquals(A, ClientSessionSystem.instance().operations().selectionDraft().firstPoint());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertEquals(A, ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().firstPoint());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(identity, workspace().interactionId(part.id()));
    }
 
@@ -117,7 +117,7 @@ class SelectionStackTest {
             reset();
             assertTrue(FastPlaceClientInput.captureInitialSelection(firstButton, A, false, false, 1));
             drain();
-            var draft = ClientSessionSystem.instance().operations().selectionDraft();
+            var draft = ClientSessionSystem.instance().operations().selectionEdits().selectionDraft();
             assertEquals(A, draft.firstPoint());
             assertNull(draft.secondPoint());
             post(completingButton, B);
@@ -126,25 +126,25 @@ class SelectionStackTest {
             assertEquals(A, part.selection().point1());
             assertEquals(B, part.selection().point2());
             assertTrue(part.canAdjustGeometry());
-            assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+            assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
          }
       }
    }
 
    @Test void leftReopensTheLatestCuboidThenRemovesItsFirstPoint() {
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, A));
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, B));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, A));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, B));
       assertEquals(B, workspace().latestPart().orElseThrow().selection().point2());
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(0, null));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(0, null));
       assertTrue(workspace().isEmpty());
-      assertEquals(A, ClientSessionSystem.instance().operations().selectionDraft().firstPoint());
-      assertNull(ClientSessionSystem.instance().operations().selectionDraft().secondPoint());
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(0, null));
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
-      assertFalse(ClientSessionSystem.instance().operations().handleCreateClick(0, null));
-      assertTrue(ClientSessionSystem.instance().operations().undo());
-      assertEquals(A, ClientSessionSystem.instance().operations().selectionDraft().firstPoint());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertEquals(A, ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().firstPoint());
+      assertNull(ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().secondPoint());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(0, null));
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(0, null));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
+      assertEquals(A, ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().firstPoint());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(B, workspace().latestPart().orElseThrow().selection().point2());
    }
 
@@ -153,54 +153,54 @@ class SelectionStackTest {
       var second = addSelection(10);
       assertTrue(workspace().parts().stream().allMatch(ClientSelectionPart::canAdjustGeometry));
       ClientSessionSystem.instance().operations().selectWorkspacePart(first.id(), false);
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertTrue(workspace().part(second.id()).isEmpty());
       assertEquals(first, workspace().latestPart().orElseThrow());
       assertEquals(first.id(), workspace().activeId());
-      assertFalse(ClientSessionSystem.instance().operations().canStartSelectionDraft());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft());
    }
 
    @Test void pendingPointCancellationLeavesEveryExistingSelectionUntouched() {
       addSelection(0);
       addSelection(10);
       var before = workspace().draftState();
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(30, 0, 0)));
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, new BlockPos(30, 0, 0)));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertEquals(before, workspace().draftState());
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraft().secondPointOnly());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().secondPointOnly());
       assertEquals(before, workspace().draftState());
    }
 
    @Test void fixingNewestDoesNotFixOlderSelectionsOrAllowMiddleToSkipTheTop() {
       var first = addSelection(0);
       var second = addSelection(10);
-      assertTrue(ClientSessionSystem.instance().operations().fixActiveSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().fixActiveSelection());
       assertFalse(workspace().part(second.id()).orElseThrow().canAdjustGeometry());
       assertEquals(first, workspace().part(first.id()).orElseThrow());
-      assertTrue(ClientSessionSystem.instance().operations().canStartSelectionDraft());
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
-      assertFalse(ClientSessionSystem.instance().operations().canStartSelectionDraft());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft());
       assertEquals(first, workspace().latestPart().orElseThrow());
    }
 
    @Test void enterCompletesPreviewAndSubmitsAllInOnePress() {
       addSelection(0);
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, B));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, B));
       assertTrue(ClientSessionSystem.instance().operations().confirmSelection(null, A));
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       assertTrue(workspace().isEmpty());
-      assertFalse(ClientSessionSystem.instance().operations().undo());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().undo());
    }
 
    @Test void newCuboidPointFixesSmartTailAndUndoRestoresTheActiveGroup() {
       var smart = smartPart();
       workspace().addParts(List.of(smart));
       var before = workspace().draftState();
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, B));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, B));
       assertFalse(workspace().parts().getFirst().smartEditable());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(before, workspace().draftState());
       assertTrue(workspace().parts().getFirst().smartEditable());
    }
@@ -211,7 +211,7 @@ class SelectionStackTest {
       assertTrue(ClientSessionSystem.instance().operations().transforms().moveSelected(BlockPos.ZERO.east()));
       assertFalse(workspace().parts().getFirst().smartEditable());
       assertTrue(workspace().parts().getFirst().transformed());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(before, workspace().draftState());
    }
 
@@ -225,21 +225,21 @@ class SelectionStackTest {
    @Test void enterIncludesUnselectedPartsWithoutLeavingASessionUndo() {
       var first = addSelection(0);
       addSelection(10);
-      assertTrue(ClientSessionSystem.instance().operations().fixActiveSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().fixActiveSelection());
       assertTrue(ClientSessionSystem.instance().operations().confirmSelection(null, null));
       assertTrue(workspace().isEmpty());
       assertTrue(workspace().selectedIds().isEmpty());
-      assertFalse(ClientSessionSystem.instance().operations().undo());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertTrue(workspace().isEmpty());
    }
 
    @Test void controlEnterCompletesTheDraftAndSubmitsEveryGroup() {
       addSelection(0);
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, A));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, A));
       assertTrue(ClientSessionSystem.instance().operations().confirmSelection(null, B));
       assertTrue(workspace().isEmpty());
-      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
-      assertFalse(ClientSessionSystem.instance().operations().undo());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertTrue(workspace().isEmpty());
    }
 
@@ -252,13 +252,13 @@ class SelectionStackTest {
       assertEquals(first.id(), third.id());
       assertEquals(List.of(second, third), workspace().parts());
       var stored = workspace().draftState();
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertEquals(List.of(second), workspace().parts());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(third, workspace().latestPart().orElseThrow());
       workspace().restoreDraftState(stored);
       assertEquals(third, workspace().latestPart().orElseThrow());
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertEquals(second.id(), workspace().activeId());
    }
 
@@ -267,7 +267,7 @@ class SelectionStackTest {
       var second = addSelection(10);
       assertTrue(workspace().beginEdit());
       workspace().updatePart(second.withTranslation(new BlockPos(4, 0, 0)));
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertFalse(workspace().editing());
       assertEquals(List.of(first), workspace().parts());
       assertEquals(first.id(), workspace().activeId());
@@ -276,12 +276,12 @@ class SelectionStackTest {
    @Test void completedAndIncompleteSelectionsShareTheSameStackTop() {
       var first = addSelection(0);
       assertEquals(new ClientSelectionStack.Complete(first), workspace().selections().peek().orElseThrow());
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, A));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, A));
       var pending = assertInstanceOf(ClientSelectionStack.Pending.class, workspace().selections().peek().orElseThrow());
       assertEquals(A, pending.points().firstPoint());
       assertNull(pending.points().secondPoint());
       assertTrue(workspace().selections().topPart().isEmpty());
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(2, B));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(2, B));
       var complete = assertInstanceOf(ClientSelectionStack.Complete.class, workspace().selections().peek().orElseThrow());
       assertEquals(A, complete.part().selection().point1());
       assertEquals(B, complete.part().selection().point2());
@@ -292,18 +292,18 @@ class SelectionStackTest {
    @Test void consecutivePopsAndUndoRestoreEachEntryWithItsPointRole() {
       var first = addSelection(0);
       var second = addSelection(10);
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, A));
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, A));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertEquals(second, workspace().selections().topPart().orElseThrow());
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertEquals(first, workspace().selections().topPart().orElseThrow());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       assertEquals(second, workspace().selections().topPart().orElseThrow());
-      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().undo());
       var pending = assertInstanceOf(ClientSelectionStack.Pending.class, workspace().selections().peek().orElseThrow());
       assertEquals(A, pending.points().firstPoint());
       assertNull(pending.points().secondPoint());
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(2, B));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(2, B));
       assertEquals(3, workspace().size());
       assertEquals(A, workspace().latestPart().orElseThrow().selection().point1());
       assertEquals(B, workspace().latestPart().orElseThrow().selection().point2());
@@ -312,25 +312,25 @@ class SelectionStackTest {
    @Test void editingAnOlderPartDoesNotMoveItAboveThePendingStackEntry() {
       var first = addSelection(0);
       var second = addSelection(10);
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, A));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, A));
       var pending = workspace().selections().peek().orElseThrow();
       assertTrue(workspace().beginEdit());
       workspace().updatePart(first.fixed());
       assertTrue(workspace().finishEdit());
       assertSame(pending, workspace().selections().peek().orElseThrow());
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertEquals(second, workspace().selections().topPart().orElseThrow());
       assertFalse(workspace().part(first.id()).orElseThrow().canAdjustGeometry());
    }
 
    @Test void poppingAnEmptyStackKeepsTheSessionAvailableForEitherPoint() {
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, A));
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, A));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertTrue(workspace().selections().peek().isEmpty());
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, B));
-      assertEquals(B, ClientSessionSystem.instance().operations().selectionDraft().firstPoint());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, B));
+      assertEquals(B, ClientSessionSystem.instance().operations().selectionEdits().selectionDraft().firstPoint());
    }
 
    @Test void middleTargetsTheTopEvenWhenAnOlderSelectionIsActive() {
@@ -340,9 +340,9 @@ class SelectionStackTest {
       var owner = ClientSessionSystem.instance().operations().interactionScene().owner();
       var middle = new SelectionPointPress(owner, second.id(), workspace().interactionId(second.id()), 2, false, A, 1);
       assertTrue(middle.matches(owner, workspace()));
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, A));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, A));
       assertFalse(middle.matches(owner, workspace()));
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertTrue(middle.matches(owner, workspace()));
       addSelection(20);
       assertFalse(middle.matches(owner, workspace()));
@@ -353,15 +353,15 @@ class SelectionStackTest {
       var second = addSelection(10);
       var owner = ClientSessionSystem.instance().operations().interactionScene().owner();
       var middle = new SelectionPointPress(owner, second.id(), workspace().interactionId(second.id()), 2, false, A, 1);
-      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       var replacement = addSelection(20);
       assertEquals(second.id(), replacement.id());
       assertFalse(middle.matches(owner, workspace()));
    }
 
    private static ClientSelectionPart addSelection(int x) {
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(x, 0, 0)));
-      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(x + 2, 2, 2)));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, new BlockPos(x, 0, 0)));
+      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, new BlockPos(x + 2, 2, 2)));
       return workspace().latestPart().orElseThrow();
    }
 
