@@ -22,4 +22,3 @@ public final class IdleMode implements ClientMode {
 
    @Override public boolean interactive() { return false; }
 }
-

@@ -20,4 +20,3 @@ public final class GeometryMode implements ClientMode {
       return observation.geometrySession() ? Optional.of(State.GEOMETRY) : Optional.empty();
    }
 }
-

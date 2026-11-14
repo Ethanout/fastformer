@@ -20,4 +20,3 @@ public final class SmartFillMode implements ClientMode {
       return observation.fillSession() ? Optional.of(State.FILL_PREVIEW) : Optional.empty();
    }
 }
-

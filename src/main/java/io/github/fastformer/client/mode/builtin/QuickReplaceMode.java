@@ -20,4 +20,3 @@ public final class QuickReplaceMode implements ClientMode {
       return observation.quickReplaceSession() ? Optional.of(State.QUICK_REPLACE) : Optional.empty();
    }
 }
-

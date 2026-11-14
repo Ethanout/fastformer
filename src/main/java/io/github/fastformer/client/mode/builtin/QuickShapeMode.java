@@ -20,4 +20,3 @@ public final class QuickShapeMode implements ClientMode {
       return observation.buildingSession() ? Optional.of(State.BUILDING) : Optional.empty();
    }
 }
-

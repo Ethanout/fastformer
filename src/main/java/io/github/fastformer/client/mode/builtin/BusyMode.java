@@ -27,4 +27,3 @@ public final class BusyMode implements ClientMode {
 
    @Override public boolean interactive() { return false; }
 }
-

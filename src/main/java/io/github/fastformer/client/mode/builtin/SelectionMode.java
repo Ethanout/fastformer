@@ -23,4 +23,3 @@ public final class SelectionMode implements ClientMode {
          : Optional.of(observation.workspaceHasParts() || observation.selectionConfirmed() ? State.ADJUSTING : State.SELECTING);
    }
 }
-
