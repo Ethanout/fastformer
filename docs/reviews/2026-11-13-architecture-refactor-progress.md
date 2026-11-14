@@ -468,3 +468,9 @@
 - 保留已知 APPLIED 对 UNKNOWN 的优先级、待清理重试、不匹配维度／未知 ID 忽略、查询失败保持未完成、相同结果不重复处理和清理不确定时显示待重试的语义。新增五项无磁盘测试覆盖上述边界及批次容量。
 - `.temp/architecture-operation-receipts-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过。新增包容量、职责说明和依赖约束；编辑协调器降至约 1075 行。
 - 提交持久化和在线结果对编辑状态的结算仍在 OperationContext，尚未完成整个提交能力迁移；选区、生命周期与其他手册主线继续保留。实际试玩存档和正式构建仓库配置未修改。
+
+## 实例迁移回归：失败位置记录（2026-11-14）
+
+- 复查发现实例字段改名后，rememberFailedWorkspaceTargets 的同名参数遮蔽了实例集合，可能清空只读回包列表并中断在线失败处理。现改为明确的 positions 参数，只写上下文自己的集合。
+- 新增真实失败回包测试，验证冲突位置记录、原始 payload 不变、工作区解锁、提交等待结束及可编辑内容保留。
+- `.temp/architecture-conflict-positions-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过。该修复不改变冲突语义；其余手册工作继续保留。

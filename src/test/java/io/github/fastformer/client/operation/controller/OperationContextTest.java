@@ -35,6 +35,30 @@ import sun.misc.Unsafe;
 
 class OperationContextTest {
    @Test
+   void rejectedSubmissionRemembersImmutableConflictPositionsWithoutMutatingThePayload() {
+      var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
+      var tracker = new WorkspaceSubmissionTracker(600, 40);
+      var operations = new OperationContext(selection,
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), tracker);
+      assertTrue(operations.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD))));
+      var transfer = java.util.UUID.randomUUID();
+      tracker.begin(transfer, null, selection.interactionOwnerId());
+      operations.workspace().setLocked(true);
+      var target = new BlockPos(4, 5, 6);
+      var rejected = new io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload(
+         transfer, false, List.of(), List.of(target));
+
+      operations.applyWorkspaceResult(rejected);
+
+      assertEquals(Set.of(target), operations.failedWorkspaceTargets());
+      assertEquals(List.of(target), rejected.failedTargetPositions());
+      assertFalse(operations.workspace().locked());
+      assertFalse(operations.workspaceSubmissionPending());
+      assertFalse(operations.workspace().isEmpty());
+      operations.clearWorkspace();
+   }
+
+   @Test
    void disconnectClearsSubmissionAndOpenWorkspaceEdit() {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var submission = new WorkspaceSubmissionTracker(600, 40);

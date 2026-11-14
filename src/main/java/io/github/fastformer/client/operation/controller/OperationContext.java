@@ -316,9 +316,9 @@ public final class OperationContext {
       return java.util.Set.copyOf(failedTargets);
    }
 
-   private void rememberFailedWorkspaceTargets(List<BlockPos> failedTargets) {
+   private void rememberFailedWorkspaceTargets(List<BlockPos> positions) {
       failedTargets.clear();
-      failedTargets.addAll(failedTargets);
+      failedTargets.addAll(positions);
       failedWorkspaceDraft = workspace().parts();
    }
 
