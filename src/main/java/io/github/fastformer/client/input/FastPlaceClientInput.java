@@ -1584,18 +1584,6 @@ public final class FastPlaceClientInput {
    }
 
    @SubscribeEvent
-   public static void onVisualPointerFrame(net.neoforged.neoforge.client.event.RenderFrameEvent.Pre event) {
-      Minecraft minecraft = Minecraft.getInstance();
-      inputSession().pointer().invalidate();
-      OperationInteractionIntent intent = null;
-      if (minecraft.player != null && minecraft.level != null && minecraft.screen == null
-         && minecraft.isWindowActive() && ClientSessionSystem.instance().operations().active()) {
-         intent = ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
-      }
-      ClientSessionSystem.instance().operations().updateVisualHover(intent);
-   }
-
-   @SubscribeEvent
    public static void onMouseScroll(MouseScrollingEvent event) {
       if (QuickReplaceMode.active()) return;
       synchronizeInputState();
@@ -1836,7 +1824,9 @@ public final class FastPlaceClientInput {
          && ClientSessionSystem.instance().operations().operationSelectionReady()
          && operationAdjustModifierHeld();
       boolean operationAlt = operationActive && modifierHeld();
-      boolean interactionTargetHit = FastPlaceClientPreviewCore.operationGizmoHit() != null
+      boolean gizmoHit = pointerIntent instanceof OperationInteractionIntent.Gizmo
+         || !ClientSessionSystem.instance().operations().active() && OperationDragController.gizmoHit(Minecraft.getInstance()) != null;
+      boolean interactionTargetHit = gizmoHit
          || pointerIntent instanceof OperationInteractionIntent.Face
          || pointerIntent instanceof OperationInteractionIntent.Part;
       return OperationInputSemantics.decideLeftPress(new OperationInputSemantics.LeftPressSnapshot(
@@ -1845,7 +1835,7 @@ public final class FastPlaceClientInput {
             : io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID,
          operationActive && (ClientSessionSystem.instance().operations().operationSelectionReady() || ClientSessionSystem.instance().operations().active()),
          operationActive && (ClientSessionSystem.instance().operations().operationAdjustmentStarted() || ClientSessionSystem.instance().operations().active()),
-         operationActive && FastPlaceClientPreviewCore.operationGizmoHit() != null,
+         operationActive && gizmoHit,
          InteractionContext.vanillaOwnsPointer(Minecraft.getInstance()),
          operationAdjust || operationAlt,
          interactionTargetHit,

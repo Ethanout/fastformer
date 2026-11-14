@@ -45,10 +45,12 @@ public final class WorkspacePointerResolver {
    private final BooleanSupplier smartEditing;
    private final Supplier<Set<BlockPos>> failedTargets;
    private final List<InteractionIntentProvider> providers;
+   private SelectionPointerState frame;
 
    public WorkspacePointerResolver(ClientSelectionSession selection, BooleanSupplier smartEditing,
       Supplier<Set<BlockPos>> failedTargets, PointerResolver pointer, InteractionIntentProvider creation) {
       this.selection = Objects.requireNonNull(selection, "selection");
+      this.frame = SelectionPointerState.empty(selection.interactionOwnerId());
       this.smartEditing = Objects.requireNonNull(smartEditing, "smartEditing");
       this.failedTargets = Objects.requireNonNull(failedTargets, "failedTargets");
       Objects.requireNonNull(pointer, "pointer");
@@ -65,6 +67,20 @@ public final class WorkspacePointerResolver {
       return InteractionIntentResolver.resolve(context, providers());
    }
 
+   /** Capture once at the visual frame boundary; physical input still calls resolve. */
+   public SelectionPointerState captureFrame(InteractionContext context) {
+      frame = SelectionPointerState.empty(selection.interactionOwnerId());
+      frame = new SelectionPointerState(selection.interactionOwnerId(), resolve(context));
+      return frame;
+   }
+
+   /** Never resolves targets while drawing, and never exposes a previous session's hit. */
+   public SelectionPointerState frame() {
+      if (!frame.owner().equals(selection.interactionOwnerId()))
+         frame = SelectionPointerState.empty(selection.interactionOwnerId());
+      return frame;
+   }
+
    public OperationInteractionIntent.Gizmo gizmo(InteractionContext context) {
       return resolve(context)
          .filter(OperationInteractionIntent.Gizmo.class::isInstance)
@@ -73,6 +89,11 @@ public final class WorkspacePointerResolver {
    }
 
    public void clear() {
+      frame = SelectionPointerState.empty(selection.interactionOwnerId());
+      clearModels();
+   }
+
+   private void clearModels() {
       resolvedCache.clear();
       resolvedCacheRevision = Long.MIN_VALUE;
       resolvedCacheOwner = null;
@@ -262,7 +283,7 @@ public final class WorkspacePointerResolver {
    Map<BlockPos, ClientBlockSnapshot> resolvePartBlocks(ClientSelectionPart part) {
       long revision = selection.workspace().revision();
       if (resolvedCacheRevision != revision || !selection.interactionOwnerId().equals(resolvedCacheOwner)) {
-         clear();
+         clearModels();
          resolvedCacheRevision = revision;
          resolvedCacheOwner = selection.interactionOwnerId();
       }

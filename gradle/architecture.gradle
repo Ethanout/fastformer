@@ -37,6 +37,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.client.operation.pointer') ||
                     packageName.startsWith('io.github.fastformer.client.interaction.pointer') ||
                     packageName.startsWith('io.github.fastformer.client.mode') ||
+                    packageName.startsWith('io.github.fastformer.client.preview') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -79,8 +80,12 @@ abstract class VerifySourceLayout extends DefaultTask {
                 violations.add("Selection pointer resolution must use its bound session and explicit context: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.client.input') &&
-                    (dependencies =~ /FastPlaceClientPreviewCore\.operation(?:InteractionIntent|WorkspaceGizmoHit)\s*\(/).find()) {
+                    (dependencies =~ /FastPlaceClientPreviewCore\.operation(?:InteractionIntent|WorkspaceGizmoHit|GizmoHit)\s*\(/).find()) {
                 violations.add("Input must resolve workspace targets through its owned pointer capability: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.render') &&
+                    (dependencies =~ /pointer\s*\(\s*\)\s*\.\s*(?:resolve|gizmo|captureFrame)\s*\(/).find()) {
+                violations.add("Rendering must consume the captured selection pointer frame: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.client.interaction.pointer') &&
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:render|input|session|operation)\./).find()) {

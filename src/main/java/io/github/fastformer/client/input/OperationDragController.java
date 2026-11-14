@@ -71,7 +71,7 @@ final class OperationDragController {
 
    static boolean beginGizmo(Minecraft minecraft, ClientInputSession session, int mouseButton) {
       AxisGizmo gizmo = FastPlaceClientPreviewCore.operationGizmo();
-      AxisGizmo.Hit hit = FastPlaceClientPreviewCore.operationGizmoHit();
+      AxisGizmo.Hit hit = gizmoHit(minecraft, gizmo);
       if (gizmo == null || hit == null) {
          return false;
       }
@@ -101,6 +101,16 @@ final class OperationDragController {
          ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(), GeometryInputController.nextRequestId()
       );
       return true;
+   }
+
+   static AxisGizmo.Hit gizmoHit(Minecraft minecraft) {
+      return gizmoHit(minecraft, FastPlaceClientPreviewCore.operationGizmo());
+   }
+
+   private static AxisGizmo.Hit gizmoHit(Minecraft minecraft, AxisGizmo gizmo) {
+      return gizmo == null || minecraft.player == null ? null
+         : gizmo.hitTest(minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F),
+            io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.MAX_REACH);
    }
 
    static void update(Minecraft minecraft, ClientInputSession session) {

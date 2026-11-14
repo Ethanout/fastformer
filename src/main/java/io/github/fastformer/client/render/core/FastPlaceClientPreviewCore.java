@@ -580,11 +580,11 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static Optional<OperationInteractionIntent> operationInteractionIntent() {
-      return ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance()));
+      return ClientSessionSystem.instance().operations().pointer().frame().target();
    }
 
    public static OperationInteractionIntent.Gizmo operationWorkspaceGizmoHit() {
-      return ClientSessionSystem.instance().operations().pointer().gizmo(InteractionContext.capture(Minecraft.getInstance()));
+      return ClientSessionSystem.instance().operations().pointer().frame().gizmo();
    }
 
    public static OperationGeometry.RayHit operationFaceHit() {
