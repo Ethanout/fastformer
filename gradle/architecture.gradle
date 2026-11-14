@@ -74,6 +74,10 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (text =~ /\bBoilClock\b/).find()) {
                 violations.add("Drawing animation must use the shared frame phase: ${path}")
             }
+            if (main && source.name in ['FastPlaceClientPreviewCore.java', 'OperationPreviewRenderer.java'] &&
+                    (text =~ /\bworldPreviewOpacity\b/).find()) {
+                violations.add("Preview opacity must be passed explicitly, never changed globally: ${path}")
+            }
             if (main && packageName.startsWith('io.github.fastformer.client.mode') &&
                     (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render|session|operation|placement)\.|Minecraft\.getInstance\s*\()/).find()) {
                 violations.add("Client mode definitions must consume explicit workflow observations: ${path}")

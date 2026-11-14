@@ -79,18 +79,16 @@ final class OperationPreviewRenderer {
       var displayPoints = io.github.fastformer.client.controlpoint.ControlPointPresentation.draft(draft,
          intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null);
       new io.github.fastformer.client.controlpoint.ControlPointRenderer(
-         worldPreviewOpacity * opacity, pendingGridDashOffset(), PreviewStyle.DASH_LENGTH
+         opacity, pendingGridDashOffset(), PreviewStyle.DASH_LENGTH
       ).render(pose, buffers, camera, displayPoints);
    }
 
    static void renderOperationSelection(RenderLevelStageEvent event, Minecraft minecraft, LocalPlayer player, OperationPreviewPayload snapshot) {
-      float previousOpacity = worldPreviewOpacity;
-      worldPreviewOpacity *= selectionOpacity(FastPlaceClientInput.modifierHeld());
-      try { renderServerSelection(event, minecraft, player, snapshot); }
-      finally { worldPreviewOpacity = previousOpacity; }
+      renderServerSelection(event, minecraft, player, snapshot, selectionOpacity(FastPlaceClientInput.modifierHeld()));
    }
 
-   private static void renderServerSelection(RenderLevelStageEvent event, Minecraft minecraft, LocalPlayer player, OperationPreviewPayload snapshot) {
+   private static void renderServerSelection(RenderLevelStageEvent event, Minecraft minecraft, LocalPlayer player,
+      OperationPreviewPayload snapshot, float opacity) {
       List<BlockPos> points = snapshot.points();
       boolean closingPrismBase = snapshot.operationSelectionMode() == OperationSelectionMode.PRISM
          && snapshot.operationPrismBasePointCount() == 0
@@ -139,14 +137,14 @@ final class OperationPreviewRenderer {
       poseStack.translate(-camera.x, -camera.y, -camera.z);
 
       if (selection != null) {
-         renderOperationFaces(poseStack, buffers.getBuffer(GHOST_FACES), selection, faceAlpha, camera);
+         renderOperationFaces(poseStack, buffers.getBuffer(GHOST_FACES), selection, faceAlpha * opacity, camera);
          if (hit != null) {
             renderOperationHighlightedFace(
                poseStack,
                buffers.getBuffer(GHOST_FACES),
                selection,
                hit,
-               SELECTION_HIGHLIGHT_ALPHA,
+               SELECTION_HIGHLIGHT_ALPHA * opacity,
                camera
             );
          }
@@ -157,7 +155,7 @@ final class OperationPreviewRenderer {
                poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES),
                guideHit == null ? hit : new OperationGeometry.RayHit(
                   guideHit.point(), hit.normal(), guideHit.distance(), hit.axis()
-               ), camera, 0.82F
+               ), camera, 0.82F * opacity
             );
             buffers.endBatch(GHOST_OUTLINE_LINES);
          }
@@ -166,14 +164,14 @@ final class OperationPreviewRenderer {
       VertexConsumer occludedLines = buffers.getBuffer(PENDING_XRAY_LINES);
       renderOperationSelectionPass(
          poseStack, occludedLines, snapshot, previewPoints, selection, bounds, guideHit, eye,
-         1.0F, outlineAlpha
+         opacity, outlineAlpha
       );
       buffers.endBatch(PENDING_XRAY_LINES);
 
       VertexConsumer lines = buffers.getBuffer(GHOST_OUTLINE_LINES);
       renderOperationSelectionPass(
          poseStack, lines, snapshot, previewPoints, selection, bounds, guideHit, eye,
-         1.0F, outlineAlpha
+         opacity, outlineAlpha
       );
       buffers.endBatch(GHOST_OUTLINE_LINES);
 
@@ -185,13 +183,13 @@ final class OperationPreviewRenderer {
             Component.translatable("fastformer.operation.face_drag_hint").getString()
          );
       }
-      renderOperationPointDragGuides(poseStack, buffers, camera, snapshot);
-      renderControlPoints(
+      renderOperationPointDragGuides(poseStack, buffers, camera, snapshot, opacity);
+      new io.github.fastformer.client.controlpoint.ControlPointRenderer(opacity, pendingGridDashOffset(), PreviewStyle.DASH_LENGTH).render(
          poseStack, buffers, camera, io.github.fastformer.client.controlpoint.ControlPointPresentation.selection(
             snapshot, candidate, edgeInsertion != null, operationPointUnderCrosshairIndex())
       );
       if (gizmo != null) {
-         new GizmoRenderer(worldPreviewOpacity).renderGeometryGizmo(poseStack, buffers, camera, gizmo, operationGizmoAlpha(gizmo));
+         new GizmoRenderer(opacity).renderGeometryGizmo(poseStack, buffers, camera, gizmo, operationGizmoAlpha(gizmo));
       }
    }
 
@@ -256,7 +254,7 @@ final class OperationPreviewRenderer {
             var capture = ClientSessionSystem.instance().operations().selectionGestures().capture();
             boolean moving = capture != null && capture.targets().containsKey(part.id());
             WorkspacePreviewRenderer.renderBlocks(poseStack, buffers, minecraft, camera, ownedBlocks, scene.blocks(),
-               1.0F, 1.0F, 1.0F, blockAlpha, worldPreviewOpacity, moving);
+               1.0F, 1.0F, 1.0F, blockAlpha, 1.0F, moving);
          }
       }
       for (ClientSelectionPart part : parts) {
@@ -307,7 +305,7 @@ final class OperationPreviewRenderer {
          }
          poseStack.popPose();
          if (part.smart()) SmartSelectionRenderer.render(event, minecraft, part, resolved,
-            (selected || hovered || part.smartEditable() ? 0.9F : 0.5F) * selectionOpacity * worldPreviewOpacity);
+            (selected || hovered || part.smartEditable() ? 0.9F : 0.5F) * selectionOpacity);
          if (!part.smart() && !altFocused && WorkspacePartInteractionCapabilities.canSelect(part, interactionBounds)) {
             WorkspacePreviewRenderer.renderPartLabel(
                poseStack, buffers, minecraft, camera,
@@ -362,7 +360,7 @@ final class OperationPreviewRenderer {
          AxisGizmo scaleGizmo = gizmoGeometry.scale()
             .withState(hoveredKey, activeKey);
          AxisGizmo rotationGizmo = gizmoGeometry.rotation().withState(hoveredKey, activeKey);
-         new GizmoRenderer(worldPreviewOpacity).renderWorkspaceGizmo(
+         new GizmoRenderer(1.0F).renderWorkspaceGizmo(
             poseStack, buffers, camera, worldGizmo, scaleGizmo, rotationGizmo, (selected || hovered ? 1.0F : 0.52F) * selectionOpacity
          );
          if (PreviewGeometrySupport.hasNonOrthogonalRotation(part.transform().rotation())) {
@@ -373,7 +371,7 @@ final class OperationPreviewRenderer {
                ? hoveredGizmo.hit().handle().axis()
                : activeKey != null && activeKey.operation() == AxisGizmo.Operation.SCALE
                   ? activeKey.axis() : null;
-            new GizmoRenderer(worldPreviewOpacity).renderLocalWorkspaceGizmo(
+            new GizmoRenderer(1.0F).renderLocalWorkspaceGizmo(
                poseStack, buffers, camera, scaleGizmo.frame(), scale.axisLength() * 0.82,
                highlightedLocalAxis, (hovered ? 1.0F : 0.58F) * selectionOpacity
             );
@@ -408,7 +406,7 @@ final class OperationPreviewRenderer {
             AxisGizmo.HandleKey activeKey = PointerDragSnapshotView.workspaceGizmoMatches(inputSession, 0, true)
                ? PointerDragSnapshotView.operationKey(inputSession) : null;
             var commonWorld = common.world().withState(hoveredKey, activeKey);
-            new GizmoRenderer(worldPreviewOpacity).renderWorkspaceGizmo(poseStack, buffers, camera, commonWorld,
+            new GizmoRenderer(1.0F).renderWorkspaceGizmo(poseStack, buffers, camera, commonWorld,
                common.scale().withState(hoveredKey, activeKey), common.rotation().withState(hoveredKey, activeKey), selectionOpacity);
             if (!altFocused) WorkspacePreviewRenderer.renderHintLabel(poseStack, buffers, minecraft, camera,
                center.add(0, commonWorld.axisLength() * 1.55, 0),
@@ -495,7 +493,7 @@ final class OperationPreviewRenderer {
    }
 
    private static void renderOperationPointDragGuides(
-      PoseStack poseStack, BufferSource buffers, Vec3 camera, OperationPreviewPayload snapshot
+      PoseStack poseStack, BufferSource buffers, Vec3 camera, OperationPreviewPayload snapshot, float opacity
    ) {
       var inputSession = FastPlaceClientInput.currentSession();
       SelectionPrism.GridPlane plane = PointerDragSnapshotView.pointPlane(inputSession);
@@ -514,8 +512,8 @@ final class OperationPreviewRenderer {
          if (target != null) {
             bounds.add(Vec3.atCenterOf(target));
          }
-         renderGuidePlaneGrid(
-            poseStack, consumer, camera, List.of(new GuidePlane(plane.anchor(), plane.normal(), bounds, true))
+         io.github.fastformer.client.render.guide.GuideRenderer.renderGeometryPlanes(
+            poseStack, consumer, camera, List.of(new GuidePlane(plane.anchor(), plane.normal(), bounds, true)), opacity
          );
       }
       if (line != null) {
@@ -525,11 +523,11 @@ final class OperationPreviewRenderer {
          if (target != null) {
             radius = Math.max(radius, Math.abs(Vec3.atCenterOf(target).subtract(anchor).dot(line.direction())) + 4.0);
          }
-         renderGuideLines(
+         io.github.fastformer.client.render.guide.GuideRenderer.renderGeometryLines(
             poseStack,
             consumer,
             camera,
-            List.of(new GuideLine(anchor.subtract(line.direction().scale(radius)), anchor.add(line.direction().scale(radius))))
+            List.of(new GuideLine(anchor.subtract(line.direction().scale(radius)), anchor.add(line.direction().scale(radius)))), opacity
          );
       }
       buffers.endBatch(GHOST_OUTLINE_LINES);
@@ -774,11 +772,11 @@ final class OperationPreviewRenderer {
       Vec3 side = normal.cross(Math.abs(normal.y) > 0.9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0)).normalize().scale(0.08);
       Vec3 base = to.subtract(normal.scale(0.14));
       io.github.fastformer.client.render.guide.GuideRenderer.renderMovingLine(
-         poseStack, consumer, from, to, inkRed(), inkGreen(), inkBlue(), alpha, worldPreviewOpacity);
+         poseStack, consumer, from, to, inkRed(), inkGreen(), inkBlue(), alpha, 1.0F);
       io.github.fastformer.client.render.guide.GuideRenderer.renderMovingLine(
-         poseStack, consumer, to, base.add(side), inkRed(), inkGreen(), inkBlue(), alpha, worldPreviewOpacity);
+         poseStack, consumer, to, base.add(side), inkRed(), inkGreen(), inkBlue(), alpha, 1.0F);
       io.github.fastformer.client.render.guide.GuideRenderer.renderMovingLine(
-         poseStack, consumer, to, base.subtract(side), inkRed(), inkGreen(), inkBlue(), alpha, worldPreviewOpacity);
+         poseStack, consumer, to, base.subtract(side), inkRed(), inkGreen(), inkBlue(), alpha, 1.0F);
    }
 
    private static Vec3 inflateSelectionVertex(Vec3 point, Vec3 center, Vec3 camera) {

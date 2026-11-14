@@ -179,7 +179,6 @@ public final class FastPlaceClientPreviewCore {
    private static final PreviewFeedbackHud FEEDBACK = new PreviewFeedbackHud(FastPlaceClientPreviewCore::gizmoAxisHudColor);
    static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
-   static float worldPreviewOpacity = 1.0F;
    private static TransformStatus geometryTransformBaseline;
    private static long lastPreviewFailureLogAt;
    private static final BuildingPreviewCache BUILDING_CACHE = new BuildingPreviewCache(
@@ -1788,7 +1787,6 @@ public final class FastPlaceClientPreviewCore {
              || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || PREVIEW_STATE.geometry().active() || QuickReplaceMode.active() || selectionCandidate)) {
              return;
           }
-          worldPreviewOpacity = updateWorldPreviewOpacity(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
          PreviewRenderOwner renderOwner = PreviewRenderOwner.select(
             snapshot.active(),
             PREVIEW_STATE.operation().active(),
@@ -1905,7 +1903,7 @@ public final class FastPlaceClientPreviewCore {
                shellBlocks.confirmedRenderBlocks(),
                shellBlocks.pendingRenderBlocks(),
                specialBlockStyles,
-               worldPreviewOpacity, ghostBreathPulse(),
+               1.0F, ghostBreathPulse(),
                confirmedLightweight,
                pendingLightweight
             );
@@ -1926,7 +1924,7 @@ public final class FastPlaceClientPreviewCore {
                buffers.endBatch(DYNAMIC_LINES);
             }
             BuildingPointPreviewRenderer.render(poseStack, buffers, camera, buildingPoints,
-               previewState, previewStateOverrides, worldPreviewOpacity);
+               previewState, previewStateOverrides, 1.0F);
             renderBuildingGuidePlaneGrid(poseStack, buffers.getBuffer(PENDING_LINES), camera, planes);
             buffers.endBatch(PENDING_LINES);
          }
@@ -1954,7 +1952,7 @@ public final class FastPlaceClientPreviewCore {
       renderGuideLines(poseStack, buffers.getBuffer(PENDING_LINES), camera, plan.guideLines());
       buffers.endBatch(PENDING_LINES);
       if (plan.gizmo() != null) {
-         new GizmoRenderer(worldPreviewOpacity).renderGeometryGizmo(poseStack, buffers, camera, plan.gizmo());
+         new GizmoRenderer(1.0F).renderGeometryGizmo(poseStack, buffers, camera, plan.gizmo());
       }
    }
 
@@ -2189,17 +2187,13 @@ public final class FastPlaceClientPreviewCore {
          : limit;
    }
 
-   private static float updateWorldPreviewOpacity(Minecraft minecraft, float partialTick) {
-      return InteractionContext.previewVisibility(minecraft, partialTick);
-   }
-
    private static void renderGeometryControlPoints(PoseStack poseStack, BufferSource buffers, Vec3 camera, GeometryPreviewPlan plan) {
       renderControlPoints(poseStack, buffers, camera, plan.controlPoints());
    }
 
    static void renderControlPoints(PoseStack poseStack, BufferSource buffers, Vec3 camera, List<ControlPoint> points) {
       new io.github.fastformer.client.controlpoint.ControlPointRenderer(
-         worldPreviewOpacity, pendingGridDashOffset(), SELECTION_DASH_LENGTH
+         1.0F, pendingGridDashOffset(), SELECTION_DASH_LENGTH
       ).render(poseStack, buffers, camera, points);
    }
 
@@ -2225,7 +2219,7 @@ public final class FastPlaceClientPreviewCore {
    ) {
       io.github.fastformer.client.render.geometry.DashedBoxRenderer.render(
          poseStack, consumer, center, halfExtents, camera, GHOST_OUTLINE_CAMERA_BIAS,
-         offset, alpha, SELECTION_DASH_LENGTH, worldPreviewOpacity);
+         offset, alpha, SELECTION_DASH_LENGTH, 1.0F);
    }
 
    static void renderOperationOutlineLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha) {
@@ -2237,14 +2231,14 @@ public final class FastPlaceClientPreviewCore {
    static void renderConfirmedBox(PoseStack pose, VertexConsumer lines, Vec3 center, Vec3 halfExtents,
       boolean dynamic, float alpha) {
       io.github.fastformer.client.render.geometry.DashedBoxRenderer.renderConfirmed(pose, lines, center, halfExtents,
-         alpha * worldPreviewOpacity, dynamic);
+         alpha, dynamic);
    }
 
    private static void renderAlternatingDashedLine(
       PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha, double offset
    ) {
       GuideRenderer.renderAlternatingDashedLine(
-         poseStack, consumer, from, to, alpha, offset, SELECTION_DASH_LENGTH, worldPreviewOpacity
+         poseStack, consumer, from, to, alpha, offset, SELECTION_DASH_LENGTH, 1.0F
       );
    }
 
@@ -2256,7 +2250,6 @@ public final class FastPlaceClientPreviewCore {
    public static void clearWorldRenderState() {
       geometryTransformBaseline = null;
       OPERATION_FACE_INTERPOLATOR.reset();
-      worldPreviewOpacity = 1.0F;
       BUILDING_CACHE.resetBuildingPreviewCaches();
       cachedGeometryPlanKey = null;
       cachedGeometryPlan = null;
@@ -2446,7 +2439,7 @@ public final class FastPlaceClientPreviewCore {
       renderType.setupRenderState();
       try {
          FastPlaceClientShaders.setPendingDashOffset((float)pendingGridDashOffset());
-         RenderSystem.setShaderColor(inkRed(), inkGreen(), inkBlue(), alpha * worldPreviewOpacity);
+         RenderSystem.setShaderColor(inkRed(), inkGreen(), inkBlue(), alpha);
          buffer.bind();
          HaloLineRenderType.drawUnder(renderType, buffer, modelView, projectionMatrix);
          buffer.drawWithShader(modelView, projectionMatrix, shader);
@@ -2545,7 +2538,7 @@ public final class FastPlaceClientPreviewCore {
       float blue,
       float alpha
    ) {
-      addGhostQuadUnscaled(poseStack, consumer, a, b, c, d, red, green, blue, alpha * worldPreviewOpacity);
+      addGhostQuadUnscaled(poseStack, consumer, a, b, c, d, red, green, blue, alpha);
    }
 
    /** Writes cacheable vertices without baking the current preview opacity into them. */
@@ -2566,17 +2559,17 @@ public final class FastPlaceClientPreviewCore {
    }
 
    static void renderGuidePlaneGrid(PoseStack poseStack, VertexConsumer lineConsumer, Vec3 camera, List<GuidePlane> planes) {
-      GuideRenderer.renderGeometryPlanes(poseStack, lineConsumer, camera, planes, worldPreviewOpacity);
+      GuideRenderer.renderGeometryPlanes(poseStack, lineConsumer, camera, planes, 1.0F);
    }
 
    private static void renderBuildingGuidePlaneGrid(
       PoseStack poseStack, VertexConsumer lineConsumer, Vec3 camera, List<GuidePlane> planes
    ) {
-      GuideRenderer.renderBuildingPlanes(poseStack, lineConsumer, camera, planes, worldPreviewOpacity);
+      GuideRenderer.renderBuildingPlanes(poseStack, lineConsumer, camera, planes, 1.0F);
    }
 
    static void renderGuideLines(PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GuideLine> lines) {
-      GuideRenderer.renderGeometryLines(poseStack, consumer, camera, lines, worldPreviewOpacity);
+      GuideRenderer.renderGeometryLines(poseStack, consumer, camera, lines, 1.0F);
    }
 
    /** Boundary edges for a layer too large to shell; a single center-to-center line is dropped. */
@@ -2585,11 +2578,11 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to) {
-      GuideRenderer.renderLine(poseStack, consumer, from, to, worldPreviewOpacity);
+      GuideRenderer.renderLine(poseStack, consumer, from, to, 1.0F);
    }
 
    public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float red, float green, float blue, float alpha) {
-      GuideRenderer.renderLine(poseStack, consumer, from, to, red, green, blue, alpha, worldPreviewOpacity);
+      GuideRenderer.renderLine(poseStack, consumer, from, to, red, green, blue, alpha, 1.0F);
    }
 
    private static QuickShapeMode selectedMode(BuildingPreviewSnapshot snapshot, QuickShapeStage stage) {

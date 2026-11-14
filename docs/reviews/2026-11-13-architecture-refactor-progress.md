@@ -576,3 +576,11 @@
 - 纯时钟测试覆盖同绘制帧重复采样、下一帧推进、资源设置变化、静态种子、不合法时序拒绝及与原虚线／呼吸公式对照；原绘制帧范围和不重复测试迁至实际时钟。源码检查禁止恢复独立 BoilClock。
 - `.temp/architecture-animation-frame-verified.log`：完整 `check` 与独立新目录 312 项必需 GameTest 通过。实际试玩存档未清除，正式构建仓库配置未修改。
 - worldPreviewOpacity 的隐式传递、完整 PreviewFrame／PreviewMode、模式按键／指针与服务端 Mode、完整操作树和其余手册项目仍需继续完成。
+
+## 删除全局可变预览透明度（2026-11-14）
+
+- 统一动画阶段已提交并推送：`feccd37`。
+- 删除 worldPreviewOpacity 及更新／边界重置。现有可见性规则恒为 1，唯一临时变更来自 Alt 选区；该淡化现显式传入服务端选区的面、线、控制点、法线箭头、参考线与 Gizmo，不再 try/finally 改写共享状态。
+- 工作区和草稿继续使用自身显式透明度；缓存网格不烘焙临时全局透明度。增加源码约束，禁止两处渲染总入口恢复共享可变值。底层绘制转发仍需后续移出 Core，不能据此视为渲染管线全部完成。
+- `.temp/architecture-explicit-opacity-verified.log`：完整 `check` 与独立新目录 312 项必需 GameTest 通过；实际试玩存档和正式构建仓库配置未修改。
+- 完整 PreviewFrame／PreviewMode、模式按键／指针和服务端模式、操作树和其余手册项继续保留。
