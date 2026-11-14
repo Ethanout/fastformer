@@ -39,7 +39,7 @@ public final class ClientScope {
       this.receipts = new ClientReceiptRepository(() -> ClientScopeFiles.receipts(id));
       this.drafts = new ClientDraftRepository(() -> ClientScopeFiles.draft(id));
       this.inputSession = new ClientInputSession(selectionSession.gestures());
-      this.operations = new OperationContext(selectionSession, clipboard);
+      this.operations = new OperationContext(selectionSession, clipboard, inputSession);
    }
 
    public OperationContext operations() {

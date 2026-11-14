@@ -39,7 +39,7 @@ class OperationContextTest {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage);
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession(selection.gestures()));
       assertTrue(operations.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD))));
       beginSubmission(operations);
       var transfer = operations.submissions().transferId();
@@ -62,7 +62,7 @@ class OperationContextTest {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage);
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession(selection.gestures()));
       operations.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
       beginSubmission(operations);
       // Release the transport lock to exercise cancellation of an independent open edit.
@@ -163,7 +163,7 @@ class OperationContextTest {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage);
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession(selection.gestures()));
       try {
          var original = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
             OperationSelectionVolume.cuboid(BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO),

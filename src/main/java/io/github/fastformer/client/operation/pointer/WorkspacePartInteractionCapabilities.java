@@ -1,18 +1,18 @@
-package io.github.fastformer.client.render.core;
+package io.github.fastformer.client.operation.pointer;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import net.minecraft.world.phys.AABB;
 
 /** Defines which workspace interactions remain available after a part is transformed. */
-final class WorkspacePartInteractionCapabilities {
+public final class WorkspacePartInteractionCapabilities {
    private WorkspacePartInteractionCapabilities() {
    }
 
-   static boolean canSelect(ClientSelectionPart part, AABB bounds) {
+   public static boolean canSelect(ClientSelectionPart part, AABB bounds) {
       return part != null && bounds != null;
    }
 
-   static boolean canEditSource(ClientSelectionPart part) {
+   public static boolean canEditSource(ClientSelectionPart part) {
       return part != null && part.editability() == ClientSelectionPart.Editability.FREE;
    }
 }

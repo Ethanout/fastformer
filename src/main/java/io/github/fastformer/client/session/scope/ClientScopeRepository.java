@@ -14,7 +14,7 @@ public final class ClientScopeRepository {
    private final OperationClipboardRepository clipboard = new OperationClipboardRepository();
    private final ClientSelectionSession unboundSelection = new ClientSelectionSession();
    private final ClientInputSession unboundInput = new ClientInputSession(unboundSelection.gestures());
-   private final OperationContext unboundOperations = new OperationContext(unboundSelection, clipboard);
+   private final OperationContext unboundOperations = new OperationContext(unboundSelection, clipboard, unboundInput);
    private ClientScope current;
 
    public ClientScope current() {

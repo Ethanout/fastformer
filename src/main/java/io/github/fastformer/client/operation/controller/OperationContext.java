@@ -67,6 +67,8 @@ public final class OperationContext {
    private final SelectionEdits selectionEdits;
    private final SelectionDeletions deletions;
    private final OperationSubmissions submissions;
+   private final io.github.fastformer.client.operation.pointer.WorkspacePointerResolver pointer;
+   public io.github.fastformer.client.operation.pointer.WorkspacePointerResolver pointer() { return pointer; }
    private final OperationPreviewState preview = new OperationPreviewState();
    private final OperationReceipts receipts = new OperationReceipts(() -> ClientSessionSystem.instance().submissions(),
       () -> {
@@ -79,12 +81,14 @@ public final class OperationContext {
 
    private final ClientSelectionSession selection;
 
-   public OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard) {
-      this(selection, clipboard, () -> ClientSessionSystem.instance().submissions(), ClientSubmissionEnvironment::new);
+   public OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard,
+      io.github.fastformer.client.input.ClientInputSession input) {
+      this(selection, clipboard, () -> ClientSessionSystem.instance().submissions(), ClientSubmissionEnvironment::new, input);
    }
 
    OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard,
-      Supplier<? extends SubmissionStorage> storage, Function<BooleanSupplier, SubmissionEnvironment> environment) {
+      Supplier<? extends SubmissionStorage> storage, Function<BooleanSupplier, SubmissionEnvironment> environment,
+      io.github.fastformer.client.input.ClientInputSession input) {
       this.selection = Objects.requireNonNull(selection, "selection");
       this.clipboard = new OperationClipboardActions(selection.workspace(), clipboard,
          this::workspaceSubmissionPending, this::workspaceEditInProgress, this::synchronizeDerivedWorkspaceState);
@@ -106,6 +110,11 @@ public final class OperationContext {
       this.transforms = new OperationTransforms(selection.workspace(), this::workspaceSubmissionPending,
          selectionEdits::capturePending, this::ownsCurrentInteraction,
          this::captureFailed, this::synchronizeDerivedWorkspaceState);
+      var rays = Objects.requireNonNull(input, "input").pointer();
+      this.pointer = new io.github.fastformer.client.operation.pointer.WorkspacePointerResolver(selection,
+         selectionEdits::smartEditing, this::failedWorkspaceTargets, rays,
+         new io.github.fastformer.client.operation.pointer.SelectionCreationPointer(selection, selectionEdits,
+            preview::live, rays, input::canCreateSelection));
    }
 
    public ClientOperationWorkspace workspace() {
@@ -418,6 +427,7 @@ public final class OperationContext {
    }
 
    private void clearTransientOperationState() {
+      pointer.clear();
       selectionEdits.cancelCaptures(); transforms.cancel(); deletions.cancel();
       submissions.leave();
    }

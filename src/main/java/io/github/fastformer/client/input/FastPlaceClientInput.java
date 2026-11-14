@@ -300,7 +300,7 @@ public final class FastPlaceClientInput {
       }
       if (minecraft.player != null && minecraft.screen == null && event.action() == 1) {
          if ((event.key() == 257 || event.key() == 335) && operationSession) {
-            var intent = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
+            var intent = ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
             BlockPos candidate = ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing()
                ? FastPlaceClientPreviewCore.operationCandidatePoint()
                : intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null;
@@ -461,7 +461,7 @@ public final class FastPlaceClientInput {
          case ROTATE_SELECTION -> ClientSessionSystem.instance().operations().transforms().transformSelected(minecraft, false);
          case FLIP_SELECTION -> ClientSessionSystem.instance().operations().transforms().transformSelected(minecraft, true);
          case DELETE_SELECTION -> {
-            var intent = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
+            var intent = ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
             BlockPos candidate = ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing() ? FastPlaceClientPreviewCore.operationCandidatePoint()
                : intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null;
             ClientSessionSystem.instance().operations().deletions().delete(candidate);
@@ -909,7 +909,7 @@ public final class FastPlaceClientInput {
          inputSession().clickGestureToken = 0L;
       }
       boolean altMouseChord = physicalAltDown(minecraft, false) || inputSession().modifier.held();
-      OperationInteractionIntent pointerIntent = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
+      OperationInteractionIntent pointerIntent = ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
       // Alt is an explicit "new selection" chord. It must win over gizmos,
       // existing-part selection and vanilla placement, except for an explicit
       // Gizmo handle. That direct handle hit starts a transform while Alt
@@ -1212,7 +1212,7 @@ public final class FastPlaceClientInput {
          || session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) != ClientInputStateMachine.Dispatch.OPERATION) {
          return false;
       }
-      var target = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
+      var target = ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
       boolean alt = physicalAltDown(minecraft, false);
       if (ClientSessionSystem.instance().operations().selectionEdits().smartTool() && !(target instanceof OperationInteractionIntent.Gizmo)
          && (ClientSessionSystem.instance().operations().selectionEdits().smartEditing() || button == MouseButtonInputSemantics.RIGHT_BUTTON)) {
@@ -1305,8 +1305,7 @@ public final class FastPlaceClientInput {
    }
 
    public static boolean canCreateSelection() {
-      return inputSession().routing.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION)
-         == ClientInputStateMachine.Dispatch.OPERATION;
+      return inputSession().canCreateSelection();
    }
 
    static boolean queueSelectionDraft(
@@ -1594,7 +1593,7 @@ public final class FastPlaceClientInput {
       OperationInteractionIntent intent = null;
       if (minecraft.player != null && minecraft.level != null && minecraft.screen == null
          && minecraft.isWindowActive() && ClientSessionSystem.instance().operations().active()) {
-         intent = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
+         intent = ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
       }
       ClientSessionSystem.instance().operations().updateVisualHover(intent);
    }
@@ -1658,7 +1657,7 @@ public final class FastPlaceClientInput {
    }
 
    private static boolean beginOperationGizmoDrag(Minecraft minecraft, int mouseButton) {
-      OperationInteractionIntent.Gizmo workspaceTarget = FastPlaceClientPreviewCore.operationWorkspaceGizmoHit();
+      OperationInteractionIntent.Gizmo workspaceTarget = ClientSessionSystem.instance().operations().pointer().gizmo(InteractionContext.capture(Minecraft.getInstance()));
       if (workspaceTarget != null) {
          var press = SelectionPointerPress.capture(workspaceTarget, mouseButton, physicalCtrlDown(minecraft, false), 0,
             ClientSessionSystem.instance().operations().interactionScene(), ClientSessionSystem.instance().operations().workspace());
@@ -1832,7 +1831,7 @@ public final class FastPlaceClientInput {
    }
 
    private static OperationInteractionIntent pointerIntent() {
-      return FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
+      return ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
    }
 
    private static OperationInputSemantics.LeftDecision operationLeftDecision(

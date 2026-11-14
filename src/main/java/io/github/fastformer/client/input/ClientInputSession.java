@@ -37,6 +37,9 @@ public final class ClientInputSession {
    private final io.github.fastformer.client.interaction.pointer.PointerResolver pointer =
       new io.github.fastformer.client.interaction.pointer.PointerResolver();
    public io.github.fastformer.client.interaction.pointer.PointerResolver pointer() { return pointer; }
+   public boolean canCreateSelection() {
+      return routing.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION) == ClientInputStateMachine.Dispatch.OPERATION;
+   }
    private final io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures;
    public io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures() { return selectionGestures; }
    private final ClientSmartFillSession smartFill = new ClientSmartFillSession();

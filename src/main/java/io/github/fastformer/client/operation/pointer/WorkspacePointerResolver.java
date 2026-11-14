@@ -1,13 +1,9 @@
-package io.github.fastformer.client.render.core;
-
-import io.github.fastformer.client.session.ClientSessionSystem;
+package io.github.fastformer.client.operation.pointer;
 
 import io.github.fastformer.client.gizmo.GizmoViewScale;
-import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.client.input.PointerDragSnapshotView;
+import io.github.fastformer.client.interaction.pointer.PointerResolver;
 import io.github.fastformer.client.interaction.InteractionComponents;
 import io.github.fastformer.client.interaction.InteractionGeometry;
-import io.github.fastformer.client.interaction.InteractionVisibility;
 import io.github.fastformer.client.interaction.PartFrameInteraction;
 import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
@@ -15,6 +11,7 @@ import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.intent.InteractionIntentProvider;
 import io.github.fastformer.client.interaction.intent.InteractionIntentResolver;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
+import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
@@ -28,6 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
@@ -35,54 +35,60 @@ import net.minecraft.world.phys.HitResult.Type;
 import net.minecraft.world.phys.Vec3;
 
 /** Resolves operation pointer targets against the persistent client workspace. */
-public final class WorkspaceInteractionResolver {
+public final class WorkspacePointerResolver {
    private static final double REACH = LongRangeBlockRaycast.MAX_REACH;
-   private static final IdentityHashMap<ClientSelectionPart, Map<BlockPos, ClientBlockSnapshot>> RESOLVED_CACHE =
+   private final IdentityHashMap<ClientSelectionPart, Map<BlockPos, ClientBlockSnapshot>> resolvedCache =
       new IdentityHashMap<>();
-   private static long resolvedCacheRevision = Long.MIN_VALUE;
+   private long resolvedCacheRevision = Long.MIN_VALUE;
+   private java.util.UUID resolvedCacheOwner;
+   private final ClientSelectionSession selection;
+   private final BooleanSupplier smartEditing;
+   private final Supplier<Set<BlockPos>> failedTargets;
+   private final List<InteractionIntentProvider> providers;
 
-   private WorkspaceInteractionResolver() {
+   public WorkspacePointerResolver(ClientSelectionSession selection, BooleanSupplier smartEditing,
+      Supplier<Set<BlockPos>> failedTargets, PointerResolver pointer, InteractionIntentProvider creation) {
+      this.selection = Objects.requireNonNull(selection, "selection");
+      this.smartEditing = Objects.requireNonNull(smartEditing, "smartEditing");
+      this.failedTargets = Objects.requireNonNull(failedTargets, "failedTargets");
+      Objects.requireNonNull(pointer, "pointer");
+      Objects.requireNonNull(creation, "creation");
+      this.providers = List.of(this::resolveDraggedFace, this::resolveGizmo,
+         context -> resolveFace(context, pointer), this::resolvePart, creation);
    }
 
-   static List<InteractionIntentProvider> providers() {
-      return List.of(
-         WorkspaceInteractionResolver::resolveDraggedFace,
-         WorkspaceInteractionResolver::resolveGizmo,
-         WorkspaceInteractionResolver::resolveFace,
-         WorkspaceInteractionResolver::resolvePart,
-         WorkspaceInteractionResolver::resolveSelectionCreate
-      );
+   List<InteractionIntentProvider> providers() {
+      return providers;
    }
 
-   static Optional<OperationInteractionIntent> resolveCurrentIntent() {
-      InteractionContext context = InteractionContext.capture(net.minecraft.client.Minecraft.getInstance());
+   public Optional<OperationInteractionIntent> resolve(InteractionContext context) {
       return InteractionIntentResolver.resolve(context, providers());
    }
 
-   static OperationInteractionIntent.Gizmo currentGizmo() {
-      return resolveCurrentIntent()
+   public OperationInteractionIntent.Gizmo gizmo(InteractionContext context) {
+      return resolve(context)
          .filter(OperationInteractionIntent.Gizmo.class::isInstance)
          .map(OperationInteractionIntent.Gizmo.class::cast)
          .orElse(null);
    }
 
-   public static void clearCache() {
-      RESOLVED_CACHE.clear();
+   public void clear() {
+      resolvedCache.clear();
       resolvedCacheRevision = Long.MIN_VALUE;
+      resolvedCacheOwner = null;
    }
 
-   private static Optional<OperationInteractionIntent> resolveGizmo(InteractionContext context) {
-      if (ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) return Optional.empty();
-      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
-         || ClientSessionSystem.instance().operations().workspace().locked()) {
+   private Optional<OperationInteractionIntent> resolveGizmo(InteractionContext context) {
+      if (smartEditing.getAsBoolean()) return Optional.empty();
+      if (selection.workspace().isEmpty() || selection.hasDraft() || selection.workspace().locked()) {
          return Optional.empty();
       }
       List<OperationInteractionIntent.Gizmo> targets = new ArrayList<>();
-      var scene = ClientSessionSystem.instance().operations().interactionScene();
+      var scene = selection.interactionScene();
       for (var object : scene.parts().values()) {
          ClientSelectionPart part = object.source();
          if (!SelectionGizmoInteraction.partGizmoVisible(scene, object.gizmo(),
-            ClientSessionSystem.instance().operations().workspace().selectedIds().contains(part.id()))) {
+            selection.workspace().selectedIds().contains(part.id()))) {
             continue;
          }
          AABB interactionBounds = object.bounds();
@@ -121,7 +127,7 @@ public final class WorkspaceInteractionResolver {
       candidates.stream().filter(candidate -> candidate.hit() == preferred).findFirst().ifPresent(targets::add);
    }
 
-   private static boolean gizmoPrecedesOtherParts(
+   private boolean gizmoPrecedesOtherParts(
       OperationInteractionIntent.Gizmo target, SelectionInteractionScene scene, InteractionContext context
    ) {
       Set<Integer> owners = target.common()
@@ -129,29 +135,35 @@ public final class WorkspaceInteractionResolver {
          : Set.of(target.partId());
       for (var part : scene.parts().values()) {
          if (owners.contains(part.source().id()) || part.bounds() == null) continue;
-         var hit = hitPart(part.source(), part.bounds(), context.eye(), context.view());
+         var hit = hitPart(part.source(), part.bounds(), context.eye(), context.view(), context);
          // A handle can be inside its own model, but must not steal a click through another model.
          if (hit != null && hit.distance() + 0.02 < target.hit().rayDistance()) return false;
       }
       return true;
    }
 
-   private static Optional<OperationInteractionIntent> resolvePart(InteractionContext context) {
-      if (ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) return Optional.empty();
-      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || context.alternative()) {
+   private Optional<OperationInteractionIntent> resolvePart(InteractionContext context) {
+      if (smartEditing.getAsBoolean()) return Optional.empty();
+      if (selection.workspace().isEmpty() || selection.hasDraft() || context.alternative()) {
          return Optional.empty();
       }
-      var workspace = ClientSessionSystem.instance().operations().workspace();
-      Set<BlockPos> failedTargets = ClientSessionSystem.instance().operations().failedWorkspaceTargets();
+      var workspace = selection.workspace();
+      Set<BlockPos> failed = failedTargets.get();
       return resolvePartTarget(
-         ClientSessionSystem.instance().operations().interactionScene(), context.eye(), context.view(), context.control(),
-         failedTargets, workspace.locked()
+         selection.interactionScene(), context.eye(), context.view(), context.control(), failed, workspace.locked(), context
       ).map(OperationInteractionIntent.class::cast);
    }
 
-   static Optional<OperationInteractionIntent.Part> resolvePartTarget(
+   Optional<OperationInteractionIntent.Part> resolvePartTarget(
       SelectionInteractionScene scene, Vec3 eye, Vec3 view, boolean control,
       Set<BlockPos> failedTargets, boolean workspaceLocked
+   ) {
+      return resolvePartTarget(scene, eye, view, control, failedTargets, workspaceLocked, null);
+   }
+
+   private Optional<OperationInteractionIntent.Part> resolvePartTarget(
+      SelectionInteractionScene scene, Vec3 eye, Vec3 view, boolean control,
+      Set<BlockPos> failedTargets, boolean workspaceLocked, InteractionContext context
    ) {
       if (workspaceLocked || scene.parts().isEmpty()) {
          return Optional.empty();
@@ -165,7 +177,7 @@ public final class WorkspaceInteractionResolver {
          if (!WorkspacePartInteractionCapabilities.canSelect(part, bounds)) {
             continue;
          }
-         OperationGeometry.RayHit hit = part.smart() ? hitPart(part, bounds, eye, view)
+         OperationGeometry.RayHit hit = part.smart() ? hitPart(part, bounds, eye, view, context)
             : PartFrameInteraction.hit(object.frame(), eye, view, REACH, control);
          boolean frameHit = hit != null
             && !hitsFailedTarget(hit, failedTargets);
@@ -182,14 +194,14 @@ public final class WorkspaceInteractionResolver {
       return bestId == 0 ? Optional.empty() : Optional.of(new OperationInteractionIntent.Part(bestId, bestDistance, bestSurface));
    }
 
-   private static Optional<OperationInteractionIntent> resolveDraggedFace(InteractionContext context) {
-      var inputSession = FastPlaceClientInput.currentSession();
-      OperationGeometry.RayHit dragged = PointerDragSnapshotView.faceHit(inputSession);
-      int draggedPartId = PointerDragSnapshotView.facePartId(inputSession);
+   private Optional<OperationInteractionIntent> resolveDraggedFace(InteractionContext context) {
+      var drag = selection.gestures().face();
+      OperationGeometry.RayHit dragged = drag == null ? null : drag.hit();
+      int draggedPartId = drag == null ? 0 : drag.baseline().id();
       if (dragged != null && draggedPartId > 0) {
-         ClientSelectionPart part = ClientSessionSystem.instance().operations().workspace().part(draggedPartId).orElse(null);
+         ClientSelectionPart part = selection.workspace().part(draggedPartId).orElse(null);
          if (WorkspacePartInteractionCapabilities.canEditSource(part)) {
-            AABB bounds = ClientSessionSystem.instance().operations().interactionScene().bounds(part.id());
+            AABB bounds = selection.interactionScene().bounds(part.id());
             if (bounds != null) {
                return Optional.of(new OperationInteractionIntent.Face(draggedPartId, bounds, dragged, true));
             }
@@ -198,34 +210,34 @@ public final class WorkspaceInteractionResolver {
       return Optional.empty();
    }
 
-   private static Optional<OperationInteractionIntent> resolveFace(InteractionContext context) {
-      if (ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) return Optional.empty();
-      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
-         || ClientSessionSystem.instance().operations().workspace().locked() || context.control() || context.alternative()) {
+   private Optional<OperationInteractionIntent> resolveFace(InteractionContext context, PointerResolver pointer) {
+      if (smartEditing.getAsBoolean()) return Optional.empty();
+      if (selection.workspace().isEmpty() || selection.hasDraft()
+         || selection.workspace().locked() || context.control() || context.alternative()) {
          return Optional.empty();
       }
       OperationInteractionIntent.Face best = null;
       double worldDistance = REACH;
       if (context.minecraft() != null && context.minecraft().level != null) {
-         BlockHitResult worldHit = ClientSessionSystem.instance().inputSession().pointer().outline(context.player()).hit();
+         BlockHitResult worldHit = pointer.outline(context.player()).hit();
          if (worldHit.getType() == Type.BLOCK) worldDistance = context.eye().distanceTo(worldHit.getLocation());
       }
-      Set<BlockPos> failedTargets = ClientSessionSystem.instance().operations().failedWorkspaceTargets();
-      for (ClientSelectionPart part : ClientSessionSystem.instance().operations().workspace().parts()) {
-         AABB bounds = ClientSessionSystem.instance().operations().interactionScene().bounds(part.id());
+      Set<BlockPos> failed = failedTargets.get();
+      for (ClientSelectionPart part : selection.workspace().parts()) {
+         AABB bounds = selection.interactionScene().bounds(part.id());
          if (!WorkspacePartInteractionCapabilities.canSelect(part, bounds)) {
             continue;
          }
-         OperationGeometry.RayHit hit = hitPart(part, bounds, context.eye(), context.view());
-         if (hit != null && facePrecedesWorldBlock(hit.distance(), worldDistance) && !hitsFailedTarget(hit, failedTargets)
+         OperationGeometry.RayHit hit = hitPart(part, bounds, context.eye(), context.view(), context);
+         if (hit != null && facePrecedesWorldBlock(hit.distance(), worldDistance) && !hitsFailedTarget(hit, failed)
             && (best == null || hit.distance() < best.hit().distance())) {
             best = new OperationInteractionIntent.Face(
-               part.id(), bounds, hit, ClientSessionSystem.instance().operations().transforms().canAdjustAabbFace(part)
+               part.id(), bounds, hit, part.canAdjustGeometry()
             );
          }
       }
       if (best == null) return Optional.empty();
-      ClientSelectionPart part = ClientSessionSystem.instance().operations().workspace().part(best.partId()).orElseThrow();
+      ClientSelectionPart part = selection.workspace().part(best.partId()).orElseThrow();
       if (part.smart() || !WorkspacePartInteractionCapabilities.canEditSource(part)) {
          return Optional.of(new OperationInteractionIntent.Part(
             best.partId(), best.hit().distance(), OperationInteractionIntent.PartSurface.FRAME));
@@ -237,88 +249,30 @@ public final class WorkspaceInteractionResolver {
       return faceDistance <= worldDistance + 0.02;
    }
 
-   private static OperationGeometry.RayHit hitPart(ClientSelectionPart part, AABB bounds, Vec3 eye, Vec3 view) {
+   private OperationGeometry.RayHit hitPart(ClientSelectionPart part, AABB bounds, Vec3 eye, Vec3 view, InteractionContext context) {
       if (!part.smart()) return OperationGeometry.raycast(bounds.inflate(0.012), eye, view, REACH);
       if (OperationGeometry.raycast(bounds.inflate(0.5), eye, view, REACH) == null) return null;
-      var minecraft = net.minecraft.client.Minecraft.getInstance();
-      return io.github.fastformer.fastplace.selection.SmartSelectionRaycast.hit(resolveVisiblePartBlocks(part),
+      var minecraft = context == null ? null : context.minecraft();
+      return io.github.fastformer.fastplace.selection.SmartSelectionRaycast.hit(visibleBlocks(part),
          minecraft == null ? null : minecraft.level,
          minecraft == null || minecraft.player == null ? net.minecraft.world.phys.shapes.CollisionContext.empty()
             : net.minecraft.world.phys.shapes.CollisionContext.of(minecraft.player), eye, view, REACH);
    }
 
-   private static Optional<OperationInteractionIntent> resolveSelectionCreate(InteractionContext context) {
-      if (context.alternative()) {
-         if (!FastPlaceClientInput.canCreateSelection()
-            || context.minecraft().level == null) {
-            return Optional.empty();
-         }
-         BlockHitResult hit = ClientSessionSystem.instance().inputSession().pointer()
-            .selection(context.player(), context.alternative()).hit();
-         return hit.getType() == Type.BLOCK
-            ? Optional.of(new OperationInteractionIntent.CreateSelection(hit.getBlockPos()))
-            : Optional.empty();
-      }
-      BlockPos point;
-      boolean workspaceCreation = ClientSessionSystem.instance().operations().selectionEdits().canStartSelectionDraft()
-         || ClientSessionSystem.instance().operations().active();
-      if (workspaceCreation) {
-         if (context.minecraft().level == null) {
-            return Optional.empty();
-         }
-         BlockHitResult hit = ClientSessionSystem.instance().inputSession().pointer()
-            .selection(context.player(), context.alternative()).hit();
-         point = draftCandidate(context, hit);
-      } else {
-         if (context.vanillaOwnsPointer()
-            || !FastPlaceClientPreviewCore.operationActive()
-            || FastPlaceClientPreviewCore.operationSelectionConfirmed()
-            || FastPlaceClientPreviewCore.operationCuboid()
-               && !FastPlaceClientPreviewCore.operationNeedsFirst()
-               && !FastPlaceClientPreviewCore.operationNeedsSecond()) {
-            return Optional.empty();
-         }
-         point = FastPlaceClientPreviewCore.operationCandidatePoint();
-      }
-      return point == null
-         ? Optional.empty()
-         : Optional.of(new OperationInteractionIntent.CreateSelection(point));
-   }
-
-   static BlockPos selectionCreationPoint(BlockHitResult hit) {
-      return hit != null && hit.getType() == Type.BLOCK
-         ? hit.getBlockPos()
-         : null;
-   }
-
-   private static BlockPos draftCandidate(InteractionContext context, BlockHitResult hit) {
-      var draft = ClientSessionSystem.instance().operations().selectionEdits().selectionDraft();
-      if (draft.selectionMode() != io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM
-         || draft.points().size() < 3) return selectionCreationPoint(hit);
-      double distance = context.eye().distanceTo(hit.getLocation());
-      if (draft.prismBaseCount() > 0) return io.github.fastformer.fastplace.geometry.SelectionPrism.resolveHeightPoint(
-         draft.points().subList(0, draft.prismBaseCount()), context.eye(), context.view(), distance);
-      Vec3 first = Vec3.atCenterOf(draft.points().getFirst());
-      double along = first.subtract(context.eye()).dot(context.view());
-      if (along > 0 && context.eye().add(context.view().scale(along)).distanceTo(first) < 0.35)
-         return draft.points().getFirst();
-      return io.github.fastformer.fastplace.geometry.SelectionPrism.resolveBasePlanePoint(
-         draft.points(), context.eye(), context.view(), distance);
-   }
-
-   static Map<BlockPos, ClientBlockSnapshot> resolvePartBlocks(ClientSelectionPart part) {
-      long revision = ClientSessionSystem.instance().operations().workspace().revision();
-      if (resolvedCacheRevision != revision) {
-         clearCache();
+   Map<BlockPos, ClientBlockSnapshot> resolvePartBlocks(ClientSelectionPart part) {
+      long revision = selection.workspace().revision();
+      if (resolvedCacheRevision != revision || !selection.interactionOwnerId().equals(resolvedCacheOwner)) {
+         clear();
          resolvedCacheRevision = revision;
+         resolvedCacheOwner = selection.interactionOwnerId();
       }
-      return RESOLVED_CACHE.computeIfAbsent(part, WorkspacePreviewComposer::resolveForRendering);
+      return resolvedCache.computeIfAbsent(part, WorkspacePreviewComposer::resolveForRendering);
    }
 
    /** Resolves the portion still visible after a rejected workspace submission. */
-   static Map<BlockPos, ClientBlockSnapshot> resolveVisiblePartBlocks(ClientSelectionPart part) {
+   public Map<BlockPos, ClientBlockSnapshot> visibleBlocks(ClientSelectionPart part) {
       Map<BlockPos, ClientBlockSnapshot> resolved = resolvePartBlocks(part);
-      Set<BlockPos> failed = ClientSessionSystem.instance().operations().failedWorkspaceTargets();
+      Set<BlockPos> failed = failedTargets.get();
       return withoutFailedTargets(resolved, failed);
    }
 
@@ -339,10 +293,10 @@ public final class WorkspaceInteractionResolver {
       return failedTargets.contains(BlockPos.containing(inside));
    }
 
-   static void pruneCache(List<ClientSelectionPart> currentParts) {
+   public void prune(List<ClientSelectionPart> currentParts) {
       Set<ClientSelectionPart> live = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
       live.addAll(currentParts);
-      RESOLVED_CACHE.keySet().removeIf(part -> !live.contains(part));
+      resolvedCache.keySet().removeIf(part -> !live.contains(part));
    }
 
 }

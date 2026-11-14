@@ -64,7 +64,7 @@ final class SmartSelectionIsolationRenderer {
          RenderSystem.setShaderColor(1, 1, 1, 1);
          for (var part : workspace.parts()) {
             if (!part.smart()) continue;
-            var blocks = WorkspaceInteractionResolver.resolveVisiblePartBlocks(part);
+            var blocks = ClientSessionSystem.instance().operations().pointer().visibleBlocks(part);
             Cells cells = CACHE.get(part.id());
             if (cells == null || cells.blocks != blocks || cells.editable != part.smartEditable()) {
                if (cells != null) cells.close();

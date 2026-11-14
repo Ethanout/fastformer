@@ -1,6 +1,9 @@
-package io.github.fastformer.client.render.core;
+package io.github.fastformer.client.operation.pointer;
 
-import io.github.fastformer.client.session.ClientSessionSystem;
+import io.github.fastformer.client.input.ClientInputSession;
+import io.github.fastformer.client.operation.clipboard.OperationClipboardRepository;
+import io.github.fastformer.client.operation.controller.OperationContext;
+import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 
 import io.github.fastformer.core.math.Axis;
 
@@ -27,10 +30,70 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
-class WorkspaceInteractionResolverTest {
+class WorkspacePointerResolverTest {
+   private final ClientSelectionSession selection = new ClientSelectionSession();
+   private final OperationContext operations = new OperationContext(selection, new OperationClipboardRepository(),
+      new ClientInputSession(selection.gestures()));
+   private WorkspacePointerResolver resolver() { return operations.pointer(); }
+
+   @Test
+   void independentResolversKeepTheirTargetsWhenAnotherSessionChanges() {
+      var first = new ClientSelectionSession();
+      var second = new ClientSelectionSession();
+      var firstPart = transformedPart(1);
+      var secondPart = transformedPart(2);
+      first.workspace().addParts(List.of(firstPart));
+      second.workspace().restoreDraftState(new ClientOperationWorkspace.DraftState(List.of(secondPart), Set.of(), 0));
+      first.publishInteractionScene();
+      second.publishInteractionScene();
+      var firstResolver = independent(first, Set::of);
+      var secondResolver = independent(second, Set::of);
+      var bounds = PartInteractionBounds.resolve(firstPart);
+      Vec3 eye = new Vec3(bounds.minX - 5, bounds.getCenter().y, bounds.getCenter().z);
+      var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
+         null, null, eye, new Vec3(1, 0, 0), eye, false, true, false);
+      assertEquals(1, ((OperationInteractionIntent.Part) firstResolver.providers().get(3).resolve(context).orElseThrow()).partId());
+      assertEquals(2, ((OperationInteractionIntent.Part) secondResolver.providers().get(3).resolve(context).orElseThrow()).partId());
+      first.clearLiveInteraction();
+      firstResolver.clear();
+      assertTrue(firstResolver.resolve(context).isEmpty());
+      assertEquals(2, ((OperationInteractionIntent.Part) secondResolver.providers().get(3).resolve(context).orElseThrow()).partId());
+   }
+
+   @Test
+   void failedCellsBelongToTheirOwnWorkspaceAndUpdateWithoutReplacingTheResolver() {
+      var first = new ClientSelectionSession();
+      var second = new ClientSelectionSession();
+      var failed = new java.util.concurrent.atomic.AtomicReference<Set<BlockPos>>(Set.of());
+      var volume = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2), null, null);
+      var original = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume,
+         Map.of(), WorkspaceTransform.IDENTITY, false);
+      first.workspace().addParts(List.of(original));
+      second.workspace().addParts(List.of(original));
+      first.publishInteractionScene();
+      second.publishInteractionScene();
+      var firstResolver = independent(first, failed::get);
+      var secondResolver = independent(second, Set::of);
+      var eye = new Vec3(-5, 1.1, 1.5);
+      var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
+         null, null, eye, new Vec3(1, 0, 0), eye, false, false, false);
+      assertTrue(firstResolver.providers().get(2).resolve(context).isPresent());
+      failed.set(Set.of(new BlockPos(0, 1, 1)));
+      assertTrue(firstResolver.providers().get(2).resolve(context).isEmpty());
+      assertTrue(secondResolver.providers().get(2).resolve(context).isPresent());
+      failed.set(Set.of());
+      firstResolver.clear();
+      assertTrue(firstResolver.providers().get(2).resolve(context).isPresent());
+   }
+
+   private static WorkspacePointerResolver independent(ClientSelectionSession selection,
+      java.util.function.Supplier<Set<BlockPos>> failed) {
+      return new WorkspacePointerResolver(selection, () -> false, failed,
+         new io.github.fastformer.client.interaction.pointer.PointerResolver(), context -> Optional.empty());
+   }
    @Test
    void fixedSurfaceInFrontOfEditableSelectionWinsAfterDeselecting() {
-      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var workspace = operations.workspace();
       workspace.clear();
       try {
          var volume = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2),
@@ -41,30 +104,30 @@ class WorkspaceInteractionResolverTest {
             OperationSelectionVolume.cuboid(new BlockPos(0, 0, 8), new BlockPos(2, 2, 10), null, null),
             Map.of(), WorkspaceTransform.IDENTITY, false);
          assertTrue(workspace.addParts(List.of(front, back)));
-         ClientSessionSystem.instance().operations().deselectAllWorkspaceParts();
+         operations.deselectAllWorkspaceParts();
          Vec3 eye = new Vec3(0.5, 0.5, -2);
          var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
             null, null, eye, new Vec3(0, 0, 1), eye, false, false, true);
          var intent = io.github.fastformer.client.interaction.intent.InteractionIntentResolver.resolve(
-            context, WorkspaceInteractionResolver.providers()).orElseThrow();
+            context, resolver().providers()).orElseThrow();
          assertEquals(1, ((OperationInteractionIntent.Part) intent).partId());
          assertTrue(workspace.selectedIds().isEmpty());
          assertTrue(workspace.part(2).orElseThrow().canAdjustGeometry());
       } finally {
-         ClientSessionSystem.instance().operations().clearWorkspace();
-         WorkspaceInteractionResolver.clearCache();
+         operations.clearWorkspace();
+         resolver().clear();
       }
    }
 
    @Test
    void deselectedFixedPartCanBePickedAgainThroughItsFrameOrLabelNearBlocks() {
-      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var workspace = operations.workspace();
       workspace.clear();
       try {
          var first = transformedPart(1).fixed();
          var second = transformedPart(2).withTranslation(new Vec3(20, 0, 0)).fixed();
          assertTrue(workspace.addParts(List.of(first, second)));
-         ClientSessionSystem.instance().operations().deselectAllWorkspaceParts();
+         operations.deselectAllWorkspaceParts();
          assertTrue(workspace.selectedIds().isEmpty());
          var bounds = PartInteractionBounds.resolve(first);
          var center = bounds.getCenter();
@@ -74,32 +137,32 @@ class WorkspaceInteractionResolverTest {
                : center.y + (target == 2 ? 0.22 : -0.4), center.z);
             var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
                null, null, eye, new Vec3(1, 0, 0), eye, false, target == 1, true);
-            var intent = WorkspaceInteractionResolver.providers().get(3).resolve(context).orElseThrow();
+            var intent = resolver().providers().get(3).resolve(context).orElseThrow();
             var part = (OperationInteractionIntent.Part) intent;
             assertEquals(first.id(), part.partId());
             assertEquals(target == 2 ? OperationInteractionIntent.PartSurface.LABEL
                : OperationInteractionIntent.PartSurface.FRAME, part.surface());
             assertTrue(io.github.fastformer.client.operation.input.SelectionPointerPress.capture(
                part, 0, context.control(), -1,
-               ClientSessionSystem.instance().operations().interactionScene(), workspace
+               operations.interactionScene(), workspace
             ).isPresent());
          }
          assertEquals(List.of(first, second), workspace.parts());
       } finally {
-         ClientSessionSystem.instance().operations().clearWorkspace();
-         WorkspaceInteractionResolver.clearCache();
+         operations.clearWorkspace();
+         resolver().clear();
       }
    }
 
    @Test void facePickingUsesDistanceAndPrefersCoincidentSelectionFaces() {
-      assertTrue(WorkspaceInteractionResolver.facePrecedesWorldBlock(2, 4));
-      assertTrue(WorkspaceInteractionResolver.facePrecedesWorldBlock(2, 2));
-      assertTrue(WorkspaceInteractionResolver.facePrecedesWorldBlock(2.01, 2));
-      assertEquals(false, WorkspaceInteractionResolver.facePrecedesWorldBlock(4, 2));
+      assertTrue(resolver().facePrecedesWorldBlock(2, 4));
+      assertTrue(resolver().facePrecedesWorldBlock(2, 2));
+      assertTrue(resolver().facePrecedesWorldBlock(2.01, 2));
+      assertEquals(false, resolver().facePrecedesWorldBlock(4, 2));
    }
    @Test
    void unlockedFaceCanBeDraggedNearWorldBlocksEvenWhenAnOlderPartIsNotSelected() {
-      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var workspace = operations.workspace();
       workspace.clear();
       try {
          var selection = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2),
@@ -111,19 +174,19 @@ class WorkspaceInteractionResolverTest {
             Map.of(), WorkspaceTransform.IDENTITY, false);
          assertTrue(workspace.addParts(List.of(first, second)));
          workspace.selectOnly(2);
-         ClientSessionSystem.instance().operations().onClientTick();
+         this.selection.publishInteractionScene();
          var eye = new Vec3(1.5, 1.5, 5);
          var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
             null, null, eye, new Vec3(0, 0, -1), eye, false, false, true);
-         var faceProvider = WorkspaceInteractionResolver.providers().get(2);
+         var faceProvider = resolver().providers().get(2);
          var face = (OperationInteractionIntent.Face) faceProvider.resolve(context).orElseThrow();
          assertEquals(1, face.partId());
          assertTrue(face.adjustable());
          assertTrue(workspace.beginEdit());
          var token = workspace.activeEditToken();
-         ClientSessionSystem.instance().operations().transforms().updateAabbFaceGesture(
+         operations.transforms().updateAabbFaceGesture(
             token, first, 2, true, 2);
-         ClientSessionSystem.instance().operations().transforms().finishTransformGesture(token);
+         operations.transforms().finishTransformGesture(token);
          var resized = workspace.part(1).orElseThrow();
          assertEquals(5.0, resized.selection().bounds().maxZ);
          assertTrue(resized.canAdjustGeometry());
@@ -131,12 +194,12 @@ class WorkspaceInteractionResolverTest {
          assertTrue(workspace.beginEdit());
          workspace.updatePart(resized.fixed());
          workspace.finishEdit();
-         ClientSessionSystem.instance().operations().onClientTick();
+         this.selection.publishInteractionScene();
          var fixedTarget = (OperationInteractionIntent.Part) faceProvider.resolve(context).orElseThrow();
          assertEquals(1, fixedTarget.partId());
       } finally {
-         ClientSessionSystem.instance().operations().clearWorkspace();
-         WorkspaceInteractionResolver.clearCache();
+         operations.clearWorkspace();
+         resolver().clear();
       }
    }
    private static io.github.fastformer.client.interaction.SelectionInteractionScene scene(ClientSelectionPart part) {
@@ -158,18 +221,18 @@ class WorkspaceInteractionResolverTest {
          new PartLabelInteraction.Context(false, true, false, false, null, 1));
       Vec3 eye = shown.anchor().add(0, 0, 10);
 
-      var hit = WorkspaceInteractionResolver.resolvePartTarget(
+      var hit = resolver().resolvePartTarget(
          scene, eye, new Vec3(0, 0, -1), false, Set.of(), false).orElseThrow();
       assertEquals(7, hit.partId());
       assertEquals(io.github.fastformer.client.interaction.intent.OperationInteractionIntent.PartSurface.LABEL, hit.surface());
       assertEquals(10.0, hit.distance(), 1.0E-9);
-      assertTrue(WorkspaceInteractionResolver.resolvePartTarget(
+      assertTrue(resolver().resolvePartTarget(
          scene, eye.add(0.23, 0, 0), new Vec3(0, 0, -1), false, Set.of(), false).isEmpty());
    }
 
    @Test
    void aPartHandleMovesOnlyItsTargetWithinAMultipleSelection() {
-      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var workspace = operations.workspace();
       workspace.clear();
       try {
          var first = transformedPart(1);
@@ -178,7 +241,7 @@ class WorkspaceInteractionResolverTest {
          assertEquals(Set.of(1, 2), workspace.selectedIds());
          var targets = io.github.fastformer.client.input.drag.WorkspaceGizmoDrag.targets(workspace, 1, false);
          assertTrue(workspace.beginEdit());
-         ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
+         operations.transforms().updateTransformGesture(
             workspace.activeEditToken(), targets, false, AxisGizmo.Operation.MOVE, Axis.X, 1, 3, Double.NaN
          );
          assertEquals(first.transform().translation().add(3, 0, 0), workspace.part(1).orElseThrow().transform().translation());
@@ -186,20 +249,20 @@ class WorkspaceInteractionResolverTest {
          assertEquals(2, io.github.fastformer.client.input.drag.WorkspaceGizmoDrag.targets(workspace, 0, true).size());
       } finally {
          workspace.clear();
-         WorkspaceInteractionResolver.clearCache();
+         resolver().clear();
       }
    }
 
    @Test
    void lockedPartGizmoCanOnlyBePickedWhenVisibleAndWorkspaceIsEditable() {
-      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var workspace = operations.workspace();
       workspace.clear();
       try {
          var part = transformedPart(1);
          var other = transformedPart(2).withTranslation(new Vec3(100, 0, 0));
          assertTrue(workspace.addParts(List.of(part, other)));
          workspace.selectOnly(2);
-         ClientSessionSystem.instance().operations().onClientTick();
+         this.selection.publishInteractionScene();
          Vec3 center = PartInteractionBounds.resolve(part).getCenter();
          Vec3 camera = center.add(0, 0, 10);
          var scale = io.github.fastformer.client.gizmo.GizmoViewScale.fromDistance(10);
@@ -211,12 +274,12 @@ class WorkspaceInteractionResolverTest {
          var context = new io.github.fastformer.client.interaction.intent.InteractionContext(
             null, null, target.add(0, 0, 10), new Vec3(0, 0, -1), camera, false, false, false
          );
-         var provider = WorkspaceInteractionResolver.providers().get(1);
-         var hiddenObject = ClientSessionSystem.instance().operations().interactionScene().parts().get(1).gizmo();
+         var provider = resolver().providers().get(1);
+         var hiddenObject = operations.interactionScene().parts().get(1).gizmo();
          assertEquals(false, io.github.fastformer.client.interaction.InteractionVisibility.isVisible(hiddenObject, false));
          assertTrue(provider.resolve(context).isEmpty());
          workspace.selectOnly(1);
-         ClientSessionSystem.instance().operations().onClientTick();
+         this.selection.publishInteractionScene();
          assertTrue(io.github.fastformer.client.interaction.InteractionVisibility.isVisible(hiddenObject, true));
          var intent = (OperationInteractionIntent.Gizmo)provider.resolve(context).orElseThrow();
          assertEquals(1, intent.partId());
@@ -227,7 +290,7 @@ class WorkspaceInteractionResolverTest {
          assertTrue(provider.resolve(context).isEmpty());
       } finally {
          workspace.clear();
-         WorkspaceInteractionResolver.clearCache();
+         resolver().clear();
       }
    }
 
@@ -238,9 +301,9 @@ class WorkspaceInteractionResolverTest {
 
       for (Direction face : Direction.values()) {
          hit = new BlockHitResult(Vec3.atCenterOf(hitBlock), face, hitBlock, false);
-         assertEquals(hitBlock, WorkspaceInteractionResolver.selectionCreationPoint(hit));
+         assertEquals(hitBlock, SelectionCreationPointer.selectionCreationPoint(hit));
       }
-      assertEquals(null, WorkspaceInteractionResolver.selectionCreationPoint(
+      assertEquals(null, SelectionCreationPointer.selectionCreationPoint(
          BlockHitResult.miss(Vec3.ZERO, Direction.UP, BlockPos.ZERO)));
    }
 
@@ -252,7 +315,7 @@ class WorkspaceInteractionResolverTest {
       blocks.put(first, "first");
       blocks.put(failed, "failed");
 
-      Map<BlockPos, String> visible = WorkspaceInteractionResolver.withoutFailedTargets(blocks, Set.of(failed));
+      Map<BlockPos, String> visible = resolver().withoutFailedTargets(blocks, Set.of(failed));
 
       assertEquals(Map.of(first, "first"), visible);
       assertEquals(2, blocks.size());
@@ -361,12 +424,12 @@ class WorkspaceInteractionResolverTest {
 
       Vec3 eye = new Vec3(-5.0, 1.1, 1.5);
       Vec3 view = new Vec3(1.0, 0.0, 0.0);
-      var hit = WorkspaceInteractionResolver.resolvePartTarget(
+      var hit = resolver().resolvePartTarget(
          scene(part), eye, view, true, Set.of(), false
       ).orElseThrow();
       assertEquals(1, hit.partId());
       assertEquals(io.github.fastformer.client.interaction.intent.OperationInteractionIntent.PartSurface.FRAME, hit.surface());
-      assertTrue(WorkspaceInteractionResolver.resolvePartTarget(
+      assertTrue(resolver().resolvePartTarget(
          scene(part), eye, view, true, Set.of(new BlockPos(0, 1, 1)), false
       ).isEmpty());
    }
@@ -395,12 +458,12 @@ class WorkspaceInteractionResolverTest {
       ).withTranslation(new Vec3(2.0, 0.0, 0.0));
    }
 
-   private static Optional<OperationInteractionIntent.Part> resolveCtrlPart(
+   private Optional<OperationInteractionIntent.Part> resolveCtrlPart(
       ClientSelectionPart part, Set<BlockPos> failedTargets, boolean workspaceLocked
    ) {
       var bounds = PartInteractionBounds.resolve(part);
       Vec3 eye = new Vec3(bounds.minX - 5.0, bounds.getCenter().y, bounds.getCenter().z);
-      return WorkspaceInteractionResolver.resolvePartTarget(
+      return resolver().resolvePartTarget(
          scene(part), eye, new Vec3(1.0, 0.0, 0.0), true, failedTargets, workspaceLocked
       );
    }
@@ -432,8 +495,8 @@ class WorkspaceInteractionResolverTest {
          new Vec3(4.0, 4.5, 5.5), new Vec3(1.0, 0.0, 0.0), 2.0, 0
       );
 
-      assertEquals(true, WorkspaceInteractionResolver.hitsFailedTarget(hit, Set.of(rejected)));
-      assertEquals(false, WorkspaceInteractionResolver.hitsFailedTarget(hit, Set.of(rejected.above())));
+      assertEquals(true, resolver().hitsFailedTarget(hit, Set.of(rejected)));
+      assertEquals(false, resolver().hitsFailedTarget(hit, Set.of(rejected.above())));
    }
 
    @Test

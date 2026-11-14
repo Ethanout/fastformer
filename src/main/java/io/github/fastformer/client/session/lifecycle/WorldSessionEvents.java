@@ -3,7 +3,6 @@ package io.github.fastformer.client.session.lifecycle;
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.client.render.core.WorkspaceInteractionResolver;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -19,7 +18,7 @@ public final class WorldSessionEvents {
       @Override public void clearSourceMask() { ClientSessionSystem.instance().operations().sourceMask().clear(); }
       @Override public void resetPreviewSession() { FastPlaceClientPreviewCore.resetConnectionState(); }
       @Override public void disconnectOperation() { ClientSessionSystem.instance().operations().onDisconnected(); }
-      @Override public void clearInteractionCache() { WorkspaceInteractionResolver.clearCache(); }
+      @Override public void clearInteractionCache() { ClientSessionSystem.instance().operations().pointer().clear(); }
       @Override public void clearFeedback() { FastPlaceClientPreviewCore.clearTransientFeedback(); }
       @Override public void clearWorldRenderState() { FastPlaceClientPreviewCore.clearWorldRenderState(); }
    });

@@ -529,3 +529,12 @@
 - 六项新增测试覆盖用途交错且距离不串用、视角／tick／所有者变化、相同坐标复用、显式边界、异常恢复和双输入环境隔离。架构检查禁止恢复旧缓存及指针包反向依赖输入／渲染／会话装配。
 - `.temp/architecture-shared-pointer-verified.log`：完整 `check` 与独立新目录全量 312 项必需 GameTest 通过；`git diff --check` 通过。
 - 这是 PointerResolver 的方块采样阶段；工作区意图解析仍在旧渲染目录，完整 PointerState／PreviewFrame、Mode 注册与事件路由仍需后续迁移，不能据此视为手册 3.3 完成。实际试玩存档和正式构建仓库配置未改动。
+
+## 选区指针能力与模型缓存所有权（2026-11-14）
+
+- 方块指针采样阶段已提交并推送：`cdd7792`。
+- 删除静态渲染目录的 WorkspaceInteractionResolver；`WorkspacePointerResolver` 持有所属选区及模型缓存，拖面从所属手势读取。失败位置、射线和创建候选通过构造注入，所有目标计算均不查询全局编辑器。缓存增加交互所有者身份校验，编辑器清理／离开环境释放自己的缓存。
+- `SelectionCreationPointer` 接管 Alt 创建、已有工作区／本地草稿候选和服务端初始选点，保留原棱柱底面／高度计算与距离规则，不依赖渲染核心。OperationContext 装配时接收真实的 ClientInputSession，射线和创建门禁不在使用时改查全局当前输入。
+- 输入直接访问所属指针能力，渲染复用其可见模型。原命中回归测试移至新包并使用独立选区／编辑器；新增跨选区目标隔离和失败位置动态更新／隔离测试。源码约束禁止恢复静态解析器、能力反向依赖总入口／输入／渲染，以及输入调用旧渲染命中转发。
+- `.temp/architecture-workspace-pointer-final-check.log`：最终完整 `check` 通过（2473 项单元测试，0 失败，1 跳过）。`.temp/architecture-workspace-pointer-final-verified.log` 中独立新目录全量 312 项必需 GameTest 通过；该轮同时运行的测试编译曾失败，随后只修改测试夹具并单独完成最终 check，不将该轮整体构建记作成功。
+- Mode／PreviewFrame／完整帧内意图缓存、操作树及其余手册项目仍待实施。正式构建仓库配置和实际试玩存档未改动。

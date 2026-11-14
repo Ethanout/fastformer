@@ -34,6 +34,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.client.operation.transform') ||
                     packageName.startsWith('io.github.fastformer.client.operation.submission') ||
                     packageName.startsWith('io.github.fastformer.client.operation.edit') ||
+                    packageName.startsWith('io.github.fastformer.client.operation.pointer') ||
                     packageName.startsWith('io.github.fastformer.client.interaction.pointer') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
@@ -58,6 +59,17 @@ abstract class VerifySourceLayout extends DefaultTask {
             }
             if (main && (text =~ /\bInteractionRaycastOwner\b/).find()) {
                 violations.add("Retired renderer-owned last-ray cache: ${path}")
+            }
+            if (main && (text =~ /\bWorkspaceInteractionResolver\b/).find()) {
+                violations.add("Retired static renderer workspace resolver: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.operation.pointer') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render\.|input\.|session\.|operation\.controller\.)|Minecraft\.getInstance\s*\()/).find()) {
+                violations.add("Selection pointer resolution must use its bound session and explicit context: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.input') &&
+                    (dependencies =~ /FastPlaceClientPreviewCore\.operation(?:InteractionIntent|WorkspaceGizmoHit)\s*\(/).find()) {
+                violations.add("Input must resolve workspace targets through its owned pointer capability: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.client.interaction.pointer') &&
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:render|input|session|operation)\./).find()) {

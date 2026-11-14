@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.client.operation.pointer.WorkspacePartInteractionCapabilities;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.core.math.Axis;
@@ -225,12 +227,12 @@ final class OperationPreviewRenderer {
       boolean controlHeld = FastPlaceClientInput.controlHeld();
 
       List<ClientSelectionPart> parts = workspace.parts();
-      WorkspaceInteractionResolver.pruneCache(parts);
+      ClientSessionSystem.instance().operations().pointer().prune(parts);
       Map<Integer, Map<BlockPos, ClientBlockSnapshot>> resolvedParts = new LinkedHashMap<>();
       var scene = new io.github.fastformer.workspace.preview.WorkspaceScene<ClientBlockSnapshot>(snapshot -> !snapshot.state().isAir());
       for (ClientSelectionPart part : parts) {
          if (!part.pendingDelete()) {
-            Map<BlockPos, ClientBlockSnapshot> resolved = WorkspaceInteractionResolver.resolveVisiblePartBlocks(part);
+            Map<BlockPos, ClientBlockSnapshot> resolved = ClientSessionSystem.instance().operations().pointer().visibleBlocks(part);
             resolvedParts.put(part.id(), resolved);
             scene.overlay(part.id(), resolved);
          }
@@ -240,7 +242,7 @@ final class OperationPreviewRenderer {
          var interactionPart = interactionScene.parts().get(part.id());
          if (interactionPart == null || interactionPart.bounds() == null) continue;
          Map<BlockPos, ClientBlockSnapshot> resolved = part.pendingDelete()
-            ? WorkspaceInteractionResolver.resolveVisiblePartBlocks(part)
+            ? ClientSessionSystem.instance().operations().pointer().visibleBlocks(part)
             : resolvedParts.getOrDefault(part.id(), Map.of());
          Map<BlockPos, ClientBlockSnapshot> ownedBlocks = blocksOwnedByPart(resolved, scene.owners(), part.id());
          if (!shouldRenderPartBlocks(part)) {
@@ -259,7 +261,7 @@ final class OperationPreviewRenderer {
       }
       for (ClientSelectionPart part : parts) {
          Map<BlockPos, ClientBlockSnapshot> resolved = part.pendingDelete()
-            ? WorkspaceInteractionResolver.resolveVisiblePartBlocks(part)
+            ? ClientSessionSystem.instance().operations().pointer().visibleBlocks(part)
             : resolvedParts.getOrDefault(part.id(), Map.of());
          boolean selected = workspace.selectedIds().contains(part.id());
          var capture = ClientSessionSystem.instance().operations().selectionGestures().capture();
