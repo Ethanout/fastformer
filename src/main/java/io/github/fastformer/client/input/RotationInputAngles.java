@@ -1,7 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.state.ModifierGestureState;
-import io.github.fastformer.workspace.transform.PixelPerfectAngles;
+import io.github.fastformer.common.math.PixelPerfectAngles;
 
 final class RotationInputAngles {
    private RotationInputAngles() { }
@@ -16,12 +16,4 @@ final class RotationInputAngles {
       return PixelPerfectAngles.defaultSnap(radians);
    }
 
-   static double selectionPreview(int rawSteps, boolean control) {
-      double radians = rawSteps * Math.PI * 2.0 / 1024.0;
-      return control ? PixelPerfectAngles.free(radians) : PixelPerfectAngles.defaultSnap(radians);
-   }
-
-   static double selectionFinish(double radians, boolean control) {
-      return control ? PixelPerfectAngles.free(radians) : PixelPerfectAngles.defaultSnap(radians);
-   }
 }

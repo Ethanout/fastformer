@@ -4,6 +4,8 @@ import static io.github.fastformer.client.input.state.ClientInputStateMachine.Di
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
+import io.github.fastformer.common.mode.BuiltinModes;
+import io.github.fastformer.common.mode.ModeId;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
 import java.util.Map;
@@ -13,7 +15,7 @@ import java.util.Optional;
 public final class IdleMode implements ClientMode {
    private static final Map<State, ModeInputPolicy> PHASES = Map.of(State.IDLE, new ModeInputPolicy(VANILLA, BLOCKED, BLOCKED, VANILLA, BLOCKED, false, false, false));
 
-   @Override public String id() { return "fastformer:idle"; }
+   @Override public ModeId id() { return BuiltinModes.IDLE; }
    @Override public int priority() { return 0; }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }
    @Override public Optional<State> observe(ModeObservation observation) {

@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.input.state.ForwardDashMotion;
 import io.github.fastformer.client.input.state.ForwardDashRequests;
 import io.github.fastformer.client.FastFormerClientConfig;
@@ -13,8 +15,6 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Applies authorized dash movement after the player tick, preserving vanilla camera interpolation. */
 @EventBusSubscriber(modid = "fastformer", value = Dist.CLIENT)
@@ -30,8 +30,8 @@ public final class ForwardDashController {
    public static void request(Minecraft minecraft) {
       validate(minecraft);
       if (!eligible(minecraft) || FastFormerClientConfig.flightSettings().dashDistance() == 0
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), ForwardDashPayload.TYPE.id())
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), ForwardDashStartPayload.TYPE.id())) return;
+         || !ServerGateway.supports(minecraft, ForwardDashPayload.TYPE)
+         || !ServerGateway.supports(minecraft, ForwardDashStartPayload.TYPE)) return;
       owner = minecraft.player;
       if (lastPosition == null) lastPosition = owner.position();
       sendRequest(REQUESTS.request(System.nanoTime()));
@@ -99,7 +99,7 @@ public final class ForwardDashController {
    }
 
    private static void sendRequest(long id) {
-      if (id != 0) PacketDistributor.sendToServer(new ForwardDashPayload(id, FastFormerClientConfig.flightSettings().dashDistance()));
+      if (id != 0) ServerGateway.send(new ForwardDashPayload(id, FastFormerClientConfig.flightSettings().dashDistance()));
    }
 
    private static void checkExternalMovement() {

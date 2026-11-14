@@ -8,6 +8,7 @@ import io.github.fastformer.client.mode.input.pointer.PointerDecision;
 import io.github.fastformer.client.mode.input.pointer.PointerInput;
 import io.github.fastformer.client.mode.input.pointer.PointerView;
 import io.github.fastformer.core.registry.Registry;
+import io.github.fastformer.common.mode.ModeId;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
@@ -16,7 +17,7 @@ import java.util.Objects;
 
 /** Frozen mode definitions; session state remains in the environment's input machine. */
 public final class ClientModeRegistry {
-   private final Registry<String, Definition> modes = Registry.create("client modes");
+   private final Registry<ModeId, Definition> modes = Registry.create("client modes");
    private final EnumMap<State, ModeInputPolicy> policies = new EnumMap<>(State.class);
    private final EnumMap<State, Definition> owners = new EnumMap<>(State.class);
    private List<Definition> ordered;
@@ -24,8 +25,7 @@ public final class ClientModeRegistry {
    public void register(ClientMode mode) {
       if (ordered != null) throw new IllegalStateException("Client modes are frozen");
       Objects.requireNonNull(mode, "mode");
-      String id = Objects.requireNonNull(mode.id(), "mode id");
-      if (id.isBlank()) throw new IllegalArgumentException("Client mode id is blank");
+      ModeId id = Objects.requireNonNull(mode.id(), "mode id");
       Map<State, ModeInputPolicy> phases = Map.copyOf(mode.phases());
       if (phases.isEmpty()) throw new IllegalArgumentException("Client mode has no phases: " + id);
       for (State state : phases.keySet()) {
@@ -83,7 +83,7 @@ public final class ClientModeRegistry {
       return result;
    }
 
-   public String id(State state) {
+   public ModeId id(State state) {
       ordered();
       return owners.get(Objects.requireNonNull(state, "state")).id();
    }
@@ -109,7 +109,7 @@ public final class ClientModeRegistry {
       return result;
    }
 
-   private record Definition(String id, ClientMode mode, int priority, Map<State, ModeInputPolicy> phases, boolean interactive) {
+   private record Definition(ModeId id, ClientMode mode, int priority, Map<State, ModeInputPolicy> phases, boolean interactive) {
       java.util.Optional<State> observe(ModeObservation observation) {
          return Objects.requireNonNull(mode.observe(observation), "mode observation");
       }

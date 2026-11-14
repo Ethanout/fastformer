@@ -38,7 +38,7 @@ public final class ClientScope {
       this.id = Objects.requireNonNull(id, "id");
       this.receipts = new ClientReceiptRepository(() -> ClientScopeFiles.receipts(id));
       this.drafts = new ClientDraftRepository(() -> ClientScopeFiles.draft(id));
-      this.inputSession = new ClientInputSession(selectionSession.gestures());
+      this.inputSession = new ClientInputSession();
       this.operations = new OperationContext(selectionSession, clipboard, inputSession);
    }
 
@@ -170,6 +170,7 @@ public final class ClientScope {
       OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID submissionId
    ) {
       if (originWhenNoIdentity == OperationSubmissionOrigin.CLIENT_SELECTION) identity = null;
+      operations.selectionGestures().cancel();
       workspace().cancelEdit();
       boolean liveDraft = !workspace().isEmpty() || this.selectionSession.hasDraft();
       if (!liveDraft) {

@@ -3,6 +3,7 @@ package io.github.fastformer.server.mode;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.interaction.InteractionState;
+import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -12,7 +13,7 @@ final class SelectionServerMode extends ServerMode {
    private final OperationSystem selections;
 
    SelectionServerMode(OperationSystem selections) {
-      super("selection", InteractionState.OPERATION);
+      super(BuiltinModes.SELECTION, InteractionState.OPERATION);
       this.selections = selections;
    }
 

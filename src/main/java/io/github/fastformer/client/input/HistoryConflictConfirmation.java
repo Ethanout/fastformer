@@ -1,9 +1,10 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
 import io.github.fastformer.protocol.c2s.world.HistoryConflictResponsePayload;
 import net.minecraft.client.Minecraft;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Owns the prompt until the server accepts a token-scoped answer. */
 public final class HistoryConflictConfirmation {
@@ -29,7 +30,7 @@ public final class HistoryConflictConfirmation {
       var choice = choice(key.key(), key.controlDown());
       if (choice == null) return key.controlDown() && (key.key() == 90 || key.key() == 89);
       if (!sent && minecraft.getConnection() != null) {
-         PacketDistributor.sendToServer(new HistoryConflictResponsePayload(pending.token(), choice));
+         ServerGateway.send(new HistoryConflictResponsePayload(pending.token(), choice));
          sent = true;
       }
       return true;

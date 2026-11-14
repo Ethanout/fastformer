@@ -9,6 +9,7 @@ import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.input.IdleInteractionSnapshots;
+import io.github.fastformer.common.mode.BuiltinModes;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Owns session action admission, routing, and candidate validation. */
@@ -18,13 +19,17 @@ final class SessionIntentHandlers {
       context -> ServerOperationGates.CONTINUE_INTERACTION.test(context.actor());
    private static final Gate<IntentContext<ServerPlayer>> EDIT = CONTINUE.and(
       context -> ServerOperationGates.AVAILABLE.test(context.actor()));
+   private static final Gate<IntentContext<ServerPlayer>> CONFIRM = EDIT.or(
+      Gate.<IntentContext<ServerPlayer>>require("smart_fill",
+         context -> SessionSystem.of(context.actor()).modes().active(context.actor(), BuiltinModes.SMART_FILL))
+         .and(context -> ServerOperationGates.AVAILABLE.test(context.actor())));
 
    private SessionIntentHandlers() {}
 
    static void register(IntentBus<ServerPlayer> bus) {
       bus.register(SessionIntents.CycleMode.class, EDIT, SessionIntentHandlers::cycle);
       bus.register(SessionIntents.Adjust.class, EDIT, SessionIntentHandlers::adjust);
-      bus.register(SessionIntents.Confirm.class, EDIT, SessionIntentHandlers::confirm);
+      bus.register(SessionIntents.Confirm.class, CONFIRM, SessionIntentHandlers::confirm);
       bus.register(SessionIntents.Submode.class, CONTINUE, SessionIntentHandlers::submode);
    }
 
@@ -61,6 +66,7 @@ final class SessionIntentHandlers {
    }
 
    private static boolean hasSession(ServerPlayer player) {
-      return SessionSystem.of(player).modes().hasActive(player);
+      return SessionSystem.of(player).modes().hasEditing(player)
+         || SessionSystem.of(player).modes().active(player, BuiltinModes.SMART_FILL);
    }
 }

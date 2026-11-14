@@ -15,6 +15,10 @@ import net.minecraft.world.phys.Vec3;
 public final class InteractionFeedback {
    private final InteractionFeedbackState state = new InteractionFeedbackState();
    private final Function<Axis, Integer> axisColor;
+   private final SelectionFaceFeedback faces = new SelectionFaceFeedback(100_000_000L);
+   private FeedbackFrame frame = FeedbackFrame.EMPTY;
+   private long capturedFrame;
+   private boolean frameCaptured;
 
    public InteractionFeedback() { this(axis -> 0xFF000000 | io.github.fastformer.client.gizmo.GizmoColors.axis(axis)); }
 
@@ -22,7 +26,37 @@ public final class InteractionFeedback {
       this.axisColor = Objects.requireNonNull(axisColor, "axisColor");
    }
 
-   public void clear() { state.clear(); }
+   public void clear() {
+      state.clear();
+      faces.clear();
+      frame = FeedbackFrame.EMPTY;
+      frameCaptured = false;
+   }
+
+   public SelectionFaceFeedback faces() { return faces; }
+   public FeedbackFrame frame() { return frame; }
+
+   /** Advances once at the frame boundary. Drawing only reads the returned value. */
+   public FeedbackFrame capture(long frameId, long now, BuildingPreviewSnapshot building,
+      Object scrollTarget, Object gizmoTarget, ScrollFeedbackData scrollData) {
+      return capture(frameId, now, building, scrollTarget, gizmoTarget, scrollData, true);
+   }
+
+   public FeedbackFrame capture(long frameId, long now, BuildingPreviewSnapshot building,
+      Object scrollTarget, Object gizmoTarget, ScrollFeedbackData scrollData, boolean advanceGizmoFade) {
+      if (frameCaptured && capturedFrame == frameId) return frame;
+      capturedFrame = frameId;
+      frameCaptured = true;
+      boolean persistent = refreshFreeScrollSession(building, now);
+      if (persistent && scrollData != null && isActiveFreeScroll(building)) rememberFreeScrollData(scrollData);
+      if (scrollData == null && persistent) scrollData = freeScrollData() != null
+         ? freeScrollData() : coordinates(freeScrollOffset());
+      int gizmoOpacity = advanceGizmoFade
+         ? gizmoAlpha(now, gizmoTarget, gizmoTarget == null ? 1 : gizmoDwellMultiplier(gizmoTarget, now)) : 255;
+      frame = new FeedbackFrame(persistent, scrollData, scrollAlpha(persistent, scrollTarget, now),
+         gizmoOpacity, lastGizmoAxis(), lastGizmoOperation(), lastGizmoSteps(), lastGizmoBaseValue());
+      return frame;
+   }
 
    /** Records input before a server replacement snapshot can arrive. */
    public void noteScroll(BuildingPreviewSnapshot building, long now) {

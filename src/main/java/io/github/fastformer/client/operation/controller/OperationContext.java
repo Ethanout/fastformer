@@ -1,7 +1,15 @@
 package io.github.fastformer.client.operation.controller;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
+import java.util.function.BiConsumer;
+import java.util.LinkedHashMap;
+import io.github.fastformer.core.math.Axis;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.client.interaction.selectiongesture.SelectionGestureEdits;
+import io.github.fastformer.client.interaction.selectiongesture.AabbAdjustDecision;
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.client.input.drag.SelectionGestureState;
+import io.github.fastformer.client.interaction.selectiongesture.SelectionTransformGestures;
 import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
@@ -54,7 +62,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Owns editable operations, captures, and submission state for one client scope. */
 public final class OperationContext {
@@ -64,6 +71,7 @@ public final class OperationContext {
    private final SourceBlockRenderMask sourceMask = new SourceBlockRenderMask();
    private final OperationClipboardActions clipboard;
    private final OperationTransforms transforms;
+   private final SelectionTransformGestures selectionGestures;
    private final SelectionEdits selectionEdits;
    private final SelectionDeletions deletions;
    private final OperationSubmissions submissions;
@@ -77,7 +85,7 @@ public final class OperationContext {
          var minecraft = Minecraft.getInstance();
          return !ownsCurrentInteraction() || minecraft == null || minecraft.getConnection() == null || minecraft.level == null
             ? null : minecraft.level.dimension().location();
-      }, PacketDistributor::sendToServer,
+      }, ServerGateway::send,
       this::showSubmissionMessage, System::currentTimeMillis,
       failure -> LOGGER.warn("Unable to query the FastFormer workspace submission receipts", failure));
 
@@ -112,6 +120,10 @@ public final class OperationContext {
       this.transforms = new OperationTransforms(selection.workspace(), this::workspaceSubmissionPending,
          selectionEdits::capturePending, this::ownsCurrentInteraction,
          this::captureFailed, this::synchronizeDerivedWorkspaceState);
+      this.selectionGestures = new SelectionTransformGestures(
+         new WorkspaceGestureEdits(selection, transforms, this::workspaceSubmissionPending, this::selectWorkspacePart), input.selectionGesturePointer(),
+         key -> { if (key != null) captureFailed(key); });
+      input.bindSelectionGestures(selectionGestures);
       var rays = Objects.requireNonNull(input, "input").pointer();
       this.remotePointer = new io.github.fastformer.client.operation.pointer.RemoteSelectionPointer(preview::live, this::active,
          context -> {
@@ -128,7 +140,7 @@ public final class OperationContext {
       this.pointer = new io.github.fastformer.client.operation.pointer.WorkspacePointerResolver(selection,
          selectionEdits::smartEditing, this::failedWorkspaceTargets, rays,
          new io.github.fastformer.client.operation.pointer.SelectionCreationPointer(selection, selectionEdits,
-            preview::live, rays, input::canCreateSelection));
+            preview::live, rays, input::canCreateSelection), selectionGestures::snapshot);
    }
 
    public ClientOperationWorkspace workspace() {
@@ -155,8 +167,8 @@ public final class OperationContext {
       selectionSession().publishInteractionScene();
    }
 
-   public SelectionGestureState selectionGestures() {
-      return selectionSession().gestures();
+   public SelectionTransformGestures selectionGestures() {
+      return selectionGestures;
    }
 
    public void updateVisualHover(OperationInteractionIntent intent) {
@@ -368,7 +380,7 @@ public final class OperationContext {
       ClientSessionSystem.instance().discardCurrentDraft();
    }
 
-   private void cancelTransforms() { transforms.cancel(); }
+   private void cancelTransforms() { selectionGestures.cancel(); transforms.cancel(); }
 
    public SelectionEdits selectionEdits() { return selectionEdits; }
 
@@ -441,6 +453,7 @@ public final class OperationContext {
    }
 
    private void clearTransientOperationState() {
+      selectionGestures.cancel();
       pointer.clear();
       selectionEdits.cancelCaptures(); transforms.cancel(); deletions.cancel();
       submissions.leave();
@@ -531,4 +544,88 @@ public final class OperationContext {
    }
 
 
+   /** Adapts real workspace ownership to the independent gesture edit ports. */
+   private static final class WorkspaceGestureEdits implements SelectionGestureEdits {
+      private final ClientSelectionSession selection;
+      private final OperationTransforms transforms;
+      private final BooleanSupplier submission;
+      private final BiConsumer<Integer, Boolean> select;
+      WorkspaceGestureEdits(ClientSelectionSession selection, OperationTransforms transforms, BooleanSupplier submission,
+         BiConsumer<Integer, Boolean> select) {
+         this.selection = selection; this.transforms = transforms; this.submission = submission; this.select = select;
+      }
+      private ClientOperationWorkspace workspace() { return selection.workspace(); }
+      public boolean submissionPending() { return submission.getAsBoolean(); }
+      public AabbAdjustDecision faceReadiness(int partId) { return transforms.aabbAdjustDecision(workspace().part(partId).orElse(null)); }
+      public String failureKey(AabbAdjustDecision decision) { return transforms.aabbAdjustFailureKey(decision); }
+      public void select(int partId, boolean toggle) { select.accept(partId, toggle); }
+      public void focus(int partId, boolean control) {
+         if (!workspace().selectedIds().contains(partId)) select.accept(partId, control);
+         workspace().activate(partId);
+      }
+      public FaceEdit beginFace(int partId) {
+         var baseline = workspace().part(partId).orElse(null);
+         if (baseline == null) return null;
+         focus(partId, false);
+         var targets = targets(List.of(baseline));
+         if (!workspace().beginEdit()) return null;
+         return new FaceLease(workspace().activeEditToken(), targets, baseline);
+      }
+      public GizmoEdit beginGizmo(int partId, boolean common, boolean control, AxisGizmo.Operation operation, Axis axis) {
+         if (!common) focus(partId, control);
+         var baseline = common ? List.copyOf(workspace().selectedParts()) : workspace().part(partId).stream().toList();
+         if (baseline.isEmpty()) return null;
+         var targets = targets(baseline);
+         var profile = transforms.repeatProfile(operation, common, partId, baseline, axis);
+         boolean repeats = profile.wholeGroup();
+         int stride = profile.stride();
+         if (!workspace().beginEdit()) return null;
+         return new GizmoLease(workspace().activeEditToken(), targets, baseline, common, operation, axis, repeats, stride);
+      }
+      private Targets targets(List<ClientSelectionPart> parts) {
+         var identities = new LinkedHashMap<Integer, Long>();
+         for (var part : parts) identities.put(part.id(), workspace().interactionId(part.id()));
+         return new Targets(selection.interactionOwnerId(), identities);
+      }
+      private abstract class Lease implements Edit {
+         final ClientOperationWorkspace.EditToken token;
+         private final Targets targets;
+         Lease(ClientOperationWorkspace.EditToken token, Targets targets) { this.token = token; this.targets = targets; }
+         public Targets targets() { return targets; }
+         public boolean valid() {
+            if (!targets.owner().equals(selection.interactionOwnerId()) || !workspace().ownsEdit(token)) return false;
+            for (var target : targets.identities().entrySet()) {
+               if (workspace().part(target.getKey()).isEmpty() || workspace().interactionId(target.getKey()) != target.getValue()) return false;
+            }
+            return true;
+         }
+         public boolean finish() { return transforms.finishTransformGesture(token); }
+         public void cancel() { transforms.cancelTransformGesture(token); }
+      }
+      private final class FaceLease extends Lease implements FaceEdit {
+         private final ClientSelectionPart baseline;
+         FaceLease(ClientOperationWorkspace.EditToken token, Targets targets, ClientSelectionPart baseline) {
+            super(token, targets); this.baseline = baseline;
+         }
+         public AabbAdjustDecision readiness() { return transforms.aabbAdjustDecision(baseline); }
+         public void update(int axis, boolean positive, int steps) { transforms.updateAabbFaceGesture(token, baseline, axis, positive, steps); }
+      }
+      private final class GizmoLease extends Lease implements GizmoEdit {
+         private final List<ClientSelectionPart> baseline;
+         private final boolean common, repeats;
+         private final AxisGizmo.Operation operation;
+         private final Axis axis;
+         private final int stride;
+         GizmoLease(ClientOperationWorkspace.EditToken token, Targets targets, List<ClientSelectionPart> baseline, boolean common,
+            AxisGizmo.Operation operation, Axis axis, boolean repeats, int stride) {
+            super(token, targets); this.baseline = baseline; this.common = common; this.operation = operation;
+            this.axis = axis; this.repeats = repeats; this.stride = stride;
+         }
+         public boolean repeatsWholeGroup() { return repeats; }
+         public int repeatStride() { return stride; }
+         public String update(int direction, int steps, double radians, Vec3 axisVector, Vec3 pivot) {
+            return transforms.updateTransformGesture(token, baseline, common, operation, axis, direction, steps, radians, axisVector, pivot);
+         }
+      }
+   }
 }

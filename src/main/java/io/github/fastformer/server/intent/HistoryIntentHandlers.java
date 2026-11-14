@@ -9,7 +9,6 @@ import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistorySystem;
@@ -65,10 +64,8 @@ final class HistoryIntentHandlers {
 
    private static IntentResult quit(IntentContext<ServerPlayer> context, HistoryIntents.Quit intent) {
       ServerPlayer player = context.actor();
-      if (SmartFillSystem.active(player)) {
-         SmartFillSystem.cancel(player);
-         return IntentResult.success();
-      }
+      IntentResult temporary = SessionSystem.of(player).modes().quitTemporary(player);
+      if (temporary.handled()) return temporary;
       if (SessionRollback.active(player) || SessionSystem.of(player).placementTasks().active(player) || SessionSystem.of(player).operationTasks().active(player)
          || HistorySystem.of(player).restoreActive(player)) {
          SessionSystem.of(player).quit(player);

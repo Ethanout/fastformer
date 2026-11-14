@@ -4,6 +4,7 @@ import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.interaction.InteractionState;
+import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -16,7 +17,7 @@ final class QuickShapeServerMode extends ServerMode {
    private final java.util.function.Consumer<ServerPlayer> quit;
 
    QuickShapeServerMode(QuickShapeSystem shapes, java.util.function.Consumer<ServerPlayer> quit) {
-      super("quick_shape", InteractionState.BUILDING);
+      super(BuiltinModes.QUICK_SHAPE, InteractionState.BUILDING);
       this.shapes = shapes;
       this.quit = quit;
    }

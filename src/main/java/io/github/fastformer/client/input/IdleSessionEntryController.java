@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
@@ -14,8 +16,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** The only mouse entry into an idle selection or quick-shape session. */
 final class IdleSessionEntryController {
@@ -53,7 +53,7 @@ final class IdleSessionEntryController {
          || button != MouseButtonInputSemantics.RIGHT_BUTTON && !middleEntry
          || action != MouseButtonInputSemantics.PRESS || !minecraft.player.isCreative()
          || !ClientSessionSystem.instance().previews().building().enabled() || minecraft.getCameraEntity() != minecraft.player
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), IdleInteractionCapturePayload.TYPE.id())) return false;
+         || !ServerGateway.supports(minecraft, IdleInteractionCapturePayload.TYPE)) return false;
       if (!replay && !alt && minecraft.hitResult != null && minecraft.hitResult.getType() == HitResult.Type.ENTITY) {
          session.idleEntry.clear();
          return false;
@@ -98,7 +98,7 @@ final class IdleSessionEntryController {
       var rules = InteractionRaycastRules.VANILLA_OUTLINE;
       boolean tinker = !middleEntry && firstHit != null
          && ClientBlockTinker.consumes(minecraft.player, InteractionHand.MAIN_HAND, firstHit)
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), TinkerInteractionPayload.TYPE.id());
+         && ServerGateway.supports(minecraft, TinkerInteractionPayload.TYPE);
       boolean passthrough = firstHit != null && minecraft.level.getBlockState(firstHit.getBlockPos()).is(
          net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("fastformer", "hold_line_passthrough")));
@@ -110,7 +110,7 @@ final class IdleSessionEntryController {
          session.idleEntry.rememberTinker(token, now, original, firstEye, firstView, minecraft.level, minecraft.player.getMainHandItem());
          session.idleEntryButton = button;
          minecraft.options.keyUse.setDown(false);
-         PacketDistributor.sendToServer(new TinkerInteractionPayload(token, firstHit, firstEye, firstView));
+         ServerGateway.send(new TinkerInteractionPayload(token, firstHit, firstEye, firstView));
          return true;
       }
       if (!replay && owner == IdleEntryRules.Owner.HOLD_CANDIDATE
@@ -120,7 +120,7 @@ final class IdleSessionEntryController {
          long token = ++nextToken;
          session.idleEntry.remember(token, now, press.shape(),
             firstEye, firstView, minecraft.level, minecraft.player.getMainHandItem(), rules);
-         PacketDistributor.sendToServer(new IdleInteractionCapturePayload(token, firstHit, firstEye, firstView, rules));
+         ServerGateway.send(new IdleInteractionCapturePayload(token, firstHit, firstEye, firstView, rules));
       } else session.idleEntry.clear();
       return false;
    }

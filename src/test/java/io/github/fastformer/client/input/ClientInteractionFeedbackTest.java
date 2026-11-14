@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.transform.OperationTransforms;
+import io.github.fastformer.client.interaction.selectiongesture.AabbAdjustDecision;
 
 import io.github.fastformer.client.session.ClientSessionSystem;
 
@@ -21,10 +21,10 @@ class ClientInteractionFeedbackTest {
    void aBlockedAdjustmentShowsItsReasonWithoutAClient() {
       // The message holds no client state, so a headless call must stay safe.
       assertDoesNotThrow(() -> ClientInteractionFeedback.showAabbAdjustFailure(
-         null, OperationTransforms.AabbAdjustDecision.SOURCE_CHANGED
+         null, AabbAdjustDecision.SOURCE_CHANGED
       ));
       assertDoesNotThrow(() -> ClientInteractionFeedback.showAabbAdjustFailure(
-         null, OperationTransforms.AabbAdjustDecision.ADJUSTED
+         null, AabbAdjustDecision.ADJUSTED
       ));
       assertDoesNotThrow(() -> ClientInteractionFeedback.showAabbAdjustFailure(null, null));
    }
@@ -32,10 +32,10 @@ class ClientInteractionFeedbackTest {
    @Test
    void aFinishedAdjustmentReportsNoFailureKey() {
       assertNull(ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(
-         OperationTransforms.AabbAdjustDecision.ADJUSTED
+         AabbAdjustDecision.ADJUSTED
       ));
       assertNull(ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(
-         OperationTransforms.AabbAdjustDecision.DRAG_STARTED
+         AabbAdjustDecision.DRAG_STARTED
       ));
    }
 }

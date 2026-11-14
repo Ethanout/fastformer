@@ -6,7 +6,7 @@ import io.github.fastformer.common.geometry.GeometryHit;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.interaction.InteractionState;
 import io.github.fastformer.server.session.GeometrySystem;
-import java.util.Locale;
+import io.github.fastformer.common.mode.BuiltinModes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.BlockHitResult;
@@ -18,7 +18,7 @@ final class GeometryServerMode extends ServerMode {
    private final GeometryMode mode;
 
    GeometryServerMode(GeometrySystem geometry, GeometryMode mode) {
-      super("geometry/" + mode.name().toLowerCase(Locale.ROOT), InteractionState.GEOMETRY);
+      super(BuiltinModes.geometry(mode), InteractionState.GEOMETRY);
       this.geometry = geometry;
       this.mode = mode;
    }

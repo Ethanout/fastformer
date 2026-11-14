@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input.drag;
 
+import io.github.fastformer.client.interaction.drag.DeferredDragClick;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;

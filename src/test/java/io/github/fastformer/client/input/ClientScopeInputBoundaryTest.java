@@ -60,7 +60,7 @@ class ClientScopeInputBoundaryTest {
       var input = manager.inputSession();
       var selection = manager.selectionSession();
       assertNull(manager.current());
-      assertSame(selection.gestures(), input.selectionGestures());
+      assertSame(manager.operations().selectionGestures(), input.selectionGestures());
       input.operationTransformCapture = new ClientInputSession.OperationTransformCapture(1L, 1L,
          io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped());
       selection.addDraftPoint(BlockPos.ZERO);
@@ -71,7 +71,7 @@ class ClientScopeInputBoundaryTest {
       var player = activate(manager, UUID.randomUUID(), "server", "overworld");
       assertSame(player.inputSession(), manager.inputSession());
       assertSame(player.selectionSession(), manager.selectionSession());
-      assertSame(manager.selectionSession().gestures(), manager.inputSession().selectionGestures());
+      assertSame(manager.operations().selectionGestures(), manager.inputSession().selectionGestures());
    }
 
    private static ClientScope activate(ClientScopeRepository repository, UUID player, String server, String dimension) {

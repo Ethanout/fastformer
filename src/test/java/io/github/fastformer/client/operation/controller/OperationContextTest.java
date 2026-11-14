@@ -1,5 +1,6 @@
 package io.github.fastformer.client.operation.controller;
 
+import io.github.fastformer.client.interaction.selectiongesture.AabbAdjustDecision;
 import io.github.fastformer.client.operation.transform.OperationTransforms;
 
 import io.github.fastformer.client.session.ClientSessionSystem;
@@ -39,7 +40,7 @@ class OperationContextTest {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession(selection.gestures()));
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession());
       assertTrue(operations.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD))));
       beginSubmission(operations);
       var transfer = operations.submissions().transferId();
@@ -62,7 +63,7 @@ class OperationContextTest {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession(selection.gestures()));
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession());
       operations.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
       beginSubmission(operations);
       // Release the transport lock to exercise cancellation of an independent open edit.
@@ -163,7 +164,7 @@ class OperationContextTest {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession(selection.gestures()));
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage, new io.github.fastformer.client.input.ClientInputSession());
       try {
          var original = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
             OperationSelectionVolume.cuboid(BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO),
@@ -472,11 +473,11 @@ class OperationContextTest {
       );
 
       assertEquals(
-         OperationTransforms.AabbAdjustDecision.NO_TARGET,
+         AabbAdjustDecision.NO_TARGET,
          ClientSessionSystem.instance().operations().transforms().aabbAdjustDecision(null)
       );
       assertEquals(
-         OperationTransforms.AabbAdjustDecision.NO_TARGET,
+         AabbAdjustDecision.NO_TARGET,
          ClientSessionSystem.instance().operations().transforms().aabbAdjustDecision(pasted)
       );
 
@@ -498,7 +499,7 @@ class OperationContextTest {
       // A unit test has no client level, so the source check cannot run. The outcome
       // must not claim that a source block changed.
       assertEquals(
-         OperationTransforms.AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE,
+         AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE,
          ClientSessionSystem.instance().operations().transforms().aabbAdjustDecision(source)
       );
 
@@ -510,11 +511,11 @@ class OperationContextTest {
       ClientSessionSystem.instance().operations().onDisconnected();
 
       assertEquals(
-         OperationTransforms.AabbAdjustDecision.NO_TARGET,
+         AabbAdjustDecision.NO_TARGET,
          ClientSessionSystem.instance().operations().transforms().adjustActiveAabbPoint(0, null)
       );
       assertEquals(
-         OperationTransforms.AabbAdjustDecision.NO_TARGET,
+         AabbAdjustDecision.NO_TARGET,
          ClientSessionSystem.instance().operations().transforms().adjustActiveAabbPoint(3, BlockPos.ZERO)
       );
 
@@ -526,25 +527,25 @@ class OperationContextTest {
       assertEquals(
          "fastformer.message.operation_submit_pending",
          ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(
-            OperationTransforms.AabbAdjustDecision.SUBMISSION_PENDING
+            AabbAdjustDecision.SUBMISSION_PENDING
          )
       );
       assertEquals(
          "fastformer.message.operation_source_changed",
-         ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(OperationTransforms.AabbAdjustDecision.SOURCE_CHANGED)
+         ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(AabbAdjustDecision.SOURCE_CHANGED)
       );
       assertEquals(
          "fastformer.message.operation_adjust_unavailable",
-         ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(OperationTransforms.AabbAdjustDecision.NO_TARGET)
+         ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(AabbAdjustDecision.NO_TARGET)
       );
       // A started, finished or environment-blocked adjustment stays silent.
-      for (OperationTransforms.AabbAdjustDecision decision : List.of(
-         OperationTransforms.AabbAdjustDecision.READY,
-         OperationTransforms.AabbAdjustDecision.DRAG_STARTED,
-         OperationTransforms.AabbAdjustDecision.ADJUSTED,
-         OperationTransforms.AabbAdjustDecision.UNCHANGED,
-         OperationTransforms.AabbAdjustDecision.EDIT_UNAVAILABLE,
-         OperationTransforms.AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE
+      for (AabbAdjustDecision decision : List.of(
+         AabbAdjustDecision.READY,
+         AabbAdjustDecision.DRAG_STARTED,
+         AabbAdjustDecision.ADJUSTED,
+         AabbAdjustDecision.UNCHANGED,
+         AabbAdjustDecision.EDIT_UNAVAILABLE,
+         AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE
       )) {
          assertNull(ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(decision), () -> "unexpected message for " + decision);
       }

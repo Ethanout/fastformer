@@ -6,10 +6,9 @@ import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.BlockActivityRules;
-import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.protocol.s2c.settings.OpenSettingsPayload;
 import io.github.fastformer.server.session.SessionSystem;
-import io.github.fastformer.server.sync.PreviewSync;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -48,7 +47,7 @@ public final class PlayerSettingsIntentHandlers {
          settings.toggleEnabled(player);
          if (settings.enabled()) SessionSystem.of(player).cancelEditing(player);
          else SessionSystem.of(player).stopUnavailable(player);
-         FastPlaceNetwork.syncSettings(player);
+         PreviewSync.syncSettings(player);
          PlayerMessages.chat(player, PlayerMessages.text(settings.enabled() ? "fastformer.message.enabled" : "fastformer.message.disabled"));
          return IntentResult.success();
       });

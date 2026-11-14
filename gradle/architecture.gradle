@@ -255,7 +255,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /io\.github\.fastformer\.(?:network\.|server\.input\.ServerInputDispatcher)/).find()) {
                 violations.add("Player intent handling depends on a transport or input facade: ${path}")
             }
-            if (main && source.name == 'FastPlaceNetwork.java' && (text =~ /instanceof ServerPlayer/).find()) {
+            if (main && source.name == 'ServerNetworkSystem.java' && (text =~ /instanceof ServerPlayer/).find()) {
                 violations.add("Network registration bypasses typed server channels: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.command') &&
@@ -360,12 +360,12 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (text =~ /(?:\bstatic\s+final\s+(?:PlayerSessions|WorldTaskQueue|Map)\s*<|\b\w+ForTest\b)/).find()) {
                 violations.add("Workflow bypasses its server instance or exposes a test-only hook: ${path}")
             }
-            if (main && source.name == 'FastPlaceNetwork.java' &&
+            if (main && source.name == 'ServerNetworkSystem.java' &&
                     (text =~ /\b(?:IncomingPayloadTransfers|WorkspaceDecodeQueue|WorkspaceReceipts|WorkspaceUploads|serverEpoch|WORKSPACE_CALLBACK_SCOPES)\b/).find()) {
                 violations.add("Network registration owns upload state or bypasses its system boundary: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.network.upload') &&
-                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client\.|network\.FastPlaceNetwork)|\b\w+ForTest\b)/).find()) {
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client\.|server\.network\.ServerNetworkSystem)|\b\w+ForTest\b)/).find()) {
                 violations.add("Upload lifecycle depends on client/registration or exposes a test-only hook: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.protocol.upload') &&
@@ -401,7 +401,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (text =~ /(?m)^import (?:net\.|io\.github\.fastformer\.(?!core\.async\.))/).find()) {
                 violations.add("History write ordering depends on game or feature runtime: ${path}")
             }
-            if (main && packageName.startsWith('io.github.fastformer.network.transport') &&
+            if (main && packageName.startsWith('io.github.fastformer.common.net') &&
                     (text =~ /(?:io\.github\.fastformer|net\.minecraft)\.(?:client|server)\./).find()) {
                 violations.add("Portable transport depends on a physical-side implementation: ${path}")
             }

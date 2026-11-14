@@ -1,8 +1,10 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
+import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.session.ClientSessionSystem;
-import io.github.fastformer.client.input.drag.GizmoDragCalculator;
+import io.github.fastformer.client.interaction.drag.GizmoDragCalculator;
 import io.github.fastformer.client.input.gesture.PathCloseGesture;
 import io.github.fastformer.client.input.gesture.PathClosePress;
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
@@ -25,7 +27,6 @@ import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Routes special-shape presses through the owning input session. */
 final class GeometryInputController {
@@ -85,8 +86,8 @@ final class GeometryInputController {
       if (session.geometryGizmoCapture.captured() || InteractionContext.vanillaOwnsPointer(minecraft)
          || session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || session.pointerGesture.kind() != PointerGestureState.Kind.NONE
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())
-            && !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryUndoPayload.TYPE.id())) return false;
+         || !ServerGateway.supports(minecraft, GeometryInteractionPayload.TYPE)
+            && !ServerGateway.supports(minecraft, GeometryUndoPayload.TYPE)) return false;
       PointerGesture gesture = button == 0 ? PointerGesture.LEFT_CLICK : PointerGesture.RIGHT_CLICK;
       GeometryInteractionHit hit = ClientSessionSystem.instance().geometryPointer().interactionHit();
       GeometryInteractionAction interaction = hit == null ? null : hit.target().action(gesture);
@@ -98,7 +99,7 @@ final class GeometryInputController {
       Vec3 eye = minecraft.player.getEyePosition();
       Vec3 view = minecraft.player.getViewVector(1.0F);
       if (interaction == null && !ClientSessionSystem.instance().geometryPointer().pointSelected()) {
-         if (button != 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryUndoPayload.TYPE.id())
+         if (button != 0 || !ServerGateway.supports(minecraft, GeometryUndoPayload.TYPE)
             || preview.draftId() == null) return true;
          session.postGeometryPointer(new UndoPress(preview.mode(), new GeometryUndoPayload(requestId, preview.revision(),
             preview.callbackScope(), preview.draftId(), eye, view)));
@@ -120,13 +121,13 @@ final class GeometryInputController {
       session.modifier.consume();
       switch (press) {
          case InteractionPress interaction -> {
-            if (NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())) {
-               net.neoforged.neoforge.network.PacketDistributor.sendToServer(interaction.payload());
+            if (ServerGateway.supports(minecraft, GeometryInteractionPayload.TYPE)) {
+               ServerGateway.send(interaction.payload());
             }
          }
          case UndoPress undo -> {
-            if (NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryUndoPayload.TYPE.id())) {
-               net.neoforged.neoforge.network.PacketDistributor.sendToServer(undo.payload());
+            if (ServerGateway.supports(minecraft, GeometryUndoPayload.TYPE)) {
+               ServerGateway.send(undo.payload());
             }
          }
          case PathPress path -> dispatchPath(minecraft, session, path);
@@ -140,8 +141,8 @@ final class GeometryInputController {
          || session.routing.state() != ClientInputStateMachine.State.GEOMETRY
          || session.pointerGesture.kind() != PointerGestureState.Kind.NONE || session.geometryGizmoCapture.captured()) return false;
       boolean pointAllowed = minecraft.hitResult instanceof BlockHitResult
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryPointPayload.TYPE.id());
-      boolean closeAllowed = NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id());
+         && ServerGateway.supports(minecraft, GeometryPointPayload.TYPE);
+      boolean closeAllowed = ServerGateway.supports(minecraft, GeometryInteractionPayload.TYPE);
       PathClosePress close = PathCloseInputDispatcher.capture(true, occurredAtNanos);
       boolean closeTarget = close.hoveredStart() || close.doubleClickEnabled() && close.candidate() != null;
       if (!pointAllowed && !(closeAllowed && closeTarget)) return false;
@@ -156,9 +157,9 @@ final class GeometryInputController {
 
    private static void dispatchPath(Minecraft minecraft, ClientInputSession session, PathPress press) {
       var payload = press.resolve(session.pathClose,
-         NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryPointPayload.TYPE.id()),
-         NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id()));
-      if (payload != null) net.neoforged.neoforge.network.PacketDistributor.sendToServer(payload);
+         ServerGateway.supports(minecraft, GeometryPointPayload.TYPE),
+         ServerGateway.supports(minecraft, GeometryInteractionPayload.TYPE));
+      if (payload != null) ServerGateway.send(payload);
    }
 
    static boolean queueGizmo(Minecraft minecraft, ClientInputSession session, int action, int button) {
@@ -217,7 +218,7 @@ final class GeometryInputController {
 
    static GeometryGizmoDrag captureGeometryGizmoDrag(Minecraft minecraft, int mouseButton) {
       if (!ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.GIZMO_DRAG)
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id())) {
+         || !ServerGateway.supports(minecraft, GeometryGizmoDragPayload.TYPE)) {
          return null;
       }
       AxisGizmo.Hit hit = ClientSessionSystem.instance().geometryPointer().gizmoHit();

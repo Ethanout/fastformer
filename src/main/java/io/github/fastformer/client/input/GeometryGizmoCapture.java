@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.UUID;

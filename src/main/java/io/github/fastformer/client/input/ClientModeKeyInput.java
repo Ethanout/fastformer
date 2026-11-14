@@ -33,7 +33,7 @@ final class ClientModeKeyInput {
    private static boolean workspace(Minecraft minecraft, ClientInputSession owner, KeyboardInputSnapshot input, boolean probe) {
       var operations = ClientSessionSystem.instance().operations();
       var route = owner.routing.dispatch(InputKind.KEY);
-      var context = new WorkspaceKeyContext(ClientModes.registry().id(owner.routing.state()),
+      var context = new WorkspaceKeyContext(ClientModes.registry().id(owner.routing.state()).value().toString(),
          route.name().toLowerCase(java.util.Locale.ROOT), owner.routing.dispatch(InputKind.PASTE_WORKSPACE) != Dispatch.BLOCKED,
          operations.active() || operations.selectionEdits().selectionDraftActive() || operations.selectionEdits().remoteSelectionPointing(),
          operations.workspaceEditInProgress(), operations.workspaceSubmissionPending(), minecraft.screen == null, minecraft.player != null,
@@ -82,7 +82,7 @@ final class ClientModeKeyInput {
       // Existing modal tools own their dedicated keys even while a task snapshot arrives.
       State mode = replacing ? State.QUICK_REPLACE : fill.active() ? State.FILL_PREVIEW : session.routing.state();
       boolean idle = !replacing && !fill.active() && session.routing.dispatch(InputKind.KEY) == Dispatch.VANILLA;
-      var context = new ToolKeyContext(ClientModes.registry().id(mode), minecraft.screen == null,
+      var context = new ToolKeyContext(ClientModes.registry().id(mode).value().toString(), minecraft.screen == null,
          minecraft.player != null, idle, fill.ready(), idle && fill.canStart(minecraft), input.action(),
          input.controlDown(), input.altDown(), input.shiftDown()).freeze(phase);
       var names = new HashSet<String>();

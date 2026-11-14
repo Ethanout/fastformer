@@ -1,0 +1,158 @@
+{
+  "tree": {
+    "session:fastformer:quick_shape": {
+      "stage:point": {
+        "left/press": [
+          {"id":"fastformer:quick_shape/point/undo_press","priority":10,"if":{"input_phase":"quick_shape_pointer","vanilla_pointer":false,"pointer_channel":true},"action":"fastformer:quick_shape/input/begin_undo"},
+          {"id":"fastformer:quick_shape/point/pass_left_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "left/release": [
+          {"id":"fastformer:quick_shape/point/undo_release","priority":10,"if":{"input_phase":"quick_shape_pointer","undo_captured":true},"action":"fastformer:quick_shape/input/end_undo"},
+          {"id":"fastformer:quick_shape/point/pass_left_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "right/press": [
+          {"id":"fastformer:quick_shape/point/point","priority":20,"if":{"input_phase":"quick_shape_pointer","pointer_channel":true,"candidate_overlaps":true},"action":"fastformer:quick_shape/input/point"},
+          {"id":"fastformer:quick_shape/point/point_outside_vanilla","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_channel":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/point"},
+          {"id":"fastformer:quick_shape/point/pass_right_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "middle/press": [
+          {"id":"fastformer:quick_shape/point/ignore_middle","priority":20,"if":{"input_phase":"quick_shape_pointer","middle_ignored":true},"action":"fastformer:quick_shape/input/capture_pointer"},
+          {"id":"fastformer:quick_shape/point/middle","priority":10,"if":{"input_phase":"quick_shape_pointer","middle_ignored":false,"pointer_channel":true,"middle_enabled":true},"action":"fastformer:quick_shape/input/middle"},
+          {"id":"fastformer:quick_shape/point/pass_middle_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "right/release": [
+          {"id":"fastformer:quick_shape/point/right_release","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_captured":true},"action":"fastformer:quick_shape/input/release"},
+          {"id":"fastformer:quick_shape/point/pass_right_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "middle/release": [
+          {"id":"fastformer:quick_shape/point/middle_release","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_captured":true},"action":"fastformer:quick_shape/input/release"},
+          {"id":"fastformer:quick_shape/point/pass_middle_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "scroll/scroll_up": [
+          {"id":"fastformer:quick_shape/point/yield_scroll_up","priority":20,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"modifier_yields":true},"action":"fastformer:quick_shape/input/yield_scroll"},
+          {"id":"fastformer:quick_shape/point/scroll_up","priority":10,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/scroll_up"},
+          {"id":"fastformer:quick_shape/point/pass_scroll_up","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "scroll/scroll_down": [
+          {"id":"fastformer:quick_shape/point/yield_scroll_down","priority":20,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"modifier_yields":true},"action":"fastformer:quick_shape/input/yield_scroll"},
+          {"id":"fastformer:quick_shape/point/scroll_down","priority":10,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/scroll_down"},
+          {"id":"fastformer:quick_shape/point/pass_scroll_down","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ]
+      },
+      "stage:line": {
+        "left/press": [
+          {"id":"fastformer:quick_shape/line/undo_press","priority":10,"if":{"input_phase":"quick_shape_pointer","vanilla_pointer":false,"pointer_channel":true},"action":"fastformer:quick_shape/input/begin_undo"},
+          {"id":"fastformer:quick_shape/line/pass_left_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "left/release": [
+          {"id":"fastformer:quick_shape/line/undo_release","priority":10,"if":{"input_phase":"quick_shape_pointer","undo_captured":true},"action":"fastformer:quick_shape/input/end_undo"},
+          {"id":"fastformer:quick_shape/line/pass_left_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "right/press": [
+          {"id":"fastformer:quick_shape/line/point","priority":20,"if":{"input_phase":"quick_shape_pointer","pointer_channel":true,"candidate_overlaps":true},"action":"fastformer:quick_shape/input/point"},
+          {"id":"fastformer:quick_shape/line/point_outside_vanilla","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_channel":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/point"},
+          {"id":"fastformer:quick_shape/line/pass_right_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "middle/press": [
+          {"id":"fastformer:quick_shape/line/ignore_middle","priority":20,"if":{"input_phase":"quick_shape_pointer","middle_ignored":true},"action":"fastformer:quick_shape/input/capture_pointer"},
+          {"id":"fastformer:quick_shape/line/middle","priority":10,"if":{"input_phase":"quick_shape_pointer","middle_ignored":false,"pointer_channel":true,"middle_enabled":true},"action":"fastformer:quick_shape/input/middle"},
+          {"id":"fastformer:quick_shape/line/pass_middle_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "right/release": [
+          {"id":"fastformer:quick_shape/line/right_release","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_captured":true},"action":"fastformer:quick_shape/input/release"},
+          {"id":"fastformer:quick_shape/line/pass_right_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "middle/release": [
+          {"id":"fastformer:quick_shape/line/middle_release","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_captured":true},"action":"fastformer:quick_shape/input/release"},
+          {"id":"fastformer:quick_shape/line/pass_middle_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "scroll/scroll_up": [
+          {"id":"fastformer:quick_shape/line/yield_scroll_up","priority":20,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"modifier_yields":true},"action":"fastformer:quick_shape/input/yield_scroll"},
+          {"id":"fastformer:quick_shape/line/scroll_up","priority":10,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/scroll_up"},
+          {"id":"fastformer:quick_shape/line/pass_scroll_up","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "scroll/scroll_down": [
+          {"id":"fastformer:quick_shape/line/yield_scroll_down","priority":20,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"modifier_yields":true},"action":"fastformer:quick_shape/input/yield_scroll"},
+          {"id":"fastformer:quick_shape/line/scroll_down","priority":10,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/scroll_down"},
+          {"id":"fastformer:quick_shape/line/pass_scroll_down","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ]
+      },
+      "stage:face": {
+        "left/press": [
+          {"id":"fastformer:quick_shape/face/undo_press","priority":10,"if":{"input_phase":"quick_shape_pointer","vanilla_pointer":false,"pointer_channel":true},"action":"fastformer:quick_shape/input/begin_undo"},
+          {"id":"fastformer:quick_shape/face/pass_left_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "left/release": [
+          {"id":"fastformer:quick_shape/face/undo_release","priority":10,"if":{"input_phase":"quick_shape_pointer","undo_captured":true},"action":"fastformer:quick_shape/input/end_undo"},
+          {"id":"fastformer:quick_shape/face/pass_left_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "right/press": [
+          {"id":"fastformer:quick_shape/face/point","priority":20,"if":{"input_phase":"quick_shape_pointer","pointer_channel":true,"candidate_overlaps":true},"action":"fastformer:quick_shape/input/point"},
+          {"id":"fastformer:quick_shape/face/point_outside_vanilla","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_channel":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/point"},
+          {"id":"fastformer:quick_shape/face/pass_right_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "middle/press": [
+          {"id":"fastformer:quick_shape/face/ignore_middle","priority":20,"if":{"input_phase":"quick_shape_pointer","middle_ignored":true},"action":"fastformer:quick_shape/input/capture_pointer"},
+          {"id":"fastformer:quick_shape/face/middle","priority":10,"if":{"input_phase":"quick_shape_pointer","middle_ignored":false,"pointer_channel":true,"middle_enabled":true},"action":"fastformer:quick_shape/input/middle"},
+          {"id":"fastformer:quick_shape/face/pass_middle_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "right/release": [
+          {"id":"fastformer:quick_shape/face/right_release","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_captured":true},"action":"fastformer:quick_shape/input/release"},
+          {"id":"fastformer:quick_shape/face/pass_right_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "middle/release": [
+          {"id":"fastformer:quick_shape/face/middle_release","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_captured":true},"action":"fastformer:quick_shape/input/release"},
+          {"id":"fastformer:quick_shape/face/pass_middle_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "scroll/scroll_up": [
+          {"id":"fastformer:quick_shape/face/yield_scroll_up","priority":20,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"modifier_yields":true},"action":"fastformer:quick_shape/input/yield_scroll"},
+          {"id":"fastformer:quick_shape/face/scroll_up","priority":10,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/scroll_up"},
+          {"id":"fastformer:quick_shape/face/pass_scroll_up","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "scroll/scroll_down": [
+          {"id":"fastformer:quick_shape/face/yield_scroll_down","priority":20,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"modifier_yields":true},"action":"fastformer:quick_shape/input/yield_scroll"},
+          {"id":"fastformer:quick_shape/face/scroll_down","priority":10,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/scroll_down"},
+          {"id":"fastformer:quick_shape/face/pass_scroll_down","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ]
+      },
+      "stage:volume": {
+        "left/press": [
+          {"id":"fastformer:quick_shape/volume/undo_press","priority":10,"if":{"input_phase":"quick_shape_pointer","vanilla_pointer":false,"pointer_channel":true},"action":"fastformer:quick_shape/input/begin_undo"},
+          {"id":"fastformer:quick_shape/volume/pass_left_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "left/release": [
+          {"id":"fastformer:quick_shape/volume/undo_release","priority":10,"if":{"input_phase":"quick_shape_pointer","undo_captured":true},"action":"fastformer:quick_shape/input/end_undo"},
+          {"id":"fastformer:quick_shape/volume/pass_left_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "right/press": [
+          {"id":"fastformer:quick_shape/volume/point","priority":20,"if":{"input_phase":"quick_shape_pointer","pointer_channel":true,"candidate_overlaps":true},"action":"fastformer:quick_shape/input/point"},
+          {"id":"fastformer:quick_shape/volume/point_outside_vanilla","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_channel":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/point"},
+          {"id":"fastformer:quick_shape/volume/pass_right_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "middle/press": [
+          {"id":"fastformer:quick_shape/volume/ignore_middle","priority":20,"if":{"input_phase":"quick_shape_pointer","middle_ignored":true},"action":"fastformer:quick_shape/input/capture_pointer"},
+          {"id":"fastformer:quick_shape/volume/middle","priority":10,"if":{"input_phase":"quick_shape_pointer","middle_ignored":false,"pointer_channel":true,"middle_enabled":true},"action":"fastformer:quick_shape/input/middle"},
+          {"id":"fastformer:quick_shape/volume/pass_middle_press","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "right/release": [
+          {"id":"fastformer:quick_shape/volume/right_release","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_captured":true},"action":"fastformer:quick_shape/input/release"},
+          {"id":"fastformer:quick_shape/volume/pass_right_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "middle/release": [
+          {"id":"fastformer:quick_shape/volume/middle_release","priority":10,"if":{"input_phase":"quick_shape_pointer","pointer_captured":true},"action":"fastformer:quick_shape/input/release"},
+          {"id":"fastformer:quick_shape/volume/pass_middle_release","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "scroll/scroll_up": [
+          {"id":"fastformer:quick_shape/volume/yield_scroll_up","priority":20,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"modifier_yields":true},"action":"fastformer:quick_shape/input/yield_scroll"},
+          {"id":"fastformer:quick_shape/volume/scroll_up","priority":10,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/scroll_up"},
+          {"id":"fastformer:quick_shape/volume/pass_scroll_up","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ],
+        "scroll/scroll_down": [
+          {"id":"fastformer:quick_shape/volume/yield_scroll_down","priority":20,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"modifier_yields":true},"action":"fastformer:quick_shape/input/yield_scroll"},
+          {"id":"fastformer:quick_shape/volume/scroll_down","priority":10,"if":{"input_phase":"quick_shape_pointer","scroll_context":true,"vanilla_pointer":false},"action":"fastformer:quick_shape/input/scroll_down"},
+          {"id":"fastformer:quick_shape/volume/pass_scroll_down","if":{"input_phase":"quick_shape_pointer"},"action":"fastformer:vanilla"}
+        ]
+      }
+    }
+  }
+}

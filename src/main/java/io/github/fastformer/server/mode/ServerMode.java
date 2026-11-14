@@ -3,6 +3,8 @@ package io.github.fastformer.server.mode;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.interaction.InteractionState;
+import io.github.fastformer.common.mode.ModeId;
+import java.util.Objects;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.BlockHitResult;
@@ -10,15 +12,15 @@ import net.minecraft.world.phys.Vec3;
 
 /** A registered mode owns its activity query and common interaction actions. */
 public abstract class ServerMode {
-   private final String id;
+   private final ModeId id;
    private final InteractionState state;
 
-   protected ServerMode(String id, InteractionState state) {
-      this.id = id;
-      this.state = state;
+   protected ServerMode(ModeId id, InteractionState state) {
+      this.id = Objects.requireNonNull(id, "id");
+      this.state = Objects.requireNonNull(state, "state");
    }
 
-   public final String id() { return id; }
+   public final ModeId id() { return id; }
    public final InteractionState interactionState() { return state; }
    public abstract boolean active(ServerPlayer player);
    public boolean acceptsHeldItem(ServerPlayer player) { return false; }

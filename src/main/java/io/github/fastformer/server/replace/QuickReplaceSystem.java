@@ -6,7 +6,6 @@ import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.common.replace.QuickReplaceSweep;
-import io.github.fastformer.common.replace.QuickReplaceTarget;
 
 import io.github.fastformer.fastplace.interaction.BlockTinker;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
@@ -14,12 +13,11 @@ import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.server.session.QuickShapeSystem;
-import io.github.fastformer.server.session.GeometrySystem;
-import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;
 import io.github.fastformer.server.player.PlayerStateRegistry;
+import io.github.fastformer.protocol.s2c.placement.QuickReplaceStatePayload;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.resources.ResourceLocation;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -48,10 +46,27 @@ public final class QuickReplaceSystem {
       forget(player);
       if (!active) return false;
       if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player) || HistorySystem.of(player).busy(player)
-         || QuickShapeSystem.of(player).active(player) || OperationSystem.of(player).active(player) || GeometrySystem.of(player).active(player)
+         || SessionSystem.of(player).modes().hasEditing(player)
          || SessionSystem.of(player).placementTasks().active(player) || SessionSystem.of(player).operationTasks().active(player)) return false;
       state(player).active = true;
       return true;
+   }
+
+   /** The connection's monotonically increasing request id fences delayed toggles. */
+   public static boolean requestActive(ServerPlayer player, long requestId, boolean active) {
+      if (requestId <= 0 || !PlayerStateRegistry.accepts(player)) return false;
+      State state = state(player);
+      if (requestId <= state.lastRequest) return state.active;
+      state.lastRequest = requestId;
+      return setActive(player, active);
+   }
+
+   public static void sync(ServerPlayer player) {
+      PlayerStateRegistry.find(player).flatMap(scope -> scope.find(STATE)).ifPresent(state -> {
+         if (state.lastRequest > 0 && player.connection.hasChannel(QuickReplaceStatePayload.TYPE)) {
+            PacketDistributor.sendToPlayer(player, new QuickReplaceStatePayload(state.lastRequest, state.active));
+         }
+      });
    }
 
    public static boolean replaceCrosshair(ServerPlayer player) {
@@ -118,9 +133,7 @@ public final class QuickReplaceSystem {
          && !HistorySystem.of(player).busy(player)
          && ServerInputDispatcher.canOperate(player)
          && !ServerInputDispatcher.interactionBlocked(player)
-         && !QuickShapeSystem.of(player).active(player)
-         && !OperationSystem.of(player).active(player)
-         && !GeometrySystem.of(player).active(player)
+         && !SessionSystem.of(player).modes().hasEditing(player)
          && !SessionSystem.of(player).placementTasks().active(player)
          && !SessionSystem.of(player).operationTasks().active(player)
          && PlaceableItems.isPlaceable(player.getMainHandItem());
@@ -130,8 +143,9 @@ public final class QuickReplaceSystem {
       private boolean active;
       private QuickReplaceStroke stroke;
       private long lastStroke;
+      private long lastRequest;
       private final QuickReplaceDedupe dedupe = new QuickReplaceDedupe();
-      private void clear() { active = false; stroke = null; lastStroke = 0; dedupe.clear(); }
+      private void clear() { active = false; stroke = null; dedupe.clear(); }
       @Override public void onDetach() { clear(); }
       @Override public void onDimensionChanged() { clear(); }
       @Override public void onDiscard() { clear(); }

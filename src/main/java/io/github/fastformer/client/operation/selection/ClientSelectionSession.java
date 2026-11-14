@@ -1,6 +1,5 @@
 package io.github.fastformer.client.operation.selection;
 
-import io.github.fastformer.client.input.drag.SelectionGestureState;
 import io.github.fastformer.client.interaction.InteractionHover;
 import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.InteractionVisibility;
@@ -23,7 +22,6 @@ public final class ClientSelectionSession {
    private final InteractionHover hover = new InteractionHover();
    private final TickMailbox<InteractionHover.Event> hoverEvents =
       new TickMailbox<>(event -> { });
-   private final SelectionGestureState gestures = new SelectionGestureState();
    private final SelectionSessionLifecycle lifecycle = new SelectionSessionLifecycle();
    private SelectionInteractionScene interactionScene = SelectionInteractionScene.empty(this.interactionOwnerId);
    private final SelectionDraftStateMachine draft = new SelectionDraftStateMachine(this.workspace.selections());
@@ -54,10 +52,6 @@ public final class ClientSelectionSession {
       clearDraft();
       clearTransientInteraction();
       this.draft.setMode(SelectionToolPreference.get());
-   }
-
-   public SelectionGestureState gestures() {
-      return this.gestures;
    }
 
    public SelectionSessionLifecycle.Phase lifecyclePhase() {
@@ -140,7 +134,6 @@ public final class ClientSelectionSession {
    public void clearTransientInteraction() {
       this.workspace.cancelEdit();
       this.lifecycle.exit(SelectionSessionLifecycle.Cause.ENVIRONMENT_CHANGED);
-      this.gestures.clear();
       this.interactionOwnerId = UUID.randomUUID();
       enqueueHoverTransitions(this.hover.update(null));
       this.hoverEvents.invalidate();

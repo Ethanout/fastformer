@@ -46,14 +46,16 @@ class FaceRasterCancellationTest {
     @Test void cancellationBeforeOutlinePreventsItsCallback() {
         AtomicBoolean cancelled = new AtomicBoolean(true);
         FaceRasterAlgorithms algorithms = new FaceRasterAlgorithms().register(algorithm("unused", (shape, request) -> fail()));
-        var dispatcher = new FaceRasterDispatcher(algorithms, policy("unused"), (shape, request) -> fail("outline must not run"), (id, shape) -> fail());
+        var dispatcher = new FaceRasterDispatcher(algorithms, policy("unused"), ChainExhaustion.EDGE_ONLY,
+                (shape, request) -> fail("outline must not run"), (id, shape) -> fail());
         var fill = request(cancelled);
         assertThrows(CancellationException.class, () -> dispatcher.rasterize(new FaceRequest(fill.vertices(), FillMode.OUTLINE,
                 fill.tieBias(), fill.maxBlocks(), fill.observer())));
     }
 
     private static FaceRasterDispatcher dispatcher(FaceRasterAlgorithms algorithms, String... chain) {
-        return new FaceRasterDispatcher(algorithms, policy(chain), (shape, request) -> fail(), (id, shape) -> {});
+        return new FaceRasterDispatcher(algorithms, policy(chain), ChainExhaustion.EDGE_ONLY,
+                (shape, request) -> fail(), (id, shape) -> {});
     }
 
     private static FaceRasterPolicy policy(String... names) {

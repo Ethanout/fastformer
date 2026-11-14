@@ -27,7 +27,7 @@ class ClientScopeTest {
       scope.resetInput();
       scope.detachEnvironment();
       assertSame(id, scope.id());
-      assertSame(scope.selectionSession().gestures(), scope.inputSession().selectionGestures());
+      assertSame(scope.operations().selectionGestures(), scope.inputSession().selectionGestures());
    }
 
    @Test

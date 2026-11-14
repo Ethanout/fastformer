@@ -6,12 +6,8 @@ import io.github.fastformer.core.math.Axis;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.client.input.drag.DeferredDragClick;
-import io.github.fastformer.client.input.drag.DragAxisFrame;
-import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.interaction.SelectionDragCapture;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.input.SelectionDraftPress;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
@@ -408,9 +404,8 @@ class SelectionPointerMailboxTest {
       var old = ClientSessionSystem.instance().operations().selectionGestures().gizmo();
       assertNotNull(old);
       long oldRouting = this.input.clickGestureToken;
-      ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(old.editToken());
-      ClientSessionSystem.instance().operations().selectionGestures().clear(old);
-      bindFaceDrag(press);
+      input.selectionGestures().cancel(old.capture());
+      bindOwnedDrag(press);
       var replacement = ClientSessionSystem.instance().operations().selectionGestures().capture();
       long replacementRouting = this.input.clickGestureToken;
       // Restore the old dispatch association to model a release delayed past an external replacement.
@@ -426,7 +421,7 @@ class SelectionPointerMailboxTest {
    void faceReleaseSettlesItsCapturedEditWithoutRequiringWorldResampling() {
       var press = postPress(1, 0, false, 10);
       drain();
-      bindFaceDrag(press);
+      bindOwnedDrag(press);
       var workspace = ClientSessionSystem.instance().operations().workspace();
       var changed = workspace.part(1).orElseThrow().withTranslation(new BlockPos(3, 0, 0));
       workspace.updatePart(changed);
@@ -440,7 +435,7 @@ class SelectionPointerMailboxTest {
    void faceCancellationRestoresTheBaselineAndDoesNotCommitOnLateRelease() {
       var press = postPress(1, 0, false, 10);
       drain();
-      bindFaceDrag(press);
+      bindOwnedDrag(press);
       var workspace = ClientSessionSystem.instance().operations().workspace();
       var original = workspace.part(1).orElseThrow();
       workspace.updatePart(original.withTranslation(new BlockPos(3, 0, 0)));
@@ -455,34 +450,30 @@ class SelectionPointerMailboxTest {
    void contextCancellationRestoresTheEditAndIgnoresItsLateRelease() {
       var press = postPress(1, 0, false, 10);
       drain();
-      bindFaceDrag(press);
+      bindOwnedDrag(press);
       var workspace = ClientSessionSystem.instance().operations().workspace();
       var original = workspace.part(1).orElseThrow();
       workspace.updatePart(original.withTranslation(new BlockPos(3, 0, 0)));
 
-      SelectionGestureController.cancelActive(this.input);
+      this.input.selectionGestures().cancel();
       assertEquals(original, workspace.part(1).orElseThrow());
       assertFalse(workspace.editing());
       assertFalse(ClientSessionSystem.instance().operations().selectionGestures().active());
       assertEquals(PointerGestureState.Kind.NONE, this.input.pointerGesture.kind());
-      SelectionGestureController.cancelActive(this.input);
+      this.input.selectionGestures().cancel();
       postRelease(0, 20);
       drain();
       assertEquals(original, workspace.part(1).orElseThrow());
       assertPointerSettled();
    }
 
-   // Face admission checks the live world. Seed its accepted capture to test only queued settlement.
-   private void bindFaceDrag(SelectionPointerEvent.Press press) {
-      var workspace = ClientSessionSystem.instance().operations().workspace();
-      var part = workspace.part(1).orElseThrow();
-      assertTrue(workspace.beginEdit());
-      this.input.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_FACE);
-      var capture = SelectionDragCapture.create(ClientSessionSystem.instance().operations().interactionScene().owner(), workspace,
-         List.of(part), press.snapshot().button(), this.input.pointerGesture.activeToken());
-      var drag = new WorkspaceFaceDrag(part, 0, true, DragAxisFrame.start(Vec3.ZERO, false),
-         new Vec3(1, 0, 0), 0, capture, DeferredDragClick.none(), null, workspace.activeEditToken(), false);
-      ClientSessionSystem.instance().operations().selectionGestures().begin(drag);
+   // Queued settlement uses a real owned edit without requiring a client world.
+   private void bindOwnedDrag(SelectionPointerEvent.Press press) {
+      var gizmo = new AxisGizmo(Vec3.ZERO, 1.0, 0.1);
+      var handle = gizmo.handles().stream().filter(value -> value.operation() == AxisGizmo.Operation.MOVE).findFirst().orElseThrow();
+      var target = new OperationInteractionIntent.Gizmo(0, true, gizmo, new AxisGizmo.Hit(handle, Vec3.ZERO, 1.0, 0.1));
+      assertTrue(input.selectionGestures().beginGizmo(FastPlaceClientInput.selectionGizmoPress(target, press.snapshot().button(), false)));
+      var capture = input.selectionGestures().capture();
       this.input.clickGestureToken = this.input.routing.beginGesture(press.snapshot().button());
       this.input.operationClick.capture(press.snapshot().button());
       this.input.selectionPointer.dispatched(press.identity(), capture, this.input.clickGestureToken);

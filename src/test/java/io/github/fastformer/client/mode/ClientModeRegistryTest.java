@@ -1,5 +1,8 @@
 package io.github.fastformer.client.mode;
 
+import io.github.fastformer.common.mode.ModeId;
+import io.github.fastformer.common.mode.BuiltinModes;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static io.github.fastformer.client.input.state.ClientInputStateMachine.Dispatch.*;
 
@@ -13,6 +16,24 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ClientModeRegistryTest {
+   @Test void everyPhaseKeepsItsStableTypedModeIdentity() {
+      var expected = Map.of(
+         State.IDLE, BuiltinModes.IDLE,
+         State.BUILDING, BuiltinModes.QUICK_SHAPE,
+         State.GEOMETRY, BuiltinModes.GEOMETRY,
+         State.SELECTING, BuiltinModes.SELECTION,
+         State.ADJUSTING, BuiltinModes.SELECTION,
+         State.QUICK_REPLACE, BuiltinModes.QUICK_REPLACE,
+         State.FILL_PREVIEW, BuiltinModes.SMART_FILL,
+         State.RESTORING, BuiltinModes.BUSY,
+         State.PLACING, BuiltinModes.BUSY);
+      for (State phase : State.values()) {
+         assertEquals(expected.getOrDefault(phase, BuiltinModes.BUSY), ClientModes.registry().id(phase), phase.name());
+      }
+      assertEquals("fastformer:idle", ClientModes.registry().id(State.IDLE).value().toString());
+      assertEquals(BuiltinModes.QUICK_SHAPE, ModeId.of("quick_shape"));
+   }
+
    @Test void allWorkflowCombinationsKeepTheExistingPriorityAndInteractiveOwnership() {
       for (int flags = 0; flags < 512; flags++) {
          var observation = new ModeObservation(bit(flags, 0), bit(flags, 1), bit(flags, 2), bit(flags, 3),
@@ -121,7 +142,7 @@ class ClientModeRegistryTest {
    }
    private static ClientMode mode(String id, int priority, Map<State, ModeInputPolicy> phases, State observed) {
       return new ClientMode() {
-         public String id() { return id; }
+         public ModeId id() { return ModeId.of(id); }
          public int priority() { return priority; }
          public Map<State, ModeInputPolicy> phases() { return phases; }
          public Optional<State> observe(ModeObservation ignored) { return Optional.of(observed); }

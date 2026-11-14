@@ -8,7 +8,6 @@ import io.github.fastformer.server.history.HistoryRecoveryReconciler;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.SessionSystem;
@@ -75,7 +74,7 @@ public final class PlayerLifecycleEvents {
       PlayerStateRegistry.attach(player);
       PreviewSync.beginClientSession(player);
       io.github.fastformer.fastplace.settings.PlayerBlockReach.initialize(player);
-      FastPlaceNetwork.syncSettings(player);
+      PreviewSync.syncSettings(player);
       // Reattach UUID-owned workflows after a reconnect or player replacement.
       SessionSystem.of(player).syncCurrentPreview(player);
       HistorySystem.of(player).trimToSetting(player, FastPlaceSettings.load(player).worldUndoHistoryLimit());

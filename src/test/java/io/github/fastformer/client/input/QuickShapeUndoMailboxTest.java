@@ -126,8 +126,8 @@ class QuickShapeUndoMailboxTest {
    void lineReleaseOverrideCancelsTheQueuedPressWithoutUndo() {
       var input = session();
       var draft = snapshot();
-      input.postLineUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
-      input.finishLinePhysicalRelease(0);
+      input.postShapeUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
+      input.finishShapePhysicalRelease(0);
       assertFalse(input.quickShapeUndo.physicalCaptured());
       assertEquals(0, drain(input, draft));
       assertFalse(input.quickShapeUndo.captured());
@@ -137,16 +137,16 @@ class QuickShapeUndoMailboxTest {
    void defaultLineReleaseRetainsThePhysicalShortPressRule() {
       var input = session();
       var draft = snapshot();
-      input.postLineUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
-      input.postLineUndo(input.quickShapeUndo.release(0, 100 + LIMIT));
-      input.finishLinePhysicalRelease(0);
+      input.postShapeUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
+      input.postShapeUndo(input.quickShapeUndo.release(0, 100 + LIMIT));
+      input.finishShapePhysicalRelease(0);
       assertEquals(1, drain(input, draft));
       assertFalse(input.quickShapeUndo.captured());
    }
 
    @Test
    void actualLineRulesHonorDefaultVanillaAndMissingReleasePolicies() throws Exception {
-      var path = "/assets/fastformer/fastformer/bindings/default/quick_shape_line.json";
+      var path = "/assets/fastformer/fastformer/bindings/default/quick_shape.json";
       io.github.fastformer.client.interaction.binding.data.BindingFile defaults;
       try (var stream = getClass().getResourceAsStream(path)) {
          assertNotNull(stream);
@@ -174,10 +174,10 @@ class QuickShapeUndoMailboxTest {
          new io.github.fastformer.client.interaction.binding.context.ContextMatcher(
             io.github.fastformer.client.interaction.binding.context.ContextFields.defaults().freeze()), () -> rules, id -> true);
       var commands = new io.github.fastformer.client.interaction.binding.action.BindingCommands() {
-         public boolean quickShapeLine(io.github.fastformer.client.interaction.binding.action.QuickShapeLineCommand command) {
+         public boolean quickShapeBinding(io.github.fastformer.client.interaction.binding.action.QuickShapeBindingCommand command) {
             switch (command) {
-               case BEGIN_UNDO -> input.postLineUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
-               case END_UNDO -> input.postLineUndo(input.quickShapeUndo.release(0, 110));
+               case BEGIN_UNDO -> input.postShapeUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
+               case END_UNDO -> input.postShapeUndo(input.quickShapeUndo.release(0, 110));
                default -> fail("unexpected line command: " + command);
             }
             return true;
@@ -191,14 +191,21 @@ class QuickShapeUndoMailboxTest {
          public void replayPress(long time) { fail("line input replayed an idle press"); }
       };
       for (int action : new int[]{1, 0}) {
-         var context = new io.github.fastformer.client.interaction.binding.context.QuickShapeLineContext(
-            false, false, true, true, false, input.quickShapeUndo.physicalCaptured(), false, false);
+         var facts = java.util.EnumSet.of(
+            io.github.fastformer.client.interaction.binding.context.QuickShapeBindingContext.Fact.POINTER_CHANNEL,
+            io.github.fastformer.client.interaction.binding.context.QuickShapeBindingContext.Fact.MIDDLE_ENABLED);
+         if (input.quickShapeUndo.physicalCaptured()) facts.add(
+            io.github.fastformer.client.interaction.binding.context.QuickShapeBindingContext.Fact.UNDO_CAPTURED);
+         var context = new io.github.fastformer.client.interaction.binding.context.QuickShapeBindingContext(
+            io.github.fastformer.common.quickshape.mode.QuickShapeStage.LINE,
+            ResourceLocation.fromNamespaceAndPath("fastformer", "axis"),
+            io.github.fastformer.common.interaction.binding.SessionProfiles.NONE, facts);
          try {
-            io.github.fastformer.client.interaction.binding.tool.QuickShapeLineBindingInput.mouse(
+            io.github.fastformer.client.interaction.binding.tool.QuickShapeBindingInput.mouse(
                true, context, action, 0, action == 1 ? 100 : 110,
-               (name, gesture, facts, time) -> system.onSignalResult(name, gesture, facts, commands));
+               (name, gesture, frozen, time) -> system.onSignalResult(name, gesture, frozen, commands));
          } finally {
-            if (action == 0) input.finishLinePhysicalRelease(0);
+            if (action == 0) input.finishShapePhysicalRelease(0);
          }
       }
       int sent = drain(input, draft);
@@ -210,9 +217,9 @@ class QuickShapeUndoMailboxTest {
    void reloadingLineBindingsDropsCapturedAndAlreadyQueuedUndo() {
       var input = session();
       var draft = snapshot();
-      input.postLineUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
-      input.postLineUndo(input.quickShapeUndo.release(0, 110));
-      input.cancelLineBindingInput();
+      input.postShapeUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
+      input.postShapeUndo(input.quickShapeUndo.release(0, 110));
+      input.cancelShapeBindingInput();
       assertEquals(0, drain(input, draft));
       assertFalse(input.quickShapeUndo.captured());
    }

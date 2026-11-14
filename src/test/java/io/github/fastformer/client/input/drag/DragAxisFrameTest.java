@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input.drag;
 
+import io.github.fastformer.client.interaction.drag.DragAxisFrame;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import net.minecraft.world.phys.Vec3;

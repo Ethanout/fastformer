@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
@@ -29,11 +30,13 @@ class SessionSystemTest {
    void registryContainsEveryGeometryModeExactlyOnceAndCannotBeMutated() {
       try (var runtime = new SessionSystem()) {
          var modes = runtime.modes().registered();
-         assertEquals(GeometryMode.values().length + 4, modes.size());
+         assertEquals(GeometryMode.values().length + 6, modes.size());
          assertEquals(modes.size(), modes.stream().map(mode -> mode.id()).distinct().count());
          for (GeometryMode shape : GeometryMode.values()) {
-            assertTrue(modes.stream().anyMatch(mode -> mode.id().equals("geometry/" + shape.name().toLowerCase(java.util.Locale.ROOT))));
+            assertTrue(modes.stream().anyMatch(mode -> mode.id().equals(BuiltinModes.geometry(shape))));
          }
+         assertTrue(runtime.modes().find(BuiltinModes.QUICK_REPLACE).isPresent());
+         assertTrue(runtime.modes().find(BuiltinModes.SMART_FILL).isPresent());
          assertThrows(UnsupportedOperationException.class, () -> modes.clear());
       }
    }

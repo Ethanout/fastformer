@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import net.minecraft.world.phys.Vec3;

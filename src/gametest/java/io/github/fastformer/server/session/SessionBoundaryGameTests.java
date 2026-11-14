@@ -4,6 +4,7 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.common.interaction.InteractionState;
@@ -42,7 +43,7 @@ public final class SessionBoundaryGameTests {
             draft.setMode(mode);
             system.geometry.sessions.activate(player.getUUID(), draft);
             var registered = system.modes().active(player).orElseThrow();
-            helper.assertTrue(registered.id().equals("geometry/" + mode.name().toLowerCase(java.util.Locale.ROOT)),
+            helper.assertTrue(registered.id().equals(BuiltinModes.geometry(mode)),
                "wrong geometry registration for " + mode);
             BlockPos point = helper.absolutePos(new BlockPos(2, 2, 2));
             Vec3 location = Vec3.atCenterOf(point);

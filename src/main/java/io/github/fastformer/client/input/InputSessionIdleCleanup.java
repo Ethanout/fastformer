@@ -1,6 +1,5 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.session.ClientSessionSystem;
 
 import net.minecraft.client.Minecraft;
 
@@ -9,7 +8,7 @@ final class InputSessionIdleCleanup {
    private InputSessionIdleCleanup() { }
 
    static void clear(Minecraft minecraft, ClientInputSession session) {
-      SelectionGestureController.cancelActive(session);
+      session.selectionGestures().cancel();
       OperationDragController.cancel(session);
       OperationPointInputController.cancel(session);
       session.undoPress.cancel();
@@ -17,7 +16,6 @@ final class InputSessionIdleCleanup {
       session.releaseGeometryPointerButton(0);
       session.releaseGeometryPointerButton(1);
       session.operationClick.clear();
-      ClientSessionSystem.instance().operations().selectionGestures().clear();
       FastPlaceClientInput.finishPointerGesture();
    }
 }

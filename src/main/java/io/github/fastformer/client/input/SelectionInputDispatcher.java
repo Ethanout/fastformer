@@ -2,10 +2,8 @@ package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.session.ClientSessionSystem;
 
-import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
-import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
-import io.github.fastformer.client.interaction.SelectionDragCapture;
+import io.github.fastformer.client.interaction.selectiongesture.SelectionDragCapture;
 import io.github.fastformer.client.operation.input.SelectionDraftPress;
 import io.github.fastformer.client.operation.input.SelectionPointerCapture;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
@@ -21,7 +19,7 @@ final class SelectionInputDispatcher {
             long routingToken = 0L;
             if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) == ClientInputStateMachine.Dispatch.OPERATION
                && !session.selectionGestures().active()) {
-               SelectionGestureController.press(session, minecraft, press.snapshot());
+               FastPlaceClientInput.dispatchSelectionGesture(session, ClientSessionSystem.instance().operations(), press.snapshot());
                capture = session.selectionGestures().capture();
                if (capture != null) {
                   routingToken = session.routing.beginGesture(press.snapshot().button());
@@ -72,18 +70,8 @@ final class SelectionInputDispatcher {
       if (dispatched == null || dispatched.drag() == null) return;
       SelectionDragCapture capture = dispatched.drag();
       var gestures = session.selectionGestures();
-      var drag = gestures.capturedBy(capture);
-      if (drag != null) {
-         if (cancelled) {
-            ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
-            SelectionGestureController.finishPointer(session, capture.gestureToken());
-            gestures.clear(drag);
-         } else if (drag instanceof WorkspaceFaceDrag) {
-            SelectionGestureController.finishFace(session);
-         } else if (drag instanceof WorkspaceGizmoDrag) {
-            SelectionGestureController.finishGizmo(session);
-         }
-      }
+      if (cancelled) gestures.cancel(capture);
+      else gestures.finish(capture);
       if (session.clickGestureToken == dispatched.routingToken()) {
          session.routing.finishGesture(capture.mouseButton(), dispatched.routingToken());
          session.clickGestureToken = 0L;

@@ -11,8 +11,8 @@ final class PointerDragTicker {
    private PointerDragTicker() { }
 
    static void advance(Minecraft minecraft, ClientInputSession session, boolean controlHeld) {
-      boolean workspaceGizmo = ClientSessionSystem.instance().operations().selectionGestures().gizmo() != null;
-      boolean workspaceFace = ClientSessionSystem.instance().operations().selectionGestures().face() != null;
+      boolean workspaceGizmo = session.selectionGestures().gizmo() != null;
+      boolean workspaceFace = session.selectionGestures().face() != null;
       if (session.operationDrag == null && session.operationPointDrag == null
          && session.geometryGizmoDrag == null && !workspaceGizmo && !workspaceFace) return;
 
@@ -30,11 +30,11 @@ final class PointerDragTicker {
       if (plan.clearOperationDrag()) OperationDragController.cancel(session);
       if (plan.clearOperationPointDrag()) OperationPointInputController.cancel(session);
       if (plan.exclusiveOwner() == DragAdvanceSemantics.Owner.WORKSPACE_FACE) {
-         SelectionGestureController.updateFace(session, minecraft);
+         updateSelection(minecraft, session, controlHeld);
          return;
       }
       if (plan.exclusiveOwner() == DragAdvanceSemantics.Owner.WORKSPACE_GIZMO) {
-         SelectionGestureController.updateGizmo(session, minecraft, controlHeld);
+         updateSelection(minecraft, session, controlHeld);
          return;
       }
       if (plan.advanceGeometryGizmo()) GeometryDragController.update(minecraft, session, controlHeld);
@@ -45,5 +45,10 @@ final class PointerDragTicker {
          return;
       }
       if (plan.advanceOperationDrag()) OperationDragController.update(minecraft, session);
+   }
+
+   private static void updateSelection(Minecraft minecraft, ClientInputSession session, boolean control) {
+      if (minecraft.player != null) session.selectionGestures().update(
+         minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), control, System.nanoTime());
    }
 }

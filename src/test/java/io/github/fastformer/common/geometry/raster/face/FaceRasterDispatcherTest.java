@@ -33,6 +33,7 @@ class FaceRasterDispatcherTest {
                 .register(algorithm("ok", true, new FaceRasterResult.Filled(Set.of(BlockPos.ZERO)), calls))
                 .register(algorithm("after", true, new FaceRasterResult.NoValidCandidate(), calls)).freeze();
         var dispatcher = new FaceRasterDispatcher(registry, policy("skip", "reject", "failed", "ok", "after"),
+                ChainExhaustion.EDGE_ONLY,
                 (shape, request) -> fail("Fill must not query outline"), (id, shape) -> failures.add(id.getPath()));
         assertEquals(new FaceRasterResult.Filled(Set.of(BlockPos.ZERO)), dispatcher.rasterize(request(FillMode.SOLID, 10, null)));
         assertEquals(List.of("reject", "failed", "ok"), calls);
@@ -44,6 +45,7 @@ class FaceRasterDispatcherTest {
         var registry = new FaceRasterAlgorithms().register(algorithm("limit", true, new FaceRasterResult.LimitExceeded(), calls))
                 .register(algorithm("after", true, new FaceRasterResult.Filled(Set.of()), calls));
         var dispatcher = new FaceRasterDispatcher(registry, policy("limit", "after"),
+                ChainExhaustion.EDGE_ONLY,
                 (shape, request) -> fail(), (id, shape) -> fail());
         assertInstanceOf(FaceRasterResult.LimitExceeded.class, dispatcher.rasterize(request(FillMode.HOLLOW, 1, null)));
         assertEquals(List.of("limit"), calls);
@@ -54,6 +56,7 @@ class FaceRasterDispatcherTest {
         AtomicInteger generated = new AtomicInteger();
         var registry = new FaceRasterAlgorithms().register(algorithm("unused", true, new FaceRasterResult.NoValidCandidate(), calls));
         var dispatcher = new FaceRasterDispatcher(registry, policy("unused"),
+                ChainExhaustion.EDGE_ONLY,
                 (shape, request) -> new FaceRasterResult.Filled(Set.of(BlockPos.ZERO)), (id, shape) -> fail());
         dispatcher.rasterize(request(FillMode.OUTLINE, 1, new BlockGenerationObserver() {
             @Override public void onGenerated(BlockPos block) { generated.incrementAndGet(); }
@@ -65,7 +68,8 @@ class FaceRasterDispatcherTest {
     @Test void fallbackIsBoundedAndCancellationPropagates() {
         List<String> calls = new ArrayList<>();
         var registry = new FaceRasterAlgorithms().register(algorithm("reject", true, new FaceRasterResult.NotApplicable(), calls));
-        var dispatcher = new FaceRasterDispatcher(registry, policy("reject"), (shape, request) -> fail(), (id, shape) -> fail());
+        var dispatcher = new FaceRasterDispatcher(registry, policy("reject"), ChainExhaustion.EDGE_ONLY,
+                (shape, request) -> fail(), (id, shape) -> fail());
         assertInstanceOf(FaceRasterResult.Filled.class, dispatcher.rasterize(request(FillMode.SOLID, 100, null)));
         assertInstanceOf(FaceRasterResult.LimitExceeded.class, dispatcher.rasterize(request(FillMode.SOLID, 1, null)));
         assertThrows(CancellationException.class, () -> dispatcher.rasterize(request(FillMode.SOLID, 100, new BlockGenerationObserver() {
@@ -76,7 +80,47 @@ class FaceRasterDispatcherTest {
     @Test void invalidPoliciesFailBeforeAnyRasterWork() {
         assertThrows(IllegalArgumentException.class, () -> new FaceRasterPolicy(java.util.Map.of()));
         assertThrows(IllegalArgumentException.class, () -> new FaceRasterDispatcher(new FaceRasterAlgorithms(),
-                policy("missing"), (shape, request) -> fail(), (id, shape) -> fail()));
+                policy("missing"), ChainExhaustion.EDGE_ONLY, (shape, request) -> fail(), (id, shape) -> fail()));
+    }
+
+    @Test void strictExhaustionReturnsNotApplicableWithoutPublishingSafetyEdges() {
+        List<String> calls = new ArrayList<>();
+        var registry = new FaceRasterAlgorithms()
+                .register(algorithm("skip", false, new FaceRasterResult.Filled(Set.of()), calls))
+                .register(algorithm("reject", true, new FaceRasterResult.NotApplicable(), calls)).freeze();
+        var dispatcher = new FaceRasterDispatcher(registry, policy("skip", "reject"), ChainExhaustion.RETURN_FAILURE,
+                (shape, request) -> fail(), (id, shape) -> fail());
+        AtomicInteger generated = new AtomicInteger();
+        var result = dispatcher.rasterize(request(FillMode.SOLID, 100, new BlockGenerationObserver() {
+            @Override public void onGenerated(BlockPos position) { generated.incrementAndGet(); }
+        }));
+        assertInstanceOf(FaceRasterResult.NotApplicable.class, result);
+        assertEquals(List.of("reject"), calls);
+        assertEquals(0, generated.get());
+    }
+
+    @Test void strictExhaustionKeepsFailedCandidateEvenWhenLaterAlgorithmsAreInapplicable() {
+        List<String> calls = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+        var registry = new FaceRasterAlgorithms()
+                .register(algorithm("failed", true, new FaceRasterResult.NoValidCandidate(), calls))
+                .register(algorithm("reject", true, new FaceRasterResult.NotApplicable(), calls)).freeze();
+        var dispatcher = new FaceRasterDispatcher(registry, policy("failed", "reject"), ChainExhaustion.RETURN_FAILURE,
+                (shape, request) -> fail(), (id, shape) -> failures.add(id.getPath()));
+        assertInstanceOf(FaceRasterResult.NoValidCandidate.class, dispatcher.rasterize(request(FillMode.SOLID, 100, null)));
+        assertEquals(List.of("failed", "reject"), calls);
+        assertEquals(List.of("failed"), failures);
+    }
+
+    @Test void strictLimitStopsTheChainBeforeAValidLaterCandidate() {
+        List<String> calls = new ArrayList<>();
+        var registry = new FaceRasterAlgorithms()
+                .register(algorithm("limit", true, new FaceRasterResult.LimitExceeded(), calls))
+                .register(algorithm("after", true, new FaceRasterResult.Filled(Set.of(BlockPos.ZERO)), calls)).freeze();
+        var dispatcher = new FaceRasterDispatcher(registry, policy("limit", "after"), ChainExhaustion.RETURN_FAILURE,
+                (shape, request) -> fail(), (id, shape) -> fail());
+        assertInstanceOf(FaceRasterResult.LimitExceeded.class, dispatcher.rasterize(request(FillMode.SOLID, 1, null)));
+        assertEquals(List.of("limit"), calls);
     }
 
     private static FaceRasterAlgorithm algorithm(String name, boolean accepts, FaceRasterResult result, List<String> calls) {

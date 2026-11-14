@@ -32,10 +32,14 @@ public final class BottomHudLayout {
    }
 
    public void render(GuiGraphics graphics, Minecraft minecraft, Component text) {
+      render(graphics, minecraft.font, text);
+   }
+
+   public void render(GuiGraphics graphics, net.minecraft.client.gui.Font font, Component text) {
       if (text == null || text.getString().isBlank()) return;
-      var lines = minecraft.font.split(text, Math.max(1, graphics.guiWidth() - PreviewStyle.HUD_MARGIN * 2));
+      var lines = font.split(text, Math.max(1, graphics.guiWidth() - PreviewStyle.HUD_MARGIN * 2));
       int bottom = reserveLines(lines.size());
-      if (visibleAt(bottom)) HudTextRenderer.centeredLines(graphics, minecraft, lines, bottom);
+      if (visibleAt(bottom)) HudTextRenderer.centeredLines(graphics, font, lines, bottom);
    }
 
    public int nextLine() {

@@ -28,7 +28,7 @@ import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.workflow.*;
 import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import java.util.List;
 import java.util.Optional;
@@ -86,7 +86,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       } else {
          workflow.onAddPoint(session, context(player, hit), hit);
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
    }
 
    public void selectMode(ServerPlayer player, GeometryMode mode) {
@@ -95,7 +95,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (mode == GeometryMode.CONE_PRISM) {
          session.cone().setConePlaneMode(FastPlaceSettings.load(player).conePlaneMode());
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
    }
 
    public void addPoint(ServerPlayer player, BlockPos point) {
@@ -122,7 +122,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
             return;
          }
          workflow.onAddPoint(session, context, hit);
-         FastPlaceNetwork.syncGeometry(player, session);
+         PreviewSync.syncGeometry(player, session);
       }
    }
 
@@ -131,7 +131,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (session != null && !session.removeOrUndo(point)) {
          cancel(player);
       } else if (session != null) {
-         FastPlaceNetwork.syncGeometry(player, session);
+         PreviewSync.syncGeometry(player, session);
       }
    }
 
@@ -144,16 +144,16 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (!workflow.onClosePath(session, context(player))) {
          return false;
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       return true;
    }
 
    public void sync(ServerPlayer player) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session != null) {
-         FastPlaceNetwork.syncGeometry(player, session);
+         PreviewSync.syncGeometry(player, session);
       } else {
-         FastPlaceNetwork.clearGeometry(player);
+         PreviewSync.clearGeometry(player);
       }
    }
 
@@ -167,7 +167,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          if (!workflow.onScroll(session, context(player), steps)) {
             return;
          }
-         FastPlaceNetwork.syncGeometry(player, session);
+         PreviewSync.syncGeometry(player, session);
       }
    }
 
@@ -182,7 +182,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (!finish && steps != 0 && !GeometryWorkflows.get(session.mode()).onGizmoDrag(session, context(player), operation, axis, steps)) {
          return false;
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       return true;
    }
 
@@ -208,7 +208,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
             return false;
          }
          session.convex().clearSelectedControlPoint();
-         FastPlaceNetwork.syncGeometry(player, session);
+         PreviewSync.syncGeometry(player, session);
          return true;
       }
       GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
@@ -232,7 +232,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          targetType, index, action, gesture)) {
          return false;
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       return true;
    }
 
@@ -250,7 +250,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_invalid"));
          return false;
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_euler_value", xDegrees, yDegrees, zDegrees));
       return true;
    }
@@ -265,7 +265,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_invalid"));
          return false;
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_quat_value", w, x, y, z));
       return true;
    }
@@ -280,7 +280,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_invalid"));
          return false;
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_matrix_set"));
       return true;
    }
@@ -292,7 +292,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          return false;
       }
       session.polyhedron().rotateSnap(axis, steps, fine ? 1024 : 16);
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_snap_value", axisName(axis), steps, fine ? 1024 : 16));
       return true;
    }
@@ -305,7 +305,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       }
       session.cone().setConePlaneMode(mode);
       FastPlaceSettings.load(player).setConePlaneMode(player, mode);
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.cone_plane_value", PlayerMessages.text(mode)));
       return true;
    }
@@ -317,7 +317,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          return false;
       }
       session.polyhedron().setPolyhedronSizeMode(mode);
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       return true;
    }
 
@@ -333,7 +333,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (session.mode() == GeometryMode.CONE_PRISM && session.cone().coneStage() == ConePrismStage.FACE) {
          FastPlaceSettings.load(player).setConePlaneMode(player, session.cone().conePlaneMode());
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       return true;
    }
 
@@ -347,7 +347,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.number_invalid"));
          return false;
       }
-      FastPlaceNetwork.syncGeometry(player, session);
+      PreviewSync.syncGeometry(player, session);
       PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.cone_scale_value", session.cone().coneScaleX(), session.cone().coneScaleZ()));
       return true;
    }
@@ -385,7 +385,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
 
    public void cancel(ServerPlayer player) {
       if (sessions.end(player.getUUID()) != null) {
-         FastPlaceNetwork.clearGeometry(player);
+         PreviewSync.clearGeometry(player);
       }
    }
 

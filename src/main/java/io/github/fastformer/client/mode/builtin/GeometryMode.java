@@ -4,6 +4,8 @@ import static io.github.fastformer.client.input.state.ClientInputStateMachine.Di
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
+import io.github.fastformer.common.mode.BuiltinModes;
+import io.github.fastformer.common.mode.ModeId;
 import io.github.fastformer.client.mode.input.CandidateScrollRules;
 import io.github.fastformer.client.mode.input.ScrollDecision;
 import io.github.fastformer.client.mode.input.ScrollInput;
@@ -18,7 +20,7 @@ import java.util.Optional;
 public final class GeometryMode implements ClientMode {
    private static final Map<State, ModeInputPolicy> PHASES = Map.of(State.GEOMETRY, new ModeInputPolicy(GEOMETRY, GEOMETRY, BLOCKED, BLOCKED, CANCEL, true, true, true));
 
-   @Override public String id() { return "fastformer:geometry"; }
+   @Override public ModeId id() { return BuiltinModes.GEOMETRY; }
    @Override public PointerDecision onPointer(PointerInput input, PointerView view) {
       if (view instanceof PointerView.Left left && input.press(0)) {
          var captured = PointerCaptureRules.left(left);

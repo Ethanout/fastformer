@@ -1,7 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.interaction.selectiongesture.AabbAdjustDecision;
 import io.github.fastformer.client.operation.clipboard.ClipboardActionResult;
-import io.github.fastformer.client.operation.transform.OperationTransforms;
 import io.github.fastformer.client.operation.submission.SubmissionActionResult;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import net.minecraft.client.Minecraft;
@@ -28,7 +28,7 @@ public final class ClientInteractionFeedback {
    }
 
    /** Explains why a selection adjustment did not start. */
-   public static void showAabbAdjustFailure(Minecraft minecraft, OperationTransforms.AabbAdjustDecision decision) {
+   public static void showAabbAdjustFailure(Minecraft minecraft, AabbAdjustDecision decision) {
       show(minecraft, ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(decision));
    }
 

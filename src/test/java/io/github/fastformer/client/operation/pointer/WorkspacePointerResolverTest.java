@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 class WorkspacePointerResolverTest {
    private final ClientSelectionSession selection = new ClientSelectionSession();
    private final OperationContext operations = new OperationContext(selection, new OperationClipboardRepository(),
-      new ClientInputSession(selection.gestures()));
+      new ClientInputSession());
    private WorkspacePointerResolver resolver() { return operations.pointer(); }
 
    @Test
@@ -89,7 +89,8 @@ class WorkspacePointerResolverTest {
    private static WorkspacePointerResolver independent(ClientSelectionSession selection,
       java.util.function.Supplier<Set<BlockPos>> failed) {
       return new WorkspacePointerResolver(selection, () -> false, failed,
-         new io.github.fastformer.client.interaction.pointer.PointerResolver(), context -> Optional.empty());
+         new io.github.fastformer.client.interaction.pointer.PointerResolver(), context -> Optional.empty(),
+         () -> new io.github.fastformer.client.interaction.selectiongesture.SelectionGestureSnapshot(null, null));
    }
    @Test
    void fixedSurfaceInFrontOfEditableSelectionWinsAfterDeselecting() {
@@ -239,14 +240,14 @@ class WorkspacePointerResolverTest {
          var second = transformedPart(2).withTranslation(new Vec3(100, 0, 0));
          assertTrue(workspace.addParts(List.of(first, second)));
          assertEquals(Set.of(1, 2), workspace.selectedIds());
-         var targets = io.github.fastformer.client.input.drag.WorkspaceGizmoDrag.targets(workspace, 1, false);
+         var targets = List.of(workspace.part(1).orElseThrow());
          assertTrue(workspace.beginEdit());
          operations.transforms().updateTransformGesture(
             workspace.activeEditToken(), targets, false, AxisGizmo.Operation.MOVE, Axis.X, 1, 3, Double.NaN
          );
          assertEquals(first.transform().translation().add(3, 0, 0), workspace.part(1).orElseThrow().transform().translation());
          assertEquals(second.transform(), workspace.part(2).orElseThrow().transform());
-         assertEquals(2, io.github.fastformer.client.input.drag.WorkspaceGizmoDrag.targets(workspace, 0, true).size());
+         assertEquals(2, workspace.selectedParts().size());
       } finally {
          workspace.clear();
          resolver().clear();

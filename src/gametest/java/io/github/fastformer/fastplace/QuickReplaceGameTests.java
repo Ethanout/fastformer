@@ -12,6 +12,12 @@ import io.github.fastformer.server.replace.QuickReplaceSystem;
 import io.github.fastformer.common.replace.QuickReplaceTarget;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.OperationSystem;
+import io.github.fastformer.server.session.SessionSystem;
+import io.github.fastformer.server.player.PlayerStateRegistry;
+import io.github.fastformer.server.mode.ModeInput;
+import io.github.fastformer.server.mode.ModeInputResult;
+import io.github.fastformer.common.mode.BuiltinModes;
+import io.github.fastformer.server.gate.ServerOperationGates;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -33,6 +39,54 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class QuickReplaceGameTests {
    private QuickReplaceGameTests() { }
+
+   @GameTest(template = "fastformergametests.empty", batch = "quick_replace_mode")
+   public static void registeredToolKeepsVanillaRoutesAndRejectsOldToggles(GameTestHelper helper) {
+      var target = helper.absolutePos(new BlockPos(2, 3, 3));
+      helper.getLevel().setBlock(target, Blocks.STONE.defaultBlockState(), 18);
+      var player = player(helper, target, 2);
+      var modes = SessionSystem.of(player).modes();
+      helper.assertTrue(QuickReplaceSystem.requestActive(player, 10, true), "tool request did not activate");
+      helper.assertTrue(modes.active(player).orElseThrow().id().equals(BuiltinModes.QUICK_REPLACE), "tool is outside the mode registry");
+      helper.assertFalse(modes.hasEditing(player), "temporary tool became a durable editing session");
+      helper.assertTrue(ServerOperationGates.NO_SESSION.test(player).allowed(), "tool locked its own world history admission");
+      helper.assertTrue(modes.input(player, ModeInput.RIGHT_BLOCK) == ModeInputResult.CONSUMED, "replacement allowed ordinary placement");
+      helper.assertTrue(modes.input(player, ModeInput.RIGHT_ITEM) == ModeInputResult.VANILLA, "item use fell through to FF entry");
+      helper.assertTrue(modes.input(player, ModeInput.LEFT_BLOCK) == ModeInputResult.VANILLA, "attack fell through to FF selection");
+      helper.assertTrue(modes.input(player, ModeInput.SWAP_HANDS) == ModeInputResult.VANILLA, "F no longer passes to vanilla");
+      helper.assertFalse(modes.quitTemporary(player).handled(), "history Q changed the replacement toggle protocol");
+      helper.assertFalse(QuickReplaceSystem.requestActive(player, 11, false), "tool did not deactivate");
+      helper.assertFalse(QuickReplaceSystem.requestActive(player, 10, true), "late activation reopened the tool");
+      helper.assertTrue(QuickReplaceSystem.requestActive(player, 12, true), "new request failed");
+      helper.assertTrue(QuickReplaceSystem.requestActive(player, 11, false), "late stop closed the current tool");
+      SessionSystem.of(player).stopUnavailable(player);
+      helper.assertFalse(modes.active(player, BuiltinModes.QUICK_REPLACE), "unavailable boundary retained tool ownership");
+      PlayerStateRegistry.detach(player);
+      helper.assertFalse(QuickReplaceSystem.requestActive(player, 13, true), "late packet recreated a detached scope");
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "quick_replace_mode")
+   public static void toolRestartRetainsTheSeenStrokeFence(GameTestHelper helper) {
+      var target = helper.absolutePos(new BlockPos(2, 3, 3));
+      var player = player(helper, target, 2);
+      helper.assertTrue(QuickReplaceSystem.requestActive(player, 1, true), "initial activation failed");
+      // A release can arrive before its sample; that press must still remain retired.
+      QuickReplaceSystem.sample(player, 21, true);
+      QuickReplaceSystem.requestActive(player, 2, false);
+      helper.assertTrue(QuickReplaceSystem.requestActive(player, 3, true), "reactivation failed");
+      helper.getLevel().setBlock(target, Blocks.STONE.defaultBlockState(), 18);
+      helper.assertFalse(QuickReplaceSystem.sample(player, 21, false), "old press reopened after tool restart");
+      helper.assertTrue(helper.getLevel().getBlockState(target).is(Blocks.STONE), "late stroke wrote after restart");
+      PlayerStateRegistry.dimensionChanged(player);
+      helper.assertFalse(QuickReplaceSystem.active(player), "dimension retained temporary tool");
+      helper.assertFalse(QuickReplaceSystem.requestActive(player, 2, true), "old request crossed the dimension boundary");
+      helper.assertTrue(QuickReplaceSystem.requestActive(player, 4, true), "fresh request after dimension failed");
+      helper.assertFalse(QuickReplaceSystem.sample(player, 21, false), "old press crossed the dimension boundary");
+      SessionSystem.of(player).discardPlayer(player);
+      PlayerStateRegistry.detach(player);
+      helper.succeed();
+   }
 
    @GameTest(template = "fastformergametests.empty", batch = "quick_replace_history", timeoutTicks = 1000)
    public static void replacementUsesHistoryAndRejectsWritesAfterExit(GameTestHelper helper) {

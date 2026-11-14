@@ -1,13 +1,19 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.operation.controller.OperationContext;
+import io.github.fastformer.client.interaction.selectiongesture.SelectionGesturePress;
+import io.github.fastformer.client.interaction.selectiongesture.SelectionFaceHit;
+import io.github.fastformer.client.interaction.InteractionPressBinding;
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.preview.frame.ModifierReticleMode;
 
 import io.github.fastformer.client.interaction.binding.tool.QuickReplaceBindingInput;
 import io.github.fastformer.client.interaction.binding.tool.SmartFillBindingInput;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
-import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
+import io.github.fastformer.client.interaction.selectiongesture.WorkspaceFaceDrag;
+import io.github.fastformer.client.interaction.selectiongesture.WorkspaceGizmoDrag;
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
 import io.github.fastformer.client.mode.input.pointer.PointerDecision;
@@ -20,7 +26,6 @@ import io.github.fastformer.client.input.state.InputContextBoundary;
 import io.github.fastformer.client.input.state.ModifierGestureState;
 import io.github.fastformer.client.mode.ClientModes;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.interaction.SelectionDragCapture;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.input.OperationInputSemantics;
@@ -63,8 +68,6 @@ import net.neoforged.neoforge.client.event.InputEvent.InteractionKeyMappingTrigg
 import net.neoforged.neoforge.client.event.InputEvent.Key;
 import net.neoforged.neoforge.client.event.InputEvent.MouseButton.Pre;
 import net.neoforged.neoforge.client.event.InputEvent.MouseScrollingEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 @EventBusSubscriber(
    modid = "fastformer",
@@ -224,7 +227,7 @@ public final class FastPlaceClientInput {
       boolean owned = route == ClientInputStateMachine.Dispatch.CANCEL || inputSession().canCancelPendingSessionStart()
          || operationRestore || previewRestore;
       var decision = CancelInputSemantics.decide(input.action(), input.key(), true,
-         NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id()), owned,
+         ServerGateway.supports(minecraft, QuitFastPlacePayload.TYPE), owned,
          ClientSessionSystem.instance().operations().workspaceSubmissionPending(), operationRestore, previewRestore);
       return decision.command() == CancelInputSemantics.Command.IGNORE ? null : decision;
    }
@@ -266,8 +269,8 @@ public final class FastPlaceClientInput {
       if (cancel != null && operationSession && event.key() == 81) {
          cancelOperationGesture(minecraft);
          ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection();
-         if (NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
-            PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
+         if (ServerGateway.supports(minecraft, QuitFastPlacePayload.TYPE)) {
+            ServerGateway.send(QuitFastPlacePayload.INSTANCE);
          }
          return;
       }
@@ -393,8 +396,8 @@ public final class FastPlaceClientInput {
       resetModifierState(minecraft);
       if (!cancellingQuickShape) ClientSessionSystem.instance().operations().clearWorkspace();
       inputSession().feedback().clear();
-      if (NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
-         PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
+      if (ServerGateway.supports(minecraft, QuitFastPlacePayload.TYPE)) {
+         ServerGateway.send(QuitFastPlacePayload.INSTANCE);
       }
       return true;
    }
@@ -494,7 +497,7 @@ public final class FastPlaceClientInput {
       }
       boolean routed = minecraft.screen == null
          && modifierSubmodeAvailable(minecraft)
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), ModifierStatePayload.TYPE.id());
+         && ServerGateway.supports(minecraft, ModifierStatePayload.TYPE);
       inputSession().modifier.press(occurredAtNanos, modifierCycleAvailable(minecraft), routed);
       if (inputSession().entryConsumedAlt) inputSession().modifier.consume();
       if (routed) ModifierCommandDispatcher.press(minecraft);
@@ -603,7 +606,7 @@ public final class FastPlaceClientInput {
       }
       if (inputSession().routing.state() == ClientInputStateMachine.State.IDLE) return;
       int lineButton = event.isAttack() ? 0 : event.isUseItem() ? 1 : event.isPickBlock() ? 2 : -1;
-      var line = QuickShapeMouseInputController.interactionLine(minecraft, inputSession(), lineButton);
+      var line = QuickShapeMouseInputController.interactionBindings(minecraft, inputSession(), lineButton);
       if (line.owns()) {
          if (line.consumesVanilla()) {
             event.setSwingHand(false);
@@ -642,7 +645,7 @@ public final class FastPlaceClientInput {
          && minecraft.getConnection() != null
          && !buildingSession
          && !geometrySession
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) {
+         && ServerGateway.supports(minecraft, OperationPointPayload.TYPE)) {
          OperationInputSemantics.LeftDecision leftDecision = operationLeftDecision(pointerIntent());
          if (leftMousePressAlreadyHandled()) {
             event.setSwingHand(false);
@@ -748,7 +751,7 @@ public final class FastPlaceClientInput {
          && minecraft.getConnection() != null
          && inputRoute == ClientInputStateMachine.Dispatch.VANILLA
          && !InteractionContext.vanillaOwnsPointer(minecraft)
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())
+         && ServerGateway.supports(minecraft, OperationPointPayload.TYPE)
          && ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint() != null) {
          queueRemoteSelectionPoint(nextCuboidPointRole());
          event.setSwingHand(false);
@@ -773,14 +776,14 @@ public final class FastPlaceClientInput {
             return;
          }
          if (geometrySession
-            && NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())) {
+            && ServerGateway.supports(minecraft, GeometryInteractionPayload.TYPE)) {
             if (inputSession().ownsGeometryPointerButton(0)) {
                event.setSwingHand(false);
                event.setCanceled(true);
                return;
             }
          }
-         if (!NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())) {
+         if (!ServerGateway.supports(minecraft, UndoFastPlacePayload.TYPE)) {
             return;
          }
          // The mouse callback owns the physical press capture. This callback only
@@ -848,7 +851,7 @@ public final class FastPlaceClientInput {
          event.setCanceled(true);
          return;
       }
-      var line = QuickShapeMouseInputController.captureLine(minecraft, inputSession(), event.getAction(), event.getButton(),
+      var line = QuickShapeMouseInputController.captureBindings(minecraft, inputSession(), event.getAction(), event.getButton(),
          occurredAtNanos, physicalAlt);
       if (line.owns()) {
          if (line.consumesVanilla()) event.setCanceled(true);
@@ -948,8 +951,8 @@ public final class FastPlaceClientInput {
       }
       if (event.getButton() == 0
          && (buildingSession || geometrySession || operationSession)
-         && (NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())
-            || NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id()))) {
+         && (ServerGateway.supports(minecraft, UndoFastPlacePayload.TYPE)
+            || ServerGateway.supports(minecraft, GeometryInteractionPayload.TYPE))) {
          boolean consumed = false;
          if (event.getAction() == 1) {
             boolean operationAdjust = operationSession
@@ -1120,7 +1123,7 @@ public final class FastPlaceClientInput {
       } else if (event.getButton() == 2
          && event.getAction() == 1
          && operationSession
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) {
+         && ServerGateway.supports(minecraft, OperationPointPayload.TYPE)) {
          BlockPos point = ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint();
          if (point != null) {
             queueRemoteSelectionPoint(OperationPointPayload.Role.EXTRA);
@@ -1266,8 +1269,8 @@ public final class FastPlaceClientInput {
    private static SelectionPressRoute selectionPressRoute(Minecraft minecraft, OperationInteractionIntent target, int button) {
       return switch (button) {
          case MouseButtonInputSemantics.LEFT_BUTTON -> {
-            if (!NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())
-               && !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())) {
+            if (!ServerGateway.supports(minecraft, UndoFastPlacePayload.TYPE)
+               && !ServerGateway.supports(minecraft, GeometryInteractionPayload.TYPE)) {
                yield SelectionPressRoute.NONE;
             }
             yield switch (leftPressTarget(minecraft, MouseButtonInputSemantics.PRESS, target, operationLeftDecision(target),
@@ -1424,7 +1427,7 @@ public final class FastPlaceClientInput {
          && inputSession().operationPointDrag == null
          && ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex() >= 0
          && ClientSessionSystem.instance().operations().remotePointer().operationPointCenter(ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex()) != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id());
+         && ServerGateway.supports(minecraft, OperationPointDragPayload.TYPE);
       boolean operationUndo = leftDecision.action() == OperationInputSemantics.LeftAction.SELECTION_UNDO
          || leftDecision.action() == OperationInputSemantics.LeftAction.ADJUSTMENT_UNDO;
       if (!buildingSession && !geometrySession && !operationSession) return PointerDecision.Left.NONE;
@@ -1451,7 +1454,7 @@ public final class FastPlaceClientInput {
          inputSession().geometryGizmoDrag != null,
          geometrySession && ClientSessionSystem.instance().geometryPointer().gizmoHit() != null,
          geometrySession,
-         NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())
+         ServerGateway.supports(minecraft, UndoFastPlacePayload.TYPE)
       ));
       return decision instanceof PointerDecision.Left left ? left : PointerDecision.Left.NONE;
    }
@@ -1473,7 +1476,7 @@ public final class FastPlaceClientInput {
          && inputSession().operationPointDrag == null
          && ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex() >= 0
          && ClientSessionSystem.instance().operations().remotePointer().operationPointCenter(ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex()) != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id());
+         && ServerGateway.supports(minecraft, OperationPointDragPayload.TYPE);
       if (!geometrySession && !operationSession) return PointerDecision.Right.NONE;
       var decision = ClientModes.registry().onPointer(
          pointerPhase(false, geometrySession, operationSession),
@@ -1489,11 +1492,11 @@ public final class FastPlaceClientInput {
          !vanillaOwnsPointer
             && ClientSessionSystem.instance().operations().operationPrism()
             && ClientSessionSystem.instance().operations().remotePointer().operationPrismEdgeInsertion() != null
-            && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationInsertPointPayload.TYPE.id()),
+            && ServerGateway.supports(minecraft, OperationInsertPointPayload.TYPE),
          !vanillaOwnsPointer
             && ClientSessionSystem.instance().operations().operationPrism()
             && ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint() != null
-            && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id()),
+            && ServerGateway.supports(minecraft, OperationPointPayload.TYPE),
          ClientSessionSystem.instance().operations().operationCuboid() && pointerTarget.kind() == OperationPointerKind.WORLD,
          ClientSessionSystem.instance().operations().operationCuboid() && pointerTarget.kind() == OperationPointerKind.FACE,
          !ClientSessionSystem.instance().operations().operationPrism() && ClientSessionSystem.instance().operations().remotePointer().operationPrismBaseOpen()
@@ -1528,7 +1531,7 @@ public final class FastPlaceClientInput {
    }
 
    private static boolean beginFallbackUndoPress(Minecraft minecraft) {
-      return NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id()) && beginUndoPress();
+      return ServerGateway.supports(minecraft, UndoFastPlacePayload.TYPE) && beginUndoPress();
    }
 
    public static void prepareTick(Minecraft minecraft) {
@@ -1595,14 +1598,14 @@ public final class FastPlaceClientInput {
           if (fill.consumesVanilla()) event.setCanceled(true);
           return;
        }
-      var line = QuickShapeMouseInputController.scrollLine(minecraft, inputSession(), event.getScrollDeltaY(), System.nanoTime());
+      var line = QuickShapeMouseInputController.scrollBindings(minecraft, inputSession(), event.getScrollDeltaY(), System.nanoTime());
       if (line.owns()) {
          if (line.consumesVanilla()) event.setCanceled(true);
          return;
       }
       boolean sessionReady = minecraft.player != null && minecraft.screen == null;
       boolean candidateChannelAvailable = minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id());
+         && ServerGateway.supports(minecraft, ScrollCandidatePayload.TYPE);
       var scroll = ClientModes.registry().onScroll(inputSession().routing.state(),
          new io.github.fastformer.client.mode.input.ScrollInput(event.getScrollDeltaY()),
          new io.github.fastformer.client.mode.input.ScrollView(
@@ -1657,15 +1660,9 @@ public final class FastPlaceClientInput {
       if (workspaceTarget != null) {
          var press = SelectionPointerPress.capture(workspaceTarget, mouseButton, physicalCtrlDown(minecraft, false), 0,
             ClientSessionSystem.instance().operations().interactionScene(), ClientSessionSystem.instance().operations().workspace());
-         return press.isPresent() && beginWorkspaceGizmoDrag(workspaceTarget, press.get().button(), press.get().control());
+         return press.isPresent() && inputSession().selectionGestures().beginGizmo(selectionGizmoPress(workspaceTarget, press.get().button(), press.get().control()));
       }
       return OperationDragController.beginGizmo(minecraft, inputSession(), mouseButton);
-   }
-
-   private static boolean beginWorkspaceGizmoDrag(
-      OperationInteractionIntent.Gizmo target, int mouseButton, boolean control
-   ) {
-      return SelectionGestureController.beginWorkspaceGizmoDrag(inputSession(), target, mouseButton, control);
    }
 
    private static boolean sendOperationEdgeInsertion(Minecraft minecraft) {
@@ -1762,20 +1759,6 @@ public final class FastPlaceClientInput {
       return RotationInputAngles.resolve(rawSteps, physicalCtrlDown(minecraft, false), inputSession().modifier);
    }
 
-   static void finishWorkspaceGizmoDrag() {
-      SelectionGestureController.finishGizmo(inputSession());
-   }
-
-   static void finishWorkspaceFaceDrag() {
-      SelectionGestureController.finishFace(inputSession());
-   }
-
-   private static boolean ownsSelectionCapture(SelectionDragCapture capture) {
-      return capture.matches(
-         ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), inputSession().pointerGesture.activeToken()
-      );
-   }
-
    private static WorkspaceGizmoDrag workspaceGizmoDrag() {
       return inputSession().selectionGestures().gizmo();
    }
@@ -1854,7 +1837,7 @@ public final class FastPlaceClientInput {
    }
 
    private static void cancelOperationGesture(Minecraft minecraft) {
-      SelectionGestureController.cancelActive(inputSession());
+      inputSession().selectionGestures().cancel();
       OperationDragController.cancel(inputSession());
       OperationPointInputController.cancel(inputSession());
       cancelPointerGesture();
@@ -1863,7 +1846,7 @@ public final class FastPlaceClientInput {
    }
 
    private static void cancelWorkspaceEditIfPresent() {
-      SelectionGestureController.cancelActive(inputSession());
+      inputSession().selectionGestures().cancel();
       cancelPointerGesture();
    }
 
@@ -1921,4 +1904,21 @@ public final class FastPlaceClientInput {
       inputSession().pointerGesture.cancel();
    }
 
+   static void dispatchSelectionGesture(ClientInputSession input, OperationContext operations, SelectionPointerPress press) {
+      if (!press.matches(operations.interactionScene(), operations.workspace())) return;
+      var command = switch (press.action()) {
+         case InteractionPressBinding.DragGizmo action -> selectionGizmoPress(action.target(), press.button(), press.control());
+         case InteractionPressBinding.SelectPart action -> new SelectionGesturePress.Part(action.partId(), press.control());
+         case InteractionPressBinding.SelectOrDragFace action -> {
+            var target = action.target(); var hit = target.hit();
+            yield new SelectionGesturePress.Face(target.partId(),
+               hit == null ? null : new SelectionFaceHit(hit.point(), hit.normal(), hit.distance(), hit.axis()),
+               target.adjustable(), press.button(), press.shortPressSteps(), press.pressedAtNanos());
+         }
+      };
+      input.selectionGestures().press(command);
+   }
+   static SelectionGesturePress.Gizmo selectionGizmoPress(OperationInteractionIntent.Gizmo target, int button, boolean control) {
+      return new SelectionGesturePress.Gizmo(target.partId(), target.common(), target.gizmo(), target.hit(), button, control);
+   }
 }

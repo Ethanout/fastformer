@@ -2,6 +2,7 @@ package io.github.fastformer.client.operation.transform;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.FastFormerClientConfig;
+import io.github.fastformer.client.interaction.selectiongesture.AabbAdjustDecision;
 import io.github.fastformer.client.operation.input.SelectionScrollAction;
 import io.github.fastformer.client.operation.selection.SelectionBlockCapture;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
@@ -28,6 +29,10 @@ import org.slf4j.Logger;
 
 /** Owns workspace transforms, resize capture, completion, and cancellation. */
 public final class OperationTransforms {
+   public io.github.fastformer.common.math.RepeatProfile repeatProfile(AxisGizmo.Operation operation, boolean common, int partId,
+      List<ClientSelectionPart> baseline, Axis axis) {
+      return SelectionTransformCalculator.repeatProfile(operation, common, partId, baseline, axis);
+   }
    private static final Logger LOGGER = LogUtils.getLogger();
    private final ClientOperationWorkspace workspace;
    private final BooleanSupplier submissionPending;
@@ -194,34 +199,6 @@ public final class OperationTransforms {
       }
       missingLevelLogged = true;
       LOGGER.warn("FastFormer blocked a selection adjustment because the client level is not available");
-   }
-
-   /**
-    * The result of an AABB-adjust start request. READY means the client start check
-    * passed. The server write-time guard is a later boundary and does not recapture
-    * the edit-start source.
-    */
-   public enum AabbAdjustDecision {
-      CAPTURE_PENDING,
-      READY,
-      DRAG_STARTED,
-      ADJUSTED,
-      UNCHANGED,
-      SUBMISSION_PENDING,
-      SOURCE_CHANGED,
-      ENVIRONMENT_UNAVAILABLE,
-      NO_TARGET,
-      EDIT_UNAVAILABLE;
-
-      /** True when the source check passed, so the caller can begin the edit. */
-      public boolean ready() {
-         return this == READY;
-      }
-
-      /** True when the point adjustment changed the selection. */
-      public boolean adjusted() {
-         return this == ADJUSTED;
-      }
    }
 
    /**

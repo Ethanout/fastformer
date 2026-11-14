@@ -25,7 +25,7 @@ import io.github.fastformer.server.task.block.SelectionOperationTask;
 import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
-import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
@@ -112,7 +112,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          return true;
       });
       PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_point1"));
-      FastPlaceNetwork.syncOperation(player, session);
+      PreviewSync.syncOperation(player, session);
       return session;
    }
 
@@ -123,7 +123,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          return true;
       });
       PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_point2"));
-      FastPlaceNetwork.syncOperation(player, session);
+      PreviewSync.syncOperation(player, session);
       return session;
    }
 
@@ -135,7 +135,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
             return true;
          });
          PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_point2"));
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
@@ -143,14 +143,14 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       OperationSession session = sessions.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.addExtraPoint(point))) {
          PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_extra_point", session.extraPoints().size()));
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
    public void expandTo(ServerPlayer player, BlockPos point) {
       OperationSession session = sessions.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.expandTo(point))) {
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
@@ -160,7 +160,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_need_points"));
          return false;
       }
-      FastPlaceNetwork.syncOperation(player, session);
+      PreviewSync.syncOperation(player, session);
       PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_selection_confirmed"));
       return true;
    }
@@ -170,21 +170,21 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       if (session == null || !recordEdit(session, session::closePrismBase)) {
          return false;
       }
-      FastPlaceNetwork.syncOperation(player, session);
+      PreviewSync.syncOperation(player, session);
       return true;
    }
 
    public void selectPoint(ServerPlayer player, int index) {
       OperationSession session = sessions.active(player.getUUID());
       if (session != null && session.selectPoint(index)) {
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
    public void removePoint(ServerPlayer player, int index) {
       OperationSession session = sessions.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.removePoint(index))) {
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
@@ -202,7 +202,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       session.beginEdit();
       if (session.dragPointTo(index, target, constraint, finish,
          point -> ClientPointValidator.accepts(player, point))) {
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
       if (finish) {
          session.commitEdit();
@@ -212,7 +212,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    public void insertPoint(ServerPlayer player, int insertionIndex, BlockPos point) {
       OperationSession session = sessions.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.insertPoint(insertionIndex, point))) {
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
@@ -223,7 +223,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
             player,
             PlayerMessages.text("fastformer.message.operation_selection_point", session.points().size(), session.selectionMode().requiredPoints())
          );
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
@@ -234,7 +234,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          : session.undoStep());
       if (changed) {
          rememberSelectionMode(player, session);
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
@@ -242,16 +242,16 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       OperationSession session = sessions.active(player.getUUID());
       if (session != null && session.redoStep()) {
          rememberSelectionMode(player, session);
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
    public void sync(ServerPlayer player) {
       OperationSession session = sessions.active(player.getUUID());
       if (session != null) {
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       } else {
-         FastPlaceNetwork.syncSettings(player);
+         PreviewSync.syncSettings(player);
       }
    }
 
@@ -272,7 +272,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          session.commitEdit();
       }
       if (changed || finish) {
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
@@ -282,7 +282,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          FastPlaceSettings settings = FastPlaceSettings.load(player);
          // Interactive tool choice belongs to the client. Server point sessions remain cuboids.
          settings.setOperationSelectionMode(player, OperationSelectionMode.CUBOID);
-         FastPlaceNetwork.syncSettings(player);
+         PreviewSync.syncSettings(player);
          return;
       }
       if (session.operationReady()) {
@@ -294,7 +294,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          });
          rememberSelectionMode(player, session);
       }
-      FastPlaceNetwork.syncOperation(player, session);
+      PreviewSync.syncOperation(player, session);
    }
 
    public boolean setSelectionMode(ServerPlayer player, OperationSelectionMode mode) {
@@ -307,7 +307,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          return true;
       });
       rememberSelectionMode(player, session);
-      FastPlaceNetwork.syncOperation(player, session);
+      PreviewSync.syncOperation(player, session);
       return true;
    }
 
@@ -333,7 +333,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       session.beginTransform(operation, Axis.values()[axis], Integer.signum(amount));
       session.updateTransform(Math.abs(amount));
       session.finishTransform();
-      FastPlaceNetwork.syncOperation(player, session);
+      PreviewSync.syncOperation(player, session);
    }
 
    public void adjustTransform(
@@ -356,7 +356,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          changed = session.finishTransform() || changed;
       }
       if (changed || finish) {
-         FastPlaceNetwork.syncOperation(player, session);
+         PreviewSync.syncOperation(player, session);
       }
    }
 
@@ -541,7 +541,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       OperationSession removed = sessions.end(player.getUUID());
       if (removed != null) {
          rememberSelectionMode(player, removed);
-         FastPlaceNetwork.syncSettings(player);
+         PreviewSync.syncSettings(player);
       }
    }
 

@@ -18,10 +18,15 @@ public final class HudTextRenderer {
 
    static int centeredLines(GuiGraphics graphics, Minecraft minecraft,
       java.util.List<net.minecraft.util.FormattedCharSequence> lines, int bottomLineY) {
+      return centeredLines(graphics, minecraft.font, lines, bottomLineY);
+   }
+
+   static int centeredLines(GuiGraphics graphics, net.minecraft.client.gui.Font font,
+      java.util.List<net.minecraft.util.FormattedCharSequence> lines, int bottomLineY) {
       int top = bottomLineY - Math.max(0, lines.size() - 1) * PreviewStyle.HUD_LINE_HEIGHT;
       int y = top;
       for (var line : lines) {
-         graphics.drawString(minecraft.font, line, (graphics.guiWidth() - minecraft.font.width(line)) / 2,
+         graphics.drawString(font, line, (graphics.guiWidth() - font.width(line)) / 2,
             y, GeometryPalette.text().argb(), true);
          y += PreviewStyle.HUD_LINE_HEIGHT;
       }

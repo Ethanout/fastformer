@@ -42,14 +42,17 @@ public final class WorkspacePointerResolver {
    private long resolvedCacheRevision = Long.MIN_VALUE;
    private java.util.UUID resolvedCacheOwner;
    private final ClientSelectionSession selection;
+   private final Supplier<io.github.fastformer.client.interaction.selectiongesture.SelectionGestureSnapshot> gestures;
    private final BooleanSupplier smartEditing;
    private final Supplier<Set<BlockPos>> failedTargets;
    private final List<InteractionIntentProvider> providers;
    private SelectionPointerState frame;
 
    public WorkspacePointerResolver(ClientSelectionSession selection, BooleanSupplier smartEditing,
-      Supplier<Set<BlockPos>> failedTargets, PointerResolver pointer, InteractionIntentProvider creation) {
+      Supplier<Set<BlockPos>> failedTargets, PointerResolver pointer, InteractionIntentProvider creation,
+      Supplier<io.github.fastformer.client.interaction.selectiongesture.SelectionGestureSnapshot> gestures) {
       this.selection = Objects.requireNonNull(selection, "selection");
+      this.gestures = Objects.requireNonNull(gestures, "gestures");
       this.frame = SelectionPointerState.empty(selection.interactionOwnerId());
       this.smartEditing = Objects.requireNonNull(smartEditing, "smartEditing");
       this.failedTargets = Objects.requireNonNull(failedTargets, "failedTargets");
@@ -216,9 +219,11 @@ public final class WorkspacePointerResolver {
    }
 
    private Optional<OperationInteractionIntent> resolveDraggedFace(InteractionContext context) {
-      var drag = selection.gestures().face();
-      OperationGeometry.RayHit dragged = drag == null ? null : drag.hit();
-      int draggedPartId = drag == null ? 0 : drag.baseline().id();
+      var drag = gestures.get().face();
+      var hit = drag == null ? null : drag.hit();
+      OperationGeometry.RayHit dragged = hit == null ? null
+         : new OperationGeometry.RayHit(hit.point(), hit.normal(), hit.distance(), hit.axis());
+      int draggedPartId = drag == null ? 0 : drag.partId();
       if (dragged != null && draggedPartId > 0) {
          ClientSelectionPart part = selection.workspace().part(draggedPartId).orElse(null);
          if (WorkspacePartInteractionCapabilities.canEditSource(part)) {

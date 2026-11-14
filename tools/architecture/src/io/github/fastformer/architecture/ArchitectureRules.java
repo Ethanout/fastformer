@@ -65,7 +65,25 @@ final class ArchitectureRules {
     }
 
     static boolean strictBoundary(String owner, String target) {
+        if (owner.startsWith(ROOT + "client.")
+                && !owner.equals(ROOT + "client.network.outbound.ServerGateway")
+                && (target.equals("net.neoforged.neoforge.network.PacketDistributor")
+                    || target.equals("net.neoforged.neoforge.network.registration.NetworkRegistry"))) return true;
         if (owner.startsWith(ROOT + "client.input.")) return target.startsWith(ROOT + "client.render.");
+        if (owner.startsWith(ROOT + "client.interaction.selectiongesture.")
+                || owner.startsWith(ROOT + "client.interaction.drag.")) {
+            return target.startsWith(ROOT + "client.input.") || target.startsWith(ROOT + "client.render.")
+                    || target.startsWith(ROOT + "client.session.")
+                    || target.startsWith(ROOT + "client.operation.controller.")
+                    || target.equals("net.minecraft.client.Minecraft");
+        }
+        if (owner.startsWith(ROOT + "client.preview.hud.") || owner.equals(ROOT + "client.render.hud.HudFrameRenderer")) {
+            return target.startsWith(ROOT + "client.input.") || target.startsWith(ROOT + "client.session.")
+                    || target.startsWith(ROOT + "client.operation.") || target.startsWith(ROOT + "client.placement.")
+                    || target.startsWith(ROOT + "client.geometry.pointer.")
+                    || target.startsWith(ROOT + "client.render.core.")
+                    || target.equals("net.minecraft.client.Minecraft");
+        }
         return owner.startsWith(ROOT + "client.feedback.")
                 && (target.startsWith(ROOT + "client.render.") || target.startsWith(ROOT + "client.input.")
                     || target.startsWith(ROOT + "client.session."));

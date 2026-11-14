@@ -4,10 +4,10 @@ import io.github.fastformer.client.input.state.PointerGestureState;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
-import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
-import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
+import io.github.fastformer.client.interaction.selectiongesture.WorkspaceFaceDrag;
+import io.github.fastformer.client.interaction.selectiongesture.WorkspaceGizmoDrag;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
@@ -18,11 +18,11 @@ public final class PointerDragSnapshotView {
    private PointerDragSnapshotView() { }
 
    public static WorkspaceFaceDrag face(ClientInputSession session) {
-      return session.selectionGestures().face();
+      return session.selectionGestureSnapshot().face();
    }
 
    public static WorkspaceGizmoDrag gizmo(ClientInputSession session) {
-      return session.selectionGestures().gizmo();
+      return session.selectionGestureSnapshot().gizmo();
    }
 
    public static Axis axis(ClientInputSession session) {
@@ -103,7 +103,9 @@ public final class PointerDragSnapshotView {
 
    public static OperationGeometry.RayHit faceHit(ClientInputSession session) {
       WorkspaceFaceDrag drag = face(session);
-      return drag == null ? null : drag.hit();
+      if (drag == null) return null;
+      var hit = drag.hit();
+      return new OperationGeometry.RayHit(hit.point(), hit.normal(), hit.distance(), hit.axis());
    }
 
    public static OperationGeometry.RayHit operationFaceHit(ClientInputSession session) {
@@ -112,7 +114,7 @@ public final class PointerDragSnapshotView {
 
    public static int facePartId(ClientInputSession session) {
       WorkspaceFaceDrag drag = face(session);
-      return drag == null ? 0 : drag.baseline().id();
+      return drag == null ? 0 : drag.partId();
    }
 
    public static SelectionPrism.GridPlane pointPlane(ClientInputSession session) {

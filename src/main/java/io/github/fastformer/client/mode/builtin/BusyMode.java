@@ -4,6 +4,8 @@ import static io.github.fastformer.client.input.state.ClientInputStateMachine.Di
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
+import io.github.fastformer.common.mode.BuiltinModes;
+import io.github.fastformer.common.mode.ModeId;
 import io.github.fastformer.client.mode.input.ScrollDecision;
 import io.github.fastformer.client.mode.input.ScrollInput;
 import io.github.fastformer.client.mode.input.ScrollView;
@@ -20,7 +22,7 @@ public final class BusyMode implements ClientMode {
       State.RESTORING, new ModeInputPolicy(BLOCKED, BLOCKED, BLOCKED, BLOCKED, BLOCKED, false, false, true),
       State.CANCELLING, new ModeInputPolicy(BLOCKED, BLOCKED, BLOCKED, BLOCKED, BLOCKED, false, false, true));
 
-   @Override public String id() { return "fastformer:busy"; }
+   @Override public ModeId id() { return BuiltinModes.BUSY; }
    @Override public int priority() { return 600; }
    @Override public ScrollDecision onScroll(ScrollInput input, ScrollView view) { return ScrollDecision.block(); }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }

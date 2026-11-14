@@ -2,6 +2,10 @@ package io.github.fastformer.fastplace.geometry.generation;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 
 import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.LineTieBias;
+import io.github.fastformer.common.geometry.raster.face.FaceRequest;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicies;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicy;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -31,17 +35,31 @@ public final class PolygonFaceGenerator {
    }
 
    public static Set<BlockPos> generate(List<Vec3> vertices, FillMode fillMode, int maxBlocks, BlockGenerationObserver observer) {
+      return generate(vertices, fillMode, maxBlocks, observer, FaceRasterPolicies.CURRENT_POLYGON);
+   }
+
+   /** A task may pass one immutable policy snapshot to every generated polygon section. */
+   public static Set<BlockPos> generate(
+      List<Vec3> vertices, FillMode fillMode, int maxBlocks, BlockGenerationObserver observer, FaceRasterPolicy policy
+   ) {
       if (vertices.size() < 3 || maxBlocks <= 0) {
          return Set.of();
       }
+      var dispatcher = policy == FaceRasterPolicies.CURRENT_POLYGON
+         ? FaceRasterAdapters.currentPolygon() : FaceRasterAdapters.currentPolygon(policy);
+      Set<BlockPos> result = FaceRasterAdapters.generatedBlocks(
+         dispatcher.rasterize(new FaceRequest(vertices, fillMode, LineTieBias.DEFAULT, maxBlocks, observer)), maxBlocks, observer
+      );
       if (fillMode == FillMode.OUTLINE) {
-         return PlanarFaceRasterizer.outline(vertices, maxBlocks, observer);
+         return result;
       }
-      Set<BlockPos> result = PlanarFaceRasterizer.generate(vertices, maxBlocks, observer);
       if (!result.isEmpty()) {
          return result;
       }
-      Set<BlockPos> outline = PlanarFaceRasterizer.outline(vertices, maxBlocks, observer);
+      Set<BlockPos> outline = FaceRasterAdapters.generatedBlocks(
+         dispatcher.rasterize(new FaceRequest(vertices, FillMode.OUTLINE, LineTieBias.DEFAULT, maxBlocks, observer)),
+         maxBlocks, observer
+      );
       if (GenerationLimitExceeded.is(outline)) {
          return outline;
       }

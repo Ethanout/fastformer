@@ -1,9 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
-import io.github.fastformer.client.input.drag.GizmoDragCalculator;
+import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.interaction.drag.GizmoDragCalculator;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
@@ -12,8 +14,6 @@ import io.github.fastformer.protocol.c2s.operation.OperationTransformPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Updates and finishes geometry handles for the owning input session. */
 final class GeometryDragController {
@@ -24,7 +24,7 @@ final class GeometryDragController {
    static boolean beginConfirmedOperation(
       Minecraft minecraft, ClientInputSession session, AxisGizmo gizmo, AxisGizmo.Hit hit, int mouseButton
    ) {
-      if (!NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())) {
+      if (!ServerGateway.supports(minecraft, OperationTransformPayload.TYPE)) {
          return false;
       }
       AxisGizmo.Handle handle = hit.handle();
@@ -100,8 +100,8 @@ final class GeometryDragController {
       }
       int delta = totalSteps - session.geometryGizmoDrag.sentSteps();
       if (delta != 0 && (operationTransform
-         ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
-         : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
+         ? ServerGateway.supports(minecraft, OperationTransformPayload.TYPE)
+         : ServerGateway.supports(minecraft, GeometryGizmoDragPayload.TYPE))) {
          int clippedDelta = ClientInputMath.clampDragSteps(delta, MAX_DRAG_STEPS_PER_PACKET);
          int operationTotal = session.geometryGizmoDrag.operation() == AxisGizmo.Operation.ROTATE
             ? Math.clamp(totalSteps, -128, 128)
@@ -121,7 +121,7 @@ final class GeometryDragController {
             clearCapture(session);
             return;
          }
-         PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
+         ServerGateway.send(payload);
           session.geometryGizmoDrag = session.geometryGizmoDrag.withSentSteps(session.geometryGizmoDrag.sentSteps() + clippedDelta);
           session.feedback().noteGizmo(
              session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.sentSteps(), session.geometryGizmoDrag.baseValue()
@@ -134,8 +134,8 @@ final class GeometryDragController {
       if (target == Target.NONE) return;
       boolean operationTransform = target == Target.OPERATION;
       if (session.geometryGizmoDrag != null && (operationTransform
-         ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
-         : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
+         ? ServerGateway.supports(minecraft, OperationTransformPayload.TYPE)
+         : ServerGateway.supports(minecraft, GeometryGizmoDragPayload.TYPE))) {
          session.feedback().noteGizmo(
             session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.sentSteps(), session.geometryGizmoDrag.baseValue()
          );
@@ -156,7 +156,7 @@ final class GeometryDragController {
             clearCapture(session);
             return;
          }
-         PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
+         ServerGateway.send(payload);
       }
       clearCapture(session);
    }

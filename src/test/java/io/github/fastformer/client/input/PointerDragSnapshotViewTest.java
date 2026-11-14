@@ -2,7 +2,7 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;

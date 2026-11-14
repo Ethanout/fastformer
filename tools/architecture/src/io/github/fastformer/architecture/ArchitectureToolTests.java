@@ -22,11 +22,14 @@ public final class ArchitectureToolTests {
         findsOnlyRealCycleEdges();
         reportsEveryInternalCycleEdge();
         checksLayerAndCapabilityBoundaries();
+        hudBoundaryReadsSemanticReferences();
+        gestureBoundariesReadSemanticReferences();
+        clientTransportBoundaryReadsSemanticReferences();
         exemptsOnlyTheExplicitFaceRasterEntryName();
         requiresDocumentedReasonForSingletonApiPackages();
         baselineNeverAcceptsUnlistedEdges();
         exercisesCommandFailureAndReport();
-        System.out.println("Architecture tool: 9 test groups passed");
+        System.out.println("Architecture tool: 12 test groups passed");
     }
 
     private static void readsSemanticReferences() {
@@ -90,6 +93,14 @@ public final class ArchitectureToolTests {
         require(ArchitectureRules.strictBoundary(root + "client.input.Keys", root + "client.render.Lines"), "Input/render dependency");
         require(ArchitectureRules.strictBoundary(root + "client.feedback.State", root + "client.session.Scope"), "Feedback/assembly dependency");
         require(!ArchitectureRules.strictBoundary(root + "client.feedback.State", root + "common.Model"), "Feedback domain dependency");
+        for (String owner : Set.of(root + "client.preview.hud.HudModel", root + "client.render.hud.HudFrameRenderer")) {
+            for (String target : Set.of(root + "client.input.Keys", root + "client.session.Scope",
+                    root + "client.operation.pointer.Resolver", root + "client.geometry.pointer.GeometryPointer",
+                    root + "client.render.core.Adapter", "net.minecraft.client.Minecraft")) {
+                require(ArchitectureRules.strictBoundary(owner, target), "HUD live-state reference: " + target);
+            }
+            require(!ArchitectureRules.strictBoundary(owner, root + "client.feedback.FeedbackFrame"), "HUD frozen feedback");
+        }
     }
 
     private static void reportsEveryInternalCycleEdge() throws Exception {
@@ -105,6 +116,140 @@ public final class ArchitectureToolTests {
             require(cycleEdges.equals(Set.of("client-cycle|" + root + "a -> " + root + "b",
                     "client-cycle|" + root + "b -> " + root + "a")), "Report exactly the edges inside a real cycle");
         } finally { deleteFixture(sources); }
+    }
+
+    private static void hudBoundaryReadsSemanticReferences() throws Exception {
+        ClassWriter type = new ClassWriter(0);
+        String owner = ROOT + "client/preview/hud/Fixture";
+        String scope = ROOT + "client/session/Scope";
+        type.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, owner, null, "java/lang/Object", null);
+        type.visitField(Opcodes.ACC_PRIVATE, "aliased", "L" + scope + ";", null, null).visitEnd();
+        var method = type.visitMethod(Opcodes.ACC_PUBLIC, "capture", "()Ljava/lang/Runnable;", null, null);
+        method.visitCode();
+        method.visitLdcInsn(Type.getObjectType(ROOT + "client/geometry/pointer/GeometryPointer"));
+        method.visitInsn(Opcodes.POP);
+        method.visitInvokeDynamicInsn("run", "()Ljava/lang/Runnable;",
+                new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory", "()V", false),
+                Type.getMethodType("()V"), new Handle(Opcodes.H_INVOKESTATIC, scope, "anyName", "()V", false),
+                Type.getMethodType("()V"));
+        method.visitInsn(Opcodes.ARETURN);
+        method.visitMaxs(2, 1);
+        method.visitEnd();
+        type.visitEnd();
+        Map<String, Set<String>> references = new TreeMap<>();
+        BytecodeDependencies.read(type.toByteArray(), references);
+        Path sources = Files.createTempDirectory("fastformer-hud-boundary-");
+        try {
+            var findings = ArchitectureRules.inspect(references, sources);
+            require(findings.strict().contains("boundary|" + owner.replace('/', '.') + " -> " + scope.replace('/', '.')),
+                    "HUD field or method-reference alias bypassed boundary");
+            require(findings.strict().stream().anyMatch(edge -> edge.endsWith("client.geometry.pointer.GeometryPointer")),
+                    "HUD class literal bypassed boundary");
+        } finally { deleteFixture(sources); }
+    }
+
+    private static void gestureBoundariesReadSemanticReferences() throws Exception {
+        String root = "io.github.fastformer.";
+        Path sources = Files.createTempDirectory("fastformer-gesture-boundary-");
+        try {
+            for (String packageName : Set.of("client.interaction.selectiongesture.", "client.interaction.drag.")) {
+                String owner = ROOT + packageName.replace('.', '/') + "Fixture";
+                String input = ROOT + "client/input/Keys";
+                String render = ROOT + "client/render/Lines";
+                String session = ROOT + "client/session/Scope";
+                String controller = ROOT + "client/operation/controller/OperationContext";
+                ClassWriter type = new ClassWriter(0);
+                type.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, owner, null, "java/lang/Object", null);
+                type.visitField(Opcodes.ACC_PRIVATE, "aliased", "L" + input + ";", null, null).visitEnd();
+                var method = type.visitMethod(Opcodes.ACC_PUBLIC, "capture", "(L" + render + ";)Ljava/lang/Runnable;", null, null);
+                method.visitCode();
+                method.visitLdcInsn(Type.getObjectType(session));
+                method.visitInsn(Opcodes.POP);
+                method.visitMethodInsn(Opcodes.INVOKESTATIC, "net/minecraft/client/Minecraft", "getInstance",
+                        "()Lnet/minecraft/client/Minecraft;", false);
+                method.visitInsn(Opcodes.POP);
+                method.visitInvokeDynamicInsn("run", "()Ljava/lang/Runnable;",
+                        new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory", "()V", false),
+                        Type.getMethodType("()V"), new Handle(Opcodes.H_INVOKESTATIC, controller, "renamedAlias", "()V", false),
+                        Type.getMethodType("()V"));
+                method.visitInsn(Opcodes.ARETURN);
+                method.visitMaxs(2, 2);
+                method.visitEnd();
+                type.visitEnd();
+                Map<String, Set<String>> references = new TreeMap<>();
+                BytecodeDependencies.read(type.toByteArray(), references);
+                Set<String> expected = new java.util.TreeSet<>();
+                for (String target : Set.of(input, render, session, controller, "net/minecraft/client/Minecraft")) {
+                    expected.add("boundary|" + owner.replace('/', '.') + " -> " + target.replace('/', '.'));
+                }
+                require(ArchitectureRules.inspect(references, sources).strict().equals(expected),
+                        "Gesture capability missed a field, signature, class literal, global query, or method-reference alias");
+                for (String allowed : Set.of("client.operation.input.SelectionPointerPress",
+                        "client.operation.workspace.ClientOperationWorkspace", "client.operation.model.AabbAdjustDecision",
+                        "client.interaction.selectiongesture.SelectionGestureTransforms",
+                        "client.interaction.drag.DragAxisFrame", "common.geometry.gizmo.AxisGizmo", "workspace.model.ClientSelectionPart")) {
+                    require(!ArchitectureRules.strictBoundary(root + packageName + "Fixture", root + allowed),
+                            "Gesture capability rejected explicit data or typed port: " + allowed);
+                }
+            }
+        } finally { deleteFixture(sources); }
+    }
+
+    private static void clientTransportBoundaryReadsSemanticReferences() throws Exception {
+        Path sources = Files.createTempDirectory("fastformer-client-transport-boundary-");
+        try {
+            for (String target : Set.of("net/neoforged/neoforge/network/PacketDistributor",
+                    "net/neoforged/neoforge/network/registration/NetworkRegistry")) {
+                for (String reference : Set.of("field", "signature", "constant", "method-reference")) {
+                    for (String owner : Set.of("client/input/Fixture", "client/feedback/Fixture",
+                            "client/interaction/selectiongesture/Fixture", "client/interaction/drag/Fixture",
+                            "client/preview/hud/Fixture", "client/render/hud/HudFrameRenderer",
+                            "client/operation/Fixture", "client/session/Fixture",
+                            "client/network/outbound/OtherGateway", "client/network/outbound/ServerGatewayAlias",
+                            "client/network/other/ServerGateway")) {
+                        Map<String, Set<String>> references = new TreeMap<>();
+                        BytecodeDependencies.read(clientTransportFixture(ROOT + owner, target, reference), references);
+                        require(ArchitectureRules.inspect(references, sources).strict().equals(Set.of(
+                                        "boundary|" + (ROOT + owner).replace('/', '.') + " -> " + target.replace('/', '.'))),
+                                "Client transport boundary missed " + reference + " from " + owner + " to " + target);
+                    }
+                    for (String owner : Set.of("client/network/outbound/ServerGateway",
+                            "server/network/Fixture", "common/network/Fixture")) {
+                        Map<String, Set<String>> references = new TreeMap<>();
+                        BytecodeDependencies.read(clientTransportFixture(ROOT + owner, target, reference), references);
+                        require(ArchitectureRules.inspect(references, sources).strict().isEmpty(),
+                                "Client transport boundary rejected exact gateway or nonclient owner: " + owner);
+                    }
+                }
+            }
+        } finally { deleteFixture(sources); }
+    }
+
+    private static byte[] clientTransportFixture(String owner, String target, String reference) {
+        ClassWriter type = new ClassWriter(0);
+        type.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, owner, null, "java/lang/Object", null);
+        if (reference.equals("field")) {
+            type.visitField(Opcodes.ACC_PRIVATE, "aliased", "L" + target + ";", null, null).visitEnd();
+        } else if (reference.equals("signature")) {
+            type.visitField(Opcodes.ACC_PRIVATE, "aliased", "Ljava/util/List;",
+                    "Ljava/util/List<L" + target + ";>;", null).visitEnd();
+        } else {
+            var method = type.visitMethod(Opcodes.ACC_PUBLIC, "capture", "()Ljava/lang/Object;", null, null);
+            method.visitCode();
+            switch (reference) {
+                case "constant" -> method.visitLdcInsn(Type.getObjectType(target));
+                case "method-reference" -> method.visitInvokeDynamicInsn("run", "()Ljava/lang/Runnable;",
+                        new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory", "()V", false),
+                        Type.getMethodType("()V"), new Handle(Opcodes.H_INVOKESTATIC, target, "renamedAlias", "()V", false),
+                        Type.getMethodType("()V"));
+                default -> throw new IllegalArgumentException("Unknown transport reference: " + reference);
+            }
+            method.visitInsn(Opcodes.ARETURN);
+            method.visitMaxs(2, 1);
+            method.visitEnd();
+        }
+        type.visitEnd();
+        return type.toByteArray();
     }
 
     private static void exemptsOnlyTheExplicitFaceRasterEntryName() throws Exception {

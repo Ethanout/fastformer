@@ -1,9 +1,9 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.mouse.PointerButtonCapture;
-import io.github.fastformer.client.interaction.binding.tool.QuickShapeLineInputState;
+import io.github.fastformer.client.interaction.binding.tool.QuickShapeBindingInputState;
 
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.OperationPointDrag;
 import io.github.fastformer.client.input.gesture.PathCloseGesture;
@@ -64,8 +64,31 @@ public final class ClientInputSession {
    public boolean canCreateSelection() {
       return routing.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION) == ClientInputStateMachine.Dispatch.OPERATION;
    }
-   private final io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures;
-   public io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures() { return selectionGestures; }
+   private io.github.fastformer.client.interaction.selectiongesture.SelectionTransformGestures selectionGestures;
+   public io.github.fastformer.client.interaction.selectiongesture.SelectionTransformGestures selectionGestures() {
+      if (selectionGestures == null) throw new IllegalStateException("Selection gestures require an operation context");
+      return selectionGestures;
+   }
+   public io.github.fastformer.client.interaction.selectiongesture.SelectionGestureSnapshot selectionGestureSnapshot() {
+      return selectionGestures == null
+         ? io.github.fastformer.client.interaction.selectiongesture.SelectionGestureSnapshot.EMPTY
+         : selectionGestures.snapshot();
+   }
+   public void bindSelectionGestures(io.github.fastformer.client.interaction.selectiongesture.SelectionTransformGestures gestures) {
+      if (selectionGestures != null) throw new IllegalStateException("Selection gesture owner is already bound");
+      selectionGestures = java.util.Objects.requireNonNull(gestures, "gestures");
+   }
+   public io.github.fastformer.client.interaction.selectiongesture.SelectionGesturePointer selectionGesturePointer() {
+      return new io.github.fastformer.client.interaction.selectiongesture.SelectionGesturePointer() {
+         private PointerGestureState.Kind pointerKind(Kind kind) {
+            return kind == Kind.FACE ? PointerGestureState.Kind.WORKSPACE_FACE : PointerGestureState.Kind.WORKSPACE_GIZMO;
+         }
+         public long begin(Kind kind) { return pointerGesture.begin(pointerKind(kind)); }
+         public boolean owns(long token, Kind kind) { return pointerGesture.owns(token, pointerKind(kind)); }
+         public void finish(long token) { pointerGesture.finish(token); }
+         public void consumeModifier() { if (modifier.held()) modifier.consume(); }
+      };
+   }
    private final ClientSmartFillSession smartFill = new ClientSmartFillSession();
    public ClientSmartFillSession smartFill() { return smartFill; }
    final IdleEntryGesture idleEntry = new IdleEntryGesture();
@@ -90,7 +113,7 @@ public final class ClientInputSession {
    private final PhysicalInputMailbox physicalEvents = new PhysicalInputMailbox();
    final ShortPressTracker undoPress = new ShortPressTracker();
    final QuickShapeUndoGesture quickShapeUndo = new QuickShapeUndoGesture();
-   final QuickShapeLineInputState lineInput = new QuickShapeLineInputState();
+   final QuickShapeBindingInputState shapeInput = new QuickShapeBindingInputState();
    final SelectionPointerCapture selectionPointer = new SelectionPointerCapture();
    final OperationPointDragCapture operationPointPointer = new OperationPointDragCapture();
    final GeometryGizmoCapture geometryGizmoCapture = new GeometryGizmoCapture();
@@ -101,11 +124,6 @@ public final class ClientInputSession {
    final ClientInputStateMachine routing;
 
    public ClientInputSession() {
-      this(new io.github.fastformer.client.input.drag.SelectionGestureState());
-   }
-
-   public ClientInputSession(io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures) {
-      this.selectionGestures = java.util.Objects.requireNonNull(selectionGestures, "selectionGestures");
       routing = new ClientInputStateMachine();
    }
    final ModifierGestureState modifier = new ModifierGestureState();
@@ -216,42 +234,43 @@ public final class ClientInputSession {
 
    private void clearPointerCaptures() {
       cancelQueuedGeometryInput();
-      this.lineInput.clear();
+      this.shapeInput.clear();
       java.util.Arrays.fill(this.quickShapeButtons, false);
       this.quickShapeUndo.cancel();
       this.selectionPointer.clear();
       this.operationPointPointer.clear();
    }
 
-   void cancelLineBindingInput() {
-      this.lineInput.clear();
+   void cancelShapeBindingInput() {
+      this.shapeInput.clear();
       java.util.Arrays.fill(this.quickShapeButtons, false);
       this.quickShapeUndo.cancel();
    }
 
-   void finishLinePhysicalRelease(int button) {
+   void finishShapePhysicalRelease(int button) {
       releaseQuickShapeButton(button);
       var cancelled = this.quickShapeUndo.abandon(button);
-      if (cancelled != null) postLineUndo(cancelled);
+      if (cancelled != null) postShapeUndo(cancelled);
    }
 
-   void postLinePointer(QuickShapePointerPress event) {
-      long generation = this.lineInput.generation();
-      this.physicalEvents.postQuickShapePointer(event, () -> this.lineInput.accepts(generation));
+   void postShapePointer(QuickShapePointerPress event) {
+      long generation = this.shapeInput.generation();
+      this.physicalEvents.postQuickShapePointer(event, () -> this.shapeInput.accepts(generation));
    }
 
-   void postLineUndo(QuickShapeUndoGesture.Event event) {
-      long generation = this.lineInput.generation();
-      this.physicalEvents.postQuickShapeUndo(event, () -> this.lineInput.accepts(generation));
+   void postShapeUndo(QuickShapeUndoGesture.Event event) {
+      long generation = this.shapeInput.generation();
+      this.physicalEvents.postQuickShapeUndo(event, () -> this.shapeInput.accepts(generation));
    }
 
-   void postLineScroll(ScrollInputSnapshot event) {
-      long generation = this.lineInput.generation();
-      this.physicalEvents.postScroll(event, () -> this.lineInput.accepts(generation));
+   void postShapeScroll(ScrollInputSnapshot event) {
+      long generation = this.shapeInput.generation();
+      this.physicalEvents.postScroll(event, () -> this.shapeInput.accepts(generation));
    }
 
    /** Releases all pointer-owned state without touching the active draft. */
    void cancelPointerState() {
+      if (selectionGestures != null) selectionGestures.cancel();
       clearPointerCaptures();
       this.pointerGesture.cancel();
       this.operationDrag = null;

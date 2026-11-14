@@ -1,5 +1,6 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.common.math.RepeatStepQuantizer;
 import io.github.fastformer.core.math.Axis;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,9 +34,9 @@ class RepeatStrideSemanticsTest {
       );
       assertEquals(5, stride);
 
-      assertEquals(0, RepeatDragQuantizer.copiesForOffset(4.99, stride));
-      assertEquals(1, RepeatDragQuantizer.copiesForOffset(5.0, stride));
-      assertEquals(-1, RepeatDragQuantizer.copiesForOffset(-5.0, stride));
+      assertEquals(0, RepeatStepQuantizer.copiesForOffset(4.99, stride));
+      assertEquals(1, RepeatStepQuantizer.copiesForOffset(5.0, stride));
+      assertEquals(-1, RepeatStepQuantizer.copiesForOffset(-5.0, stride));
    }
 
    @Test

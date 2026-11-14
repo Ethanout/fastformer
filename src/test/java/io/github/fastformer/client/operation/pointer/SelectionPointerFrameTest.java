@@ -73,7 +73,8 @@ class SelectionPointerFrameTest {
       var first = resolver(context -> Optional.of(new OperationInteractionIntent.CreateSelection(BlockPos.ZERO)));
       var other = new ClientSelectionSession();
       var second = new WorkspacePointerResolver(other, () -> false, Set::of, new PointerResolver(),
-         context -> Optional.of(new OperationInteractionIntent.CreateSelection(new BlockPos(1, 0, 0))));
+         context -> Optional.of(new OperationInteractionIntent.CreateSelection(new BlockPos(1, 0, 0))),
+         () -> new io.github.fastformer.client.interaction.selectiongesture.SelectionGestureSnapshot(null, null));
       first.captureFrame(context());
       var secondFrame = second.captureFrame(context());
       first.clear();
@@ -82,7 +83,8 @@ class SelectionPointerFrameTest {
    }
 
    private WorkspacePointerResolver resolver(InteractionIntentProvider creation) {
-      return new WorkspacePointerResolver(selection, () -> false, Set::of, new PointerResolver(), creation);
+      return new WorkspacePointerResolver(selection, () -> false, Set::of, new PointerResolver(), creation,
+         () -> new io.github.fastformer.client.interaction.selectiongesture.SelectionGestureSnapshot(null, null));
    }
 
    private static InteractionContext context() {

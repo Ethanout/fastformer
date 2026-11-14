@@ -180,7 +180,7 @@ class DefaultToolBindingsTest {
       var names = new HashSet<String>();
       names.add(keyName(key));
       if (view.swap()) names.add("@swap_offhand");
-      var context = new ToolKeyContext(ClientModes.registry().id(state), view.screen(), view.player(),
+      var context = new ToolKeyContext(ClientModes.registry().id(state).value().toString(), view.screen(), view.player(),
          view.idle(), view.ready(), view.canStart(), action, control, false, false).freeze();
       boolean handled = system.onKey(names, context, commands);
       return handled && commands.last == Decision.PASS ? Decision.CONSUME : commands.last;

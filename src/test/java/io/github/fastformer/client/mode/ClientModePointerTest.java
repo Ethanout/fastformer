@@ -1,5 +1,7 @@
 package io.github.fastformer.client.mode;
 
+import io.github.fastformer.common.mode.ModeId;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
@@ -146,7 +148,7 @@ class ClientModePointerTest {
    private static ClientMode mode(String id, Map<State, ModeInputPolicy> phases,
       java.util.function.BiFunction<PointerInput, PointerView, PointerDecision> handler) {
       return new ClientMode() {
-         public String id() { return id; }
+         public ModeId id() { return ModeId.of(id); }
          public int priority() { return 0; }
          public Map<State, ModeInputPolicy> phases() { return phases; }
          public Optional<State> observe(ModeObservation view) { return Optional.empty(); }

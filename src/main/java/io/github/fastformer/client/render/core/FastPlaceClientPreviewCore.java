@@ -1,8 +1,12 @@
 package io.github.fastformer.client.render.core;
 
 import io.github.fastformer.client.session.ClientSessionSystem;
+import io.github.fastformer.client.preview.hud.HudModel;
+import io.github.fastformer.client.feedback.SelectionFaceFeedback;
+import io.github.fastformer.client.feedback.FeedbackFrame;
+import io.github.fastformer.client.render.hud.HudFrameRenderer;
 
-import static io.github.fastformer.common.math.MinecraftVectors.normalize;
+
 
 import io.github.fastformer.core.math.Axis;
 
@@ -14,14 +18,12 @@ import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.preview.frame.ModifierReticleMode;
 import io.github.fastformer.client.input.PointerDragSnapshotView;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.placement.QuickReplaceMode;
-import io.github.fastformer.client.render.OperationFaceHitInterpolator;
 import io.github.fastformer.client.render.SmoothReticlePostEffect;
 import io.github.fastformer.client.interaction.intent.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspaceSubmissionHud;
@@ -31,27 +33,18 @@ import io.github.fastformer.client.preview.frame.WorldPreviewFrame;
 import io.github.fastformer.client.preview.quickshape.QuickShapePreviewInput;
 import io.github.fastformer.client.preview.geometry.GeometryPreviewInput;
 import io.github.fastformer.client.preview.geometry.GeometryPreviewModel;
-import io.github.fastformer.client.render.hud.GeometryTextBlockRenderer;
 import io.github.fastformer.client.render.hud.GizmoHudTextFormatter;
-import io.github.fastformer.client.render.hud.PreviewFeedbackHud;
 import io.github.fastformer.client.feedback.InteractionFeedback;
 import io.github.fastformer.client.feedback.AxisFeedback;
 import io.github.fastformer.client.feedback.ScrollFeedbackData;
-import io.github.fastformer.client.operation.pointer.OperationPointerKind;
-import io.github.fastformer.client.operation.pointer.OperationPointerTarget;
 import io.github.fastformer.client.render.model.*;
 import io.github.fastformer.client.session.preview.ClientPreviewState;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.common.geometry.GeometryAction;
-import io.github.fastformer.common.geometry.GeometryHit;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.geometry.GeometryNumbers;
 import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.common.geometry.ConePrismStage;
-import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionHit;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
@@ -61,7 +54,6 @@ import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import io.github.fastformer.common.quickshape.mode.FaceMode;
 import io.github.fastformer.common.quickshape.mode.LineMode;
-import io.github.fastformer.common.quickshape.mode.PointMode;
 import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 import io.github.fastformer.common.quickshape.mode.QuickShapeMode;
 import io.github.fastformer.common.quickshape.mode.QuickShapeModeRules;
@@ -73,12 +65,10 @@ import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStageMode;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.common.text.TranslatableText;
-import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.ChatFormatting;
@@ -86,13 +76,10 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult.Type;
@@ -114,7 +101,6 @@ public final class FastPlaceClientPreviewCore {
    private static final double PREVIEW_REACH = LongRangeBlockRaycast.MAX_REACH;
    static final float GHOST_FACE_ALPHA_MIN = 0.10F;
    static final float GHOST_FACE_ALPHA_MAX = PreviewStyle.FACE_ALPHA;
-   private static final long FACE_NORMAL_INTERPOLATION_NANOS = 100_000_000L;
    static final float SELECTION_HIGHLIGHT_ALPHA = PreviewStyle.FACE_HOVER_ALPHA;
    static final float GHOST_OUTLINE_ALPHA_MIN = 0.70F;
    static final float GHOST_OUTLINE_ALPHA_MAX = PreviewStyle.OUTLINE_ALPHA;
@@ -147,8 +133,12 @@ public final class FastPlaceClientPreviewCore {
    private static InteractionFeedback feedback() {
       return ClientSessionSystem.instance().inputSession().feedback();
    }
-   static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
-   static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
+   private static HudModel hudFrame = HudModel.EMPTY;
+   private static GeometryPreviewModel geometryFrame;
+   private static AxisGizmo remoteGizmoFrame;
+   private static ModifierReticleMode reticleFrame = ModifierReticleMode.NONE;
+   private static OperationGeometry.RayHit operationGuideFrame;
+   private static OperationGeometry.RayHit workspaceGuideFrame;
    private static boolean smoothReticleFrame;
 
    private FastPlaceClientPreviewCore() {
@@ -298,10 +288,9 @@ public final class FastPlaceClientPreviewCore {
       smoothReticleFrame = false;
       Minecraft minecraft = Minecraft.getInstance();
       if (minecraft.screen != null || minecraft.player == null) {
-         SmoothReticlePostEffect.updateTarget(ModifierReticleMode.NONE);
          return;
       }
-      boolean reticleNeeded = SmoothReticlePostEffect.updateTarget(FastPlaceClientInput.modifierReticleMode());
+      boolean reticleNeeded = SmoothReticlePostEffect.frameNeedsRender();
       if (!reticleNeeded) {
          return;
       }
@@ -318,195 +307,201 @@ public final class FastPlaceClientPreviewCore {
    public static void onRenderGui(Post event) {
       Minecraft minecraft = Minecraft.getInstance();
       GuiGraphics graphics = event.getGuiGraphics();
-      if (minecraft.screen instanceof io.github.fastformer.client.ui.FastFormerSettingsScreen
-         || minecraft.screen instanceof io.github.fastformer.client.ui.GeometryRadialScreen) {
-         smoothReticleFrame = false;
-         return;
-      }
-      if (FastPlaceClientInput.currentSession().smartFill().active() && minecraft.player != null) {
-         var fill = FastPlaceClientInput.currentSession().smartFill();
-         graphics.drawString(minecraft.font, Component.translatable(fill.statusKey(), fill.blocks().size()),
-            8, 8, GeometryPalette.text().argb(), true);
-         graphics.drawString(minecraft.font, Component.translatable(fill.ready()
-            ? "fastformer.fill.controls" : "fastformer.fill.cancel"), 8, 20, GeometryPalette.muted().argb(), true);
+      if (!hudFrame.visible()) {
          restoreVanillaCrosshairIfNeeded(graphics);
          smoothReticleFrame = false;
          return;
       }
-      if (QuickReplaceMode.active() && minecraft.player != null) {
-         graphics.drawString(minecraft.font, Component.translatable("fastformer.quick_replace.active"),
-            8, 8, GeometryPalette.text().argb(), true);
-         graphics.drawString(minecraft.font, Component.translatable(QuickReplaceMode.canReplace(minecraft)
-            ? "fastformer.quick_replace.controls" : "fastformer.quick_replace.hold_block"),
-            8, 20, GeometryPalette.muted().argb(), true);
-         if (previews().activity().task()) graphics.drawString(minecraft.font,
-            Component.translatable(previews().activity().translationKey()), 8, 32, GeometryPalette.valid().argb(), true);
-         restoreVanillaCrosshairIfNeeded(graphics);
-         smoothReticleFrame = false;
-         return;
-      }
-      BuildingPreviewSnapshot snapshot = previews().building();
-      boolean persistentFreeScroll = feedback().refreshFreeScrollSession(previews().building(), System.nanoTime());
-      boolean reconnectRestorePending = ClientSessionSystem.instance().operations().reconnectRestorePending()
-         || previews().reconnectRestorePending();
-      // A local submission locks the workspace before the server reports its task.
-      // The HUD must stay alive in that window, or the player sees no reason for
-      // the refused clicks. See WorkspaceSubmissionHud.
-      boolean workspaceSubmissionPending = ClientSessionSystem.instance().operations().workspaceSubmissionPending();
-      WorkspaceSubmissionHud.Plan submissionPlan = WorkspaceSubmissionHud.plan(
-         workspaceSubmissionPending,
-         previews().activity().task(),
-         QuickReplaceMode.active(),
-         reconnectRestorePending
-      );
-      if (!WorkspaceSubmissionHud.hudActive(
-         reconnectRestorePending,
-         snapshot.enabled(),
-         persistentFreeScroll,
-         previews().geometry().active(),
-         operationActive(),
-         previews().activity().task(),
-         QuickReplaceMode.active(),
-         workspaceSubmissionPending
-      )) {
-         restoreVanillaCrosshairIfNeeded(graphics);
-         smoothReticleFrame = false;
-         return;
-      }
-
-      Vec3 view = minecraft.player == null ? new Vec3(0.0, 0.0, 1.0) : minecraft.player.getViewVector(1.0F);
-      float hudOpacity = previews().activity().task() || workspaceSubmissionPending || reconnectRestorePending
-         ? 1.0F : InteractionContext.previewVisibility(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
-      if (hudOpacity <= 0.0F) {
-         restoreVanillaCrosshairIfNeeded(graphics);
-         smoothReticleFrame = false;
-         return;
-      }
-      graphics.setColor(1.0F, 1.0F, 1.0F, hudOpacity);
+      graphics.setColor(1, 1, 1, hudFrame.opacity());
       try {
-
-      Component fillModeName = Component.translatable(
-         (previews().geometry().active() ? previews().geometry().fillMode() : snapshot.fillMode()).translationKey()
-      );
-      // The lock blocks the block key, so a pending frame names the fill mode
-      // only. The status text keeps the fill information and promises no key.
-      String fillKey = WorkspaceSubmissionHud.fillModeKey(workspaceSubmissionPending);
-      MutableComponent fill = (WorkspaceSubmissionHud.FILL_MODE_STATUS_KEY.equals(fillKey)
-            ? Component.translatable(fillKey, fillModeName)
-            : Component.translatable(fillKey, fillModeName, keyName(minecraft.options.keySwapOffhand)))
-         .withStyle(GeometryPalette.text().style());
-      if (!ClientSessionSystem.instance().modeView().idleActionsAllowed()) graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
-
-      MutableComponent embeddedHint = buildingRaycastHint();
-      if (embeddedHint != null && minecraft.screen == null
-         && !previews().activity().task() && !submissionPlan.suppressActionPrompts()) {
-         int x = Math.max(8, graphics.guiWidth() - minecraft.font.width(embeddedHint) - 8);
-         graphics.drawString(minecraft.font, embeddedHint, x, 8, GeometryPalette.muted().argb(), true);
-      }
-      if (previews().activity().task()) {
-         MutableComponent task = Component.translatable(previews().activity().translationKey()).withStyle(GeometryPalette.valid().style());
-         // The cancel key reports the pending state instead of cancelling, so an
-         // exit hint on this line would be false while the submission waits.
-         if (WorkspaceSubmissionHud.showsCancelHint(previews().activity(), workspaceSubmissionPending)) {
-            String hintKey = "fastformer.activity.cancel_hint";
-            task.append(Component.literal(" ").append(Component.translatable(hintKey)).withStyle(GeometryPalette.muted().style()));
-         }
-         graphics.drawString(minecraft.font, task, 8, 20, -1, true);
-      } else if (submissionPlan.showsWaitingLine()) {
-         // The locked workspace refuses every build and selection action. Explain
-         // the wait instead of leaving the player without a reason.
-         graphics.drawString(minecraft.font,
-            Component.translatable(submissionPlan.waitingKey()).withStyle(GeometryPalette.accent().style()),
-            8, submissionPlan.waitingLineY(), -1, true);
-      }
-      if (reconnectRestorePending) {
-         graphics.drawString(minecraft.font,
-            Component.translatable("fastformer.message.reconnect_restore_prompt"), 8, 32, GeometryPalette.accent().argb(), true);
-      }
-
-      var bottomLayout = io.github.fastformer.client.render.hud.BottomHudLayout.forFrame(graphics, minecraft);
-      GeometryPreviewPlan geometryPlan = null;
-      if (!previews().activity().task()) {
-         geometryPlan = renderSessionHud(graphics, minecraft, view, persistentFreeScroll,
-            submissionPlan.suppressActionPrompts(), bottomLayout);
-      } else if (persistentFreeScroll) {
-         // Wheel updates can briefly publish a task snapshot. Keep the latched
-         // free-scroll coordinates visible while the session HUD is suppressed.
-         renderScrollFeedbackBottom(graphics, minecraft, persistentFreeScroll, bottomLayout);
-      }
-      renderCrosshairHud(graphics, minecraft, geometryPlan);
-      SmartSelectionRenderer.hud(graphics, minecraft, bottomLayout);
-      graphics.flush();
-      RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-      boolean cancelledVanillaCrosshair = smoothReticleFrame;
-      boolean renderedReticle = cancelledVanillaCrosshair
-         && SmoothReticlePostEffect.process(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
-      if (cancelledVanillaCrosshair && !renderedReticle) {
-         // The shader failed after the layer event had already cancelled the
-         // vanilla layer. Restore the actual vanilla sprite, not a GUI variant.
-         restoreVanillaCrosshairIfNeeded(graphics);
+         var bottom = io.github.fastformer.client.render.hud.BottomHudLayout.forFrame(graphics, minecraft);
+         HudFrameRenderer.draw(graphics, minecraft.font, bottom, hudFrame);
+         SmartSelectionRenderer.drawHud(graphics, minecraft.font, bottom);
          graphics.flush();
-      }
-      smoothReticleFrame = false;
+         RenderSystem.setShaderColor(1, 1, 1, 1);
+         if (smoothReticleFrame && !SmoothReticlePostEffect.process(minecraft, event.getPartialTick().getGameTimeDeltaTicks())) {
+            restoreVanillaCrosshairIfNeeded(graphics);
+         }
+         smoothReticleFrame = false;
       } finally {
          restoreVanillaCrosshairIfNeeded(graphics);
          graphics.flush();
-         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+         graphics.setColor(1, 1, 1, 1);
+         RenderSystem.setShaderColor(1, 1, 1, 1);
          smoothReticleFrame = false;
       }
+   }
+
+   /** Transitional capture adapter for legacy selection types. Called only at the frame boundary. */
+   @SubscribeEvent(priority = net.neoforged.bus.api.EventPriority.LOWEST)
+   public static void onVisualFrame(net.neoforged.neoforge.client.event.RenderFrameEvent.Pre event) {
+      long now = PreviewAnimation.current().nanos();
+      captureVisualFrame(Minecraft.getInstance(), now, now);
+   }
+
+   public static void captureVisualFrame(Minecraft minecraft, long frameId, long now) {
+      long themeRevision = io.github.fastformer.client.render.theme.VisualThemes.revision();
+      if (renderedThemeRevision != themeRevision) {
+         onThemeChanged();
+         renderedThemeRevision = themeRevision;
+      }
+      var sessions = ClientSessionSystem.instance();
+      var input = sessions.inputSession();
+      var operations = sessions.operations();
+      SmartSelectionRenderer.beginVisualFrame();
+      boolean visible = minecraft.player != null && minecraft.level != null && minecraft.screen == null;
+      reticleFrame = visible ? FastPlaceClientInput.modifierReticleMode() : ModifierReticleMode.NONE;
+      SmoothReticlePostEffect.capture(reticleFrame, now);
+      geometryFrame = visible && previews().geometry().active() ? geometryPreviewModel(minecraft.player.getViewVector(1)) : null;
+      var geometryPlan = geometryFrame == null ? null : geometryFrame.plan();
+      remoteGizmoFrame = visible ? remotePointer().operationGizmo() : null;
+      OperationInteractionIntent target = visible ? operations.visualHoverIntent() : null;
+      var workspaceHit = target instanceof OperationInteractionIntent.Face face ? face : null;
+      var operationHit = visible && !operations.active() ? operationFaceTarget(remotePointer().operationSelection()) : null;
+      var guides = input.feedback().faces().capture(frameId, now, sessions.currentScope(), faceValue(operationHit),
+         faceValue(workspaceHit == null ? null : workspaceHit.hit()), workspaceHit == null ? null : workspaceHit.partId());
+      operationGuideFrame = rayHit(guides.operation());
+      workspaceGuideFrame = rayHit(guides.workspace());
+      operations.pointer().prune(operations.workspace().parts());
+      hudFrame = captureHud(minecraft, geometryPlan, frameId, now, visible);
+   }
+
+   static OperationGeometry.RayHit operationGuideFrame() { return operationGuideFrame; }
+   static OperationGeometry.RayHit workspaceGuideFrame() { return workspaceGuideFrame; }
+   static AxisGizmo remoteGizmoFrame() { return remoteGizmoFrame; }
+
+   private static SelectionFaceFeedback.Face faceValue(OperationGeometry.RayHit hit) {
+      return hit == null ? null : new SelectionFaceFeedback.Face(hit.point(), hit.normal(), hit.distance(), hit.axis());
+   }
+
+   private static OperationGeometry.RayHit rayHit(SelectionFaceFeedback.Face hit) {
+      return hit == null ? null : new OperationGeometry.RayHit(hit.point(), hit.normal(), hit.distance(), hit.axis());
+   }
+
+   private static HudModel captureHud(
+      Minecraft minecraft, GeometryPreviewPlan geometryPlan, long frameId, long now, boolean visible
+   ) {
+      if (!visible) return HudModel.EMPTY;
+      var left = new ArrayList<HudModel.Text>();
+      var right = new ArrayList<HudModel.Text>();
+      var bottom = new ArrayList<Component>();
+      var fill = FastPlaceClientInput.currentSession().smartFill();
+      if (fill.active()) {
+         left.add(hudText(Component.translatable(fill.statusKey(), fill.blocks().size()), 8, GeometryPalette.text().argb()));
+         left.add(hudText(Component.translatable(fill.ready() ? "fastformer.fill.controls" : "fastformer.fill.cancel"), 20, GeometryPalette.muted().argb()));
+         return hudModel(1, left, right, bottom, List.of(), null, 0);
+      }
+      if (QuickReplaceMode.active()) {
+         left.add(hudText(Component.translatable("fastformer.quick_replace.active"), 8, GeometryPalette.text().argb()));
+         left.add(hudText(Component.translatable(QuickReplaceMode.canReplace(minecraft)
+            ? "fastformer.quick_replace.controls" : "fastformer.quick_replace.hold_block"), 20, GeometryPalette.muted().argb()));
+         if (previews().activity().task()) left.add(hudText(Component.translatable(previews().activity().translationKey()), 32, GeometryPalette.valid().argb()));
+         return hudModel(1, left, right, bottom, List.of(), null, 0);
+      }
+      var building = previews().building();
+      var gizmoInput = gizmoHudInput(geometryPlan);
+      var gizmoHit = capturedGizmoHit(gizmoInput);
+      Object gizmoTarget = gizmoHit == null ? null : gizmoHit.handle().axis().name() + ":" + gizmoHit.handle().operation().name();
+      Object scrollTarget = minecraft.hitResult instanceof BlockHitResult hit ? hit.getBlockPos().immutable() : null;
+      var feedbackData = building.active() && building.lineMode() == LineMode.FREE_SCROLL && building.points().size() <= 1
+         ? feedback().coordinates(building.freeScrollOffset()) : scrollFeedbackData();
+      var frame = feedback().capture(frameId, now, building, scrollTarget, gizmoTarget, feedbackData, gizmoInput.dragAxis() == null);
+      boolean reconnect = ClientSessionSystem.instance().operations().reconnectRestorePending() || previews().reconnectRestorePending();
+      boolean pending = ClientSessionSystem.instance().operations().workspaceSubmissionPending();
+      boolean task = previews().activity().task();
+      var submission = WorkspaceSubmissionHud.plan(pending, task, false, reconnect);
+      if (!WorkspaceSubmissionHud.hudActive(reconnect, building.enabled(), frame.persistentFreeScroll(),
+         previews().geometry().active(), operationActive(), task, false, pending)) return HudModel.EMPTY;
+      float opacity = task || pending || reconnect ? 1 : InteractionContext.previewVisibility(minecraft);
+      Component fillMode = Component.translatable((previews().geometry().active()
+         ? previews().geometry().fillMode() : building.fillMode()).translationKey());
+      String fillKey = WorkspaceSubmissionHud.fillModeKey(pending);
+      Component modeText = (WorkspaceSubmissionHud.FILL_MODE_STATUS_KEY.equals(fillKey)
+         ? Component.translatable(fillKey, fillMode)
+         : Component.translatable(fillKey, fillMode, keyName(minecraft.options.keySwapOffhand))).withStyle(GeometryPalette.text().style());
+      if (!ClientSessionSystem.instance().modeView().idleActionsAllowed()) left.add(hudText(modeText, 8, -1));
+      Component embedded = buildingRaycastHint();
+      if (embedded != null && !task && !submission.suppressActionPrompts()) right.add(hudText(embedded, 8, GeometryPalette.muted().argb()));
+      if (task) {
+         MutableComponent text = Component.translatable(previews().activity().translationKey()).withStyle(GeometryPalette.valid().style());
+         if (WorkspaceSubmissionHud.showsCancelHint(previews().activity(), pending)) text.append(Component.literal(" ")
+            .append(Component.translatable("fastformer.activity.cancel_hint")).withStyle(GeometryPalette.muted().style()));
+         left.add(hudText(text, 20, -1));
+      } else if (submission.showsWaitingLine()) left.add(hudText(Component.translatable(submission.waitingKey())
+         .withStyle(GeometryPalette.accent().style()), submission.waitingLineY(), -1));
+      if (reconnect) left.add(hudText(Component.translatable("fastformer.message.reconnect_restore_prompt"), 32, GeometryPalette.accent().argb()));
+      if (!task) captureSessionHud(minecraft, geometryPlan, submission.suppressActionPrompts(), left, right, bottom);
+      var scroll = !task || frame.persistentFreeScroll() ? frame.scroll() : null;
+      var crosshair = new ArrayList<HudModel.Line>();
+      if (!task && geometryPlan != null) for (var block : geometryPlan.textBlocks()) {
+         if (block.visible() && block.placement() == io.github.fastformer.common.geometry.preview.GeometryTextBlock.Placement.CROSSHAIR
+            && io.github.fastformer.common.geometry.preview.GeometryTextBlock.hasContent(block.content())) crosshair.add(hudLine(block.content(), -1));
+      }
+      crosshair.addAll(captureCrosshairHud(minecraft, task ? null : geometryPlan, frame, gizmoInput, gizmoHit));
+      return hudModel(opacity, left, right, bottom, crosshair, scroll, frame.scrollAlpha());
+   }
+
+   private static void captureSessionHud(Minecraft minecraft, GeometryPreviewPlan plan, boolean suppress,
+      List<HudModel.Text> left,
+      List<HudModel.Text> right, List<Component> bottom) {
+      if (plan != null) {
+         int leftY = 32, rightY = 32;
+         var hints = new ArrayList<Component>();
+         var statuses = new ArrayList<Component>();
+         for (var block : plan.textBlocks()) {
+            if (!block.visible() || !io.github.fastformer.common.geometry.preview.GeometryTextBlock.hasContent(block.content())
+               || Set.of("stage", "mode", "value").contains(block.id())) continue;
+            Component content = io.github.fastformer.common.geometry.preview.GeometryTextBlock.HINT_ID.equals(block.id())
+               ? block.content().copy().withStyle(GeometryPalette.muted().style()) : block.content();
+            switch (block.placement()) {
+               case TOP_LEFT -> { left.add(hudText(content, leftY, -1)); leftY += PreviewStyle.HUD_LINE_HEIGHT; }
+               case TOP_RIGHT -> { right.add(hudText(content, rightY, -1)); rightY += PreviewStyle.HUD_LINE_HEIGHT; }
+               case BOTTOM_HINT -> hints.add(content);
+               case BOTTOM_CENTER -> statuses.add(content);
+               case CROSSHAIR -> { }
+            }
+         }
+         bottom.addAll(hints);
+         bottom.addAll(statuses);
+         return;
+      }
+      Component primary;
+      Component secondary = null;
+      if (operationActive()) {
+         primary = operationBottomStatus();
+         if (!suppress) secondary = Component.translatable(ClientSessionSystem.instance().operations().selectionEdits().smartSampling()
+            ? "fastformer.hud.smart_sampling" : io.github.fastformer.client.interaction.SmartSelectionEditView.active(minecraft)
+            ? "fastformer.hud.smart_isolation_controls" : ClientSessionSystem.instance().operations().selectionEdits().smartTool()
+            ? "fastformer.hud.smart_controls" : "fastformer.hud.selection_controls").withStyle(GeometryPalette.muted().style());
+      } else { primary = buildingBottomStatus(); if (!suppress) secondary = buildingBottomHint(); }
+      if (secondary != null) bottom.add(secondary);
+      if (primary != null) bottom.add(primary);
+   }
+
+   private static HudModel hudModel(float opacity,
+      List<HudModel.Text> left, List<HudModel.Text> right,
+      List<Component> bottom, List<HudModel.Line> crosshair, ScrollFeedbackData scroll, int alpha) {
+      return new HudModel(true, opacity, left, right, bottom, crosshair, scroll, alpha, GeometryPalette.text().argb());
+   }
+
+   private static HudModel.Text hudText(Component content, int y, int color) {
+      return new HudModel.Text(content, y, color);
+   }
+
+   private static HudModel.Line hudLine(Component content, int color) {
+      return new HudModel.Line(List.of(
+         new HudModel.Run(content, color, 1, 0)));
+   }
+
+   /** Reuses the hovered handle already attached to the presented gizmo; never raycasts again. */
+   private static AxisGizmo.Hit capturedGizmoHit(GizmoHudInput input) {
+      if (input.gizmo() == null) return null;
+      for (var handle : input.gizmo().handles()) if (handle.hovered()) return new AxisGizmo.Hit(handle, input.gizmo().handleCenter(handle), 0, 0);
+      return null;
    }
 
    public static boolean geometryAllows(GeometryAction action) {
       return ClientSessionSystem.instance().geometryPointer().allows(action);
-   }
-
-   private static GeometryPreviewPlan renderSessionHud(
-      GuiGraphics graphics, Minecraft minecraft, Vec3 view, boolean persistentFreeScroll,
-      boolean suppressActionPrompts, io.github.fastformer.client.render.hud.BottomHudLayout bottomLayout
-   ) {
-      if (previews().geometry().active()) {
-         GeometryPreviewPlan geometryPlan = geometryPreviewPlan(view);
-         GeometryTextBlockRenderer.render(graphics, minecraft, geometryPlan, bottomLayout);
-         renderScrollFeedbackBottom(graphics, minecraft, persistentFreeScroll, bottomLayout);
-         return geometryPlan;
-      }
-
-      // A locked workspace refuses the confirm key and the pointer actions, so the
-      // next-step hint must stop. The mode line stays: it reports which stage and
-      // mode the workspace is in, which the player still owns during the wait.
-      MutableComponent primary;
-      MutableComponent secondary = null;
-      if (operationActive()) {
-         primary = operationBottomStatus();
-         if (!suppressActionPrompts) secondary = Component.translatable(ClientSessionSystem.instance().operations().selectionEdits().smartSampling()
-            ? "fastformer.hud.smart_sampling" : io.github.fastformer.client.interaction.SmartSelectionEditView.active(minecraft)
-            ? "fastformer.hud.smart_isolation_controls" : ClientSessionSystem.instance().operations().selectionEdits().smartTool()
-            ? "fastformer.hud.smart_controls" : "fastformer.hud.selection_controls")
-            .withStyle(GeometryPalette.muted().style());
-      } else {
-         primary = buildingBottomStatus();
-         secondary = suppressActionPrompts ? null : buildingBottomHint();
-      }
-      bottomLayout.render(graphics, minecraft, secondary);
-      bottomLayout.render(graphics, minecraft, primary);
-      renderScrollFeedbackBottom(graphics, minecraft, persistentFreeScroll, bottomLayout);
-      return null;
-   }
-
-   private static int drawScaledLabel(
-      GuiGraphics graphics, Minecraft minecraft, Component label, int x, int y, int color
-   ) {
-      float scale = 0.75F;
-      graphics.pose().pushPose();
-      graphics.pose().translate(x, y + 1, 0.0F);
-      graphics.pose().scale(scale, scale, 1.0F);
-      graphics.drawString(minecraft.font, label, 0, 0, color, true);
-      graphics.pose().popPose();
-      return x + scaledLabelWidth(minecraft, label);
-   }
-
-   private static int scaledLabelWidth(Minecraft minecraft, Component label) {
-      return (int)Math.ceil(minecraft.font.width(label) * 0.75F);
    }
 
    private static double axisComponent(Vec3 value, Axis axis) {
@@ -594,13 +589,6 @@ public final class FastPlaceClientPreviewCore {
       return Component.translatable("fastformer.hud.raycast_embedded_hint");
    }
 
-   private static boolean buildingRaycastSubmode() {
-      if (previews().geometry().active() || previews().operation().active()) {
-         return false;
-      }
-      return io.github.fastformer.client.quickshape.pointer.QuickShapeModes.raycastSubmode(previews().building());
-   }
-
    private static MutableComponent buildingBottomHint() {
       if (!previews().building().active()) {
          Minecraft minecraft = Minecraft.getInstance();
@@ -667,34 +655,30 @@ public final class FastPlaceClientPreviewCore {
       return status;
    }
 
-   private static void renderCrosshairHud(
-      GuiGraphics graphics, Minecraft minecraft, GeometryPreviewPlan geometryPlan
+   private static List<HudModel.Line> captureCrosshairHud(
+      Minecraft minecraft, GeometryPreviewPlan geometryPlan, FeedbackFrame frame, GizmoHudInput hudInput, AxisGizmo.Hit capturedHit
    ) {
+      var lines = new ArrayList<HudModel.Line>();
       if (minecraft.screen != null || minecraft.player == null) {
-         return;
+         return lines;
       }
-      int x = graphics.guiWidth() / 2 + 10;
-      int y = graphics.guiHeight() / 2 + 6;
       boolean workspaceLocked = ClientSessionSystem.instance().operations().active() && ClientSessionSystem.instance().operations().workspace().locked();
       GeometryInteractionHit interactionHit = ClientSessionSystem.instance().geometryPointer().interactionHit();
       // This text offers a pointer action. The locked workspace refuses that
       // action, so draw the text only while the workspace accepts new actions.
-      if (interactionHit != null && ClientSessionSystem.instance().geometryPointer().gizmoHit() == null
+      if (interactionHit != null && capturedHit == null
          && WorkspacePointerPrompt.acceptsNewAction(workspaceLocked)) {
-         graphics.drawString(minecraft.font, interactionHit.hoverText(), x, y, GeometryPalette.text().argb(), true);
-         y += 10;
+         lines.add(hudLine(interactionHit.hoverText(), GeometryPalette.text().argb()));
       }
       OperationInteractionIntent operationTarget = operationInteractionIntent().orElse(null);
-      if (operationGizmoHit() == null
+      if (capturedHit == null
          && remotePointer().operationPointUnderCrosshairIndex() < 0
          && operationTarget instanceof OperationInteractionIntent.Face face) {
          for (Component line : WorkspacePointerPrompt.crosshairActionLines(face, workspaceLocked)) {
-            graphics.drawString(minecraft.font, line, x, y, GeometryPalette.text().argb(), true);
-            y += 10;
+            lines.add(hudLine(line, GeometryPalette.text().argb()));
          }
-         return;
+         return lines;
       }
-      GizmoHudInput hudInput = gizmoHudInput(geometryPlan);
       Axis dragAxis = hudInput.dragAxis();
       Axis axis = dragAxis;
       AxisGizmo.Operation operation = dragAxis == null ? null : hudInput.dragOperation();
@@ -703,28 +687,18 @@ public final class FastPlaceClientPreviewCore {
       boolean hoveredGizmo = false;
       int gizmoAlpha = 255;
       if (axis == null) {
-         AxisGizmo gizmo = displayedGizmo;
-         AxisGizmo.Hit hit = gizmo == null || !hudInput.allowNearBlock() && InteractionContext.vanillaOwnsPointer(minecraft)
-            ? null
-            : gizmo.hitTest(
-               minecraft.player.getEyePosition(),
-               minecraft.player.getViewVector(1.0F),
-               hudInput.operationSelection() ? PREVIEW_REACH : visiblePreviewReach(minecraft.player)
-            );
+         AxisGizmo.Hit hit = capturedHit;
          if (hit != null) {
             axis = hit.handle().axis();
             operation = hit.handle().operation();
             hoveredGizmo = true;
-            long now = System.nanoTime();
-            double speed = feedback().gizmoDwellMultiplier(axis.name() + ":" + operation.name(), now);
-            gizmoAlpha = feedback().gizmoAlpha(now, axis.name() + ":" + operation.name(), speed);
-            retainedGizmo = gizmoAlpha > 0 && axis == feedback().lastGizmoAxis();
+            gizmoAlpha = frame.gizmoAlpha();
+            retainedGizmo = gizmoAlpha > 0 && axis == frame.lastAxis();
          } else {
-            long now = System.nanoTime();
-            gizmoAlpha = feedback().gizmoAlpha(now, null, 1.0);
+            gizmoAlpha = frame.gizmoAlpha();
             if (gizmoAlpha > 0) {
-               axis = feedback().lastGizmoAxis();
-               operation = feedback().lastGizmoOperation();
+               axis = frame.lastAxis();
+               operation = frame.lastOperation();
                retainedGizmo = axis != null;
             }
          }
@@ -743,46 +717,49 @@ public final class FastPlaceClientPreviewCore {
          if (useTemplate) {
             double baseValue = dragAxis != null
                ? hudInput.dragBaseValue()
-               : feedback().lastGizmoBaseValue();
+               : frame.lastBaseValue();
             double currentValue = gizmoHudValue(hudInput, geometryPlan, axis, operation);
-            int steps = dragAxis != null ? hudInput.dragSteps() : feedback().lastGizmoSteps();
+            int steps = dragAxis != null ? hudInput.dragSteps() : frame.lastSteps();
             GizmoTextContext context = hudInput.operationSelection() && operationSelectionReady()
                ? GizmoHudTextFormatter.operationTransformTextContext(axis, operation, baseValue, currentValue, steps)
                : GizmoHudTextFormatter.textContext(axis, operation, baseValue, currentValue, steps);
             String text = textComponent.render(context, valueAvailable);
             if (!text.isBlank()) {
-               graphics.drawString(minecraft.font, text, x, y, axisColor, true);
+               lines.add(hudLine(Component.literal(text), axisColor));
             }
          } else {
-            int labelEnd = operation == AxisGizmo.Operation.MOVE && valueAvailable
-               ? drawGizmoAxisLabel(graphics, minecraft, axis, x, y, axisColor)
-                  : drawGizmoActionLabel(graphics, minecraft, axis, operation, x, y, axisColor);
+            var runs = new ArrayList<HudModel.Run>();
+            runs.add(new HudModel.Run(Component.literal(axis.name()), axisColor, 1, 0));
+            if (operation != AxisGizmo.Operation.MOVE || !valueAvailable) runs.add(
+               new HudModel.Run(Component.translatable(GizmoHudTextFormatter.transformLabelKey(operation)), axisColor, 0.75F, 3));
             if (valueAvailable) {
                double baseValue = dragAxis != null
                   ? hudInput.dragBaseValue()
-                  : feedback().lastGizmoBaseValue();
+                  : frame.lastBaseValue();
                double currentValue = gizmoHudValue(hudInput, geometryPlan, axis, operation);
                String value = GizmoHudTextFormatter.formatValue(
-                  dragAxis != null ? hudInput.dragOperation() : feedback().lastGizmoOperation(),
+                  dragAxis != null ? hudInput.dragOperation() : frame.lastOperation(),
                   baseValue,
                   currentValue,
-                  dragAxis != null ? hudInput.dragSteps() : feedback().lastGizmoSteps()
+                  dragAxis != null ? hudInput.dragSteps() : frame.lastSteps()
                );
                int valueColor = retainedGizmo ? withAlpha(axisColor, gizmoAlpha) : axisColor;
-               graphics.drawString(minecraft.font, value, labelEnd + 3, y, valueColor, true);
+               runs.add(new HudModel.Run(Component.literal(value), valueColor, 1, 3));
             }
+            lines.add(new HudModel.Line(runs));
          }
       }
-
+      return lines;
    }
 
    private static GizmoHudInput gizmoHudInput(GeometryPreviewPlan geometryPlan) {
       if (ClientSessionSystem.instance().operations().active()) {
          OperationInteractionIntent.Gizmo target = operationWorkspaceGizmoHit();
+         var drag = FastPlaceClientInput.currentSession().selectionGestureSnapshot().gizmo();
          return new GizmoHudInput(
             target == null ? null : target.gizmo(),
-            PointerDragSnapshotView.operationAxis(FastPlaceClientInput.currentSession()),
-            PointerDragSnapshotView.operationOperation(FastPlaceClientInput.currentSession()),
+            drag == null ? null : drag.axis(),
+            drag == null ? null : drag.operation(),
             PointerDragSnapshotView.operationBaseValue(FastPlaceClientInput.currentSession()),
             PointerDragSnapshotView.operationSteps(FastPlaceClientInput.currentSession()),
             true,
@@ -791,7 +768,7 @@ public final class FastPlaceClientPreviewCore {
       }
       if (previews().operation().active()) {
          return new GizmoHudInput(
-            remotePointer().operationGizmo(),
+            remoteGizmoFrame,
             PointerDragSnapshotView.operationAxis(FastPlaceClientInput.currentSession()),
             PointerDragSnapshotView.operationOperation(FastPlaceClientInput.currentSession()),
             PointerDragSnapshotView.operationBaseValue(FastPlaceClientInput.currentSession()),
@@ -861,47 +838,6 @@ public final class FastPlaceClientPreviewCore {
       RenderSystem.disableBlend();
    }
 
-   private static int drawGizmoActionLabel(
-      GuiGraphics graphics,
-      Minecraft minecraft,
-      Axis axis,
-      AxisGizmo.Operation operation,
-      int x,
-      int y,
-      int color
-   ) {
-      int axisEnd = drawGizmoAxisLabel(graphics, minecraft, axis, x, y, color);
-      return drawScaledLabel(
-         graphics,
-         minecraft,
-         Component.translatable(GizmoHudTextFormatter.transformLabelKey(operation)),
-         axisEnd + 3,
-         y,
-         color
-      );
-   }
-
-   private static int drawGizmoAxisLabel(
-      GuiGraphics graphics,
-      Minecraft minecraft,
-      Axis axis,
-      int x,
-      int y,
-      int color
-   ) {
-      graphics.drawString(minecraft.font, axis.name(), x, y, color, true);
-      return x + minecraft.font.width(axis.name());
-   }
-
-   private static void renderScrollFeedbackBottom(
-      GuiGraphics graphics, Minecraft minecraft, boolean persistentFreeScroll,
-      io.github.fastformer.client.render.hud.BottomHudLayout bottomLayout
-   ) {
-      Object target = minecraft.hitResult instanceof BlockHitResult hit ? hit.getBlockPos().immutable() : null;
-      int alpha = feedback().scrollAlpha(persistentFreeScroll, target, System.nanoTime());
-      PreviewFeedbackHud.renderScrollFeedback(graphics, minecraft, scrollFeedbackData(), alpha, bottomLayout);
-   }
-
    private static ScrollFeedbackData scrollFeedbackData() {
       if (previews().operation().active() && operationSelectionReady()) {
       BlockPos value = operationSelectionConfirmed() && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
@@ -928,7 +864,6 @@ public final class FastPlaceClientPreviewCore {
             BlockPos offset = building.points().size() == 1
                ? building.freeScrollOffset() : feedback().freeScrollOffset();
             ScrollFeedbackData data = feedback().coordinates(offset);
-            feedback().rememberFreeScrollData(data);
             return data;
          }
          QuickShapeStage stage = effectiveStage(building);
@@ -1015,11 +950,6 @@ public final class FastPlaceClientPreviewCore {
 
    @SubscribeEvent
    public static void onRenderLevelStage(RenderLevelStageEvent event) {
-      long revision = io.github.fastformer.client.render.theme.VisualThemes.revision();
-      if (renderedThemeRevision != revision) {
-         onThemeChanged();
-         renderedThemeRevision = revision;
-      }
       if (event.getStage() == Stage.AFTER_LEVEL) {
          SmartSelectionIsolationRenderer.render(event, Minecraft.getInstance());
          return;
@@ -1093,8 +1023,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static void renderGeometryWall(RenderLevelStageEvent event, Minecraft minecraft) {
-      Vec3 view = minecraft.player == null ? new Vec3(0, 0, 1) : minecraft.player.getViewVector(1.0F);
-      ClientPreviewSystem.instance().geometry().drawWorld(worldPreviewFrame(event, minecraft), geometryPreviewModel(view));
+      if (geometryFrame != null) ClientPreviewSystem.instance().geometry().drawWorld(worldPreviewFrame(event, minecraft), geometryFrame);
    }
 
    private static WorldPreviewFrame worldPreviewFrame(RenderLevelStageEvent event, Minecraft minecraft) {
@@ -1113,10 +1042,6 @@ public final class FastPlaceClientPreviewCore {
       return ClientSessionSystem.instance().quickShapePointer().placementContext(snapshot);
    }
 
-   private static GeometryPreviewPlan geometryPreviewPlan(Vec3 view) {
-      return geometryPreviewModel(view).plan();
-   }
-
    private static GeometryPreviewModel geometryPreviewModel(Vec3 view) {
       var pointer = ClientSessionSystem.instance().geometryPointer();
       var plan = pointer.plan();
@@ -1125,24 +1050,18 @@ public final class FastPlaceClientPreviewCore {
       return new GeometryPreviewModel(pointer.presentedPlan(), model.blocks());
    }
 
-   private static double visiblePreviewReach(LocalPlayer player) {
-      if (player == null) {
-         return 0.0;
-      }
-      var ray = blockPointer(player);
-      BlockHitResult hit = ray.hit();
-      double limit = ray.distance();
-      return hit.getType() == Type.BLOCK
-         ? GeometryRayVisibility.visibleReach(limit, player.getEyePosition(), hit)
-         : limit;
-   }
-
    private static long renderedThemeRevision = -1;
 
    public static void clearWorldRenderState() {
       ClientSessionSystem.instance().inputSession().clearGeometryPointer();
-      OPERATION_FACE_INTERPOLATOR.reset();
-        ClientPreviewSystem.instance().clear();
+      feedback().faces().clear();
+      hudFrame = HudModel.EMPTY;
+      geometryFrame = null;
+      remoteGizmoFrame = null;
+      operationGuideFrame = null;
+      workspaceGuideFrame = null;
+      reticleFrame = ModifierReticleMode.NONE;
+      ClientPreviewSystem.instance().clear();
       PreviewRenderResources.clearShells();
       SmoothReticlePostEffect.reset();
       smoothReticleFrame = false;
@@ -1193,51 +1112,6 @@ public final class FastPlaceClientPreviewCore {
          case FACE -> snapshot.faceMode();
          case VOLUME -> snapshot.volumeMode();
       });
-   }
-
-   private static MutableComponent contextValue(BuildingPreviewSnapshot snapshot) {
-      if (!snapshot.active()) {
-         return null;
-      }
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (player == null) {
-         return null;
-      }
-      QuickShapeStage stage = effectiveStage(snapshot);
-      if (stage == QuickShapeStage.LINE && snapshot.lineMode() == LineMode.FREE_SCROLL) {
-         BlockPos offset = snapshot.freeScrollOffset();
-         return Component.translatable("fastformer.message.context.free_scroll", offset.getX(), offset.getY(), offset.getZ()).withStyle(GeometryPalette.accent().style());
-      } else if (stage == QuickShapeStage.LINE && snapshot.lineMode() == LineMode.RAYCAST) {
-         return Component.translatable(
-               "fastformer.message.context.raycast",
-               snapshot.raycastPlacement() == io.github.fastformer.common.quickshape.mode.RaycastPlacement.EMBEDDED
-                  ? Component.translatable("fastformer.mode.raycast.embedded")
-                  : Component.translatable("fastformer.mode.raycast.surface")
-            )
-            .withStyle(GeometryPalette.accent().style());
-      } else if (stage == QuickShapeStage.FACE && snapshot.faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
-         return Component.translatable(
-               "fastformer.message.context.face_offset",
-               GeometryNumbers.fixed(FastPlaceGeometry.faceBaseOffsetValue(snapshot.points(), snapshot.faceBaseOffset(), player.getViewVector(1.0F)), 0)
-             )
-             .withStyle(GeometryPalette.accent().style());
-      } else if (stage == QuickShapeStage.FACE && snapshot.faceMode() == FaceMode.POLYGON && !snapshot.polygonClosed()) {
-         return Component.translatable("fastformer.message.polygon_close_hint").withStyle(GeometryPalette.accent().style());
-      } else {
-         return stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(snapshot.modes())
-            ? Component.translatable(
-                  snapshot.volumeMode() == VolumeMode.FREE ? "fastformer.message.context.volume_free" : "fastformer.message.context.volume_base",
-                  snapshot.volumeMode() == VolumeMode.FREE ? formatOffset(snapshot.volumeBaseOffset()) : formatScalar(snapshot.volumeBaseOffset())
-               )
-               .withStyle(GeometryPalette.accent().style())
-            : null;
-      }
-   }
-
-   private static String formatOffset(Vec3 offset) {
-      Vec3 clean = GeometryNumbers.cleanZero(offset);
-      return GeometryNumbers.fixed(clean.x, 0) + ", " + GeometryNumbers.fixed(clean.y, 0) + ", " + GeometryNumbers.fixed(clean.z, 0);
    }
 
    private static String formatScalar(Vec3 offset) {

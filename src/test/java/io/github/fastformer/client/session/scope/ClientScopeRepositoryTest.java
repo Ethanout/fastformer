@@ -18,7 +18,7 @@ class ClientScopeRepositoryTest {
 
       assertNotSame(a.operations(), b.operations());
       assertSame(a.workspace(), a.operations().workspace());
-      assertSame(a.selectionSession().gestures(), a.operations().selectionGestures());
+      assertSame(a.inputSession().selectionGestures(), a.operations().selectionGestures());
       assertTrue(a.operations().selectionEdits().handleCreateClick(1, BlockPos.ZERO));
       assertTrue(a.operations().selectionEdits().selectionDraftActive());
       assertFalse(b.operations().selectionEdits().selectionDraftActive());

@@ -1,12 +1,12 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.gesture.PathClosePress;
 import io.github.fastformer.protocol.c2s.geometry.ClosePathPayload;
 import net.minecraft.client.Minecraft;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 final class PathCloseInputDispatcher {
    private PathCloseInputDispatcher() {
@@ -34,7 +34,7 @@ final class PathCloseInputDispatcher {
    }
 
    static boolean dispatch(Minecraft minecraft, ClientInputSession owner, PathClosePress press) {
-      if (!NetworkRegistry.hasChannel(minecraft.getConnection(), ClosePathPayload.TYPE.id())) {
+      if (!ServerGateway.supports(minecraft, ClosePathPayload.TYPE)) {
          owner.pathClose.reset();
          return false;
       }
@@ -42,7 +42,7 @@ final class PathCloseInputDispatcher {
          return false;
       }
       if (press.payload() == null) return false;
-      PacketDistributor.sendToServer(press.payload());
+      ServerGateway.send(press.payload());
       return true;
    }
 }

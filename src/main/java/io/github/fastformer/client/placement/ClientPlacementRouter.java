@@ -19,7 +19,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Single client boundary for requests that may ultimately modify the world. */
 public final class ClientPlacementRouter {
@@ -52,7 +51,7 @@ public final class ClientPlacementRouter {
       var payload = new io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload(
          revision, scope, action, candidate, eye, view, modifierHeld, requestId);
       if (submitting) return sendSubmittedAction(minecraft, type, payload, requestId);
-      net.neoforged.neoforge.network.PacketDistributor.sendToServer(payload);
+      ServerGateway.send(payload);
       return true;
    }
 
@@ -197,9 +196,7 @@ public final class ClientPlacementRouter {
       }
 
       public void send() {
-         this.chunks.forEach(chunk ->
-            PacketDistributor.sendToServer(chunk, new CustomPacketPayload[0])
-         );
+         this.chunks.forEach(ServerGateway::send);
       }
    }
 

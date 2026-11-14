@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
@@ -8,7 +10,6 @@ import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Captures an idle start without changing the input session in the mouse callback. */
 final class QuickShapeStartController {
@@ -26,9 +27,8 @@ final class QuickShapeStartController {
       net.minecraft.resources.ResourceLocation profile) {
       if (hit == null
          || session.routing.state() != ClientInputStateMachine.State.IDLE || ClientSessionSystem.instance().operations().active()
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), StartPlacementPayload.TYPE.id())
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(),
-            io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE.id())) return false;
+         || !ServerGateway.supports(minecraft, StartPlacementPayload.TYPE)
+         || !ServerGateway.supports(minecraft, io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE)) return false;
       var idle = ClientSessionSystem.instance().previews().idleBuildingSession().orElse(null);
       if (idle == null) return false;
       if (!session.captureQuickShapeButton(button)) return true;

@@ -1,5 +1,6 @@
 package io.github.fastformer.workspace.transform;
 
+import io.github.fastformer.common.math.RepeatStepQuantizer;
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -16,24 +17,24 @@ import org.junit.jupiter.api.Test;
 class RepeatDragQuantizerTest {
    @Test
    void waitsForAWholeStructureBeforeAddingARepeat() {
-      assertEquals(0, RepeatDragQuantizer.copiesForOffset(5.99, 6));
-      assertEquals(1, RepeatDragQuantizer.copiesForOffset(6.0, 6));
-      assertEquals(1, RepeatDragQuantizer.copiesForOffset(11.99, 6));
-      assertEquals(2, RepeatDragQuantizer.copiesForOffset(12.0, 6));
+      assertEquals(0, RepeatStepQuantizer.copiesForOffset(5.99, 6));
+      assertEquals(1, RepeatStepQuantizer.copiesForOffset(6.0, 6));
+      assertEquals(1, RepeatStepQuantizer.copiesForOffset(11.99, 6));
+      assertEquals(2, RepeatStepQuantizer.copiesForOffset(12.0, 6));
    }
 
    @Test
    void reverseDragUsesTheSameWholeStructureThreshold() {
-      assertEquals(0, RepeatDragQuantizer.copiesForOffset(-5.99, 6));
-      assertEquals(-1, RepeatDragQuantizer.copiesForOffset(-6.0, 6));
-      assertEquals(-2, RepeatDragQuantizer.copiesForOffset(-12.0, 6));
+      assertEquals(0, RepeatStepQuantizer.copiesForOffset(-5.99, 6));
+      assertEquals(-1, RepeatStepQuantizer.copiesForOffset(-6.0, 6));
+      assertEquals(-2, RepeatStepQuantizer.copiesForOffset(-12.0, 6));
    }
 
    @Test
    void singleBlockStructureRespondsBeforeAFullBlockOfTravel() {
-      assertEquals(0, RepeatDragQuantizer.copiesForOffset(0.49, 1));
-      assertEquals(1, RepeatDragQuantizer.copiesForOffset(0.5, 1));
-      assertEquals(-1, RepeatDragQuantizer.copiesForOffset(-0.5, 1));
+      assertEquals(0, RepeatStepQuantizer.copiesForOffset(0.49, 1));
+      assertEquals(1, RepeatStepQuantizer.copiesForOffset(0.5, 1));
+      assertEquals(-1, RepeatStepQuantizer.copiesForOffset(-0.5, 1));
    }
 
    @Test

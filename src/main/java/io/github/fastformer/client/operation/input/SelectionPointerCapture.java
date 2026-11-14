@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.input;
 
-import io.github.fastformer.client.interaction.SelectionDragCapture;
+import io.github.fastformer.client.interaction.selectiongesture.SelectionDragCapture;
 
 /** Pairs physical callbacks without advancing the input state machine before dispatch. */
 public final class SelectionPointerCapture {

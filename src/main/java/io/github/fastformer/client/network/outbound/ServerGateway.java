@@ -5,7 +5,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
-/** One capability-aware boundary for sending optional requests to the current server. */
+/** The client transport boundary: optional requests may be declined; required sends keep transport failures visible. */
 public final class ServerGateway {
    private ServerGateway() {}
 
@@ -19,7 +19,12 @@ public final class ServerGateway {
 
    public static boolean trySend(Minecraft client, CustomPacketPayload payload) {
       if (!supports(client, payload.type())) return false;
-      PacketDistributor.sendToServer(payload);
+      send(payload);
       return true;
+   }
+
+   /** Sends an admitted request. Failures propagate so submission owners can abort and release their request. */
+   public static void send(CustomPacketPayload payload) {
+      PacketDistributor.sendToServer(payload);
    }
 }

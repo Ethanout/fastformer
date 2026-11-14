@@ -62,6 +62,14 @@ public final class PlayerStateRegistry {
       return binding != null && binding.player() == player ? Optional.of(binding.state()) : Optional.empty();
    }
 
+   /** Admission does not create a scope, and retired/replaced player instances stay rejected. */
+   public static boolean accepts(ServerPlayer player) {
+      if (player == null) return false;
+      PlayerStateRegistry registry = running(player.getServer());
+      Binding binding = registry.players.get(player.getUUID());
+      return !registry.detached.contains(player) && (binding == null || binding.player() == player);
+   }
+
    public static void detach(ServerPlayer player) {
       PlayerStateRegistry registry = running(player.getServer());
       registry.detached.add(player);

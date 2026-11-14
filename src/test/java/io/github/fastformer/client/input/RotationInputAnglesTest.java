@@ -3,7 +3,7 @@ package io.github.fastformer.client.input;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ModifierGestureState;
-import io.github.fastformer.workspace.transform.PixelPerfectAngles;
+import io.github.fastformer.common.math.PixelPerfectAngles;
 import org.junit.jupiter.api.Test;
 
 class RotationInputAnglesTest {
@@ -39,14 +39,4 @@ class RotationInputAnglesTest {
       assertFalse(modifier.held());
    }
 
-   @Test
-   void selectionDragsSnapToQuartersUnlessControlIsHeld() {
-      double preview = 73 * Math.PI * 2 / 1024;
-      assertEquals(0, RotationInputAngles.selectionPreview(73, false), 1.0E-12);
-      assertEquals(preview, RotationInputAngles.selectionPreview(73, true), 1.0E-12);
-      assertEquals(Math.PI / 2, RotationInputAngles.selectionPreview(230, false), 1.0E-12);
-      assertEquals(-Math.PI / 2, RotationInputAngles.selectionPreview(-230, false), 1.0E-12);
-      assertEquals(Math.PI / 2, RotationInputAngles.selectionFinish(1.3, false), 1.0E-12);
-      assertEquals(1.3, RotationInputAngles.selectionFinish(1.3, true), 1.0E-12);
-   }
 }

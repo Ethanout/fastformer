@@ -1,16 +1,16 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
+import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.OperationPointDrag;
-import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
-import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
+import io.github.fastformer.client.interaction.selectiongesture.WorkspaceFaceDrag;
+import io.github.fastformer.client.interaction.selectiongesture.WorkspaceGizmoDrag;
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 import io.github.fastformer.protocol.c2s.placement.UndoFastPlacePayload;
 
 final class MouseReleaseDispatcher {
@@ -32,12 +32,12 @@ final class MouseReleaseDispatcher {
             yield true;
          }
          case WORKSPACE_GIZMO_DRAG -> {
-            SelectionGestureController.finishGizmo(session);
+            session.selectionGestures().finish(session.selectionGestures().capture());
             session.operationClick.clear();
             yield true;
          }
          case WORKSPACE_FACE_DRAG -> {
-            SelectionGestureController.finishFace(session);
+            session.selectionGestures().finish(session.selectionGestures().capture());
             session.operationClick.clear();
             yield true;
          }
@@ -74,8 +74,8 @@ final class MouseReleaseDispatcher {
       return MouseDragReleaseSemantics.releaseTarget(action, button, new MouseDragReleaseSemantics.State(
          dragButton(session.operationPointDrag),
          dragButton(session.operationDrag),
-         dragButton(session.selectionGestures().gizmo()),
-         dragButton(session.selectionGestures().face()),
+         dragButton(session.selectionGestureSnapshot().gizmo()),
+         dragButton(session.selectionGestureSnapshot().face()),
          dragButton(session.geometryGizmoDrag),
          session.operationClick.buttonId(),
          session.ownsGeometryPointerButton(button) ? button : -1,
@@ -86,8 +86,8 @@ final class MouseReleaseDispatcher {
    private static boolean finishUndoPress(Minecraft minecraft, ClientInputSession session, long releasedAtNanos) {
       boolean shortPress = session.undoPress.release(releasedAtNanos, UNDO_SHORT_PRESS_NANOS);
       session.undoPressCaptured = false;
-      if (shortPress && NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())) {
-         PacketDistributor.sendToServer(UndoFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
+      if (shortPress && ServerGateway.supports(minecraft, UndoFastPlacePayload.TYPE)) {
+         ServerGateway.send(UndoFastPlacePayload.INSTANCE);
       }
       return true;
    }

@@ -4,17 +4,14 @@ import io.github.fastformer.core.lifecycle.Scope;
 import io.github.fastformer.core.lifecycle.ScopedKey;
 import io.github.fastformer.common.interaction.InteractionState;
 import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.feedback.TaskFeedback;
 import io.github.fastformer.server.mode.ServerModes;
 import io.github.fastformer.server.session.execution.PlacementTasks;
 import io.github.fastformer.server.session.execution.OperationTasks;
 import io.github.fastformer.server.network.upload.UploadSystem;
-import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.player.PlayerStateRegistry;
-import io.github.fastformer.server.replace.QuickReplaceSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.server.sync.PreviewSync;
 import java.util.Collections;
@@ -71,7 +68,8 @@ public final class SessionSystem implements AutoCloseable {
       find(player.getServer()).ifPresent(runtime -> {
          // A replaced entity must not clear the new entity's retained UUID workflow.
          if (PlayerStateRegistry.find(player).isPresent()) runtime.resetModifier(player);
-         FastPlaceNetwork.forgetActivity(player);
+         PreviewSync.forgetActivity(player);
+         UploadSystem.forget(player);
       });
    }
 
@@ -94,7 +92,7 @@ public final class SessionSystem implements AutoCloseable {
    }
 
    public void quit(ServerPlayer player) {
-      SmartFillSystem.cancel(player);
+      modes.cancelTemporary(player);
       boolean restoring = HistorySystem.of(player).restoreActive(player);
       cancelEditing(player);
       if (!restoring) {
@@ -106,7 +104,7 @@ public final class SessionSystem implements AutoCloseable {
 
    /** Cancels editing and world work when creative editing or recovery admission is unavailable. */
    public void stopUnavailable(ServerPlayer player) {
-      SmartFillSystem.cancel(player);
+      modes.cancelTemporary(player);
       boolean taskWasActive = placements.active(player) || operationTasks.active(player);
       cancelEditing(player);
       placements.cancel(player);
@@ -119,13 +117,12 @@ public final class SessionSystem implements AutoCloseable {
 
    /** Drops player-bound editing state; queued world work keeps its own lifetime. */
    public void discardPlayer(ServerPlayer player) {
-      SmartFillSystem.forget(player);
       InteractionModifierState.reset(player);
-      QuickReplaceSystem.forget(player);
       modes.discardPlayer(player);
       HistorySystem.of(player).remove(player);
       ServerInputDispatcher.clearPlacementActions(player);
-      FastPlaceNetwork.forgetActivity(player);
+      PreviewSync.forgetActivity(player);
+      UploadSystem.forget(player);
    }
 
    /** Parks the source editors before restoring the target dimension; tasks stay bound to their original world. */
@@ -136,14 +133,17 @@ public final class SessionSystem implements AutoCloseable {
       modes.parkDimension(owner, from);
       ServerInputDispatcher.clearPlacementActions(player);
       modes.restoreDimension(owner, to);
-      FastPlaceNetwork.forgetActivity(player);
+      PreviewSync.forgetActivity(player);
+      UploadSystem.forget(player);
       syncCurrentPreview(player);
    }
 
    public void syncCurrentPreview(ServerPlayer player) {
       modes.modifierChanged(player, modifierHeld(player), false);
       PreviewSync.syncInteractionUpdates(player);
-      modes.active(player).ifPresentOrElse(mode -> mode.sync(player), () -> FastPlaceNetwork.syncSettings(player));
+      var active = modes.active(player);
+      active.ifPresent(mode -> mode.sync(player));
+      if (active.isEmpty() || !modes.hasEditing(player)) PreviewSync.syncSettings(player);
    }
 
    private void resetModifier(ServerPlayer player) {

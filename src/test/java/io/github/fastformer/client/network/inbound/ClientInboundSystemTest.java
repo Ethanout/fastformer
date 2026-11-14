@@ -12,7 +12,6 @@ import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.protocol.s2c.settings.OpenSettingsPayload;
 import io.github.fastformer.protocol.s2c.settings.FallingStatePayload;
-import io.github.fastformer.network.transport.ClientboundTransport.Delivery;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.network.Connection;
@@ -36,7 +35,7 @@ class ClientInboundSystemTest {
             io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY, List.of(), true, false, 200, 100,
             io.github.fastformer.common.history.HistoryCompressionLimits.DEFAULTS, true, false),
          new FallingStatePayload(true, true));
-      for (var payload : payloads) queue.post(new Delivery(payload, connection));
+      for (var payload : payloads) queue.post(payload, connection);
       assertEquals(payloads.size(), queue.pendingCount());
       // There is no live player or screen in this test. Guards must reject before invoking handlers.
       assertDoesNotThrow(queue::drain);

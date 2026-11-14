@@ -39,7 +39,7 @@ import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
-import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.server.sync.PreviewSync;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -204,7 +204,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                return false;
             }
             if (PlaceableItems.placementState(player.getMainHandItem(), player, draft.placementContext()).isEmpty()) {
-               FastPlaceNetwork.syncPreview(player, draft);
+               PreviewSync.syncPreview(player, draft);
                return false;
             }
             return true;
@@ -212,7 +212,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
 
          @Override
          public void preview() {
-            FastPlaceNetwork.syncPreview(player, draft);
+            PreviewSync.syncPreview(player, draft);
          }
 
          @Override
@@ -264,9 +264,9 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
    public void sync(ServerPlayer player) {
       QuickShapeDraft session = sessions.active(player.getUUID());
       if (session != null) {
-         FastPlaceNetwork.syncPreview(player, session);
+         PreviewSync.syncPreview(player, session);
       } else {
-         FastPlaceNetwork.syncSettings(player);
+         PreviewSync.syncSettings(player);
       }
    }
 
@@ -274,7 +274,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       QuickShapeDraft session = sessions.end(player.getUUID());
       if (session != null) {
          session.onDestroyed();
-         FastPlaceNetwork.clearPreview(player);
+         PreviewSync.clearPreview(player);
       }
    }
 
@@ -296,9 +296,9 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       settings.setMode(player, mode);
       if (session != null) {
          session.onModeChanged();
-         FastPlaceNetwork.syncPreview(player, session);
+         PreviewSync.syncPreview(player, session);
       } else {
-         FastPlaceNetwork.syncSettings(player);
+         PreviewSync.syncSettings(player);
       }
       PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.mode_changed", PlayerMessages.text(mode.stage()), PlayerMessages.text(mode)));
    }
@@ -309,7 +309,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       if (session != null && session.polygonClosed() && !session.polygonHeightConfirmed()) {
          session.cyclePolygonVolumeShape();
-         FastPlaceNetwork.syncPreview(player, session);
+         PreviewSync.syncPreview(player, session);
          return;
       }
       QuickShapeStage stage = session == null ? QuickShapeStage.LINE : effectiveStage(session, settings);
@@ -320,9 +320,9 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       QuickShapeMode nextMode = settings.cycleMode(player, stage);
       if (session != null) {
          session.onModeChanged(nextMode == LineMode.FREE_SCROLL ? freeScrollCandidateOffset : null);
-         FastPlaceNetwork.syncPreview(player, session);
+         PreviewSync.syncPreview(player, session);
       } else {
-         FastPlaceNetwork.syncSettings(player);
+         PreviewSync.syncSettings(player);
       }
    }
 
@@ -350,7 +350,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
          session, FastPlaceSettings.load(player)) != LineMode.FREE_SCROLL) return;
       if (session != null && steps != 0) {
          session.adjustFreeScrollOffset(player.getViewVector(1.0F), steps);
-         FastPlaceNetwork.syncPreview(player, session);
+         PreviewSync.syncPreview(player, session);
       }
    }
 
@@ -381,14 +381,14 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                   return;
                }
                session.adjustFaceBaseOffset(FastPlaceGeometry.faceBaseAxis(session.points(), player.getViewVector(1.0F)), steps);
-               FastPlaceNetwork.syncPreview(player, session);
+               PreviewSync.syncPreview(player, session);
             }
             case VOLUME -> {
                if (!FastPlaceGeometry.usesVolumeOffset(settings.modes())) {
                   return;
                }
                session.adjustVolumeBaseOffset(FastPlaceGeometry.volumeBaseAxis(session.points(), settings.modes(), player.getViewVector(1.0F)), steps);
-               FastPlaceNetwork.syncPreview(player, session);
+               PreviewSync.syncPreview(player, session);
             }
             default -> {
             }
@@ -413,7 +413,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                yield false;
             }
             session.setFreeScrollOffset(new BlockPos((int)Math.round(value), 0, 0));
-            FastPlaceNetwork.syncPreview(player, session);
+            PreviewSync.syncPreview(player, session);
             yield true;
          }
          case FACE -> {
@@ -421,7 +421,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                yield false;
             }
             session.setFaceBaseOffset(FastPlaceGeometry.faceBaseAxis(session.points(), player.getViewVector(1.0F)), value);
-            FastPlaceNetwork.syncPreview(player, session);
+            PreviewSync.syncPreview(player, session);
             yield true;
          }
          case VOLUME -> {
@@ -429,7 +429,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                yield false;
             }
             session.setVolumeBaseOffset(FastPlaceGeometry.volumeBaseAxis(session.points(), settings.modes(), player.getViewVector(1.0F)).scale(value));
-            FastPlaceNetwork.syncPreview(player, session);
+            PreviewSync.syncPreview(player, session);
             yield true;
          }
          default -> false;
@@ -446,7 +446,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
             return false;
          } else {
             settings.setAngle(player, value);
-            FastPlaceNetwork.syncPreview(player, session);
+            PreviewSync.syncPreview(player, session);
             return true;
          }
       } else {
@@ -463,7 +463,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
             return false;
          } else {
             session.setFreeScrollOffset(new BlockPos(value, 0, 0));
-            FastPlaceNetwork.syncPreview(player, session);
+            PreviewSync.syncPreview(player, session);
             return true;
          }
       } else {
@@ -480,7 +480,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
          session.setVolumeBaseOffset(
             FastPlaceGeometry.volumeBaseAxis(session.points(), FastPlaceSettings.load(player).modes(), player.getViewVector(1.0F)).scale((double)value)
          );
-         FastPlaceNetwork.syncPreview(player, session);
+         PreviewSync.syncPreview(player, session);
          return true;
       } else {
          return false;
@@ -506,7 +506,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
          List<BlockPos> points = confirmedOnly ? List.copyOf(session.points()) : session.submissionPoints(io.github.fastformer.server.interaction.profile.ProfileConstraints.effectiveLineMode(session, settings));
          if (points.isEmpty()) {
             PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_empty"));
-            FastPlaceNetwork.syncPreview(player, session);
+            PreviewSync.syncPreview(player, session);
             return;
          }
          Optional<BlockState> placeState = PlaceableItems.placementState(
@@ -548,7 +548,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                   generationAdmission.requestedBytes(),
                   generationAdmission.usableBytes()
                );
-               FastPlaceNetwork.syncPreview(player, session);
+               PreviewSync.syncPreview(player, session);
                PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_memory_unsafe"));
                return;
             }
@@ -572,14 +572,14 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                );
                if (generationReservation.isEmpty()) {
                   runtime.placementTasks().enqueue(player, generationPlan.waitForGenerationMemory());
-                  FastPlaceNetwork.syncPreview(player, session);
+                  PreviewSync.syncPreview(player, session);
                   PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.world_write_waiting"));
                   return;
                }
                try {
                   generated = generationPlan.generateNow();
                } catch (RuntimeException | OutOfMemoryError exception) {
-                  FastPlaceNetwork.syncPreview(player, session);
+                  PreviewSync.syncPreview(player, session);
                   PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.placement_generation_failed"));
                   LOGGER.error("FastFormer synchronous placement generation failed for {}", player.getUUID(), exception);
                   return;
@@ -589,14 +589,14 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
                BlockGenerationResult generationResult = generated.result();
                Set<BlockPos> blocks = generationResult.blocks();
                if (generationResult.status() == BlockGenerationResult.Status.CONSTRAINTS_FAILED) {
-                  FastPlaceNetwork.syncPreview(player, session);
+                  PreviewSync.syncPreview(player, session);
                   PlayerMessages.chat(player, "fastformer.message.face_generation_constraints_failed");
                } else if (generationResult.status() == BlockGenerationResult.Status.LIMIT_EXCEEDED
                   || blocks.size() > maxPlacement) {
-                  FastPlaceNetwork.syncPreview(player, session);
+                  PreviewSync.syncPreview(player, session);
                   PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.placement_too_large", maxPlacement));
                } else if (blocks.isEmpty()) {
-                  FastPlaceNetwork.syncPreview(player, session);
+                  PreviewSync.syncPreview(player, session);
                   PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_empty"));
                 } else {
                    runtime.placementTasks().enqueue(player, PlacementTask.ready(blocks, generationPlan.taskPlan()));

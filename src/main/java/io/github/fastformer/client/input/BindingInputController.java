@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.client.session.ClientSessionSystem;
@@ -17,8 +19,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.*;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Adapts data bindings to existing input commands, owning pending replay and acknowledgement cleanup. */
 final class BindingInputController {
@@ -100,13 +100,13 @@ final class BindingInputController {
       return system(minecraft, owner).onSignalResult(name, gesture, context, commands(minecraft, owner, null, false, now));
    }
 
-   io.github.fastformer.client.interaction.binding.action.BindingAction.Result onLineSignal(
+   io.github.fastformer.client.interaction.binding.action.BindingAction.Result onShapeSignal(
       Minecraft minecraft, ClientInputSession owner, String name, String gesture, BindingContext context,
       BindingCommands commands) {
       return system(minecraft, owner).onSignalResult(name, gesture, context, commands);
    }
 
-   void synchronizeLineDefinitions(Minecraft minecraft, ClientInputSession owner) {
+   void synchronizeShapeDefinitions(Minecraft minecraft, ClientInputSession owner) {
       system(minecraft, owner).synchronizeDefinitions();
    }
 
@@ -150,7 +150,7 @@ final class BindingInputController {
       if (system == null) {
          var configuration = BindingConfiguration.instance();
          system = configuration.createSystem(() -> {
-            owner.cancelLineBindingInput();
+            owner.cancelShapeBindingInput();
             if (active()) cancel(minecraft, owner);
          });
       }
@@ -173,8 +173,8 @@ final class BindingInputController {
       minecraft.options.keyUse.setDown(false);
       if (started) {
          owner.cancel();
-         if (minecraft.getConnection() != null && NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id()))
-            PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE);
+         if (minecraft.getConnection() != null && ServerGateway.supports(minecraft, QuitFastPlacePayload.TYPE))
+            ServerGateway.send(QuitFastPlacePayload.INSTANCE);
       }
    }
 

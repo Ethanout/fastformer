@@ -63,7 +63,9 @@ public final class PrismGenerator {
       Set<BlockPos> baseFilled = PolygonFaceGenerator.generate(
          base, FillMode.SOLID, Integer.MAX_VALUE, BlockGenerationObserver.NONE
       );
-      Set<BlockPos> baseBoundary = PlanarFaceRasterizer.outline(base, Integer.MAX_VALUE, BlockGenerationObserver.NONE);
+      Set<BlockPos> baseBoundary = PolygonFaceGenerator.generate(
+         base, FillMode.OUTLINE, Integer.MAX_VALUE, BlockGenerationObserver.NONE
+      );
       if (GenerationLimitExceeded.is(baseFilled) || GenerationLimitExceeded.is(baseBoundary)) {
          return GenerationLimitExceeded.witness(maxBlocks, observer);
       }
@@ -95,7 +97,9 @@ public final class PrismGenerator {
          return GenerationLimitExceeded.witness(maxBlocks, observer);
       }
       Set<BlockPos> result = new ObservedBlockSet(observer);
-      Set<BlockPos> baseOutline = PlanarFaceRasterizer.outline(base, stagingLimit, BlockGenerationObserver.NONE);
+      Set<BlockPos> baseOutline = PolygonFaceGenerator.generate(
+         base, FillMode.OUTLINE, stagingLimit, BlockGenerationObserver.NONE
+      );
       if (GenerationLimitExceeded.is(baseOutline) || baseOutline.size() > maxBlocks) {
          return GenerationLimitExceeded.witness(maxBlocks, observer);
       }

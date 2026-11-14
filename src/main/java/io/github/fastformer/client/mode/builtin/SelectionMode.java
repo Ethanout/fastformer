@@ -4,6 +4,8 @@ import static io.github.fastformer.client.input.state.ClientInputStateMachine.Di
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
+import io.github.fastformer.common.mode.BuiltinModes;
+import io.github.fastformer.common.mode.ModeId;
 import io.github.fastformer.client.mode.input.CandidateScrollRules;
 import io.github.fastformer.client.mode.input.ScrollDecision;
 import io.github.fastformer.client.mode.input.ScrollInput;
@@ -20,7 +22,7 @@ public final class SelectionMode implements ClientMode {
       State.SELECTING, new ModeInputPolicy(OPERATION, BLOCKED, OPERATION, OPERATION, CANCEL, false, true, false),
       State.ADJUSTING, new ModeInputPolicy(OPERATION, OPERATION, OPERATION, OPERATION, CANCEL, true, true, false));
 
-   @Override public String id() { return "fastformer:selection"; }
+   @Override public ModeId id() { return BuiltinModes.SELECTION; }
    @Override public PointerDecision onPointer(PointerInput input, PointerView view) {
       if (view instanceof PointerView.Left left && input.press(0)) {
          var captured = PointerCaptureRules.left(left);

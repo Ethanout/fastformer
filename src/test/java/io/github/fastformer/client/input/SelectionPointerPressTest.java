@@ -97,7 +97,7 @@ class SelectionPointerPressTest {
          workspace.removeSelectedParts();
          workspace.addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
          var selected = java.util.Set.copyOf(workspace.selectedIds());
-         SelectionGestureController.press(FastPlaceClientInput.inputSession(), null, press);
+         FastPlaceClientInput.dispatchSelectionGesture(FastPlaceClientInput.inputSession(), ClientSessionSystem.instance().operations(), press);
          assertEquals(selected, workspace.selectedIds());
          assertFalse(workspace.editing());
          assertSame(published, ClientSessionSystem.instance().operations().interactionScene());
@@ -160,7 +160,7 @@ class SelectionPointerPressTest {
          ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
          var press = SelectionPointerPress.capture(new OperationInteractionIntent.Part(1, 1),
             0, false, -1, ClientSessionSystem.instance().operations().interactionScene(), workspace).orElseThrow();
-         SelectionGestureController.press(FastPlaceClientInput.inputSession(), null, press);
+         FastPlaceClientInput.dispatchSelectionGesture(FastPlaceClientInput.inputSession(), ClientSessionSystem.instance().operations(), press);
          assertEquals(java.util.Set.of(1), workspace.selectedIds());
          assertFalse(workspace.editing());
       } finally {

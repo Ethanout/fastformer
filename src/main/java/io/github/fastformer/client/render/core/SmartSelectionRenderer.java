@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.client.preview.hud.SelectionHudModel;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.FastPlaceClientInput;
@@ -37,6 +39,16 @@ final class SmartSelectionRenderer {
    private static final java.util.Set<Integer> VISIBLE_FRAMES = new java.util.HashSet<>();
    private static SelectionScreenProjection projection;
    private static Object levelIdentity;
+   private static SelectionHudModel hudFrame = SelectionHudModel.EMPTY;
+   private static final java.util.List<SelectionHudModel.Label> FRAME_LABELS = new java.util.ArrayList<>();
+   private static final java.util.List<SelectionHudModel.Corner> FRAME_CORNERS = new java.util.ArrayList<>();
+
+   static void beginVisualFrame() { hudFrame = SelectionHudModel.EMPTY; }
+
+   static void drawHud(GuiGraphics graphics, net.minecraft.client.gui.Font font,
+      io.github.fastformer.client.render.hud.BottomHudLayout bottom) {
+      io.github.fastformer.client.render.hud.HudFrameRenderer.drawSelection(graphics, font, bottom, hudFrame);
+   }
    private SmartSelectionRenderer() { }
 
    static void beginFrame(RenderLevelStageEvent event, Minecraft minecraft) {
@@ -62,7 +74,7 @@ final class SmartSelectionRenderer {
          entry.states.keySet(), entry.states.keySet(), Map.of(), minecraft.player.isShiftKeyDown());
       entry.faces.draw(event.getPoseStack(), event.getCamera().getPosition(), mesh.faces(),
          PreviewRenderTypes.SMART_SELECTION_SURFACE, alpha);
-      var capture = ClientSessionSystem.instance().operations().selectionGestures().capture();
+      var capture = ClientSessionSystem.instance().inputSession().selectionGestureSnapshot().capture();
       if (capture != null && capture.targets().containsKey(part.id())) {
          var buffers = minecraft.renderBuffers().bufferSource();
          for (var type : new net.minecraft.client.renderer.RenderType[] {
@@ -87,8 +99,12 @@ final class SmartSelectionRenderer {
          PreviewRenderTypes.GHOST_OUTLINE_LINES, alpha * 0.5F);
    }
 
-   static void hud(GuiGraphics graphics, Minecraft minecraft,
-      io.github.fastformer.client.render.hud.BottomHudLayout bottomLayout) {
+   static void captureHud(Minecraft minecraft) {
+      int width = minecraft.getWindow().getGuiScaledWidth();
+      int height = minecraft.getWindow().getGuiScaledHeight();
+      var bottomTexts = new java.util.ArrayList<Component>();
+      FRAME_LABELS.clear();
+      FRAME_CORNERS.clear();
       VISIBLE_LABELS.clear();
       VISIBLE_FRAMES.clear();
       if (projection == null || minecraft.level != levelIdentity || !ClientSessionSystem.instance().operations().active()) {
@@ -111,71 +127,69 @@ final class SmartSelectionRenderer {
          int pieceIndex = 0;
          for (var piece : entry.topology.pieces()) {
             int index = pieceIndex++;
-            var rect = projection.bounds(piece, graphics.guiWidth(), graphics.guiHeight());
+            var rect = projection.bounds(piece, width, height);
             if (rect == null) continue;
             whole = whole == null ? rect : whole.union(rect);
-            if (!alt && rect.intersects(graphics.guiWidth(), graphics.guiHeight()) && shown++ < 24) {
-               worldLabel(graphics, minecraft, new LabelKey(part.id(), index), Component.literal("#" + part.id()),
+            if (!alt && rect.intersects(width, height) && shown++ < 24) {
+               worldLabel(minecraft, width, height, new LabelKey(part.id(), index), Component.literal("#" + part.id()),
                   piece, 3, color);
             }
          }
          if (whole != null) {
-            corners(graphics, minecraft, part.id(), whole, color);
+            corners(minecraft, width, height, part.id(), whole, color);
             if (!alt) {
-               worldLabel(graphics, minecraft, new LabelKey(part.id(), -1),
+               worldLabel(minecraft, width, height, new LabelKey(part.id(), -1),
                   Component.translatable("fastformer.hud.smart_group", part.id(), entry.topology.pieces().size()),
                   entry.topology.bounds(), -12, color);
             }
          }
          if (!alt && selected && !ClientSessionSystem.instance().operations().selectionEdits().smartEditing()) {
             boolean group = ClientSessionSystem.instance().operations().interactionScene().groupGizmo() != null;
-            if (!group || !groupLocated) locator(graphics, minecraft, part.id());
+            if (!group || !groupLocated) locator(minecraft, width, height, part.id());
             groupLocated |= group;
          }
          if ((selected || part.smartEditable()) && entry.topology.distant()
             && (farthest == null || entry.topology.span() > farthest.topology.span())) { farthest = entry; farthestId = part.id(); }
       }
-      if (farthest != null && !alt) bottomLayout.render(graphics, minecraft,
+      if (farthest != null && !alt) bottomTexts.add(
          Component.translatable("fastformer.hud.smart_distant", farthestId, (int)Math.ceil(farthest.topology.span()))
             .withStyle(GeometryPalette.accent().style()));
       LABELS.keySet().retainAll(VISIBLE_LABELS);
       FRAMES.keySet().retainAll(VISIBLE_FRAMES);
+      hudFrame = new SelectionHudModel(FRAME_LABELS, FRAME_CORNERS, bottomTexts);
    }
 
-   private static void locator(GuiGraphics graphics, Minecraft minecraft, int id) {
+   private static void locator(Minecraft minecraft, int width, int height, int id) {
       var scene = ClientSessionSystem.instance().operations().interactionScene();
       var bounds = scene.groupGizmo() == null ? scene.bounds(id)
          : scene.groupGizmo().require(io.github.fastformer.client.interaction.InteractionComponents.WORLD_BOUNDS);
       if (bounds == null) return;
       Vec3 center = bounds.getCenter();
-      var point = projection.point(center, graphics.guiWidth(), graphics.guiHeight());
-      String arrow = point.onScreen() ? "◇" : direction(point, graphics.guiWidth(), graphics.guiHeight());
+      var point = projection.point(center, width, height);
+      String arrow = point.onScreen() ? "◇" : direction(point, width, height);
       int distance = (int)Math.ceil(projection.camera().distanceTo(center));
       Component text = scene.groupGizmo() == null ? Component.translatable("fastformer.hud.smart_gizmo", arrow, id, distance)
          : Component.translatable("fastformer.hud.smart_group_gizmo", arrow, distance);
-      label(graphics, minecraft, new LabelKey(scene.groupGizmo() == null ? id : -1, -2), text,
+      label(minecraft, width, height, new LabelKey(scene.groupGizmo() == null ? id : -1, -2), text,
          point.x() - minecraft.font.width(text) * 0.5, point.y() + (point.onScreen() ? 16 : 0),
          GeometryPalette.text().argb());
    }
 
-   private static void worldLabel(GuiGraphics graphics, Minecraft minecraft, LabelKey key, Component text,
+   private static void worldLabel(Minecraft minecraft, int width, int height, LabelKey key, Component text,
       net.minecraft.world.phys.AABB bounds, double offsetY, int color) {
       Vec3 center = bounds.getCenter();
-      var point = projection.project(new Vec3(center.x, bounds.maxY, center.z), graphics.guiWidth(), graphics.guiHeight());
+      var point = projection.project(new Vec3(center.x, bounds.maxY, center.z), width, height);
       if (point == null || !point.onScreen()) return;
-      label(graphics, minecraft, key, text, point.x() - minecraft.font.width(text) * 0.5, point.y() + offsetY, color);
+      label(minecraft, width, height, key, text, point.x() - minecraft.font.width(text) * 0.5, point.y() + offsetY, color);
    }
 
-   private static void label(GuiGraphics graphics, Minecraft minecraft, LabelKey key, Component text,
+   private static void label(Minecraft minecraft, int width, int height, LabelKey key, Component text,
       double x, double y, int color) {
       VISIBLE_LABELS.add(key);
       var pixels = LABELS.computeIfAbsent(key, ignored -> new ScreenPixelHysteresis());
-      var point = pixels.update(Math.clamp(x, 4, Math.max(4, graphics.guiWidth() - minecraft.font.width(text) - 4)),
-         Math.clamp(y, 4, Math.max(4, graphics.guiHeight() - minecraft.font.lineHeight - 4)), minecraft.getWindow().getGuiScale());
-      graphics.pose().pushPose();
-      graphics.pose().translate(point.x(), point.y(), 0);
-      graphics.drawString(minecraft.font, text, 0, 0, color, true);
-      graphics.pose().popPose();
+      var point = pixels.update(Math.clamp(x, 4, Math.max(4, width - minecraft.font.width(text) - 4)),
+         Math.clamp(y, 4, Math.max(4, height - minecraft.font.lineHeight - 4)), minecraft.getWindow().getGuiScale());
+      FRAME_LABELS.add(new SelectionHudModel.Label(text, point.x(), point.y(), color));
    }
 
    private static String direction(SelectionScreenProjection.Point point, int width, int height) {
@@ -184,8 +198,8 @@ final class SmartSelectionRenderer {
       return y < 0 ? "↑" : "↓";
    }
 
-   private static void corners(GuiGraphics graphics, Minecraft minecraft, int id, SelectionScreenProjection.Rect rect, int color) {
-      if (!rect.intersects(graphics.guiWidth(), graphics.guiHeight())) return;
+   private static void corners(Minecraft minecraft, int width, int height, int id, SelectionScreenProjection.Rect rect, int color) {
+      if (!rect.intersects(width, height)) return;
       VISIBLE_FRAMES.add(id);
       double scale = minecraft.getWindow().getGuiScale();
       var pixels = FRAMES.computeIfAbsent(id, ignored -> new FramePixels());
@@ -197,15 +211,10 @@ final class SmartSelectionRenderer {
       int physicalLength = (int)Math.round(length * scale);
       int thickness = Math.max(1, (int)Math.round(scale));
       for (double px : new double[] {rect.left(), rect.right()}) for (double py : new double[] {rect.top(), rect.bottom()}) {
-         if (px < -length || px > graphics.guiWidth() + length || py < -length || py > graphics.guiHeight() + length) continue;
+         if (px < -length || px > width + length || py < -length || py > height + length) continue;
          int dx = px == rect.left() ? physicalLength : -physicalLength;
          int dy = py == rect.top() ? physicalLength : -physicalLength;
-         graphics.pose().pushPose();
-         graphics.pose().translate(px, py, 0);
-         graphics.pose().scale((float)(1 / scale), (float)(1 / scale), 1);
-         graphics.fill(Math.min(0, dx), 0, Math.max(0, dx) + thickness, thickness, color);
-         graphics.fill(0, Math.min(0, dy), thickness, Math.max(0, dy) + thickness, color);
-         graphics.pose().popPose();
+         FRAME_CORNERS.add(new SelectionHudModel.Corner(px, py, dx, dy, thickness, scale, color));
       }
    }
 
@@ -217,6 +226,9 @@ final class SmartSelectionRenderer {
       VISIBLE_LABELS.clear();
       VISIBLE_FRAMES.clear();
       projection = null;
+      FRAME_LABELS.clear();
+      FRAME_CORNERS.clear();
+      hudFrame = SelectionHudModel.EMPTY;
    }
 
    private static final class FramePixels {

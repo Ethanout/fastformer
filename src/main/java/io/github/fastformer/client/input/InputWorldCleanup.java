@@ -14,8 +14,7 @@ final class InputWorldCleanup {
    static void clear(Minecraft minecraft, ClientInputSession session) {
       ClientInboundSystem.endWorldSession();
       QuickReplaceMode.clear();
-      SelectionGestureController.cancelActive(session);
-      session.selectionGestures().clear();
+      session.selectionGestures().cancel();
       if (session.operationSessionWasActive) minecraft.options.keyAttack.setDown(false);
       session.reset();
       ClientSessionSystem.instance().operations().setAltMode(false);

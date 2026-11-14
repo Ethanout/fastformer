@@ -33,6 +33,7 @@ public final class PlayerStateLifecycleGameTests {
       helper.assertTrue(a.detaches == 1 && b.detaches == 1, "detach skipped a feature");
       helper.assertTrue(a.discards == 1 && b.discards == 1, "discard skipped a feature");
       helper.assertTrue(PlayerStateRegistry.find(player).isEmpty(), "detached player remains registered");
+      helper.assertFalse(PlayerStateRegistry.accepts(player), "detached player remains admitted");
       boolean closed = false;
       try { registry.get(first); }
       catch (IllegalStateException expected) { closed = true; }
@@ -42,6 +43,7 @@ public final class PlayerStateLifecycleGameTests {
       catch (IllegalStateException expected) { detached = true; }
       helper.assertTrue(detached, "late callback recreated a detached scope");
       PlayerStateRegistry.attach(player);
+      helper.assertTrue(PlayerStateRegistry.accepts(player), "reattached player is not admitted");
       helper.assertTrue(PlayerStateRegistry.of(player) != registry, "reattach reused closed state");
       PlayerStateRegistry.detach(player);
       helper.succeed();

@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import java.lang.reflect.Method;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -86,22 +85,14 @@ class SelectionPointerReleaseTest {
    void emptySelectionReleaseCannotFinishAnUnrelatedGesture() throws Exception {
       var pointer = pointer();
       long current = pointer.begin(PointerGestureState.Kind.OPERATION_POINT);
-      invoke("finishWorkspaceFaceDrag");
-      invoke("finishWorkspaceGizmoDrag");
+      var gestures = FastPlaceClientInput.inputSession().selectionGestures();
+      gestures.finish(gestures.capture());
       assertTrue(pointer.owns(current, PointerGestureState.Kind.OPERATION_POINT));
       assertEquals(current, FastPlaceClientInput.inputSession().pointerGesture.activeToken());
    }
 
-   private static void release(long token) throws Exception {
-      Method method = FastPlaceClientInput.class.getDeclaredMethod("finishPointerGesture", long.class);
-      method.setAccessible(true);
-      method.invoke(null, token);
-   }
-
-   private static void invoke(String name) throws Exception {
-      Method method = FastPlaceClientInput.class.getDeclaredMethod(name);
-      method.setAccessible(true);
-      method.invoke(null);
+   private static void release(long token) {
+      FastPlaceClientInput.inputSession().pointerGesture.finish(token);
    }
 
    private static PointerGestureState pointer() throws Exception {

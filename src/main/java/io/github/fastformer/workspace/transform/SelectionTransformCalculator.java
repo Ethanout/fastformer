@@ -19,6 +19,12 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public final class SelectionTransformCalculator {
+   public static io.github.fastformer.common.math.RepeatProfile repeatProfile(
+      io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation operation, boolean common, int partId,
+      java.util.List<io.github.fastformer.workspace.model.ClientSelectionPart> baseline, io.github.fastformer.core.math.Axis axis) {
+      return new io.github.fastformer.common.math.RepeatProfile(RepeatStrideSemantics.repeatsWholeGroup(operation, baseline),
+         RepeatStrideSemantics.stride(operation, common, partId, baseline, axis));
+   }
    private SelectionTransformCalculator() {}
 
    public record Result(List<ClientSelectionPart> parts, String failureKey) {

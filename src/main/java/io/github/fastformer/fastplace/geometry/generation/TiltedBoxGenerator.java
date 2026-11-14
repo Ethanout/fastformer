@@ -142,8 +142,9 @@ public final class TiltedBoxGenerator {
       int stagingLimit = onePast(maxBlocks);
       BlockGenerationObserver staging = stagingObserver(observer);
       Set<BlockPos> staged = new ObservedBlockSet(staging);
-      Set<BlockPos> baseOutline = PlanarFaceRasterizer.interpolatedQuadOutline(
+      Set<BlockPos> baseOutline = QuadFaceGenerator.generate(
          base,
+         FillMode.OUTLINE,
          stagingLimit,
          staging,
          tieBias

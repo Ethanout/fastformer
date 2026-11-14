@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.placement.SmartFillCommandPayload;
@@ -10,8 +12,6 @@ import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Input and preview data belong to the player environment that requested the fill. */
 public final class ClientSmartFillSession {
@@ -33,8 +33,8 @@ public final class ClientSmartFillSession {
       return minecraft.player != null && minecraft.screen == null && minecraft.player.isCreative()
          && ClientSessionSystem.instance().previews().building().enabled() && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
          && minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), SmartFillCommandPayload.TYPE.id())
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), SmartFillPreviewPayload.TYPE.id());
+         && ServerGateway.supports(minecraft, SmartFillCommandPayload.TYPE)
+         && ServerGateway.supports(minecraft, SmartFillPreviewPayload.TYPE);
    }
 
    void confirm(Minecraft minecraft) {
@@ -79,10 +79,10 @@ public final class ClientSmartFillSession {
    void clear() { phase = null; }
 
    private static void send(Minecraft minecraft, UUID id, SmartFillCommandPayload.Action action) {
-      if (minecraft.getConnection() == null || !NetworkRegistry.hasChannel(minecraft.getConnection(), SmartFillCommandPayload.TYPE.id())) return;
+      if (minecraft.getConnection() == null || !ServerGateway.supports(minecraft, SmartFillCommandPayload.TYPE)) return;
       Vec3 eye = minecraft.player == null ? Vec3.ZERO : minecraft.player.getEyePosition();
       Vec3 view = minecraft.player == null ? new Vec3(0, 0, 1) : minecraft.player.getViewVector(1);
-      if (minecraft.level != null) PacketDistributor.sendToServer(new SmartFillCommandPayload(
+      if (minecraft.level != null) ServerGateway.send(new SmartFillCommandPayload(
          id, minecraft.level.dimension().location(), action, eye, view));
    }
 }

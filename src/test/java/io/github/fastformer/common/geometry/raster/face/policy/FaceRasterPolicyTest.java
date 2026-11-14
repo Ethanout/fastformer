@@ -22,13 +22,13 @@ class FaceRasterPolicyTest {
     private final FaceRasterAlgorithms algorithms = FaceRasterAdapters.currentAlgorithms();
 
     @Test void completeDefaultChainsAreRegisteredAndKeepExistingPoliciesAvailable() {
-        FaceRasterPolicies.DEFAULT.validate(algorithms);
-        assertEquals(ids("axis_rectangle", "normal_plane"), FaceRasterPolicies.DEFAULT.chain(FaceClass.AXIS_RECTANGLE));
-        assertEquals(ids("coordinate_plane", "normal_plane"), FaceRasterPolicies.DEFAULT.chain(FaceClass.COORDINATE_PLANE));
-        assertEquals(ids("axis_extrusion", "normal_plane"), FaceRasterPolicies.DEFAULT.chain(FaceClass.AXIS_EXTRUSION));
-        assertEquals(ids("normal_plane", "translated_scan", "edge_only"), FaceRasterPolicies.DEFAULT.chain(FaceClass.TILTED_PARALLELOGRAM));
-        assertEquals(ids("projected_polygon", "edge_only"), FaceRasterPolicies.DEFAULT.chain(FaceClass.POLYGON));
-        assertEquals(ids("edge_only"), FaceRasterPolicies.DEFAULT.chain(FaceClass.DEGENERATE));
+        FaceRasterPolicies.CLASSIFIED.validate(algorithms);
+        assertEquals(ids("axis_rectangle", "normal_plane"), FaceRasterPolicies.CLASSIFIED.chain(FaceClass.AXIS_RECTANGLE));
+        assertEquals(ids("coordinate_plane", "normal_plane"), FaceRasterPolicies.CLASSIFIED.chain(FaceClass.COORDINATE_PLANE));
+        assertEquals(ids("axis_extrusion", "normal_plane"), FaceRasterPolicies.CLASSIFIED.chain(FaceClass.AXIS_EXTRUSION));
+        assertEquals(ids("normal_plane", "translated_scan", "edge_only"), FaceRasterPolicies.CLASSIFIED.chain(FaceClass.TILTED_PARALLELOGRAM));
+        assertEquals(ids("projected_polygon", "edge_only"), FaceRasterPolicies.CLASSIFIED.chain(FaceClass.POLYGON));
+        assertEquals(ids("edge_only"), FaceRasterPolicies.CLASSIFIED.chain(FaceClass.DEGENERATE));
         FaceRasterPolicies.CURRENT_QUAD.validate(algorithms);
         FaceRasterPolicies.CURRENT_POLYGON.validate(algorithms);
         assertEquals(ids("current_quad"), FaceRasterPolicies.CURRENT_QUAD.chain(FaceClass.AXIS_RECTANGLE));
@@ -36,7 +36,7 @@ class FaceRasterPolicyTest {
     }
 
     @Test void strictReaderAndCodecRoundTripCanonicalPolicy() {
-        var expected = FaceRasterPolicies.DEFAULT;
+        var expected = FaceRasterPolicies.CLASSIFIED;
         assertEquals(expected, read(expected.canonicalJson()));
         var codec = FaceRasterPolicy.codec(algorithms);
         var encoded = codec.encodeStart(JsonOps.INSTANCE, expected).getOrThrow();
@@ -45,19 +45,19 @@ class FaceRasterPolicyTest {
     }
 
     @Test void rejectsUnknownIdsClassesEmptyMissingAndNonStringChains() {
-        var unknownId = FaceRasterPolicies.DEFAULT.encode();
+        var unknownId = FaceRasterPolicies.CLASSIFIED.encode();
         unknownId.getAsJsonObject("chains").getAsJsonArray("axis_rectangle").set(0, new JsonPrimitive("fastformer:not_registered"));
         assertInvalid(unknownId.toString(), "Unknown face raster algorithm");
-        var unknownClass = FaceRasterPolicies.DEFAULT.encode();
+        var unknownClass = FaceRasterPolicies.CLASSIFIED.encode();
         unknownClass.getAsJsonObject("chains").add("typo", new com.google.gson.JsonArray());
         assertInvalid(unknownClass.toString(), "Unknown face class");
-        var empty = FaceRasterPolicies.DEFAULT.encode();
+        var empty = FaceRasterPolicies.CLASSIFIED.encode();
         empty.getAsJsonObject("chains").add("polygon", new com.google.gson.JsonArray());
         assertInvalid(empty.toString(), "Empty face algorithm chain");
-        var missing = FaceRasterPolicies.DEFAULT.encode();
+        var missing = FaceRasterPolicies.CLASSIFIED.encode();
         missing.getAsJsonObject("chains").remove("degenerate");
         assertThrows(IllegalArgumentException.class, () -> read(missing.toString()));
-        var wrongType = FaceRasterPolicies.DEFAULT.encode();
+        var wrongType = FaceRasterPolicies.CLASSIFIED.encode();
         wrongType.getAsJsonObject("chains").getAsJsonArray("polygon").set(0, new JsonPrimitive(1));
         assertInvalid(wrongType.toString(), "Algorithm id must be a string");
         assertInvalid("""
@@ -70,8 +70,8 @@ class FaceRasterPolicyTest {
     }
 
     @Test void rejectsDuplicatesCommentsTrailingDocumentsAndMalformedIds() {
-        String canonical = FaceRasterPolicies.DEFAULT.canonicalJson();
-        String chains = FaceRasterPolicies.DEFAULT.encode().get("chains").toString();
+        String canonical = FaceRasterPolicies.CLASSIFIED.canonicalJson();
+        String chains = FaceRasterPolicies.CLASSIFIED.encode().get("chains").toString();
         assertInvalid("""
                 {"chains":%s,"chains":%s}
                 """.formatted(chains, chains), "Duplicate face policy field");
@@ -86,10 +86,10 @@ class FaceRasterPolicyTest {
         List<FaceClass> order = new ArrayList<>(List.of(FaceClass.values()));
         Collections.reverse(order);
         Map<FaceClass, List<ResourceLocation>> reversed = new LinkedHashMap<>();
-        order.forEach(kind -> reversed.put(kind, FaceRasterPolicies.DEFAULT.chain(kind)));
+        order.forEach(kind -> reversed.put(kind, FaceRasterPolicies.CLASSIFIED.chain(kind)));
         var same = new FaceRasterPolicy(reversed);
-        assertEquals(FaceRasterPolicies.DEFAULT.canonicalJson(), same.canonicalJson());
-        assertEquals(FaceRasterPolicies.DEFAULT.stableHash(), same.stableHash());
+        assertEquals(FaceRasterPolicies.CLASSIFIED.canonicalJson(), same.canonicalJson());
+        assertEquals(FaceRasterPolicies.CLASSIFIED.stableHash(), same.stableHash());
         assertTrue(same.stableHash().matches("[0-9a-f]{64}"));
         EnumMap<FaceClass, List<ResourceLocation>> changed = new EnumMap<>(same.chains());
         changed.put(FaceClass.TILTED_PARALLELOGRAM, ids("translated_scan", "normal_plane", "edge_only"));

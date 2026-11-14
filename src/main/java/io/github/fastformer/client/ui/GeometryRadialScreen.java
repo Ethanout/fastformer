@@ -1,5 +1,7 @@
 package io.github.fastformer.client.ui;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.protocol.c2s.geometry.GeometrySelectModePayload;
@@ -8,10 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 public final class GeometryRadialScreen extends Screen {
    private static final int OUTER_RADIUS = 92;
@@ -194,8 +193,8 @@ public final class GeometryRadialScreen extends Screen {
          && this.selected != null
          && this.selected.mode() != null
          && minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), GeometrySelectModePayload.TYPE.id())) {
-         PacketDistributor.sendToServer(new GeometrySelectModePayload(this.selected.mode()), new CustomPacketPayload[0]);
+         && ServerGateway.supports(minecraft, GeometrySelectModePayload.TYPE)) {
+         ServerGateway.send(new GeometrySelectModePayload(this.selected.mode()));
       }
       minecraft.setScreen(null);
    }

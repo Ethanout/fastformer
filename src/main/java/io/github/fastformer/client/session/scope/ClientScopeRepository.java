@@ -13,7 +13,7 @@ public final class ClientScopeRepository {
    private final Map<ClientScopeId, ClientScope> scopes = new HashMap<>();
    private final OperationClipboardRepository clipboard = new OperationClipboardRepository();
    private final ClientSelectionSession unboundSelection = new ClientSelectionSession();
-   private final ClientInputSession unboundInput = new ClientInputSession(unboundSelection.gestures());
+   private final ClientInputSession unboundInput = new ClientInputSession();
    private final OperationContext unboundOperations = new OperationContext(unboundSelection, clipboard, unboundInput);
    private ClientScope current;
 

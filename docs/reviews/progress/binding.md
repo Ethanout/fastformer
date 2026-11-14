@@ -48,4 +48,11 @@
 - 线阶段物理按下策略与代次失效状态归属于 `client.interaction.binding.tool`；输入总包不新增类型债务。jar 与部署校验跟随 `PlayerMessages`、`GeometryAction` 的实际包路径，未调整仓库或依赖配置。
 - 有界面生成增加算法内部取消／上限检查，并修复回退重复报告；主题文本缓存以计划身份与调色板版本为键，动态手柄继续每帧更新。
 - 架构报告：1246 项剩余债务，新增 0，严格边界违规 0；基线未放宽。两种面入口仍保留原有结果，策略同步与生产调度器接入尚未完成。
-- 相关细节：[领域迁移](progress/face-raster-domain-migration.md)、[主题归属](progress/controlpoint-theme-domain.md)、[预览帧](progress/preview-frame-capture.md)、[线阶段绑定](2026-11-14-line-binding-migration.md)、[选区快捷键](2026-11-14-workspace-binding-migration.md)。
+- 相关细节：[领域迁移](face-raster-domain-migration.md)、[主题归属](controlpoint-theme-domain.md)、[预览帧](preview-frame-capture.md)、[线阶段绑定](../2026-11-14-line-binding-migration.md)、[选区快捷键](../2026-11-14-workspace-binding-migration.md)。
+
+## 起形点、面、体的鼠标与滚轮绑定（2026-11-14）
+
+- 将线阶段专用能力推广为 `QuickShapeBindingContext`、`QuickShapeBindingInput`、`QuickShapeBindingInputState` 和 `QuickShapeBindingCommand`；默认树统一为 `default/quick_shape.json`，声明四个阶段。未闭合多边面使用 `QuickShapeStage.resolve`，继续归面阶段。
+- 上下文冻结实际 stage、mode、profile，以及指针、撤销、滚轮和中键忽略事实；事实集合防御复制。原子动作仍复用既有闭合／提前提交、撤点和任务队列。键盘取消、修饰键、历史和提交尚未完整数据化。
+- 按钮按下策略与重载代次由所属输入会话保存；释放无条件收尾。空规则或 vanilla 放行仍保留子树所有权，不落回已迁移阶段的旧默认规则。
+- 真实 JSON 对照覆盖四阶段、512 组事实、按下／释放、标准与额外鼠标键、滚轮方向；另验证 mode／profile 分支覆盖、多边面中键忽略、资源重载、缺失松开规则和撤销取消。完整 check 与数量见当前状态。

@@ -103,7 +103,7 @@ public final class ServerInputDispatcher {
          || !acceptPlacementAction(player, payload.requestId())) {
          return;
       }
-      if (!PlaceableItems.isPlaceable(player.getMainHandItem()) || SessionSystem.of(player).modes().hasActive(player)) {
+      if (!PlaceableItems.isPlaceable(player.getMainHandItem()) || SessionSystem.of(player).modes().hasEditing(player)) {
          return;
       }
       StartPlacementPayload.Target target = payload.target();
@@ -411,7 +411,8 @@ public final class ServerInputDispatcher {
    }
 
    public static boolean fill(ServerPlayer player) {
-      if (io.github.fastformer.server.fill.SmartFillSystem.active(player)) return true;
+      if (SessionSystem.of(player).modes().input(player, io.github.fastformer.server.mode.ModeInput.SWAP_HANDS)
+         == io.github.fastformer.server.mode.ModeInputResult.CONSUMED) return true;
       if (interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
@@ -593,7 +594,7 @@ public final class ServerInputDispatcher {
    }
 
    private static boolean hasActiveSession(ServerPlayer player) {
-      return SessionSystem.of(player).modes().hasActive(player);
+      return SessionSystem.of(player).modes().hasEditing(player);
    }
 
    public static BlockHitResult raycastBlocks(ServerPlayer player, double range) {

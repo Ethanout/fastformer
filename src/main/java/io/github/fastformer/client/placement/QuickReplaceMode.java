@@ -1,13 +1,13 @@
 package io.github.fastformer.client.placement;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.common.placement.context.QuickReplaceTargets;
 
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.common.replace.QuickReplaceTarget;
 import io.github.fastformer.protocol.c2s.placement.QuickReplaceSessionPayload;
 import io.github.fastformer.protocol.s2c.placement.QuickReplaceStatePayload;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
@@ -29,13 +29,13 @@ public final class QuickReplaceMode {
    public static boolean toggle(Minecraft minecraft) {
       if (minecraft == null || minecraft.player == null || (!active && !minecraft.player.isCreative())
          || minecraft.getConnection() == null
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), QuickReplaceSessionPayload.TYPE.id())
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), QuickReplaceStatePayload.TYPE.id())) {
+         || !ServerGateway.supports(minecraft, QuickReplaceSessionPayload.TYPE)
+         || !ServerGateway.supports(minecraft, QuickReplaceStatePayload.TYPE)) {
          return false;
       }
       finishStroke(minecraft);
       active = !active;
-      PacketDistributor.sendToServer(new QuickReplaceSessionPayload(++requestId, active));
+      ServerGateway.send(new QuickReplaceSessionPayload(++requestId, active));
       return active;
    }
 

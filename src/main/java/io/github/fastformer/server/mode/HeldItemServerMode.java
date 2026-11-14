@@ -2,6 +2,7 @@ package io.github.fastformer.server.mode;
 
 import io.github.fastformer.server.specialitem.SpecialItemHandlers;
 import io.github.fastformer.common.interaction.InteractionState;
+import io.github.fastformer.common.mode.ModeId;
 import java.util.function.Predicate;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.BlockHitResult;
@@ -10,7 +11,7 @@ import net.minecraft.world.phys.BlockHitResult;
 final class HeldItemServerMode extends ServerMode {
    private final Predicate<ServerPlayer> accepts;
 
-   HeldItemServerMode(String id, InteractionState state, Predicate<ServerPlayer> accepts) {
+   HeldItemServerMode(ModeId id, InteractionState state, Predicate<ServerPlayer> accepts) {
       super(id, state);
       this.accepts = accepts;
    }

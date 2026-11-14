@@ -1,7 +1,7 @@
 package io.github.fastformer;
 
 import io.github.fastformer.fastplace.events.FastPlaceEvents;
-import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.server.network.ServerNetworkSystem;
 import io.github.fastformer.server.history.HistoryStorageConfig;
 import io.github.fastformer.common.placement.context.PlacementFallbacks;
 import io.github.fastformer.common.placement.context.PlacementFallbackRule;
@@ -24,7 +24,7 @@ public final class FastFormer {
       modBus.addListener(io.github.fastformer.common.tinker.data.TinkerPropertyRule::register);
       modBus.addListener(io.github.fastformer.common.tinker.data.TinkerWoodFamily::register);
       modBus.addListener(io.github.fastformer.common.interaction.binding.SessionProfiles::register);
-      FastPlaceNetwork.register(modBus);
+      ServerNetworkSystem.register(modBus);
       FastPlaceEvents.register();
    }
 }

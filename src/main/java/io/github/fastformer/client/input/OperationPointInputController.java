@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.drag.OperationPointDrag;
@@ -16,8 +18,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 final class OperationPointInputController {
    private static final long OPERATION_POINT_SHORT_PRESS_NANOS = 250_000_000L;
@@ -30,7 +30,7 @@ final class OperationPointInputController {
    ) {
       if (!ClientSessionSystem.instance().operations().operationPrism()
          || session.operationDrag != null || session.operationPointDrag != null
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
+         || !ServerGateway.supports(minecraft, OperationPointDragPayload.TYPE)) {
          return java.util.Optional.empty();
       }
       int pointIndex = ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex();
@@ -113,10 +113,9 @@ final class OperationPointInputController {
          press.line(), press.lineGrabBaseline(), press.axisBaselines(), press.constraint(), press.occurredAtNanos(),
          session.pointerGesture.activeToken(), press.revision(), press.callbackScope()
       );
-      PacketDistributor.sendToServer(
+      ServerGateway.send(
          new OperationPointDragPayload(session.pointerGesture.activeToken(), press.revision(), press.callbackScope(),
-            press.pointIndex(), press.initialPoint(), session.operationPointDrag.constraint(), false),
-         new CustomPacketPayload[0]
+            press.pointIndex(), press.initialPoint(), session.operationPointDrag.constraint(), false)
       );
       return true;
    }
@@ -139,13 +138,13 @@ final class OperationPointInputController {
       }
       BlockPos target = OperationPointDragCalculator.nextTarget(drag.sentTarget(), desired, drag, constraint);
       if (target.equals(drag.sentTarget())
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
+         || !ServerGateway.supports(minecraft, OperationPointDragPayload.TYPE)) {
          session.operationPointDrag = drag.withConstraint(constraint);
          return;
       }
-      PacketDistributor.sendToServer(
+      ServerGateway.send(
          new OperationPointDragPayload(drag.captureToken(), drag.revision(), drag.callbackScope(),
-            drag.pointIndex(), target, constraint, false), new CustomPacketPayload[0]
+            drag.pointIndex(), target, constraint, false)
       );
       session.operationPointDrag = drag.withSentTarget(target).withConstraint(constraint);
    }
@@ -167,13 +166,12 @@ final class OperationPointInputController {
             finished.sentTarget(), desired, finished, constraint
          )).withConstraint(constraint);
       }
-      if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
-         PacketDistributor.sendToServer(
+      if (ServerGateway.supports(minecraft, OperationPointDragPayload.TYPE)) {
+         ServerGateway.send(
             new OperationPointDragPayload(
                finished.captureToken(), finished.revision(), finished.callbackScope(),
                finished.pointIndex(), finished.sentTarget(), finished.constraint(), true
-            ),
-            new CustomPacketPayload[0]
+            )
          );
       }
       clearCapture(session, finished);
@@ -270,10 +268,10 @@ final class OperationPointInputController {
    }
 
    private static boolean sendPointClick(Minecraft minecraft, OperationPointDrag drag, OperationPointClickPayload.Action action) {
-      if (!NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointClickPayload.TYPE.id())) return false;
-      PacketDistributor.sendToServer(new OperationPointClickPayload(
+      if (!ServerGateway.supports(minecraft, OperationPointClickPayload.TYPE)) return false;
+      ServerGateway.send(new OperationPointClickPayload(
          drag.captureToken(), drag.revision(), drag.callbackScope(), action, drag.pointIndex()
-      ), new CustomPacketPayload[0]);
+      ));
       return true;
    }
 }

@@ -7,7 +7,8 @@ import io.github.fastformer.client.interaction.ClientInteractionUpdates;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.ui.FastFormerSettingsScreen;
-import io.github.fastformer.network.transport.ClientboundTransport;
+import io.github.fastformer.common.net.ClientboundTransport;
+import io.github.fastformer.core.net.InboundChannels;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.movement.ForwardDashStartPayload;
@@ -31,7 +32,9 @@ import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
 import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -40,20 +43,20 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 /** Assembles client handlers; the queue owns routing, invalidation and tick delivery. */
 @EventBusSubscriber(modid = "fastformer", value = Dist.CLIENT)
 public final class ClientInboundSystem {
-   private static final InboundPayloadQueue INBOUND = createQueue();
+   private static final InboundChannels<ResourceLocation, CustomPacketPayload, Connection> INBOUND = createQueue();
 
    private ClientInboundSystem() { }
 
    @SubscribeEvent
    public static void setup(FMLClientSetupEvent event) {
-      ClientboundTransport.install(INBOUND::post);
+      ClientboundTransport.install(delivery -> INBOUND.post(delivery.payload(), delivery.connection()));
    }
 
    public static void onClientTick() { INBOUND.drain(); }
    public static void endWorldSession() { INBOUND.invalidate(); }
 
-   static InboundPayloadQueue createQueue() {
-      InboundPayloadQueue queue = new InboundPayloadQueue();
+   static InboundChannels<ResourceLocation, CustomPacketPayload, Connection> createQueue() {
+      var queue = new InboundChannels<ResourceLocation, CustomPacketPayload, Connection>("client inbound", payload -> payload.type().id());
       preview(queue, BuildingPreviewSessionPayload.class, BuildingPreviewSessionPayload.TYPE,
          BuildingPreviewSessionPayload::callbackScope, payload -> ClientSessionSystem.instance().previewUpdates().buildingSession(payload));
       preview(queue, BuildingPreviewParametersPayload.class, BuildingPreviewParametersPayload.TYPE,
@@ -89,22 +92,22 @@ public final class ClientInboundSystem {
       return queue;
    }
 
-   private static <P extends CustomPacketPayload> void preview(InboundPayloadQueue queue, Class<P> payloadClass,
+   private static <P extends CustomPacketPayload> void preview(InboundChannels<ResourceLocation, CustomPacketPayload, Connection> queue, Class<P> payloadClass,
       CustomPacketPayload.Type<P> type, Function<P, OperationCallbackScope> scope, Consumer<P> handler) {
-      queue.register(payloadClass, type, (payload, connection) ->
-         ClientSessionSystem.instance().acceptsPreviewCallback(scope.apply(payload), connection), handler);
+      queue.receive(type.id(), payloadClass).accept((payload, connection) ->
+         ClientSessionSystem.instance().acceptsPreviewCallback(scope.apply(payload), connection)).handle(handler);
    }
 
-   private static <P extends CustomPacketPayload> void callback(InboundPayloadQueue queue, Class<P> payloadClass,
+   private static <P extends CustomPacketPayload> void callback(InboundChannels<ResourceLocation, CustomPacketPayload, Connection> queue, Class<P> payloadClass,
       CustomPacketPayload.Type<P> type, Function<P, OperationCallbackScope> scope, Consumer<P> handler) {
-      queue.register(payloadClass, type, (payload, connection) ->
-         ClientSessionSystem.instance().acceptsCallback(scope.apply(payload), connection), handler);
+      queue.receive(type.id(), payloadClass).accept((payload, connection) ->
+         ClientSessionSystem.instance().acceptsCallback(scope.apply(payload), connection)).handle(handler);
    }
 
-   private static <P extends CustomPacketPayload> void receipt(InboundPayloadQueue queue, Class<P> payloadClass,
+   private static <P extends CustomPacketPayload> void receipt(InboundChannels<ResourceLocation, CustomPacketPayload, Connection> queue, Class<P> payloadClass,
       CustomPacketPayload.Type<P> type, Consumer<P> handler) {
-      queue.register(payloadClass, type, (payload, connection) ->
-         ClientSessionSystem.instance().acceptsReceiptCallback(connection), handler);
+      queue.receive(type.id(), payloadClass).accept((payload, connection) ->
+         ClientSessionSystem.instance().acceptsReceiptCallback(connection)).handle(handler);
    }
 
    private static void openSettings(OpenSettingsPayload payload) {

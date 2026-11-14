@@ -128,9 +128,9 @@ final class OperationPreviewRenderer {
       }
       AABB bounds = selection == null ? null : selection.bounds();
       Vec3 eye = player.getEyePosition();
-      AxisGizmo gizmo = ClientSessionSystem.instance().operations().remotePointer().operationGizmo();
+      AxisGizmo gizmo = remoteGizmoFrame();
       OperationGeometry.RayHit hit = operationFaceTarget(selection);
-      OperationGeometry.RayHit guideHit = OPERATION_FACE_INTERPOLATOR.update(hit, System.nanoTime());
+      OperationGeometry.RayHit guideHit = operationGuideFrame();
       float pulse = ghostBreathPulse();
       float faceAlpha = GHOST_FACE_ALPHA_MIN + (GHOST_FACE_ALPHA_MAX - GHOST_FACE_ALPHA_MIN) * pulse;
       float outlineAlpha = GHOST_OUTLINE_ALPHA_MIN + (GHOST_OUTLINE_ALPHA_MAX - GHOST_OUTLINE_ALPHA_MIN) * pulse;
@@ -218,9 +218,7 @@ final class OperationPreviewRenderer {
          ? gizmo : null;
       OperationInteractionIntent.Face hoveredFace = pointerIntent instanceof OperationInteractionIntent.Face face
          ? face : null;
-      OperationGeometry.RayHit displayedWorkspaceFaceHit = hoveredFace == null
-         ? WORKSPACE_FACE_INTERPOLATOR.update(null, System.nanoTime())
-         : WORKSPACE_FACE_INTERPOLATOR.update(hoveredFace.hit(), System.nanoTime(), hoveredFace.partId());
+      OperationGeometry.RayHit displayedWorkspaceFaceHit = workspaceGuideFrame();
       int hoveredPartId = hoveredGizmo != null && !hoveredGizmo.common()
          ? hoveredGizmo.partId()
          : hoveredFace != null ? hoveredFace.partId()
@@ -229,7 +227,6 @@ final class OperationPreviewRenderer {
       boolean controlHeld = FastPlaceClientInput.controlHeld();
 
       List<ClientSelectionPart> parts = workspace.parts();
-      ClientSessionSystem.instance().operations().pointer().prune(parts);
       Map<Integer, Map<BlockPos, BlockSnapshot>> resolvedParts = new LinkedHashMap<>();
       var scene = new io.github.fastformer.workspace.preview.WorkspaceScene<BlockSnapshot>(snapshot -> !snapshot.state().isAir());
       for (ClientSelectionPart part : parts) {
@@ -255,7 +252,7 @@ final class OperationPreviewRenderer {
          if (!ownedBlocks.isEmpty()) {
             float blockAlpha = io.github.fastformer.client.render.PreviewMaterialRenderer.confirmedAlpha();
             if (altFocused) blockAlpha *= selectionOpacity;
-            var capture = ClientSessionSystem.instance().operations().selectionGestures().capture();
+            var capture = ClientSessionSystem.instance().inputSession().selectionGestureSnapshot().capture();
             boolean moving = capture != null && capture.targets().containsKey(part.id());
             WorkspacePreviewRenderer.renderBlocks(poseStack, buffers, minecraft, camera, ownedBlocks, scene.blocks(),
                1.0F, 1.0F, 1.0F, blockAlpha, 1.0F, moving);
@@ -266,7 +263,7 @@ final class OperationPreviewRenderer {
             ? ClientSessionSystem.instance().operations().pointer().visibleBlocks(part)
             : resolvedParts.getOrDefault(part.id(), Map.of());
          boolean selected = workspace.selectedIds().contains(part.id());
-         var capture = ClientSessionSystem.instance().operations().selectionGestures().capture();
+         var capture = ClientSessionSystem.instance().inputSession().selectionGestureSnapshot().capture();
          boolean moving = capture != null && capture.targets().containsKey(part.id());
          boolean hovered = part.id() == hoveredPartId;
          var interactionPart = interactionScene.parts().get(part.id());
@@ -392,7 +389,7 @@ final class OperationPreviewRenderer {
             poseStack.translate(-camera.x, -camera.y, -camera.z);
             io.github.fastformer.client.render.geometry.DashedBoxRenderer.renderConfirmed(
                poseStack,
-               buffers.getBuffer(ClientSessionSystem.instance().operations().selectionGestures().active() ? DYNAMIC_LINES : GHOST_OUTLINE_LINES),
+               buffers.getBuffer(ClientSessionSystem.instance().inputSession().selectionGestureSnapshot().active() ? DYNAMIC_LINES : GHOST_OUTLINE_LINES),
                center,
                new Vec3(
                   groupBounds.getXsize() * 0.5 + 3.0 * PreviewStyle.OUTLINE_INFLATE,
@@ -400,7 +397,7 @@ final class OperationPreviewRenderer {
                   groupBounds.getZsize() * 0.5 + 3.0 * PreviewStyle.OUTLINE_INFLATE
                ),
                0.96F * selectionOpacity,
-               ClientSessionSystem.instance().operations().selectionGestures().active()
+               ClientSessionSystem.instance().inputSession().selectionGestureSnapshot().active()
             );
             poseStack.popPose();
             GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
@@ -421,6 +418,7 @@ final class OperationPreviewRenderer {
       buffers.endBatch(GHOST_OUTLINE_LINES);
       buffers.endBatch(DYNAMIC_LINES);
       buffers.endBatch(DYNAMIC_XRAY_LINES);
+      SmartSelectionRenderer.captureHud(minecraft);
    }
 
    static boolean shouldRenderPartBlocks(ClientSelectionPart part) {

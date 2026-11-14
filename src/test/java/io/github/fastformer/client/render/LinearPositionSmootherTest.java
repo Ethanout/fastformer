@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render;
 
+import io.github.fastformer.client.feedback.LinearPositionSmoother;
+
 import static org.junit.jupiter.api.Assertions.*;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;

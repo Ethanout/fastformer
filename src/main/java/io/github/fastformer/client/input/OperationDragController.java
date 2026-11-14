@@ -1,9 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.network.outbound.ServerGateway;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
-import io.github.fastformer.client.input.drag.DeferredDragClick;
-import io.github.fastformer.client.input.drag.DragAxisFrame;
+import io.github.fastformer.client.interaction.drag.DeferredDragClick;
+import io.github.fastformer.client.interaction.drag.DragAxisFrame;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
@@ -15,8 +17,6 @@ import io.github.fastformer.protocol.c2s.operation.OperationExtendPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Owns the transient face and unconfirmed operation-gizmo drag lifecycle. */
 final class OperationDragController {
@@ -30,7 +30,7 @@ final class OperationDragController {
       if (selection == null
          || shortPressSteps == 0
          || !ClientSessionSystem.instance().operations().operationSelectionReady()
-         || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
+         || !ServerGateway.supports(minecraft, OperationExtendPayload.TYPE)) {
          return false;
       }
 
@@ -134,13 +134,12 @@ final class OperationDragController {
       }
       int totalSteps = drag.frame().project(axisPoint, drag.normal());
       int delta = totalSteps - drag.sentSteps();
-      if (delta == 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
+      if (delta == 0 || !ServerGateway.supports(minecraft, OperationExtendPayload.TYPE)) {
          session.operationDrag = drag;
          return;
       }
       int clippedDelta = ClientInputMath.clampDragSteps(delta, MAX_DRAG_STEPS_PER_PACKET);
-         PacketDistributor.sendToServer(new OperationExtendPayload(drag.requestId(), drag.revision(), drag.callbackScope(), drag.axis(), drag.positive(), clippedDelta, false),
-         new CustomPacketPayload[0]);
+         ServerGateway.send(new OperationExtendPayload(drag.requestId(), drag.revision(), drag.callbackScope(), drag.axis(), drag.positive(), clippedDelta, false));
       drag = drag.withSentSteps(drag.sentSteps() + clippedDelta);
       session.operationDrag = drag;
       if (drag.gizmoKey() != null) {
@@ -156,11 +155,10 @@ final class OperationDragController {
          session.feedback().noteGizmo(drag.gizmoKey().axis(), drag.gizmoKey().operation(),
             drag.sentSteps(), drag.gizmoBaseValue());
       }
-      if (NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
+      if (ServerGateway.supports(minecraft, OperationExtendPayload.TYPE)) {
          int releaseSteps = drag.faceHit() == null
             ? drag.deferredClick().releaseSteps(releasedAtNanos, FACE_SHORT_PRESS_NANOS) : 0;
-         PacketDistributor.sendToServer(new OperationExtendPayload(drag.requestId(), drag.revision(), drag.callbackScope(), drag.axis(), drag.positive(), releaseSteps, true),
-            new CustomPacketPayload[0]);
+         ServerGateway.send(new OperationExtendPayload(drag.requestId(), drag.revision(), drag.callbackScope(), drag.axis(), drag.positive(), releaseSteps, true));
       }
       clearCapture(session, drag);
    }
@@ -170,8 +168,8 @@ final class OperationDragController {
       if (drag == null) return;
       Minecraft minecraft = Minecraft.getInstance();
       if (minecraft != null && minecraft.getConnection() != null
-         && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
-         PacketDistributor.sendToServer(new OperationExtendPayload(drag.requestId(), drag.revision(),
+         && ServerGateway.supports(minecraft, OperationExtendPayload.TYPE)) {
+         ServerGateway.send(new OperationExtendPayload(drag.requestId(), drag.revision(),
             drag.callbackScope(), drag.axis(), drag.positive(), 0, true));
       }
       clearCapture(session, drag);

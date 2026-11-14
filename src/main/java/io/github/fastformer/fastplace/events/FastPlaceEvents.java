@@ -9,10 +9,10 @@ import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.command.CommandSystem;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
-import io.github.fastformer.server.replace.QuickReplaceSystem;
-import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.server.mode.ModeInput;
+import io.github.fastformer.server.mode.ModeInputResult;
 import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.network.FastPlaceNetwork;
+import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.player.TossedItems;
 import io.github.fastformer.server.session.QuickShapeSystem;
@@ -60,8 +60,9 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (QuickReplaceSystem.active(player)) {
-         if (PlaceableItems.isPlaceable(player.getMainHandItem())) {
+      ModeInputResult input = SessionSystem.of(player).modes().input(player, ModeInput.RIGHT_BLOCK);
+      if (input != ModeInputResult.NEXT) {
+         if (input == ModeInputResult.CONSUMED) {
             event.setCancellationResult(InteractionResult.SUCCESS);
             event.setCanceled(true);
          }
@@ -91,7 +92,14 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (QuickReplaceSystem.active(player)) return;
+      ModeInputResult input = SessionSystem.of(player).modes().input(player, ModeInput.RIGHT_ITEM);
+      if (input != ModeInputResult.NEXT) {
+         if (input == ModeInputResult.CONSUMED) {
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            event.setCanceled(true);
+         }
+         return;
+      }
       if (ServerInputDispatcher.rightClickItem(player)) {
          event.setCancellationResult(InteractionResult.SUCCESS);
          event.setCanceled(true);
@@ -109,7 +117,11 @@ public final class FastPlaceEvents {
          return;
       }
 
-      if (QuickReplaceSystem.active(player)) return;
+      ModeInputResult input = SessionSystem.of(player).modes().input(player, ModeInput.LEFT_BLOCK);
+      if (input != ModeInputResult.NEXT) {
+         if (input == ModeInputResult.CONSUMED) event.setCanceled(true);
+         return;
+      }
       if (ServerInputDispatcher.leftClickBlock(player, event.getPos())) {
          event.setCanceled(true);
       }
@@ -128,7 +140,13 @@ public final class FastPlaceEvents {
    }
 
    private static void onSwapHands(Hands event) {
-      if (event.getEntity() instanceof ServerPlayer player && QuickReplaceSystem.active(player)) return;
+      if (event.getEntity() instanceof ServerPlayer player) {
+         ModeInputResult input = SessionSystem.of(player).modes().input(player, ModeInput.SWAP_HANDS);
+         if (input != ModeInputResult.NEXT) {
+            if (input == ModeInputResult.CONSUMED) event.setCanceled(true);
+            return;
+         }
+      }
       if (event.getEntity() instanceof ServerPlayer player && ServerInputDispatcher.fill(player)) {
          event.setCanceled(true);
          return;
@@ -141,17 +159,16 @@ public final class FastPlaceEvents {
          // player toggles FastFormer off while it is running; otherwise the
          // history lock would remain forever and leave a partial world.
          if (HistorySystem.of(player).busy(player)) {
-            FastPlaceNetwork.syncActivity(player);
+            PreviewSync.syncActivity(player);
             return;
          }
          if (!ServerInputDispatcher.canOperate(player)) {
-            QuickReplaceSystem.forget(player);
             io.github.fastformer.server.session.SessionSystem.of(player).stopUnavailable(player);
-            FastPlaceNetwork.syncActivity(player);
+            PreviewSync.syncActivity(player);
             return;
          }
 
-         FastPlaceNetwork.syncActivity(player);
+         PreviewSync.syncActivity(player);
       }
    }
 

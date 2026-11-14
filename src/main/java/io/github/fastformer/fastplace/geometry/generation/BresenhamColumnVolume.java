@@ -2,6 +2,10 @@ package io.github.fastformer.fastplace.geometry.generation;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 
 import io.github.fastformer.common.geometry.LineTieBias;
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.raster.face.FaceRasterDispatcher;
+import io.github.fastformer.common.geometry.raster.face.FaceRasterResult;
+import io.github.fastformer.common.geometry.raster.face.FaceRequest;
 
 import java.math.BigInteger;
 import java.util.AbstractSet;
@@ -45,7 +49,14 @@ final class BresenhamColumnVolume {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generate(base, extrusion, maxBlocks, observer, tieBias, false, false, false);
+      return generate(base, extrusion, maxBlocks, observer, tieBias, FaceRasterAdapters.strictQuad());
+   }
+
+   static Result generate(
+      List<Vec3> base, Vec3 extrusion, int maxBlocks, BlockGenerationObserver observer,
+      LineTieBias tieBias, FaceRasterDispatcher faceRasterizer
+   ) {
+      return generate(base, extrusion, maxBlocks, observer, tieBias, false, false, false, faceRasterizer);
    }
 
    static Result generateBoundary(
@@ -55,7 +66,14 @@ final class BresenhamColumnVolume {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      return generate(base, extrusion, maxBlocks, observer, tieBias, false, true, false);
+      return generateBoundary(base, extrusion, maxBlocks, observer, tieBias, FaceRasterAdapters.strictQuad());
+   }
+
+   static Result generateBoundary(
+      List<Vec3> base, Vec3 extrusion, int maxBlocks, BlockGenerationObserver observer,
+      LineTieBias tieBias, FaceRasterDispatcher faceRasterizer
+   ) {
+      return generate(base, extrusion, maxBlocks, observer, tieBias, false, true, false, faceRasterizer);
    }
 
    static Result forceAffineFallbackForTesting(
@@ -67,7 +85,7 @@ final class BresenhamColumnVolume {
    ) {
       return generate(
          base, extrusion, maxBlocks, observer, tieBias,
-         true, false, false
+         true, false, false, FaceRasterAdapters.strictQuad()
       );
    }
 
@@ -80,7 +98,7 @@ final class BresenhamColumnVolume {
    ) {
       return generate(
          base, extrusion, maxBlocks, observer, tieBias,
-         true, true, false
+         true, true, false, FaceRasterAdapters.strictQuad()
       );
    }
 
@@ -93,7 +111,7 @@ final class BresenhamColumnVolume {
    ) {
       return generate(
          base, extrusion, maxBlocks, observer, tieBias,
-         false, false, true
+         false, false, true, FaceRasterAdapters.strictQuad()
       );
    }
 
@@ -105,7 +123,8 @@ final class BresenhamColumnVolume {
       LineTieBias tieBias,
       boolean forceAffineFallback,
       boolean boundaryOnly,
-      boolean forceFaceCandidateFailure
+      boolean forceFaceCandidateFailure,
+      FaceRasterDispatcher faceRasterizer
    ) {
       if (base == null || base.size() != 4 || extrusion == null || maxBlocks <= 0) {
          return Result.failed();
@@ -147,7 +166,8 @@ final class BresenhamColumnVolume {
             intermediateLimit,
             staging,
             tieBias,
-            forceFaceCandidateFailure
+            forceFaceCandidateFailure,
+            faceRasterizer
          );
       if (faceShell.status() == BresenhamFaceSweep.Status.LIMIT_EXCEEDED) {
          return limitResult(maxBlocks, staging);
@@ -294,7 +314,8 @@ final class BresenhamColumnVolume {
       int maxBlocks,
       BlockGenerationObserver observer,
       LineTieBias tieBias,
-      boolean forceCandidateFailure
+      boolean forceCandidateFailure,
+      FaceRasterDispatcher faceRasterizer
    ) {
       LinkedHashSet<BlockPos> shell = new LinkedHashSet<>();
       for (List<Vec3> face : faces) {
@@ -303,18 +324,13 @@ final class BresenhamColumnVolume {
          if (faceFrame == null) {
             return FaceShellResult.failed(BresenhamFaceSweep.Status.NO_VALID_CANDIDATE);
          }
-         BresenhamFaceSweep.Attempt attempt = forceCandidateFailure
-            ? BresenhamFaceSweep.Attempt.failed(BresenhamFaceSweep.Status.NO_VALID_CANDIDATE)
-            : QuadFaceRasterizer.attempt(
-               faceFrame, tieBias, maxBlocks, observer
-            );
-         Set<BlockPos> fill;
-         if (attempt.succeeded()) {
-            fill = attempt.result().fill();
-         } else {
-            return FaceShellResult.failed(attempt.status());
+         FaceRasterResult result = forceCandidateFailure
+            ? new FaceRasterResult.NoValidCandidate()
+            : faceRasterizer.rasterize(new FaceRequest(face, FillMode.SOLID, tieBias, maxBlocks, observer));
+         if (!(result instanceof FaceRasterResult.Filled filled)) {
+            return FaceShellResult.failed(faceStatus(result));
          }
-         Set<BlockPos> faceBlocks = fill;
+         Set<BlockPos> faceBlocks = filled.blocks();
          for (BlockPos block : faceBlocks) {
             if (!shell.contains(block) && shell.size() >= maxBlocks) {
                return FaceShellResult.failed(BresenhamFaceSweep.Status.LIMIT_EXCEEDED);
@@ -326,6 +342,15 @@ final class BresenhamColumnVolume {
          Collections.unmodifiableSet(shell),
          BresenhamFaceSweep.Status.SUCCESS
       );
+   }
+
+   private static BresenhamFaceSweep.Status faceStatus(FaceRasterResult result) {
+      return switch (result) {
+         case FaceRasterResult.Filled ignored -> BresenhamFaceSweep.Status.SUCCESS;
+         case FaceRasterResult.LimitExceeded ignored -> BresenhamFaceSweep.Status.LIMIT_EXCEEDED;
+         case FaceRasterResult.NotApplicable ignored -> BresenhamFaceSweep.Status.NOT_APPLICABLE;
+         case FaceRasterResult.NoValidCandidate ignored -> BresenhamFaceSweep.Status.NO_VALID_CANDIDATE;
+      };
    }
 
    private static int[] candidateAxes(BlockPos extrusion) {

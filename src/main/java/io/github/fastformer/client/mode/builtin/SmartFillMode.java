@@ -4,6 +4,8 @@ import static io.github.fastformer.client.input.state.ClientInputStateMachine.Di
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
+import io.github.fastformer.common.mode.BuiltinModes;
+import io.github.fastformer.common.mode.ModeId;
 import io.github.fastformer.client.input.state.ClientInputStateMachine.InputKind;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
@@ -17,7 +19,7 @@ public final class SmartFillMode implements ClientMode {
       new ModeInputPolicy(BLOCKED, BLOCKED, BLOCKED, BLOCKED, CANCEL, false, false, true,
          Set.of(InputKind.POINTER, InputKind.INTERACTION, InputKind.SCROLL)));
 
-   @Override public String id() { return "fastformer:smart_fill"; }
+   @Override public ModeId id() { return BuiltinModes.SMART_FILL; }
    @Override public int priority() { return 500; }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }
    @Override public Optional<State> observe(ModeObservation observation) {

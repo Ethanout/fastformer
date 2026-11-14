@@ -2,8 +2,8 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.client.input.drag.DeferredDragClick;
-import io.github.fastformer.client.input.drag.DragAxisFrame;
+import io.github.fastformer.client.interaction.drag.DeferredDragClick;
+import io.github.fastformer.client.interaction.drag.DragAxisFrame;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import net.minecraft.world.phys.Vec3;

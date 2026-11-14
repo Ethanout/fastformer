@@ -1,6 +1,8 @@
 package io.github.fastformer.server.input;
 
 import io.github.fastformer.common.placement.context.PlacementContexts;
+import io.github.fastformer.common.mode.BuiltinModes;
+import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -11,9 +13,6 @@ import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
 import io.github.fastformer.protocol.s2c.placement.IdleInteractionSnapshotPayload;
-import io.github.fastformer.server.session.QuickShapeSystem;
-import io.github.fastformer.server.session.OperationSystem;
-import io.github.fastformer.server.session.GeometrySystem;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;
 import io.github.fastformer.server.player.PlayerStateRegistry;
@@ -47,8 +46,8 @@ public final class IdleInteractionSnapshots {
    private IdleInteractionSnapshots() { }
 
    public static boolean idle(ServerPlayer player) {
-      return !QuickShapeSystem.of(player).active(player) && !OperationSystem.of(player).active(player) && !GeometrySystem.of(player).active(player)
-         && !io.github.fastformer.server.fill.SmartFillSystem.active(player);
+      return !SessionSystem.of(player).modes().hasEditing(player)
+         && !SessionSystem.of(player).modes().active(player, BuiltinModes.SMART_FILL);
    }
 
    public static boolean validRay(ServerPlayer player, Vec3 eye, Vec3 view) {

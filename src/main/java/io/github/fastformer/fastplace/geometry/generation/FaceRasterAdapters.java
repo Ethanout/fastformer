@@ -2,6 +2,7 @@ package io.github.fastformer.fastplace.geometry.generation;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 
 import io.github.fastformer.common.geometry.raster.face.FaceRasterDispatcher;
+import io.github.fastformer.common.geometry.raster.face.ChainExhaustion;
 import io.github.fastformer.common.geometry.raster.face.FaceRasterResult;
 import io.github.fastformer.common.geometry.raster.face.FaceRequest;
 import io.github.fastformer.common.geometry.raster.face.algorithm.EdgeOnlyRaster;
@@ -13,25 +14,37 @@ import io.github.fastformer.common.geometry.raster.face.algorithm.FaceRasterAlgo
 import io.github.fastformer.common.geometry.raster.face.algorithm.FaceRasterAlgorithms;
 import io.github.fastformer.common.geometry.raster.face.classify.FaceShape;
 import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicies;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicy;
 import java.util.Set;
 import java.util.List;
 import java.util.function.Function;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 
-/** Package bridge to existing non-public algorithms; this adds no call-site or default-shape change. */
+/** Bridges each production entrance to its original algorithms and outline ownership. */
 public final class FaceRasterAdapters {
+    private static final FaceRasterAlgorithms ALGORITHMS = createAlgorithms();
+    private static final FaceRasterDispatcher QUAD = currentQuad(FaceRasterPolicies.CURRENT_QUAD);
+    private static final FaceRasterDispatcher POLYGON = currentPolygon(FaceRasterPolicies.CURRENT_POLYGON);
+    private static final FaceRasterDispatcher STRICT_QUAD = new FaceRasterDispatcher(
+            ALGORITHMS, FaceRasterPolicies.CURRENT_VOLUME_FACE, ChainExhaustion.RETURN_FAILURE,
+            (shape, request) -> quadOutline(request), (id, shape) -> {});
+
     private FaceRasterAdapters() {}
 
     public static FaceRasterAlgorithms currentAlgorithms() {
+        return ALGORITHMS;
+    }
+
+    private static FaceRasterAlgorithms createAlgorithms() {
         return new FaceRasterAlgorithms()
                 .register(new AxisRectangleRaster(FaceRasterAdapters::canonicalFrame))
                 .register(new CoordinatePlaneRaster(FaceRasterAdapters::canonicalFrame))
                 .register(new AxisExtrusionRaster(FaceRasterAdapters::canonicalFrame))
-                .register(adapter(FaceRasterPolicies.LEGACY_QUAD, request -> fromBlocks(
+                .register(adapter(FaceRasterPolicies.QUAD_ALGORITHM, request -> fromBlocks(
                         PlanarFaceRasterizer.generateInterpolatedQuad(request.vertices(), request.maxBlocks(),
                                 scanningObserver(request), request.tieBias()))))
-                .register(adapter(FaceRasterPolicies.LEGACY_POLYGON, request -> fromBlocks(
+                .register(adapter(FaceRasterPolicies.POLYGON_ALGORITHM, request -> fromBlocks(
                         PlanarFaceRasterizer.generate(request.vertices(), request.maxBlocks(),
                                 scanningObserver(request), request.tieBias()))))
                 .register(adapter(FaceRasterPolicies.id("normal_plane"), request -> fromAttempt(QuadFaceRasterizer.attempt(
@@ -62,15 +75,43 @@ public final class FaceRasterAdapters {
     }
 
     public static FaceRasterDispatcher currentQuad() {
-        return new FaceRasterDispatcher(currentAlgorithms(), FaceRasterPolicies.CURRENT_QUAD,
+        return QUAD;
+    }
+
+    /** The caller owns this immutable policy; no process-wide current policy is changed. */
+    public static FaceRasterDispatcher currentQuad(FaceRasterPolicy policy) {
+        return new FaceRasterDispatcher(ALGORITHMS, policy, ChainExhaustion.EDGE_ONLY,
                 (shape, request) -> fromBlocks(PlanarFaceRasterizer.interpolatedQuadOutline(
                         request.vertices(), request.maxBlocks(), scanningObserver(request), request.tieBias())), (id, shape) -> {});
     }
 
     public static FaceRasterDispatcher currentPolygon() {
-        return new FaceRasterDispatcher(currentAlgorithms(), FaceRasterPolicies.CURRENT_POLYGON,
+        return POLYGON;
+    }
+
+    /** Polygon outlines keep their own route even when a task supplies another fill policy. */
+    public static FaceRasterDispatcher currentPolygon(FaceRasterPolicy policy) {
+        return new FaceRasterDispatcher(ALGORITHMS, policy, ChainExhaustion.EDGE_ONLY,
                 (shape, request) -> fromBlocks(PlanarFaceRasterizer.outline(
                         request.vertices(), request.maxBlocks(), scanningObserver(request), request.tieBias())), (id, shape) -> {});
+    }
+
+    static Set<BlockPos> generatedBlocks(FaceRasterResult result, int maxBlocks, BlockGenerationObserver observer) {
+        if (result instanceof FaceRasterResult.Filled filled) return filled.blocks();
+        if (result instanceof FaceRasterResult.LimitExceeded) return GenerationLimitExceeded.witness(maxBlocks, observer);
+        throw new IllegalStateException("Face dispatcher returned an unresolved result: " + result);
+    }
+
+    /** A failed volume face is a constraint failure, not permission to fill another shape. */
+    public static FaceRasterDispatcher strictQuad() {
+        return STRICT_QUAD;
+    }
+
+    private static FaceRasterResult quadOutline(FaceRequest request) {
+        var attempt = QuadFaceRasterizer.attempt(
+                ProjectedBresenhamFace.Frame.create(request.vertices(), request.observer()),
+                request.tieBias(), request.maxBlocks(), scanningObserver(request));
+        return attempt.succeeded() ? new FaceRasterResult.Filled(attempt.result().outline()) : fromAttempt(attempt);
     }
 
     private static FaceRasterResult projected(FaceRequest request) {

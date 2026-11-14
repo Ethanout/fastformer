@@ -31,6 +31,8 @@ public final class SmoothReticlePostEffect {
    private static ModifierReticleMode transitionTo = ModifierReticleMode.NONE;
    private static long transitionStartedAt;
    private static boolean transitionActive;
+   private static long frameTime;
+   private static float frameTransition = 1;
 
    private SmoothReticlePostEffect() {
    }
@@ -47,7 +49,7 @@ public final class SmoothReticlePostEffect {
       if (postChain != null) {
          return true;
       }
-      if (System.nanoTime() < nextRetryAt) {
+      if (frameTime < nextRetryAt) {
          return false;
       }
 
@@ -66,24 +68,29 @@ public final class SmoothReticlePostEffect {
       } catch (IOException | RuntimeException exception) {
          reportFailure(exception);
          close();
-         nextRetryAt = System.nanoTime() + RETRY_DELAY_NANOS;
+         nextRetryAt = frameTime + RETRY_DELAY_NANOS;
          return false;
       }
    }
 
-   public static boolean updateTarget(ModifierReticleMode mode) {
+   /** Advances transition time once at the visual frame boundary. */
+   public static boolean capture(ModifierReticleMode mode, long now) {
+      frameTime = now;
       ModifierReticleMode requested = mode == null
          ? ModifierReticleMode.NONE
          : mode;
       if (requested != transitionTo) {
          transitionFrom = transitionTo;
          transitionTo = requested;
-         transitionStartedAt = System.nanoTime();
+         transitionStartedAt = now;
          transitionActive = transitionFrom != transitionTo;
       }
       finishTransitionIfReady();
+      frameTransition = transitionProgress();
       return needsRender();
    }
+
+   public static boolean frameNeedsRender() { return needsRender(); }
 
    public static boolean process(Minecraft minecraft, float partialTicks) {
       if (!needsRender() || !prepare(minecraft)) {
@@ -91,8 +98,7 @@ public final class SmoothReticlePostEffect {
       }
 
       try {
-         float transition = transitionProgress();
-         finishTransitionIfReady();
+         float transition = frameTransition;
          int targetWidth = minecraft.getWindow().getWidth();
          int targetHeight = minecraft.getWindow().getHeight();
          if (targetWidth != width || targetHeight != height) {
@@ -126,7 +132,7 @@ public final class SmoothReticlePostEffect {
       } catch (RuntimeException exception) {
          reportFailure(exception);
          close();
-         nextRetryAt = System.nanoTime() + RETRY_DELAY_NANOS;
+         nextRetryAt = frameTime + RETRY_DELAY_NANOS;
          return false;
       } finally {
          // A failed pass may leave one of its intermediate targets bound. The
@@ -151,6 +157,7 @@ public final class SmoothReticlePostEffect {
       transitionTo = ModifierReticleMode.NONE;
       transitionStartedAt = 0L;
       transitionActive = false;
+      frameTransition = 1;
    }
 
    /** ResourceManager keeps its identity across reloads; invalidate compiled passes explicitly. */
@@ -168,7 +175,7 @@ public final class SmoothReticlePostEffect {
       if (!transitionActive) {
          return 1.0F;
       }
-      long elapsed = Math.max(0L, System.nanoTime() - transitionStartedAt);
+      long elapsed = Math.max(0L, frameTime - transitionStartedAt);
       return Math.min(1.0F, (float)elapsed / (float)TRANSITION_DURATION_NANOS);
    }
 

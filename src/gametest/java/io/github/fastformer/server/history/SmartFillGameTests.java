@@ -8,6 +8,14 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.protocol.c2s.placement.SmartFillCommandPayload;
+import io.github.fastformer.common.mode.BuiltinModes;
+import io.github.fastformer.server.mode.ModeInput;
+import io.github.fastformer.server.mode.ModeInputResult;
+import io.github.fastformer.server.intent.PlayerIntentSystem;
+import io.github.fastformer.server.intent.SessionIntents;
+import io.github.fastformer.server.intent.HistoryIntents;
+import io.github.fastformer.core.command.IntentSource;
+import io.github.fastformer.server.player.PlayerStateRegistry;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -25,6 +33,57 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class SmartFillGameTests {
    private SmartFillGameTests() { }
+
+   @GameTest(template = "fastformergametests.empty", batch = "smart_fill_mode_confirm", timeoutTicks = 100000)
+   public static void registeredPreviewConfirmsThroughTheSharedIntentAndPreservesMaterial(GameTestHelper helper) {
+      var target = pit(helper, 1);
+      var player = playerInsideSurface(helper, target);
+      UUID id = UUID.randomUUID();
+      command(player, id, SmartFillCommandPayload.Action.DISCOVER);
+      var modes = SessionSystem.of(player).modes();
+      helper.assertTrue(modes.active(player).orElseThrow().id().equals(BuiltinModes.SMART_FILL), "preview is outside the mode registry");
+      helper.assertFalse(modes.hasEditing(player), "temporary preview became a persistent editor");
+      helper.assertTrue(modes.input(player, ModeInput.SWAP_HANDS) == ModeInputResult.CONSUMED, "pending fill did not own F");
+      player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.DIAMOND_BLOCK));
+      SessionSystem.of(player).syncCurrentPreview(player);
+      helper.assertTrue(PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SessionIntents.Confirm()).handled(),
+         "shared confirm was blocked by the fill's own write gate");
+      helper.assertFalse(modes.active(player, BuiltinModes.SMART_FILL), "confirmed preview retained ownership");
+      command(player, id, SmartFillCommandPayload.Action.CONFIRM);
+      helper.succeedWhen(() -> {
+         helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "fill task is pending");
+         helper.assertTrue(helper.getLevel().getBlockState(target).is(Blocks.GOLD_BLOCK), "shared confirm lost captured material");
+         helper.assertTrue(HistoryTestAccess.historyOrder(HistorySystem.of(player), player.getUUID(), true).size() == 1,
+            "late confirmation duplicated the history entry");
+      });
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "smart_fill_mode_cancel")
+   public static void sharedQuitAndUnavailableBoundariesRetirePreviewAndLateCommands(GameTestHelper helper) {
+      var target = pit(helper, 1);
+      var player = playerInsideSurface(helper, target);
+      UUID first = UUID.randomUUID();
+      command(player, first, SmartFillCommandPayload.Action.DISCOVER);
+      helper.assertTrue(PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new HistoryIntents.Quit()).handled(), "shared quit ignored preview");
+      command(player, first, SmartFillCommandPayload.Action.CONFIRM);
+      command(player, first, SmartFillCommandPayload.Action.DISCOVER);
+      helper.assertFalse(SmartFillSystem.active(player), "cancelled request reopened");
+      helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "quit preview accepted a late write");
+      UUID second = UUID.randomUUID();
+      command(player, second, SmartFillCommandPayload.Action.DISCOVER);
+      helper.assertTrue(SmartFillSystem.active(player), "new preview did not start");
+      SessionSystem.of(player).stopUnavailable(player);
+      command(player, second, SmartFillCommandPayload.Action.CONFIRM);
+      helper.assertFalse(SmartFillSystem.active(player), "unavailable boundary retained preview");
+      helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "unavailable preview accepted a late write");
+      PlayerStateRegistry.detach(player);
+      command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.CANCEL);
+      command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.CONFIRM);
+      SmartFillSystem.cancel(player);
+      SmartFillSystem.sync(player);
+      helper.assertTrue(PlayerStateRegistry.find(player).isEmpty(), "late cleanup recreated a detached scope");
+      helper.succeed();
+   }
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 100000, batch = "smart_fill_surfaceFillUsesOneWorldUndo")
    public static void surfaceFillUsesOneWorldUndo(GameTestHelper helper) {

@@ -30,7 +30,7 @@ public final class ContextFields {
          "key_action", "input_phase", "player_present", "idle_actions_allowed", "fill_ready", "can_start_fill",
          "can_replace", "creative", "feature_enabled", "window_active", "interaction_allowed", "use_held", "standard_mouse_button",
          "key_route", "paste_allowed", "workspace_active", "workspace_editing", "workspace_submission_pending",
-         "vanilla_pointer", "candidate_overlaps", "pointer_channel", "middle_enabled", "pointer_captured",
+         "vanilla_pointer", "candidate_overlaps", "pointer_channel", "middle_enabled", "middle_ignored", "pointer_captured",
          "undo_captured", "scroll_context", "modifier_yields")) {
          result.register(field, JsonElement::equals);
       }

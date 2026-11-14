@@ -80,3 +80,11 @@
 - 删除输入会话重复保存的 pointerGestureToken；捕获／校验／迟到释放均读取 PointerGestureState 的唯一活动 token。PointerDragSnapshotView 的操作手柄查询依据传入会话捕获类型，不再读取全局当前选区状态；新增隔离和被替换捕获回归。
 - `.temp/architecture-client-geometry-bindings-tests.log` 定向测试通过。`.temp/architecture-modes-feedback-verified.log` 完整 check 和独立新目录 312 项必需 GameTest 通过，进程退出码 0。资源重载竞态补丁在该轮之后另做定向验证。
 - 整份手册未完成：大输入／预览入口、完整模式生命周期、全操作树、全包迁移与客户端实测仍待办；没有修改试玩存档或正式构建仓库配置。
+
+## 本地选区变换手势完整能力（2026-11-14）
+
+- 新增 `client/interaction/selectiongesture`：实例绑定真实工作区、只读场景、变换端口与同一份指针 token；内部拥有面／Gizmo 状态、EditToken、源等待、完成与取消。旧 SelectionGestureController／SelectionGestureState 及外部裸 begin／clear 已删除，不保留别名。
+- OperationContext 组装能力，ClientInputSession 只绑定能力并提供原指针 token；reset、离开环境、清空工作区及草稿挂起先取消所属编辑。排队松开／源回调只认原 capture，旧回调不能清理新租约。编辑取得过程中端口失败会释放本次 EditToken 和已获 pointer token，保留原异常及清理 suppressed。待完成 resize 按原机制转交变换能力收尾。
+- PointerDragSnapshotView、工作区指针与渲染只读 SelectionGestureSnapshot；纯拖动值和数学迁入 `client/interaction/drag`。AabbAdjustDecision 移到共享值模型，避免手势端口与变换实现形成包环。保留 140ms 面短按、Ctrl 自由旋转／默认90度、repeat stride 与局部轴计算。
+- 新增 15 项能力／旋转规则测试及 2 项真实作用域所有权测试；排队按压／松开、作用域与指针测试改用真实能力入口，删除旧裸状态注入和相关反射。旧类型引用与能力反向依赖静态扫描均为0，diff whitespace 检查通过。Gradle 与 GameTest 由主代理统一执行，本阶段尚未据此声明运行通过。
+- 本批只收口本地选区面／Gizmo 变换。远端确认选区、几何／起形手势及完整操作树生命周期仍按剩余计划推进。
