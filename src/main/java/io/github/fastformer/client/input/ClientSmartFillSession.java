@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.placement.SmartFillCommandPayload;
 import io.github.fastformer.protocol.s2c.preview.SmartFillPreviewPayload;
@@ -31,7 +31,7 @@ public final class ClientSmartFillSession {
 
    boolean canStart(Minecraft minecraft) {
       return minecraft.player != null && minecraft.screen == null && minecraft.player.isCreative()
-         && FastPlaceClientPreviewCore.enabled() && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
+         && ClientSessionSystem.instance().previews().building().enabled() && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
          && minecraft.getConnection() != null
          && NetworkRegistry.hasChannel(minecraft.getConnection(), SmartFillCommandPayload.TYPE.id())
          && NetworkRegistry.hasChannel(minecraft.getConnection(), SmartFillPreviewPayload.TYPE.id());
@@ -63,7 +63,7 @@ public final class ClientSmartFillSession {
 
    void tick(Minecraft minecraft) {
       if (!active()) return;
-      if (!minecraft.player.isCreative() || !FastPlaceClientPreviewCore.enabled()
+      if (!minecraft.player.isCreative() || !ClientSessionSystem.instance().previews().building().enabled()
          || !(phase instanceof Preview) && System.nanoTime() - phase.started() > 10_000_000_000L) {
          cancel(minecraft);
       }

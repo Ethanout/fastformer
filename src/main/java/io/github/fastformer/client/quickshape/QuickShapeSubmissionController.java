@@ -3,7 +3,7 @@ package io.github.fastformer.client.quickshape;
 import io.github.fastformer.client.input.ClientInteractionFeedback;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectContext;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
@@ -37,7 +37,7 @@ public final class QuickShapeSubmissionController {
    public static void tick(Minecraft minecraft, QuickShapeSubmissionIntent intent) {
       if (!intent.active()) return;
       var snapshot = intent.snapshot();
-      var current = FastPlaceClientPreviewCore.buildingSubmission();
+      var current = ClientSessionSystem.instance().previews().buildingSubmission();
       if (minecraft.player == null || minecraft.level == null || minecraft.getConnection() == null
          || !snapshot.scope().playerId().equals(minecraft.player.getUUID())
          || !snapshot.scope().dimension().equals(minecraft.level.dimension().location())
@@ -46,7 +46,7 @@ public final class QuickShapeSubmissionController {
          return;
       }
       if (intent.waitingForParameters()) {
-         var parameters = FastPlaceClientPreviewCore.submissionParameters(snapshot);
+         var parameters = ClientSessionSystem.instance().previews().submissionParameters(snapshot);
          if (parameters.isEmpty()) return;
          if (parameters.orElseThrow().prototype().isAir()) {
             fail(minecraft, intent, "fastformer.message.placement_confirm_failed");

@@ -1,6 +1,6 @@
 package io.github.fastformer.client.interaction;
 
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
@@ -16,8 +16,11 @@ public final class ClientBlockTinker {
 
    public static boolean available(Player player) {
       return BlockTinker.canEdit(player) && ClientInteractionUpdates.wrenchEnabled(player)
-         && io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()
-         && !FastPlaceClientPreviewCore.active() && !FastPlaceClientPreviewCore.operationActive()
-         && !FastPlaceClientPreviewCore.geometryActive() && !FastPlaceClientPreviewCore.taskActive();
+         && ClientSessionSystem.instance().modeView().idleActionsAllowed()
+         && !ClientSessionSystem.instance().previews().building().active()
+         && !ClientSessionSystem.instance().operations().active()
+         && !ClientSessionSystem.instance().operations().selectionSessionActive()
+         && !ClientSessionSystem.instance().previews().geometry().active()
+         && !ClientSessionSystem.instance().previews().activity().task();
    }
 }

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.ClientBlockTinker;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
@@ -52,7 +53,7 @@ final class IdleSessionEntryController {
       if (session.routing.state() != ClientInputStateMachine.State.IDLE
          || button != MouseButtonInputSemantics.RIGHT_BUTTON && !middleEntry
          || action != MouseButtonInputSemantics.PRESS || !minecraft.player.isCreative()
-         || !FastPlaceClientPreviewCore.enabled() || minecraft.getCameraEntity() != minecraft.player
+         || !ClientSessionSystem.instance().previews().building().enabled() || minecraft.getCameraEntity() != minecraft.player
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), IdleInteractionCapturePayload.TYPE.id())) return false;
       if (!replay && !alt && minecraft.hitResult != null && minecraft.hitResult.getType() == HitResult.Type.ENTITY) {
          session.idleEntry.clear();

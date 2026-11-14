@@ -26,6 +26,7 @@ public final class ClientPreviewState {
    private long revision;
    private long buildingVersion;
    private long geometryVersion;
+   private long geometryTransformVersion;
    private long buildingSessionRevision;
    private long buildingParametersRevision;
    private long buildingEffectRevision;
@@ -110,6 +111,9 @@ public final class ClientPreviewState {
    public long geometryVersion() {
       return geometryVersion;
    }
+
+   /** Changes at every accepted break in transform continuity, even between drawn frames. */
+   public long geometryTransformVersion() { return geometryTransformVersion; }
 
    public void applyBuilding(BuildingPreviewSnapshot payload) {
       payload = Objects.requireNonNull(payload, "payload");
@@ -348,6 +352,7 @@ public final class ClientPreviewState {
       if (payload.revision() <= geometryRevision) {
          return false;
       }
+      if (!GeometryPreviewRules.continuesTransform(geometry, payload)) geometryTransformVersion++;
       geometry = payload;
       geometryRevision = payload.revision();
       revision++;

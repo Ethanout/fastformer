@@ -38,6 +38,11 @@ public final class ClientSessionSystem {
       new io.github.fastformer.client.session.preview.ClientPreviewState();
 
    public io.github.fastformer.client.session.preview.ClientPreviewState previews() { return previews; }
+   private final io.github.fastformer.client.session.preview.ClientPreviewUpdates previewUpdates =
+      new io.github.fastformer.client.session.preview.ClientPreviewUpdates(previews,
+         payload -> operations().synchronize(payload), activity -> operations().submissions().observeActivity(activity));
+
+   public io.github.fastformer.client.session.preview.ClientPreviewUpdates previewUpdates() { return previewUpdates; }
 
    /** Captures workflow facts from their owners without querying the renderer. */
    public io.github.fastformer.client.mode.ClientModeView modeView() {

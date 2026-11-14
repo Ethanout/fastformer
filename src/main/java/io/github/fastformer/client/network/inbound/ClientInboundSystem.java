@@ -5,7 +5,6 @@ import io.github.fastformer.client.input.ForwardDashController;
 import io.github.fastformer.client.input.HistoryConflictConfirmation;
 import io.github.fastformer.client.interaction.ClientInteractionUpdates;
 import io.github.fastformer.client.placement.QuickReplaceMode;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.ui.FastFormerSettingsScreen;
 import io.github.fastformer.network.transport.ClientboundTransport;
@@ -56,19 +55,19 @@ public final class ClientInboundSystem {
    static InboundPayloadQueue createQueue() {
       InboundPayloadQueue queue = new InboundPayloadQueue();
       preview(queue, BuildingPreviewSessionPayload.class, BuildingPreviewSessionPayload.TYPE,
-         BuildingPreviewSessionPayload::callbackScope, FastPlaceClientPreviewCore::applyBuildingSession);
+         BuildingPreviewSessionPayload::callbackScope, payload -> ClientSessionSystem.instance().previewUpdates().buildingSession(payload));
       preview(queue, BuildingPreviewParametersPayload.class, BuildingPreviewParametersPayload.TYPE,
-         BuildingPreviewParametersPayload::callbackScope, FastPlaceClientPreviewCore::applyBuildingParameters);
+         BuildingPreviewParametersPayload::callbackScope, payload -> ClientSessionSystem.instance().previewUpdates().buildingParameters(payload));
       preview(queue, BuildingPreviewEffectPayload.class, BuildingPreviewEffectPayload.TYPE,
-         BuildingPreviewEffectPayload::callbackScope, FastPlaceClientPreviewCore::applyBuildingEffect);
+         BuildingPreviewEffectPayload::callbackScope, payload -> ClientSessionSystem.instance().previewUpdates().buildingEffect(payload));
       preview(queue, QuickShapeSubmissionParametersPayload.class, QuickShapeSubmissionParametersPayload.TYPE,
-         QuickShapeSubmissionParametersPayload::callbackScope, FastPlaceClientPreviewCore::applyQuickShapeSubmissionParameters);
+         QuickShapeSubmissionParametersPayload::callbackScope, payload -> ClientSessionSystem.instance().previewUpdates().submissionParameters(payload));
       preview(queue, OperationPreviewPayload.class, OperationPreviewPayload.TYPE,
-         OperationPreviewPayload::callbackScope, FastPlaceClientPreviewCore::applyOperation);
+         OperationPreviewPayload::callbackScope, payload -> ClientSessionSystem.instance().previewUpdates().operation(payload));
       preview(queue, GeometryPreviewPayload.class, GeometryPreviewPayload.TYPE,
-         GeometryPreviewPayload::callbackScope, FastPlaceClientPreviewCore::applyGeometry);
+         GeometryPreviewPayload::callbackScope, payload -> ClientSessionSystem.instance().previewUpdates().geometry(payload));
       preview(queue, ActivityStatePayload.class, ActivityStatePayload.TYPE,
-         ActivityStatePayload::callbackScope, FastPlaceClientPreviewCore::applyActivity);
+         ActivityStatePayload::callbackScope, payload -> ClientSessionSystem.instance().previewUpdates().activity(payload));
       preview(queue, SmartFillPreviewPayload.class, SmartFillPreviewPayload.TYPE,
          SmartFillPreviewPayload::callbackScope, FastPlaceClientInput::receiveSmartFill);
       callback(queue, PlacementActionAckPayload.class, PlacementActionAckPayload.TYPE,

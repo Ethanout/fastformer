@@ -79,6 +79,14 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /new\s+ClientPreviewState\s*\(/).find()) {
                 violations.add("Renderer cannot own server preview snapshots: ${path}")
             }
+            if (main && source.name == 'FastPlaceClientPreviewCore.java' &&
+                    (dependencies =~ /\b(?:applyBuilding|applyBuildingSession|applyBuildingParameters|applyBuildingEffect|applyQuickShapeSubmissionParameters|applyGeometry|applyOperation|applyActivity|confirmReconnectPreviewRestore)\s*\(/).find()) {
+                violations.add("Network snapshot application belongs to client sessions, never the renderer: ${path}")
+            }
+            if (main && source.name == 'ClientInboundSystem.java' &&
+                    (dependencies =~ /io\.github\.fastformer\.client\.render\./).find()) {
+                violations.add("Inbound registration cannot route snapshot updates through rendering: ${path}")
+            }
             if (main && (text =~ /\bScrollInputSemantics\b/).find()) {
                 violations.add("Wheel behavior must be owned by registered client modes: ${path}")
             }

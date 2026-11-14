@@ -30,7 +30,7 @@ final class ModifierCommandDispatcher {
    static void cycle(Minecraft minecraft) {
       if (ClientSessionSystem.instance().operations().selectionEdits().cycleDraftMode()) return;
       if (minecraft.player != null && !io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
-         && !FastPlaceClientPreviewCore.active() && !FastPlaceClientPreviewCore.geometryActive()
+         && !ClientSessionSystem.instance().previews().building().active() && !ClientSessionSystem.instance().previews().geometry().active()
          && !io.github.fastformer.client.placement.QuickReplaceMode.active()) {
          ClientSessionSystem.instance().operations().selectionEdits().cycleIdleSelectionTool();
          return;

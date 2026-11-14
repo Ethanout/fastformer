@@ -2,7 +2,7 @@ package io.github.fastformer.client.placement;
 
 import io.github.fastformer.client.input.mouse.UsePressSequence;
 import io.github.fastformer.client.interaction.ClientInteractionUpdates;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -23,20 +23,22 @@ public final class ClientForcedPlacement {
       if (action == 1) press.press();
       else if (action == 0) press.release();
       if (TRACE && (action == 0 || action == 1)) LOGGER.info("Placement input: physical={}, time={}, vanilla={}",
-         action == 1 ? "press" : "release", System.nanoTime(), io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed());
+         action == 1 ? "press" : "release", System.nanoTime(), ClientSessionSystem.instance().modeView().idleActionsAllowed());
    }
 
    public static boolean consumes(LocalPlayer player, InteractionHand hand, BlockHitResult hit) {
       return hand == InteractionHand.MAIN_HAND && player.isCreative()
          && ClientInteractionUpdates.forcePlacement(player) && !QuickReplaceMode.active()
-         && !FastPlaceClientPreviewCore.operationActive() && PlaceableItems.isPlaceable(player.getMainHandItem())
-         && io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed();
+         && !ClientSessionSystem.instance().operations().active()
+         && !ClientSessionSystem.instance().operations().selectionSessionActive()
+         && PlaceableItems.isPlaceable(player.getMainHandItem())
+         && ClientSessionSystem.instance().modeView().idleActionsAllowed();
    }
 
    public static boolean accept(LocalPlayer player) {
       boolean accepted = PRESSES.computeIfAbsent(player, ignored -> new UsePressSequence()).accept();
       if (TRACE) LOGGER.info("Placement input: use={}, time={}, vanilla={}, hit={}",
-         accepted ? "accepted" : "repeated", System.nanoTime(), io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed(),
+         accepted ? "accepted" : "repeated", System.nanoTime(), ClientSessionSystem.instance().modeView().idleActionsAllowed(),
          net.minecraft.client.Minecraft.getInstance().hitResult == null ? null
             : net.minecraft.client.Minecraft.getInstance().hitResult.getLocation());
       return accepted;

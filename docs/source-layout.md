@@ -26,7 +26,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.session.storage` | 有界磁盘队列、主线程完成回调和共享的严格 NBT 字段读取 |
 | `client.session.submission` | 双文件提交准备、未发送回执重试及暂存／耐久草稿分别结算；每次操作冻结所属作用域 |
 | `client.session.reconnect` | 有界快照等待；不持有草稿、不决定恢复行为 |
-| `client.session.preview` | 会话系统持有的服务端快照、revision、起形提交快照和重连确认；不依赖渲染 |
+| `client.session.preview` | 会话系统持有的服务端快照、revision、网络应用、起形提交、重连确认与几何连续性；不依赖渲染 |
 | `client.session.lifecycle` | 客户端世界离开事件、按顺序通知清理能力并汇总失败 |
 | `client.network.inbound` | 客户端载荷类型注册、连接校验与 tick 投递 |
 | `client.network.outbound` | 可选通道检查与向当前连接发送请求；设置界面和放置网关共用 |
@@ -106,6 +106,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `WorldSessionEvents` 统一接收客户端登出／世界卸载，`WorldSessionLifecycle` 复用 `Scope.detach` 按既有顺序清理输入、源遮罩、预览连接、编辑器、交互缓存、反馈和渲染资源。一次运行时清理失败仍通知后续能力，结束后汇总异常；重复边界仍可再次清理。渲染核心只提供自身的重置能力，不订阅世界离开事件、不调用编辑器断线清理。
 
 `ClientSessionSystem` 持有 `ClientPreviewState`，输入与绘制读取同一份服务端快照。`modeView()` 从真实工作流所有者捕获事实，注册模式决定观察阶段；当前输入路由和待发送起形请求决定是否允许空闲操作。删除输入总入口中的 `vanillaSession()`、`activeSession()` 和重复观察链。任务遮盖仍保留底下的活动交互标志，取消／提交期间仍由路由状态持有输入。视觉层的既有绘制优先级本阶段不改。
+
+`ClientPreviewUpdates` 接收网络更新并持有应用顺序：先过重连确认或编辑器同步，再发布快照，活动 revision 被接收后才通知提交能力。恢复确认复用同一入口。网络注册不再引用渲染。起形缓存按 buildingVersion 清理，几何计划按 geometryVersion 重建；独立的 geometryTransformVersion 记录每次有效连续性中断，帧间连续收包也不会遗漏 HUD 基线重置。纯快照查询直接访问会话状态，不再经渲染总入口转发。
 
 `ClientScope` 持有完整的 `ClientScopeId`，管理器从当前对象派生身份，不另存可能错配的当前键。草稿读取直接接收所属作用域，按其身份记录读取结果。`ClientScopeFiles` 统一原有三字段摘要和两个当前格式文件位置，不新增迁移路径。
 

@@ -197,7 +197,7 @@ public final class FastPlaceClientInput {
          }
       }
       if (input.action() == 1 && (input.key() == 257 || input.key() == 335)) {
-         input = input.withQuickShapeSubmission(FastPlaceClientPreviewCore.buildingSubmission().orElse(null));
+         input = input.withQuickShapeSubmission(ClientSessionSystem.instance().previews().buildingSubmission().orElse(null));
       }
       if (input.key() == CancelInputSemantics.CANCEL_KEY && input.action() == CancelInputSemantics.PRESS) {
          if (inputSession().bindings.onKey(minecraft, inputSession(), input.key(), input.action(), System.nanoTime())) {
@@ -226,7 +226,7 @@ public final class FastPlaceClientInput {
       synchronizeInputState();
       ClientInputStateMachine.Dispatch route = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.CANCEL);
       boolean operationRestore = ClientSessionSystem.instance().operations().reconnectRestorePending();
-      boolean previewRestore = FastPlaceClientPreviewCore.reconnectPreviewRestorePending();
+      boolean previewRestore = ClientSessionSystem.instance().previews().reconnectRestorePending();
       boolean owned = route == ClientInputStateMachine.Dispatch.CANCEL || inputSession().canCancelPendingSessionStart()
          || operationRestore || previewRestore;
       var decision = CancelInputSemantics.decide(input.action(), input.key(), true,
@@ -258,10 +258,10 @@ public final class FastPlaceClientInput {
       }
       if (event.action() == 1 && event.key() == 257
          && (ClientSessionSystem.instance().operations().reconnectRestorePending()
-            || FastPlaceClientPreviewCore.reconnectPreviewRestorePending())
+            || ClientSessionSystem.instance().previews().reconnectRestorePending())
          && minecraft.player != null && minecraft.screen == null) {
          ClientSessionSystem.instance().operations().confirmReconnectRestore();
-         FastPlaceClientPreviewCore.confirmReconnectPreviewRestore();
+         ClientSessionSystem.instance().previewUpdates().confirmReconnectRestore();
          return;
       }
       CancelInputSemantics.Decision cancel = event.cancellation();
@@ -390,7 +390,7 @@ public final class FastPlaceClientInput {
          || inputSession().routing.ownsQuickShapeSubmission();
       boolean cancelled = inputSession().cancel();
       if (dismissOperationRestore) ClientSessionSystem.instance().operations().dismissReconnectRestore();
-      if (dismissPreviewRestore) FastPlaceClientPreviewCore.dismissReconnectPreviewRestore();
+      if (dismissPreviewRestore) ClientSessionSystem.instance().previews().dismissReconnectRestore();
       if (!cancelled) {
          return false;
       }
@@ -528,23 +528,23 @@ public final class FastPlaceClientInput {
    }
 
    private static boolean modifierSessionActive() {
-      return FastPlaceClientPreviewCore.active()
+      return ClientSessionSystem.instance().previews().building().active()
          || FastPlaceClientPreviewCore.operationActive()
-         || FastPlaceClientPreviewCore.geometryActive()
+         || ClientSessionSystem.instance().previews().geometry().active()
             && (FastPlaceClientPreviewCore.geometryAllows(GeometryAction.MODE_CYCLE)
                || FastPlaceClientPreviewCore.geometryAllows(GeometryAction.SUBMODE));
    }
 
    private static boolean modifierCycleAvailable(Minecraft minecraft) {
-      return FastPlaceClientPreviewCore.geometryActive()
+      return ClientSessionSystem.instance().previews().geometry().active()
          ? FastPlaceClientPreviewCore.geometryAllows(GeometryAction.MODE_CYCLE)
          : modifierSessionActive() || idleModeCycleAvailable(minecraft);
    }
 
    private static boolean modifierSubmodeAvailable(Minecraft minecraft) {
-      return FastPlaceClientPreviewCore.geometryActive()
+      return ClientSessionSystem.instance().previews().geometry().active()
          ? FastPlaceClientPreviewCore.geometryAllows(GeometryAction.SUBMODE)
-         : FastPlaceClientPreviewCore.active()
+         : ClientSessionSystem.instance().previews().building().active()
             || FastPlaceClientPreviewCore.operationActive()
             || FastPlaceClientPreviewCore.buildingRaycastSubmodeAvailable()
             || idleModeCycleAvailable(minecraft);
@@ -553,7 +553,7 @@ public final class FastPlaceClientInput {
    /** Idle Alt selects the next selection tool or the held block's line mode. */
    private static boolean idleModeCycleAvailable(Minecraft minecraft) {
       return minecraft.player != null
-         && minecraft.player.isCreative() && FastPlaceClientPreviewCore.enabled()
+         && minecraft.player.isCreative() && ClientSessionSystem.instance().previews().building().enabled()
          && !QuickReplaceMode.active();
    }
    private static void handleRadialKeyTransition(Minecraft minecraft, boolean down) {
@@ -1520,6 +1520,7 @@ public final class FastPlaceClientInput {
       QuickShapeSubmissionController.tick(minecraft, inputSession().quickShapeSubmission);
       ClientSessionSystem.instance().operations().onClientTick();
       ClientSessionSystem.instance().operations().sourceMask().reapply();
+      ClientSessionSystem.instance().previews().tickReconnectBoundary();
       FastPlaceClientPreviewCore.onClientTick();
       synchronizeInputState();
       if (minecraft.screen != null || !minecraft.isWindowActive()) {
@@ -1534,7 +1535,7 @@ public final class FastPlaceClientInput {
          suspendPointerGesture(minecraft);
       }
       if (QuickReplaceMode.active()) {
-         if (!minecraft.player.isCreative() || !FastPlaceClientPreviewCore.enabled()) {
+         if (!minecraft.player.isCreative() || !ClientSessionSystem.instance().previews().building().enabled()) {
             QuickReplaceMode.toggle(minecraft);
          } else if (inputSession().routing.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION)
             && QuickReplaceMode.canReplace(minecraft) && minecraft.screen == null
@@ -1674,9 +1675,9 @@ public final class FastPlaceClientInput {
       if (minecraft.player != null
          && minecraft.screen == null
          && minecraft.getConnection() != null
-         && !FastPlaceClientPreviewCore.active()
+         && !ClientSessionSystem.instance().previews().building().active()
          && !FastPlaceClientPreviewCore.operationActive()
-         && (!FastPlaceClientPreviewCore.geometryActive() || FastPlaceClientPreviewCore.geometryAwaitingFirstPoint())) {
+         && (!ClientSessionSystem.instance().previews().geometry().active() || FastPlaceClientPreviewCore.geometryAwaitingFirstPoint())) {
          minecraft.setScreen(new GeometryRadialScreen());
          return true;
       }

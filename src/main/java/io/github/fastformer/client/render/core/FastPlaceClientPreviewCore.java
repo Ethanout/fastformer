@@ -99,11 +99,7 @@ import io.github.fastformer.fastplace.workflow.GeometryWorkflowView;
 import io.github.fastformer.fastplace.workflow.GeometryWorkflows;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
-import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;
-import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
-import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -182,6 +178,7 @@ public final class FastPlaceClientPreviewCore {
    static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    private static TransformStatus geometryTransformBaseline;
+   private static long geometryTransformVersion = -1L;
    private static long lastPreviewFailureLogAt;
    private static final BuildingPreviewCache BUILDING_CACHE = new BuildingPreviewCache(
       previews(), () -> PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
@@ -196,98 +193,8 @@ public final class FastPlaceClientPreviewCore {
    private FastPlaceClientPreviewCore() {
    }
 
-   public static void applyBuilding(BuildingPreviewSnapshot payload) {
-      previews().applyBuilding(payload);
-      BUILDING_CACHE.resetBuildingPreviewCaches();
-   }
-
-   public static java.util.Optional<io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot> buildingSubmission() {
-      return previews().buildingSubmission();
-   }
-
-   public static java.util.Optional<BuildingPreviewSessionPayload> idleBuildingSession() {
-      return previews().idleBuildingSession();
-   }
-
-   public static net.minecraft.resources.ResourceLocation buildingProfile() {
-      return previews().buildingProfile();
-   }
-
-   public static GeometryPreviewPayload geometrySnapshot() {
-      return previews().geometry();
-   }
-
-   public static void applyQuickShapeSubmissionParameters(
-      io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload payload
-   ) {
-      previews().applyQuickShapeSubmissionParameters(payload);
-   }
-
-   public static java.util.Optional<io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload> submissionParameters(
-      io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot snapshot
-   ) {
-      return previews().submissionParameters(snapshot);
-   }
-
-   public static void applyBuildingSession(BuildingPreviewSessionPayload payload) {
-      if (previews().holdReconnectBuildingSession(payload)) {
-         return;
-      }
-      if (previews().applyBuildingSession(payload)) {
-         BUILDING_CACHE.resetBuildingPreviewCaches();
-      }
-   }
-
-   public static void applyBuildingParameters(BuildingPreviewParametersPayload payload) {
-      if (previews().holdReconnectBuildingParameters(payload)) {
-         return;
-      }
-      if (previews().applyBuildingParameters(payload)) {
-         BUILDING_CACHE.resetBuildingPreviewCaches();
-      }
-   }
-
-   public static void applyBuildingEffect(BuildingPreviewEffectPayload payload) {
-      if (previews().holdReconnectBuildingEffect(payload)) {
-         return;
-      }
-      if (previews().applyBuildingEffect(payload)) {
-         BUILDING_CACHE.resetBuildingPreviewCaches();
-      }
-   }
-
-   public static void applyOperation(OperationPreviewPayload payload) {
-      if (ClientSessionSystem.instance().operations().synchronize(payload)) {
-         previews().applyOperation(payload);
-      }
-   }
-
-   public static void applyGeometry(GeometryPreviewPayload payload) {
-      if (previews().holdReconnectGeometry(payload)) {
-         return;
-      }
-      GeometryPreviewPayload previous = previews().geometry();
-      if (!previews().applyGeometry(payload)) {
-         return;
-      }
-      if (!continuesGeometryTransform(previous, payload)) {
-         geometryTransformBaseline = null;
-      }
-      cachedGeometryPlanKey = null;
-      cachedGeometryPlan = null;
-      cachedGeometryRenderSource = null;
-      cachedGeometryRenderLayers = GeometryRenderLayers.empty();
-   }
-
-   public static void applyActivity(ActivityStatePayload payload) {
-      if (previews().applyActivity(payload)) {
-         ClientSessionSystem.instance().operations().submissions().observeActivity(payload.activity());
-      }
-   }
-
    /** Ends a reconnect boundary once the snapshot that followed it has settled. */
    public static void onClientTick() {
-      previews().tickReconnectBoundary();
       Minecraft minecraft = Minecraft.getInstance();
       // Hover acceleration and transient HUD feedback belong to the focused
       // world view. Do not carry either across a menu, pause screen, or world
@@ -296,11 +203,6 @@ public final class FastPlaceClientPreviewCore {
       if (minecraft.player != null && minecraft.level != null && minecraft.screen == null && minecraft.isWindowActive()) {
          BUILDING_CACHE.applyBuildingPreviewResults();
       }
-   }
-
-   /** Changes whenever a server preview or activity snapshot is applied. */
-   public static long stateRevision() {
-      return previews().revision();
    }
 
    public static void noteScrollFeedback() {
@@ -671,7 +573,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean embeddedModifierReticle() {
-      if (io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
+      if (ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
          Minecraft minecraft = Minecraft.getInstance();
          return minecraft.player != null && minecraft.player.isCreative() && enabled() && !QuickReplaceMode.active()
             && minecraft.getCameraEntity() == minecraft.player
@@ -949,7 +851,7 @@ public final class FastPlaceClientPreviewCore {
       BuildingPreviewSnapshot snapshot = previews().building();
       boolean persistentFreeScroll = FEEDBACK.refreshFreeScrollSession(previews().building(), System.nanoTime());
       boolean reconnectRestorePending = ClientSessionSystem.instance().operations().reconnectRestorePending()
-         || reconnectPreviewRestorePending();
+         || previews().reconnectRestorePending();
       // A local submission locks the workspace before the server reports its task.
       // The HUD must stay alive in that window, or the player sees no reason for
       // the refused clicks. See WorkspaceSubmissionHud.
@@ -996,7 +898,7 @@ public final class FastPlaceClientPreviewCore {
             ? Component.translatable(fillKey, fillModeName)
             : Component.translatable(fillKey, fillModeName, keyName(minecraft.options.keySwapOffhand)))
          .withStyle(GeometryPalette.text().style());
-      if (!io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()) graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
+      if (!ClientSessionSystem.instance().modeView().idleActionsAllowed()) graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
 
       MutableComponent embeddedHint = buildingRaycastHint();
       if (embeddedHint != null && minecraft.screen == null
@@ -1096,6 +998,10 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static TransformStatus transformStatus(GeometryPreviewPlan geometryPlan) {
+      if (geometryTransformVersion != previews().geometryTransformVersion()) {
+         geometryTransformVersion = previews().geometryTransformVersion();
+         geometryTransformBaseline = null;
+      }
       TransformStatus current = rawTransformStatus(geometryPlan);
       if (current == null) {
          return null;
@@ -1193,27 +1099,8 @@ public final class FastPlaceClientPreviewCore {
       };
    }
 
-   private static boolean continuesGeometryTransform(
-      GeometryPreviewPayload previous, GeometryPreviewPayload next
-   ) {
-      return previous != null
-         && next != null
-         && previous.active()
-         && next.active()
-         && previous.mode() == next.mode()
-         && geometryAdjusting(previous)
-         && geometryAdjusting(next);
-   }
-
    private static boolean geometryAdjusting(GeometryPreviewPayload payload) {
-      if (payload == null || !payload.active()) {
-         return false;
-      }
-      return switch (payload.mode()) {
-         case POLYHEDRON -> payload.closed();
-         case CONE_PRISM -> payload.conePlaneMode().stageFor(payload.points().size()) == ConePrismStage.ADJUST;
-         default -> false;
-      };
+      return io.github.fastformer.client.session.preview.GeometryPreviewRules.adjusting(payload);
    }
 
    private static ConePrismGeometry coneGeometry(GeometryPreviewPayload payload) {
@@ -1720,7 +1607,7 @@ public final class FastPlaceClientPreviewCore {
    private static boolean hasVisibleBlueOutline(Minecraft minecraft) {
       var player = minecraft.player;
       if (player == null || minecraft.level == null || QuickReplaceMode.active()) return false;
-      if (io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
+      if (ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
          var hit = idlePreviewHit(minecraft);
          var preview = hit == null ? null : InitialBlockPreview.resolve(player, hit, FastPlaceClientInput.modifierHeld());
          return preview != null && !preview.mesh().edges().isEmpty();
@@ -1777,7 +1664,7 @@ public final class FastPlaceClientPreviewCore {
              }
              return;
           }
-          if (io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
+          if (ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
              var hit = idlePreviewHit(minecraft);
              if (hit != null) InitialBlockPreviewRenderer.render(event, minecraft, player, hit,
                 FastPlaceClientInput.modifierHeld(), 1.0F);
@@ -2220,27 +2107,6 @@ public final class FastPlaceClientPreviewCore {
       PreviewRenderResources.clearMeshes();
       SmoothReticlePostEffect.reset();
       smoothReticleFrame = false;
-   }
-
-   public static boolean reconnectPreviewRestorePending() {
-      return previews().reconnectRestorePending();
-   }
-
-   /** Applies the server previews held at the reconnect boundary after the player confirms. */
-   public static boolean confirmReconnectPreviewRestore() {
-      ClientPreviewState.HeldReconnectPreviews held = previews().takeHeldReconnectPreviews();
-      if (held == null) {
-         return false;
-      }
-      if (held.buildingSession() != null) applyBuildingSession(held.buildingSession());
-      if (held.buildingParameters() != null) applyBuildingParameters(held.buildingParameters());
-      if (held.buildingEffect() != null) applyBuildingEffect(held.buildingEffect());
-      if (held.geometry() != null) applyGeometry(held.geometry());
-      return true;
-   }
-
-   public static void dismissReconnectPreviewRestore() {
-      previews().dismissReconnectRestore();
    }
 
    /** Returns the current long-range block target used by preview placement. */

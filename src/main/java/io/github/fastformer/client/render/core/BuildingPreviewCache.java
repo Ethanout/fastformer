@@ -44,6 +44,7 @@ final class BuildingPreviewCache {
    private final ClientPreviewState previewState;
    private final java.util.function.BooleanSupplier modifierHeld;
    private final java.util.function.BiConsumer<String, Throwable> failureLogger;
+   private long observedBuildingVersion = -1L;
 
    BuildingPreviewCache(ClientPreviewState previewState,
       java.util.function.BooleanSupplier modifierHeld,
@@ -67,6 +68,7 @@ final class BuildingPreviewCache {
    private BuildingRenderKey cachedBuildingRenderKey;
    private BuildingRenderFrame cachedBuildingRenderFrame = BuildingRenderFrame.empty();
    void resetBuildingPreviewCaches() {
+      observedBuildingVersion = previewState.buildingVersion();
       cachedConfirmedBuildingState = null;
       cachedConfirmedBuildingBias = LineTieBias.DEFAULT;
       cachedConfirmedBuildingBlocks = Set.of();
@@ -76,6 +78,10 @@ final class BuildingPreviewCache {
       cachedBuildingRenderKey = null;
       cachedBuildingRenderFrame = BuildingRenderFrame.empty();
       clearBuildingShellCaches();
+   }
+
+   private void synchronizeSnapshot() {
+      if (observedBuildingVersion != previewState.buildingVersion()) resetBuildingPreviewCaches();
    }
 
    private void clearBuildingShellCaches() {
@@ -165,6 +171,7 @@ final class BuildingPreviewCache {
    Set<BlockPos> buildingPreviewBlocksCached(
       BuildingPreviewSnapshot snapshot, List<BlockPos> points, boolean polygonHeightConfirmed
    ) {
+      synchronizeSnapshot();
       long buildingVersion = previewState.buildingVersion();
       boolean modifierHeld = this.modifierHeld.getAsBoolean();
       BuildingPreviewKey key = cachedBuildingPreviewKey;
@@ -235,6 +242,7 @@ final class BuildingPreviewCache {
 
 
    void applyBuildingPreviewResults() {
+      synchronizeSnapshot();
       BuildingPreviewKey key = cachedBuildingPreviewKey;
       if (key == null || key.stateVersion() != previewState.buildingVersion()
          || key.modifierHeld() != this.modifierHeld.getAsBoolean()) return;
@@ -388,6 +396,7 @@ final class BuildingPreviewCache {
       BlockPos candidate,
       BlockPos hoveredPoint
    ) {
+      synchronizeSnapshot();
       BuildingRenderKey key = new BuildingRenderKey(
          previewState.buildingVersion(),
          cachedBuildingPreviewKey,

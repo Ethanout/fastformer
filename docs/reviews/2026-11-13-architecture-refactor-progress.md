@@ -610,3 +610,13 @@
 - 穷举 512 组工作流、全部路由阶段及待发送起形开关，对照迁移前空闲规则；补充独立系统快照隔离、同 tick 更新、世界重置及旧视图不可变测试。源码约束禁止渲染重新拥有快照、快照反向读取渲染／实时客户端及恢复旧查询入口。
 - `.temp/architecture-session-observation-tests.log` 定向测试通过；`.temp/architecture-session-observation-verified.log` 完整 check 与新目录 312 项必需 GameTest 通过。没有清除实际试玩存档，没有修改正式仓库配置。
 - 网络载荷应用和渲染缓存失效仍在渲染总入口协调，后续需继续移交；完整 PreviewFrame／PreviewMode、指针及通用按键路由、服务端模式、操作树和其余手册项目尚未完成。
+
+## 网络预览应用移出渲染（2026-11-14）
+
+- 会话快照与观察阶段已提交并推送：`c6505fc`。
+- `ClientPreviewUpdates` 绑定快照容器、编辑器同步与活动通知，接管起形三部分、提交参数、选区、几何和活动更新。重连确认按原顺序复用这些入口；网络注册删除渲染依赖，渲染总入口删除全部 apply 方法。重连等待改由客户端会话 tick 推进。
+- 起形缓存主动观察 buildingVersion 后取消旧生成／清理缓存，不依赖网络处理器回调；几何计划仍按已有 geometryVersion 键失效。几何转换连续性规则移出渲染，并用独立计数记录每次已接收的阶段中断，保持多次快照在同一帧之间到达时的基线语义。
+- 起形／几何输入、绑定、提交控制、填充、扳手与强制放置的纯状态查询直接读取所属会话能力，删除对应快照转发及不用的渲染依赖；没有改动协议与入口时序。
+- 新增编辑器拒绝不发布、发布后活动通知、旧 revision 拒绝、分包恢复顺序／一次确认、不同 revision 取消恢复，以及帧间几何连续性中断测试。首次定向测试编译发现新夹具把 ResourceLocation 直接传给效果快照，已修正夹具后重跑通过。
+- `.temp/architecture-preview-updates-tests.log` 定向测试通过；`.temp/architecture-preview-updates-verified.log` 最终完整 check 与新目录 312 项必需 GameTest 全部通过。实际试玩数据未清除，正式仓库配置未改变。
+- Mode 指针与通用按键处理、完整 PreviewFrame／PreviewMode、服务端模式、完整操作树和手册其余项目继续待办；本阶段不是整体完成。

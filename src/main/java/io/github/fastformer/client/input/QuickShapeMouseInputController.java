@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
@@ -28,7 +29,7 @@ final class QuickShapeMouseInputController {
          || session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) != ClientInputStateMachine.Dispatch.BUILDING
          || InteractionContext.vanillaOwnsPointer(minecraft)
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), QuickShapePointerPayload.TYPE.id())) return false;
-      var draft = FastPlaceClientPreviewCore.buildingSubmission().orElse(null);
+      var draft = ClientSessionSystem.instance().previews().buildingSubmission().orElse(null);
       if (draft == null) return true;
       var press = session.quickShapeUndo.press(draft, occurredAtNanos,
          minecraft.player.getEyePosition(), minecraft.player.getViewVector(1));
@@ -39,7 +40,7 @@ final class QuickShapeMouseInputController {
    static void dispatchUndo(Minecraft minecraft, ClientInputSession session, QuickShapeUndoGesture.Event event) {
       if (event instanceof QuickShapeUndoGesture.Event.Press) session.modifier.consume();
       var press = session.quickShapeUndo.dispatch(event, session.routing,
-         FastPlaceClientPreviewCore.buildingSubmission().orElse(null));
+         ClientSessionSystem.instance().previews().buildingSubmission().orElse(null));
       if (press == null) return;
       ClientPlacementRouter.quickShapePointer(minecraft, press.draft().revision(), press.draft().scope(),
          QuickShapePointerPayload.Action.UNDO, press.draft().data().points().getFirst(), press.eye(), press.view(), false);
@@ -51,7 +52,7 @@ final class QuickShapeMouseInputController {
       if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) != ClientInputStateMachine.Dispatch.BUILDING) return false;
       boolean middle = button == MouseButtonInputSemantics.MIDDLE_BUTTON;
       if (!middle && button != MouseButtonInputSemantics.RIGHT_BUTTON) return false;
-      var draft = FastPlaceClientPreviewCore.buildingSubmission().orElse(null);
+      var draft = ClientSessionSystem.instance().previews().buildingSubmission().orElse(null);
       var path = PathCloseInputDispatcher.capture(false, occurredAtNanos);
       boolean overlap = draft != null && io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(
          draft.data().points(), path.candidate(), draft.data().faceMode(), draft.data().polygonClosed());
@@ -61,7 +62,7 @@ final class QuickShapeMouseInputController {
          return true;
       }
       if (action != MouseButtonInputSemantics.PRESS
-         || middle && !FastPlaceClientPreviewCore.middleConfirmEnabled()
+         || middle && !ClientSessionSystem.instance().previews().building().middleConfirmEnabled()
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), QuickShapePointerPayload.TYPE.id())) return false;
       if (!session.captureQuickShapeButton(button)) return true;
       if (draft == null || path.candidate() == null) return true;
@@ -71,7 +72,7 @@ final class QuickShapeMouseInputController {
    }
 
    static void dispatch(Minecraft minecraft, ClientInputSession session, QuickShapePointerPress press) {
-      if (!press.matches(session.routing, FastPlaceClientPreviewCore.buildingSubmission().orElse(null))) return;
+      if (!press.matches(session.routing, ClientSessionSystem.instance().previews().buildingSubmission().orElse(null))) return;
       session.modifier.consume();
       QuickShapePointerPayload.Action action = press.middle() ? QuickShapePointerPayload.Action.MIDDLE
          : io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(press.draft().data().points(), press.path().candidate(),

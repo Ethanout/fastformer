@@ -28,9 +28,9 @@ final class PathCloseInputDispatcher {
       if (FastPlaceClientPreviewCore.operationActive()) return new ClosePathPayload(request,
          ClientSessionSystem.instance().operations().remoteSelectionRevision(),
          ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(), ClosePathPayload.Kind.OPERATION);
-      var geometry = FastPlaceClientPreviewCore.geometrySnapshot();
+      var geometry = ClientSessionSystem.instance().previews().geometry();
       if (geometry.active()) return new ClosePathPayload(request, geometry.revision(), geometry.callbackScope(), ClosePathPayload.Kind.GEOMETRY);
-      return FastPlaceClientPreviewCore.buildingSubmission().map(snapshot ->
+      return ClientSessionSystem.instance().previews().buildingSubmission().map(snapshot ->
          new ClosePathPayload(request, snapshot.revision(), snapshot.scope(), ClosePathPayload.Kind.BUILDING)).orElse(null);
    }
 

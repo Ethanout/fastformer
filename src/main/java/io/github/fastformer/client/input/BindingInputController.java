@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
+import io.github.fastformer.client.session.ClientSessionSystem;
 
 import com.google.gson.*;
 import io.github.fastformer.client.interaction.binding.*;
@@ -75,11 +76,11 @@ final class BindingInputController {
       }
       system.tick(now);
       if (profile.equals(SessionProfiles.NONE)) return;
-      ResourceLocation published = FastPlaceClientPreviewCore.buildingProfile();
+      ResourceLocation published = ClientSessionSystem.instance().previews().buildingProfile();
       if (profile.equals(published)) acknowledged = true;
       else if (acknowledged || now - startedAt > 5_000_000_000L) { cancel(minecraft, owner); return; }
       if (release != null && acknowledged) {
-         var draft = FastPlaceClientPreviewCore.buildingSubmission().orElse(null);
+         var draft = ClientSessionSystem.instance().previews().buildingSubmission().orElse(null);
          if (draft == null) return;
          var data = draft.data();
          var geometry = new QuickShapeCandidateContext(data.points(), data.polygonClosed(), data.faceBaseOffset(),

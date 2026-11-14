@@ -30,7 +30,7 @@ final class QuickShapeStartController {
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), StartPlacementPayload.TYPE.id())
          || !NetworkRegistry.hasChannel(minecraft.getConnection(),
             io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE.id())) return false;
-      var idle = FastPlaceClientPreviewCore.idleBuildingSession().orElse(null);
+      var idle = ClientSessionSystem.instance().previews().idleBuildingSession().orElse(null);
       if (idle == null) return false;
       if (!session.captureQuickShapeButton(button)) return true;
       session.postStartPlacement(new StartPlacementPayload.Target(idle.revision(), idle.callbackScope(),
@@ -41,7 +41,7 @@ final class QuickShapeStartController {
    }
 
    static void dispatch(Minecraft minecraft, ClientInputSession session, StartPlacementPayload.Target target) {
-      var idle = FastPlaceClientPreviewCore.idleBuildingSession().orElse(null);
+      var idle = ClientSessionSystem.instance().previews().idleBuildingSession().orElse(null);
       if (session.routing.state() != ClientInputStateMachine.State.IDLE || idle == null
          || idle.revision() != target.revision() || !idle.callbackScope().equals(target.callbackScope())
          || ClientSessionSystem.instance().operations().active()) return;

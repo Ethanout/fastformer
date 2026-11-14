@@ -73,14 +73,14 @@ final class GeometryDragController {
    private static Target validatedTarget(ClientInputSession session) {
       if (discardInvalidCapture(session)) return Target.NONE;
       if (session.geometryGizmoCapture.owns(session.geometryGizmoDrag.captureToken())) {
-         var preview = FastPlaceClientPreviewCore.geometrySnapshot();
+         var preview = ClientSessionSystem.instance().previews().geometry();
          if (!preview.active() || !session.geometryGizmoCapture.matchesActive(preview.draftId(), preview.callbackScope(), preview.mode())) {
             clearCapture(session);
             session.geometryGizmoCapture.cancel();
             return Target.NONE;
          }
       }
-      Target target = target(session, FastPlaceClientPreviewCore.geometryActive(), ClientSessionSystem.instance().operations().operationSelectionReady());
+      Target target = target(session, ClientSessionSystem.instance().previews().geometry().active(), ClientSessionSystem.instance().operations().operationSelectionReady());
       if (target == Target.NONE) {
          clearCapture(session);
       }
