@@ -116,6 +116,14 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render\.|input\.|session\.|operation\.controller\.)|Minecraft\.getInstance\s*\()/).find()) {
                 violations.add("Selection pointer resolution must use its bound session and explicit context: ${path}")
             }
+            if (main && packageName.startsWith('io.github.fastformer.client.geometry') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render\.|input\.|session\.)|Minecraft\.getInstance\s*\()/).find()) {
+                violations.add("Geometry interaction must own plans and consume explicit context without rendering or global session access: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.input') &&
+                    (dependencies =~ /FastPlaceClientPreviewCore\.geometry(?:InteractionHit|PointSelected|AwaitingFirstPoint|Allows|GizmoHit|GizmoValue|Gizmo)\s*\(/).find()) {
+                violations.add("Geometry input must use its owned interaction capability: ${path}")
+            }
             if (main && packageName.startsWith('io.github.fastformer.client.input') &&
                     (dependencies =~ /FastPlaceClientPreviewCore\.operation(?:InteractionIntent|WorkspaceGizmoHit|GizmoHit|NeedsFirst|NeedsSecond|PointCount|PrismBaseOpen|PointSelected|SelectedPointIndex|PointCenter|PointUnderCrosshairIndex|PrismEdgeInsertion|PointGridPlane|PointGridLine|CandidatePoint|PointerTarget|Selection|FaceHit|Gizmo|GizmoValue)\s*\(/).find()) {
                 violations.add("Input must resolve workspace targets through its owned pointer capability: ${path}")

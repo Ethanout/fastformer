@@ -16,7 +16,6 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.ModifierReticleMode;
 import io.github.fastformer.client.input.PointerDragSnapshotView;
@@ -53,11 +52,8 @@ import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
-import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
-import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionHit;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
 import io.github.fastformer.fastplace.geometry.text.GizmoTextContext;
@@ -77,8 +73,6 @@ import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStageMode;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.fastplace.text.TranslatableText;
-import io.github.fastformer.fastplace.workflow.GeometryWorkflowView;
-import io.github.fastformer.fastplace.workflow.GeometryWorkflows;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
@@ -130,6 +124,7 @@ public final class FastPlaceClientPreviewCore {
 
    /** Drops cached meshes that baked the previous theme's colors. */
    public static void onThemeChanged() {
+      ClientSessionSystem.instance().inputSession().invalidateGeometryPlan();
       QUICK_SHAPE_PREVIEW.clear();
       PreviewRenderResources.clearShells();
       GEOMETRY_PREVIEW.clear();
@@ -156,8 +151,6 @@ public final class FastPlaceClientPreviewCore {
    private static final PreviewFeedbackHud FEEDBACK = new PreviewFeedbackHud(FastPlaceClientPreviewCore::gizmoAxisHudColor);
    static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
-   private static TransformStatus geometryTransformBaseline;
-   private static long geometryTransformVersion = -1L;
    private static long lastPreviewFailureLogAt;
    private static final QuickShapePreviewMode QUICK_SHAPE_PREVIEW = new QuickShapePreviewMode(
       previews(), () -> PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
@@ -315,14 +308,6 @@ public final class FastPlaceClientPreviewCore {
       return previews().geometry().active();
    }
 
-   public static boolean geometryAwaitingFirstPoint() {
-      return previews().geometry().active() && previews().geometry().points().isEmpty();
-   }
-
-   public static boolean geometryPointSelected() {
-      return previews().geometry().active() && previews().geometry().selectedPointIndex() >= 0;
-   }
-
    public static boolean buildingRaycastSubmodeAvailable() {
       if (!previews().building().enabled()) {
          return false;
@@ -334,19 +319,6 @@ public final class FastPlaceClientPreviewCore {
          }
       }
       return buildingRaycastSubmode();
-   }
-
-   public static GeometryInteractionHit geometryInteractionHit() {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (!previews().geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
-         return null;
-      }
-      Vec3 eye = player.getEyePosition();
-      Vec3 view = player.getViewVector(1.0F);
-      GeometryWorkflowView workflowView = geometryWorkflowView(view);
-      List<GeometryInteractionTarget> targets = GeometryWorkflows.get(previews().geometry().mode()).interactionTargets(workflowView);
-      return GeometryInteractionHit.nearest(eye, view, visiblePreviewReach(player), targets);
    }
 
    public static boolean embeddedModifierReticle() {
@@ -379,52 +351,6 @@ public final class FastPlaceClientPreviewCore {
          case CONVEX_POLYHEDRON -> true;
          default -> false;
       };
-   }
-
-   public static AxisGizmo.Hit geometryGizmoHit() {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (!previews().geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
-         return null;
-      }
-      Vec3 view = player.getViewVector(1.0F);
-      AxisGizmo gizmo = geometryGizmo(view);
-      return gizmo == null ? null : gizmo.hitTest(player.getEyePosition(), view, visiblePreviewReach(player));
-   }
-
-   public static AxisGizmo geometryGizmo() {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      Vec3 view = player == null ? new Vec3(0.0, 0.0, 1.0) : player.getViewVector(1.0F);
-      return geometryGizmo(view);
-   }
-
-   public static double geometryGizmoValue(Axis axis, AxisGizmo.Operation operation) {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (axis == null || operation == null || player == null || !previews().geometry().active()) {
-         return operation == AxisGizmo.Operation.SCALE ? 1.0 : 0.0;
-      }
-      GeometryPreviewPlan plan = geometryPreviewPlan(player.getViewVector(1.0F));
-      return geometryGizmoValue(plan, axis, operation);
-   }
-
-   private static AxisGizmo geometryGizmo(Vec3 view) {
-      Minecraft minecraft = Minecraft.getInstance();
-      if (!previews().geometry().active() || minecraft.player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
-         return null;
-      }
-      return geometryPreviewPlan(view).gizmo();
-   }
-
-   public static BlockPos geometryPointUnderCrosshair() {
-      if (!previews().geometry().active()
-         || previews().geometry().mode() != GeometryMode.WALL
-         || previews().geometry().closed()
-         || previews().geometry().points().isEmpty()) {
-         return null;
-      }
-      return pointUnderCrosshair(List.of(previews().geometry().points().getFirst()));
    }
 
    public static boolean closePathAtHoveredStart() {
@@ -694,8 +620,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean geometryAllows(GeometryAction action) {
-      return previews().geometry().active()
-         && GeometryWorkflows.allows(geometryWorkflowView(new Vec3(0.0, 0.0, 1.0)), action);
+      return ClientSessionSystem.instance().geometryPointer().allows(action);
    }
 
    private static GeometryPreviewPlan renderSessionHud(
@@ -731,58 +656,6 @@ public final class FastPlaceClientPreviewCore {
       return null;
    }
 
-   private static TransformStatus transformStatus(GeometryPreviewPlan geometryPlan) {
-      if (geometryTransformVersion != previews().geometryTransformVersion()) {
-         geometryTransformVersion = previews().geometryTransformVersion();
-         geometryTransformBaseline = null;
-      }
-      TransformStatus current = rawTransformStatus(geometryPlan);
-      if (current == null) {
-         return null;
-      }
-      if (geometryTransformBaseline == null) {
-         geometryTransformBaseline = current;
-      }
-      TransformStatus baseline = geometryTransformBaseline;
-      return current.relativeTo(baseline);
-   }
-
-   private static TransformStatus rawTransformStatus(GeometryPreviewPlan geometryPlan) {
-      if (!geometryAdjusting(previews().geometry())) {
-         return null;
-      }
-      if (previews().geometry().mode() == GeometryMode.CONE_PRISM) {
-         ConePrismGeometry geometry = coneGeometry(previews().geometry());
-         if (geometry == null || !geometry.heightReady()) {
-            return null;
-         }
-         Vec3 center = geometry.base().center().add(geometry.topCenter()).scale(0.5);
-         return new TransformStatus(
-            center,
-            new Vec3(geometry.scaleX(), Math.max(0.5, Math.abs(geometry.height())), geometry.scaleZ()),
-            new Vec3(0.0, Math.toDegrees(previews().geometry().coneRotationRadians()), 0.0)
-         );
-      }
-      if (previews().geometry().mode() == GeometryMode.POLYHEDRON) {
-         Vec3 center = transformCenter(geometryPlan);
-         if (center == null) {
-            return null;
-         }
-         Vec3 scale = previews().geometry().polyhedronGizmoLocal()
-            ? previews().geometry().polyhedronLocalScale()
-            : previews().geometry().polyhedronWorldScale();
-         return new TransformStatus(center, scale, TransformStatus.eulerDegrees(previews().geometry().rotation()));
-      }
-      return null;
-   }
-
-   private static Vec3 transformCenter(GeometryPreviewPlan geometryPlan) {
-      if (geometryPlan != null && geometryPlan.gizmo() != null) {
-         return geometryPlan.gizmo().center();
-      }
-      return previews().geometry().pointLocations().isEmpty() ? null : previews().geometry().pointLocations().getFirst();
-   }
-
    private static int drawScaledLabel(
       GuiGraphics graphics, Minecraft minecraft, Component label, int x, int y, int color
    ) {
@@ -810,51 +683,7 @@ public final class FastPlaceClientPreviewCore {
    private static double geometryGizmoValue(
       GeometryPreviewPlan geometryPlan, Axis axis, AxisGizmo.Operation operation
    ) {
-      TransformStatus transform = transformStatus(geometryPlan);
-      if (transform == null) {
-         return operation == AxisGizmo.Operation.SCALE ? 1.0 : 0.0;
-      }
-      return switch (operation) {
-         case MOVE -> {
-            AxisGizmo gizmo = geometryPlan == null ? null : geometryPlan.gizmo();
-            Vec3 direction = gizmo == null ? axisVector(axis) : gizmo.axisVector(axis);
-            yield transform.position().dot(direction);
-         }
-         case SCALE -> axisComponent(transform.scale(), axis);
-         case ROTATE -> axisComponent(transform.rotationDegrees(), axis);
-      };
-   }
-
-   private static Vec3 axisVector(Axis axis) {
-      return switch (axis) {
-         case X -> new Vec3(1.0, 0.0, 0.0);
-         case Y -> new Vec3(0.0, 1.0, 0.0);
-         case Z -> new Vec3(0.0, 0.0, 1.0);
-      };
-   }
-
-   private static boolean geometryAdjusting(GeometryPreviewPayload payload) {
-      return io.github.fastformer.client.session.preview.GeometryPreviewRules.adjusting(payload);
-   }
-
-   private static ConePrismGeometry coneGeometry(GeometryPreviewPayload payload) {
-      int facePointCount = Math.min(payload.pointLocations().size(), payload.conePlaneMode().facePointCount());
-      List<Vec3> facePoints = List.copyOf(payload.pointLocations().subList(0, facePointCount));
-      Optional<Vec3> heightPoint = payload.pointLocations().size() > facePointCount
-         ? Optional.of(payload.pointLocations().get(facePointCount))
-         : Optional.empty();
-      return ConePrismGeometry.from(new ConePrismParameters(
-         facePoints,
-         heightPoint,
-         payload.coneShapeVariant(),
-         payload.conePlaneMode(),
-         payload.coneRadius(),
-         payload.coneScaleX(),
-         payload.coneScaleZ(),
-         payload.coneTopScaleOffset(),
-         payload.coneTopOffset(),
-         payload.coneRotationRadians()
-      ));
+      return ClientSessionSystem.instance().geometryPointer().gizmoValue(geometryPlan, axis, operation);
    }
 
    private static MutableComponent buildingBottomStatus() {
@@ -1014,10 +843,10 @@ public final class FastPlaceClientPreviewCore {
       int x = graphics.guiWidth() / 2 + 10;
       int y = graphics.guiHeight() / 2 + 6;
       boolean workspaceLocked = ClientSessionSystem.instance().operations().active() && ClientSessionSystem.instance().operations().workspace().locked();
-      GeometryInteractionHit interactionHit = geometryInteractionHit();
+      GeometryInteractionHit interactionHit = ClientSessionSystem.instance().geometryPointer().interactionHit();
       // This text offers a pointer action. The locked workspace refuses that
       // action, so draw the text only while the workspace accepts new actions.
-      if (interactionHit != null && geometryGizmoHit() == null
+      if (interactionHit != null && ClientSessionSystem.instance().geometryPointer().gizmoHit() == null
          && WorkspacePointerPrompt.acceptsNewAction(workspaceLocked)) {
          graphics.drawString(minecraft.font, interactionHit.hoverText(), x, y, GeometryPalette.text().argb(), true);
          y += 10;
@@ -1459,11 +1288,6 @@ public final class FastPlaceClientPreviewCore {
          event.getModelViewMatrix(), event.getProjectionMatrix());
    }
 
-   private static GeometryWorkflowView geometryWorkflowView(Vec3 view) {
-      return GeometryPreviewMode.workflow(previews().geometry(),
-         PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), view);
-   }
-
    private static BlockPos buildingCandidatePoint(BuildingPreviewSnapshot snapshot, LocalPlayer player) {
       if (!snapshot.active() && snapshot.points().isEmpty()) {
          BlockHitResult firstHit = raycastBlocks(player);
@@ -1530,62 +1354,16 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static GeometryPreviewModel geometryPreviewModel(Vec3 view) {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      GeometryWorkflowView workflow = geometryWorkflowView(view);
-      GeometryHit candidate = GeometryWorkflows.allows(workflow, GeometryAction.CANDIDATE_INPUT)
-         ? geometryCandidateHit(minecraft, player) : null;
-      Vec3 eye = player == null ? Vec3.ZERO : player.getEyePosition();
-      var model = GEOMETRY_PREVIEW.buildModel(new GeometryPreviewInput(previews().geometry(), previews().geometryVersion(),
-         PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), eye, view, candidate, geometryPointUnderCrosshair()));
-      return model.withGizmo(hoveredGeometryGizmo(model.plan().gizmo(), view));
+      var pointer = ClientSessionSystem.instance().geometryPointer();
+      var plan = pointer.plan();
+      var model = GEOMETRY_PREVIEW.buildModel(new GeometryPreviewInput(previews().geometry(),
+         PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), plan));
+      return model.withGizmo(pointer.presentedPlan().gizmo());
    }
 
    private static BlockPos geometryCandidatePoint(Minecraft minecraft, LocalPlayer player) {
-      GeometryHit hit = geometryCandidateHit(minecraft, player);
+      GeometryHit hit = ClientSessionSystem.instance().geometryPointer().candidateHit();
       return hit == null ? null : hit.point();
-   }
-
-   private static GeometryHit geometryCandidateHit(Minecraft minecraft, LocalPlayer player) {
-      if (!previews().geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
-         return null;
-      }
-      BlockHitResult hit = raycastBlocks(player);
-      if (hit.getType() == Type.BLOCK) {
-         return GeometryHit.from(hit);
-      }
-      List<BlockPos> points = previews().geometry().points();
-      BlockPos fallback = points.isEmpty() ? BlockPos.containing(player.getEyePosition().add(player.getViewVector(1.0F).scale(8.0))) : points.getLast();
-      return GeometryHit.point(fallback);
-   }
-
-   private static AxisGizmo hoveredGeometryGizmo(AxisGizmo gizmo, Vec3 view) {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (gizmo == null || player == null) {
-         return gizmo;
-      }
-
-      gizmo = cameraScaledGizmo(gizmo, minecraft);
-      if (InteractionContext.vanillaOwnsPointer(minecraft)) {
-         return gizmo;
-      }
-      AxisGizmo.Hit hit = gizmo.hitTest(player.getEyePosition(), view, visiblePreviewReach(player));
-      AxisGizmo.HandleKey hoveredKey = hit == null ? null : hit.handle().key();
-      return gizmo.withState(hoveredKey, PointerDragSnapshotView.geometryKey(FastPlaceClientInput.currentSession()));
-   }
-
-   private static AxisGizmo cameraScaledGizmo(AxisGizmo gizmo, Minecraft minecraft) {
-      Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
-      GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(gizmo.center()));
-      return new AxisGizmo(
-         gizmo.center(),
-         scale.axisLength(),
-         scale.handleRadius(),
-         gizmo.frame(),
-         gizmo.handles(),
-         gizmo.textComponent()
-      );
    }
 
    private static double visiblePreviewReach(LocalPlayer player) {
@@ -1603,7 +1381,7 @@ public final class FastPlaceClientPreviewCore {
    private static long renderedThemeRevision = -1;
 
    public static void clearWorldRenderState() {
-      geometryTransformBaseline = null;
+      ClientSessionSystem.instance().inputSession().clearGeometryPointer();
       OPERATION_FACE_INTERPOLATOR.reset();
       QUICK_SHAPE_PREVIEW.clear();
       PreviewRenderResources.clearShells();

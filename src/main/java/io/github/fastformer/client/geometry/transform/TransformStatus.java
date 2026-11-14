@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.model;
+package io.github.fastformer.client.geometry.transform;
 
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import java.util.Objects;

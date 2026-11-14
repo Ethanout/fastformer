@@ -18,11 +18,13 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
 | `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回；共享射线用途优先级及有距离上限的点格命中 |
+| `client.geometry.pointer` | 所属输入环境的几何候选、路径首点遮挡、交互目标、共享计划缓存和手柄命中；通过显式上下文／快照装配，不访问渲染或全局会话 |
+| `client.geometry.transform` | 几何拖动与 HUD 共用的变换基线和局部轴数值；按连续性版本重置 |
 | `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式按键／滚轮决策 |
 | `client.mode.input.pointer` | 不可变鼠标事实、左右键动作与共享捕获优先级；模式只决策，不查询实时客户端 |
 | `client.preview` / `frame` | 预览模型／绘制契约、显式世界绘制帧和统一动画相位；完整跨模式 PreviewFrame 仍在迁移 |
 | `client.preview.quickshape` | 起形模型构建、生成任务与降级、方块层与控制点绘制，以及自有外壳／网格缓存和取消 |
-| `client.preview.geometry` | 几何计划与方块层缓存、生成失败降级、控制点／导引线／手柄绘制，以及自有幽灵网格与 GPU 缓存 |
+| `client.preview.geometry` | 从共享几何计划构建方块绘制层，绘制控制点／导引线／手柄，并拥有幽灵网格与 GPU 缓存；不重新生成交互计划 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
 | `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、编辑上下文、选区、工作区和暂存草稿 |
 | `client.session.receipt` | 作用域回执仓库：缓存、严格读取、文件保护、明确重试和驱逐条件 |

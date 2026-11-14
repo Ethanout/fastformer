@@ -533,19 +533,19 @@ public final class FastPlaceClientInput {
       return ClientSessionSystem.instance().previews().building().active()
          || FastPlaceClientPreviewCore.operationActive()
          || ClientSessionSystem.instance().previews().geometry().active()
-            && (FastPlaceClientPreviewCore.geometryAllows(GeometryAction.MODE_CYCLE)
-               || FastPlaceClientPreviewCore.geometryAllows(GeometryAction.SUBMODE));
+            && (ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.MODE_CYCLE)
+               || ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.SUBMODE));
    }
 
    private static boolean modifierCycleAvailable(Minecraft minecraft) {
       return ClientSessionSystem.instance().previews().geometry().active()
-         ? FastPlaceClientPreviewCore.geometryAllows(GeometryAction.MODE_CYCLE)
+         ? ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.MODE_CYCLE)
          : modifierSessionActive() || idleModeCycleAvailable(minecraft);
    }
 
    private static boolean modifierSubmodeAvailable(Minecraft minecraft) {
       return ClientSessionSystem.instance().previews().geometry().active()
-         ? FastPlaceClientPreviewCore.geometryAllows(GeometryAction.SUBMODE)
+         ? ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.SUBMODE)
          : ClientSessionSystem.instance().previews().building().active()
             || FastPlaceClientPreviewCore.operationActive()
             || FastPlaceClientPreviewCore.buildingRaycastSubmodeAvailable()
@@ -1428,7 +1428,7 @@ public final class FastPlaceClientInput {
          inputSession().operationDrag != null && inputSession().operationDrag.mouseButton() == MouseButtonInputSemantics.LEFT_BUTTON,
          inputSession().ownsGeometryPointerButton(MouseButtonInputSemantics.LEFT_BUTTON),
          inputSession().geometryGizmoDrag != null,
-         geometrySession && FastPlaceClientPreviewCore.geometryGizmoHit() != null,
+         geometrySession && ClientSessionSystem.instance().geometryPointer().gizmoHit() != null,
          geometrySession,
          NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())
       ));
@@ -1686,7 +1686,7 @@ public final class FastPlaceClientInput {
          && minecraft.getConnection() != null
          && !ClientSessionSystem.instance().previews().building().active()
          && !FastPlaceClientPreviewCore.operationActive()
-         && (!ClientSessionSystem.instance().previews().geometry().active() || FastPlaceClientPreviewCore.geometryAwaitingFirstPoint())) {
+         && (!ClientSessionSystem.instance().previews().geometry().active() || ClientSessionSystem.instance().geometryPointer().awaitingFirstPoint())) {
          minecraft.setScreen(new GeometryRadialScreen());
          return true;
       }

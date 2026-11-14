@@ -37,6 +37,14 @@ public final class ClientInputSession {
    private final io.github.fastformer.client.interaction.pointer.PointerResolver pointer =
       new io.github.fastformer.client.interaction.pointer.PointerResolver();
    public io.github.fastformer.client.interaction.pointer.PointerResolver pointer() { return pointer; }
+   private io.github.fastformer.client.geometry.pointer.GeometryPointer geometryPointer;
+   public io.github.fastformer.client.geometry.pointer.GeometryPointer geometryPointer(
+      java.util.function.Supplier<io.github.fastformer.client.geometry.pointer.GeometryPointer> factory) {
+      if (geometryPointer == null) geometryPointer = java.util.Objects.requireNonNull(factory.get(), "geometryPointer");
+      return geometryPointer;
+   }
+   public void clearGeometryPointer() { if (geometryPointer != null) geometryPointer.clear(); }
+   public void invalidateGeometryPlan() { if (geometryPointer != null) geometryPointer.invalidatePlan(); }
    public io.github.fastformer.client.mode.ClientModeView modeView(
       io.github.fastformer.client.mode.ModeObservation observation
    ) {
@@ -130,6 +138,7 @@ public final class ClientInputSession {
 
    public void reset() {
       pointer.invalidate();
+      clearGeometryPointer();
       smartFill.clear();
       clearIdleEntry();
       entryConsumedAlt = false;

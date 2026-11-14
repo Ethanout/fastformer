@@ -38,6 +38,29 @@ public final class ClientSessionSystem {
       new io.github.fastformer.client.session.preview.ClientPreviewState();
 
    public io.github.fastformer.client.session.preview.ClientPreviewState previews() { return previews; }
+
+   public io.github.fastformer.client.geometry.pointer.GeometryPointer geometryPointer() {
+      var input = inputSession();
+      return input.geometryPointer(() -> new io.github.fastformer.client.geometry.pointer.GeometryPointer(
+         previews::geometry, previews::geometryVersion, previews::geometryTransformVersion,
+         () -> io.github.fastformer.client.interaction.intent.InteractionContext.capture(Minecraft.getInstance()),
+         context -> pointerRay(input, context),
+         () -> io.github.fastformer.client.input.PointerDragSnapshotView.geometryKey(input),
+         (message, failure) -> LOGGER.warn(message, failure)));
+   }
+
+   /** Samples the established ray purpose for this input owner's environment. */
+   public io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.Result pointerRay(
+      io.github.fastformer.client.input.ClientInputSession input,
+      io.github.fastformer.client.interaction.intent.InteractionContext context) {
+      var operations = operations();
+      var hand = context.player().getMainHandItem();
+      var policy = io.github.fastformer.client.interaction.pointer.PointerRayPolicy.select(
+         previews.geometry().active(), previews.building().active(), operations.active(),
+         operations.selectionSessionActive() || operations.selectionEdits().selectionDraftActive(),
+         hand.isEmpty(), io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(hand));
+      return input.pointer().sample(context.player(), context.alternative(), policy);
+   }
    private final io.github.fastformer.client.session.preview.ClientPreviewUpdates previewUpdates =
       new io.github.fastformer.client.session.preview.ClientPreviewUpdates(previews,
          payload -> operations().synchronize(payload), activity -> operations().submissions().observeActivity(activity));

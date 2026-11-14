@@ -89,7 +89,7 @@ final class GeometryInputController {
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryInteractionPayload.TYPE.id())
             && !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryUndoPayload.TYPE.id())) return false;
       PointerGesture gesture = button == 0 ? PointerGesture.LEFT_CLICK : PointerGesture.RIGHT_CLICK;
-      GeometryInteractionHit hit = FastPlaceClientPreviewCore.geometryInteractionHit();
+      GeometryInteractionHit hit = ClientSessionSystem.instance().geometryPointer().interactionHit();
       GeometryInteractionAction interaction = hit == null ? null : hit.target().action(gesture);
       var preview = ClientSessionSystem.instance().previews().geometry();
       session.captureGeometryPointerButton(button);
@@ -98,7 +98,7 @@ final class GeometryInputController {
       long requestId = nextRequestId();
       Vec3 eye = minecraft.player.getEyePosition();
       Vec3 view = minecraft.player.getViewVector(1.0F);
-      if (interaction == null && !FastPlaceClientPreviewCore.geometryPointSelected()) {
+      if (interaction == null && !ClientSessionSystem.instance().geometryPointer().pointSelected()) {
          if (button != 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryUndoPayload.TYPE.id())
             || preview.draftId() == null) return true;
          session.postGeometryPointer(new UndoPress(preview.mode(), new GeometryUndoPayload(requestId, preview.revision(),
@@ -217,20 +217,20 @@ final class GeometryInputController {
    }
 
    static GeometryGizmoDrag captureGeometryGizmoDrag(Minecraft minecraft, int mouseButton) {
-      if (!FastPlaceClientPreviewCore.geometryAllows(GeometryAction.GIZMO_DRAG)
+      if (!ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.GIZMO_DRAG)
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id())) {
          return null;
       }
-      AxisGizmo.Hit hit = FastPlaceClientPreviewCore.geometryGizmoHit();
+      AxisGizmo.Hit hit = ClientSessionSystem.instance().geometryPointer().gizmoHit();
       if (hit == null) {
          return null;
       }
       AxisGizmo.Handle handle = hit.handle();
-      AxisGizmo gizmo = FastPlaceClientPreviewCore.geometryGizmo();
+      AxisGizmo gizmo = ClientSessionSystem.instance().geometryPointer().gizmo();
       if (gizmo == null) {
          return null;
       }
-      double baseValue = FastPlaceClientPreviewCore.geometryGizmoValue(handle.axis(), handle.operation());
+      double baseValue = ClientSessionSystem.instance().geometryPointer().gizmoValue(handle.axis(), handle.operation());
       if (handle.drawsRing()) {
          Vec3 radial = hit.point().subtract(gizmo.center());
          if (radial.lengthSqr() < 1.0E-7) {
