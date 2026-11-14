@@ -432,3 +432,69 @@ tasks.register('verifySourceLayout', VerifySourceLayout) {
     javaSources.from(sourceSets.main.allJava, sourceSets.test.allJava, sourceSets.gameTest.allJava)
 }
 tasks.named('check') { dependsOn tasks.named('verifySourceLayout') }
+
+// Standalone compiled-bytecode verification. It deliberately does not load the mod or game classes.
+sourceSets {
+    architectureTool {
+        java.setSrcDirs(['tools/architecture/src'])
+        resources.setSrcDirs([])
+    }
+}
+dependencies {
+    architectureToolImplementation 'org.ow2.asm:asm:9.8'
+    architectureToolImplementation 'org.ow2.asm:asm-commons:9.8'
+}
+
+def architectureBaseline = layout.projectDirectory.file('gradle/architecture-debt.txt')
+def architectureReports = layout.buildDirectory.dir('reports/architecture')
+def registerArchitectureTask = { String taskName, String mode, String explanation ->
+    tasks.register(taskName, JavaExec) {
+        group = 'verification'
+        description = explanation
+        dependsOn tasks.named('classes'), tasks.named('architectureToolClasses')
+        classpath = sourceSets.architectureTool.runtimeClasspath
+        mainClass = 'io.github.fastformer.architecture.ArchitectureCheck'
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+        inputs.files(sourceSets.main.output.classesDirs)
+        inputs.dir('src/main/java')
+        if (mode == 'verify' || mode == 'strict') inputs.file(architectureBaseline)
+        outputs.dir(architectureReports.map { it.dir(mode) })
+        args = [mode, file('src/main/java').absolutePath, architectureBaseline.asFile.absolutePath,
+                architectureReports.get().dir(mode).asFile.absolutePath] +
+                sourceSets.main.output.classesDirs.files.collect { it.absolutePath }
+        if (mode == 'baseline') {
+            outputs.file(architectureBaseline)
+            outputs.upToDateWhen { false }
+        }
+    }
+}
+registerArchitectureTask('verifyArchitecture', 'verify',
+        'Reject new compiled dependency/layout debt and every strict capability-boundary violation.')
+registerArchitectureTask('verifyArchitectureStrict', 'strict',
+        'Require complete architecture acceptance: existing migration debt also fails.')
+registerArchitectureTask('architectureReport', 'report',
+        'Report all current compiled dependencies and migration debt without changing its baseline.')
+registerArchitectureTask('updateArchitectureBaseline', 'baseline',
+        'Explicitly replace reviewed migration debt; never called by check or ordinary verification.')
+tasks.register('testArchitectureTool', JavaExec) {
+    group = 'verification'
+    description = 'Test bytecode references, package cycles, layer policies and baseline failure behavior.'
+    dependsOn tasks.named('architectureToolClasses')
+    classpath = sourceSets.architectureTool.runtimeClasspath
+    mainClass = 'io.github.fastformer.architecture.ArchitectureToolTests'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+tasks.named('check') { dependsOn tasks.named('verifyArchitecture'), tasks.named('testArchitectureTool') }
+
+tasks.register('compareFaceRasters', JavaExec) {
+    group = 'verification'
+    description = 'Run the explicit 5000-sample read-only face raster experiment; never part of check.'
+    dependsOn tasks.named('prepareAsciiTestRuntime')
+    def testRuntime = tasks.named('test', Test)
+    classpath = testRuntime.get().classpath
+    mainClass = 'io.github.fastformer.fastplace.geometry.generation.FaceRasterComparison'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    maxHeapSize = '2g'
+    args = [file('docs/reviews/progress/face-raster-comparison.md').absolutePath,
+            providers.gradleProperty('faceComparisonSamples').getOrElse('5000')]
+}

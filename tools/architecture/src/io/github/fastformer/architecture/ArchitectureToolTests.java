@@ -1,0 +1,170 @@
+package io.github.fastformer.architecture;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+
+/** Dependency-free tool tests also run when Minecraft production sources cannot compile. */
+public final class ArchitectureToolTests {
+    private static final String ROOT = "io/github/fastformer/";
+
+    private ArchitectureToolTests() {}
+
+    public static void main(String[] arguments) throws Exception {
+        readsSemanticReferences();
+        combinesNestedClassesWithoutInventingSeparateTypes();
+        findsOnlyRealCycleEdges();
+        reportsEveryInternalCycleEdge();
+        checksLayerAndCapabilityBoundaries();
+        baselineNeverAcceptsUnlistedEdges();
+        exercisesCommandFailureAndReport();
+        System.out.println("Architecture tool: 7 test groups passed");
+    }
+
+    private static void readsSemanticReferences() {
+        ClassWriter type = new ClassWriter(0);
+        type.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, ROOT + "client/Fixture",
+                "Ljava/lang/Object;Lio/github/fastformer/common/Generic<Lio/github/fastformer/common/Argument;>;",
+                "java/lang/Object", new String[]{ROOT + "common/Contract"});
+        type.visitAnnotation("L" + ROOT + "common/Marker;", false).visit("value", Type.getObjectType(ROOT + "common/Annotated"));
+        type.visitField(Opcodes.ACC_PRIVATE, "target", "L" + ROOT + "server/Field;", null, null).visitEnd();
+        var method = type.visitMethod(Opcodes.ACC_PUBLIC, "call", "(L" + ROOT + "common/Parameter;)L"
+                + ROOT + "common/Result;", null, new String[]{ROOT + "common/Failure"});
+        method.visitCode();
+        method.visitTypeInsn(Opcodes.CHECKCAST, ROOT + "server/Cast");
+        method.visitMethodInsn(Opcodes.INVOKESTATIC, ROOT + "server/Call", "apply", "()V", false);
+        method.visitLdcInsn(Type.getObjectType(ROOT + "common/ClassLiteral"));
+        method.visitLdcInsn("io.github.fastformer.server.NotASymbolicReference");
+        method.visitInvokeDynamicInsn("run", "()Ljava/lang/Runnable;",
+                new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory", "()V", false),
+                Type.getMethodType("()V"), new Handle(Opcodes.H_INVOKESTATIC, ROOT + "server/Lambda", "apply", "()V", false),
+                Type.getMethodType("()V"));
+        method.visitInsn(Opcodes.ACONST_NULL);
+        method.visitInsn(Opcodes.ARETURN);
+        method.visitMaxs(2, 2);
+        method.visitEnd();
+        type.visitEnd();
+        Map<String, Set<String>> references = new TreeMap<>();
+        BytecodeDependencies.read(type.toByteArray(), references);
+        Set<String> actual = references.get("io.github.fastformer.client.Fixture");
+        for (String expected : Set.of("common.Generic", "common.Argument", "common.Contract", "common.Marker",
+                "common.Annotated", "server.Field", "common.Parameter", "common.Result", "common.Failure",
+                "server.Cast", "server.Call", "common.ClassLiteral", "server.Lambda")) {
+            require(actual.contains("io.github.fastformer." + expected), "Missing semantic reference: " + expected);
+        }
+        require(!actual.contains("io.github.fastformer.server.NotASymbolicReference"), "Plain text must not create dependencies");
+    }
+
+    private static void combinesNestedClassesWithoutInventingSeparateTypes() {
+        Map<String, Set<String>> result = new TreeMap<>();
+        BytecodeDependencies.read(fixture(ROOT + "client/Owner", ROOT + "common/First"), result);
+        BytecodeDependencies.read(fixture(ROOT + "client/Owner$Nested", ROOT + "server/Hidden$Inner"), result);
+        require(result.size() == 1, "Nested types count as their source-level owner");
+        require(result.values().iterator().next().containsAll(Set.of("io.github.fastformer.common.First",
+                "io.github.fastformer.server.Hidden")), "Nested dependencies must merge into owner");
+    }
+
+    private static void findsOnlyRealCycleEdges() {
+        var graph = Map.of("a", Set.of("b"), "b", Set.of("a", "c"), "c", Set.of("d"), "d", Set.<String>of());
+        var components = PackageGraph.components(graph);
+        require(components.contains(Set.of("a", "b")), "Mutual dependency must form one component");
+        require(components.contains(Set.of("c")) && components.contains(Set.of("d")), "Outgoing path is not a cycle");
+        require(PackageGraph.components(Map.of("a", Set.of("b"), "b", Set.of("c"), "c", Set.of("a")))
+                .equals(java.util.List.of(Set.of("a", "b", "c"))), "Cycles longer than two edges must be detected");
+    }
+
+    private static void checksLayerAndCapabilityBoundaries() {
+        String root = "io.github.fastformer.";
+        require(ArchitectureRules.forbiddenLayer(root + "protocol.Packet", root + "fastplace.Model"), "Legacy package is not common");
+        require(ArchitectureRules.forbiddenLayer(root + "client.Draw", root + "server.State"), "Client/server dependency");
+        require(ArchitectureRules.forbiddenLayer(root + "core.Math", "net.minecraft.core.BlockPos"), "Core/game dependency");
+        require(!ArchitectureRules.forbiddenLayer(root + "client.Draw", root + "protocol.Packet"), "Allowed layer dependency");
+        require(ArchitectureRules.strictBoundary(root + "client.input.Keys", root + "client.render.Lines"), "Input/render dependency");
+        require(ArchitectureRules.strictBoundary(root + "client.feedback.State", root + "client.session.Scope"), "Feedback/assembly dependency");
+        require(!ArchitectureRules.strictBoundary(root + "client.feedback.State", root + "common.Model"), "Feedback domain dependency");
+    }
+
+    private static void reportsEveryInternalCycleEdge() throws Exception {
+        String root = "io.github.fastformer.client.";
+        Path sources = Files.createTempDirectory("fastformer-architecture-cycle-");
+        try {
+            var references = Map.of(root + "a.First", Set.of(root + "b.Second"),
+                    root + "b.Second", Set.of(root + "a.First", root + "c.Last"),
+                    root + "c.Last", Set.<String>of());
+            var findings = ArchitectureRules.inspect(references, sources);
+            Set<String> cycleEdges = new java.util.TreeSet<>();
+            for (String debt : findings.debt()) if (debt.startsWith("client-cycle|")) cycleEdges.add(debt);
+            require(cycleEdges.equals(Set.of("client-cycle|" + root + "a -> " + root + "b",
+                    "client-cycle|" + root + "b -> " + root + "a")), "Report exactly the edges inside a real cycle");
+        } finally { deleteFixture(sources); }
+    }
+
+    private static void baselineNeverAcceptsUnlistedEdges() throws Exception {
+        Path root = Files.createTempDirectory("fastformer-architecture-baseline-");
+        Path baseline = root.resolve("baseline.txt");
+        try {
+            ArchitectureReport.writeBaseline(baseline, Set.of("layer|a -> b"));
+            Set<String> allowed = ArchitectureReport.readBaseline(baseline);
+            require(ArchitectureReport.difference(Set.of("layer|a -> b", "layer|a -> c"), allowed)
+                    .equals(Set.of("layer|a -> c")), "Exact baseline must reject new target");
+            Files.writeString(baseline, "layer|a -> *\n");
+            expectFailure(() -> ArchitectureReport.readBaseline(baseline), "Wildcard debt baseline accepted");
+            Files.writeString(baseline, "same\nsame\n");
+            expectFailure(() -> ArchitectureReport.readBaseline(baseline), "Duplicate debt baseline accepted");
+        } finally { deleteFixture(root); }
+    }
+
+    private static void exercisesCommandFailureAndReport() throws Exception {
+        Path root = Files.createTempDirectory("fastformer-architecture-cli-");
+        try {
+            Path classes = Files.createDirectory(root.resolve("classes"));
+            Path sources = Files.createDirectory(root.resolve("sources"));
+            Path baseline = root.resolve("baseline.txt");
+            Path report = root.resolve("report");
+            Files.write(classes.resolve("Fixture.class"), fixture(ROOT + "client/sample/Fixture", ROOT + "fastplace/Old"));
+            ArchitectureCheck.main(args("baseline", sources, baseline, report, classes));
+            String original = Files.readString(baseline);
+            ArchitectureCheck.main(args("verify", sources, baseline, report, classes));
+            require(Files.readString(baseline).equals(original), "Verification must not rewrite baseline");
+            expectFailure(() -> ArchitectureCheck.main(args("strict", sources, baseline, report, classes)), "Strict mode accepted old debt");
+            require(Files.readString(report.resolve("summary.txt")).contains("NOT ACHIEVED"), "Debt report must be explicit");
+            Files.write(classes.resolve("Fixture.class"), fixture(ROOT + "client/sample/Fixture", ROOT + "server/NewDependency"));
+            expectFailure(() -> ArchitectureCheck.main(args("verify", sources, baseline, report, classes)), "New class edge accepted");
+            Files.write(classes.resolve("Fixture.class"), fixture(ROOT + "client/input/Fixture", ROOT + "client/render/Hidden"));
+            expectFailure(() -> ArchitectureCheck.main(args("baseline", sources, baseline, report, classes)), "Strict boundary baseline accepted");
+        } finally { deleteFixture(root); }
+    }
+
+    private static String[] args(String mode, Path sources, Path baseline, Path report, Path classes) {
+        return new String[]{mode, sources.toString(), baseline.toString(), report.toString(), classes.toString()};
+    }
+
+    private static byte[] fixture(String owner, String target) {
+        ClassWriter type = new ClassWriter(0);
+        type.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, owner, null, "java/lang/Object", null);
+        type.visitField(Opcodes.ACC_PUBLIC, "value", "L" + target + ";", null, null).visitEnd();
+        type.visitEnd();
+        return type.toByteArray();
+    }
+
+    private static void expectFailure(CheckedAction action, String message) throws Exception {
+        try { action.run(); } catch (IllegalStateException | java.io.IOException expected) { return; }
+        throw new AssertionError(message);
+    }
+
+    private static void require(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
+
+    private static void deleteFixture(Path root) throws Exception {
+        try (var paths = Files.walk(root)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.delete(path);
+        }
+    }
+
+    @FunctionalInterface private interface CheckedAction { void run() throws Exception; }
+}
