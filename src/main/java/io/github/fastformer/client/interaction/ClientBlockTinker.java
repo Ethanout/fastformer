@@ -16,7 +16,7 @@ public final class ClientBlockTinker {
 
    public static boolean available(Player player) {
       return BlockTinker.canEdit(player) && ClientInteractionUpdates.wrenchEnabled(player)
-         && io.github.fastformer.client.input.FastPlaceClientInput.vanillaSession()
+         && io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()
          && !FastPlaceClientPreviewCore.active() && !FastPlaceClientPreviewCore.operationActive()
          && !FastPlaceClientPreviewCore.geometryActive() && !FastPlaceClientPreviewCore.taskActive();
    }

@@ -13,7 +13,7 @@ import io.github.fastformer.client.render.model.BuildingRenderFrame;
 import io.github.fastformer.client.render.model.BuildingRenderKey;
 import io.github.fastformer.client.render.model.BuildingRenderLayers;
 import io.github.fastformer.client.render.model.BuildingSpecialBlock;
-import io.github.fastformer.client.render.state.ClientPreviewState;
+import io.github.fastformer.client.session.preview.ClientPreviewState;
 import io.github.fastformer.fastplace.geometry.FillMode;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks;
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;

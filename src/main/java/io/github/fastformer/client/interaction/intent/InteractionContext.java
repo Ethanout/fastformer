@@ -15,7 +15,7 @@ public record InteractionContext(Minecraft minecraft, LocalPlayer player, Vec3 e
          player.getViewVector(1), minecraft.gameRenderer.getMainCamera().getPosition(),
          FastPlaceClientInput.modifierHeld(), FastPlaceClientInput.controlHeld(), vanillaOwnsPointer(minecraft));
    }
-   public static boolean vanillaOwnsPointer(Minecraft minecraft) { return FastPlaceClientInput.vanillaSession(); }
+   public static boolean vanillaOwnsPointer(Minecraft minecraft) { return io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed(); }
    public static float previewVisibility(Minecraft minecraft) { return 1; }
    public static float previewVisibility(Minecraft minecraft, float partialTick) { return 1; }
    public static boolean directlyNearVanillaBlock(Minecraft minecraft) {

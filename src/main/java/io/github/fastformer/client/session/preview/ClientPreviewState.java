@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.state;
+package io.github.fastformer.client.session.preview;
 
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
@@ -14,7 +14,7 @@ import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayloa
 import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
 import java.util.Objects;
 
-/** Owns the latest server preview snapshots shown by the client renderer. */
+/** Owns versioned server snapshots and reconnect confirmation for the client session. */
 public final class ClientPreviewState {
    private BuildingPreviewSnapshot building = BuildingPreviewSnapshot.inactive();
    private BuildingPreviewSessionPayload buildingSession = new BuildingPreviewSessionPayload(building.session());

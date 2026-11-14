@@ -16,7 +16,7 @@ public final class WorldSessionEvents {
    private static final WorldSessionLifecycle LIFECYCLE = new WorldSessionLifecycle(new WorldSessionLifecycle.Participants() {
       @Override public void endInputSession() { FastPlaceClientInput.endWorldSession(); }
       @Override public void clearSourceMask() { ClientSessionSystem.instance().operations().sourceMask().clear(); }
-      @Override public void resetPreviewSession() { FastPlaceClientPreviewCore.resetConnectionState(); }
+      @Override public void resetPreviewSession() { ClientSessionSystem.instance().previews().resetConnection(); }
       @Override public void disconnectOperation() { ClientSessionSystem.instance().operations().onDisconnected(); }
       @Override public void clearInteractionCache() { ClientSessionSystem.instance().operations().pointer().clear(); }
       @Override public void clearFeedback() { FastPlaceClientPreviewCore.clearTransientFeedback(); }

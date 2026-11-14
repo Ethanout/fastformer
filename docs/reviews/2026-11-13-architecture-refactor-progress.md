@@ -601,3 +601,12 @@
 - 穷举所有阶段、128 组上下文／修饰状态、8 个按键与三种动作，对照原规则；补充填充确认／取消通过及活动会话不继承空闲入口用例。
 - `.temp/architecture-mode-key-verified.log`：完整 `check` 与独立新目录 312 项必需 GameTest 通过；实际试玩存档和正式构建仓库配置未修改。
 - 这是专用工具键迁移，通用快捷键／取消／提交和指针处理仍在原输入流程；服务端 Mode、完整 PreviewFrame／PreviewMode、操作树与其余手册项目尚未完成。
+
+## 会话拥有预览快照与统一观察（2026-11-14）
+
+- 专用工具按键阶段已提交并推送：`1e204e8`。
+- `ClientPreviewState` 移入 `client.session.preview`，由 `ClientSessionSystem` 实例持有，渲染器不再创建服务端快照容器。世界边界直接清所属会话快照；缓存与绘制读取同一对象，原 revision、分包一致性及重连确认规则保留。状态及提交快照测试迁至实际包。
+- `ClientModeView` 同时返回观察阶段、活动交互和空闲准入。装配层从真实能力读取事实，不再从渲染总入口拼接观察；删除输入中的 vanillaSession／activeSession／observedInputState／observedSessions。扳手、强制放置、HUD 和指针上下文统一读取模式视图。待发送起形、提交／取消路由及任务遮盖交互的既有语义不变。
+- 穷举 512 组工作流、全部路由阶段及待发送起形开关，对照迁移前空闲规则；补充独立系统快照隔离、同 tick 更新、世界重置及旧视图不可变测试。源码约束禁止渲染重新拥有快照、快照反向读取渲染／实时客户端及恢复旧查询入口。
+- `.temp/architecture-session-observation-tests.log` 定向测试通过；`.temp/architecture-session-observation-verified.log` 完整 check 与新目录 312 项必需 GameTest 通过。没有清除实际试玩存档，没有修改正式仓库配置。
+- 网络载荷应用和渲染缓存失效仍在渲染总入口协调，后续需继续移交；完整 PreviewFrame／PreviewMode、指针及通用按键路由、服务端模式、操作树和其余手册项目尚未完成。

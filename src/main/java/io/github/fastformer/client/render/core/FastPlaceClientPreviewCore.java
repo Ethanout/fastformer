@@ -53,7 +53,7 @@ import io.github.fastformer.client.render.interaction.OperationPointerTarget;
 import io.github.fastformer.client.render.mesh.GhostMeshBuilder;
 import io.github.fastformer.client.render.model.*;
 import io.github.fastformer.client.render.shell.ShapeShellRenderer;
-import io.github.fastformer.client.render.state.ClientPreviewState;
+import io.github.fastformer.client.session.preview.ClientPreviewState;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryHit;
@@ -174,7 +174,9 @@ public final class FastPlaceClientPreviewCore {
    private static final double GHOST_OUTLINE_CAMERA_BIAS = 0.012;
    private static final ResourceLocation CROSSHAIR_SPRITE = ResourceLocation.withDefaultNamespace("hud/crosshair");
    static final double EPSILON = 1.0E-7;
-   private static final ClientPreviewState PREVIEW_STATE = new ClientPreviewState();
+   private static ClientPreviewState previews() {
+      return ClientSessionSystem.instance().previews();
+   }
    /** Owns transient interaction feedback and its HUD rendering. */
    private static final PreviewFeedbackHud FEEDBACK = new PreviewFeedbackHud(FastPlaceClientPreviewCore::gizmoAxisHudColor);
    static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
@@ -182,7 +184,7 @@ public final class FastPlaceClientPreviewCore {
    private static TransformStatus geometryTransformBaseline;
    private static long lastPreviewFailureLogAt;
    private static final BuildingPreviewCache BUILDING_CACHE = new BuildingPreviewCache(
-      PREVIEW_STATE, () -> PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
+      previews(), () -> PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
       FastPlaceClientPreviewCore::logPreviewFailure
    );
    private static GeometryPlanKey cachedGeometryPlanKey;
@@ -195,77 +197,77 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static void applyBuilding(BuildingPreviewSnapshot payload) {
-      PREVIEW_STATE.applyBuilding(payload);
+      previews().applyBuilding(payload);
       BUILDING_CACHE.resetBuildingPreviewCaches();
    }
 
    public static java.util.Optional<io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot> buildingSubmission() {
-      return PREVIEW_STATE.buildingSubmission();
+      return previews().buildingSubmission();
    }
 
    public static java.util.Optional<BuildingPreviewSessionPayload> idleBuildingSession() {
-      return PREVIEW_STATE.idleBuildingSession();
+      return previews().idleBuildingSession();
    }
 
    public static net.minecraft.resources.ResourceLocation buildingProfile() {
-      return PREVIEW_STATE.buildingProfile();
+      return previews().buildingProfile();
    }
 
    public static GeometryPreviewPayload geometrySnapshot() {
-      return PREVIEW_STATE.geometry();
+      return previews().geometry();
    }
 
    public static void applyQuickShapeSubmissionParameters(
       io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload payload
    ) {
-      PREVIEW_STATE.applyQuickShapeSubmissionParameters(payload);
+      previews().applyQuickShapeSubmissionParameters(payload);
    }
 
    public static java.util.Optional<io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload> submissionParameters(
       io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot snapshot
    ) {
-      return PREVIEW_STATE.submissionParameters(snapshot);
+      return previews().submissionParameters(snapshot);
    }
 
    public static void applyBuildingSession(BuildingPreviewSessionPayload payload) {
-      if (PREVIEW_STATE.holdReconnectBuildingSession(payload)) {
+      if (previews().holdReconnectBuildingSession(payload)) {
          return;
       }
-      if (PREVIEW_STATE.applyBuildingSession(payload)) {
+      if (previews().applyBuildingSession(payload)) {
          BUILDING_CACHE.resetBuildingPreviewCaches();
       }
    }
 
    public static void applyBuildingParameters(BuildingPreviewParametersPayload payload) {
-      if (PREVIEW_STATE.holdReconnectBuildingParameters(payload)) {
+      if (previews().holdReconnectBuildingParameters(payload)) {
          return;
       }
-      if (PREVIEW_STATE.applyBuildingParameters(payload)) {
+      if (previews().applyBuildingParameters(payload)) {
          BUILDING_CACHE.resetBuildingPreviewCaches();
       }
    }
 
    public static void applyBuildingEffect(BuildingPreviewEffectPayload payload) {
-      if (PREVIEW_STATE.holdReconnectBuildingEffect(payload)) {
+      if (previews().holdReconnectBuildingEffect(payload)) {
          return;
       }
-      if (PREVIEW_STATE.applyBuildingEffect(payload)) {
+      if (previews().applyBuildingEffect(payload)) {
          BUILDING_CACHE.resetBuildingPreviewCaches();
       }
    }
 
    public static void applyOperation(OperationPreviewPayload payload) {
       if (ClientSessionSystem.instance().operations().synchronize(payload)) {
-         PREVIEW_STATE.applyOperation(payload);
+         previews().applyOperation(payload);
       }
    }
 
    public static void applyGeometry(GeometryPreviewPayload payload) {
-      if (PREVIEW_STATE.holdReconnectGeometry(payload)) {
+      if (previews().holdReconnectGeometry(payload)) {
          return;
       }
-      GeometryPreviewPayload previous = PREVIEW_STATE.geometry();
-      if (!PREVIEW_STATE.applyGeometry(payload)) {
+      GeometryPreviewPayload previous = previews().geometry();
+      if (!previews().applyGeometry(payload)) {
          return;
       }
       if (!continuesGeometryTransform(previous, payload)) {
@@ -278,14 +280,14 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static void applyActivity(ActivityStatePayload payload) {
-      if (PREVIEW_STATE.applyActivity(payload)) {
+      if (previews().applyActivity(payload)) {
          ClientSessionSystem.instance().operations().submissions().observeActivity(payload.activity());
       }
    }
 
    /** Ends a reconnect boundary once the snapshot that followed it has settled. */
    public static void onClientTick() {
-      PREVIEW_STATE.tickReconnectBoundary();
+      previews().tickReconnectBoundary();
       Minecraft minecraft = Minecraft.getInstance();
       // Hover acceleration and transient HUD feedback belong to the focused
       // world view. Do not carry either across a menu, pause screen, or world
@@ -298,12 +300,12 @@ public final class FastPlaceClientPreviewCore {
 
    /** Changes whenever a server preview or activity snapshot is applied. */
    public static long stateRevision() {
-      return PREVIEW_STATE.revision();
+      return previews().revision();
    }
 
    public static void noteScrollFeedback() {
       long now = System.nanoTime();
-      FEEDBACK.noteScroll(PREVIEW_STATE.building(), now);
+      FEEDBACK.noteScroll(previews().building(), now);
    }
 
    /** Clears HUD and hover feedback when the input state cancels a session. */
@@ -319,34 +321,34 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean active() {
-      return PREVIEW_STATE.building().active();
+      return previews().building().active();
    }
 
    public static boolean enabled() {
-      return PREVIEW_STATE.building().enabled();
+      return previews().building().enabled();
    }
 
    public static boolean middleConfirmEnabled() {
-      return PREVIEW_STATE.building().middleConfirmEnabled();
+      return previews().building().middleConfirmEnabled();
    }
 
    public static boolean buildingMiddleClickIgnored() {
-      BuildingPreviewSnapshot snapshot = PREVIEW_STATE.building();
+      BuildingPreviewSnapshot snapshot = previews().building();
       return io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
          snapshot.faceMode(), snapshot.points().size(), snapshot.polygonClosed()
       );
    }
 
    public static boolean taskActive() {
-      return PREVIEW_STATE.activity().task();
+      return previews().activity().task();
    }
 
    public static FastPlaceActivity activity() {
-      return PREVIEW_STATE.activity();
+      return previews().activity();
    }
 
    public static boolean activityCancellable() {
-      return PREVIEW_STATE.activity().cancellable();
+      return previews().activity().cancellable();
    }
 
    public static boolean operationActive() {
@@ -355,11 +357,11 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean operationNeedsSecond() {
-      return PREVIEW_STATE.operation().active() && !PREVIEW_STATE.operation().hasSecond();
+      return previews().operation().active() && !previews().operation().hasSecond();
    }
 
    public static boolean operationNeedsFirst() {
-      return PREVIEW_STATE.operation().active() && !PREVIEW_STATE.operation().hasFirst();
+      return previews().operation().active() && !previews().operation().hasFirst();
    }
 
    public static boolean operationSelectionReady() {
@@ -375,7 +377,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static int operationPointCount() {
-      return PREVIEW_STATE.operation().active() ? PREVIEW_STATE.operation().points().size() : 0;
+      return previews().operation().active() ? previews().operation().points().size() : 0;
    }
 
    public static boolean operationCuboid() {
@@ -387,46 +389,46 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean operationPrismBaseOpen() {
-      return PREVIEW_STATE.operation().active()
-         && PREVIEW_STATE.operation().operationSelectionMode() == OperationSelectionMode.PRISM
-         && PREVIEW_STATE.operation().operationPrismBasePointCount() == 0;
+      return previews().operation().active()
+         && previews().operation().operationSelectionMode() == OperationSelectionMode.PRISM
+         && previews().operation().operationPrismBasePointCount() == 0;
    }
 
    public static boolean operationPointSelected() {
-      return PREVIEW_STATE.operation().active()
-         && PREVIEW_STATE.operation().operationSelectedPointIndex() >= 0
-         && PREVIEW_STATE.operation().operationSelectedPointIndex() < PREVIEW_STATE.operation().points().size();
+      return previews().operation().active()
+         && previews().operation().operationSelectedPointIndex() >= 0
+         && previews().operation().operationSelectedPointIndex() < previews().operation().points().size();
    }
 
    public static int operationSelectedPointIndex() {
-      return operationPointSelected() ? PREVIEW_STATE.operation().operationSelectedPointIndex() : -1;
+      return operationPointSelected() ? previews().operation().operationSelectedPointIndex() : -1;
    }
 
    public static Vec3 operationPointCenter(int index) {
-      return PREVIEW_STATE.operation().active() && index >= 0 && index < PREVIEW_STATE.operation().points().size()
-         ? Vec3.atCenterOf(PREVIEW_STATE.operation().points().get(index))
+      return previews().operation().active() && index >= 0 && index < previews().operation().points().size()
+         ? Vec3.atCenterOf(previews().operation().points().get(index))
          : null;
    }
 
    public static int operationPointUnderCrosshairIndex() {
-      if (!PREVIEW_STATE.operation().active() || operationSelectionConfirmed() || PREVIEW_STATE.operation().points().isEmpty()) {
+      if (!previews().operation().active() || operationSelectionConfirmed() || previews().operation().points().isEmpty()) {
          return -1;
       }
-      BlockPos point = pointUnderCrosshair(PREVIEW_STATE.operation().points(), true);
-      return point == null ? -1 : PREVIEW_STATE.operation().points().indexOf(point);
+      BlockPos point = pointUnderCrosshair(previews().operation().points(), true);
+      return point == null ? -1 : previews().operation().points().indexOf(point);
    }
 
    public static SelectionPrism.EdgeInsertion operationPrismEdgeInsertion() {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      if (!operationPrism() || operationSelectionConfirmed() || PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) || player == null || PREVIEW_STATE.operation().points().size() < 2
+      if (!operationPrism() || operationSelectionConfirmed() || PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) || player == null || previews().operation().points().size() < 2
          || operationPointUnderCrosshairIndex() >= 0) {
          return null;
       }
       var ray = blockPointer(player);
       return SelectionPrism.resolveEdgeInsertion(
-         PREVIEW_STATE.operation().points(),
-         PREVIEW_STATE.operation().operationPrismBasePointCount(),
+         previews().operation().points(),
+         previews().operation().operationPrismBasePointCount(),
          player.getEyePosition(),
          player.getViewVector(1.0F),
          ray.distance()
@@ -434,27 +436,27 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static SelectionPrism.GridPlane operationPointGridPlane(int pointIndex) {
-      if (!operationPrism() || pointIndex < 0 || pointIndex >= PREVIEW_STATE.operation().points().size()) {
+      if (!operationPrism() || pointIndex < 0 || pointIndex >= previews().operation().points().size()) {
          return null;
       }
-      int baseCount = PREVIEW_STATE.operation().operationPrismBasePointCount() >= 3
-         ? PREVIEW_STATE.operation().operationPrismBasePointCount()
-         : PREVIEW_STATE.operation().points().size();
+      int baseCount = previews().operation().operationPrismBasePointCount() >= 3
+         ? previews().operation().operationPrismBasePointCount()
+         : previews().operation().points().size();
       return pointIndex < baseCount && baseCount >= 3
-         ? SelectionPrism.gridPlane(PREVIEW_STATE.operation().points().subList(0, baseCount))
+         ? SelectionPrism.gridPlane(previews().operation().points().subList(0, baseCount))
          : null;
    }
 
    public static SelectionPrism.GridLine operationPointGridLine(int pointIndex) {
-      if (!operationPrism() || pointIndex < 0 || pointIndex >= PREVIEW_STATE.operation().points().size()) {
+      if (!operationPrism() || pointIndex < 0 || pointIndex >= previews().operation().points().size()) {
          return null;
       }
-      int closedBaseCount = PREVIEW_STATE.operation().operationPrismBasePointCount();
-      int baseCount = closedBaseCount >= 3 ? closedBaseCount : PREVIEW_STATE.operation().points().size();
+      int closedBaseCount = previews().operation().operationPrismBasePointCount();
+      int baseCount = closedBaseCount >= 3 ? closedBaseCount : previews().operation().points().size();
       if (baseCount < 3 || pointIndex != 0 && (closedBaseCount < 3 || pointIndex < baseCount)) {
          return null;
       }
-      return SelectionPrism.heightGridLine(PREVIEW_STATE.operation().points().subList(0, baseCount));
+      return SelectionPrism.heightGridLine(previews().operation().points().subList(0, baseCount));
    }
 
    public static BlockPos operationCandidatePoint() {
@@ -464,18 +466,18 @@ public final class FastPlaceClientPreviewCore {
       }
       var ray = blockPointer(minecraft.player);
       BlockHitResult hit = ray.hit();
-      if (operationPrismBaseOpen() && PREVIEW_STATE.operation().points().size() >= 3) {
+      if (operationPrismBaseOpen() && previews().operation().points().size() >= 3) {
          return SelectionPrism.resolveBasePlanePoint(
-            PREVIEW_STATE.operation().points(),
+            previews().operation().points(),
             minecraft.player.getEyePosition(),
             minecraft.player.getViewVector(1.0F),
             ray.distance()
          );
       }
       if (operationWaitingForPrismHeight()) {
-         int baseCount = PREVIEW_STATE.operation().operationPrismBasePointCount();
+         int baseCount = previews().operation().operationPrismBasePointCount();
          return SelectionPrism.resolveHeightPoint(
-            PREVIEW_STATE.operation().points().subList(0, baseCount),
+            previews().operation().points().subList(0, baseCount),
             minecraft.player.getEyePosition(),
             minecraft.player.getViewVector(1.0F),
             ray.distance()
@@ -508,10 +510,10 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static boolean operationWaitingForPrismHeight() {
-      return PREVIEW_STATE.operation().active()
-         && PREVIEW_STATE.operation().operationSelectionMode() == OperationSelectionMode.PRISM
-         && PREVIEW_STATE.operation().operationPrismBasePointCount() >= 3
-         && PREVIEW_STATE.operation().points().size() == PREVIEW_STATE.operation().operationPrismBasePointCount();
+      return previews().operation().active()
+         && previews().operation().operationSelectionMode() == OperationSelectionMode.PRISM
+         && previews().operation().operationPrismBasePointCount() >= 3
+         && previews().operation().points().size() == previews().operation().operationPrismBasePointCount();
    }
 
    public static AxisGizmo operationGizmo() {
@@ -525,20 +527,20 @@ public final class FastPlaceClientPreviewCore {
          || minecraft.player == null) {
          return null;
       }
-      AxisGizmo.Operation[] operations = OperationGizmoPresentation.operations(PREVIEW_STATE.operation().operationStageMode())
+      AxisGizmo.Operation[] operations = OperationGizmoPresentation.operations(previews().operation().operationStageMode())
          .toArray(AxisGizmo.Operation[]::new);
       if (operations.length == 0) {
          return null;
       }
       AABB bounds = selection.bounds();
       Vec3 center = bounds.getCenter();
-      BlockPos minDisplacement = OperationGeometry.stackDisplacement(bounds, PREVIEW_STATE.operation().operationStackMin());
-      BlockPos maxDisplacement = OperationGeometry.stackDisplacement(bounds, PREVIEW_STATE.operation().operationStackMax());
+      BlockPos minDisplacement = OperationGeometry.stackDisplacement(bounds, previews().operation().operationStackMin());
+      BlockPos maxDisplacement = OperationGeometry.stackDisplacement(bounds, previews().operation().operationStackMax());
       center = center.add(
          (minDisplacement.getX() + maxDisplacement.getX()) * 0.5,
          (minDisplacement.getY() + maxDisplacement.getY()) * 0.5,
          (minDisplacement.getZ() + maxDisplacement.getZ()) * 0.5
-      ).add(Vec3.atLowerCornerOf(PREVIEW_STATE.operation().operationTranslation()));
+      ).add(Vec3.atLowerCornerOf(previews().operation().operationTranslation()));
       Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
       GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
       TransformFrame frame = TransformFrame.world(center);
@@ -560,9 +562,9 @@ public final class FastPlaceClientPreviewCore {
          return 0.0;
       }
       return switch (operation) {
-         case MOVE -> axisComponent(Vec3.atLowerCornerOf(PREVIEW_STATE.operation().operationTranslation()), axis);
-         case SCALE -> axisComponent(Vec3.atLowerCornerOf(PREVIEW_STATE.operation().operationStackVector()), axis);
-         case ROTATE -> Math.toDegrees(axisComponent(PREVIEW_STATE.operation().operationRotation(), axis));
+         case MOVE -> axisComponent(Vec3.atLowerCornerOf(previews().operation().operationTranslation()), axis);
+         case SCALE -> axisComponent(Vec3.atLowerCornerOf(previews().operation().operationStackVector()), axis);
+         case ROTATE -> Math.toDegrees(axisComponent(previews().operation().operationRotation(), axis));
       };
    }
 
@@ -631,22 +633,22 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean geometryActive() {
-      return PREVIEW_STATE.geometry().active();
+      return previews().geometry().active();
    }
 
    public static boolean geometryAwaitingFirstPoint() {
-      return PREVIEW_STATE.geometry().active() && PREVIEW_STATE.geometry().points().isEmpty();
+      return previews().geometry().active() && previews().geometry().points().isEmpty();
    }
 
    public static boolean geometryPointSelected() {
-      return PREVIEW_STATE.geometry().active() && PREVIEW_STATE.geometry().selectedPointIndex() >= 0;
+      return previews().geometry().active() && previews().geometry().selectedPointIndex() >= 0;
    }
 
    public static boolean buildingRaycastSubmodeAvailable() {
-      if (!PREVIEW_STATE.building().enabled()) {
+      if (!previews().building().enabled()) {
          return false;
       }
-      if (!PREVIEW_STATE.building().active()) {
+      if (!previews().building().active()) {
          Minecraft minecraft = Minecraft.getInstance();
          if (minecraft.player == null || !PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())) {
             return false;
@@ -658,29 +660,29 @@ public final class FastPlaceClientPreviewCore {
    public static GeometryInteractionHit geometryInteractionHit() {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
+      if (!previews().geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
          return null;
       }
       Vec3 eye = player.getEyePosition();
       Vec3 view = player.getViewVector(1.0F);
       GeometryWorkflowView workflowView = geometryWorkflowView(view);
-      List<GeometryInteractionTarget> targets = GeometryWorkflows.get(PREVIEW_STATE.geometry().mode()).interactionTargets(workflowView);
+      List<GeometryInteractionTarget> targets = GeometryWorkflows.get(previews().geometry().mode()).interactionTargets(workflowView);
       return GeometryInteractionHit.nearest(eye, view, visiblePreviewReach(player), targets);
    }
 
    public static boolean embeddedModifierReticle() {
-      if (FastPlaceClientInput.vanillaSession()) {
+      if (io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
          Minecraft minecraft = Minecraft.getInstance();
          return minecraft.player != null && minecraft.player.isCreative() && enabled() && !QuickReplaceMode.active()
             && minecraft.getCameraEntity() == minecraft.player
             && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
             && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession());
       }
-      if (PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) && PREVIEW_STATE.geometry().active()) {
-         return PREVIEW_STATE.geometry().mode() == GeometryMode.WALL;
+      if (PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) && previews().geometry().active()) {
+         return previews().geometry().mode() == GeometryMode.WALL;
       }
-      return !PREVIEW_STATE.geometry().active()
-         && !PREVIEW_STATE.operation().active()
+      return !previews().geometry().active()
+         && !previews().operation().active()
          && buildingRaycastSubmode()
          && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession());
    }
@@ -689,12 +691,12 @@ public final class FastPlaceClientPreviewCore {
       if (buildingRaycastSubmode()) {
          return false;
       }
-      if (!PREVIEW_STATE.geometry().active()) {
+      if (!previews().geometry().active()) {
          return false;
       }
-      return switch (PREVIEW_STATE.geometry().mode()) {
-         case POLYHEDRON -> !PREVIEW_STATE.geometry().closed();
-         case CONE_PRISM -> PREVIEW_STATE.geometry().conePlaneMode().stageFor(PREVIEW_STATE.geometry().points().size()) != ConePrismStage.ADJUST;
+      return switch (previews().geometry().mode()) {
+         case POLYHEDRON -> !previews().geometry().closed();
+         case CONE_PRISM -> previews().geometry().conePlaneMode().stageFor(previews().geometry().points().size()) != ConePrismStage.ADJUST;
          case CONVEX_POLYHEDRON -> true;
          default -> false;
       };
@@ -703,7 +705,7 @@ public final class FastPlaceClientPreviewCore {
    public static AxisGizmo.Hit geometryGizmoHit() {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
+      if (!previews().geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
          return null;
       }
       Vec3 view = player.getViewVector(1.0F);
@@ -721,7 +723,7 @@ public final class FastPlaceClientPreviewCore {
    public static double geometryGizmoValue(Axis axis, AxisGizmo.Operation operation) {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      if (axis == null || operation == null || player == null || !PREVIEW_STATE.geometry().active()) {
+      if (axis == null || operation == null || player == null || !previews().geometry().active()) {
          return operation == AxisGizmo.Operation.SCALE ? 1.0 : 0.0;
       }
       GeometryPreviewPlan plan = geometryPreviewPlan(player.getViewVector(1.0F));
@@ -730,20 +732,20 @@ public final class FastPlaceClientPreviewCore {
 
    private static AxisGizmo geometryGizmo(Vec3 view) {
       Minecraft minecraft = Minecraft.getInstance();
-      if (!PREVIEW_STATE.geometry().active() || minecraft.player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
+      if (!previews().geometry().active() || minecraft.player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
          return null;
       }
       return geometryPreviewPlan(view).gizmo();
    }
 
    public static BlockPos geometryPointUnderCrosshair() {
-      if (!PREVIEW_STATE.geometry().active()
-         || PREVIEW_STATE.geometry().mode() != GeometryMode.WALL
-         || PREVIEW_STATE.geometry().closed()
-         || PREVIEW_STATE.geometry().points().isEmpty()) {
+      if (!previews().geometry().active()
+         || previews().geometry().mode() != GeometryMode.WALL
+         || previews().geometry().closed()
+         || previews().geometry().points().isEmpty()) {
          return null;
       }
-      return pointUnderCrosshair(List.of(PREVIEW_STATE.geometry().points().getFirst()));
+      return pointUnderCrosshair(List.of(previews().geometry().points().getFirst()));
    }
 
    public static boolean closePathAtHoveredStart() {
@@ -761,30 +763,30 @@ public final class FastPlaceClientPreviewCore {
       if (player == null) {
          return null;
       }
-      if (PREVIEW_STATE.geometry().active()) {
+      if (previews().geometry().active()) {
          return geometryCandidatePoint(minecraft, player);
       }
-      if (PREVIEW_STATE.operation().active()) {
+      if (previews().operation().active()) {
          return operationCandidatePoint();
       }
-      return PREVIEW_STATE.building().active() ? buildingCandidatePoint(PREVIEW_STATE.building(), player) : null;
+      return previews().building().active() ? buildingCandidatePoint(previews().building(), player) : null;
    }
 
    private static List<BlockPos> closablePathPoints(int minimumPoints) {
-      if (operationPrismBaseOpen() && PREVIEW_STATE.operation().points().size() >= minimumPoints) {
-         return PREVIEW_STATE.operation().points();
+      if (operationPrismBaseOpen() && previews().operation().points().size() >= minimumPoints) {
+         return previews().operation().points();
       }
-      if (PREVIEW_STATE.geometry().active()
-         && PREVIEW_STATE.geometry().mode() == GeometryMode.WALL
-         && !PREVIEW_STATE.geometry().closed()
-         && PREVIEW_STATE.geometry().points().size() >= minimumPoints) {
-         return PREVIEW_STATE.geometry().points();
+      if (previews().geometry().active()
+         && previews().geometry().mode() == GeometryMode.WALL
+         && !previews().geometry().closed()
+         && previews().geometry().points().size() >= minimumPoints) {
+         return previews().geometry().points();
       }
-      if (PREVIEW_STATE.building().active()
-         && PREVIEW_STATE.building().faceMode() == FaceMode.POLYGON
-         && !PREVIEW_STATE.building().polygonClosed()
-         && PREVIEW_STATE.building().points().size() >= minimumPoints) {
-         return PREVIEW_STATE.building().points();
+      if (previews().building().active()
+         && previews().building().faceMode() == FaceMode.POLYGON
+         && !previews().building().polygonClosed()
+         && previews().building().points().size() >= minimumPoints) {
+         return previews().building().points();
       }
       return List.of();
    }
@@ -828,7 +830,7 @@ public final class FastPlaceClientPreviewCore {
    public static BlockPos lineModeCandidate() {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      BuildingPreviewSnapshot snapshot = PREVIEW_STATE.building();
+      BuildingPreviewSnapshot snapshot = previews().building();
       if (player == null || minecraft.level == null || !snapshot.active() || QuickShapeStage.fromPointCount(snapshot.points().size()) != QuickShapeStage.LINE) {
          return null;
       }
@@ -842,7 +844,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static OperationSelectionVolume operationSelection() {
-      OperationPreviewPayload snapshot = PREVIEW_STATE.operation();
+      OperationPreviewPayload snapshot = previews().operation();
       if (!snapshot.active()) {
          return null;
       }
@@ -865,26 +867,26 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean usesAngleDistance() {
-      if (!PREVIEW_STATE.building().enabled()) {
+      if (!previews().building().enabled()) {
          return false;
       } else {
-         QuickShapeStage stage = PREVIEW_STATE.building().active() ? QuickShapeStage.fromPointCount(PREVIEW_STATE.building().points().size()) : QuickShapeStage.POINT;
-         return stage == QuickShapeStage.LINE && PREVIEW_STATE.building().lineMode() == LineMode.FREE_SCROLL;
+         QuickShapeStage stage = previews().building().active() ? QuickShapeStage.fromPointCount(previews().building().points().size()) : QuickShapeStage.POINT;
+         return stage == QuickShapeStage.LINE && previews().building().lineMode() == LineMode.FREE_SCROLL;
       }
    }
 
    public static boolean usesScrollContext() {
-      if (PREVIEW_STATE.geometry().active()) {
+      if (previews().geometry().active()) {
          return geometryAllows(GeometryAction.SCALAR_ADJUST);
-      } else if (PREVIEW_STATE.operation().active()) {
+      } else if (previews().operation().active()) {
          return false;
-      } else if (!PREVIEW_STATE.building().active()) {
+      } else if (!previews().building().active()) {
          return false;
       } else {
-         QuickShapeStage stage = effectiveStage(PREVIEW_STATE.building());
+         QuickShapeStage stage = effectiveStage(previews().building());
          return usesAngleDistance()
-            || stage == QuickShapeStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE
-            || stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(PREVIEW_STATE.building().modes());
+            || stage == QuickShapeStage.FACE && previews().building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE
+            || stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(previews().building().modes());
       }
    }
 
@@ -938,14 +940,14 @@ public final class FastPlaceClientPreviewCore {
          graphics.drawString(minecraft.font, Component.translatable(QuickReplaceMode.canReplace(minecraft)
             ? "fastformer.quick_replace.controls" : "fastformer.quick_replace.hold_block"),
             8, 20, GeometryPalette.muted().argb(), true);
-         if (PREVIEW_STATE.activity().task()) graphics.drawString(minecraft.font,
-            Component.translatable(PREVIEW_STATE.activity().translationKey()), 8, 32, GeometryPalette.valid().argb(), true);
+         if (previews().activity().task()) graphics.drawString(minecraft.font,
+            Component.translatable(previews().activity().translationKey()), 8, 32, GeometryPalette.valid().argb(), true);
          restoreVanillaCrosshairIfNeeded(graphics);
          smoothReticleFrame = false;
          return;
       }
-      BuildingPreviewSnapshot snapshot = PREVIEW_STATE.building();
-      boolean persistentFreeScroll = FEEDBACK.refreshFreeScrollSession(PREVIEW_STATE.building(), System.nanoTime());
+      BuildingPreviewSnapshot snapshot = previews().building();
+      boolean persistentFreeScroll = FEEDBACK.refreshFreeScrollSession(previews().building(), System.nanoTime());
       boolean reconnectRestorePending = ClientSessionSystem.instance().operations().reconnectRestorePending()
          || reconnectPreviewRestorePending();
       // A local submission locks the workspace before the server reports its task.
@@ -954,7 +956,7 @@ public final class FastPlaceClientPreviewCore {
       boolean workspaceSubmissionPending = ClientSessionSystem.instance().operations().workspaceSubmissionPending();
       WorkspaceSubmissionHud.Plan submissionPlan = WorkspaceSubmissionHud.plan(
          workspaceSubmissionPending,
-         PREVIEW_STATE.activity().task(),
+         previews().activity().task(),
          QuickReplaceMode.active(),
          reconnectRestorePending
       );
@@ -962,9 +964,9 @@ public final class FastPlaceClientPreviewCore {
          reconnectRestorePending,
          snapshot.enabled(),
          persistentFreeScroll,
-         PREVIEW_STATE.geometry().active(),
+         previews().geometry().active(),
          operationActive(),
-         PREVIEW_STATE.activity().task(),
+         previews().activity().task(),
          QuickReplaceMode.active(),
          workspaceSubmissionPending
       )) {
@@ -974,7 +976,7 @@ public final class FastPlaceClientPreviewCore {
       }
 
       Vec3 view = minecraft.player == null ? new Vec3(0.0, 0.0, 1.0) : minecraft.player.getViewVector(1.0F);
-      float hudOpacity = PREVIEW_STATE.activity().task() || workspaceSubmissionPending || reconnectRestorePending
+      float hudOpacity = previews().activity().task() || workspaceSubmissionPending || reconnectRestorePending
          ? 1.0F : InteractionContext.previewVisibility(minecraft, event.getPartialTick().getGameTimeDeltaTicks());
       if (hudOpacity <= 0.0F) {
          restoreVanillaCrosshairIfNeeded(graphics);
@@ -985,7 +987,7 @@ public final class FastPlaceClientPreviewCore {
       try {
 
       Component fillModeName = Component.translatable(
-         (PREVIEW_STATE.geometry().active() ? PREVIEW_STATE.geometry().fillMode() : snapshot.fillMode()).translationKey()
+         (previews().geometry().active() ? previews().geometry().fillMode() : snapshot.fillMode()).translationKey()
       );
       // The lock blocks the block key, so a pending frame names the fill mode
       // only. The status text keeps the fill information and promises no key.
@@ -994,19 +996,19 @@ public final class FastPlaceClientPreviewCore {
             ? Component.translatable(fillKey, fillModeName)
             : Component.translatable(fillKey, fillModeName, keyName(minecraft.options.keySwapOffhand)))
          .withStyle(GeometryPalette.text().style());
-      if (!FastPlaceClientInput.vanillaSession()) graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
+      if (!io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()) graphics.drawString(minecraft.font, fill, 8, 8, -1, true);
 
       MutableComponent embeddedHint = buildingRaycastHint();
       if (embeddedHint != null && minecraft.screen == null
-         && !PREVIEW_STATE.activity().task() && !submissionPlan.suppressActionPrompts()) {
+         && !previews().activity().task() && !submissionPlan.suppressActionPrompts()) {
          int x = Math.max(8, graphics.guiWidth() - minecraft.font.width(embeddedHint) - 8);
          graphics.drawString(minecraft.font, embeddedHint, x, 8, GeometryPalette.muted().argb(), true);
       }
-      if (PREVIEW_STATE.activity().task()) {
-         MutableComponent task = Component.translatable(PREVIEW_STATE.activity().translationKey()).withStyle(GeometryPalette.valid().style());
+      if (previews().activity().task()) {
+         MutableComponent task = Component.translatable(previews().activity().translationKey()).withStyle(GeometryPalette.valid().style());
          // The cancel key reports the pending state instead of cancelling, so an
          // exit hint on this line would be false while the submission waits.
-         if (WorkspaceSubmissionHud.showsCancelHint(PREVIEW_STATE.activity(), workspaceSubmissionPending)) {
+         if (WorkspaceSubmissionHud.showsCancelHint(previews().activity(), workspaceSubmissionPending)) {
             String hintKey = "fastformer.activity.cancel_hint";
             task.append(Component.literal(" ").append(Component.translatable(hintKey)).withStyle(GeometryPalette.muted().style()));
          }
@@ -1025,7 +1027,7 @@ public final class FastPlaceClientPreviewCore {
 
       var bottomLayout = io.github.fastformer.client.render.hud.BottomHudLayout.forFrame(graphics, minecraft);
       GeometryPreviewPlan geometryPlan = null;
-      if (!PREVIEW_STATE.activity().task()) {
+      if (!previews().activity().task()) {
          geometryPlan = renderSessionHud(graphics, minecraft, view, persistentFreeScroll,
             submissionPlan.suppressActionPrompts(), bottomLayout);
       } else if (persistentFreeScroll) {
@@ -1056,7 +1058,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean geometryAllows(GeometryAction action) {
-      return PREVIEW_STATE.geometry().active()
+      return previews().geometry().active()
          && GeometryWorkflows.allows(geometryWorkflowView(new Vec3(0.0, 0.0, 1.0)), action);
    }
 
@@ -1064,7 +1066,7 @@ public final class FastPlaceClientPreviewCore {
       GuiGraphics graphics, Minecraft minecraft, Vec3 view, boolean persistentFreeScroll,
       boolean suppressActionPrompts, io.github.fastformer.client.render.hud.BottomHudLayout bottomLayout
    ) {
-      if (PREVIEW_STATE.geometry().active()) {
+      if (previews().geometry().active()) {
          GeometryPreviewPlan geometryPlan = geometryPreviewPlan(view);
          GeometryTextBlockRenderer.render(graphics, minecraft, geometryPlan, bottomLayout);
          renderScrollFeedbackBottom(graphics, minecraft, persistentFreeScroll, bottomLayout);
@@ -1106,11 +1108,11 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static TransformStatus rawTransformStatus(GeometryPreviewPlan geometryPlan) {
-      if (!geometryAdjusting(PREVIEW_STATE.geometry())) {
+      if (!geometryAdjusting(previews().geometry())) {
          return null;
       }
-      if (PREVIEW_STATE.geometry().mode() == GeometryMode.CONE_PRISM) {
-         ConePrismGeometry geometry = coneGeometry(PREVIEW_STATE.geometry());
+      if (previews().geometry().mode() == GeometryMode.CONE_PRISM) {
+         ConePrismGeometry geometry = coneGeometry(previews().geometry());
          if (geometry == null || !geometry.heightReady()) {
             return null;
          }
@@ -1118,18 +1120,18 @@ public final class FastPlaceClientPreviewCore {
          return new TransformStatus(
             center,
             new Vec3(geometry.scaleX(), Math.max(0.5, Math.abs(geometry.height())), geometry.scaleZ()),
-            new Vec3(0.0, Math.toDegrees(PREVIEW_STATE.geometry().coneRotationRadians()), 0.0)
+            new Vec3(0.0, Math.toDegrees(previews().geometry().coneRotationRadians()), 0.0)
          );
       }
-      if (PREVIEW_STATE.geometry().mode() == GeometryMode.POLYHEDRON) {
+      if (previews().geometry().mode() == GeometryMode.POLYHEDRON) {
          Vec3 center = transformCenter(geometryPlan);
          if (center == null) {
             return null;
          }
-         Vec3 scale = PREVIEW_STATE.geometry().polyhedronGizmoLocal()
-            ? PREVIEW_STATE.geometry().polyhedronLocalScale()
-            : PREVIEW_STATE.geometry().polyhedronWorldScale();
-         return new TransformStatus(center, scale, TransformStatus.eulerDegrees(PREVIEW_STATE.geometry().rotation()));
+         Vec3 scale = previews().geometry().polyhedronGizmoLocal()
+            ? previews().geometry().polyhedronLocalScale()
+            : previews().geometry().polyhedronWorldScale();
+         return new TransformStatus(center, scale, TransformStatus.eulerDegrees(previews().geometry().rotation()));
       }
       return null;
    }
@@ -1138,7 +1140,7 @@ public final class FastPlaceClientPreviewCore {
       if (geometryPlan != null && geometryPlan.gizmo() != null) {
          return geometryPlan.gizmo().center();
       }
-      return PREVIEW_STATE.geometry().pointLocations().isEmpty() ? null : PREVIEW_STATE.geometry().pointLocations().getFirst();
+      return previews().geometry().pointLocations().isEmpty() ? null : previews().geometry().pointLocations().getFirst();
    }
 
    private static int drawScaledLabel(
@@ -1235,15 +1237,15 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static MutableComponent buildingBottomStatus() {
-      if (!PREVIEW_STATE.building().active()) {
+      if (!previews().building().active()) {
          Minecraft minecraft = Minecraft.getInstance();
          if (minecraft.player == null || minecraft.screen != null || QuickReplaceMode.active()
-            || !PREVIEW_STATE.building().enabled()) return null;
+            || !previews().building().enabled()) return null;
          return idleBottomStatus(minecraft.player.getMainHandItem().isEmpty(),
             PlaceableItems.isPlaceable(minecraft.player.getMainHandItem()));
       }
 
-      return buildingStageStatus(PREVIEW_STATE.building(), effectiveStage(PREVIEW_STATE.building()));
+      return buildingStageStatus(previews().building(), effectiveStage(previews().building()));
    }
 
    private static MutableComponent buildingStageStatus(BuildingPreviewSnapshot snapshot, QuickShapeStage stage) {
@@ -1285,7 +1287,7 @@ public final class FastPlaceClientPreviewCore {
       status.append(Component.literal(" | ").withStyle(ChatFormatting.DARK_GRAY));
       for (LineMode mode : LineMode.values()) {
          if (mode != LineMode.values()[0]) status.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
-         appendBuildingMode(status, mode, mode == PREVIEW_STATE.building().lineMode());
+         appendBuildingMode(status, mode, mode == previews().building().lineMode());
       }
       return status;
    }
@@ -1295,32 +1297,32 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static MutableComponent buildingRaycastHint() {
-      if (!PREVIEW_STATE.building().active() || PREVIEW_STATE.geometry().active()
-         || PREVIEW_STATE.operation().active()
+      if (!previews().building().active() || previews().geometry().active()
+         || previews().operation().active()
          || !buildingRaycastSubmodeAvailable()
          || !PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
-         || PREVIEW_STATE.building().raycastPlacement() == RaycastPlacement.EMBEDDED) {
+         || previews().building().raycastPlacement() == RaycastPlacement.EMBEDDED) {
          return null;
       }
       return Component.translatable("fastformer.hud.raycast_embedded_hint");
    }
 
    private static boolean buildingRaycastSubmode() {
-      if (PREVIEW_STATE.geometry().active() || PREVIEW_STATE.operation().active()) {
+      if (previews().geometry().active() || previews().operation().active()) {
          return false;
       }
-      return switch (effectiveStage(PREVIEW_STATE.building())) {
-         case POINT -> PREVIEW_STATE.building().pointMode() == PointMode.RAYCAST;
-         case LINE -> PREVIEW_STATE.building().lineMode() == LineMode.RAYCAST;
+      return switch (effectiveStage(previews().building())) {
+         case POINT -> previews().building().pointMode() == PointMode.RAYCAST;
+         case LINE -> previews().building().lineMode() == LineMode.RAYCAST;
          default -> false;
       };
    }
 
    private static MutableComponent buildingBottomHint() {
-      if (!PREVIEW_STATE.building().active()) {
+      if (!previews().building().active()) {
          Minecraft minecraft = Minecraft.getInstance();
          if (minecraft.player == null || minecraft.screen != null || QuickReplaceMode.active()
-            || !PREVIEW_STATE.building().enabled()) return null;
+            || !previews().building().enabled()) return null;
          if (idlePreviewHit(minecraft) != null) {
             return (PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
                ? Component.translatable("fastformer.hud.idle_entry_far_placement", keyName(minecraft.options.keyUse), keyName(minecraft.options.keyPickItem))
@@ -1330,13 +1332,13 @@ public final class FastPlaceClientPreviewCore {
          return Component.translatable("fastformer.hud.idle_entry", keyName(minecraft.options.keyUse))
             .withStyle(GeometryPalette.muted().style());
       }
-      QuickShapeStage stage = effectiveStage(PREVIEW_STATE.building());
-      if (stage == QuickShapeStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.POLYGON && !PREVIEW_STATE.building().polygonClosed()) {
+      QuickShapeStage stage = effectiveStage(previews().building());
+      if (stage == QuickShapeStage.FACE && previews().building().faceMode() == FaceMode.POLYGON && !previews().building().polygonClosed()) {
          return Component.translatable("fastformer.message.polygon_close_hint").withStyle(GeometryPalette.muted().style());
       }
       return Component.translatable(
          stage == QuickShapeStage.VOLUME
-            ? PREVIEW_STATE.building().polygonClosed()
+            ? previews().building().polygonClosed()
                ? "fastformer.message.building_hint_height"
                : "fastformer.message.building_hint_points"
             : "fastformer.message.building_hint_points"
@@ -1359,7 +1361,7 @@ public final class FastPlaceClientPreviewCore {
             }
             OperationStageMode mode = stageModes[index];
             status.append(Component.translatable(mode.translationKey()).withStyle(
-               mode == PREVIEW_STATE.operation().operationStageMode() ? GeometryPalette.accent().style() : GeometryPalette.muted().style()
+               mode == previews().operation().operationStageMode() ? GeometryPalette.accent().style() : GeometryPalette.muted().style()
             ));
          }
          return status;
@@ -1504,7 +1506,7 @@ public final class FastPlaceClientPreviewCore {
             false
          );
       }
-      if (PREVIEW_STATE.operation().active()) {
+      if (previews().operation().active()) {
          return new GizmoHudInput(
             operationGizmo(),
             PointerDragSnapshotView.operationAxis(FastPlaceClientInput.currentSession()),
@@ -1618,14 +1620,14 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static ScrollFeedbackData scrollFeedbackData() {
-      if (PREVIEW_STATE.operation().active() && operationSelectionReady()) {
+      if (previews().operation().active() && operationSelectionReady()) {
       BlockPos value = operationSelectionConfirmed() && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
-            ? PREVIEW_STATE.operation().stackVector()
-            : PREVIEW_STATE.operation().translation();
+            ? previews().operation().stackVector()
+            : previews().operation().translation();
          return FEEDBACK.coordinates(value);
       }
-      if (PREVIEW_STATE.geometry().active() && PREVIEW_STATE.geometry().mode() == GeometryMode.CONE_PRISM) {
-         Vec3 offset = PREVIEW_STATE.geometry().coneTopOffset();
+      if (previews().geometry().active() && previews().geometry().mode() == GeometryMode.CONE_PRISM) {
+         Vec3 offset = previews().geometry().coneTopOffset();
          return new ScrollFeedbackData(
             List.of(
                new AxisFeedback("X", GeometryNumbers.fixed(offset.x, 2), FEEDBACK.axisColor(Axis.X)),
@@ -1634,8 +1636,8 @@ public final class FastPlaceClientPreviewCore {
             ""
          );
       }
-      if (PREVIEW_STATE.building().active()) {
-         BuildingPreviewSnapshot building = PREVIEW_STATE.building();
+      if (previews().building().active()) {
+         BuildingPreviewSnapshot building = previews().building();
          // Keep the free-scroll payload aligned with persistent visibility.
          // effectiveStage() can briefly describe the previous server snapshot
          // while the active line session already owns the scroll offset.
@@ -1647,22 +1649,22 @@ public final class FastPlaceClientPreviewCore {
             return data;
          }
          QuickShapeStage stage = effectiveStage(building);
-         if (stage == QuickShapeStage.FACE && PREVIEW_STATE.building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
+         if (stage == QuickShapeStage.FACE && previews().building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE) {
             LocalPlayer player = Minecraft.getInstance().player;
             if (player != null) {
                return new ScrollFeedbackData(
                   List.of(),
                   GeometryNumbers.fixed(
-                     FastPlaceGeometry.faceBaseOffsetValue(PREVIEW_STATE.building().points(), PREVIEW_STATE.building().faceBaseOffset(), player.getViewVector(1.0F)),
+                     FastPlaceGeometry.faceBaseOffsetValue(previews().building().points(), previews().building().faceBaseOffset(), player.getViewVector(1.0F)),
                      0
                   )
                );
             }
          }
-         if (stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(BUILDING_CACHE.effectiveBuildingModes(PREVIEW_STATE.building()))) {
-            return PREVIEW_STATE.building().volumeMode() == VolumeMode.FREE
-               ? FEEDBACK.coordinates(PREVIEW_STATE.building().volumeBaseOffset())
-               : new ScrollFeedbackData(List.of(), formatScalar(PREVIEW_STATE.building().volumeBaseOffset()));
+         if (stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(BUILDING_CACHE.effectiveBuildingModes(previews().building()))) {
+            return previews().building().volumeMode() == VolumeMode.FREE
+               ? FEEDBACK.coordinates(previews().building().volumeBaseOffset())
+               : new ScrollFeedbackData(List.of(), formatScalar(previews().building().volumeBaseOffset()));
          }
       }
       // A wheel request can produce one or more inactive snapshots while the
@@ -1718,15 +1720,15 @@ public final class FastPlaceClientPreviewCore {
    private static boolean hasVisibleBlueOutline(Minecraft minecraft) {
       var player = minecraft.player;
       if (player == null || minecraft.level == null || QuickReplaceMode.active()) return false;
-      if (FastPlaceClientInput.vanillaSession()) {
+      if (io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
          var hit = idlePreviewHit(minecraft);
          var preview = hit == null ? null : InitialBlockPreview.resolve(player, hit, FastPlaceClientInput.modifierHeld());
          return preview != null && !preview.mesh().edges().isEmpty();
       }
-      var snapshot = PREVIEW_STATE.building();
+      var snapshot = previews().building();
       var pointer = operationInteractionIntent().orElse(null);
-      var owner = PreviewRenderOwner.select(snapshot.active(), PREVIEW_STATE.operation().active(),
-         ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive(), PREVIEW_STATE.geometry().active());
+      var owner = PreviewRenderOwner.select(snapshot.active(), previews().operation().active(),
+         ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive(), previews().geometry().active());
       if (owner == PreviewRenderOwner.OPERATION || owner == PreviewRenderOwner.GEOMETRY
          || pointer instanceof OperationInteractionIntent.CreateSelection) return true;
       if (InteractionContext.previewVisibility(minecraft) <= 0.01F) return false;
@@ -1760,7 +1762,7 @@ public final class FastPlaceClientPreviewCore {
          SmartSelectionIsolationRenderer.render(event, Minecraft.getInstance());
          return;
       }
-      BuildingPreviewSnapshot snapshot = PREVIEW_STATE.building();
+      BuildingPreviewSnapshot snapshot = previews().building();
       if (event.getStage() == Stage.AFTER_PARTICLES) {
           Minecraft minecraft = Minecraft.getInstance();
           LocalPlayer player = minecraft.player;
@@ -1775,7 +1777,7 @@ public final class FastPlaceClientPreviewCore {
              }
              return;
           }
-          if (FastPlaceClientInput.vanillaSession()) {
+          if (io.github.fastformer.client.session.ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
              var hit = idlePreviewHit(minecraft);
              if (hit != null) InitialBlockPreviewRenderer.render(event, minecraft, player, hit,
                 FastPlaceClientInput.modifierHeld(), 1.0F);
@@ -1783,15 +1785,15 @@ public final class FastPlaceClientPreviewCore {
           }
           OperationInteractionIntent pointerIntent = player == null ? null : operationInteractionIntent().orElse(null);
           boolean selectionCandidate = pointerIntent instanceof OperationInteractionIntent.CreateSelection;
-          if (!(snapshot.active() || PREVIEW_STATE.operation().active()
-             || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || PREVIEW_STATE.geometry().active() || QuickReplaceMode.active() || selectionCandidate)) {
+          if (!(snapshot.active() || previews().operation().active()
+             || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive() || previews().geometry().active() || QuickReplaceMode.active() || selectionCandidate)) {
              return;
           }
          PreviewRenderOwner renderOwner = PreviewRenderOwner.select(
             snapshot.active(),
-            PREVIEW_STATE.operation().active(),
+            previews().operation().active(),
             ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive(),
-            PREVIEW_STATE.geometry().active()
+            previews().geometry().active()
          );
          if (minecraft.level != null && player != null && renderOwner == PreviewRenderOwner.GEOMETRY) {
             renderGeometryWall(event, minecraft);
@@ -1800,11 +1802,11 @@ public final class FastPlaceClientPreviewCore {
             // The confirmed selection is retained as source data, but the workspace owns
             // its overlay and hit targets from this point on.
             if (OperationPreviewRenderer.shouldRenderServerSelection(
-               PREVIEW_STATE.operation().active() && !ClientSessionSystem.instance().operations().selectionEdits().smartTool(),
+               previews().operation().active() && !ClientSessionSystem.instance().operations().selectionEdits().smartTool(),
                ClientSessionSystem.instance().operations().active(),
                ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
             )) {
-               renderOperationSelection(event, minecraft, player, PREVIEW_STATE.operation());
+               renderOperationSelection(event, minecraft, player, previews().operation());
             }
             if (ClientSessionSystem.instance().operations().active()) {
                renderClientOperationWorkspace(event, minecraft, pointerIntent);
@@ -1958,32 +1960,32 @@ public final class FastPlaceClientPreviewCore {
 
    private static GeometryWorkflowView geometryWorkflowView(Vec3 view) {
       return new GeometryWorkflowView(
-         PREVIEW_STATE.geometry().mode(),
-         PREVIEW_STATE.geometry().points().size(),
-         PREVIEW_STATE.geometry().pointLocations(),
-         PREVIEW_STATE.geometry().pointRoles(),
-         PREVIEW_STATE.geometry().closed(),
+         previews().geometry().mode(),
+         previews().geometry().points().size(),
+         previews().geometry().pointLocations(),
+         previews().geometry().pointRoles(),
+         previews().geometry().closed(),
          PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
-         PREVIEW_STATE.geometry().polyhedronShapeVariant(),
-         PREVIEW_STATE.geometry().coneShapeVariant(),
-         PREVIEW_STATE.geometry().compoundShapeVariant(),
-         PREVIEW_STATE.geometry().polyhedronSizeMode(),
-         PREVIEW_STATE.geometry().extrusion(),
-         PREVIEW_STATE.geometry().conePlaneMode(),
-         PREVIEW_STATE.geometry().coneRadius(),
-         PREVIEW_STATE.geometry().coneScaleX(),
-         PREVIEW_STATE.geometry().coneScaleZ(),
-         PREVIEW_STATE.geometry().coneTopScaleOffset(),
-         PREVIEW_STATE.geometry().coneTopOffset(),
-         PREVIEW_STATE.geometry().coneRotationRadians(),
-         PREVIEW_STATE.geometry().coneGizmoLocal(),
-         PREVIEW_STATE.geometry().rotation(),
-         PREVIEW_STATE.geometry().polyhedronLocalScale(),
-         PREVIEW_STATE.geometry().polyhedronWorldScale(),
-         PREVIEW_STATE.geometry().polyhedronGizmoLocal(),
-         PREVIEW_STATE.geometry().fillMode(),
+         previews().geometry().polyhedronShapeVariant(),
+         previews().geometry().coneShapeVariant(),
+         previews().geometry().compoundShapeVariant(),
+         previews().geometry().polyhedronSizeMode(),
+         previews().geometry().extrusion(),
+         previews().geometry().conePlaneMode(),
+         previews().geometry().coneRadius(),
+         previews().geometry().coneScaleX(),
+         previews().geometry().coneScaleZ(),
+         previews().geometry().coneTopScaleOffset(),
+         previews().geometry().coneTopOffset(),
+         previews().geometry().coneRotationRadians(),
+         previews().geometry().coneGizmoLocal(),
+         previews().geometry().rotation(),
+         previews().geometry().polyhedronLocalScale(),
+         previews().geometry().polyhedronWorldScale(),
+         previews().geometry().polyhedronGizmoLocal(),
+         previews().geometry().fillMode(),
          view,
-         PREVIEW_STATE.geometry().selectedPointIndex()
+         previews().geometry().selectedPointIndex()
       );
    }
 
@@ -2058,7 +2060,7 @@ public final class FastPlaceClientPreviewCore {
       Vec3 eye = player == null ? Vec3.ZERO : player.getEyePosition();
       BlockPos hoveredPoint = geometryPointUnderCrosshair();
       GeometryPlanKey key = new GeometryPlanKey(
-         PREVIEW_STATE.geometryVersion(),
+         previews().geometryVersion(),
          PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
          eye,
          view,
@@ -2069,11 +2071,11 @@ public final class FastPlaceClientPreviewCore {
          cachedGeometryPlanKey = key;
          try {
             cachedGeometryPlan = GeometryWorkflows.previewPlan(
-               workflowView, PREVIEW_STATE.geometry().points(), hoveredPoint, candidate, eye
+               workflowView, previews().geometry().points(), hoveredPoint, candidate, eye
             );
          } catch (RuntimeException exception) {
             logPreviewFailure("Unable to generate FastFormer geometry preview plan; using control points", exception);
-            cachedGeometryPlan = GeometryPreviewPlan.controlPoints(PREVIEW_STATE.geometry().points(), hoveredPoint);
+            cachedGeometryPlan = GeometryPreviewPlan.controlPoints(previews().geometry().points(), hoveredPoint);
          }
       }
       GeometryPreviewPlan plan = cachedGeometryPlan;
@@ -2093,8 +2095,8 @@ public final class FastPlaceClientPreviewCore {
             .collect(java.util.stream.Collectors.toUnmodifiableSet());
          Set<BlockPos> pendingBlocks = source.pendingBlocks();
          if (pendingBlocks.isEmpty()
-            && PREVIEW_STATE.geometry().mode() == GeometryMode.CONE_PRISM
-            && PREVIEW_STATE.geometry().conePlaneMode().stageFor(PREVIEW_STATE.geometry().points().size()) == ConePrismStage.BODY
+            && previews().geometry().mode() == GeometryMode.CONE_PRISM
+            && previews().geometry().conePlaneMode().stageFor(previews().geometry().points().size()) == ConePrismStage.BODY
             && !PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())) {
             pendingBlocks = coneBasePreviewFallback();
          }
@@ -2108,22 +2110,22 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static Set<BlockPos> coneBasePreviewFallback() {
-      int facePointCount = Math.min(PREVIEW_STATE.geometry().pointLocations().size(), PREVIEW_STATE.geometry().conePlaneMode().facePointCount());
-      if (facePointCount < PREVIEW_STATE.geometry().conePlaneMode().facePointCount()) {
+      int facePointCount = Math.min(previews().geometry().pointLocations().size(), previews().geometry().conePlaneMode().facePointCount());
+      if (facePointCount < previews().geometry().conePlaneMode().facePointCount()) {
          return Set.of();
       }
-      List<Vec3> facePoints = List.copyOf(PREVIEW_STATE.geometry().pointLocations().subList(0, facePointCount));
+      List<Vec3> facePoints = List.copyOf(previews().geometry().pointLocations().subList(0, facePointCount));
       ConePrismParameters parameters = new ConePrismParameters(
          facePoints,
          Optional.empty(),
-         PREVIEW_STATE.geometry().coneShapeVariant(),
-         PREVIEW_STATE.geometry().conePlaneMode(),
-         PREVIEW_STATE.geometry().coneRadius(),
-         PREVIEW_STATE.geometry().coneScaleX(),
-         PREVIEW_STATE.geometry().coneScaleZ(),
-         PREVIEW_STATE.geometry().coneTopScaleOffset(),
-         PREVIEW_STATE.geometry().coneTopOffset(),
-         PREVIEW_STATE.geometry().coneRotationRadians()
+         previews().geometry().coneShapeVariant(),
+         previews().geometry().conePlaneMode(),
+         previews().geometry().coneRadius(),
+         previews().geometry().coneScaleX(),
+         previews().geometry().coneScaleZ(),
+         previews().geometry().coneTopScaleOffset(),
+         previews().geometry().coneTopOffset(),
+         previews().geometry().coneRotationRadians()
       );
       return ConePrismGenerator.baseOutline(parameters, 16_384);
    }
@@ -2134,14 +2136,14 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static GeometryHit geometryCandidateHit(Minecraft minecraft, LocalPlayer player) {
-      if (!PREVIEW_STATE.geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
+      if (!previews().geometry().active() || player == null || InteractionContext.vanillaOwnsPointer(minecraft)) {
          return null;
       }
       BlockHitResult hit = raycastBlocks(player);
       if (hit.getType() == Type.BLOCK) {
          return GeometryHit.from(hit);
       }
-      List<BlockPos> points = PREVIEW_STATE.geometry().points();
+      List<BlockPos> points = previews().geometry().points();
       BlockPos fallback = points.isEmpty() ? BlockPos.containing(player.getEyePosition().add(player.getViewVector(1.0F).scale(8.0))) : points.getLast();
       return GeometryHit.point(fallback);
    }
@@ -2207,11 +2209,6 @@ public final class FastPlaceClientPreviewCore {
       );
    }
 
-   /** Resets preview ownership at a world boundary; lifecycle ordering belongs to WorldSessionEvents. */
-   public static void resetConnectionState() {
-      PREVIEW_STATE.resetConnection();
-   }
-
    public static void clearWorldRenderState() {
       geometryTransformBaseline = null;
       OPERATION_FACE_INTERPOLATOR.reset();
@@ -2226,12 +2223,12 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean reconnectPreviewRestorePending() {
-      return PREVIEW_STATE.reconnectRestorePending();
+      return previews().reconnectRestorePending();
    }
 
    /** Applies the server previews held at the reconnect boundary after the player confirms. */
    public static boolean confirmReconnectPreviewRestore() {
-      ClientPreviewState.HeldReconnectPreviews held = PREVIEW_STATE.takeHeldReconnectPreviews();
+      ClientPreviewState.HeldReconnectPreviews held = previews().takeHeldReconnectPreviews();
       if (held == null) {
          return false;
       }
@@ -2243,7 +2240,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static void dismissReconnectPreviewRestore() {
-      PREVIEW_STATE.dismissReconnectRestore();
+      previews().dismissReconnectRestore();
    }
 
    /** Returns the current long-range block target used by preview placement. */
@@ -2265,10 +2262,10 @@ public final class FastPlaceClientPreviewCore {
 
    private static LongRangeBlockRaycast.Result blockPointer(LocalPlayer player) {
       PreviewRenderOwner owner = PreviewRenderOwner.select(
-         PREVIEW_STATE.building().active(),
-         PREVIEW_STATE.operation().active(),
+         previews().building().active(),
+         previews().operation().active(),
          ClientSessionSystem.instance().operations().active(),
-         PREVIEW_STATE.geometry().active()
+         previews().geometry().active()
       );
       boolean placement = owner == PreviewRenderOwner.BUILDING || owner == PreviewRenderOwner.NONE
          && !ClientSessionSystem.instance().operations().selectionSessionActive() && !ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()

@@ -68,6 +68,17 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (text =~ /\bObservedInputState\b/).find()) {
                 violations.add("Mode ownership must come from the registered definitions: ${path}")
             }
+            if (main && (dependencies =~ /FastPlaceClientInput\.vanillaSession\s*\(|\b(?:vanillaSession|observedInputState|observedSessions)\s*\(/).find()) {
+                violations.add("Session observation must use the session-owned mode view: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.session.preview') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render|input|operation|placement)\.|Minecraft\.getInstance\s*\()/).find()) {
+                violations.add("Server preview state must not depend on drawing or live client queries: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.render') &&
+                    (dependencies =~ /new\s+ClientPreviewState\s*\(/).find()) {
+                violations.add("Renderer cannot own server preview snapshots: ${path}")
+            }
             if (main && (text =~ /\bScrollInputSemantics\b/).find()) {
                 violations.add("Wheel behavior must be owned by registered client modes: ${path}")
             }

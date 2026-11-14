@@ -37,6 +37,12 @@ public final class ClientInputSession {
    private final io.github.fastformer.client.interaction.pointer.PointerResolver pointer =
       new io.github.fastformer.client.interaction.pointer.PointerResolver();
    public io.github.fastformer.client.interaction.pointer.PointerResolver pointer() { return pointer; }
+   public io.github.fastformer.client.mode.ClientModeView modeView(
+      io.github.fastformer.client.mode.ModeObservation observation
+   ) {
+      return io.github.fastformer.client.mode.ClientModeView.capture(
+         io.github.fastformer.client.mode.ClientModes.registry(), observation, routing.state(), ownsQuickShapeStart());
+   }
    public boolean canCreateSelection() {
       return routing.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION) == ClientInputStateMachine.Dispatch.OPERATION;
    }

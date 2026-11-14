@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
-import io.github.fastformer.client.render.state.ClientPreviewState;
+import io.github.fastformer.client.session.preview.ClientPreviewState;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;

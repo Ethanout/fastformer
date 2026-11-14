@@ -12,7 +12,6 @@ import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.input.state.InputContextBoundary;
 import io.github.fastformer.client.input.state.ModifierGestureState;
 import io.github.fastformer.client.mode.ClientModes;
-import io.github.fastformer.client.mode.ModeObservation;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
@@ -109,14 +108,14 @@ public final class FastPlaceClientInput {
    public static void acknowledgePlacementRequest(
       io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload payload
    ) {
-      var observed = observedInputState();
+      var observed = ClientSessionSystem.instance().modeView().observedPhase();
       inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
          new ClientSemanticEvent.Submit.Placement(payload.requestId()),
          ClientInputStateMachine.SubmissionEvent.SUCCEEDED, observed));
    }
 
    public static void abortPlacementRequest(long requestId) {
-      var observed = observedInputState();
+      var observed = ClientSessionSystem.instance().modeView().observedPhase();
       inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
          new ClientSemanticEvent.Submit.Placement(requestId),
          ClientInputStateMachine.SubmissionEvent.FAILED, observed));
@@ -132,21 +131,21 @@ public final class FastPlaceClientInput {
    }
 
    public static void acknowledgeWorkspaceRequest(java.util.UUID transferId) {
-      var observed = observedInputState();
+      var observed = ClientSessionSystem.instance().modeView().observedPhase();
       inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
          new ClientSemanticEvent.Submit.Workspace(transferId),
          ClientInputStateMachine.SubmissionEvent.SUCCEEDED, observed));
    }
 
    public static void abortWorkspaceRequest(java.util.UUID transferId) {
-      var observed = observedInputState();
+      var observed = ClientSessionSystem.instance().modeView().observedPhase();
       inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
          new ClientSemanticEvent.Submit.Workspace(transferId),
          ClientInputStateMachine.SubmissionEvent.FAILED, observed));
    }
 
    public static void expireWorkspaceRequest(java.util.UUID transferId) {
-      var observed = observedInputState();
+      var observed = ClientSessionSystem.instance().modeView().observedPhase();
       inputSession().postSubmissionCompleted(new ClientSemanticEvent.SubmissionCompleted(
          new ClientSemanticEvent.Submit.Workspace(transferId),
          ClientInputStateMachine.SubmissionEvent.EXPIRED, observed));
@@ -186,7 +185,8 @@ public final class FastPlaceClientInput {
       if (minecraft.screen == null
          && minecraft.options.keySwapOffhand.matches(input.key(), input.scanCode())
          && (inputSession().smartFill().active()
-            || !input.controlDown() && vanillaSession() && !QuickReplaceMode.active() && inputSession().smartFill().canStart(minecraft))) {
+            || !input.controlDown() && ClientSessionSystem.instance().modeView().idleActionsAllowed()
+               && !QuickReplaceMode.active() && inputSession().smartFill().canStart(minecraft))) {
          while (minecraft.options.keySwapOffhand.consumeClick()) { }
          if (input.action() == 1 && !inputSession().smartFill().active()) {
             inputSession().smartFill().start(minecraft);
@@ -1164,12 +1164,6 @@ public final class FastPlaceClientInput {
       IdleSelectionEntryController.receive(Minecraft.getInstance(), inputSession(), payload);
    }
 
-   public static boolean vanillaSession() {
-      return inputSession().routing.state() == ClientInputStateMachine.State.IDLE
-         && !inputSession().ownsQuickShapeStart()
-         && observedInputState() == ClientInputStateMachine.State.IDLE;
-   }
-
    @SubscribeEvent
    public static void onVanillaMouseButton(net.neoforged.neoforge.client.event.InputEvent.MouseButton.Post event) {
       Minecraft minecraft = Minecraft.getInstance();
@@ -1532,9 +1526,9 @@ public final class FastPlaceClientInput {
          inputSession().idleEntry.clear();
          inputSession().entryPressGuard.clear();
          inputSession().cuboidPointPressGuard.clear();
-      } else if (!vanillaSession()) inputSession().idleEntry.clear();
+      } else if (!ClientSessionSystem.instance().modeView().idleActionsAllowed()) inputSession().idleEntry.clear();
       else inputSession().idleEntry.validate(minecraft.level, minecraft.player.getMainHandItem());
-      if (activeSession() && !InputContextBoundary.pointerContextIntact(
+      if (ClientSessionSystem.instance().modeView().interactiveSession() && !InputContextBoundary.pointerContextIntact(
          pointerGestureInFlight(), minecraft.screen != null, minecraft.isWindowActive()
       )) {
          suspendPointerGesture(minecraft);
@@ -1560,7 +1554,7 @@ public final class FastPlaceClientInput {
          minecraft.options.keyAttack.setDown(false);
       }
       inputSession().operationSessionWasActive = operationActive;
-      if (!activeSession()) {
+      if (!ClientSessionSystem.instance().modeView().interactiveSession()) {
          InputSessionIdleCleanup.clear(minecraft, inputSession());
       }
       PointerDragTicker.advance(minecraft, inputSession(), physicalCtrlDown(minecraft, false));
@@ -1755,39 +1749,16 @@ public final class FastPlaceClientInput {
       return inputSession().selectionGestures().face();
    }
 
-   private static boolean activeSession() {
-      return ClientModes.registry().hasInteractiveSession(observedSessions());
-   }
-
    /** Refreshes the routing phase before every event, including same-tick task transitions. */
    private static void synchronizeInputState() {
       inputSession().pointer().invalidate();
-      var observed = observedInputState();
+      var observed = ClientSessionSystem.instance().modeView().observedPhase();
       var routing = inputSession().routing;
       long generation = routing.generation();
       routing.observe(observed);
       if (routing.generation() != generation) {
          cancelOperationGesture(Minecraft.getInstance());
       }
-   }
-
-   private static ClientInputStateMachine.State observedInputState() {
-      return ClientModes.registry().observe(observedSessions());
-   }
-
-   /** Collects live facts once; registered modes own priority and phase selection. */
-   private static ModeObservation observedSessions() {
-      return new ModeObservation(
-         FastPlaceClientPreviewCore.activity() == io.github.fastformer.fastplace.session.FastPlaceActivity.RESTORE_TASK,
-         FastPlaceClientPreviewCore.taskActive(),
-         FastPlaceClientPreviewCore.operationActive() || ClientSessionSystem.instance().operations().selectionSessionActive(),
-         ClientSessionSystem.instance().operations().active(),
-         ClientSessionSystem.instance().operations().operationSelectionConfirmed(),
-         FastPlaceClientPreviewCore.geometryActive(),
-         FastPlaceClientPreviewCore.active(),
-         QuickReplaceMode.active(),
-         inputSession().smartFill().active()
-      );
    }
 
    public static void receiveSmartFill(io.github.fastformer.protocol.s2c.preview.SmartFillPreviewPayload payload) {

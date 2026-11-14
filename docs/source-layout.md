@@ -18,7 +18,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
 | `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回 |
-| `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、阶段策略、各模式滚轮处理及不可变输入事实／命令 |
+| `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式按键／滚轮决策 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
 | `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、编辑上下文、选区、工作区和暂存草稿 |
 | `client.session.receipt` | 作用域回执仓库：缓存、严格读取、文件保护、明确重试和驱逐条件 |
@@ -26,6 +26,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.session.storage` | 有界磁盘队列、主线程完成回调和共享的严格 NBT 字段读取 |
 | `client.session.submission` | 双文件提交准备、未发送回执重试及暂存／耐久草稿分别结算；每次操作冻结所属作用域 |
 | `client.session.reconnect` | 有界快照等待；不持有草稿、不决定恢复行为 |
+| `client.session.preview` | 会话系统持有的服务端快照、revision、起形提交快照和重连确认；不依赖渲染 |
 | `client.session.lifecycle` | 客户端世界离开事件、按顺序通知清理能力并汇总失败 |
 | `client.network.inbound` | 客户端载荷类型注册、连接校验与 tick 投递 |
 | `client.network.outbound` | 可选通道检查与向当前连接发送请求；设置界面和放置网关共用 |
@@ -103,6 +104,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `FastPlaceClientPreviewCore` 将初始方块预览、快速替换和建筑外壳绘制委托给独立渲染类。`BuildingPreviewCache` 持有快速起形的生成任务、降级结果与渲染帧缓存，通过参数接收预览状态、修饰键读取与错误记录。外壳绘制显式接收透明度和动画相位。
 
 `WorldSessionEvents` 统一接收客户端登出／世界卸载，`WorldSessionLifecycle` 复用 `Scope.detach` 按既有顺序清理输入、源遮罩、预览连接、编辑器、交互缓存、反馈和渲染资源。一次运行时清理失败仍通知后续能力，结束后汇总异常；重复边界仍可再次清理。渲染核心只提供自身的重置能力，不订阅世界离开事件、不调用编辑器断线清理。
+
+`ClientSessionSystem` 持有 `ClientPreviewState`，输入与绘制读取同一份服务端快照。`modeView()` 从真实工作流所有者捕获事实，注册模式决定观察阶段；当前输入路由和待发送起形请求决定是否允许空闲操作。删除输入总入口中的 `vanillaSession()`、`activeSession()` 和重复观察链。任务遮盖仍保留底下的活动交互标志，取消／提交期间仍由路由状态持有输入。视觉层的既有绘制优先级本阶段不改。
 
 `ClientScope` 持有完整的 `ClientScopeId`，管理器从当前对象派生身份，不另存可能错配的当前键。草稿读取直接接收所属作用域，按其身份记录读取结果。`ClientScopeFiles` 统一原有三字段摘要和两个当前格式文件位置，不新增迁移路径。
 

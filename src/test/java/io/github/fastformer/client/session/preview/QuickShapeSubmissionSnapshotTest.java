@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.state;
+package io.github.fastformer.client.session.preview;
 
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewEffectSnapshot;
 

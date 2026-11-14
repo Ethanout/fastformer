@@ -34,6 +34,24 @@ public final class ClientSessionSystem {
    private static final Logger LOGGER = LogUtils.getLogger();
 
    private final ClientScopeRepository scopes = new ClientScopeRepository();
+   private final io.github.fastformer.client.session.preview.ClientPreviewState previews =
+      new io.github.fastformer.client.session.preview.ClientPreviewState();
+
+   public io.github.fastformer.client.session.preview.ClientPreviewState previews() { return previews; }
+
+   /** Captures workflow facts from their owners without querying the renderer. */
+   public io.github.fastformer.client.mode.ClientModeView modeView() {
+      var operations = operations();
+      var input = inputSession();
+      var observation = new io.github.fastformer.client.mode.ModeObservation(
+         previews.activity() == io.github.fastformer.fastplace.session.FastPlaceActivity.RESTORE_TASK,
+         previews.activity().task(),
+         operations.active() || operations.selectionSessionActive(),
+         operations.active(), operations.operationSelectionConfirmed(),
+         previews.geometry().active(), previews.building().active(),
+         io.github.fastformer.client.placement.QuickReplaceMode.active(), input.smartFill().active());
+      return input.modeView(observation);
+   }
    private boolean reclaimScopesPending;
    private Object callbackConnection;
    private UUID callbackSessionId;

@@ -10,7 +10,7 @@ import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;
 import io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload;
 import io.github.fastformer.protocol.s2c.preview.BuildingPreviewParametersPayload;
 import io.github.fastformer.protocol.s2c.preview.BuildingPreviewEffectPayload;
-import io.github.fastformer.client.render.state.ClientPreviewState;
+import io.github.fastformer.client.session.preview.ClientPreviewState;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
