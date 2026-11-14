@@ -123,6 +123,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 
 `core.math.Vectors` 通过调用方工厂构造结果，不依赖 Minecraft，也不产生额外中间向量。`normalize` 按长度比较，`normalizeSquared` 按长度平方比较；`Epsilon` 分别命名既有两种阈值，不能互换。`common.math.MinecraftVectors` 适配 `Vec3`，明确区分严格输入和 null 返回零的调用；长度分支保留倒数相乘、平方长度分支保留原版逐分量除法。输入、几何、射线和指南渲染直接复用，不保留旧工具方法转发。
 
+`Vectors.dominantAxis` 按绝对分量选择主轴，同量时依次优先 X、Y、Z；分量提取和轴向量构造共用 `Axis`。`MinecraftVectors.dominantStep` 保留选中轴的符号，与正向基轴构造分开。起形滚轮、棱柱投影、体积回退轴和铅笔线端点共用相同主轴规则，铅笔哈希仍使用原 X/Y/Z 序号；工作区缩放使用共享分量提取。
+
 `WorldTaskQueue` 核对任务对象身份后才推进；恢复移交中的槽位、后继任务和已关闭队列拒绝旧 resume。关闭先清空槽位并结束准入，再统一逐个取消；一次清理失败仍继续清理其他任务。已删除无身份删除、直接清空及两套旧任务接口。队列交接仍等待日志追加和历史发布终止，再接受事务快照。附属资源清理失败仍释放共同资源；工作区 tick barrier 先解除引用再关闭，重复清理不会再次关闭它。具体任务与运行层已迁入 `server.task.block` 和 `server.task.runtime`，禁止反向依赖会话编排。固定预算构造仅由同包共享测试源码提供，生产代码不含测试工厂或旧包转发。
 
 `SessionSystem.placementTasks()` 返回所属的 `PlacementTasks`，完整拥有普通放置的准入队列、tick／resume、取消、关闸移交、历史发布等待与结算提示。`QuickShapeSystem` 只组织编辑和生成请求，提交后调用该能力；它不持有任务队列，也不再转发任务查询或执行方法。调度器、门禁、撤销／退出和测试都使用同一个能力。关闭父作用域后，旧 resume 即使还在消息队列中也不能继续推进。

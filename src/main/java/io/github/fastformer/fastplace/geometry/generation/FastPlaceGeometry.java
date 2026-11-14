@@ -1,6 +1,8 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
 import static io.github.fastformer.common.math.MinecraftVectors.normalize;
+import static io.github.fastformer.common.math.MinecraftVectors.dominantAxis;
+import static io.github.fastformer.common.math.MinecraftVectors.axisVector;
 
 import io.github.fastformer.fastplace.geometry.FillMode;
 
@@ -534,17 +536,6 @@ public final class FastPlaceGeometry {
          : new FastPlaceGeometry.PerpendicularPlaneHit(hit, planePoint, lineDirection, hit.subtract(eye).dot(rayDirection));
    }
 
-   private static Vec3 dominantAxis(Vec3 vector) {
-      double x = Math.abs(vector.x);
-      double y = Math.abs(vector.y);
-      double z = Math.abs(vector.z);
-      if (x >= y && x >= z) {
-         return new Vec3(1.0, 0.0, 0.0);
-      } else {
-         return y >= z ? new Vec3(0.0, 1.0, 0.0) : new Vec3(0.0, 0.0, 1.0);
-      }
-   }
-
    public static Vec3 volumeBaseAxis(List<BlockPos> points, FastPlaceGeometry.Modes modes, Vec3 view) {
       Vec3 normal = PlanarFaceGeometry.normal(PlanarFaceGeometry.vertices(points, modes.faceMode()));
       return modes.volumeMode() == VolumeMode.FREE ? freeVolumeAxis(normal, view) : projectedVolumeAxis(normal, view);
@@ -676,7 +667,8 @@ public final class FastPlaceGeometry {
 
       Vec3 normal = normals.stream()
          .max((left, right) -> Double.compare(Math.abs(direction.dot(left)), Math.abs(direction.dot(right))))
-         .orElseGet(() -> dominantAxis(direction));
+         .orElseGet(() -> axisVector(
+            dominantAxis(direction), 1.0));
       return new FastPlaceGeometry.PlaneHit(normal, fallback.subtract(normal.scale(fallback.subtract(anchor).dot(normal))));
    }
 

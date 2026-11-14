@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.quickshape;
 
+import static io.github.fastformer.common.math.MinecraftVectors.dominantStep;
+
 import io.github.fastformer.fastplace.session.SessionValue;
 import io.github.fastformer.common.interaction.binding.SessionProfile;
 import io.github.fastformer.common.interaction.binding.SessionProfiles;
@@ -119,7 +121,7 @@ public final class QuickShapeDraft {
       if (steps == 0) {
          return;
       }
-      Vec3 dominant = dominantAxis(view);
+      Vec3 dominant = dominantStep(view);
       int signedStep = Integer.signum(steps);
       BlockPos offset = this.freeScrollOffset.get();
       BlockPos newOffset = new BlockPos(
@@ -128,19 +130,6 @@ public final class QuickShapeDraft {
          offset.getZ() + (int)(dominant.z * signedStep)
       );
       this.freeScrollOffset.set(clampOffset(newOffset));
-   }
-
-   private static Vec3 dominantAxis(Vec3 view) {
-      double x = Math.abs(view.x);
-      double y = Math.abs(view.y);
-      double z = Math.abs(view.z);
-      if (x >= y && x >= z) {
-         return new Vec3(Math.signum(view.x), 0.0, 0.0);
-      } else if (y >= z) {
-         return new Vec3(0.0, Math.signum(view.y), 0.0);
-      } else {
-         return new Vec3(0.0, 0.0, Math.signum(view.z));
-      }
    }
 
    public void setFreeScrollOffset(BlockPos offset) {

@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import static io.github.fastformer.common.math.MinecraftVectors.dominantAxis;
+
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +33,7 @@ public record SelectionPrism(List<Vec3> base, Vec3 extrusion) {
       List<Vec3> planarBase = rawBase.stream()
          .map(point -> point.subtract(unitNormal.scale(point.subtract(anchor).dot(unitNormal))))
          .toList();
-      int heightAxis = dominantAxis(unitNormal);
+      int heightAxis = dominantAxis(unitNormal).ordinal();
       double normalComponent = coordinate(unitNormal, heightAxis);
       double signedHeight = (
          coordinate(Vec3.atCenterOf(points.get(basePointCount)), heightAxis) - coordinate(anchor, heightAxis)
@@ -71,7 +73,7 @@ public record SelectionPrism(List<Vec3> base, Vec3 extrusion) {
       int steps = (int)Math.clamp(Math.round(offset / step), Integer.MIN_VALUE + 1L, Integer.MAX_VALUE - 1L);
       Vec3 resolved = anchor.add(normal.scale(steps * step));
       BlockPos approximate = BlockPos.containing(resolved);
-      int dominant = dominantAxis(normal);
+      int dominant = dominantAxis(normal).ordinal();
       int dominantCoordinate = coordinate(basePoints.getFirst(), dominant) + steps * (coordinate(normal, dominant) >= 0.0 ? 1 : -1);
       return withCoordinate(approximate, dominant, dominantCoordinate);
    }
@@ -350,7 +352,7 @@ public record SelectionPrism(List<Vec3> base, Vec3 extrusion) {
 
    private boolean insideBase(Vec3 point) {
       Vec3 normal = this.axis(2);
-      int droppedAxis = dominantAxis(normal);
+      int droppedAxis = dominantAxis(normal).ordinal();
       double px = coordinate(point, (droppedAxis + 1) % 3);
       double py = coordinate(point, (droppedAxis + 2) % 3);
       boolean inside = false;
@@ -482,13 +484,6 @@ public record SelectionPrism(List<Vec3> base, Vec3 extrusion) {
          && py >= Math.min(ay, by) - EPSILON && py <= Math.max(ay, by) + EPSILON;
    }
 
-   private static int dominantAxis(Vec3 normal) {
-      double x = Math.abs(normal.x);
-      double y = Math.abs(normal.y);
-      double z = Math.abs(normal.z);
-      return x >= y && x >= z ? 0 : y >= z ? 1 : 2;
-   }
-
    private static double coordinate(Vec3 point, int axis) {
       return axis == 0 ? point.x : axis == 1 ? point.y : point.z;
    }
@@ -515,7 +510,7 @@ public record SelectionPrism(List<Vec3> base, Vec3 extrusion) {
          if (normal.lengthSqr() < EPSILON) {
             return null;
          }
-         return new GridPlane(points.getFirst(), normal, dominantAxis(normal));
+         return new GridPlane(points.getFirst(), normal, dominantAxis(normal).ordinal());
       }
 
       public BlockPos snap(BlockPos candidate) {
@@ -546,7 +541,7 @@ public record SelectionPrism(List<Vec3> base, Vec3 extrusion) {
    public record GridLine(BlockPos anchorPoint, Vec3 direction, int drivingAxis, double step) {
       private static GridLine from(BlockPos anchorPoint, Vec3 direction) {
          Vec3 unit = direction.normalize();
-         return new GridLine(anchorPoint.immutable(), unit, dominantAxis(unit), normalStep(unit));
+         return new GridLine(anchorPoint.immutable(), unit, dominantAxis(unit).ordinal(), normalStep(unit));
       }
 
       public Vec3 anchor() {

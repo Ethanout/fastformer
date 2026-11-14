@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.preview;
 
+import static io.github.fastformer.common.math.MinecraftVectors.component;
+
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
@@ -467,14 +469,6 @@ public final class WorkspacePreviewComposer {
          }
       }
       return false;
-   }
-
-   private static double component(Vec3 value, Axis axis) {
-      return switch (axis) {
-         case X -> value.x;
-         case Y -> value.y;
-         case Z -> value.z;
-      };
    }
 
    private static long scaledExtent(int sourceExtent, double scale) {

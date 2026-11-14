@@ -9,6 +9,28 @@ public final class Vectors {
       V create(double x, double y, double z);
    }
 
+   /** Largest absolute component; equal magnitudes prefer X, then Y, then Z. */
+   public static Axis dominantAxis(double x, double y, double z) {
+      double ax = Math.abs(x), ay = Math.abs(y), az = Math.abs(z);
+      return ax >= ay && ax >= az ? Axis.X : ay >= az ? Axis.Y : Axis.Z;
+   }
+
+   public static double component(double x, double y, double z, Axis axis) {
+      return switch (axis) {
+         case X -> x;
+         case Y -> y;
+         case Z -> z;
+      };
+   }
+
+   public static <V> V axisVector(Axis axis, double amount, Factory<V> factory) {
+      return switch (axis) {
+         case X -> factory.create(amount, 0.0, 0.0);
+         case Y -> factory.create(0.0, amount, 0.0);
+         case Z -> factory.create(0.0, 0.0, amount);
+      };
+   }
+
    /** Compares length, not length squared. Non-finite coordinates keep their IEEE arithmetic. */
    public static <V> V normalize(double x, double y, double z, double minimumLength, Factory<V> factory) {
       requirePositiveCutoff(minimumLength);
