@@ -1,6 +1,8 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.session.ClientSessionSystem;
+
+import io.github.fastformer.client.operation.controller.OperationContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -18,7 +20,7 @@ public final class ClientInteractionFeedback {
    public static void showCopyResult(Minecraft minecraft, boolean succeeded) {
       String failureKey = succeeded
          ? null
-         : ClientOperationController.lastOperationFailureKey(COPY_FAILED);
+         : ClientSessionSystem.instance().operations().lastOperationFailureKey(COPY_FAILED);
       show(minecraft, resultKey(
          succeeded,
          COPY_SUCCESS,
@@ -29,7 +31,7 @@ public final class ClientInteractionFeedback {
    public static void showPasteResult(Minecraft minecraft, boolean succeeded) {
       String failureKey = succeeded
          ? null
-         : ClientOperationController.lastOperationFailureKey(PASTE_FAILED);
+         : ClientSessionSystem.instance().operations().lastOperationFailureKey(PASTE_FAILED);
       show(minecraft, resultKey(
          succeeded,
          PASTE_SUCCESS,
@@ -38,12 +40,12 @@ public final class ClientInteractionFeedback {
    }
 
    public static void showWorkspaceSubmitFailure(Minecraft minecraft) {
-      show(minecraft, ClientOperationController.lastOperationFailureKey(SUBMIT_FAILED));
+      show(minecraft, ClientSessionSystem.instance().operations().lastOperationFailureKey(SUBMIT_FAILED));
    }
 
    /** Explains why a selection adjustment did not start. */
-   public static void showAabbAdjustFailure(Minecraft minecraft, ClientOperationController.AabbAdjustDecision decision) {
-      show(minecraft, ClientOperationController.aabbAdjustFailureKey(decision));
+   public static void showAabbAdjustFailure(Minecraft minecraft, OperationContext.AabbAdjustDecision decision) {
+      show(minecraft, ClientSessionSystem.instance().operations().aabbAdjustFailureKey(decision));
    }
 
    public static void show(Minecraft minecraft, String translationKey) {

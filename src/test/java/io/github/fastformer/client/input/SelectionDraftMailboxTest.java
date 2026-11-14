@@ -1,9 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.controller.OperationContext;
 import io.github.fastformer.client.operation.input.SelectionDraftPress;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
@@ -20,14 +22,12 @@ class SelectionDraftMailboxTest {
    private long nextClickAt;
 
    @BeforeEach
-   void prepare() throws ReflectiveOperationException {
-      ClientOperationController.clearWorkspace();
+   void prepare() {
+      ClientSessionSystem.instance().operations().clearWorkspace();
       this.input = FastPlaceClientInput.inputSession();
       this.input.reset();
       this.input.routing.observe(ClientInputStateMachine.State.SELECTING);
-      var method = ClientOperationController.class.getDeclaredMethod("selectionSession");
-      method.setAccessible(true);
-      this.selection = (ClientSelectionSession) method.invoke(null);
+      this.selection = ClientSessionSystem.instance().selectionSession();
       this.selection.setSelectionMode(OperationSelectionMode.CUBOID);
    }
 
@@ -36,24 +36,24 @@ class SelectionDraftMailboxTest {
       this.input.reset();
       this.nextClickAt = 1234;
       io.github.fastformer.client.operation.selection.SelectionToolPreference.set(OperationSelectionMode.CUBOID);
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
    }
 
    @Test
    void idleToolCycleRemembersSmartWithoutTakingOwnershipUntilSessionEntry() {
       io.github.fastformer.client.operation.selection.SelectionToolPreference.set(OperationSelectionMode.CUBOID);
-      ClientOperationController.cycleIdleSelectionTool();
+      ClientSessionSystem.instance().operations().cycleIdleSelectionTool();
       assertEquals(OperationSelectionMode.SMART, this.selection.selectionMode());
       assertEquals(OperationSelectionMode.SMART,
          io.github.fastformer.client.operation.selection.SelectionToolPreference.get());
-      assertFalse(ClientOperationController.selectionSessionActive());
-      assertFalse(ClientOperationController.canStartSelectionDraft());
-      ClientOperationController.enterLocalSelectionSession();
-      assertTrue(ClientOperationController.canStartSelectionDraft());
+      assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
+      assertFalse(ClientSessionSystem.instance().operations().canStartSelectionDraft());
+      ClientSessionSystem.instance().operations().enterLocalSelectionSession();
+      assertTrue(ClientSessionSystem.instance().operations().canStartSelectionDraft());
       assertEquals(OperationSelectionMode.SMART, this.selection.selectionMode());
-      assertTrue(ClientOperationController.cancelLastSelection());
-      assertFalse(ClientOperationController.selectionSessionActive());
-      assertFalse(ClientOperationController.canStartSelectionDraft());
+      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
+      assertFalse(ClientSessionSystem.instance().operations().canStartSelectionDraft());
    }
 
    @Test
@@ -112,7 +112,7 @@ class SelectionDraftMailboxTest {
       assertEquals(1, this.selection.workspace().size());
       assertFalse(this.selection.hasDraft());
       assertTrue(this.selection.workspace().parts().getFirst().canAdjustGeometry());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertTrue(this.selection.workspace().isEmpty());
       assertEquals(List.of(first), this.selection.draftPoints());
       assertFalse(this.input.blocksDraftLoad());
@@ -127,10 +127,10 @@ class SelectionDraftMailboxTest {
       drain();
       assertTrue(this.selection.workspace().isEmpty());
       assertFalse(this.selection.hasDraft());
-      assertFalse(ClientOperationController.selectionSessionActive());
-      assertTrue(ClientOperationController.undo());
+      assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(List.of(BlockPos.ZERO), this.selection.draftPoints());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(1, this.selection.workspace().size());
    }
 
@@ -141,7 +141,7 @@ class SelectionDraftMailboxTest {
       postClick(1, new BlockPos(8, 8, 8), false);
       drain();
 
-      assertFalse(ClientOperationController.selectionSessionActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
       assertFalse(this.selection.hasDraft());
       assertTrue(this.selection.workspace().isEmpty());
       assertFalse(this.input.selectionPointer.active());
@@ -149,57 +149,57 @@ class SelectionDraftMailboxTest {
 
    @Test
    void undoingTheOnlyPointReturnsToIdle() {
-      assertTrue(ClientOperationController.handleCreateClick(1, BlockPos.ZERO));
-      assertTrue(ClientOperationController.undo());
-      assertFalse(ClientOperationController.selectionSessionActive());
+      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, BlockPos.ZERO));
+      assertTrue(ClientSessionSystem.instance().operations().undo());
+      assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
       assertFalse(this.selection.hasDraft());
       assertTrue(this.selection.workspace().isEmpty());
    }
 
    @Test
    void switchingToolsAfterOnlyOnePointDoesNotLeaveAnEmptySession() {
-      assertTrue(ClientOperationController.handleCreateClick(1, BlockPos.ZERO));
-      assertTrue(ClientOperationController.cycleDraftMode());
+      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, BlockPos.ZERO));
+      assertTrue(ClientSessionSystem.instance().operations().cycleDraftMode());
       assertEquals(OperationSelectionMode.SMART, this.selection.selectionMode());
-      assertFalse(ClientOperationController.selectionSessionActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
       assertFalse(this.selection.hasDraft());
    }
 
    @Test
    void enterFixLeavesRoomForEveryMouseButtonToStartTheNextDraft() {
       for (int button : List.of(1, 2)) {
-         ClientOperationController.clearWorkspace();
+         ClientSessionSystem.instance().operations().clearWorkspace();
          this.selection.setSelectionMode(OperationSelectionMode.CUBOID);
-         ClientOperationController.handleCreateClick(1, BlockPos.ZERO);
-         ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
-         assertTrue(ClientOperationController.fixActiveSelection());
-         assertTrue(ClientOperationController.canStartSelectionDraft());
+         ClientSessionSystem.instance().operations().handleCreateClick(1, BlockPos.ZERO);
+         ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(2, 2, 2));
+         assertTrue(ClientSessionSystem.instance().operations().fixActiveSelection());
+         assertTrue(ClientSessionSystem.instance().operations().canStartSelectionDraft());
          assertFalse(this.selection.workspace().parts().getFirst().canAdjustGeometry());
-         assertTrue(ClientOperationController.handleCreateClick(button, new BlockPos(5, 5, 5)));
+         assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(button, new BlockPos(5, 5, 5)));
          assertEquals(List.of(new BlockPos(5, 5, 5)), this.selection.draftPoints());
       }
    }
 
    @Test
    void undoingExplicitFixRestoresTheEditableSelection() {
-      ClientOperationController.handleCreateClick(1, BlockPos.ZERO);
-      ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
-      assertTrue(ClientOperationController.fixActiveSelection());
-      assertTrue(ClientOperationController.undo());
+      ClientSessionSystem.instance().operations().handleCreateClick(1, BlockPos.ZERO);
+      ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(2, 2, 2));
+      assertTrue(ClientSessionSystem.instance().operations().fixActiveSelection());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertTrue(this.selection.workspace().parts().getFirst().canAdjustGeometry());
-      assertFalse(ClientOperationController.canStartSelectionDraft());
+      assertFalse(ClientSessionSystem.instance().operations().canStartSelectionDraft());
    }
 
    @Test
    void modeSwitchKeepsExistingCuboidAndUndoRestoresOnlyTheCreationTool() {
-      ClientOperationController.handleCreateClick(1, BlockPos.ZERO);
-      ClientOperationController.handleCreateClick(1, new BlockPos(2, 2, 2));
+      ClientSessionSystem.instance().operations().handleCreateClick(1, BlockPos.ZERO);
+      ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(2, 2, 2));
       var original = this.selection.workspace().parts().getFirst();
-      assertTrue(ClientOperationController.cycleDraftMode());
+      assertTrue(ClientSessionSystem.instance().operations().cycleDraftMode());
       assertEquals(OperationSelectionMode.SMART, this.selection.selectionMode());
       assertEquals(List.of(original), this.selection.workspace().parts());
       assertEquals(0, this.selection.draftSize());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(OperationSelectionMode.CUBOID, this.selection.selectionMode());
       assertFalse(this.selection.hasDraft());
       assertEquals(original, this.selection.workspace().parts().getFirst());
@@ -243,7 +243,7 @@ class SelectionDraftMailboxTest {
    @Test
    void sessionReplacementRejectsAnOldPointEvenWhenItsModeMatches() {
       postClick(0, BlockPos.ZERO, false);
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       var before = this.selection.draftState();
       drain();
       assertEquals(before, this.selection.draftState());

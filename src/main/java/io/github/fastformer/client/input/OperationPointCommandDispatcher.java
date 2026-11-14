@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.operation.input.OperationPointCommandEvent;
 import io.github.fastformer.client.operation.input.OperationPointCommandPress;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
@@ -41,7 +42,7 @@ final class OperationPointCommandDispatcher {
    }
 
    static boolean queueNext(ClientInputSession session, Minecraft minecraft) {
-      if (!ClientOperationController.operationPrism()
+      if (!ClientSessionSystem.instance().operations().operationPrism()
          || FastPlaceClientPreviewCore.operationCandidatePoint() == null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) return false;
       OperationPointPayload.Role role = FastPlaceClientPreviewCore.operationNeedsFirst()
@@ -53,7 +54,7 @@ final class OperationPointCommandDispatcher {
    }
 
    static boolean select(Minecraft minecraft) {
-      if (!ClientOperationController.operationPrism()) return false;
+      if (!ClientSessionSystem.instance().operations().operationPrism()) return false;
       int index = FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex();
       if (index < 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationSelectPointPayload.TYPE.id())) return false;
       FastPlaceClientInput.currentSession().captureOperationPointCommand(OperationPointCommandPress.select(System.nanoTime()));

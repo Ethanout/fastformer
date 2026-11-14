@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.client.render.PreviewStyle;
@@ -20,7 +22,6 @@ import io.github.fastformer.client.interaction.InteractionTooltip;
 import io.github.fastformer.client.interaction.PartLabelInteraction;
 import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
 import io.github.fastformer.client.render.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspacePreviewRenderer;
@@ -52,7 +53,7 @@ final class OperationPreviewRenderer {
    static float selectionOpacity(boolean alt) { return alt ? 0.35F : 1.0F; }
 
    static void renderDraft(RenderLevelStageEvent event, Minecraft minecraft, OperationInteractionIntent intent) {
-      var draft = ClientOperationController.selectionDraft();
+      var draft = ClientSessionSystem.instance().operations().selectionDraft();
       if (draft.points().isEmpty()) return;
       var points = new ArrayList<>(draft.points());
       if (intent instanceof OperationInteractionIntent.CreateSelection create && !points.contains(create.point())) points.add(create.point());
@@ -195,9 +196,9 @@ final class OperationPreviewRenderer {
    static void renderClientOperationWorkspace(
       RenderLevelStageEvent event, Minecraft minecraft, OperationInteractionIntent pointerIntent
    ) {
-      pointerIntent = ClientOperationController.visualHoverIntent();
-      var workspace = ClientOperationController.workspace();
-      var interactionScene = ClientOperationController.interactionScene();
+      pointerIntent = ClientSessionSystem.instance().operations().visualHoverIntent();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var interactionScene = ClientSessionSystem.instance().operations().interactionScene();
       SmartSelectionRenderer.beginFrame(event, minecraft);
       if (minecraft.level == null || workspace.isEmpty()) {
          return;
@@ -206,7 +207,7 @@ final class OperationPreviewRenderer {
       BufferSource buffers = minecraft.renderBuffers().bufferSource();
       Vec3 camera = event.getCamera().getPosition();
       float pulse = ghostBreathPulse();
-      boolean altFocused = ClientOperationController.interactionState()
+      boolean altFocused = ClientSessionSystem.instance().operations().interactionState()
          == ClientSelectionState.ALT_FOCUSED;
       float selectionOpacity = selectionOpacity(altFocused);
       OperationInteractionIntent.Gizmo hoveredGizmo = pointerIntent instanceof OperationInteractionIntent.Gizmo gizmo
@@ -250,7 +251,7 @@ final class OperationPreviewRenderer {
          if (!ownedBlocks.isEmpty()) {
             float blockAlpha = io.github.fastformer.client.render.PreviewMaterialRenderer.confirmedAlpha();
             if (altFocused) blockAlpha *= selectionOpacity;
-            var capture = ClientOperationController.selectionGestures().capture();
+            var capture = ClientSessionSystem.instance().operations().selectionGestures().capture();
             boolean moving = capture != null && capture.targets().containsKey(part.id());
             WorkspacePreviewRenderer.renderBlocks(poseStack, buffers, minecraft, camera, ownedBlocks, scene.blocks(),
                1.0F, 1.0F, 1.0F, blockAlpha, worldPreviewOpacity, moving);
@@ -261,7 +262,7 @@ final class OperationPreviewRenderer {
             ? WorkspaceInteractionResolver.resolveVisiblePartBlocks(part)
             : resolvedParts.getOrDefault(part.id(), Map.of());
          boolean selected = workspace.selectedIds().contains(part.id());
-         var capture = ClientOperationController.selectionGestures().capture();
+         var capture = ClientSessionSystem.instance().operations().selectionGestures().capture();
          boolean moving = capture != null && capture.targets().containsKey(part.id());
          boolean hovered = part.id() == hoveredPartId;
          var interactionPart = interactionScene.parts().get(part.id());
@@ -309,7 +310,7 @@ final class OperationPreviewRenderer {
             WorkspacePreviewRenderer.renderPartLabel(
                poseStack, buffers, minecraft, camera,
                interactionPart.label(),
-               new PartLabelInteraction.Context(selected, ClientOperationController.hoveredLabel(interactionPart.label()),
+               new PartLabelInteraction.Context(selected, ClientSessionSystem.instance().operations().hoveredLabel(interactionPart.label()),
                   workspaceLocked, controlHeld, pointerIntent, pulse)
             );
          }
@@ -341,7 +342,7 @@ final class OperationPreviewRenderer {
          }
 
          Vec3 center = boundsCenter;
-         if (ClientOperationController.smartEditing()
+         if (ClientSessionSystem.instance().operations().smartEditing()
             || !SelectionGizmoInteraction.partGizmoVisible(interactionScene, interactionPart.gizmo(), selected)) {
             continue;
          }
@@ -378,7 +379,7 @@ final class OperationPreviewRenderer {
       }
 
       var groupObject = interactionScene.groupGizmo();
-      if (groupObject != null && !ClientOperationController.smartEditing()) {
+      if (groupObject != null && !ClientSessionSystem.instance().operations().smartEditing()) {
          AABB groupBounds = groupObject.require(InteractionComponents.WORLD_BOUNDS);
          if (groupBounds != null) {
             Vec3 center = groupBounds.getCenter();
@@ -386,14 +387,14 @@ final class OperationPreviewRenderer {
             poseStack.translate(-camera.x, -camera.y, -camera.z);
             renderConfirmedBox(
                poseStack,
-               buffers.getBuffer(ClientOperationController.selectionGestures().active() ? DYNAMIC_LINES : GHOST_OUTLINE_LINES),
+               buffers.getBuffer(ClientSessionSystem.instance().operations().selectionGestures().active() ? DYNAMIC_LINES : GHOST_OUTLINE_LINES),
                center,
                new Vec3(
                   groupBounds.getXsize() * 0.5 + 3.0 * PreviewStyle.OUTLINE_INFLATE,
                   groupBounds.getYsize() * 0.5 + 3.0 * PreviewStyle.OUTLINE_INFLATE,
                   groupBounds.getZsize() * 0.5 + 3.0 * PreviewStyle.OUTLINE_INFLATE
                ),
-               ClientOperationController.selectionGestures().active(),
+               ClientSessionSystem.instance().operations().selectionGestures().active(),
                0.96F * selectionOpacity
             );
             poseStack.popPose();
@@ -480,10 +481,10 @@ final class OperationPreviewRenderer {
       buffers.endBatch(DYNAMIC_LINES);
       // A locked workspace refuses the creation click, so the marker keeps its
       // position but drops the command text.
-      if (WorkspacePointerPrompt.acceptsNewAction(ClientOperationController.workspace().locked())) {
+      if (WorkspacePointerPrompt.acceptsNewAction(ClientSessionSystem.instance().operations().workspace().locked())) {
          WorkspacePreviewRenderer.renderHintLabel(
             poseStack, buffers, minecraft, camera, Vec3.atCenterOf(position).add(0.0, 0.68, 0.0),
-            ClientOperationController.smartTool()
+            ClientSessionSystem.instance().operations().smartTool()
                ? Component.translatable(FastPlaceClientInput.modifierHeld()
                   ? "fastformer.hud.smart_hover_refine" : "fastformer.hud.smart_hover").getString()
                : create.requireHoverText().getString()

@@ -1,12 +1,13 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
@@ -30,7 +31,7 @@ public final class PointerDragSnapshotView {
    }
 
    public static Axis operationAxis(ClientInputSession session) {
-      if (ClientOperationController.operationSelectionReady() && session.geometryGizmoDrag != null) {
+      if (ClientSessionSystem.instance().operations().operationSelectionReady() && session.geometryGizmoDrag != null) {
          return session.geometryGizmoDrag.axis();
       }
       OperationDrag drag = session.operationDrag;
@@ -38,7 +39,7 @@ public final class PointerDragSnapshotView {
    }
 
    public static AxisGizmo.Operation operationOperation(ClientInputSession session) {
-      if (ClientOperationController.operationSelectionReady() && session.geometryGizmoDrag != null) {
+      if (ClientSessionSystem.instance().operations().operationSelectionReady() && session.geometryGizmoDrag != null) {
          return session.geometryGizmoDrag.operation();
       }
       OperationDrag drag = session.operationDrag;
@@ -50,7 +51,7 @@ public final class PointerDragSnapshotView {
       if (workspace != null) {
          return new AxisGizmo.HandleKey(workspace.operation(), workspace.axis(), workspace.direction());
       }
-      if (ClientOperationController.operationSelectionReady() && session.geometryGizmoDrag != null) {
+      if (ClientSessionSystem.instance().operations().operationSelectionReady() && session.geometryGizmoDrag != null) {
          return new AxisGizmo.HandleKey(session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.direction());
       }
       return session.operationDrag == null ? null : session.operationDrag.gizmoKey();
@@ -59,12 +60,12 @@ public final class PointerDragSnapshotView {
    public static int operationSteps(ClientInputSession session) {
       WorkspaceGizmoDrag workspace = gizmo(session);
       if (workspace != null) return workspace.sentSteps();
-      if (ClientOperationController.operationSelectionReady() && session.geometryGizmoDrag != null) return session.geometryGizmoDrag.sentSteps();
+      if (ClientSessionSystem.instance().operations().operationSelectionReady() && session.geometryGizmoDrag != null) return session.geometryGizmoDrag.sentSteps();
       return session.operationDrag == null || session.operationDrag.gizmoKey() == null ? 0 : session.operationDrag.sentSteps();
    }
 
    public static double operationBaseValue(ClientInputSession session) {
-      if (ClientOperationController.operationSelectionReady() && session.geometryGizmoDrag != null) return session.geometryGizmoDrag.baseValue();
+      if (ClientSessionSystem.instance().operations().operationSelectionReady() && session.geometryGizmoDrag != null) return session.geometryGizmoDrag.baseValue();
       return session.operationDrag == null || session.operationDrag.gizmoKey() == null ? 0.0 : session.operationDrag.gizmoBaseValue();
    }
 

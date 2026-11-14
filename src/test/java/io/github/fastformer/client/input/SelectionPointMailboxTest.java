@@ -1,11 +1,12 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.SelectionPointPress;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
@@ -27,18 +28,18 @@ class SelectionPointMailboxTest {
 
    @BeforeEach
    void prepare() {
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       input = FastPlaceClientInput.inputSession();
       input.reset();
       input.routing.observe(ClientInputStateMachine.State.ADJUSTING);
-      workspace = ClientOperationController.workspace();
+      workspace = ClientSessionSystem.instance().operations().workspace();
       workspace.addParts(List.of(part()));
    }
 
    @AfterEach
    void clear() {
       input.reset();
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
    }
 
    @Test
@@ -118,7 +119,7 @@ class SelectionPointMailboxTest {
       assertNull(workspace.activeEditToken());
    }
 
-   private UUID owner() { return ClientOperationController.interactionScene().owner(); }
+   private UUID owner() { return ClientSessionSystem.instance().operations().interactionScene().owner(); }
 
    private SelectionPointPress snapshot(BlockPos point) {
       return snapshot(0, point);

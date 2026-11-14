@@ -1,6 +1,7 @@
 package io.github.fastformer.client.operation.input;
 
-import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
@@ -21,19 +22,19 @@ public record OperationPointCommandPress(
    public static OperationPointCommandPress select(long occurredAtNanos) {
       int index = FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex();
       return new OperationPointCommandPress(
-         ClientOperationController.interactionScene().owner(),
-         ClientOperationController.remoteSelectionCallbackScope(),
-         ClientOperationController.remoteSelectionRevision(),
-         ClientOperationController.remoteSelectionIdentity(), index, false, minecraftEye(), minecraftView(), occurredAtNanos
+         ClientSessionSystem.instance().operations().interactionScene().owner(),
+         ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(),
+         ClientSessionSystem.instance().operations().remoteSelectionRevision(),
+         ClientSessionSystem.instance().operations().remoteSelectionIdentity(), index, false, minecraftEye(), minecraftView(), occurredAtNanos
       );
    }
 
    public static OperationPointCommandPress insert(long occurredAtNanos) {
       return new OperationPointCommandPress(
-         ClientOperationController.interactionScene().owner(),
-         ClientOperationController.remoteSelectionCallbackScope(),
-         ClientOperationController.remoteSelectionRevision(),
-         ClientOperationController.remoteSelectionIdentity(), -1, true, minecraftEye(), minecraftView(), occurredAtNanos
+         ClientSessionSystem.instance().operations().interactionScene().owner(),
+         ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(),
+         ClientSessionSystem.instance().operations().remoteSelectionRevision(),
+         ClientSessionSystem.instance().operations().remoteSelectionIdentity(), -1, true, minecraftEye(), minecraftView(), occurredAtNanos
       );
    }
 

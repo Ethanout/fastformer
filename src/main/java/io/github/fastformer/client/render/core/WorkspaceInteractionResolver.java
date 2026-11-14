@@ -1,5 +1,7 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.PointerDragSnapshotView;
@@ -13,7 +15,6 @@ import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.intent.InteractionIntentProvider;
 import io.github.fastformer.client.interaction.intent.InteractionIntentResolver;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
@@ -71,17 +72,17 @@ public final class WorkspaceInteractionResolver {
    }
 
    private static Optional<OperationInteractionIntent> resolveGizmo(InteractionContext context) {
-      if (ClientOperationController.smartEditing()) return Optional.empty();
-      if (!ClientOperationController.active() || ClientOperationController.selectionDraftActive()
-         || ClientOperationController.workspace().locked()) {
+      if (ClientSessionSystem.instance().operations().smartEditing()) return Optional.empty();
+      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive()
+         || ClientSessionSystem.instance().operations().workspace().locked()) {
          return Optional.empty();
       }
       List<OperationInteractionIntent.Gizmo> targets = new ArrayList<>();
-      var scene = ClientOperationController.interactionScene();
+      var scene = ClientSessionSystem.instance().operations().interactionScene();
       for (var object : scene.parts().values()) {
          ClientSelectionPart part = object.source();
          if (!SelectionGizmoInteraction.partGizmoVisible(scene, object.gizmo(),
-            ClientOperationController.workspace().selectedIds().contains(part.id()))) {
+            ClientSessionSystem.instance().operations().workspace().selectedIds().contains(part.id()))) {
             continue;
          }
          AABB interactionBounds = object.bounds();
@@ -136,14 +137,14 @@ public final class WorkspaceInteractionResolver {
    }
 
    private static Optional<OperationInteractionIntent> resolvePart(InteractionContext context) {
-      if (ClientOperationController.smartEditing()) return Optional.empty();
-      if (!ClientOperationController.active() || ClientOperationController.selectionDraftActive() || context.alternative()) {
+      if (ClientSessionSystem.instance().operations().smartEditing()) return Optional.empty();
+      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive() || context.alternative()) {
          return Optional.empty();
       }
-      var workspace = ClientOperationController.workspace();
-      Set<BlockPos> failedTargets = ClientOperationController.failedWorkspaceTargets();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
+      Set<BlockPos> failedTargets = ClientSessionSystem.instance().operations().failedWorkspaceTargets();
       return resolvePartTarget(
-         ClientOperationController.interactionScene(), context.eye(), context.view(), context.control(),
+         ClientSessionSystem.instance().operations().interactionScene(), context.eye(), context.view(), context.control(),
          failedTargets, workspace.locked()
       ).map(OperationInteractionIntent.class::cast);
    }
@@ -186,9 +187,9 @@ public final class WorkspaceInteractionResolver {
       OperationGeometry.RayHit dragged = PointerDragSnapshotView.faceHit(inputSession);
       int draggedPartId = PointerDragSnapshotView.facePartId(inputSession);
       if (dragged != null && draggedPartId > 0) {
-         ClientSelectionPart part = ClientOperationController.workspace().part(draggedPartId).orElse(null);
+         ClientSelectionPart part = ClientSessionSystem.instance().operations().workspace().part(draggedPartId).orElse(null);
          if (WorkspacePartInteractionCapabilities.canEditSource(part)) {
-            AABB bounds = ClientOperationController.interactionScene().bounds(part.id());
+            AABB bounds = ClientSessionSystem.instance().operations().interactionScene().bounds(part.id());
             if (bounds != null) {
                return Optional.of(new OperationInteractionIntent.Face(draggedPartId, bounds, dragged, true));
             }
@@ -198,9 +199,9 @@ public final class WorkspaceInteractionResolver {
    }
 
    private static Optional<OperationInteractionIntent> resolveFace(InteractionContext context) {
-      if (ClientOperationController.smartEditing()) return Optional.empty();
-      if (!ClientOperationController.active() || ClientOperationController.selectionDraftActive()
-         || ClientOperationController.workspace().locked() || context.control() || context.alternative()) {
+      if (ClientSessionSystem.instance().operations().smartEditing()) return Optional.empty();
+      if (!ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionDraftActive()
+         || ClientSessionSystem.instance().operations().workspace().locked() || context.control() || context.alternative()) {
          return Optional.empty();
       }
       OperationInteractionIntent.Face best = null;
@@ -210,9 +211,9 @@ public final class WorkspaceInteractionResolver {
             context.minecraft().level, context.player(), context.eye(), context.view()).hit();
          if (worldHit.getType() == Type.BLOCK) worldDistance = context.eye().distanceTo(worldHit.getLocation());
       }
-      Set<BlockPos> failedTargets = ClientOperationController.failedWorkspaceTargets();
-      for (ClientSelectionPart part : ClientOperationController.workspace().parts()) {
-         AABB bounds = ClientOperationController.interactionScene().bounds(part.id());
+      Set<BlockPos> failedTargets = ClientSessionSystem.instance().operations().failedWorkspaceTargets();
+      for (ClientSelectionPart part : ClientSessionSystem.instance().operations().workspace().parts()) {
+         AABB bounds = ClientSessionSystem.instance().operations().interactionScene().bounds(part.id());
          if (!WorkspacePartInteractionCapabilities.canSelect(part, bounds)) {
             continue;
          }
@@ -220,12 +221,12 @@ public final class WorkspaceInteractionResolver {
          if (hit != null && facePrecedesWorldBlock(hit.distance(), worldDistance) && !hitsFailedTarget(hit, failedTargets)
             && (best == null || hit.distance() < best.hit().distance())) {
             best = new OperationInteractionIntent.Face(
-               part.id(), bounds, hit, ClientOperationController.canAdjustAabbFace(part)
+               part.id(), bounds, hit, ClientSessionSystem.instance().operations().canAdjustAabbFace(part)
             );
          }
       }
       if (best == null) return Optional.empty();
-      ClientSelectionPart part = ClientOperationController.workspace().part(best.partId()).orElseThrow();
+      ClientSelectionPart part = ClientSessionSystem.instance().operations().workspace().part(best.partId()).orElseThrow();
       if (part.smart() || !WorkspacePartInteractionCapabilities.canEditSource(part)) {
          return Optional.of(new OperationInteractionIntent.Part(
             best.partId(), best.hit().distance(), OperationInteractionIntent.PartSurface.FRAME));
@@ -261,8 +262,8 @@ public final class WorkspaceInteractionResolver {
             : Optional.empty();
       }
       BlockPos point;
-      boolean workspaceCreation = ClientOperationController.canStartSelectionDraft()
-         || ClientOperationController.active();
+      boolean workspaceCreation = ClientSessionSystem.instance().operations().canStartSelectionDraft()
+         || ClientSessionSystem.instance().operations().active();
       if (workspaceCreation) {
          if (context.minecraft().level == null) {
             return Optional.empty();
@@ -294,7 +295,7 @@ public final class WorkspaceInteractionResolver {
    }
 
    private static BlockPos draftCandidate(InteractionContext context, BlockHitResult hit) {
-      var draft = ClientOperationController.selectionDraft();
+      var draft = ClientSessionSystem.instance().operations().selectionDraft();
       if (draft.selectionMode() != io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM
          || draft.points().size() < 3) return selectionCreationPoint(hit);
       double distance = context.eye().distanceTo(hit.getLocation());
@@ -309,7 +310,7 @@ public final class WorkspaceInteractionResolver {
    }
 
    static Map<BlockPos, ClientBlockSnapshot> resolvePartBlocks(ClientSelectionPart part) {
-      long revision = ClientOperationController.workspace().revision();
+      long revision = ClientSessionSystem.instance().operations().workspace().revision();
       if (resolvedCacheRevision != revision) {
          clearCache();
          resolvedCacheRevision = revision;
@@ -320,7 +321,7 @@ public final class WorkspaceInteractionResolver {
    /** Resolves the portion still visible after a rejected workspace submission. */
    static Map<BlockPos, ClientBlockSnapshot> resolveVisiblePartBlocks(ClientSelectionPart part) {
       Map<BlockPos, ClientBlockSnapshot> resolved = resolvePartBlocks(part);
-      Set<BlockPos> failed = ClientOperationController.failedWorkspaceTargets();
+      Set<BlockPos> failed = ClientSessionSystem.instance().operations().failedWorkspaceTargets();
       return withoutFailedTargets(resolved, failed);
    }
 

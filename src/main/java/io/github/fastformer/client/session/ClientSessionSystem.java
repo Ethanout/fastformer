@@ -72,6 +72,12 @@ public final class ClientSessionSystem {
       return scopes.current();
    }
 
+   public io.github.fastformer.client.operation.controller.OperationContext operations() {
+      Minecraft minecraft = Minecraft.getInstance();
+      if (minecraft != null && minecraft.player != null) observePlayer(minecraft);
+      return scopes.operations();
+   }
+
    private ClientScopeId currentScopeId() {
       return scopes.current() == null ? null : scopes.current().id();
    }

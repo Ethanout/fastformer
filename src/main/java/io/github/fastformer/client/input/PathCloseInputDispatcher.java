@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.gesture.PathClosePress;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.geometry.ClosePathPayload;
@@ -24,8 +26,8 @@ final class PathCloseInputDispatcher {
    private static ClosePathPayload captureIdentity() {
       long request = GeometryInputController.nextRequestId();
       if (FastPlaceClientPreviewCore.operationActive()) return new ClosePathPayload(request,
-         io.github.fastformer.client.operation.controller.ClientOperationController.remoteSelectionRevision(),
-         io.github.fastformer.client.operation.controller.ClientOperationController.remoteSelectionCallbackScope(), ClosePathPayload.Kind.OPERATION);
+         ClientSessionSystem.instance().operations().remoteSelectionRevision(),
+         ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(), ClosePathPayload.Kind.OPERATION);
       var geometry = FastPlaceClientPreviewCore.geometrySnapshot();
       if (geometry.active()) return new ClosePathPayload(request, geometry.revision(), geometry.callbackScope(), ClosePathPayload.Kind.GEOMETRY);
       return FastPlaceClientPreviewCore.buildingSubmission().map(snapshot ->

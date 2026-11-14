@@ -1,9 +1,10 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import io.github.fastformer.client.interaction.SmartSelectionEditView;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.FastPlaceClientShaders;
 import io.github.fastformer.client.render.SmartSelectionCellMesh;
@@ -42,7 +43,7 @@ final class SmartSelectionIsolationRenderer {
          level = minecraft.level;
          shaderIdentity = FastPlaceClientShaders.smartSelectionComposite();
       }
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       CACHE.entrySet().removeIf(entry -> {
          if (workspace.part(entry.getKey()).filter(part -> part.smart()).isPresent()) return false;
          entry.getValue().close();

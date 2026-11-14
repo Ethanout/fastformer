@@ -1,8 +1,9 @@
 package io.github.fastformer.client.interaction;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
@@ -150,45 +151,45 @@ class SelectionInteractionSceneTest {
 
    @Test
    void controllerPublishesMoveAndUndoBeforeTheNextTick() {
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       try {
-         ClientOperationController.workspace().addParts(List.of(cuboid(0)));
-         assertTrue(ClientOperationController.moveSelected(new BlockPos(4, 0, 0)));
-         var moved = ClientOperationController.interactionScene();
+         ClientSessionSystem.instance().operations().workspace().addParts(List.of(cuboid(0)));
+         assertTrue(ClientSessionSystem.instance().operations().moveSelected(new BlockPos(4, 0, 0)));
+         var moved = ClientSessionSystem.instance().operations().interactionScene();
          assertEquals(cuboid(0).selection().bounds().move(4, 0, 0), moved.bounds(1));
-         assertTrue(ClientOperationController.undo());
-         assertEquals(cuboid(0).selection().bounds(), ClientOperationController.interactionScene().bounds(1));
+         assertTrue(ClientSessionSystem.instance().operations().undo());
+         assertEquals(cuboid(0).selection().bounds(), ClientSessionSystem.instance().operations().interactionScene().bounds(1));
          assertEquals(cuboid(0).selection().bounds().move(4, 0, 0), moved.bounds(1));
       } finally {
-         ClientOperationController.clearWorkspace();
+         ClientSessionSystem.instance().operations().clearWorkspace();
       }
-      assertTrue(ClientOperationController.interactionScene().parts().isEmpty());
+      assertTrue(ClientSessionSystem.instance().operations().interactionScene().parts().isEmpty());
    }
 
    @Test
    void selectionCommandsPublishTheGroupWithoutMutatingTheOldSnapshot() {
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       try {
-         ClientOperationController.workspace().addParts(List.of(cuboid(0), cuboid(10)));
-         ClientOperationController.selectAllWorkspaceParts();
-         var before = ClientOperationController.interactionScene();
+         ClientSessionSystem.instance().operations().workspace().addParts(List.of(cuboid(0), cuboid(10)));
+         ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
+         var before = ClientSessionSystem.instance().operations().interactionScene();
          var group = before.groupGizmo();
          assertNotNull(group);
          assertEquals(2, group.require(InteractionComponents.GROUP_GIZMO).members().size());
-         ClientOperationController.selectAllWorkspaceParts();
-         assertSame(before, ClientOperationController.interactionScene());
-         ClientOperationController.selectWorkspacePart(1, false);
-         assertNull(ClientOperationController.interactionScene().groupGizmo());
+         ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
+         assertSame(before, ClientSessionSystem.instance().operations().interactionScene());
+         ClientSessionSystem.instance().operations().selectWorkspacePart(1, false);
+         assertNull(ClientSessionSystem.instance().operations().interactionScene().groupGizmo());
          assertSame(group, before.groupGizmo());
-         ClientOperationController.selectWorkspacePart(2, true);
-         var restored = ClientOperationController.interactionScene().groupGizmo();
+         ClientSessionSystem.instance().operations().selectWorkspacePart(2, true);
+         var restored = ClientSessionSystem.instance().operations().interactionScene().groupGizmo();
          assertEquals(group.id(), restored.id());
          assertEquals(group.require(InteractionComponents.WORLD_BOUNDS), restored.require(InteractionComponents.WORLD_BOUNDS));
-         ClientOperationController.clearWorkspace();
-         assertNull(ClientOperationController.interactionScene().groupGizmo());
-         assertNotEquals(before.owner(), ClientOperationController.interactionScene().owner());
+         ClientSessionSystem.instance().operations().clearWorkspace();
+         assertNull(ClientSessionSystem.instance().operations().interactionScene().groupGizmo());
+         assertNotEquals(before.owner(), ClientSessionSystem.instance().operations().interactionScene().owner());
       } finally {
-         ClientOperationController.clearWorkspace();
+         ClientSessionSystem.instance().operations().clearWorkspace();
       }
    }
 
@@ -218,19 +219,19 @@ class SelectionInteractionSceneTest {
       var foreign = populated();
       foreign.workspace().beginEdit();
       var token = foreign.workspace().activeEditToken();
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       try {
-         var workspace = ClientOperationController.workspace();
+         var workspace = ClientSessionSystem.instance().operations().workspace();
          workspace.addParts(List.of(cuboid(0)));
          workspace.beginEdit();
          var current = workspace.activeEditToken();
-         var unpublished = ClientOperationController.interactionScene();
-         ClientOperationController.cancelTransformGesture(token);
-         assertFalse(ClientOperationController.finishTransformGesture(token));
+         var unpublished = ClientSessionSystem.instance().operations().interactionScene();
+         ClientSessionSystem.instance().operations().cancelTransformGesture(token);
+         assertFalse(ClientSessionSystem.instance().operations().finishTransformGesture(token));
          assertTrue(workspace.ownsEdit(current));
-         assertSame(unpublished, ClientOperationController.interactionScene());
+         assertSame(unpublished, ClientSessionSystem.instance().operations().interactionScene());
       } finally {
-         ClientOperationController.clearWorkspace();
+         ClientSessionSystem.instance().operations().clearWorkspace();
       }
    }
 

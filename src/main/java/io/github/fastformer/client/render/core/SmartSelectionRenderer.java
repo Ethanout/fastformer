@@ -1,7 +1,8 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
 import io.github.fastformer.client.render.SmartSelectionAirOutline;
 import io.github.fastformer.client.render.ShapeShellMesh;
@@ -42,7 +43,7 @@ final class SmartSelectionRenderer {
       if (levelIdentity != minecraft.level) { clear(); levelIdentity = minecraft.level; }
       projection = new SelectionScreenProjection(new Matrix4f(event.getProjectionMatrix()).mul(event.getModelViewMatrix()),
          event.getCamera().getPosition());
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       CACHE.entrySet().removeIf(entry -> {
          if (workspace.part(entry.getKey()).filter(ClientSelectionPart::smart).isPresent()) return false;
          entry.getValue().close(); return true;
@@ -61,7 +62,7 @@ final class SmartSelectionRenderer {
          entry.states.keySet(), entry.states.keySet(), Map.of(), minecraft.player.isShiftKeyDown());
       entry.faces.draw(event.getPoseStack(), event.getCamera().getPosition(), mesh.faces(),
          PreviewRenderTypes.SMART_SELECTION_SURFACE, alpha);
-      var capture = ClientOperationController.selectionGestures().capture();
+      var capture = ClientSessionSystem.instance().operations().selectionGestures().capture();
       if (capture != null && capture.targets().containsKey(part.id())) {
          var buffers = minecraft.renderBuffers().bufferSource();
          for (var type : new net.minecraft.client.renderer.RenderType[] {
@@ -90,13 +91,13 @@ final class SmartSelectionRenderer {
       io.github.fastformer.client.render.hud.BottomHudLayout bottomLayout) {
       VISIBLE_LABELS.clear();
       VISIBLE_FRAMES.clear();
-      if (projection == null || minecraft.level != levelIdentity || !ClientOperationController.active()) {
+      if (projection == null || minecraft.level != levelIdentity || !ClientSessionSystem.instance().operations().active()) {
          LABELS.clear();
          FRAMES.clear();
          return;
       }
       boolean alt = FastPlaceClientInput.modifierHeld();
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       Entry farthest = null;
       int farthestId = 0;
       boolean groupLocated = false;
@@ -126,8 +127,8 @@ final class SmartSelectionRenderer {
                   entry.topology.bounds(), -12, color);
             }
          }
-         if (!alt && selected && !ClientOperationController.smartEditing()) {
-            boolean group = ClientOperationController.interactionScene().groupGizmo() != null;
+         if (!alt && selected && !ClientSessionSystem.instance().operations().smartEditing()) {
+            boolean group = ClientSessionSystem.instance().operations().interactionScene().groupGizmo() != null;
             if (!group || !groupLocated) locator(graphics, minecraft, part.id());
             groupLocated |= group;
          }
@@ -142,7 +143,7 @@ final class SmartSelectionRenderer {
    }
 
    private static void locator(GuiGraphics graphics, Minecraft minecraft, int id) {
-      var scene = ClientOperationController.interactionScene();
+      var scene = ClientSessionSystem.instance().operations().interactionScene();
       var bounds = scene.groupGizmo() == null ? scene.bounds(id)
          : scene.groupGizmo().require(io.github.fastformer.client.interaction.InteractionComponents.WORLD_BOUNDS);
       if (bounds == null) return;
@@ -240,7 +241,7 @@ final class SmartSelectionRenderer {
          blocks.forEach((position, snapshot) -> states.put(position, snapshot.state()));
          airOutline = SmartSelectionAirOutline.build(blocks.entrySet().stream().filter(entry -> entry.getValue().state().isAir())
             .map(Map.Entry::getKey).collect(java.util.stream.Collectors.toSet()));
-         topology = part.smartEditable() ? ClientOperationController.workspace().smartTopology(part)
+         topology = part.smartEditable() ? ClientSessionSystem.instance().operations().workspace().smartTopology(part)
             : SmartSelectionTopology.of(blocks.keySet());
          preview = PreviewBlockOcclusion.level(minecraft.level, states);
       }

@@ -1,10 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.drag.OperationPointDrag;
 import io.github.fastformer.client.input.drag.OperationPointDragCalculator;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.OperationPointDragEvent;
 import io.github.fastformer.client.operation.input.OperationPointDragPress;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
@@ -28,7 +29,7 @@ final class OperationPointInputController {
    static java.util.Optional<OperationPointDragPress> capturePress(
       Minecraft minecraft, ClientInputSession session, int mouseButton, long occurredAtNanos
    ) {
-      if (!ClientOperationController.operationPrism()
+      if (!ClientSessionSystem.instance().operations().operationPrism()
          || session.operationDrag != null || session.operationPointDrag != null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
          return java.util.Optional.empty();
@@ -48,8 +49,8 @@ final class OperationPointInputController {
       SelectionPrism.GridLine line = FastPlaceClientPreviewCore.operationPointGridLine(pointIndex);
       Vec3 planeHit = plane == null ? null : plane.rayIntersection(eye, view);
       return java.util.Optional.of(new OperationPointDragPress(
-         1L, mouseButton, occurredAtNanos, ClientOperationController.remoteSelectionIdentity(),
-         ClientOperationController.remoteSelectionRevision(), ClientOperationController.remoteSelectionCallbackScope(),
+         1L, mouseButton, occurredAtNanos, ClientSessionSystem.instance().operations().remoteSelectionIdentity(),
+         ClientSessionSystem.instance().operations().remoteSelectionRevision(), ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(),
          pointIndex, initialPoint, plane, planeHit == null ? Vec3.ZERO : center.subtract(planeHit), line,
          line == null ? 0.0 : line.rayOffset(eye, view) - line.offset(initialPoint), axisBaselines,
          line != null && plane == null ? OperationPointDragConstraint.LINE
@@ -61,10 +62,10 @@ final class OperationPointInputController {
    static void dispatchPress(Minecraft minecraft, ClientInputSession session, OperationPointDragPress press) {
       if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) != ClientInputStateMachine.Dispatch.OPERATION
          || session.operationDrag != null || session.operationPointDrag != null
-         || !ClientOperationController.operationPrism()
-         || press.revision() != ClientOperationController.remoteSelectionRevision()
-         || !press.callbackScope().equals(ClientOperationController.remoteSelectionCallbackScope())
-         || !java.util.Objects.equals(press.selection(), ClientOperationController.remoteSelectionIdentity())) {
+         || !ClientSessionSystem.instance().operations().operationPrism()
+         || press.revision() != ClientSessionSystem.instance().operations().remoteSelectionRevision()
+         || !press.callbackScope().equals(ClientSessionSystem.instance().operations().remoteSelectionCallbackScope())
+         || !java.util.Objects.equals(press.selection(), ClientSessionSystem.instance().operations().remoteSelectionIdentity())) {
          return;
       }
       session.clickGestureToken = session.routing.beginGesture(press.button());
@@ -189,9 +190,9 @@ final class OperationPointInputController {
    private static boolean acceptsCapture(ClientInputSession session, OperationPointDrag drag) {
       if (drag == null) return false;
       if (session.pointerGesture.owns(drag.captureToken(), PointerGestureState.Kind.OPERATION_POINT)
-         && drag.callbackScope().equals(ClientOperationController.remoteSelectionCallbackScope())
-         && ClientOperationController.operationPrism()
-         && FastPlaceClientPreviewCore.operationActive() && !ClientOperationController.operationSelectionConfirmed()) return true;
+         && drag.callbackScope().equals(ClientSessionSystem.instance().operations().remoteSelectionCallbackScope())
+         && ClientSessionSystem.instance().operations().operationPrism()
+         && FastPlaceClientPreviewCore.operationActive() && !ClientSessionSystem.instance().operations().operationSelectionConfirmed()) return true;
       clearCapture(session, drag);
       return false;
    }

@@ -1,7 +1,8 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.geometry.ScrollCandidatePayload;
 import net.minecraft.client.Minecraft;
@@ -16,13 +17,13 @@ final class ScrollInputDispatcher {
       if (event.selectionAction() != null) {
          var action = event.selectionAction();
          if (route == ClientInputStateMachine.Dispatch.OPERATION
-            && !ClientOperationController.workspaceSubmissionPending()
-            && action.matches(ClientOperationController.interactionScene().owner(), ClientOperationController.workspace())) {
+            && !ClientSessionSystem.instance().operations().workspaceSubmissionPending()
+            && action.matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace())) {
             switch (action.gesture()) {
                case io.github.fastformer.client.operation.input.SelectionScrollAction.Move move ->
-                  ClientOperationController.scrollSelected(move.offset(), action.timestampNanos());
+                  ClientSessionSystem.instance().operations().scrollSelected(move.offset(), action.timestampNanos());
                case io.github.fastformer.client.operation.input.SelectionScrollAction.Stack stack ->
-                  ClientOperationController.scrollStackSelected(stack, action.timestampNanos());
+                  ClientSessionSystem.instance().operations().scrollStackSelected(stack, action.timestampNanos());
             }
          }
          return;

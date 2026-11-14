@@ -343,7 +343,7 @@ class ClientDraftLoadTest {
 
    @Test
    void unansweredReconnectKeepsTheStagedDraft() throws Exception {
-      io.github.fastformer.client.operation.controller.ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
       var manager = ClientSessionSystem.instance();
       UUID playerId = UUID.randomUUID();
       var key = new ClientScopeId("reconnect-timeout", "minecraft:overworld", playerId);
@@ -355,7 +355,7 @@ class ClientDraftLoadTest {
       session.stageSuspendedOperationDraft(ClientOperationDraftCodec.decode(validDraftTag(), null));
       try {
          for (int tick = 0; tick < 200; tick++) {
-            io.github.fastformer.client.operation.controller.ClientOperationController.onClientTick();
+            ClientSessionSystem.instance().operations().onClientTick();
          }
          assertTrue(session.suspendedOperationDraft());
          assertTrue(session.restoreSuspendedOperationDraft(validDraftIdentity()));

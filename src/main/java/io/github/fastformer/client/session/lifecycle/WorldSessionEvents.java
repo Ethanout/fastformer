@@ -1,7 +1,8 @@
 package io.github.fastformer.client.session.lifecycle;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.core.WorkspaceInteractionResolver;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import net.neoforged.api.distmarker.Dist;
@@ -15,9 +16,9 @@ import net.neoforged.neoforge.event.level.LevelEvent;
 public final class WorldSessionEvents {
    private static final WorldSessionLifecycle LIFECYCLE = new WorldSessionLifecycle(new WorldSessionLifecycle.Participants() {
       @Override public void endInputSession() { FastPlaceClientInput.endWorldSession(); }
-      @Override public void clearSourceMask() { ClientOperationController.sourceMask().clear(); }
+      @Override public void clearSourceMask() { ClientSessionSystem.instance().operations().sourceMask().clear(); }
       @Override public void resetPreviewSession() { FastPlaceClientPreviewCore.resetConnectionState(); }
-      @Override public void disconnectOperation() { ClientOperationController.onDisconnected(); }
+      @Override public void disconnectOperation() { ClientSessionSystem.instance().operations().onDisconnected(); }
       @Override public void clearInteractionCache() { WorkspaceInteractionResolver.clearCache(); }
       @Override public void clearFeedback() { FastPlaceClientPreviewCore.clearTransientFeedback(); }
       @Override public void clearWorldRenderState() { FastPlaceClientPreviewCore.clearWorldRenderState(); }

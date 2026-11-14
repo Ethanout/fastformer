@@ -1,10 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.GizmoDragCalculator;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.protocol.c2s.geometry.GeometryGizmoDragPayload;
@@ -53,7 +54,7 @@ final class GeometryDragController {
       }
       session.geometryGizmoDrag = session.geometryGizmoDrag.withCapture(session.pointerGestureToken);
       session.operationTransformCapture = new ClientInputSession.OperationTransformCapture(GeometryInputController.nextRequestId(),
-         ClientOperationController.remoteSelectionRevision(), ClientOperationController.remoteSelectionCallbackScope());
+         ClientSessionSystem.instance().operations().remoteSelectionRevision(), ClientSessionSystem.instance().operations().remoteSelectionCallbackScope());
       FastPlaceClientPreviewCore.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
       return true;
    }
@@ -79,7 +80,7 @@ final class GeometryDragController {
             return Target.NONE;
          }
       }
-      Target target = target(session, FastPlaceClientPreviewCore.geometryActive(), ClientOperationController.operationSelectionReady());
+      Target target = target(session, FastPlaceClientPreviewCore.geometryActive(), ClientSessionSystem.instance().operations().operationSelectionReady());
       if (target == Target.NONE) {
          clearCapture(session);
       }

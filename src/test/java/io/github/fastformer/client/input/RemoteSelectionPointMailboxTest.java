@@ -1,9 +1,10 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.RemoteSelectionPointRequest;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.fastplace.selection.OperationMode;
@@ -24,11 +25,11 @@ class RemoteSelectionPointMailboxTest {
    private final List<OperationPointPayload.Role> sent = new ArrayList<>();
 
    @BeforeEach void prepare() {
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
       input = FastPlaceClientInput.inputSession();
       input.reset();
    }
-   @AfterEach void clear() { input.reset(); ClientOperationController.onDisconnected(); }
+   @AfterEach void clear() { input.reset(); ClientSessionSystem.instance().operations().onDisconnected(); }
 
    @Test void initialEmptyHandLeftThenRightCompletesTheSameSelection() {
       FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
@@ -42,9 +43,9 @@ class RemoteSelectionPointMailboxTest {
       drain(true);
 
       assertEquals(List.of(OperationPointPayload.Role.FIRST, OperationPointPayload.Role.SECOND), sent);
-      assertFalse(ClientOperationController.selectionDraftActive());
-      assertTrue(ClientOperationController.synchronize(preview(3, List.of(first, second))));
-      var parts = ClientOperationController.workspace().parts();
+      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
+      assertTrue(ClientSessionSystem.instance().operations().synchronize(preview(3, List.of(first, second))));
+      var parts = ClientSessionSystem.instance().operations().workspace().parts();
       assertEquals(1, parts.size());
       assertEquals(first, parts.getFirst().selection().point1());
       assertEquals(second, parts.getFirst().selection().point2());
@@ -57,7 +58,7 @@ class RemoteSelectionPointMailboxTest {
          new OperationInteractionIntent.CreateSelection(new BlockPos(4, 5, 6)), 2, false, 100));
       drain(true);
       assertEquals(List.of(OperationPointPayload.Role.EXTRA), sent);
-      assertFalse(ClientOperationController.selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
    }
 
    @Test void remoteCuboidContinuationAlsoIgnoresTheSecondPhysicalRightPress() {
@@ -72,20 +73,20 @@ class RemoteSelectionPointMailboxTest {
 
    @Test void cancelledRemoteFirstPointDoesNotStealTheNextLocalDraft() {
       receiveFirstPoint(BlockPos.ZERO);
-      assertTrue(ClientOperationController.cancelLastSelection());
-      assertFalse(ClientOperationController.remoteSelectionPointing());
+      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertFalse(ClientSessionSystem.instance().operations().remoteSelectionPointing());
       var next = new BlockPos(8, 9, 10);
-      assertTrue(ClientOperationController.handleCreateClick(1, next));
+      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, next));
       assertTrue(sent.isEmpty());
-      assertEquals(List.of(next), ClientOperationController.selectionDraft().points());
+      assertEquals(List.of(next), ClientSessionSystem.instance().operations().selectionDraft().points());
    }
 
    private void receiveFirstPoint(BlockPos first) {
-      assertTrue(ClientOperationController.synchronize(OperationPreviewPayload.inactive(1)));
-      ClientOperationController.onClientTick();
-      assertTrue(ClientOperationController.synchronize(preview(2, List.of(first))));
+      assertTrue(ClientSessionSystem.instance().operations().synchronize(OperationPreviewPayload.inactive(1)));
+      ClientSessionSystem.instance().operations().onClientTick();
+      assertTrue(ClientSessionSystem.instance().operations().synchronize(preview(2, List.of(first))));
       input.routing.observe(ClientInputStateMachine.State.SELECTING);
-      assertTrue(ClientOperationController.remoteSelectionPointing());
+      assertTrue(ClientSessionSystem.instance().operations().remoteSelectionPointing());
    }
 
    private static OperationPreviewPayload preview(long revision, List<BlockPos> points) {
@@ -126,7 +127,7 @@ class RemoteSelectionPointMailboxTest {
 
    @Test void replacedSelectionOwnerRejectsOldRequests() {
       FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       drain(true);
       assertTrue(sent.isEmpty());
    }
@@ -167,8 +168,8 @@ class RemoteSelectionPointMailboxTest {
 
    @Test void localDraftPreventsLateRemoteSelectionCreation() {
       FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
-      ClientOperationController.handleCreateClick(1, net.minecraft.core.BlockPos.ZERO);
-      assertTrue(ClientOperationController.selectionDraftActive());
+      ClientSessionSystem.instance().operations().handleCreateClick(1, net.minecraft.core.BlockPos.ZERO);
+      assertTrue(ClientSessionSystem.instance().operations().selectionDraftActive());
       drain(true);
       assertTrue(sent.isEmpty());
    }

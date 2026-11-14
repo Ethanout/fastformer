@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.protocol.c2s.world.WorldRedoPayload;
 import io.github.fastformer.protocol.c2s.world.WorldUndoPayload;
 import net.minecraft.client.Minecraft;
@@ -18,7 +20,7 @@ final class WorldHistoryCommandDispatcher {
          return true;
       }
       if (key == 89 && NetworkRegistry.hasChannel(minecraft.getConnection(), WorldRedoPayload.TYPE.id())) {
-         if (!io.github.fastformer.client.operation.controller.ClientOperationController.canRedoWorldHistory()) return false;
+         if (!ClientSessionSystem.instance().operations().canRedoWorldHistory()) return false;
          PacketDistributor.sendToServer(WorldRedoPayload.INSTANCE, new CustomPacketPayload[0]);
          return true;
       }

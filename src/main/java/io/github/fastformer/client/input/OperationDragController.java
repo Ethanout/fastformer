@@ -1,11 +1,12 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.drag.DeferredDragClick;
 import io.github.fastformer.client.input.drag.DragAxisFrame;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
@@ -29,13 +30,13 @@ final class OperationDragController {
       OperationSelectionVolume selection = FastPlaceClientPreviewCore.operationSelection();
       if (selection == null
          || shortPressSteps == 0
-         || !ClientOperationController.operationSelectionReady()
+         || !ClientSessionSystem.instance().operations().operationSelectionReady()
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationExtendPayload.TYPE.id())) {
          return false;
       }
 
       Vec3 eye = minecraft.player.getEyePosition();
-      OperationGeometry.RayHit hit = ClientOperationController.operationCuboid()
+      OperationGeometry.RayHit hit = ClientSessionSystem.instance().operations().operationCuboid()
          ? FastPlaceClientPreviewCore.operationFaceHit()
          : selection.raycast(eye, minecraft.player.getViewVector(1.0F), LongRangeBlockRaycast.MAX_REACH);
       if (hit == null) {
@@ -45,10 +46,10 @@ final class OperationDragController {
       Vec3 normal = hit.normal();
       int axis = hit.axis();
       boolean positive = normal.dot(selection.axis(axis)) > 0.0;
-      if (!ClientOperationController.operationCuboid() && (axis != 2 || !positive)) {
+      if (!ClientSessionSystem.instance().operations().operationCuboid() && (axis != 2 || !positive)) {
          return false;
       }
-      boolean reverseInside = ClientOperationController.operationCuboid() && selection.contains(eye);
+      boolean reverseInside = ClientSessionSystem.instance().operations().operationCuboid() && selection.contains(eye);
       int deferredSteps = reverseInside ? -shortPressSteps : shortPressSteps;
       session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
       session.operationDrag = new OperationDrag(
@@ -62,8 +63,8 @@ final class OperationDragController {
          null,
          0.0,
          DeferredDragClick.start(System.nanoTime(), deferredSteps),
-         session.pointerGestureToken, ClientOperationController.remoteSelectionRevision(),
-         ClientOperationController.remoteSelectionCallbackScope(), GeometryInputController.nextRequestId()
+         session.pointerGestureToken, ClientSessionSystem.instance().operations().remoteSelectionRevision(),
+         ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(), GeometryInputController.nextRequestId()
       );
       return true;
    }
@@ -75,7 +76,7 @@ final class OperationDragController {
          return false;
       }
       AxisGizmo.Handle handle = hit.handle();
-      if (ClientOperationController.operationSelectionReady()) {
+      if (ClientSessionSystem.instance().operations().operationSelectionReady()) {
          return GeometryDragController.beginConfirmedOperation(minecraft, session, gizmo, hit, mouseButton);
       }
       int axis = ClientInputMath.geometryAxisIndex(handle.axis());
@@ -96,8 +97,8 @@ final class OperationDragController {
          handle.key(),
          ClientInputMath.axisComponent(gizmo.center(), handle.axis()),
          DeferredDragClick.none(),
-         session.pointerGestureToken, ClientOperationController.remoteSelectionRevision(),
-         ClientOperationController.remoteSelectionCallbackScope(), GeometryInputController.nextRequestId()
+         session.pointerGestureToken, ClientSessionSystem.instance().operations().remoteSelectionRevision(),
+         ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(), GeometryInputController.nextRequestId()
       );
       return true;
    }
@@ -114,7 +115,7 @@ final class OperationDragController {
       if (drag.deferredClick().steps() != 0) {
          drag = drag.withDeferredClick(drag.deferredClick().cancel());
       }
-      if (drag.faceHit() != null && ClientOperationController.operationCuboid()) {
+      if (drag.faceHit() != null && ClientSessionSystem.instance().operations().operationCuboid()) {
          OperationSelectionVolume selection = FastPlaceClientPreviewCore.operationSelection();
          boolean inside = selection != null
             && selection.bounds().inflate(OperationSelectionVolume.RAYCAST_INFLATE).contains(eye);

@@ -1,10 +1,12 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.operation.controller.OperationContext;
 import org.junit.jupiter.api.Test;
 
 class ClientInteractionFeedbackTest {
@@ -18,21 +20,21 @@ class ClientInteractionFeedbackTest {
    void aBlockedAdjustmentShowsItsReasonWithoutAClient() {
       // The message holds no client state, so a headless call must stay safe.
       assertDoesNotThrow(() -> ClientInteractionFeedback.showAabbAdjustFailure(
-         null, ClientOperationController.AabbAdjustDecision.SOURCE_CHANGED
+         null, OperationContext.AabbAdjustDecision.SOURCE_CHANGED
       ));
       assertDoesNotThrow(() -> ClientInteractionFeedback.showAabbAdjustFailure(
-         null, ClientOperationController.AabbAdjustDecision.ADJUSTED
+         null, OperationContext.AabbAdjustDecision.ADJUSTED
       ));
       assertDoesNotThrow(() -> ClientInteractionFeedback.showAabbAdjustFailure(null, null));
    }
 
    @Test
    void aFinishedAdjustmentReportsNoFailureKey() {
-      assertNull(ClientOperationController.aabbAdjustFailureKey(
-         ClientOperationController.AabbAdjustDecision.ADJUSTED
+      assertNull(ClientSessionSystem.instance().operations().aabbAdjustFailureKey(
+         OperationContext.AabbAdjustDecision.ADJUSTED
       ));
-      assertNull(ClientOperationController.aabbAdjustFailureKey(
-         ClientOperationController.AabbAdjustDecision.DRAG_STARTED
+      assertNull(ClientSessionSystem.instance().operations().aabbAdjustFailureKey(
+         OperationContext.AabbAdjustDecision.DRAG_STARTED
       ));
    }
 }

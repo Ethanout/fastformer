@@ -1,7 +1,8 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.interaction.intent.InteractionContext;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.network.inbound.ClientInboundSystem;
@@ -18,7 +19,7 @@ final class InputWorldCleanup {
       session.selectionGestures().clear();
       if (session.operationSessionWasActive) minecraft.options.keyAttack.setDown(false);
       session.reset();
-      ClientOperationController.setAltMode(false);
+      ClientSessionSystem.instance().operations().setAltMode(false);
       FastPlaceClientPreviewCore.clearTransientFeedback();
    }
 }

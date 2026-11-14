@@ -1,9 +1,10 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.selection.SelectionToolPreference;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.fastplace.geometry.GeometryPalette;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import net.minecraft.network.chat.Component;
@@ -12,10 +13,10 @@ import org.junit.jupiter.api.Test;
 
 class IdleModeHudTest {
    @Test void cancellingLastPointStopsSelectionHudBeforeServerAcknowledgesExit() {
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
       try {
          FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.inactive(0));
-         ClientOperationController.onClientTick();
+         ClientSessionSystem.instance().operations().onClientTick();
          FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.active(
             1L, false, true, java.util.List.of(net.minecraft.core.BlockPos.ZERO),
             net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, OperationSelectionMode.CUBOID,
@@ -24,11 +25,11 @@ class IdleModeHudTest {
             net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO, net.minecraft.core.BlockPos.ZERO,
             net.minecraft.world.phys.Vec3.ZERO, false, false, false));
          assertTrue(FastPlaceClientPreviewCore.operationActive());
-         assertTrue(ClientOperationController.cancelLastSelection());
+         assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
          assertFalse(FastPlaceClientPreviewCore.operationActive());
          assertEquals("fastformer.hud.quick_shape_label", key(FastPlaceClientPreviewCore.idleBottomStatus(false, true)));
       } finally {
-         ClientOperationController.onDisconnected();
+         ClientSessionSystem.instance().operations().onDisconnected();
          FastPlaceClientPreviewCore.applyOperation(io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload.inactive());
       }
    }

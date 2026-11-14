@@ -1,12 +1,13 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.InteractionPressBinding;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.SelectionPointerPress;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -85,11 +86,11 @@ class SelectionPointerPressTest {
 
    @Test
    void stalePressCannotSelectAReplacementOrChangeItsScene() throws Exception {
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       try {
-         var workspace = ClientOperationController.workspace();
+         var workspace = ClientSessionSystem.instance().operations().workspace();
          workspace.addParts(List.of(populated().workspace().part(1).orElseThrow()));
-         var published = ClientOperationController.interactionScene();
+         var published = ClientSessionSystem.instance().operations().interactionScene();
          var scene = SelectionInteractionScene.capture(published.owner(), workspace, published);
          var press = SelectionPointerPress.capture(new OperationInteractionIntent.Part(1, 1),
             0, true, -1, scene, workspace).orElseThrow();
@@ -99,9 +100,9 @@ class SelectionPointerPressTest {
          SelectionGestureController.press(FastPlaceClientInput.inputSession(), null, press);
          assertEquals(selected, workspace.selectedIds());
          assertFalse(workspace.editing());
-         assertSame(published, ClientOperationController.interactionScene());
+         assertSame(published, ClientSessionSystem.instance().operations().interactionScene());
       } finally {
-         ClientOperationController.clearWorkspace();
+         ClientSessionSystem.instance().operations().clearWorkspace();
       }
    }
 
@@ -152,18 +153,18 @@ class SelectionPointerPressTest {
 
    @Test
    void inputDispatchExecutesDeclaredSelectionAction() throws Exception {
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       try {
-         var workspace = ClientOperationController.workspace();
+         var workspace = ClientSessionSystem.instance().operations().workspace();
          workspace.addParts(populated().workspace().parts());
-         ClientOperationController.selectAllWorkspaceParts();
+         ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
          var press = SelectionPointerPress.capture(new OperationInteractionIntent.Part(1, 1),
-            0, false, -1, ClientOperationController.interactionScene(), workspace).orElseThrow();
+            0, false, -1, ClientSessionSystem.instance().operations().interactionScene(), workspace).orElseThrow();
          SelectionGestureController.press(FastPlaceClientInput.inputSession(), null, press);
          assertEquals(java.util.Set.of(1), workspace.selectedIds());
          assertFalse(workspace.editing());
       } finally {
-         ClientOperationController.clearWorkspace();
+         ClientSessionSystem.instance().operations().clearWorkspace();
       }
    }
 

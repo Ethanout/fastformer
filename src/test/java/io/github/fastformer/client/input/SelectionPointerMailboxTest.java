@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.core.math.Axis;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -11,7 +13,6 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.SelectionDraftPress;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
 import io.github.fastformer.client.operation.input.SelectionPointerPress;
@@ -34,61 +35,61 @@ class SelectionPointerMailboxTest {
 
    @BeforeEach
    void prepare() {
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       this.input = FastPlaceClientInput.inputSession();
       this.input.reset();
       var bounds = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2), BlockPos.ZERO, BlockPos.ZERO);
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, bounds, Map.of(), WorkspaceTransform.IDENTITY, false);
-      ClientOperationController.workspace().addParts(List.of(part, part));
-      ClientOperationController.selectAllWorkspaceParts();
+      ClientSessionSystem.instance().operations().workspace().addParts(List.of(part, part));
+      ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
       this.input.routing.observe(ClientInputStateMachine.State.ADJUSTING);
    }
 
    @AfterEach
    void clear() {
       this.input.reset();
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
    }
 
    @Test
    void deselectedFixedPartCanBeSelectedAgainWithoutStartingANewDraft() {
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       assertTrue(workspace.beginEdit());
       workspace.updatePart(workspace.part(1).orElseThrow().fixed());
       workspace.finishEdit();
       var parts = List.copyOf(workspace.parts());
-      ClientOperationController.deselectAllWorkspaceParts();
+      ClientSessionSystem.instance().operations().deselectAllWorkspaceParts();
       postPress(1, 0, false, 10);
       postRelease(0, 20);
       drain();
       assertEquals(Set.of(1), workspace.selectedIds());
       assertEquals(parts, workspace.parts());
-      assertFalse(ClientOperationController.selectionDraftActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
       assertPointerSettled();
    }
 
    @Test
    void movingBackWithinTheSameGestureKeepsSelectionFixed() {
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var original = workspace.part(1).orElseThrow();
       assertTrue(workspace.beginEdit());
       var token = workspace.activeEditToken();
-      ClientOperationController.updateTransformGesture(token, List.of(original), false,
+      ClientSessionSystem.instance().operations().updateTransformGesture(token, List.of(original), false,
          AxisGizmo.Operation.MOVE, Axis.X, 1, 2, Double.NaN);
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
-      ClientOperationController.updateTransformGesture(token, List.of(original), false,
+      ClientSessionSystem.instance().operations().updateTransformGesture(token, List.of(original), false,
          AxisGizmo.Operation.MOVE, Axis.X, 1, 0, Double.NaN);
       assertEquals(original.transform(), workspace.part(1).orElseThrow().transform());
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
-      ClientOperationController.finishTransformGesture(token);
+      ClientSessionSystem.instance().operations().finishTransformGesture(token);
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertTrue(workspace.part(1).orElseThrow().canAdjustGeometry());
    }
 
    @Test
    void selectionControlsKeepTheirClicksWhileNewLocationsStartDrafts() {
-      var part = ClientOperationController.workspace().part(1).orElseThrow();
+      var part = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
       var face = new OperationInteractionIntent.Face(1, part.selection().bounds(), null, true);
       var gizmo = new OperationInteractionIntent.Gizmo(1, false, null, null);
       var label = new OperationInteractionIntent.Part(1, 1);
@@ -100,39 +101,39 @@ class SelectionPointerMailboxTest {
          assertTrue(FastPlaceClientInput.acceptsSelectionDraftTarget(location, button));
       }
       assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(location, 2));
-      assertTrue(ClientOperationController.fixActiveSelection());
+      assertTrue(ClientSessionSystem.instance().operations().fixActiveSelection());
       assertTrue(FastPlaceClientInput.acceptsSelectionDraftTarget(location, 2));
    }
 
    @Test
    void retainedSessionStillExpandsItsRemainingUnmovedSelectionWithMiddle() {
-      assertTrue(ClientOperationController.cancelLastSelection());
-      assertTrue(ClientOperationController.selectionSessionActive());
-      assertFalse(ClientOperationController.canStartSelectionDraft());
-      assertTrue(ClientOperationController.workspace().parts().getFirst().canAdjustGeometry());
+      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
+      assertFalse(ClientSessionSystem.instance().operations().canStartSelectionDraft());
+      assertTrue(ClientSessionSystem.instance().operations().workspace().parts().getFirst().canAdjustGeometry());
    }
 
    @Test
    void cancelRemovesOneSelectionAndExitsAfterTheLast() {
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       int active = workspace.activeId();
-      assertTrue(ClientOperationController.cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
       assertEquals(1, workspace.size());
       assertTrue(workspace.part(active).isEmpty());
-      assertTrue(ClientOperationController.selectionSessionActive());
-      assertTrue(ClientOperationController.cancelLastSelection());
+      assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
+      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
       assertTrue(workspace.isEmpty());
-      assertFalse(ClientOperationController.selectionSessionActive());
+      assertFalse(ClientSessionSystem.instance().operations().selectionSessionActive());
    }
 
    @Test
    void newClickPreservesExistingSelectionsBeforeStartingDraft() {
-      assertTrue(ClientOperationController.handleCreateClick(1, new BlockPos(8, 0, 0)));
-      assertTrue(ClientOperationController.workspace().parts().stream().allMatch(ClientSelectionPart::canAdjustGeometry));
-      assertTrue(ClientOperationController.selectionDraftActive());
-      assertTrue(ClientOperationController.cancelLastSelection());
-      assertEquals(2, ClientOperationController.workspace().size());
-      assertFalse(ClientOperationController.selectionDraftActive());
+      assertTrue(ClientSessionSystem.instance().operations().handleCreateClick(1, new BlockPos(8, 0, 0)));
+      assertTrue(ClientSessionSystem.instance().operations().workspace().parts().stream().allMatch(ClientSelectionPart::canAdjustGeometry));
+      assertTrue(ClientSessionSystem.instance().operations().selectionDraftActive());
+      assertTrue(ClientSessionSystem.instance().operations().cancelLastSelection());
+      assertEquals(2, ClientSessionSystem.instance().operations().workspace().size());
+      assertFalse(ClientSessionSystem.instance().operations().selectionDraftActive());
    }
 
    @Test
@@ -144,14 +145,14 @@ class SelectionPointerMailboxTest {
       this.input.postScroll(new ScrollInputSnapshot(1));
       var second = postPress(2, 1, false, 40);
       postRelease(1, 50);
-      assertEquals(Set.of(1, 2), ClientOperationController.workspace().selectedIds());
+      assertEquals(Set.of(1, 2), ClientSessionSystem.instance().operations().workspace().selectedIds());
       assertTrue(this.input.blocksDraftLoad());
 
       this.input.drainPhysicalEvents(() -> true, key -> order.add("key"), scroll -> order.add("scroll"), event -> {
          dispatch(event);
          order.add(event instanceof SelectionPointerEvent.Press ? "press" : "release");
-         if (event == first) assertEquals(Set.of(1), ClientOperationController.workspace().selectedIds());
-         if (event == second) assertEquals(Set.of(2), ClientOperationController.workspace().selectedIds());
+         if (event == first) assertEquals(Set.of(1), ClientSessionSystem.instance().operations().workspace().selectedIds());
+         if (event == second) assertEquals(Set.of(2), ClientSessionSystem.instance().operations().workspace().selectedIds());
       });
 
       assertEquals(List.of("key", "press", "release", "scroll", "press", "release"), order);
@@ -164,7 +165,7 @@ class SelectionPointerMailboxTest {
    void capturedControlAndTimeRemainFixedUntilDispatch() {
       var press = postPress(1, 1, true, 1234);
       drain();
-      assertEquals(Set.of(2), ClientOperationController.workspace().selectedIds());
+      assertEquals(Set.of(2), ClientSessionSystem.instance().operations().workspace().selectedIds());
       assertEquals(1234, press.snapshot().pressedAtNanos());
       assertTrue(this.input.blocksDraftLoad());
       assertNull(this.input.selectionPointer.release(0, 2000));
@@ -197,7 +198,7 @@ class SelectionPointerMailboxTest {
       this.input.drainPhysicalEvents(() -> true, key -> fail(), scroll -> fail(), event -> {
          dispatch(event);
          if (event instanceof SelectionPointerEvent.Press) {
-            selected.add(Set.copyOf(ClientOperationController.workspace().selectedIds()));
+            selected.add(Set.copyOf(ClientSessionSystem.instance().operations().workspace().selectedIds()));
          }
       });
       assertEquals(List.of(Set.of(1), Set.of(2)), selected);
@@ -205,18 +206,18 @@ class SelectionPointerMailboxTest {
       postRelease(1, 40);
       drain();
       assertFalse(this.input.blocksDraftLoad());
-      assertEquals(Set.of(2), ClientOperationController.workspace().selectedIds());
+      assertEquals(Set.of(2), ClientSessionSystem.instance().operations().workspace().selectedIds());
    }
 
    @Test
    void replacedSourceRejectsTheClickWithoutChangingSelectionOrStartingAnEdit() {
       postPress(1, 0, false, 10);
       postRelease(0, 20);
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       workspace.beginEdit();
       workspace.updatePart(workspace.part(1).orElseThrow().withTranslation(new BlockPos(5, 0, 0)));
       workspace.finishEdit();
-      ClientOperationController.selectAllWorkspaceParts();
+      ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
       long revision = workspace.revision();
       drain();
       assertEquals(Set.of(1, 2), workspace.selectedIds());
@@ -231,7 +232,7 @@ class SelectionPointerMailboxTest {
       this.input.drainPhysicalEvents(() -> false, key -> fail(), scroll -> fail(), click -> fail());
       assertFalse(this.input.blocksDraftLoad());
       assertNull(this.input.selectionPointer.release(0, 20));
-      assertEquals(Set.of(1, 2), ClientOperationController.workspace().selectedIds());
+      assertEquals(Set.of(1, 2), ClientSessionSystem.instance().operations().workspace().selectedIds());
    }
 
    @Test
@@ -241,7 +242,7 @@ class SelectionPointerMailboxTest {
       postRelease(0, 30);
       this.input.drainPhysicalEvents(() -> true,
          key -> assertTrue(this.input.routing.submit(42L)), scroll -> fail(), SelectionPointerMailboxTest::dispatch);
-      assertEquals(Set.of(1, 2), ClientOperationController.workspace().selectedIds());
+      assertEquals(Set.of(1, 2), ClientSessionSystem.instance().operations().workspace().selectedIds());
       assertFalse(this.input.selectionPointer.active());
       assertEquals(ClientInputStateMachine.State.SUBMITTING, this.input.routing.state());
    }
@@ -254,7 +255,7 @@ class SelectionPointerMailboxTest {
       this.input.drainPhysicalEvents(() -> true,
          key -> assertTrue(this.input.cancel()), scroll -> fail(), click -> fail());
       assertFalse(this.input.selectionPointer.active());
-      assertEquals(Set.of(1, 2), ClientOperationController.workspace().selectedIds());
+      assertEquals(Set.of(1, 2), ClientSessionSystem.instance().operations().workspace().selectedIds());
    }
 
    @Test
@@ -264,8 +265,8 @@ class SelectionPointerMailboxTest {
       this.input.drainPhysicalEvents(() -> true, key -> fail(), scroll -> fail(), event -> {
          dispatch(event);
          if (event == press) {
-            assertTrue(ClientOperationController.workspace().editing());
-            assertTrue(ClientOperationController.selectionGestures().active());
+            assertTrue(ClientSessionSystem.instance().operations().workspace().editing());
+            assertTrue(ClientSessionSystem.instance().operations().selectionGestures().active());
             assertTrue(this.input.routing.accepts(this.input.clickGestureToken));
          }
       });
@@ -276,7 +277,7 @@ class SelectionPointerMailboxTest {
    void releaseCommitsOnlyItsCapturedGizmoEdit() {
       postGizmoPress(0, 10);
       drain();
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var moved = workspace.part(1).orElseThrow().withTranslation(new BlockPos(5, 0, 0));
       workspace.updatePart(moved);
       postRelease(0, 20);
@@ -287,23 +288,23 @@ class SelectionPointerMailboxTest {
 
    @Test
    void supersedingPressCancelsTheOldEditBeforeStartingTheNewDrag() {
-      var original = ClientOperationController.workspace().part(1).orElseThrow();
+      var original = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
       var oldPress = postGizmoPress(0, 10);
       drain();
-      var oldCapture = ClientOperationController.selectionGestures().capture();
+      var oldCapture = ClientSessionSystem.instance().operations().selectionGestures().capture();
       // Capture the replacement before the old edit changes, so rollback restores its source.
       postGizmoPress(1, 20);
-      ClientOperationController.workspace().updatePart(original.withTranslation(new BlockPos(5, 0, 0)));
+      ClientSessionSystem.instance().operations().workspace().updatePart(original.withTranslation(new BlockPos(5, 0, 0)));
       drain();
-      assertEquals(original, ClientOperationController.workspace().part(1).orElseThrow());
-      assertTrue(ClientOperationController.workspace().editing());
-      assertNotSame(oldCapture, ClientOperationController.selectionGestures().capture());
-      var newCapture = ClientOperationController.selectionGestures().capture();
+      assertEquals(original, ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow());
+      assertTrue(ClientSessionSystem.instance().operations().workspace().editing());
+      assertNotSame(oldCapture, ClientSessionSystem.instance().operations().selectionGestures().capture());
+      var newCapture = ClientSessionSystem.instance().operations().selectionGestures().capture();
       long newRouting = this.input.clickGestureToken;
       dispatch(new SelectionPointerEvent.Release(oldPress.identity(), 0, 30));
-      assertSame(newCapture, ClientOperationController.selectionGestures().capture());
+      assertSame(newCapture, ClientSessionSystem.instance().operations().selectionGestures().capture());
       assertEquals(newRouting, this.input.clickGestureToken);
-      assertTrue(ClientOperationController.workspace().editing());
+      assertTrue(ClientSessionSystem.instance().operations().workspace().editing());
       postRelease(1, 40);
       drain();
       assertPointerSettled();
@@ -318,7 +319,7 @@ class SelectionPointerMailboxTest {
       var handle = gizmo.handles().stream().filter(value -> value.operation() == AxisGizmo.Operation.MOVE).findFirst().orElseThrow();
       var target = new OperationInteractionIntent.Gizmo(0, true, gizmo, new AxisGizmo.Hit(handle, Vec3.ZERO, 1.0, 0.1));
       var snapshot = SelectionPointerPress.capture(target, button, false, button == 1 ? 1 : -1,
-         ClientOperationController.interactionScene(), ClientOperationController.workspace(), time).orElseThrow();
+         ClientSessionSystem.instance().operations().interactionScene(), ClientSessionSystem.instance().operations().workspace(), time).orElseThrow();
       return this.input.captureSelectionPress(snapshot, alt);
    }
 
@@ -330,11 +331,11 @@ class SelectionPointerMailboxTest {
       this.input.drainPhysicalEvents(() -> true, key -> {
          var release = this.input.modifier.release(key.occurredAtNanos(), 100);
          assertFalse(release.shortPress());
-         assertTrue(ClientOperationController.selectionGestures().active());
+         assertTrue(ClientSessionSystem.instance().operations().selectionGestures().active());
       }, scroll -> fail(), SelectionPointerMailboxTest::dispatch);
       assertTrue(press.alt());
       assertFalse(this.input.modifier.held());
-      assertTrue(ClientOperationController.workspace().editing());
+      assertTrue(ClientSessionSystem.instance().operations().workspace().editing());
       postRelease(0, 30);
       drain();
       assertPointerSettled();
@@ -344,11 +345,11 @@ class SelectionPointerMailboxTest {
    void rejectedAltGizmoDoesNotConsumeTheCurrentModifierOrStartAnEdit() {
       this.input.modifier.press(1, true, true);
       postGizmoPress(0, 10, true);
-      ClientOperationController.workspace().setLocked(true);
+      ClientSessionSystem.instance().operations().workspace().setLocked(true);
       postRelease(0, 20);
       drain();
-      assertFalse(ClientOperationController.selectionGestures().active());
-      assertFalse(ClientOperationController.workspace().editing());
+      assertFalse(ClientSessionSystem.instance().operations().selectionGestures().active());
+      assertFalse(ClientSessionSystem.instance().operations().workspace().editing());
       assertTrue(this.input.modifier.release(30, 100).shortPress());
       assertPointerSettled();
    }
@@ -369,16 +370,16 @@ class SelectionPointerMailboxTest {
    void draftPressReplacesTheDragUsingTheSamePhysicalCapture() {
       postGizmoPress(0, 10);
       drain();
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var original = workspace.part(1).orElseThrow();
       workspace.updatePart(original.withTranslation(new BlockPos(3, 0, 0)));
-      this.input.captureSelectionPress(new SelectionDraftPress(ClientOperationController.interactionScene().owner(),
-         ClientOperationController.draftSelectionMode(), 1, new BlockPos(8, 0, 0), true, false, 20));
+      this.input.captureSelectionPress(new SelectionDraftPress(ClientSessionSystem.instance().operations().interactionScene().owner(),
+         ClientSessionSystem.instance().operations().draftSelectionMode(), 1, new BlockPos(8, 0, 0), true, false, 20));
       assertNull(this.input.selectionPointer.release(0, 30));
       postRelease(1, 40);
       drain();
       assertEquals(original, workspace.part(1).orElseThrow());
-      assertTrue(ClientOperationController.selectionDraftActive());
+      assertTrue(ClientSessionSystem.instance().operations().selectionDraftActive());
       assertPointerSettled();
    }
 
@@ -386,15 +387,15 @@ class SelectionPointerMailboxTest {
    void replacementSnapshotFromCancelledGeometryCannotStartANewEdit() {
       postGizmoPress(0, 10);
       drain();
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var original = workspace.part(1).orElseThrow();
       workspace.updatePart(original.withTranslation(new BlockPos(5, 0, 0)));
-      ClientOperationController.selectAllWorkspaceParts();
+      ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
       postGizmoPress(1, 20);
       drain();
       assertEquals(original, workspace.part(1).orElseThrow());
       assertFalse(workspace.editing());
-      assertFalse(ClientOperationController.selectionGestures().active());
+      assertFalse(ClientSessionSystem.instance().operations().selectionGestures().active());
       postRelease(1, 30);
       drain();
       assertPointerSettled();
@@ -404,21 +405,21 @@ class SelectionPointerMailboxTest {
    void releaseCannotSettleADragThatReplacedItsCaptureOutsideTheQueue() {
       var press = postGizmoPress(0, 10);
       drain();
-      var old = ClientOperationController.selectionGestures().gizmo();
+      var old = ClientSessionSystem.instance().operations().selectionGestures().gizmo();
       assertNotNull(old);
       long oldRouting = this.input.clickGestureToken;
-      ClientOperationController.cancelTransformGesture(old.editToken());
-      ClientOperationController.selectionGestures().clear(old);
+      ClientSessionSystem.instance().operations().cancelTransformGesture(old.editToken());
+      ClientSessionSystem.instance().operations().selectionGestures().clear(old);
       bindFaceDrag(press);
-      var replacement = ClientOperationController.selectionGestures().capture();
+      var replacement = ClientSessionSystem.instance().operations().selectionGestures().capture();
       long replacementRouting = this.input.clickGestureToken;
       // Restore the old dispatch association to model a release delayed past an external replacement.
       this.input.selectionPointer.dispatched(press.identity(), old.capture(), oldRouting);
       postRelease(0, 20);
       drain();
-      assertSame(replacement, ClientOperationController.selectionGestures().capture());
+      assertSame(replacement, ClientSessionSystem.instance().operations().selectionGestures().capture());
       assertEquals(replacementRouting, this.input.clickGestureToken);
-      assertTrue(ClientOperationController.workspace().editing());
+      assertTrue(ClientSessionSystem.instance().operations().workspace().editing());
    }
 
    @Test
@@ -426,7 +427,7 @@ class SelectionPointerMailboxTest {
       var press = postPress(1, 0, false, 10);
       drain();
       bindFaceDrag(press);
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var changed = workspace.part(1).orElseThrow().withTranslation(new BlockPos(3, 0, 0));
       workspace.updatePart(changed);
       postRelease(0, 20);
@@ -440,7 +441,7 @@ class SelectionPointerMailboxTest {
       var press = postPress(1, 0, false, 10);
       drain();
       bindFaceDrag(press);
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var original = workspace.part(1).orElseThrow();
       workspace.updatePart(original.withTranslation(new BlockPos(3, 0, 0)));
       this.input.postSelectionPointer(new SelectionPointerEvent.Cancel(press.identity()));
@@ -455,14 +456,14 @@ class SelectionPointerMailboxTest {
       var press = postPress(1, 0, false, 10);
       drain();
       bindFaceDrag(press);
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var original = workspace.part(1).orElseThrow();
       workspace.updatePart(original.withTranslation(new BlockPos(3, 0, 0)));
 
       SelectionGestureController.cancelActive(this.input);
       assertEquals(original, workspace.part(1).orElseThrow());
       assertFalse(workspace.editing());
-      assertFalse(ClientOperationController.selectionGestures().active());
+      assertFalse(ClientSessionSystem.instance().operations().selectionGestures().active());
       assertEquals(PointerGestureState.Kind.NONE, this.input.pointerGesture.kind());
       SelectionGestureController.cancelActive(this.input);
       postRelease(0, 20);
@@ -473,23 +474,23 @@ class SelectionPointerMailboxTest {
 
    // Face admission checks the live world. Seed its accepted capture to test only queued settlement.
    private void bindFaceDrag(SelectionPointerEvent.Press press) {
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var part = workspace.part(1).orElseThrow();
       assertTrue(workspace.beginEdit());
       this.input.pointerGestureToken = this.input.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_FACE);
-      var capture = SelectionDragCapture.create(ClientOperationController.interactionScene().owner(), workspace,
+      var capture = SelectionDragCapture.create(ClientSessionSystem.instance().operations().interactionScene().owner(), workspace,
          List.of(part), press.snapshot().button(), this.input.pointerGestureToken);
       var drag = new WorkspaceFaceDrag(part, 0, true, DragAxisFrame.start(Vec3.ZERO, false),
          new Vec3(1, 0, 0), 0, capture, DeferredDragClick.none(), null, workspace.activeEditToken(), false);
-      ClientOperationController.selectionGestures().begin(drag);
+      ClientSessionSystem.instance().operations().selectionGestures().begin(drag);
       this.input.clickGestureToken = this.input.routing.beginGesture(press.snapshot().button());
       this.input.operationClick.capture(press.snapshot().button());
       this.input.selectionPointer.dispatched(press.identity(), capture, this.input.clickGestureToken);
    }
 
    private void assertPointerSettled() {
-      assertFalse(ClientOperationController.workspace().editing());
-      assertFalse(ClientOperationController.selectionGestures().active());
+      assertFalse(ClientSessionSystem.instance().operations().workspace().editing());
+      assertFalse(ClientSessionSystem.instance().operations().selectionGestures().active());
       assertFalse(this.input.selectionPointer.active());
       assertFalse(this.input.blocksDraftLoad());
       assertEquals(0, this.input.clickGestureToken);
@@ -499,7 +500,7 @@ class SelectionPointerMailboxTest {
 
    private SelectionPointerEvent.Press postPress(int id, int button, boolean control, long time) {
       var press = SelectionPointerPress.capture(new OperationInteractionIntent.Part(id, 1), button, control,
-         button == 1 ? 1 : -1, ClientOperationController.interactionScene(), ClientOperationController.workspace(), time).orElseThrow();
+         button == 1 ? 1 : -1, ClientSessionSystem.instance().operations().interactionScene(), ClientSessionSystem.instance().operations().workspace(), time).orElseThrow();
       return this.input.captureSelectionPress(press);
    }
 

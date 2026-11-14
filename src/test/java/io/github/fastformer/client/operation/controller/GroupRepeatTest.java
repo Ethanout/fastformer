@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.controller;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.core.math.Axis;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,33 +40,33 @@ class GroupRepeatTest {
    @Test
    void releasedScaleKeepsItsSourceAndShrinksOneSavedCellAtATime() {
       try {
-         ClientOperationController.onDisconnected();
+         ClientSessionSystem.instance().operations().onDisconnected();
          var source = cuboidPart(1, BlockPos.ZERO, 5, 0, 0);
-         assertTrue(ClientOperationController.workspace().addParts(List.of(source)));
-         var original = ClientOperationController.workspace().part(1).orElseThrow();
-         int history = ClientOperationController.workspace().undoSize();
+         assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(source)));
+         var original = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
+         int history = ClientSessionSystem.instance().operations().workspace().undoSize();
          for (int steps : new int[]{3, -1}) {
-            assertTrue(ClientOperationController.workspace().beginEdit());
-            var edit = ClientOperationController.workspace().activeEditToken();
-            var baseline = ClientOperationController.workspace().selectedParts();
-            assertNull(ClientOperationController.updateTransformGesture(edit, baseline, false,
+            assertTrue(ClientSessionSystem.instance().operations().workspace().beginEdit());
+            var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
+            var baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
+            assertNull(ClientSessionSystem.instance().operations().updateTransformGesture(edit, baseline, false,
                AxisGizmo.Operation.SCALE, Axis.X, 1, steps, Double.NaN));
-            assertTrue(ClientOperationController.finishTransformGesture(edit));
+            assertTrue(ClientSessionSystem.instance().operations().finishTransformGesture(edit));
          }
-         var adjusted = ClientOperationController.workspace().part(1).orElseThrow();
+         var adjusted = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
          assertEquals(2, adjusted.transform().repeats().max().getX());
          assertEquals(5, adjusted.transform().repeatStride().getX());
          assertEquals(original.selection(), adjusted.selection());
          assertEquals(original.blocks(), adjusted.blocks());
          assertEquals(original.sourceSnapshot(), adjusted.sourceSnapshot());
          assertEquals(15, resolved(adjusted).size());
-         assertEquals(history + 2, ClientOperationController.workspace().undoSize());
-         assertTrue(ClientOperationController.workspace().undo());
-         assertEquals(3, ClientOperationController.workspace().part(1).orElseThrow().transform().repeats().max().getX());
-         assertTrue(ClientOperationController.workspace().undo());
-         assertEquals(original, ClientOperationController.workspace().part(1).orElseThrow());
+         assertEquals(history + 2, ClientSessionSystem.instance().operations().workspace().undoSize());
+         assertTrue(ClientSessionSystem.instance().operations().workspace().undo());
+         assertEquals(3, ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow().transform().repeats().max().getX());
+         assertTrue(ClientSessionSystem.instance().operations().workspace().undo());
+         assertEquals(original, ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow());
       } finally {
-         ClientOperationController.onDisconnected();
+         ClientSessionSystem.instance().operations().onDisconnected();
       }
    }
 
@@ -72,7 +74,7 @@ class GroupRepeatTest {
    void rejectedCommonRotationReturnsOneMessagePerEditAndKeepsTheWorkspace() {
       try {
          for (boolean workLimit : List.of(false, true)) {
-            ClientOperationController.onDisconnected();
+            ClientSessionSystem.instance().operations().onDisconnected();
             ClientSelectionPart first = cuboidPart(1, BlockPos.ZERO, 1, 0, 0);
             WorkspaceTransform oversized = workLimit
                ? first.transform().withScale(Axis.X, 9_000_000)
@@ -81,30 +83,30 @@ class GroupRepeatTest {
                   new BlockPos(1, 1, 1)
                );
             first = first.withTransform(oversized);
-            assertTrue(ClientOperationController.workspace().addParts(List.of(
+            assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(
                first, cuboidPart(2, new BlockPos(2, 0, 0), 1, 0, 0)
             )));
             String expected = workLimit ? "fastformer.message.workspace_work_too_large"
                : "fastformer.message.workspace_result_too_large";
             for (int attempt = 0; attempt < 2; attempt++) {
-               assertTrue(ClientOperationController.workspace().beginEdit());
-               var edit = ClientOperationController.workspace().activeEditToken();
-               var baseline = ClientOperationController.workspace().selectedParts();
-               long revision = ClientOperationController.workspace().revision();
+               assertTrue(ClientSessionSystem.instance().operations().workspace().beginEdit());
+               var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
+               var baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
+               long revision = ClientSessionSystem.instance().operations().workspace().revision();
 
-               assertEquals(expected, ClientOperationController.updateTransformGesture(
+               assertEquals(expected, ClientSessionSystem.instance().operations().updateTransformGesture(
                   edit, baseline, true, AxisGizmo.Operation.ROTATE, Axis.Y, 1, 1, 0.1
                ));
-               assertNull(ClientOperationController.updateTransformGesture(
+               assertNull(ClientSessionSystem.instance().operations().updateTransformGesture(
                   edit, baseline, true, AxisGizmo.Operation.ROTATE, Axis.Y, 1, 2, 0.2
                ));
-               assertEquals(baseline, ClientOperationController.workspace().selectedParts());
-               assertEquals(revision, ClientOperationController.workspace().revision());
-               ClientOperationController.finishTransformGesture(edit);
+               assertEquals(baseline, ClientSessionSystem.instance().operations().workspace().selectedParts());
+               assertEquals(revision, ClientSessionSystem.instance().operations().workspace().revision());
+               ClientSessionSystem.instance().operations().finishTransformGesture(edit);
             }
          }
       } finally {
-         ClientOperationController.onDisconnected();
+         ClientSessionSystem.instance().operations().onDisconnected();
       }
    }
 
@@ -112,23 +114,23 @@ class GroupRepeatTest {
    void largeCommonSelectionCanMoveAndReduceItsRepeatCountWithoutVoxelExpansion() {
       try {
          for (AxisGizmo.Operation operation : List.of(AxisGizmo.Operation.MOVE, AxisGizmo.Operation.SCALE)) {
-            ClientOperationController.onDisconnected();
+            ClientSessionSystem.instance().operations().onDisconnected();
             ClientSelectionPart first = cuboidPart(1, BlockPos.ZERO, 1, 0, 0);
             first = first.withTransform(first.transform().withRepeats(
                new OperationStackRegion(BlockPos.ZERO, new BlockPos(100, 100, 100)),
                new BlockPos(1, 1, 1)
             ));
             ClientSelectionPart second = cuboidPart(2, new BlockPos(2, 0, 0), 1, 0, 0);
-            assertTrue(ClientOperationController.workspace().addParts(List.of(first, second)));
-            assertTrue(ClientOperationController.workspace().beginEdit());
-            var edit = ClientOperationController.workspace().activeEditToken();
-            var baseline = ClientOperationController.workspace().selectedParts();
+            assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(first, second)));
+            assertTrue(ClientSessionSystem.instance().operations().workspace().beginEdit());
+            var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
+            var baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-            ClientOperationController.updateTransformGesture(
+            ClientSessionSystem.instance().operations().updateTransformGesture(
                edit, baseline, true, operation, Axis.X, 1, -1, Double.NaN
             );
 
-            var updated = ClientOperationController.workspace().part(1).orElseThrow();
+            var updated = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
             if (operation == AxisGizmo.Operation.MOVE) {
                assertEquals(-1.0, updated.transform().translation().x);
                assertEquals(first.transform().repeats(), updated.transform().repeats());
@@ -137,27 +139,27 @@ class GroupRepeatTest {
             }
          }
       } finally {
-         ClientOperationController.onDisconnected();
+         ClientSessionSystem.instance().operations().onDisconnected();
       }
    }
 
    /** Two parts, five and two wide, with six blocks of air between them. */
    @Test
    void firstCommonStackUsesTheWholeGroupBoxIncludingTheAirBetweenParts() {
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
       ClientSelectionPart first = cuboidPart(1, BlockPos.ZERO, 5, 0, 0);
       ClientSelectionPart second = cuboidPart(2, new BlockPos(10, 0, 0), 2, 0, 0);
-      assertTrue(ClientOperationController.workspace().addParts(List.of(first, second)));
-      assertTrue(ClientOperationController.workspace().beginEdit());
-      var edit = ClientOperationController.workspace().activeEditToken();
-      List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
+      assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(first, second)));
+      assertTrue(ClientSessionSystem.instance().operations().workspace().beginEdit());
+      var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
+      List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-      ClientOperationController.updateTransformGesture(
+      ClientSessionSystem.instance().operations().updateTransformGesture(
          edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
-      ClientSelectionPart updatedFirst = ClientOperationController.workspace().part(1).orElseThrow();
-      ClientSelectionPart updatedSecond = ClientOperationController.workspace().part(2).orElseThrow();
+      ClientSelectionPart updatedFirst = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
+      ClientSelectionPart updatedSecond = ClientSessionSystem.instance().operations().workspace().part(2).orElseThrow();
       // The group box spans x=0..11, so one step is twelve blocks wide, not the occupied runs.
       assertEquals(12, updatedFirst.transform().repeatStride().getX());
       assertEquals(12, updatedSecond.transform().repeatStride().getX());
@@ -168,26 +170,26 @@ class GroupRepeatTest {
       assertTrue(resolved(updatedFirst).containsAll(xRange(12, 16)));
       assertTrue(resolved(updatedSecond).containsAll(xRange(10, 11)));
       assertTrue(resolved(updatedSecond).containsAll(xRange(22, 23)));
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
    }
 
    /** A later gesture adds one base group, keeping the copies already placed. */
    @Test
    void commonSecondStackRepeatsTheWholeGroupAndKeepsBothParts() {
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
       ClientSelectionPart first = cuboidPart(1, BlockPos.ZERO, 5, 1, 12);
       ClientSelectionPart second = cuboidPart(2, new BlockPos(10, 0, 0), 2, 1, 12);
-      assertTrue(ClientOperationController.workspace().addParts(List.of(first, second)));
-      assertTrue(ClientOperationController.workspace().beginEdit());
-      var edit = ClientOperationController.workspace().activeEditToken();
-      List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
+      assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(first, second)));
+      assertTrue(ClientSessionSystem.instance().operations().workspace().beginEdit());
+      var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
+      List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-      ClientOperationController.updateTransformGesture(
+      ClientSessionSystem.instance().operations().updateTransformGesture(
          edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
-      ClientSelectionPart updatedFirst = ClientOperationController.workspace().part(1).orElseThrow();
-      ClientSelectionPart updatedSecond = ClientOperationController.workspace().part(2).orElseThrow();
+      ClientSelectionPart updatedFirst = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
+      ClientSelectionPart updatedSecond = ClientSessionSystem.instance().operations().workspace().part(2).orElseThrow();
       // Releasing the earlier gesture does not change its twelve-block repeat unit.
       assertEquals(12, updatedFirst.transform().repeatStride().getX());
       assertEquals(12, updatedSecond.transform().repeatStride().getX());
@@ -205,7 +207,7 @@ class GroupRepeatTest {
       assertTrue(secondBlocks.containsAll(xRange(34, 35)));
       assertEquals(15, firstBlocks.size());
       assertEquals(6, secondBlocks.size());
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
    }
 
    /**
@@ -214,29 +216,29 @@ class GroupRepeatTest {
     */
    @Test
    void mixedPrismGroupKeepsTheBlockValuedStepUnamplified() {
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
       ClientSelectionPart cuboid = cuboidPart(1, BlockPos.ZERO, 5, 1, 5);
       ClientSelectionPart prism = prismPart(2);
       assertTrue(prism.selection() != null && prism.selection().prism() != null);
-      assertTrue(ClientOperationController.workspace().addParts(List.of(cuboid, prism)));
-      assertTrue(ClientOperationController.workspace().beginEdit());
-      var edit = ClientOperationController.workspace().activeEditToken();
-      List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
+      assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(cuboid, prism)));
+      assertTrue(ClientSessionSystem.instance().operations().workspace().beginEdit());
+      var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
+      List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
       // Three blocks of travel, as FastPlaceClientInput sends for a gesture without
       // whole-group repeats.
-      ClientOperationController.updateTransformGesture(
+      ClientSessionSystem.instance().operations().updateTransformGesture(
          edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 3, Double.NaN
       );
 
-      ClientSelectionPart updatedCuboid = ClientOperationController.workspace().part(1).orElseThrow();
-      ClientSelectionPart updatedPrism = ClientOperationController.workspace().part(2).orElseThrow();
+      ClientSelectionPart updatedCuboid = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
+      ClientSelectionPart updatedPrism = ClientSessionSystem.instance().operations().workspace().part(2).orElseThrow();
       // Three cells, not three groups of two cells.
       assertEquals(4, updatedCuboid.transform().repeats().max().getX());
       assertEquals(5, updatedCuboid.transform().repeatStride().getX());
       // The prism still changes its own size by the same three blocks.
       assertEquals(4.0, updatedPrism.transform().scale().x);
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
    }
 
    /**
@@ -251,27 +253,27 @@ class GroupRepeatTest {
    @Test
    @Disabled("needs a group repeat layer in WorkspaceTransform; see 2026-10-25-project-audit.md")
    void placedCopiesSurviveACommonSecondStackAfterPerPartFirstStacks() {
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
       // A was stacked alone, so its copies sit five blocks apart. B was stacked alone with a
       // two block stride. The whole therefore spans x=0..13.
       ClientSelectionPart first = cuboidPart(1, BlockPos.ZERO, 5, 1, 5);
       ClientSelectionPart second = cuboidPart(2, new BlockPos(10, 0, 0), 2, 1, 2);
-      assertTrue(ClientOperationController.workspace().addParts(List.of(first, second)));
-      assertTrue(ClientOperationController.workspace().beginEdit());
-      var edit = ClientOperationController.workspace().activeEditToken();
-      List<ClientSelectionPart> baseline = ClientOperationController.workspace().selectedParts();
+      assertTrue(ClientSessionSystem.instance().operations().workspace().addParts(List.of(first, second)));
+      assertTrue(ClientSessionSystem.instance().operations().workspace().beginEdit());
+      var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
+      List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-      ClientOperationController.updateTransformGesture(
+      ClientSessionSystem.instance().operations().updateTransformGesture(
          edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
-      Set<BlockPos> firstBlocks = resolved(ClientOperationController.workspace().part(1).orElseThrow());
-      Set<BlockPos> secondBlocks = resolved(ClientOperationController.workspace().part(2).orElseThrow());
+      Set<BlockPos> firstBlocks = resolved(ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow());
+      Set<BlockPos> secondBlocks = resolved(ClientSessionSystem.instance().operations().workspace().part(2).orElseThrow());
       assertTrue(firstBlocks.containsAll(xRange(0, 9)));
       assertTrue(secondBlocks.containsAll(xRange(10, 13)));
       assertTrue(firstBlocks.containsAll(xRange(14, 23)));
       assertTrue(secondBlocks.containsAll(xRange(24, 27)));
-      ClientOperationController.onDisconnected();
+      ClientSessionSystem.instance().operations().onDisconnected();
    }
 
    private static ClientSelectionPart cuboidPart(int id, BlockPos origin, int width, int lastRepeat, int stride) {

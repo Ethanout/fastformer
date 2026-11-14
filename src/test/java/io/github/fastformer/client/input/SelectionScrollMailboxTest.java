@@ -1,11 +1,12 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.core.math.Axis;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.SelectionScrollAction;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -23,7 +24,7 @@ class SelectionScrollMailboxTest {
 
    @BeforeEach
    void prepare() {
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       input = FastPlaceClientInput.inputSession();
       input.reset();
       addPart();
@@ -33,7 +34,7 @@ class SelectionScrollMailboxTest {
    @AfterEach
    void clear() {
       input.reset();
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
    }
 
    @Test
@@ -44,7 +45,7 @@ class SelectionScrollMailboxTest {
       assertEquals(Vec3.ZERO, translation());
       drain();
       assertEquals(new Vec3(2, 0, 0), translation());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(Vec3.ZERO, translation());
    }
 
@@ -57,14 +58,14 @@ class SelectionScrollMailboxTest {
       input.postScroll(new ScrollInputSnapshot(1, second));
       drain();
       assertEquals(new Vec3(2, 0, 0), translation());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(new Vec3(1, 0, 0), translation());
    }
 
    @Test
    void deletedPartWithReusedNumberCannotReceiveOldMove() {
       var old = capture();
-      assertTrue(ClientOperationController.workspace().removeSelectedParts());
+      assertTrue(ClientSessionSystem.instance().operations().workspace().removeSelectedParts());
       addPart();
       input.postScroll(old);
       drain();
@@ -74,7 +75,7 @@ class SelectionScrollMailboxTest {
    @Test
    void ownerReplacementRejectsOldMove() {
       var old = capture();
-      ClientOperationController.clearWorkspace();
+      ClientSessionSystem.instance().operations().clearWorkspace();
       addPart();
       input.postScroll(old);
       drain();
@@ -108,7 +109,7 @@ class SelectionScrollMailboxTest {
       assertEquals(new BlockPos(2, 0, 0), transform().repeats().max());
       assertEquals(new BlockPos(3, 0, 0), transform().repeatStride());
       assertEquals(new Vec3(1, 1, 1), transform().scale());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(BlockPos.ZERO, transform().repeats().max());
    }
 
@@ -119,17 +120,17 @@ class SelectionScrollMailboxTest {
       drain();
       assertEquals(new Vec3(1, 0, 0), translation());
       assertEquals(new BlockPos(1, 0, 0), transform().repeats().max());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(Vec3.ZERO, translation());
       assertEquals(new BlockPos(1, 0, 0), transform().repeats().max());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(BlockPos.ZERO, transform().repeats().max());
    }
 
    @Test
    void deletedSelectionRejectsQueuedStackAndInverseScrollRetractsCopy() {
       var stack = captureStack(1);
-      assertTrue(ClientOperationController.workspace().removeSelectedParts());
+      assertTrue(ClientSessionSystem.instance().operations().workspace().removeSelectedParts());
       addPart();
       input.postScroll(stack);
       drain();
@@ -138,13 +139,13 @@ class SelectionScrollMailboxTest {
       input.postScroll(captureStack(-1));
       drain();
       assertEquals(BlockPos.ZERO, transform().repeats().max());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(new BlockPos(1, 0, 0), transform().repeats().max());
    }
 
    private ScrollInputSnapshot captureStack(int direction) {
-      var action = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(),
-         ClientOperationController.workspace(), new SelectionScrollAction.Stack(
+      var action = SelectionScrollAction.capture(ClientSessionSystem.instance().operations().interactionScene().owner(),
+         ClientSessionSystem.instance().operations().workspace(), new SelectionScrollAction.Stack(
             Axis.X, 1, direction)).orElseThrow();
       return new ScrollInputSnapshot(direction, action);
    }
@@ -152,13 +153,13 @@ class SelectionScrollMailboxTest {
    @Test
    void scrollingDownPastZeroStacksOnNegativeYAndUndoRestoresPositiveY() {
       var axis = Axis.Y;
-      var workspace = ClientOperationController.workspace();
-      var up = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(), workspace,
+      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var up = SelectionScrollAction.capture(ClientSessionSystem.instance().operations().interactionScene().owner(), workspace,
          new SelectionScrollAction.Stack(axis, 1, 1)).orElseThrow();
       input.postScroll(new ScrollInputSnapshot(1, up));
       drain();
       assertEquals(new BlockPos(0, 1, 0), transform().repeats().max());
-      var down = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(), workspace,
+      var down = SelectionScrollAction.capture(ClientSessionSystem.instance().operations().interactionScene().owner(), workspace,
          new SelectionScrollAction.Stack(axis, 1, -1)).orElseThrow();
       input.postScroll(new ScrollInputSnapshot(-1, down));
       input.postScroll(new ScrollInputSnapshot(-1, down));
@@ -166,14 +167,14 @@ class SelectionScrollMailboxTest {
       assertEquals(new BlockPos(0, -1, 0), transform().repeats().min());
       assertEquals(BlockPos.ZERO, transform().repeats().max());
       assertEquals(new BlockPos(0, 3, 0), transform().repeatStride());
-      assertTrue(ClientOperationController.undo());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
       assertEquals(BlockPos.ZERO, transform().repeats().min());
       assertEquals(new BlockPos(0, 1, 0), transform().repeats().max());
    }
 
    @Test
    void rotatedSelectionStacksAlongCapturedLocalAxisAndKeepsItsStride() {
-      var workspace = ClientOperationController.workspace();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
       var part = workspace.selectedParts().iterator().next();
       assertTrue(workspace.beginEdit());
       workspace.updatePart(part.withTransform(part.transform().withRotation(new Vec3(0, Math.PI / 2, 0))));
@@ -181,7 +182,7 @@ class SelectionScrollMailboxTest {
       var stack = SelectionScrollAction.stackAlongView(transform(), new Vec3(0, 0, -1), 1);
       assertEquals(Axis.X, stack.axis());
       assertEquals(1, stack.side());
-      var action = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(), workspace, stack).orElseThrow();
+      var action = SelectionScrollAction.capture(ClientSessionSystem.instance().operations().interactionScene().owner(), workspace, stack).orElseThrow();
       input.postScroll(new ScrollInputSnapshot(1, action));
       input.postScroll(new ScrollInputSnapshot(1, action));
       drain();
@@ -195,27 +196,27 @@ class SelectionScrollMailboxTest {
    void multipleSelectionsUseExistingCommonStackUnit() {
       var bounds = OperationSelectionVolume.cuboid(new BlockPos(10, 0, 0), new BlockPos(12, 2, 2), BlockPos.ZERO, BlockPos.ZERO);
       var part = new ClientSelectionPart(2, ClientSelectionPart.Source.WORLD, bounds, Map.of(), WorkspaceTransform.IDENTITY, false);
-      ClientOperationController.workspace().addParts(List.of(part));
-      ClientOperationController.selectAllWorkspaceParts();
+      ClientSessionSystem.instance().operations().workspace().addParts(List.of(part));
+      ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
       input.postScroll(captureStack(1));
       input.postScroll(captureStack(1));
       drain();
-      for (var selected : ClientOperationController.workspace().selectedParts()) {
+      for (var selected : ClientSessionSystem.instance().operations().workspace().selectedParts()) {
          assertEquals(new BlockPos(2, 0, 0), selected.transform().repeats().max());
          assertEquals(new BlockPos(13, 0, 0), selected.transform().repeatStride());
          assertEquals(new Vec3(1, 1, 1), selected.transform().scale());
       }
-      assertTrue(ClientOperationController.undo());
-      for (var selected : ClientOperationController.workspace().selectedParts()) assertEquals(BlockPos.ZERO, selected.transform().repeats().max());
+      assertTrue(ClientSessionSystem.instance().operations().undo());
+      for (var selected : ClientSessionSystem.instance().operations().workspace().selectedParts()) assertEquals(BlockPos.ZERO, selected.transform().repeats().max());
    }
 
    private static WorkspaceTransform transform() {
-      return ClientOperationController.workspace().selectedParts().iterator().next().transform();
+      return ClientSessionSystem.instance().operations().workspace().selectedParts().iterator().next().transform();
    }
 
    private ScrollInputSnapshot capture() {
-      var move = SelectionScrollAction.capture(ClientOperationController.interactionScene().owner(),
-         ClientOperationController.workspace(), new SelectionScrollAction.Move(new BlockPos(1, 0, 0))).orElseThrow();
+      var move = SelectionScrollAction.capture(ClientSessionSystem.instance().operations().interactionScene().owner(),
+         ClientSessionSystem.instance().operations().workspace(), new SelectionScrollAction.Move(new BlockPos(1, 0, 0))).orElseThrow();
       return new ScrollInputSnapshot(1, move);
    }
 
@@ -225,13 +226,13 @@ class SelectionScrollMailboxTest {
    }
 
    private static Vec3 translation() {
-      return ClientOperationController.workspace().selectedParts().iterator().next().transform().translation();
+      return ClientSessionSystem.instance().operations().workspace().selectedParts().iterator().next().transform().translation();
    }
 
    private static void addPart() {
       var bounds = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(2, 2, 2), BlockPos.ZERO, BlockPos.ZERO);
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, bounds, Map.of(), WorkspaceTransform.IDENTITY, false);
-      ClientOperationController.workspace().addParts(List.of(part));
-      ClientOperationController.selectAllWorkspaceParts();
+      ClientSessionSystem.instance().operations().workspace().addParts(List.of(part));
+      ClientSessionSystem.instance().operations().selectAllWorkspaceParts();
    }
 }

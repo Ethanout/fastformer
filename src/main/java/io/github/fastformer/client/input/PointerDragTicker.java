@@ -1,8 +1,9 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.policy.DragAdvanceSemantics;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import net.minecraft.client.Minecraft;
 
@@ -11,8 +12,8 @@ final class PointerDragTicker {
    private PointerDragTicker() { }
 
    static void advance(Minecraft minecraft, ClientInputSession session, boolean controlHeld) {
-      boolean workspaceGizmo = ClientOperationController.selectionGestures().gizmo() != null;
-      boolean workspaceFace = ClientOperationController.selectionGestures().face() != null;
+      boolean workspaceGizmo = ClientSessionSystem.instance().operations().selectionGestures().gizmo() != null;
+      boolean workspaceFace = ClientSessionSystem.instance().operations().selectionGestures().face() != null;
       if (session.operationDrag == null && session.operationPointDrag == null
          && session.geometryGizmoDrag == null && !workspaceGizmo && !workspaceFace) return;
 

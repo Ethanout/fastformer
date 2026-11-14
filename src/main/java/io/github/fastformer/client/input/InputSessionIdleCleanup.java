@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.operation.controller.ClientOperationController;
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import net.minecraft.client.Minecraft;
 
 /** Releases transient gestures after the routed session becomes idle. */
@@ -16,7 +17,7 @@ final class InputSessionIdleCleanup {
       session.releaseGeometryPointerButton(0);
       session.releaseGeometryPointerButton(1);
       session.operationClick.clear();
-      ClientOperationController.selectionGestures().clear();
+      ClientSessionSystem.instance().operations().selectionGestures().clear();
       FastPlaceClientInput.finishPointerGesture();
    }
 }

@@ -7,7 +7,6 @@ import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.neoforge.network.PacketDistributor;

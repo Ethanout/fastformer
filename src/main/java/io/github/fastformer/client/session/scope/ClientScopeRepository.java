@@ -2,6 +2,8 @@ package io.github.fastformer.client.session.scope;
 
 import io.github.fastformer.client.input.ClientInputSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
+import io.github.fastformer.client.operation.clipboard.OperationClipboardState;
+import io.github.fastformer.client.operation.controller.OperationContext;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -9,8 +11,10 @@ import java.util.Objects;
 /** Owns world scope identity, activation boundaries, fallback gestures, and safe eviction. */
 public final class ClientScopeRepository {
    private final Map<ClientScopeId, ClientScope> scopes = new HashMap<>();
+   private final OperationClipboardState clipboard = new OperationClipboardState();
    private final ClientSelectionSession unboundSelection = new ClientSelectionSession();
    private final ClientInputSession unboundInput = new ClientInputSession(unboundSelection.gestures());
+   private final OperationContext unboundOperations = new OperationContext(unboundSelection, clipboard);
    private ClientScope current;
 
    public ClientScope current() {
@@ -18,7 +22,11 @@ public final class ClientScopeRepository {
    }
 
    public ClientScope resolve(ClientScopeId id) {
-      return scopes.computeIfAbsent(Objects.requireNonNull(id, "id"), ClientScope::new);
+      return scopes.computeIfAbsent(Objects.requireNonNull(id, "id"), key -> new ClientScope(key, clipboard));
+   }
+
+   public OperationContext operations() {
+      return current == null ? unboundOperations : current.operations();
    }
 
    public ClientInputSession inputSession() {
@@ -30,6 +38,7 @@ public final class ClientScopeRepository {
    }
 
    public void clearUnboundInteraction() {
+      unboundOperations.leaveEnvironment();
       unboundInput.reset();
       unboundSelection.clearLiveInteraction();
    }
@@ -42,6 +51,7 @@ public final class ClientScopeRepository {
       if (changed) detach(previous, id);
       ClientScope next = resolve(id);
       if (changed) {
+         next.operations().leaveEnvironment();
          next.drafts().retryTransientFailure();
          if (next.receipts().retryTransientFailure()) next.drafts().rearmAfterReceipt();
       }
@@ -59,6 +69,7 @@ public final class ClientScopeRepository {
          // A dimension change clears live state; the staged draft remains owned by its old world.
          previous.detachEnvironment();
       } else {
+         previous.operations().leaveEnvironment();
          previous.resetInput();
       }
    }

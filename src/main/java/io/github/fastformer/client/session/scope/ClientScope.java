@@ -2,6 +2,8 @@ package io.github.fastformer.client.session.scope;
 
 import io.github.fastformer.client.input.ClientInputSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
+import io.github.fastformer.client.operation.clipboard.OperationClipboardState;
+import io.github.fastformer.client.operation.controller.OperationContext;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.session.draft.ClientDraftRepository;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
@@ -19,6 +21,7 @@ public final class ClientScope {
    private final ClientDraftRepository drafts;
    private final ClientSelectionSession selectionSession = new ClientSelectionSession();
    private final ClientInputSession inputSession;
+   private final OperationContext operations;
    private ClientOperationDraft suspendedOperationDraft;
    private ClientOperationDraft.Remainder submissionRemainder;
    private boolean cleanupReplayPending = true;
@@ -28,10 +31,19 @@ public final class ClientScope {
    }
 
    public ClientScope(ClientScopeId id) {
+      this(id, new OperationClipboardState());
+   }
+
+   ClientScope(ClientScopeId id, OperationClipboardState clipboard) {
       this.id = Objects.requireNonNull(id, "id");
       this.receipts = new ClientReceiptRepository(() -> ClientScopeFiles.receipts(id));
       this.drafts = new ClientDraftRepository(() -> ClientScopeFiles.draft(id));
       this.inputSession = new ClientInputSession(selectionSession.gestures());
+      this.operations = new OperationContext(selectionSession, clipboard);
+   }
+
+   public OperationContext operations() {
+      return operations;
    }
 
    public boolean hasLiveWork() {
@@ -73,6 +85,7 @@ public final class ClientScope {
     * identity decides later whether the staged draft is applied or discarded.
     */
    public void detachEnvironment() {
+      operations.leaveEnvironment();
       this.clearLiveInteraction();
    }
 

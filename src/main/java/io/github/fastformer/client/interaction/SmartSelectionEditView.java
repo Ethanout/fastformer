@@ -1,7 +1,8 @@
 package io.github.fastformer.client.interaction;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.selection.SmartSelectionRaycast;
 import net.minecraft.client.Minecraft;
@@ -16,9 +17,9 @@ public final class SmartSelectionEditView {
 
    public static boolean active(Minecraft minecraft) {
       return minecraft != null && minecraft.level != null && minecraft.player != null && minecraft.screen == null
-         && ClientOperationController.smartTool() && ClientOperationController.selectionSessionActive()
+         && ClientSessionSystem.instance().operations().smartTool() && ClientSessionSystem.instance().operations().selectionSessionActive()
          && FastPlaceClientInput.modifierHeld()
-         && ClientOperationController.workspace().parts().stream().anyMatch(part -> part.smartEditable());
+         && ClientSessionSystem.instance().operations().workspace().parts().stream().anyMatch(part -> part.smartEditable());
    }
 
    public record Target(int partId, SmartSelectionRaycast.Pick pick) {
@@ -49,7 +50,7 @@ public final class SmartSelectionEditView {
          if (worldHit != null) reach = eye.distanceTo(worldHit.getLocation()) + 0.02;
       }
       Target closest = null;
-      for (var part : ClientOperationController.workspace().parts().reversed()) {
+      for (var part : ClientSessionSystem.instance().operations().workspace().parts().reversed()) {
          if (!part.smartEditable()) continue;
          var hit = throughWorld ? SmartSelectionRaycast.pickCells(part.blocks().keySet(), eye, view, reach)
             : SmartSelectionRaycast.pick(part.blocks(), minecraft.level, CollisionContext.of(minecraft.player), eye, view, reach);

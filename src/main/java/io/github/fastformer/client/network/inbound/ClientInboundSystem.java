@@ -4,7 +4,6 @@ import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.ForwardDashController;
 import io.github.fastformer.client.input.HistoryConflictConfirmation;
 import io.github.fastformer.client.interaction.ClientInteractionUpdates;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.session.ClientSessionSystem;
@@ -75,10 +74,10 @@ public final class ClientInboundSystem {
       callback(queue, PlacementActionAckPayload.class, PlacementActionAckPayload.TYPE,
          PlacementActionAckPayload::callbackScope, FastPlaceClientInput::acknowledgePlacementRequest);
       callback(queue, OperationWorkspaceResultPayload.class, OperationWorkspaceResultPayload.TYPE,
-         OperationWorkspaceResultPayload::callbackScope, ClientOperationController::applyWorkspaceResult);
+         OperationWorkspaceResultPayload::callbackScope, payload -> ClientSessionSystem.instance().operations().applyWorkspaceResult(payload));
       receipt(queue, OperationWorkspaceReceiptPayload.class, OperationWorkspaceReceiptPayload.TYPE,
-         ClientOperationController::applyWorkspaceReceipt);
-      receipt(queue, WorldHistoryEventPayload.class, WorldHistoryEventPayload.TYPE, ClientOperationController::applyWorldHistoryEvent);
+         payload -> ClientSessionSystem.instance().operations().applyWorkspaceReceipt(payload));
+      receipt(queue, WorldHistoryEventPayload.class, WorldHistoryEventPayload.TYPE, payload -> ClientSessionSystem.instance().operations().applyWorldHistoryEvent(payload));
       receipt(queue, QuickReplaceStatePayload.class, QuickReplaceStatePayload.TYPE, QuickReplaceMode::receive);
       receipt(queue, InteractionUpdatesPayload.class, InteractionUpdatesPayload.TYPE, ClientInteractionUpdates::receive);
       receipt(queue, IdleInteractionSnapshotPayload.class, IdleInteractionSnapshotPayload.TYPE, FastPlaceClientInput::receiveIdleInteraction);

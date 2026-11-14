@@ -1,8 +1,9 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
@@ -25,7 +26,7 @@ final class QuickShapeStartController {
       int button, boolean embedded, boolean throughFluids, net.minecraft.world.phys.Vec3 eye, net.minecraft.world.phys.Vec3 view,
       net.minecraft.resources.ResourceLocation profile) {
       if (hit == null
-         || session.routing.state() != ClientInputStateMachine.State.IDLE || ClientOperationController.active()
+         || session.routing.state() != ClientInputStateMachine.State.IDLE || ClientSessionSystem.instance().operations().active()
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), StartPlacementPayload.TYPE.id())
          || !NetworkRegistry.hasChannel(minecraft.getConnection(),
             io.github.fastformer.protocol.s2c.placement.PlacementActionAckPayload.TYPE.id())) return false;
@@ -43,7 +44,7 @@ final class QuickShapeStartController {
       var idle = FastPlaceClientPreviewCore.idleBuildingSession().orElse(null);
       if (session.routing.state() != ClientInputStateMachine.State.IDLE || idle == null
          || idle.revision() != target.revision() || !idle.callbackScope().equals(target.callbackScope())
-         || ClientOperationController.active()) return;
+         || ClientSessionSystem.instance().operations().active()) return;
       if (session.modifier.held()) session.modifier.consume();
       ClientPlacementRouter.startPlacement(minecraft, target);
    }

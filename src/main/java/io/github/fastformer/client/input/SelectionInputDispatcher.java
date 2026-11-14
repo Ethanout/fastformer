@@ -1,10 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.session.ClientSessionSystem;
+
 import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
-import io.github.fastformer.client.operation.controller.ClientOperationController;
 import io.github.fastformer.client.operation.input.SelectionDraftPress;
 import io.github.fastformer.client.operation.input.SelectionPointerCapture;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
@@ -42,9 +43,9 @@ final class SelectionInputDispatcher {
          case SelectionPointerEvent.PointPress press -> {
             var snapshot = press.snapshot();
             if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) == ClientInputStateMachine.Dispatch.OPERATION
-               && snapshot.matches(ClientOperationController.interactionScene().owner(), ClientOperationController.workspace())
+               && snapshot.matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace())
                && !session.selectionGestures().active() && snapshot.point() != null) {
-               var decision = ClientOperationController.adjustAabbPoint(snapshot.partId(), snapshot.button(), snapshot.point());
+               var decision = ClientSessionSystem.instance().operations().adjustAabbPoint(snapshot.partId(), snapshot.button(), snapshot.point());
                ClientInteractionFeedback.showAabbAdjustFailure(minecraft, decision);
             }
             session.selectionPointer.dispatched(press.identity(), null, 0L);
@@ -54,16 +55,16 @@ final class SelectionInputDispatcher {
 
    private static void handleSelectionDraftPress(ClientInputSession session, SelectionDraftPress press) {
       if (session.routing.dispatch(ClientInputStateMachine.InputKind.CREATE_SELECTION) != ClientInputStateMachine.Dispatch.OPERATION
-         || !press.matches(ClientOperationController.interactionScene().owner(), ClientOperationController.draftSelectionMode())
-         || ClientOperationController.workspaceSubmissionPending() || ClientOperationController.workspace().locked()
+         || !press.matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().draftSelectionMode())
+         || ClientSessionSystem.instance().operations().workspaceSubmissionPending() || ClientSessionSystem.instance().operations().workspace().locked()
          || session.selectionGestures().active()) return;
       if (press.alt()) {
-         ClientOperationController.setAltMode(true);
+         ClientSessionSystem.instance().operations().setAltMode(true);
          session.modifier.consume();
          if (press.point() != null || press.button() == 0 && press.mode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID)
-            ClientOperationController.handleAltCreateClick(press.button(), press.point());
+            ClientSessionSystem.instance().operations().handleAltCreateClick(press.button(), press.point());
       } else {
-         ClientOperationController.handleCreateClick(press.button(), press.point());
+         ClientSessionSystem.instance().operations().handleCreateClick(press.button(), press.point());
       }
    }
 
@@ -74,7 +75,7 @@ final class SelectionInputDispatcher {
       var drag = gestures.capturedBy(capture);
       if (drag != null) {
          if (cancelled) {
-            ClientOperationController.cancelTransformGesture(drag.editToken());
+            ClientSessionSystem.instance().operations().cancelTransformGesture(drag.editToken());
             SelectionGestureController.finishPointer(session, capture.gestureToken());
             gestures.clear(drag);
          } else if (drag instanceof WorkspaceFaceDrag) {
