@@ -136,40 +136,8 @@ public final class PreviewSync {
    }
 
    public static void syncGeometry(ServerPlayer player, GeometrySession session) {
-      sendGeometry(
-         player,
-         new GeometryPreviewPayload(
-            0L,
-            session.draftId(),
-            true,
-            session.mode(),
-            session.points(),
-            session.pointLocations(),
-            session.pointRoles(),
-            session.closed(),
-            SessionSystem.of(player).modifierHeld(player),
-            session.extrusion(),
-            session.polyhedronShapeVariant(),
-            session.coneShapeVariant(),
-            session.compoundShapeVariant(),
-            session.polyhedronSizeMode(),
-            FastPlaceSettings.load(player).fillMode(),
-            session.conePlaneMode(),
-            session.coneRadius(),
-            session.coneScaleX(),
-            session.coneScaleZ(),
-            session.coneTopScaleOffset(),
-            session.coneTopOffset(),
-            session.coneRotationRadians(),
-            session.coneGizmoLocal(),
-            session.rotation(),
-            session.polyhedronLocalScale(),
-            session.polyhedronWorldScale(),
-            session.polyhedronGizmoLocal(),
-            session.selectedControlPoint(),
-            callbackScope(player)
-         )
-      );
+      sendGeometry(player, GeometryPreviews.capture(session, SessionSystem.of(player).modifierHeld(player),
+         FastPlaceSettings.load(player).fillMode(), callbackScope(player)));
       syncActivity(player);
    }
 

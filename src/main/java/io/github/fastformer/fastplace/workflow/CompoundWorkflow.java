@@ -24,7 +24,9 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 import java.util.Set;
 
-public final class CompoundWorkflow implements GeometryWorkflow {
+public final class CompoundWorkflow extends ShapeWorkflow<CompoundWorkflowView> {
+   public CompoundWorkflow() { super(CompoundWorkflowView.class); }
+
    @Override
    public GeometryMode mode() {
       return GeometryMode.COMPOUND;
@@ -35,12 +37,12 @@ public final class CompoundWorkflow implements GeometryWorkflow {
       if (!this.allows(session, GeometryAction.SCALAR_ADJUST)) {
          return false;
       }
-      session.cycleCompoundShapeVariant(steps);
+      session.compound().cycleCompoundShapeVariant(steps);
       return true;
    }
 
    @Override
-   public GeometryStage stage(GeometryWorkflowView view) {
+   protected GeometryStage stageView(CompoundWorkflowView view) {
       return view.pointCount() >= 3
          ? GeometryStage.collectingWithScroll("compound.variant").allow(GeometryAction.CONFIRM)
          : GeometryStage.collecting("compound.points");
@@ -53,7 +55,7 @@ public final class CompoundWorkflow implements GeometryWorkflow {
 
    @Override
    public GeometryBuildResult build(GeometrySession session, GeometryActionContext context, FillMode fillMode, int maxBlocks) {
-      int shapeVariant = session.compoundShapeVariant();
+      int shapeVariant = session.compound().compoundShapeVariant();
       List<BlockPos> points = List.copyOf(session.points());
       long scanCells = estimateScanCells(points, shapeVariant);
       return GeometryBuildResult.ready(
@@ -69,8 +71,8 @@ public final class CompoundWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryPreviewPlan previewPlan(
-      GeometryWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, BlockPos candidatePoint, Vec3 eye
+   protected GeometryPreviewPlan previewView(
+      CompoundWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, BlockPos candidatePoint, Vec3 eye
    ) {
       MutableComponent hint = Component.translatable("fastformer.message.geometry_open_hint");
       int shapeVariant = view.compoundShapeVariant();

@@ -40,15 +40,15 @@ class ConePrismGizmoTest {
       for (int index = 0; index < originalPoints.size(); index++) {
          assertEquals(translation, session.pointLocations().get(index).subtract(originalPoints.get(index)));
       }
-      assertEquals(Vec3.ZERO, session.coneTopOffset());
+      assertEquals(Vec3.ZERO, session.cone().coneTopOffset());
       assertEquals(originalHeight, height(session), 1.0E-9);
 
       assertTrue(workflow.onGizmoDrag(session, context, AxisGizmo.Operation.SCALE, Axis.X, 2));
-      assertTrue(session.coneScaleX() > 1.0);
-      assertEquals(0.0, session.coneTopScaleOffset());
+      assertTrue(session.cone().coneScaleX() > 1.0);
+      assertEquals(0.0, session.cone().coneTopScaleOffset());
 
       assertTrue(workflow.onGizmoDrag(session, context, AxisGizmo.Operation.ROTATE, Axis.Y, 256));
-      assertEquals(Math.PI * 0.5, session.coneRotationRadians(), 1.0E-9);
+      assertEquals(Math.PI * 0.5, session.cone().coneRotationRadians(), 1.0E-9);
    }
 
    @Test
@@ -104,14 +104,14 @@ class ConePrismGizmoTest {
       GeometrySession session = new GeometrySession();
       session.setMode(GeometryMode.CONE_PRISM);
       session.addPoint(CENTER);
-      session.setConeRadius(4.0);
+      session.cone().setConeRadius(4.0);
       session.addPoint(CENTER.add(4.0, 0.0, 0.0));
       session.addPoint(CENTER.add(0.0, 5.0, 0.0));
       return session;
    }
 
    private static double height(GeometrySession session) {
-      return session.pointLocations().get(session.coneFacePointCount()).y - CENTER.y;
+      return session.pointLocations().get(session.cone().coneFacePointCount()).y - CENTER.y;
    }
 
    private static ConePrismParameters parameters(double rotation) {

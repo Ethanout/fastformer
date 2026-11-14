@@ -48,15 +48,15 @@ class PolyhedronSizeModeTest {
    void diameterSessionReturnsToSecondPointAfterAdjustmentRollback() {
       GeometrySession session = new GeometrySession();
       session.setMode(GeometryMode.POLYHEDRON);
-      session.setPolyhedronSizeMode(PolyhedronSizeMode.DIAMETER);
+      session.polyhedron().setPolyhedronSizeMode(PolyhedronSizeMode.DIAMETER);
       session.addPoint(point(10.5));
 
-      assertFalse(session.hasPolyhedronCenter());
-      session.enterPolyhedronAdjust(point(14.5));
+      assertFalse(session.polyhedron().hasPolyhedronCenter());
+      session.polyhedron().enterPolyhedronAdjust(point(14.5));
 
       assertTrue(session.closed());
       assertEquals(List.of(point(10.5), point(14.5)), session.pointLocations());
-      assertEquals(point(12.5), session.polyhedronPoints().center().orElseThrow());
+      assertEquals(point(12.5), session.polyhedron().polyhedronPoints().center().orElseThrow());
 
       assertTrue(session.removeOrUndo(new BlockPos(99, 99, 99)));
       assertFalse(session.closed());
@@ -69,9 +69,9 @@ class PolyhedronSizeModeTest {
       session.setMode(GeometryMode.POLYHEDRON);
       session.addPoint(point(10.5));
 
-      session.setPolyhedronSizeMode(PolyhedronSizeMode.DIAMETER);
+      session.polyhedron().setPolyhedronSizeMode(PolyhedronSizeMode.DIAMETER);
 
-      assertEquals(PolyhedronSizeMode.DIAMETER, session.polyhedronSizeMode());
+      assertEquals(PolyhedronSizeMode.DIAMETER, session.polyhedron().polyhedronSizeMode());
       assertTrue(session.pointLocations().isEmpty());
    }
 

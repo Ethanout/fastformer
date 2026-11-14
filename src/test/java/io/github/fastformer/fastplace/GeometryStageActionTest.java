@@ -60,7 +60,7 @@ class GeometryStageActionTest {
       GeometrySession session = new GeometrySession();
       session.setMode(GeometryMode.POLYHEDRON);
       session.addPoint(new Vec3(0.5, 0.5, 0.5));
-      session.enterPolyhedronAdjust(new Vec3(3.5, 0.5, 0.5));
+      session.polyhedron().enterPolyhedronAdjust(new Vec3(3.5, 0.5, 0.5));
 
       GeometryStage stage = new PolyhedronWorkflow().stage(session);
 
@@ -75,7 +75,7 @@ class GeometryStageActionTest {
       GeometrySession session = new GeometrySession();
       session.setMode(GeometryMode.POLYHEDRON);
       session.addPoint(new Vec3(0.5, 0.5, 0.5));
-      session.enterPolyhedronAdjust(new Vec3(4.5, 0.5, 0.5));
+      session.polyhedron().enterPolyhedronAdjust(new Vec3(4.5, 0.5, 0.5));
 
       assertFalse(new PolyhedronWorkflow().onGizmoDrag(
          session,

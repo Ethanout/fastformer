@@ -22,18 +22,18 @@ class GeometryShapeStateTest {
    void modeSwitchCreatesIndependentNamedState() {
       GeometrySession session = new GeometrySession();
       session.setMode(GeometryMode.POLYHEDRON);
-      assertEquals(0, session.polyhedronShapeVariant());
+      assertEquals(0, session.polyhedron().polyhedronShapeVariant());
 
       session.setMode(GeometryMode.CONE_PRISM);
-      session.setConeShapeVariant(2);
-      assertEquals(2, session.coneShapeVariant());
+      session.cone().setConeShapeVariant(2);
+      assertEquals(2, session.cone().coneShapeVariant());
 
       session.setMode(GeometryMode.COMPOUND);
-      session.cycleCompoundShapeVariant(1);
-      assertEquals(1, session.compoundShapeVariant());
+      session.compound().cycleCompoundShapeVariant(1);
+      assertEquals(1, session.compound().compoundShapeVariant());
 
       session.setMode(GeometryMode.POLYHEDRON);
-      assertEquals(0, session.polyhedronShapeVariant());
+      assertEquals(0, session.polyhedron().polyhedronShapeVariant());
    }
 
    @Test
@@ -55,7 +55,7 @@ class GeometryShapeStateTest {
 
       assertEquals(List.of(ControlPointRole.CENTER, ControlPointRole.RADIUS), session.pointRoles());
 
-      session.setPolyhedronSizeMode(PolyhedronSizeMode.DIAMETER);
+      session.polyhedron().setPolyhedronSizeMode(PolyhedronSizeMode.DIAMETER);
       session.addPoint(point(0.5, 0.5, 0.5));
       session.addPoint(point(4.5, 0.5, 0.5));
 
@@ -74,7 +74,7 @@ class GeometryShapeStateTest {
          List.of(ControlPointRole.BASE_CENTER, ControlPointRole.RADIUS, ControlPointRole.HEIGHT),
          session.pointRoles()
       );
-      assertEquals(point(0.5, 5.5, 0.5), session.conePoints().heightPointLocation().orElseThrow());
+      assertEquals(point(0.5, 5.5, 0.5), session.cone().conePoints().heightPointLocation().orElseThrow());
    }
 
    @Test
@@ -97,8 +97,8 @@ class GeometryShapeStateTest {
       session.setMode(GeometryMode.POLYHEDRON);
       Vec3 center = point(0.5, 0.5, 0.5);
       session.addPoint(center);
-      session.enterPolyhedronAdjust(point(4.5, 0.5, 0.5));
-      session.movePolyhedron(new Vec3(3.0, 2.0, -1.0));
+      session.polyhedron().enterPolyhedronAdjust(point(4.5, 0.5, 0.5));
+      session.polyhedron().movePolyhedron(new Vec3(3.0, 2.0, -1.0));
 
       assertTrue(session.closed());
       assertTrue(session.undoStep());
@@ -115,16 +115,16 @@ class GeometryShapeStateTest {
       session.addPoint(point(0.5, 0.5, 0.5));
       session.addPoint(point(4.5, 0.5, 0.5));
       session.addPoint(point(0.5, 0.5, 4.5));
-      session.selectControlPoint(1);
+      session.convex().selectControlPoint(1);
 
-      session.clearSelectedControlPoint();
-      assertEquals(-1, session.selectedControlPoint());
+      session.convex().clearSelectedControlPoint();
+      assertEquals(-1, session.convex().selectedControlPoint());
 
       ConvexPolyhedronWorkflow workflow = new ConvexPolyhedronWorkflow();
       workflow.onAddPoint(session, new GeometryActionContext(null, false), GeometryHit.point(new BlockPos(0, 4, 0)));
 
       assertEquals(4, session.points().size());
-      assertEquals(-1, session.selectedControlPoint());
+      assertEquals(-1, session.convex().selectedControlPoint());
    }
 
    private static Vec3 point(double x, double y, double z) {

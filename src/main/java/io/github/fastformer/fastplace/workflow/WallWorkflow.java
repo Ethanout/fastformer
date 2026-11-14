@@ -29,7 +29,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.phys.Vec3;
 
-public final class WallWorkflow implements GeometryWorkflow {
+public final class WallWorkflow extends ShapeWorkflow<WallWorkflowView> {
+   public WallWorkflow() { super(WallWorkflowView.class); }
+
    @Override
    public GeometryMode mode() {
       return GeometryMode.WALL;
@@ -53,7 +55,7 @@ public final class WallWorkflow implements GeometryWorkflow {
       if (!this.allows(session, GeometryAction.SCALAR_ADJUST)) {
          return false;
       }
-      session.adjustExtrusion(OperationGeometry.viewAxisStep(context.view(), steps));
+      session.wall().adjustExtrusion(OperationGeometry.viewAxisStep(context.view(), steps));
       return true;
    }
 
@@ -81,7 +83,7 @@ public final class WallWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryStage stage(GeometryWorkflowView view) {
+   protected GeometryStage stageView(WallWorkflowView view) {
       return view.closed()
          ? GeometryStage.adjusting("wall.extrude")
          : GeometryStage.collecting("wall.path").allow(GeometryAction.SUBMODE);
@@ -95,7 +97,7 @@ public final class WallWorkflow implements GeometryWorkflow {
    @Override
    public GeometryBuildResult build(GeometrySession session, GeometryActionContext context, FillMode fillMode, int maxBlocks) {
       List<BlockPos> points = List.copyOf(session.points());
-      BlockPos extrusion = session.extrusion().immutable();
+      BlockPos extrusion = session.wall().extrusion().immutable();
       return GeometryBuildResult.ready(
          WallGenerator.estimateScanCells(points, true, extrusion),
          maxBlocks,
@@ -109,8 +111,8 @@ public final class WallWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryPreviewPlan previewPlan(
-      GeometryWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, BlockPos candidatePoint, Vec3 eye
+   protected GeometryPreviewPlan previewView(
+      WallWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, BlockPos candidatePoint, Vec3 eye
    ) {
       BlockPos candidate = view.closed() ? null : this.planePoint(points, false, eye, view.view(), candidatePoint);
       boolean closing = !view.closed()
@@ -135,15 +137,15 @@ public final class WallWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryPreviewPlan previewPlan(
-      GeometryWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, GeometryHit candidateHit, Vec3 eye
+   protected GeometryPreviewPlan previewView(
+      WallWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, GeometryHit candidateHit, Vec3 eye
    ) {
       BlockPos candidate = candidateHit == null ? null : this.raycastPoint(candidateHit, view.modifierHeld());
       return this.previewPlan(view, points, hoveredPoint, candidate, eye);
    }
 
    @Override
-   public List<GeometryInteractionTarget> interactionTargets(GeometryWorkflowView view) {
+   protected List<GeometryInteractionTarget> interactionTargetsView(WallWorkflowView view) {
       return closeTarget(view.pointLocations(), view.closed());
    }
 

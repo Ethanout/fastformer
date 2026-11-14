@@ -35,7 +35,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.phys.Vec3;
 
-public final class ConePrismWorkflow implements GeometryWorkflow {
+public final class ConePrismWorkflow extends ShapeWorkflow<ConeWorkflowView> {
+   public ConePrismWorkflow() { super(ConeWorkflowView.class); }
+
    private static final double CENTERLINE_HIT_RADIUS = 0.75;
    private static final int DETAILED_PREVIEW_SCAN_LIMIT = 16000;
    private static final int FALLBACK_PREVIEW_BLOCK_LIMIT = 4096;
@@ -55,17 +57,17 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
       if (!this.allows(session, GeometryAction.POINT_INPUT)) {
          return;
       }
-      if (session.coneStage() == ConePrismStage.BODY) {
+      if (session.cone().coneStage() == ConePrismStage.BODY) {
          ConePrismParameters parameters = parameters(session);
-         session.setConeShapeVariant(this.nearCenterline(parameters, context.eye(), context.view()) ? 1 : 0);
+         session.cone().setConeShapeVariant(this.nearCenterline(parameters, context.eye(), context.view()) ? 1 : 0);
          session.addPoint(this.heightPoint(parameters, context.eye(), context.view(), hit.conePoint(context.modifierHeld())));
-      } else if (session.conePlaneMode() == ConePlaneMode.RADIUS && session.points().isEmpty()) {
+      } else if (session.cone().conePlaneMode() == ConePlaneMode.RADIUS && session.points().isEmpty()) {
          session.addPoint(hit.conePoint(context.modifierHeld()));
-      } else if (session.conePlaneMode() == ConePlaneMode.RADIUS && session.points().size() == 1) {
+      } else if (session.cone().conePlaneMode() == ConePlaneMode.RADIUS && session.points().size() == 1) {
          Vec3 center = session.pointLocations().getFirst();
          Vec3 candidate = hit.conePoint(context.modifierHeld());
-         session.setConeRadius(horizontalRadius(candidate.subtract(center)));
-         session.addPoint(radiusPoint(center, candidate, session.coneRadius()));
+         session.cone().setConeRadius(horizontalRadius(candidate.subtract(center)));
+         session.addPoint(radiusPoint(center, candidate, session.cone().coneRadius()));
       } else {
          session.addPoint(hit.conePoint(context.modifierHeld()));
       }
@@ -77,11 +79,11 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
          return false;
       }
       if (this.scrollsTopScale(parameters(session), context.view())) {
-         session.adjustConeTopScale(steps);
+         session.cone().adjustConeTopScale(steps);
       } else {
          ConePrismGeometry.Base base = ConePrismGenerator.baseInfo(parameters(session));
          if (base != null) {
-            session.adjustConeTopOffset(context.view(), base.axisU(), base.axisV(), steps);
+            session.cone().adjustConeTopOffset(context.view(), base.axisU(), base.axisV(), steps);
          }
       }
       return true;
@@ -92,10 +94,10 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
       if (!this.allows(session, GeometryAction.MODE_CYCLE)) {
          return false;
       }
-      if (session.coneStage() == ConePrismStage.ADJUST) {
-         session.toggleConeGizmoFrame();
+      if (session.cone().coneStage() == ConePrismStage.ADJUST) {
+         session.cone().toggleConeGizmoFrame();
       } else {
-         session.cycleConePlaneMode();
+         session.cone().cycleConePlaneMode();
       }
       return true;
    }
@@ -108,7 +110,7 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
       Axis axis,
       int steps
    ) {
-      if (steps == 0 || session.coneStage() != ConePrismStage.ADJUST) {
+      if (steps == 0 || session.cone().coneStage() != ConePrismStage.ADJUST) {
          return false;
       }
       ConePrismParameters parameters = parameters(session);
@@ -117,34 +119,34 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
          return false;
       }
       ConePrismGeometry.Base base = geometry.base();
-      TransformFrame frame = coneFrame(geometry, session.coneGizmoLocal());
+      TransformFrame frame = coneFrame(geometry, session.cone().coneGizmoLocal());
       Vec3 direction = frame.axis(axis);
       double normalComponent = direction.dot(base.normal());
       double uComponent = direction.dot(base.axisU());
       double vComponent = direction.dot(base.axisV());
       switch (operation) {
-         case MOVE -> session.moveCone(direction.scale((double)steps * 0.5));
+         case MOVE -> session.cone().moveCone(direction.scale((double)steps * 0.5));
          case SCALE -> {
             if (Math.abs(normalComponent) >= Math.max(Math.abs(uComponent), Math.abs(vComponent))) {
-               session.adjustConeHeight(base.center(), base.normal(), (double)steps * 0.5);
+               session.cone().adjustConeHeight(base.center(), base.normal(), (double)steps * 0.5);
             } else if (Math.abs(uComponent) >= Math.abs(vComponent)) {
-               session.adjustConeScale(Axis.X, steps, base.radius());
+               session.cone().adjustConeScale(Axis.X, steps, base.radius());
             } else {
-               session.adjustConeScale(Axis.Z, steps, base.radius());
+               session.cone().adjustConeScale(Axis.Z, steps, base.radius());
             }
          }
          case ROTATE -> {
-            if (!session.coneGizmoLocal() || axis != Axis.Y) {
+            if (!session.cone().coneGizmoLocal() || axis != Axis.Y) {
                return false;
             }
-            session.rotateCone(steps, 1024);
+            session.cone().rotateCone(steps, 1024);
          }
       }
       return true;
    }
 
    @Override
-   public GeometryStage stage(GeometryWorkflowView view) {
+   protected GeometryStage stageView(ConeWorkflowView view) {
       ConePrismStage stage = view.coneStage();
       return switch (stage) {
          case FACE -> GeometryStage.collecting("cone_prism.base_face")
@@ -160,7 +162,7 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
 
    @Override
    public boolean canFill(GeometrySession session) {
-      return session.coneBodyComplete();
+      return session.cone().coneBodyComplete();
    }
 
    @Override
@@ -185,15 +187,15 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryPreviewPlan previewPlan(
-      GeometryWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, BlockPos candidatePoint, Vec3 eye
+   protected GeometryPreviewPlan previewView(
+      ConeWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, BlockPos candidatePoint, Vec3 eye
    ) {
       return this.previewPlan(view, points, hoveredPoint, candidatePoint == null ? null : GeometryHit.point(candidatePoint), eye);
    }
 
    @Override
-   public GeometryPreviewPlan previewPlan(
-      GeometryWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, GeometryHit candidateHit, Vec3 eye
+   protected GeometryPreviewPlan previewView(
+      ConeWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, GeometryHit candidateHit, Vec3 eye
    ) {
       ConePrismStage stage = view.coneStage();
       List<Vec3> previewLocations = this.previewLocations(view, candidateHit, eye);
@@ -243,7 +245,7 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
          .build();
    }
 
-   private GeometryStageDisplay stageDisplay(GeometryWorkflowView view, ConePrismStage stage) {
+   private GeometryStageDisplay stageDisplay(ConeWorkflowView view, ConePrismStage stage) {
       return switch (stage) {
          case FACE -> GeometryStageDisplay.modes(
             java.util.Arrays.stream(ConePlaneMode.values())
@@ -269,7 +271,7 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
       );
    }
 
-   private double previewRadius(GeometryWorkflowView view, List<Vec3> previewLocations) {
+   private double previewRadius(ConeWorkflowView view, List<Vec3> previewLocations) {
       if (view.conePlaneMode() != ConePlaneMode.RADIUS) {
          return view.coneRadius();
       }
@@ -279,7 +281,7 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
       return view.coneRadius();
    }
 
-   private List<Vec3> previewLocations(GeometryWorkflowView view, GeometryHit candidateHit, Vec3 eye) {
+   private List<Vec3> previewLocations(ConeWorkflowView view, GeometryHit candidateHit, Vec3 eye) {
       List<Vec3> points = view.pointLocations();
       if (view.closed() || candidateHit == null || view.coneStage() == ConePrismStage.ADJUST) {
          return points;
@@ -361,27 +363,27 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
    }
 
    private static ConePrismParameters parameters(GeometrySession session) {
-      GeometryPoints.Cone points = session.conePoints();
+      GeometryPoints.Cone points = session.cone().conePoints();
       return new ConePrismParameters(
          points.facePointLocations(),
          points.heightPointLocation(),
-         session.coneShapeVariant(),
-         session.conePlaneMode(),
-         session.coneRadius(),
-         session.coneScaleX(),
-         session.coneScaleZ(),
-         session.coneTopScaleOffset(),
-         session.coneTopOffset(),
-         session.coneRotationRadians()
+         session.cone().coneShapeVariant(),
+         session.cone().conePlaneMode(),
+         session.cone().coneRadius(),
+         session.cone().coneScaleX(),
+         session.cone().coneScaleZ(),
+         session.cone().coneTopScaleOffset(),
+         session.cone().coneTopOffset(),
+         session.cone().coneRotationRadians()
       );
    }
 
-   private static ConePrismParameters parameters(GeometryWorkflowView view) {
+   private static ConePrismParameters parameters(ConeWorkflowView view) {
       return parameters(view, view.pointLocations(), view.coneShapeVariant(), view.coneRadius());
    }
 
    private static ConePrismParameters parameters(
-      GeometryWorkflowView view, List<Vec3> points, int shapeVariant, double radius
+      ConeWorkflowView view, List<Vec3> points, int shapeVariant, double radius
    ) {
       int facePointCount = Math.min(points.size(), view.conePlaneMode().facePointCount());
       List<Vec3> facePoints = List.copyOf(points.subList(0, facePointCount));
@@ -457,9 +459,9 @@ public final class ConePrismWorkflow implements GeometryWorkflow {
    }
 
    private Component missingPointHint(GeometrySession session) {
-      GeometryPoints.Cone cone = session.conePoints();
-      return switch (session.coneStage()) {
-         case FACE -> switch (session.conePlaneMode()) {
+      GeometryPoints.Cone cone = session.cone().conePoints();
+      return switch (session.cone().coneStage()) {
+         case FACE -> switch (session.cone().conePlaneMode()) {
             case RADIUS -> !cone.hasFacePoints()
                ? Component.translatable("fastformer.geometry.message.cone_radius_point_1")
                : Component.translatable("fastformer.geometry.message.cone_radius_point_2");

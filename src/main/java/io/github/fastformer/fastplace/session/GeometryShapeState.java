@@ -8,7 +8,7 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
-abstract sealed class GeometryShapeState permits WallGeometryState, PolyhedronGeometryState, ConePrismGeometryState,
+public abstract sealed class GeometryShapeState permits WallGeometryState, PolyhedronGeometryState, ConePrismGeometryState,
    CompoundGeometryState, ConvexPolyhedronGeometryState {
    private final GeometryMode mode;
    private final ArrayList<GeometryPoint> points = new ArrayList<>();
@@ -28,7 +28,7 @@ abstract sealed class GeometryShapeState permits WallGeometryState, PolyhedronGe
       };
    }
 
-   final GeometryMode mode() {
+   public final GeometryMode mode() {
       return this.mode;
    }
 
@@ -36,15 +36,15 @@ abstract sealed class GeometryShapeState permits WallGeometryState, PolyhedronGe
       return this.points;
    }
 
-   final List<BlockPos> blockPoints() {
+   public final List<BlockPos> blockPoints() {
       return this.points.stream().map(GeometryPoint::block).toList();
    }
 
-   final List<Vec3> pointLocations() {
+   public final List<Vec3> pointLocations() {
       return this.points.stream().map(GeometryPoint::location).toList();
    }
 
-   final boolean closed() {
+   public final boolean closed() {
       return this.closed;
    }
 
@@ -93,5 +93,10 @@ abstract sealed class GeometryShapeState permits WallGeometryState, PolyhedronGe
       return true;
    }
 
+   public final List<ControlPointRole> pointRoles() {
+      return this.points.stream().map(GeometryPoint::role).toList();
+   }
+
+   void beforePointChange() { }
    void afterPointRemoved() { }
 }

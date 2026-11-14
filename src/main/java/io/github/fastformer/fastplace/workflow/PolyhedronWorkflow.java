@@ -28,7 +28,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.phys.Vec3;
 
-public final class PolyhedronWorkflow implements GeometryWorkflow {
+public final class PolyhedronWorkflow extends ShapeWorkflow<PolyhedronWorkflowView> {
+   public PolyhedronWorkflow() { super(PolyhedronWorkflowView.class); }
+
    private static final int DETAILED_PREVIEW_SCAN_LIMIT = 16000;
    private static final int FALLBACK_PREVIEW_BLOCK_LIMIT = 4096;
 
@@ -44,10 +46,10 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
 
    @Override
    public void onAddPoint(GeometrySession session, GeometryActionContext context, GeometryHit hit) {
-      if (!session.hasPolyhedronFirstInput()) {
+      if (!session.polyhedron().hasPolyhedronFirstInput()) {
          session.addPoint(hit.spherePoint(context.modifierHeld()));
       } else if (!session.closed()) {
-         session.enterPolyhedronAdjust(hit.spherePoint(context.modifierHeld()));
+         session.polyhedron().enterPolyhedronAdjust(hit.spherePoint(context.modifierHeld()));
       }
    }
 
@@ -57,7 +59,7 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
          return false;
       }
       if (!session.closed()) {
-         session.adjustPolyhedronRadius(steps);
+         session.polyhedron().adjustPolyhedronRadius(steps);
       }
       return true;
    }
@@ -65,14 +67,14 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
    @Override
    public boolean onCycleMode(GeometrySession session, GeometryActionContext context) {
       if (session.closed()) {
-         session.togglePolyhedronGizmoFrame();
+         session.polyhedron().togglePolyhedronGizmoFrame();
          return true;
       }
-      if (session.hasPolyhedronCenter()) {
-         session.cyclePolyhedronSizeMode();
+      if (session.polyhedron().hasPolyhedronCenter()) {
+         session.polyhedron().cyclePolyhedronSizeMode();
          return true;
       }
-      session.cyclePolyhedronSizeMode();
+      session.polyhedron().cyclePolyhedronSizeMode();
       return true;
    }
 
@@ -89,11 +91,11 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
       }
       return switch (operation) {
          case MOVE -> {
-            session.movePolyhedron(session.polyhedronGizmoAxis(axis).scale((double)steps * 0.5));
+            session.polyhedron().movePolyhedron(session.polyhedron().polyhedronGizmoAxis(axis).scale((double)steps * 0.5));
             yield true;
          }
          case SCALE -> {
-            session.adjustPolyhedronScale(axis, steps);
+            session.polyhedron().adjustPolyhedronScale(axis, steps);
             yield true;
          }
          case ROTATE -> false;
@@ -101,7 +103,7 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryStage stage(GeometryWorkflowView view) {
+   protected GeometryStage stageView(PolyhedronWorkflowView view) {
       if (view.closed()) {
          return GeometryStage.ready("sphere.adjust")
             .allow(GeometryAction.MODE_CYCLE)
@@ -118,7 +120,7 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
 
    @Override
    public boolean canFill(GeometrySession session) {
-      return session.closed() && session.canGeneratePolyhedron();
+      return session.closed() && session.polyhedron().canGeneratePolyhedron();
    }
 
    @Override
@@ -137,15 +139,15 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryPreviewPlan previewPlan(
-      GeometryWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, BlockPos candidatePoint, Vec3 eye
+   protected GeometryPreviewPlan previewView(
+      PolyhedronWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, BlockPos candidatePoint, Vec3 eye
    ) {
       return this.previewPlan(view, points, hoveredPoint, candidatePoint == null ? null : GeometryHit.point(candidatePoint), eye);
    }
 
    @Override
-   public GeometryPreviewPlan previewPlan(
-      GeometryWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, GeometryHit candidateHit, Vec3 eye
+   protected GeometryPreviewPlan previewView(
+      PolyhedronWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, GeometryHit candidateHit, Vec3 eye
    ) {
       MutableComponent hint = view.closed()
          ? Component.translatable("fastformer.message.polyhedron_hint_confirm")
@@ -215,7 +217,7 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
          .build();
    }
 
-   private GeometryStageDisplay stageDisplay(GeometryWorkflowView view) {
+   private GeometryStageDisplay stageDisplay(PolyhedronWorkflowView view) {
       if (view.closed()) {
          return GeometryStageDisplay.modes(
             List.of(
@@ -239,19 +241,19 @@ public final class PolyhedronWorkflow implements GeometryWorkflow {
    }
 
    private static PolyhedronParameters parameters(GeometrySession session) {
-      GeometryPoints.Polyhedron points = session.polyhedronPoints();
+      GeometryPoints.Polyhedron points = session.polyhedron().polyhedronPoints();
       return new PolyhedronParameters(
          points.center().orElse(null),
          points.radiusPoint().orElse(null),
          0,
-         session.rotation(),
-         session.polyhedronLocalScale(),
-         session.polyhedronWorldScale(),
-         session.polyhedronGizmoLocal()
+         session.polyhedron().rotation(),
+         session.polyhedron().polyhedronLocalScale(),
+         session.polyhedron().polyhedronWorldScale(),
+         session.polyhedron().polyhedronGizmoLocal()
       );
    }
 
-   private static PolyhedronParameters parameters(GeometryWorkflowView view) {
+   private static PolyhedronParameters parameters(PolyhedronWorkflowView view) {
       GeometryPoints.Polyhedron points = GeometryPoints.polyhedron(
          view.pointLocations(), view.pointRoles(), view.polyhedronSizeMode()
       );

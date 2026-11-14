@@ -39,7 +39,7 @@ class ConePrismPreviewTest {
    void completedBaseReturnsAfterPointCollection() {
       GeometrySession session = coneSession();
       session.addPoint(new Vec3(0.5, 0.5, 0.5));
-      session.setConeRadius(4.0);
+      session.cone().setConeRadius(4.0);
       session.addPoint(new Vec3(4.5, 0.5, 0.5));
 
       GeometryPreviewPlan plan = new ConePrismWorkflow().previewPlan(
@@ -57,7 +57,7 @@ class ConePrismPreviewTest {
    void coneAltSelectionShowsOnlyPointMarkers() {
       GeometrySession session = coneSession();
       session.addPoint(new Vec3(0.5, 0.5, 0.5));
-      session.setConeRadius(4.0);
+      session.cone().setConeRadius(4.0);
       session.addPoint(new Vec3(4.5, 0.5, 0.5));
 
       GeometryPreviewPlan plan = new ConePrismWorkflow().previewPlan(

@@ -30,7 +30,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 
-public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
+public final class ConvexPolyhedronWorkflow extends ShapeWorkflow<ConvexWorkflowView> {
+   public ConvexPolyhedronWorkflow() { super(ConvexWorkflowView.class); }
+
    private static final int MAX_CONTROL_POINTS = 64;
    private static final int PREVIEW_EDGE_LIMIT = 4096;
    private static final int DETAILED_PREVIEW_BLOCK_LIMIT = 16000;
@@ -45,7 +47,7 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
       if (session.pointLocations().size() >= MAX_CONTROL_POINTS) {
          return;
       }
-      session.clearSelectedControlPoint();
+      session.convex().clearSelectedControlPoint();
       Vec3 candidate = hit.halfGridPoint(context.modifierHeld());
       if (session.pointLocations().stream().noneMatch(point -> point.distanceToSqr(candidate) < 1.0E-12)) {
          session.addPoint(candidate);
@@ -53,7 +55,7 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryStage stage(GeometryWorkflowView view) {
+   protected GeometryStage stageView(ConvexWorkflowView view) {
       boolean ready = ArbitraryConvexPolyhedronGenerator.ready(view.pointLocations());
       GeometryStage stage = GeometryStage.collecting("convex_polyhedron.points")
          .withAction(GeometryAction.POINT_INPUT, view.pointCount() < MAX_CONTROL_POINTS)
@@ -70,7 +72,7 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
       Axis axis,
       int steps
    ) {
-      if (session.selectedControlPoint() < 0 || steps == 0 || operation != AxisGizmo.Operation.MOVE) {
+      if (session.convex().selectedControlPoint() < 0 || steps == 0 || operation != AxisGizmo.Operation.MOVE) {
          return false;
       }
       Vec3 direction = switch (axis) {
@@ -78,7 +80,7 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
          case Y -> new Vec3(0.0, 1.0, 0.0);
          case Z -> new Vec3(0.0, 0.0, 1.0);
       };
-      session.moveSelectedPoint(direction.scale((double)steps * 0.5));
+      session.convex().moveSelectedPoint(direction.scale((double)steps * 0.5));
       return true;
    }
 
@@ -98,7 +100,7 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
          || index >= session.pointLocations().size()) {
          return false;
       }
-      session.selectControlPoint(index);
+      session.convex().selectControlPoint(index);
       return true;
    }
 
@@ -128,8 +130,8 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public GeometryPreviewPlan previewPlan(
-      GeometryWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, GeometryHit candidateHit, Vec3 eye
+   protected GeometryPreviewPlan previewView(
+      ConvexWorkflowView view, List<BlockPos> points, BlockPos hoveredPoint, GeometryHit candidateHit, Vec3 eye
    ) {
       ArrayList<Vec3> previewPoints = new ArrayList<>(view.pointLocations());
       Vec3 candidate = null;
@@ -168,7 +170,7 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
    }
 
    @Override
-   public List<GeometryInteractionTarget> interactionTargets(GeometryWorkflowView view) {
+   protected List<GeometryInteractionTarget> interactionTargetsView(ConvexWorkflowView view) {
       ArrayList<GeometryInteractionTarget> result = new ArrayList<>(view.pointLocations().size());
       for (int index = 0; index < view.pointLocations().size(); index++) {
          result.add(GeometryInteractionTarget.controlPoint(index, view.pointLocations().get(index)));
@@ -176,7 +178,7 @@ public final class ConvexPolyhedronWorkflow implements GeometryWorkflow {
       return List.copyOf(result);
    }
 
-   private static AxisGizmo selectedGizmo(GeometryWorkflowView view) {
+   private static AxisGizmo selectedGizmo(ConvexWorkflowView view) {
       int index = view.selectedPointIndex();
       if (index < 0 || index >= view.pointLocations().size()) {
          return null;

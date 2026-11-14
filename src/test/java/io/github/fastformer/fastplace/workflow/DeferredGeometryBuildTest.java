@@ -14,12 +14,12 @@ class DeferredGeometryBuildTest {
    void wallGenerationUsesConfirmedPointsAndExtrusionAfterSessionChanges() {
       GeometrySession session = session(GeometryMode.WALL);
       session.close();
-      session.adjustExtrusion(new BlockPos(0, 3, 0));
+      session.wall().adjustExtrusion(new BlockPos(0, 3, 0));
       var build = new WallWorkflow().build(session, null, FillMode.SOLID, 10000);
       var expected = build.generation().get();
       assertFalse(expected.blocks().isEmpty());
 
-      session.adjustExtrusion(new BlockPos(0, 10, 0));
+      session.wall().adjustExtrusion(new BlockPos(0, 10, 0));
       session.setMode(GeometryMode.WALL);
 
       assertEquals(expected.blocks(), build.generation().get().blocks());

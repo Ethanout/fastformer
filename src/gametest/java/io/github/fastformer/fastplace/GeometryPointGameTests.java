@@ -144,7 +144,7 @@ public final class GeometryPointGameTests {
       GeometrySystem.of(player).selectMode(player, GeometryMode.CONVEX_POLYHEDRON);
       GeometrySystem.of(player).addPoint(player, helper.absolutePos(new BlockPos(1, 6, 1)));
       var draft = GeometrySystem.of(player).session(player).orElseThrow();
-      draft.selectControlPoint(0);
+      draft.convex().selectControlPoint(0);
       GeometrySystem.of(player).sync(player);
       long revision = PreviewSync.geometryRevision(player);
       var scope = PreviewSync.callbackScope(player);
@@ -157,7 +157,7 @@ public final class GeometryPointGameTests {
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for player history");
          helper.assertTrue(ServerInputDispatcher.geometryGizmoDrag(player, drag), "drag delta was rejected");
          helper.assertTrue(ServerInputDispatcher.geometryInteraction(player, click), "drag dispatch invalidated the captured click");
-         helper.assertTrue(draft.selectedControlPoint() == -1, "captured click did not clear the selected point");
+         helper.assertTrue(draft.convex().selectedControlPoint() == -1, "captured click did not clear the selected point");
          helper.assertFalse(ServerInputDispatcher.geometryInteraction(player, click), "replayed click was accepted");
          helper.assertFalse(ServerInputDispatcher.geometryGizmoDrag(player, drag), "replayed drag was accepted");
          GeometrySystem.of(player).cancel(player);
