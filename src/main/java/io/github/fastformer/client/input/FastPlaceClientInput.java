@@ -465,7 +465,7 @@ public final class FastPlaceClientInput {
             var intent = FastPlaceClientPreviewCore.operationInteractionIntent().orElse(null);
             BlockPos candidate = ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing() ? FastPlaceClientPreviewCore.operationCandidatePoint()
                : intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null;
-            ClientSessionSystem.instance().operations().deleteSelection(minecraft, candidate);
+            ClientSessionSystem.instance().operations().deletions().delete(candidate);
          }
          case REMOVE_SELECTED -> ClientSessionSystem.instance().operations().selectionEdits().removeSelectedParts();
          case UNDO -> ClientSessionSystem.instance().operations().selectionEdits().undo();

@@ -10,6 +10,7 @@ import io.github.fastformer.client.operation.clipboard.OperationClipboardReposit
 import io.github.fastformer.client.operation.input.SelectionConfirmation;
 import io.github.fastformer.client.operation.preview.OperationPreviewState;
 import io.github.fastformer.client.operation.edit.SelectionEdits;
+import io.github.fastformer.client.operation.edit.SelectionDeletions;
 import io.github.fastformer.client.operation.submission.OperationReceipts;
 import io.github.fastformer.client.operation.submission.OperationSubmissions;
 import io.github.fastformer.client.operation.submission.SubmissionActionResult;
@@ -20,10 +21,8 @@ import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
 import io.github.fastformer.client.operation.selection.SelectionBlockCapture;
-import io.github.fastformer.client.operation.selection.SelectionDraftPreview;
 import io.github.fastformer.client.operation.transform.OperationTransforms;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
-import io.github.fastformer.client.operation.workspace.SelectionDeletionPlan;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
@@ -42,8 +41,6 @@ import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.List;
 import java.util.UUID;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -68,6 +65,7 @@ public final class OperationContext {
    private final OperationClipboardActions clipboard;
    private final OperationTransforms transforms;
    private final SelectionEdits selectionEdits;
+   private final SelectionDeletions deletions;
    private final OperationSubmissions submissions;
    private final OperationPreviewState preview = new OperationPreviewState();
    private final OperationReceipts receipts = new OperationReceipts(ClientSessionSystem::instance,
@@ -90,7 +88,12 @@ public final class OperationContext {
       this.selection = Objects.requireNonNull(selection, "selection");
       this.clipboard = new OperationClipboardActions(selection.workspace(), clipboard,
          this::workspaceSubmissionPending, this::workspaceEditInProgress, this::synchronizeDerivedWorkspaceState);
-      this.submissions = new OperationSubmissions(selection, this::remoteSelectionIdentity, deleteCapture::pending,
+      this.deletions = new SelectionDeletions(selection, this::selectionEdits, this::submissions,
+         () -> {
+            var minecraft = Minecraft.getInstance();
+            return ownsCurrentInteraction() && minecraft != null && minecraft.level != null;
+         }, this::captureFailed, new SelectionBlockCapture());
+      this.submissions = new OperationSubmissions(selection, this::remoteSelectionIdentity, deletions::pending,
          storage, environment.apply(this::ownsCurrentInteraction),
          new OperationSubmissions.Effects(this::clearWorkspace, this::synchronizeDerivedWorkspaceState,
             () -> sourceMask.complete(Map.of()), this::setSubmissionRemainder,
@@ -187,7 +190,7 @@ public final class OperationContext {
 
    /** True while a workspace transform gesture holds an open edit. */
    public boolean workspaceEditInProgress() {
-      return workspace().editing() || deleteCapture.pending() || selectionEdits.smartSampling();
+      return workspace().editing() || deletions.pending() || selectionEdits.smartSampling();
    }
 
    /**
@@ -354,43 +357,7 @@ public final class OperationContext {
       return clipboard;
    }
 
-   public boolean deleteSelection(Minecraft minecraft, BlockPos candidate) {
-      if (workspaceSubmissionPending() || workspaceEditInProgress() || minecraft == null || minecraft.level == null) return false;
-      selectionEdits.adoptRemoteDraft();
-      var selected = workspace().selectedIds();
-      boolean draft = selectionEdits.selectionDraftActive();
-      if (selected.isEmpty() && !draft) return false;
-      var parts = new ArrayList<>(SelectionDeletionPlan.parts(workspace().parts(), selected));
-      if (!draft) return submitDeletion(parts, selected, false);
-      var volume = SelectionDraftPreview.volume(selectionEdits.selectionDraft(), candidate);
-      if (volume == null) return false;
-      // The server selection may close while the client scans the preview box.
-      // Retain the draft so the later workspace submission stays client-owned
-      // and does not fail the input-state identity check.
-      selectionSession().retain();
-      var owner = workspace();
-      var session = selectionSession();
-      var unchanged = selectionEdits.unchanged();
-      long revision = owner.revision();
-      var protectedSources = SelectionDeletionPlan.protectedSources(owner.parts(), selected);
-      int draftId = owner.partIds().stream().mapToInt(Integer::intValue).max().orElse(0) + 1;
-      return deleteCapture.start(volume, null,
-         () -> ownsCurrentInteraction() && workspace() == owner && selectionSession() == session && owner.revision() == revision && unchanged.getAsBoolean(), blocks -> {
-            var deletable = new LinkedHashMap<>(blocks);
-            deletable.keySet().removeAll(protectedSources);
-            if (!deletable.isEmpty()) parts.add(new OperationWorkspacePlan.Part(draftId, ClientSelectionPart.Source.WORLD,
-               deletable, WorkspaceTransform.IDENTITY, true));
-            submitDeletion(parts, selected, true);
-         }, this::captureFailed);
-   }
-
-   private boolean submitDeletion(List<OperationWorkspacePlan.Part> parts,
-      Set<Integer> selected, boolean draft) {
-      var result = submitPartsOrFinishLocal(parts, new SubmissionScope.SelectionParts(selected,
-         draft ? SubmissionScope.DraftDisposition.REMOVE : SubmissionScope.DraftDisposition.KEEP));
-      if (!result.accepted()) captureFailed(result.failureKey());
-      return result.accepted();
-   }
+   public SelectionDeletions deletions() { return deletions; }
 
    private SubmissionActionResult submitPartsOrFinishLocal(List<OperationWorkspacePlan.Part> parts, SubmissionScope scope) {
       if (parts.isEmpty()) {
@@ -451,7 +418,7 @@ public final class OperationContext {
    }
 
    private void clearTransientOperationState() {
-      selectionEdits.cancelCaptures(); transforms.cancel(); deleteCapture.cancel();
+      selectionEdits.cancelCaptures(); transforms.cancel(); deletions.cancel();
       submissions.leave();
    }
 
@@ -508,7 +475,7 @@ public final class OperationContext {
    public void onClientTick() {
       ClientSessionSystem.instance().drainStorageResults();
       long captureDeadline = System.nanoTime() + SelectionBlockCapture.NANOS_PER_TICK;
-      selectionEdits.tick(captureDeadline); transforms.tick(captureDeadline); deleteCapture.tick(captureDeadline);
+      selectionEdits.tick(captureDeadline); transforms.tick(captureDeadline); deletions.tick(captureDeadline);
       selectionSession().publishInteractionScene();
       WorkspacePreviewComposer.prunePartGeometry();
       submissions.tick();
@@ -522,10 +489,9 @@ public final class OperationContext {
    }
 
    public boolean workspaceSubmissionPending() {
-      return deleteCapture.pending() || submissions.pending();
+      return deletions.pending() || submissions.pending();
    }
 
-   private final SelectionBlockCapture deleteCapture = new SelectionBlockCapture();
    private void captureFailed(String key) {
       var minecraft = Minecraft.getInstance();
       if (minecraft != null && minecraft.player != null) minecraft.player.displayClientMessage(Component.translatable(key), true);
