@@ -45,7 +45,7 @@ class AsyncSubmissionPersistenceTest {
          key = new ClientScopeId(connection, "minecraft:overworld", player);
          keys.add(key);
          var session = manager.activateScope(player, connection, "minecraft:overworld");
-         manager.installDraftFile(key, directory.resolve("draft-" + index));
+         manager.forScope(key).drafts().useFile(directory.resolve("draft-" + index));
          manager.forScope(key).receipts().useFile(directory.resolve("receipts-" + index));
          Map<BlockPos, ClientBlockSnapshot> blocks = Map.of();
          var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);
@@ -79,7 +79,7 @@ class AsyncSubmissionPersistenceTest {
       var key = new ClientScopeId(connection, "minecraft:overworld", player);
       var session = manager.activateScope(player, connection, "minecraft:overworld");
       Path draft = directory.resolve("draft.nbt.gz"), receipt = directory.resolve("receipt.nbt.gz");
-      manager.installDraftFile(key, draft);
+      manager.forScope(key).drafts().useFile(draft);
       manager.forScope(key).receipts().useFile(receipt);
       Map<BlockPos, ClientBlockSnapshot> blocks = Map.of();
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);

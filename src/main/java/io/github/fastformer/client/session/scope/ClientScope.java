@@ -4,6 +4,7 @@ import io.github.fastformer.client.session.ClientOperationDraft;
 import io.github.fastformer.client.session.OperationDraftIdentity;
 import io.github.fastformer.client.session.OperationSubmissionOrigin;
 import io.github.fastformer.client.session.receipt.ClientReceiptRepository;
+import io.github.fastformer.client.session.draft.ClientDraftRepository;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
@@ -16,6 +17,7 @@ import java.util.UUID;
 public final class ClientScope {
    private final ClientScopeId id;
    private final ClientReceiptRepository receipts;
+   private final ClientDraftRepository drafts;
    private final ClientSelectionSession selectionSession = new ClientSelectionSession();
    private final ClientInputSession inputSession;
    private ClientOperationDraft suspendedOperationDraft;
@@ -28,7 +30,12 @@ public final class ClientScope {
    public ClientScope(ClientScopeId id) {
       this.id = Objects.requireNonNull(id, "id");
       this.receipts = new ClientReceiptRepository(() -> ClientScopeFiles.receipts(id));
+      this.drafts = new ClientDraftRepository(() -> ClientScopeFiles.draft(id));
       this.inputSession = new ClientInputSession(selectionSession.gestures());
+   }
+
+   public ClientDraftRepository drafts() {
+      return drafts;
    }
 
    public ClientReceiptRepository receipts() {

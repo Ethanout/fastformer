@@ -414,3 +414,10 @@
 - 回执改用自己的 `ReceiptReadState`，不再借用含 AWAITING_RECEIPT 的草稿枚举。读取失败只随实际尝试返回一次；环境切换只自动重试暂时失败，版本不匹配等待明确重试，未保存回执仍阻止驱逐。管理器保留错误提示和草稿等待的协调。
 - `ClientScopeFiles` 统一草稿／回执路径摘要，保留原服务器、维度、玩家三字段及换行分隔。未引入旧格式读取或迁移，实际试玩存档未清除。
 - 新增损坏文件缓存／修复重试、旧格式禁止覆盖、失败保存保留脏状态测试。`.temp/architecture-client-receipt-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过。Draft 仓库、OperationContext、Mode 与实机验收仍未完成。
+
+## 草稿仓库归属作用域（2026-11-14）
+
+- `ClientScope` 持有 `ClientDraftRepository`，后者负责文件位置、严格解码、读取结果、回执等待、已保存内容身份、提交归属探测、余量结算和删除。删除管理器的 draftLoadStates、draftFiles、durableDrafts 三张映射；草稿读取不再分别传入身份或路径，也不保留测试专用的回执覆盖重载。
+- 仓库返回内容、失败和通知，由管理器协调暂存、恢复及玩家提示。读取不会修改实时工作区；未知回执阻止暂存，已应用回执阻止旧草稿返回。明确丢弃后的 READY 不会因回执恢复而重读。双文件持久化和队列准入仍使用原编排。
+- 驱逐按不可变草稿对象身份确认；旧保存回调不能把相等但不同对象的新草稿标为已保存。结算余量后清掉旧耐久身份，避免旧内容错误获得驱逐资格。补充迟到确认、实时工作跳过读取、未知回执等待／恢复和旧格式拒绝测试。
+- `.temp/architecture-client-draft-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过；随后删除测试专用回执覆盖入口，测试改读真实回执文件，`.temp/architecture-client-draft-final-check.log` 的完整 check 通过。OperationContext、Mode、PreviewFrame、PointerResolver 和实机验收仍未完成。实际试玩存档未清除。

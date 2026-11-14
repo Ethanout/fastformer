@@ -60,7 +60,8 @@ class ClientReceiptBoundaryTest {
       assertTrue(manager.receiptStore(key).readOnly());
       assertEquals(ReceiptReadState.RETRYABLE_FAILURE, manager.forScope(key).receipts().readState());
 
-      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null));
 
       // The draft must not enter the staged slot, because the client cannot prove that its
       // submission is not already in the world. The read is not complete either, so the state
@@ -85,7 +86,8 @@ class ClientReceiptBoundaryTest {
       Path receiptFile = this.directory.resolve("receipts.nbt.gz");
       manager.forScope(key).receipts().useFile(receiptFile);
 
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
 
       assertTrue(session.suspendedOperationDraft());
    }
@@ -103,7 +105,8 @@ class ClientReceiptBoundaryTest {
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
 
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
 
       assertTrue(session.suspendedOperationDraft());
    }
@@ -123,7 +126,8 @@ class ClientReceiptBoundaryTest {
       receipts.save(receiptFile);
       manager.forScope(key).receipts().useFile(receiptFile);
 
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
 
       assertFalse(session.suspendedOperationDraft());
       assertTrue(Files.exists(draftFile));
@@ -356,7 +360,8 @@ class ClientReceiptBoundaryTest {
       Path receiptFile = this.directory.resolve("receipts.nbt.gz");
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
-      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null));
       assertFalse(session.suspendedOperationDraft());
 
       // The receipt file is repaired. The explicit retry boundary clears the failed read, so
@@ -365,7 +370,7 @@ class ClientReceiptBoundaryTest {
       assertTrue(manager.retryCurrentReceiptLoad());
       assertFalse(manager.receiptStore(key).readOnly());
 
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null, draftFile));
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
       assertTrue(session.suspendedOperationDraft(), "the repaired receipt did not release the draft");
    }
 
@@ -381,12 +386,13 @@ class ClientReceiptBoundaryTest {
       Path receiptFile = this.directory.resolve("receipts.nbt.gz");
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
-      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null));
 
       // The file becomes readable on its own. Without a boundary the wait stays closed, so a
       // damaged file is read once instead of on every tick.
       Files.delete(receiptFile);
-      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null, draftFile));
+      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null));
       assertFalse(session.suspendedOperationDraft());
    }
 
@@ -403,7 +409,8 @@ class ClientReceiptBoundaryTest {
       Path receiptFile = this.directory.resolve("receipts.nbt.gz");
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
-      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null));
 
       // The repaired file names this very submission as applied, so the answer is final.
       OperationSubmissionReceiptStore receipts = new OperationSubmissionReceiptStore();
@@ -412,7 +419,7 @@ class ClientReceiptBoundaryTest {
       receipts.save(receiptFile);
       assertTrue(manager.retryCurrentReceiptLoad());
 
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null, draftFile));
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
       assertFalse(session.suspendedOperationDraft(), "an applied submission returned to the editor");
       assertTrue(Files.exists(draftFile), "the applied draft file left without a confirmed cleanup");
    }
@@ -428,12 +435,13 @@ class ClientReceiptBoundaryTest {
       OperationClipboardStore.save(draftFile, draftTag(transferId));
       // The delete path of an explicit discard must use this file, so the flow is real and
       // needs no game directory.
-      manager.installDraftFile(key, draftFile);
+      manager.forScope(key).drafts().useFile(draftFile);
 
       Path receiptFile = this.directory.resolve("receipts.nbt.gz");
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
-      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.AWAITING_RECEIPT, manager.attemptDraftLoad(session, null));
 
       // The player ends the draft. That decision outranks a receipt that becomes readable
       // later, so the wait must not re-open.
@@ -444,7 +452,7 @@ class ClientReceiptBoundaryTest {
       Files.delete(receiptFile);
       assertTrue(manager.retryCurrentReceiptLoad());
 
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null, draftFile));
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
       assertFalse(session.suspendedOperationDraft(), "a discarded draft returned to the editor");
    }
 
@@ -465,13 +473,14 @@ class ClientReceiptBoundaryTest {
       ));
       assertTrue(session.selectionSession().hasDraft());
 
-      assertEquals(ClientDraftLoadState.NOT_LOADED, manager.attemptDraftLoad(session, null, draftFile));
+      session.drafts().useFile(draftFile);
+      assertEquals(ClientDraftLoadState.NOT_LOADED, manager.attemptDraftLoad(session, null));
       assertFalse(session.suspendedOperationDraft(), "the read replaced live work");
       assertEquals(ClientDraftLoadState.NOT_LOADED, manager.draftLoadState(key));
 
       // The live selection leaves. The next pass reads the file and stages the copy.
       session.selectionSession().clearDraft();
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null, draftFile));
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
       assertTrue(session.suspendedOperationDraft());
    }
 

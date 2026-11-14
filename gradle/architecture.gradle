@@ -31,6 +31,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.client.session.lifecycle') ||
                     packageName.startsWith('io.github.fastformer.client.session.scope') ||
                     packageName.startsWith('io.github.fastformer.client.session.receipt') ||
+                    packageName.startsWith('io.github.fastformer.client.session.draft') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -150,8 +151,8 @@ abstract class VerifySourceLayout extends DefaultTask {
                 violations.add("Active scope identity must come from the scope itself: ${path}")
             }
             if (main && source.name == 'ClientSessionManager.java' &&
-                    (dependencies =~ /\b(?:receiptStores|receiptLoadStates|receiptFiles)\b/).find()) {
-                violations.add("Receipt state belongs to the scope repository: ${path}")
+                    (dependencies =~ /\b(?:receiptStores|receiptLoadStates|receiptFiles|draftLoadStates|draftFiles|durableDrafts)\b/).find()) {
+                violations.add("Persistent client state belongs to the scope repositories: ${path}")
             }
             if (main && source.name == 'ServerInputDispatcher.java' &&
                     (text =~ /\bselectGeometryMode\s*\(/).find()) {

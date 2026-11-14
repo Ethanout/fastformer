@@ -32,7 +32,7 @@ class PartialDeletionPersistenceTest {
       manager.activateScope(player, connection, "minecraft:overworld");
       var key = new ClientScopeId(connection, "minecraft:overworld", player);
       Path file = directory.resolve("draft.nbt.gz");
-      manager.installDraftFile(key, file);
+      manager.forScope(key).drafts().useFile(file);
       var original = draft(transfer);
       OperationClipboardStore.save(file, ClientOperationDraftCodec.encode(original));
       manager.currentSession().stageSuspendedOperationDraft(original);

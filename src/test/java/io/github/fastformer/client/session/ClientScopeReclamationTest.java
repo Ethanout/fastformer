@@ -32,13 +32,15 @@ class ClientScopeReclamationTest {
       Path file = directory.resolve("loaded.nbt.gz");
       OperationClipboardStore.save(file, ClientOperationDraftCodec.encode(draft()));
       var original = manager.activateScope(player, key.connection(), key.dimension());
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(original, null, file));
+      original.drafts().useFile(file);
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(original, null));
 
       manager.activateScope(player, key.connection(), "minecraft:the_nether");
       var replacement = manager.activateScope(player, key.connection(), key.dimension());
 
       assertNotSame(original, replacement);
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(replacement, null, file));
+      replacement.drafts().useFile(file);
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(replacement, null));
       assertEquals(draft().selection(), replacement.suspendedOperationDraftData().selection());
    }
 
@@ -49,7 +51,7 @@ class ClientScopeReclamationTest {
       var key = new ClientScopeId(
          "reclaim-saved", "minecraft:overworld", player);
       Path file = directory.resolve("saved.nbt.gz");
-      manager.installDraftFile(key, file);
+      manager.forScope(key).drafts().useFile(file);
       var original = manager.activateScope(player, key.connection(), key.dimension());
       original.selectionSession().addDraftPoint(new BlockPos(1, 2, 3));
       manager.suspendCurrentDraft(null, OperationSubmissionOrigin.CLIENT_SELECTION);
@@ -65,7 +67,8 @@ class ClientScopeReclamationTest {
       var replacement = manager.activateScope(player, key.connection(), key.dimension());
       assertNotSame(original, replacement);
       assertTrue(OperationClipboardStore.loadStrict(file).isPresent());
-      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(replacement, null, file));
+      replacement.drafts().useFile(file);
+      assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(replacement, null));
       assertEquals(List.of(new BlockPos(1, 2, 3)),
          replacement.suspendedOperationDraftData().selection().points());
    }
@@ -79,7 +82,8 @@ class ClientScopeReclamationTest {
       Path file = directory.resolve("replaced.nbt.gz");
       OperationClipboardStore.save(file, ClientOperationDraftCodec.encode(draft()));
       var original = manager.activateScope(player, key.connection(), key.dimension());
-      manager.attemptDraftLoad(original, null, file);
+      original.drafts().useFile(file);
+      manager.attemptDraftLoad(original, null);
       original.discardSuspendedOperationDraft();
       original.selectionSession().addDraftPoint(new BlockPos(4, 5, 6));
       original.suspendOperationDraft(null, OperationSubmissionOrigin.CLIENT_SELECTION);
