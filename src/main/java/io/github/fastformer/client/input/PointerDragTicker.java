@@ -26,7 +26,7 @@ final class PointerDragTicker {
          session.geometryGizmoDrag != null,
          workspaceGizmo,
          workspaceFace,
-         FastPlaceClientPreviewCore.operationActive()
+         ClientSessionSystem.instance().operationActive()
       ));
       if (plan.clearOperationDrag()) OperationDragController.cancel(session);
       if (plan.clearOperationPointDrag()) OperationPointInputController.cancel(session);

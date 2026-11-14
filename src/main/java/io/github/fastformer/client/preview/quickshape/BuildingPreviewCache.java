@@ -461,24 +461,7 @@ final class BuildingPreviewCache {
    }
 
    FastPlaceGeometry.Modes effectiveBuildingModes(BuildingPreviewSnapshot snapshot) {
-      boolean modifier = modifierHeld.getAsBoolean();
-      FastPlaceGeometry.Modes modes = snapshot.modes().withModifierHeld(modifier);
-      QuickShapeStage stage = QuickShapeStage.resolve(snapshot.points().size(), snapshot.faceMode(), snapshot.polygonClosed());
-      if (snapshot.faceMode() != FaceMode.POLYGON
-         && modifier
-         && (stage == QuickShapeStage.FACE || stage == QuickShapeStage.VOLUME)) {
-         modes = modes.withFaceTieBias(LineTieBias.OPPOSITE);
-      }
-      boolean firstRaycastPoint = stage == QuickShapeStage.POINT
-         && snapshot.pointMode() == PointMode.RAYCAST
-         && snapshot.points().isEmpty();
-      boolean raycastLine = stage == QuickShapeStage.LINE && snapshot.lineMode() == LineMode.RAYCAST;
-      if (firstRaycastPoint || raycastLine) {
-         return modes.withRaycastPlacement(
-            modifier ? RaycastPlacement.EMBEDDED : RaycastPlacement.SURFACE
-         );
-      }
-      return modes;
+      return io.github.fastformer.client.quickshape.pointer.QuickShapeModes.effective(snapshot, modifierHeld.getAsBoolean());
    }
 
    private Map<BlockPos, BuildingSpecialBlock> buildingSpecialBlockStyles(

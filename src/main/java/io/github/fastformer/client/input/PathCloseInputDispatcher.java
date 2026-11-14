@@ -3,7 +3,6 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.gesture.PathClosePress;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.geometry.ClosePathPayload;
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -18,14 +17,14 @@ final class PathCloseInputDispatcher {
    }
 
    static PathClosePress capture(boolean geometry, long occurredAtNanos) {
-      return new PathClosePress(FastPlaceClientPreviewCore.closePathAtHoveredStart(),
-         FastPlaceClientPreviewCore.canDoubleClickClosePath(), FastPlaceClientPreviewCore.pathCandidatePoint(),
+      var target = ClientSessionSystem.instance().pathCloseTarget();
+      return new PathClosePress(target.hoveredStart(), target.doubleClickEnabled(), target.candidate(),
          geometry, occurredAtNanos, captureIdentity());
    }
 
    private static ClosePathPayload captureIdentity() {
       long request = GeometryInputController.nextRequestId();
-      if (FastPlaceClientPreviewCore.operationActive()) return new ClosePathPayload(request,
+      if (ClientSessionSystem.instance().operationActive()) return new ClosePathPayload(request,
          ClientSessionSystem.instance().operations().remoteSelectionRevision(),
          ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(), ClosePathPayload.Kind.OPERATION);
       var geometry = ClientSessionSystem.instance().previews().geometry();

@@ -120,6 +120,14 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render\.|input\.|session\.)|Minecraft\.getInstance\s*\()/).find()) {
                 violations.add("Geometry interaction must own plans and consume explicit context without rendering or global session access: ${path}")
             }
+            if (main && packageName.startsWith('io.github.fastformer.client.quickshape.pointer') &&
+                    (dependencies =~ /(?:io\.github\.fastformer\.client\.(?:render\.|input\.|session\.)|Minecraft\.getInstance\s*\()/).find()) {
+                violations.add("Quick-shape pointer queries must consume bound snapshots and explicit rays: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.input') &&
+                    (dependencies =~ /FastPlaceClientPreviewCore\.(?:operationActive|usesScrollContext|lineModeCandidate|pathCandidatePoint|closePathAtHoveredStart|canDoubleClickClosePath|buildingMiddleClickIgnored|buildingRaycastSubmodeAvailable|embeddedModifierReticle|halfGridModifierReticle)\s*\(/).find()) {
+                violations.add("Input facts and reticle semantics must not be queried through rendering: ${path}")
+            }
             if (main && packageName.startsWith('io.github.fastformer.client.input') &&
                     (dependencies =~ /FastPlaceClientPreviewCore\.geometry(?:InteractionHit|PointSelected|AwaitingFirstPoint|Allows|GizmoHit|GizmoValue|Gizmo)\s*\(/).find()) {
                 violations.add("Geometry input must use its owned interaction capability: ${path}")

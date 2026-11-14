@@ -20,6 +20,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回；共享射线用途优先级及有距离上限的点格命中 |
 | `client.geometry.pointer` | 所属输入环境的几何候选、路径首点遮挡、交互目标、共享计划缓存和手柄命中；通过显式上下文／快照装配，不访问渲染或全局会话 |
 | `client.geometry.transform` | 几何拖动与 HUD 共用的变换基线和局部轴数值；按连续性版本重置 |
+| `client.quickshape.pointer` | 起形候选、放置上下文、路径数据及有效模式／滚轮规则；输入和绘制复用，不依赖渲染入口 |
+| `client.interaction.path` | 冻结路径闭合命中：保留选区／几何／起形优先级、悬停与双击不同最少点数及世界遮挡 |
 | `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式按键／滚轮决策 |
 | `client.mode.input.pointer` | 不可变鼠标事实、左右键动作与共享捕获优先级；模式只决策，不查询实时客户端 |
 | `client.preview` / `frame` | 预览模型／绘制契约、显式世界绘制帧和统一动画相位；完整跨模式 PreviewFrame 仍在迁移 |

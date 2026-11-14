@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.HolderGetter;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
@@ -47,6 +48,41 @@ public final class ClientSessionSystem {
          context -> pointerRay(input, context),
          () -> io.github.fastformer.client.input.PointerDragSnapshotView.geometryKey(input),
          (message, failure) -> LOGGER.warn(message, failure)));
+   }
+
+   public io.github.fastformer.client.quickshape.pointer.QuickShapePointer quickShapePointer() {
+      var input = inputSession();
+      return input.quickShapePointer(() -> new io.github.fastformer.client.quickshape.pointer.QuickShapePointer(
+         previews::building, () -> io.github.fastformer.client.interaction.intent.InteractionContext.capture(Minecraft.getInstance()),
+         context -> pointerRay(input, context)));
+   }
+
+   public boolean operationActive() {
+      var operation = operations();
+      return operation.active() || operation.selectionSessionActive();
+   }
+
+   public boolean usesScrollContext() {
+      if (previews.geometry().active()) return geometryPointer().allows(io.github.fastformer.fastplace.geometry.GeometryAction.SCALAR_ADJUST);
+      return !previews.operation().active() && io.github.fastformer.client.quickshape.pointer.QuickShapeModes.scrollContext(previews.building());
+   }
+
+   public io.github.fastformer.client.interaction.path.PathCloseTarget pathCloseTarget() {
+      var c = io.github.fastformer.client.interaction.intent.InteractionContext.capture(Minecraft.getInstance());
+      var operation = previews.operation();
+      var geometry = previews.geometry();
+      var operationPath = operation.active() && operation.operationSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM
+         && operation.operationPrismBasePointCount() == 0 ? operation.points() : java.util.List.<BlockPos>of();
+      var geometryPath = geometry.active() && geometry.mode() == io.github.fastformer.fastplace.geometry.GeometryMode.WALL
+         && !geometry.closed() ? geometry.points() : java.util.List.<BlockPos>of();
+      BlockPos candidate = null;
+      if (c != null) {
+         if (geometry.active()) { var hit = geometryPointer().candidateHit(); candidate = hit == null ? null : hit.point(); }
+         else if (operation.active()) candidate = operations().remotePointer().operationCandidatePoint();
+         else if (previews.building().active()) candidate = quickShapePointer().candidate();
+      }
+      return io.github.fastformer.client.interaction.path.PathCloseTarget.resolve(operationPath, geometryPath, quickShapePointer().openPath(),
+         c == null ? null : c.eye(), c == null ? null : c.view(), c == null ? null : pointerRay(inputSession(), c), candidate);
    }
 
    /** Samples the established ray purpose for this input owner's environment. */

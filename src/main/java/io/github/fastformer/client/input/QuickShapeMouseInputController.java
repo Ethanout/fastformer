@@ -57,7 +57,7 @@ final class QuickShapeMouseInputController {
       boolean overlap = draft != null && io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(
          draft.data().points(), path.candidate(), draft.data().faceMode(), draft.data().polygonClosed());
       if (!middle && !overlap && InteractionContext.vanillaOwnsPointer(minecraft)) return false;
-      if (middle && FastPlaceClientPreviewCore.buildingMiddleClickIgnored()) {
+      if (middle && ClientSessionSystem.instance().quickShapePointer().middleIgnored()) {
          if (action == MouseButtonInputSemantics.PRESS) session.captureQuickShapeButton(button);
          return true;
       }

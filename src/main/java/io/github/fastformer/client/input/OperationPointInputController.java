@@ -192,7 +192,7 @@ final class OperationPointInputController {
       if (session.pointerGesture.owns(drag.captureToken(), PointerGestureState.Kind.OPERATION_POINT)
          && drag.callbackScope().equals(ClientSessionSystem.instance().operations().remoteSelectionCallbackScope())
          && ClientSessionSystem.instance().operations().operationPrism()
-         && FastPlaceClientPreviewCore.operationActive() && !ClientSessionSystem.instance().operations().operationSelectionConfirmed()) return true;
+         && ClientSessionSystem.instance().operationActive() && !ClientSessionSystem.instance().operations().operationSelectionConfirmed()) return true;
       clearCapture(session, drag);
       return false;
    }

@@ -30,7 +30,7 @@ final class ScrollInputDispatcher {
       }
       if (route != ClientInputStateMachine.Dispatch.BLOCKED
          && NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id())
-         && FastPlaceClientPreviewCore.usesScrollContext()) {
+         && ClientSessionSystem.instance().usesScrollContext()) {
          PacketDistributor.sendToServer(new ScrollCandidatePayload(event.direction()));
          FastPlaceClientPreviewCore.noteScrollFeedback();
       }

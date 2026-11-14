@@ -2,7 +2,6 @@ package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.session.ClientSessionSystem;
 
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.geometry.CycleStageModePayload;
 import io.github.fastformer.protocol.c2s.settings.ModifierStatePayload;
 import net.minecraft.client.Minecraft;
@@ -36,7 +35,7 @@ final class ModifierCommandDispatcher {
          return;
       }
       if (!NetworkRegistry.hasChannel(minecraft.getConnection(), CycleStageModePayload.TYPE.id())) return;
-      BlockPos candidate = FastPlaceClientPreviewCore.lineModeCandidate();
+      BlockPos candidate = ClientSessionSystem.instance().quickShapePointer().lineCandidate();
       PacketDistributor.sendToServer(
          candidate != null ? new CycleStageModePayload(true, candidate) : CycleStageModePayload.INSTANCE,
          new CustomPacketPayload[0]

@@ -531,7 +531,7 @@ public final class FastPlaceClientInput {
 
    private static boolean modifierSessionActive() {
       return ClientSessionSystem.instance().previews().building().active()
-         || FastPlaceClientPreviewCore.operationActive()
+         || ClientSessionSystem.instance().operationActive()
          || ClientSessionSystem.instance().previews().geometry().active()
             && (ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.MODE_CYCLE)
                || ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.SUBMODE));
@@ -547,8 +547,9 @@ public final class FastPlaceClientInput {
       return ClientSessionSystem.instance().previews().geometry().active()
          ? ClientSessionSystem.instance().geometryPointer().allows(GeometryAction.SUBMODE)
          : ClientSessionSystem.instance().previews().building().active()
-            || FastPlaceClientPreviewCore.operationActive()
-            || FastPlaceClientPreviewCore.buildingRaycastSubmodeAvailable()
+            || ClientSessionSystem.instance().operationActive()
+            || ClientSessionSystem.instance().quickShapePointer().raycastSubmodeAvailable(
+               ClientSessionSystem.instance().previews().geometry().active() || ClientSessionSystem.instance().previews().operation().active())
             || idleModeCycleAvailable(minecraft);
    }
 
@@ -1559,7 +1560,7 @@ public final class FastPlaceClientInput {
          != ClientInputStateMachine.Dispatch.BLOCKED) {
          pollModifierKeys(minecraft);
       }
-      boolean operationActive = FastPlaceClientPreviewCore.operationActive();
+      boolean operationActive = ClientSessionSystem.instance().operationActive();
       if (inputSession().operationSessionWasActive && !operationActive) {
          minecraft.options.keyAttack.setDown(false);
       }
@@ -1582,7 +1583,7 @@ public final class FastPlaceClientInput {
          new io.github.fastformer.client.mode.input.ScrollInput(event.getScrollDeltaY()),
          new io.github.fastformer.client.mode.input.ScrollView(
          sessionReady && ClientSessionSystem.instance().operations().active(),
-         sessionReady && candidateChannelAvailable && FastPlaceClientPreviewCore.usesScrollContext(),
+         sessionReady && candidateChannelAvailable && ClientSessionSystem.instance().usesScrollContext(),
          modifierInputRoute(ModifierInput.SCROLL) == ModifierInputRoute.VANILLA,
          sessionReady && InteractionContext.vanillaOwnsPointer(minecraft))
       );
@@ -1685,7 +1686,7 @@ public final class FastPlaceClientInput {
          && minecraft.screen == null
          && minecraft.getConnection() != null
          && !ClientSessionSystem.instance().previews().building().active()
-         && !FastPlaceClientPreviewCore.operationActive()
+         && !ClientSessionSystem.instance().operationActive()
          && (!ClientSessionSystem.instance().previews().geometry().active() || ClientSessionSystem.instance().geometryPointer().awaitingFirstPoint())) {
          minecraft.setScreen(new GeometryRadialScreen());
          return true;
@@ -1724,13 +1725,13 @@ public final class FastPlaceClientInput {
          || !modifierSubmodeAvailable(Minecraft.getInstance())) {
          return ModifierReticleMode.NONE;
       }
-      if (FastPlaceClientPreviewCore.embeddedModifierReticle()) {
-         return ModifierReticleMode.EMBEDDED;
-      }
-      if (FastPlaceClientPreviewCore.halfGridModifierReticle()) {
-         return ModifierReticleMode.HALF_GRID;
-      }
-      return ModifierReticleMode.NONE;
+      var minecraft = Minecraft.getInstance();
+      var sessions = ClientSessionSystem.instance();
+      var player = minecraft.player;
+      return io.github.fastformer.client.input.policy.ModifierReticlePolicy.resolve(sessions.previews().building(),
+         sessions.previews().geometry(), sessions.previews().operation().active(), sessions.modeView().idleActionsAllowed(),
+         player != null && player.isCreative(), QuickReplaceMode.active(), player != null && minecraft.getCameraEntity() == player,
+         player != null && PlaceableItems.isPlaceable(player.getMainHandItem()));
    }
 
    private static double operationRotationRadians(Minecraft minecraft, int rawSteps) {
@@ -1783,7 +1784,7 @@ public final class FastPlaceClientInput {
    private static OperationInputSemantics.LeftDecision operationLeftDecision(
       OperationInteractionIntent pointerIntent
    ) {
-      boolean operationActive = FastPlaceClientPreviewCore.operationActive();
+      boolean operationActive = ClientSessionSystem.instance().operationActive();
       boolean operationAdjust = operationActive
          && ClientSessionSystem.instance().operations().operationSelectionReady()
          && operationAdjustModifierHeld();

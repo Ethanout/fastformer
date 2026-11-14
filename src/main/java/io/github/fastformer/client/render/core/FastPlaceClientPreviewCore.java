@@ -204,13 +204,6 @@ public final class FastPlaceClientPreviewCore {
       return previews().building().middleConfirmEnabled();
    }
 
-   public static boolean buildingMiddleClickIgnored() {
-      BuildingPreviewSnapshot snapshot = previews().building();
-      return io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
-         snapshot.faceMode(), snapshot.points().size(), snapshot.polygonClosed()
-      );
-   }
-
    public static boolean taskActive() {
       return previews().activity().task();
    }
@@ -309,91 +302,8 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static boolean buildingRaycastSubmodeAvailable() {
-      if (!previews().building().enabled()) {
-         return false;
-      }
-      if (!previews().building().active()) {
-         Minecraft minecraft = Minecraft.getInstance();
-         if (minecraft.player == null || !PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())) {
-            return false;
-         }
-      }
-      return buildingRaycastSubmode();
-   }
-
-   public static boolean embeddedModifierReticle() {
-      if (ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
-         Minecraft minecraft = Minecraft.getInstance();
-         return minecraft.player != null && minecraft.player.isCreative() && enabled() && !QuickReplaceMode.active()
-            && minecraft.getCameraEntity() == minecraft.player
-            && PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
-            && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession());
-      }
-      if (PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) && previews().geometry().active()) {
-         return previews().geometry().mode() == GeometryMode.WALL;
-      }
-      return !previews().geometry().active()
-         && !previews().operation().active()
-         && buildingRaycastSubmode()
-         && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession());
-   }
-
-   public static boolean halfGridModifierReticle() {
-      if (buildingRaycastSubmode()) {
-         return false;
-      }
-      if (!previews().geometry().active()) {
-         return false;
-      }
-      return switch (previews().geometry().mode()) {
-         case POLYHEDRON -> !previews().geometry().closed();
-         case CONE_PRISM -> previews().geometry().conePlaneMode().stageFor(previews().geometry().points().size()) != ConePrismStage.ADJUST;
-         case CONVEX_POLYHEDRON -> true;
-         default -> false;
-      };
-   }
-
-   public static boolean closePathAtHoveredStart() {
-      List<BlockPos> points = closablePathPoints(3);
-      return !points.isEmpty() && points.getFirst().equals(pointUnderCrosshair(List.of(points.getFirst())));
-   }
-
-   public static boolean canDoubleClickClosePath() {
-      return !closablePathPoints(2).isEmpty();
-   }
-
-   public static BlockPos pathCandidatePoint() {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (player == null) {
-         return null;
-      }
-      if (previews().geometry().active()) {
-         return geometryCandidatePoint(minecraft, player);
-      }
-      if (previews().operation().active()) {
-         return remotePointer().operationCandidatePoint();
-      }
-      return previews().building().active() ? buildingCandidatePoint(previews().building(), player) : null;
-   }
-
-   private static List<BlockPos> closablePathPoints(int minimumPoints) {
-      if (remotePointer().operationPrismBaseOpen() && previews().operation().points().size() >= minimumPoints) {
-         return previews().operation().points();
-      }
-      if (previews().geometry().active()
-         && previews().geometry().mode() == GeometryMode.WALL
-         && !previews().geometry().closed()
-         && previews().geometry().points().size() >= minimumPoints) {
-         return previews().geometry().points();
-      }
-      if (previews().building().active()
-         && previews().building().faceMode() == FaceMode.POLYGON
-         && !previews().building().polygonClosed()
-         && previews().building().points().size() >= minimumPoints) {
-         return previews().building().points();
-      }
-      return List.of();
+      return ClientSessionSystem.instance().quickShapePointer().raycastSubmodeAvailable(
+         previews().geometry().active() || previews().operation().active());
    }
 
    private static BlockPos pointUnderCrosshair(List<BlockPos> points) {
@@ -412,44 +322,9 @@ public final class FastPlaceClientPreviewCore {
          points, eye, player.getViewVector(1.0F), maxDistance);
    }
 
-   public static BlockPos lineModeCandidate() {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      BuildingPreviewSnapshot snapshot = previews().building();
-      if (player == null || minecraft.level == null || !snapshot.active() || QuickShapeStage.fromPointCount(snapshot.points().size()) != QuickShapeStage.LINE) {
-         return null;
-      }
-
-      return buildingCandidatePoint(snapshot, player);
-   }
-
    public static AABB operationBounds() {
       OperationSelectionVolume selection = remotePointer().operationSelection();
       return selection == null ? null : selection.bounds();
-   }
-
-   public static boolean usesAngleDistance() {
-      if (!previews().building().enabled()) {
-         return false;
-      } else {
-         QuickShapeStage stage = previews().building().active() ? QuickShapeStage.fromPointCount(previews().building().points().size()) : QuickShapeStage.POINT;
-         return stage == QuickShapeStage.LINE && previews().building().lineMode() == LineMode.FREE_SCROLL;
-      }
-   }
-
-   public static boolean usesScrollContext() {
-      if (previews().geometry().active()) {
-         return geometryAllows(GeometryAction.SCALAR_ADJUST);
-      } else if (previews().operation().active()) {
-         return false;
-      } else if (!previews().building().active()) {
-         return false;
-      } else {
-         QuickShapeStage stage = effectiveStage(previews().building());
-         return usesAngleDistance()
-            || stage == QuickShapeStage.FACE && previews().building().faceMode() == FaceMode.PARALLELOGRAM_BASE_PLANE
-            || stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(previews().building().modes());
-      }
    }
 
    @SubscribeEvent
@@ -761,11 +636,7 @@ public final class FastPlaceClientPreviewCore {
       if (previews().geometry().active() || previews().operation().active()) {
          return false;
       }
-      return switch (effectiveStage(previews().building())) {
-         case POINT -> previews().building().pointMode() == PointMode.RAYCAST;
-         case LINE -> previews().building().lineMode() == LineMode.RAYCAST;
-         default -> false;
-      };
+      return io.github.fastformer.client.quickshape.pointer.QuickShapeModes.raycastSubmode(previews().building());
    }
 
    private static MutableComponent buildingBottomHint() {
@@ -1289,64 +1160,13 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static BlockPos buildingCandidatePoint(BuildingPreviewSnapshot snapshot, LocalPlayer player) {
-      if (!snapshot.active() && snapshot.points().isEmpty()) {
-         BlockHitResult firstHit = raycastBlocks(player);
-         if (firstHit.getType() != Type.BLOCK) {
-            return null;
-         }
-         if (player.getMainHandItem().isEmpty()
-            || PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())) return firstHit.getBlockPos();
-         return PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), firstHit, false).placementPosition();
-      }
-      if (snapshot.polygonHeightConfirmed()) {
-         return snapshot.points().isEmpty() ? null : snapshot.points().getLast();
-      }
-      Vec3 eye = player.getEyePosition();
-      Vec3 view = player.getViewVector(1.0F);
-      BlockHitResult hit = raycastBlocks(player);
-      BlockPos hitBlock;
-      BlockPos surfaceBlock;
-      if (hit.getType() == Type.BLOCK) {
-         hitBlock = hit.getBlockPos();
-         surfaceBlock = hit.getBlockPos().relative(hit.getDirection());
-      } else {
-         BlockPos offset = snapshot.freeScrollOffset();
-         BlockPos base = snapshot.points().isEmpty() ? BlockPos.ZERO : snapshot.points().getFirst();
-         BlockPos anchor = base.offset(offset);
-         hitBlock = anchor;
-         surfaceBlock = anchor;
-      }
-      return FastPlaceGeometry.resolveCandidate(
-         snapshot.points(),
-         snapshot.polygonClosed(),
-         hitBlock,
-         surfaceBlock,
-         snapshot.faceBaseOffset(),
-         snapshot.volumeBaseOffset(),
-         snapshot.perpendicularAnchor(),
-         eye,
-         view,
-         snapshot.freeScrollOffset(),
-          QUICK_SHAPE_PREVIEW.effectiveModes(snapshot)
-      );
+      return ClientSessionSystem.instance().quickShapePointer().candidate(snapshot);
    }
 
    private static PlacementContextSnapshot previewPlacementContext(
       BuildingPreviewSnapshot snapshot, LocalPlayer player
    ) {
-      if (snapshot.placementContext() != null || !snapshot.points().isEmpty()) {
-         return snapshot.placementContext();
-      }
-      BlockHitResult hit = raycastBlocks(player);
-      if (hit.getType() != Type.BLOCK) {
-         return null;
-      }
-      FastPlaceGeometry.Modes modes = QUICK_SHAPE_PREVIEW.effectiveModes(snapshot);
-      boolean embedded = snapshot.pointMode() == PointMode.RAYCAST
-         && modes.raycastPlacement() == RaycastPlacement.EMBEDDED;
-      return PlacementContextSnapshot.capture(
-         player.level(), player, player.getMainHandItem(), hit, embedded
-      );
+      return ClientSessionSystem.instance().quickShapePointer().placementContext(snapshot);
    }
 
    private static GeometryPreviewPlan geometryPreviewPlan(Vec3 view) {
@@ -1359,11 +1179,6 @@ public final class FastPlaceClientPreviewCore {
       var model = GEOMETRY_PREVIEW.buildModel(new GeometryPreviewInput(previews().geometry(),
          PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), plan));
       return model.withGizmo(pointer.presentedPlan().gizmo());
-   }
-
-   private static BlockPos geometryCandidatePoint(Minecraft minecraft, LocalPlayer player) {
-      GeometryHit hit = ClientSessionSystem.instance().geometryPointer().candidateHit();
-      return hit == null ? null : hit.point();
    }
 
    private static double visiblePreviewReach(LocalPlayer player) {

@@ -45,6 +45,12 @@ public final class ClientInputSession {
    }
    public void clearGeometryPointer() { if (geometryPointer != null) geometryPointer.clear(); }
    public void invalidateGeometryPlan() { if (geometryPointer != null) geometryPointer.invalidatePlan(); }
+   private io.github.fastformer.client.quickshape.pointer.QuickShapePointer quickShapePointer;
+   public io.github.fastformer.client.quickshape.pointer.QuickShapePointer quickShapePointer(
+      java.util.function.Supplier<io.github.fastformer.client.quickshape.pointer.QuickShapePointer> factory) {
+      if (quickShapePointer == null) quickShapePointer = java.util.Objects.requireNonNull(factory.get(), "quickShapePointer");
+      return quickShapePointer;
+   }
    public io.github.fastformer.client.mode.ClientModeView modeView(
       io.github.fastformer.client.mode.ModeObservation observation
    ) {

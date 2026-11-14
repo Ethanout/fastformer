@@ -182,7 +182,7 @@ final class OperationDragController {
       if (drag == null) return false;
       boolean owned = session.pointerGesture.owns(drag.captureToken(), PointerGestureState.Kind.OPERATION_FACE)
          || session.pointerGesture.owns(drag.captureToken(), PointerGestureState.Kind.OPERATION_GIZMO);
-      if (owned && FastPlaceClientPreviewCore.operationActive()) return true;
+      if (owned && ClientSessionSystem.instance().operationActive()) return true;
       clearCapture(session, drag);
       return false;
    }
