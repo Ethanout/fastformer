@@ -21,9 +21,9 @@ final class ScrollInputDispatcher {
             && action.matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace())) {
             switch (action.gesture()) {
                case io.github.fastformer.client.operation.input.SelectionScrollAction.Move move ->
-                  ClientSessionSystem.instance().operations().scrollSelected(move.offset(), action.timestampNanos());
+                  ClientSessionSystem.instance().operations().transforms().scrollSelected(move.offset(), action.timestampNanos());
                case io.github.fastformer.client.operation.input.SelectionScrollAction.Stack stack ->
-                  ClientSessionSystem.instance().operations().scrollStackSelected(stack, action.timestampNanos());
+                  ClientSessionSystem.instance().operations().transforms().scrollStackSelected(stack, action.timestampNanos());
             }
          }
          return;

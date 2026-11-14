@@ -1,5 +1,7 @@
 package io.github.fastformer.client.operation.controller;
 
+import io.github.fastformer.client.operation.transform.OperationTransforms;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.core.math.Axis;
@@ -358,7 +360,7 @@ class OperationContextTest {
       var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
       List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-      ClientSessionSystem.instance().operations().updateTransformGesture(
+      ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
          edit, baseline, false, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
@@ -421,7 +423,7 @@ class OperationContextTest {
       var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
       List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-      ClientSessionSystem.instance().operations().updateTransformGesture(
+      ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
          edit, baseline, false, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
@@ -451,12 +453,12 @@ class OperationContextTest {
       );
 
       assertEquals(
-         OperationContext.AabbAdjustDecision.NO_TARGET,
-         ClientSessionSystem.instance().operations().aabbAdjustDecision(null)
+         OperationTransforms.AabbAdjustDecision.NO_TARGET,
+         ClientSessionSystem.instance().operations().transforms().aabbAdjustDecision(null)
       );
       assertEquals(
-         OperationContext.AabbAdjustDecision.NO_TARGET,
-         ClientSessionSystem.instance().operations().aabbAdjustDecision(pasted)
+         OperationTransforms.AabbAdjustDecision.NO_TARGET,
+         ClientSessionSystem.instance().operations().transforms().aabbAdjustDecision(pasted)
       );
 
       ClientSessionSystem.instance().operations().onDisconnected();
@@ -477,8 +479,8 @@ class OperationContextTest {
       // A unit test has no client level, so the source check cannot run. The outcome
       // must not claim that a source block changed.
       assertEquals(
-         OperationContext.AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE,
-         ClientSessionSystem.instance().operations().aabbAdjustDecision(source)
+         OperationTransforms.AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE,
+         ClientSessionSystem.instance().operations().transforms().aabbAdjustDecision(source)
       );
 
       ClientSessionSystem.instance().operations().onDisconnected();
@@ -489,12 +491,12 @@ class OperationContextTest {
       ClientSessionSystem.instance().operations().onDisconnected();
 
       assertEquals(
-         OperationContext.AabbAdjustDecision.NO_TARGET,
-         ClientSessionSystem.instance().operations().adjustActiveAabbPoint(0, null)
+         OperationTransforms.AabbAdjustDecision.NO_TARGET,
+         ClientSessionSystem.instance().operations().transforms().adjustActiveAabbPoint(0, null)
       );
       assertEquals(
-         OperationContext.AabbAdjustDecision.NO_TARGET,
-         ClientSessionSystem.instance().operations().adjustActiveAabbPoint(3, BlockPos.ZERO)
+         OperationTransforms.AabbAdjustDecision.NO_TARGET,
+         ClientSessionSystem.instance().operations().transforms().adjustActiveAabbPoint(3, BlockPos.ZERO)
       );
 
       ClientSessionSystem.instance().operations().onDisconnected();
@@ -504,30 +506,30 @@ class OperationContextTest {
    void onlyBlockedAdjustmentsThatThePlayerCanFixShowAMessage() {
       assertEquals(
          "fastformer.message.operation_submit_pending",
-         ClientSessionSystem.instance().operations().aabbAdjustFailureKey(
-            OperationContext.AabbAdjustDecision.SUBMISSION_PENDING
+         ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(
+            OperationTransforms.AabbAdjustDecision.SUBMISSION_PENDING
          )
       );
       assertEquals(
          "fastformer.message.operation_source_changed",
-         ClientSessionSystem.instance().operations().aabbAdjustFailureKey(OperationContext.AabbAdjustDecision.SOURCE_CHANGED)
+         ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(OperationTransforms.AabbAdjustDecision.SOURCE_CHANGED)
       );
       assertEquals(
          "fastformer.message.operation_adjust_unavailable",
-         ClientSessionSystem.instance().operations().aabbAdjustFailureKey(OperationContext.AabbAdjustDecision.NO_TARGET)
+         ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(OperationTransforms.AabbAdjustDecision.NO_TARGET)
       );
       // A started, finished or environment-blocked adjustment stays silent.
-      for (OperationContext.AabbAdjustDecision decision : List.of(
-         OperationContext.AabbAdjustDecision.READY,
-         OperationContext.AabbAdjustDecision.DRAG_STARTED,
-         OperationContext.AabbAdjustDecision.ADJUSTED,
-         OperationContext.AabbAdjustDecision.UNCHANGED,
-         OperationContext.AabbAdjustDecision.EDIT_UNAVAILABLE,
-         OperationContext.AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE
+      for (OperationTransforms.AabbAdjustDecision decision : List.of(
+         OperationTransforms.AabbAdjustDecision.READY,
+         OperationTransforms.AabbAdjustDecision.DRAG_STARTED,
+         OperationTransforms.AabbAdjustDecision.ADJUSTED,
+         OperationTransforms.AabbAdjustDecision.UNCHANGED,
+         OperationTransforms.AabbAdjustDecision.EDIT_UNAVAILABLE,
+         OperationTransforms.AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE
       )) {
-         assertNull(ClientSessionSystem.instance().operations().aabbAdjustFailureKey(decision), () -> "unexpected message for " + decision);
+         assertNull(ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(decision), () -> "unexpected message for " + decision);
       }
-      assertNull(ClientSessionSystem.instance().operations().aabbAdjustFailureKey(null));
+      assertNull(ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(null));
    }
 
    private static ClientBlockSnapshot snapshot() {

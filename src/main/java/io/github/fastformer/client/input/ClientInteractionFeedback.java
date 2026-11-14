@@ -1,9 +1,8 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.session.ClientSessionSystem;
-
-import io.github.fastformer.client.operation.controller.OperationContext;
 import io.github.fastformer.client.operation.clipboard.ClipboardActionResult;
+import io.github.fastformer.client.operation.transform.OperationTransforms;
+import io.github.fastformer.client.session.ClientSessionSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
@@ -29,8 +28,8 @@ public final class ClientInteractionFeedback {
    }
 
    /** Explains why a selection adjustment did not start. */
-   public static void showAabbAdjustFailure(Minecraft minecraft, OperationContext.AabbAdjustDecision decision) {
-      show(minecraft, ClientSessionSystem.instance().operations().aabbAdjustFailureKey(decision));
+   public static void showAabbAdjustFailure(Minecraft minecraft, OperationTransforms.AabbAdjustDecision decision) {
+      show(minecraft, ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(decision));
    }
 
    public static void show(Minecraft minecraft, String translationKey) {

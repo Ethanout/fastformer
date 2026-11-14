@@ -221,7 +221,7 @@ public final class WorkspaceInteractionResolver {
          if (hit != null && facePrecedesWorldBlock(hit.distance(), worldDistance) && !hitsFailedTarget(hit, failedTargets)
             && (best == null || hit.distance() < best.hit().distance())) {
             best = new OperationInteractionIntent.Face(
-               part.id(), bounds, hit, ClientSessionSystem.instance().operations().canAdjustAabbFace(part)
+               part.id(), bounds, hit, ClientSessionSystem.instance().operations().transforms().canAdjustAabbFace(part)
             );
          }
       }

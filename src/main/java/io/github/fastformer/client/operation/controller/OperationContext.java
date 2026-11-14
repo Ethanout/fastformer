@@ -1,17 +1,29 @@
 package io.github.fastformer.client.operation.controller;
 
 import com.mojang.logging.LogUtils;
+import io.github.fastformer.client.input.FastPlaceClientInput;
+import io.github.fastformer.client.input.drag.SelectionGestureState;
+import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
-import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
+import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardActions;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardRepository;
+import io.github.fastformer.client.operation.input.SelectionConfirmation;
 import io.github.fastformer.client.operation.preview.OperationPreviewState;
+import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
+import io.github.fastformer.client.operation.selection.SelectionBlockCapture;
 import io.github.fastformer.client.operation.selection.SelectionDraftEvent;
+import io.github.fastformer.client.operation.selection.SelectionDraftPreview;
 import io.github.fastformer.client.operation.selection.SelectionDraftResult;
+import io.github.fastformer.client.operation.selection.SelectionToolPreference;
+import io.github.fastformer.client.operation.selection.SmartSelectionCapture;
+import io.github.fastformer.client.operation.selection.SmartSelectionEdits;
+import io.github.fastformer.client.operation.transform.OperationTransforms;
 import io.github.fastformer.client.operation.workspace.ClientOperationEventStack;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
+import io.github.fastformer.client.operation.workspace.SelectionDeletionPlan;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.session.ClientSessionSystem;
@@ -21,14 +33,16 @@ import io.github.fastformer.client.session.receipt.OperationSubmissionReceipt;
 import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.submission.OperationDraftSettlement;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.core.math.Axis;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
+import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
+import io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload;
+import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayload;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
+import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
@@ -40,7 +54,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -52,10 +65,8 @@ public final class OperationContext {
    private List<ClientSelectionPart> failedWorkspaceDraft = List.of();
    private final SourceBlockRenderMask sourceMask = new SourceBlockRenderMask();
    private final OperationClipboardActions clipboard;
+   private final OperationTransforms transforms;
    private String lastOperationFailureKey;
-   private ClientOperationWorkspace.EditToken lastTooLargeGesture;
-   /** Stops the client log from repeating one warning on every mouse press. */
-   private boolean missingLevelLogged;
    private final WorkspaceSubmissionTracker submission;
    private final OperationPreviewState preview = new OperationPreviewState();
 
@@ -70,6 +81,9 @@ public final class OperationContext {
       this.clipboard = new OperationClipboardActions(selection.workspace(), clipboard,
          this::workspaceSubmissionPending, this::workspaceEditInProgress, this::synchronizeDerivedWorkspaceState);
       this.submission = java.util.Objects.requireNonNull(submission, "submission");
+      this.transforms = new OperationTransforms(selection.workspace(), this::workspaceSubmissionPending,
+         () -> smartCapture.pending() || draftCapture.pending(), this::ownsCurrentInteraction,
+         this::captureFailed, this::synchronizeDerivedWorkspaceState);
    }
 
    public ClientOperationWorkspace workspace() {
@@ -96,19 +110,19 @@ public final class OperationContext {
       selectionSession().publishInteractionScene();
    }
 
-   public io.github.fastformer.client.input.drag.SelectionGestureState selectionGestures() {
+   public SelectionGestureState selectionGestures() {
       return selectionSession().gestures();
    }
 
-   public void updateVisualHover(io.github.fastformer.client.interaction.intent.OperationInteractionIntent intent) {
+   public void updateVisualHover(OperationInteractionIntent intent) {
       selectionSession().updateHover(intent);
    }
 
-   public io.github.fastformer.client.interaction.intent.OperationInteractionIntent visualHoverIntent() {
+   public OperationInteractionIntent visualHoverIntent() {
       return selectionSession().hoveredIntent();
    }
 
-   public boolean hoveredLabel(io.github.fastformer.client.interaction.InteractionObject label) {
+   public boolean hoveredLabel(InteractionObject label) {
       var session = selectionSession();
       var part = session.interactionScene().parts().get(session.hoveredPartId());
       return label != null && part != null && part.label() != null && label.id().equals(part.label().id());
@@ -144,7 +158,7 @@ public final class OperationContext {
       return workspace().undoSize();
    }
 
-   public void applyWorldHistoryEvent(io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload event) {
+   public void applyWorldHistoryEvent(WorldHistoryEventPayload event) {
       var minecraft = Minecraft.getInstance();
       if (minecraft == null || minecraft.level == null || !minecraft.level.dimension().location().equals(event.dimension())) return;
       selectionSession().onWorldHistory(event.kind());
@@ -170,26 +184,6 @@ public final class OperationContext {
       selectionSession().publishInteractionScene();
    }
 
-   public void transformSelected(Minecraft minecraft, boolean flip) {
-      if (minecraft == null || minecraft.player == null || workspaceSubmissionPending() || workspaceEditInProgress()) return;
-      var owner = workspace();
-      var selected = owner.selectedParts();
-      if (selected.isEmpty()) return;
-      var operation = flip
-         ? io.github.fastformer.workspace.model.WorkspaceSymmetry.reflection(
-            io.github.fastformer.workspace.transform.SelectionShortcutCalculator.viewAxis(minecraft.player.getLookAngle()))
-         : io.github.fastformer.workspace.model.WorkspaceSymmetry.quarterTurnY();
-      var result = io.github.fastformer.workspace.transform.SelectionShortcutCalculator.calculate(selected, operation);
-      if (result.failureKey() != null) {
-         captureFailed(result.failureKey());
-         return;
-      }
-      if (!owner.beginEdit()) return;
-      result.parts().forEach(owner::updatePart);
-      owner.finishEdit();
-      synchronizeDerivedWorkspaceState();
-   }
-
    public void enterLocalSelectionSession() {
       selectionSession().startNewSession();
    }
@@ -202,7 +196,7 @@ public final class OperationContext {
       return preview.live().operationRevision();
    }
 
-   public io.github.fastformer.protocol.callback.OperationCallbackScope remoteSelectionCallbackScope() {
+   public OperationCallbackScope remoteSelectionCallbackScope() {
       return preview.live().callbackScope();
    }
 
@@ -284,7 +278,7 @@ public final class OperationContext {
       WorkspaceTransform transform = new WorkspaceTransform(
          Vec3.atLowerCornerOf(payload.operationTranslation()),
          payload.operationRotation(),
-         new io.github.fastformer.fastplace.selection.OperationStackRegion(
+         new OperationStackRegion(
             payload.operationStackMin(), payload.operationStackMax()
          )
       );
@@ -349,6 +343,10 @@ public final class OperationContext {
       ClientSessionSystem.instance().discardCurrentDraft();
    }
 
+   public OperationTransforms transforms() {
+      return transforms;
+   }
+
    public OperationClipboardActions clipboard() {
       return clipboard;
    }
@@ -365,9 +363,9 @@ public final class OperationContext {
       var selected = workspace().selectedIds();
       boolean draft = selectionDraftActive();
       if (selected.isEmpty() && !draft) return false;
-      var parts = new java.util.ArrayList<>(io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.parts(workspace().parts(), selected));
+      var parts = new java.util.ArrayList<>(SelectionDeletionPlan.parts(workspace().parts(), selected));
       if (!draft) return submitDeletion(minecraft, parts, selected, false);
-      var volume = io.github.fastformer.client.operation.selection.SelectionDraftPreview.volume(selectionDraft(), candidate);
+      var volume = SelectionDraftPreview.volume(selectionDraft(), candidate);
       if (volume == null) return false;
       // The server selection may close while the client scans the preview box.
       // Retain the draft so the later workspace submission stays client-owned
@@ -377,7 +375,7 @@ public final class OperationContext {
       var session = selectionSession();
       var before = draftSnapshot();
       long revision = owner.revision();
-      var protectedSources = io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.protectedSources(owner.parts(), selected);
+      var protectedSources = SelectionDeletionPlan.protectedSources(owner.parts(), selected);
       int draftId = owner.partIds().stream().mapToInt(Integer::intValue).max().orElse(0) + 1;
       return deleteCapture.start(volume, null,
          () -> ownsCurrentInteraction() && workspace() == owner && selectionSession() == session && owner.revision() == revision && before.equals(draftSnapshot()), blocks -> {
@@ -407,7 +405,7 @@ public final class OperationContext {
    }
 
    private void finishSubmittedParts() {
-      var remaining = io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
+      var remaining = SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
       var draft = selectionDraft();
       boolean keepDraft = !submittedDraft;
       clearWorkspace();
@@ -424,11 +422,7 @@ public final class OperationContext {
       adoptRemoteDraft();
       selectionSession().retain();
       if (workspace().editing()) {
-         resizeCapture.cancel();
-         pendingPointAdjustment = null;
-         pendingResizeSelection = null;
-         resizeToken = null;
-         workspace().cancelEdit();
+         transforms.cancel();
       }
       draftCapture.cancel();
       if (selectionSession().stack().peek().isEmpty()) {
@@ -504,8 +498,8 @@ public final class OperationContext {
 
    public void cycleIdleSelectionTool() {
       if (active() || selectionDraftActive() || selectionSessionActive()) return;
-      var next = io.github.fastformer.client.operation.selection.SelectionToolPreference.get().next();
-      io.github.fastformer.client.operation.selection.SelectionToolPreference.set(next);
+      var next = SelectionToolPreference.get().next();
+      SelectionToolPreference.set(next);
       selectionSession().setSelectionMode(next);
    }
 
@@ -519,7 +513,7 @@ public final class OperationContext {
       var next = draftSelectionMode().next();
       session.clearDraft();
       session.setSelectionMode(next);
-      io.github.fastformer.client.operation.selection.SelectionToolPreference.set(next);
+      SelectionToolPreference.set(next);
       workspace().pushEvent(() -> session.restoreDraftEdit(before), ClientOperationEventStack.Retention.of(before.points().size() + 1));
       settleSelectionRemoval();
       return true;
@@ -562,7 +556,7 @@ public final class OperationContext {
 
    public boolean confirmSelection(Minecraft minecraft, BlockPos candidate) {
       adoptRemoteDraft();
-      var action = io.github.fastformer.client.operation.input.SelectionConfirmation.decide(
+      var action = SelectionConfirmation.decide(
          workspace(), workspaceSubmissionPending() || smartCapture.pending() || draftCapture.pending());
       return switch (action) {
          case BLOCKED -> true;
@@ -574,7 +568,7 @@ public final class OperationContext {
    }
 
    private boolean completePreview(BlockPos candidate, Runnable afterCapture) {
-      var volume = io.github.fastformer.client.operation.selection.SelectionDraftPreview.volume(selectionDraft(), candidate);
+      var volume = SelectionDraftPreview.volume(selectionDraft(), candidate);
       return volume != null && captureDraft(volume, true, afterCapture);
    }
 
@@ -595,357 +589,6 @@ public final class OperationContext {
       }
       boolean changed = workspace().undo();
       if (changed) settleSelectionRemoval();
-      return changed;
-   }
-
-   public boolean moveSelected(BlockPos offset) {
-      return moveSelected(offset, 0, false);
-   }
-
-   public boolean scrollSelected(BlockPos offset, long timestampNanos) {
-      return moveSelected(offset, timestampNanos, true);
-   }
-
-   public boolean scrollStackSelected(io.github.fastformer.client.operation.input.SelectionScrollAction.Stack stack, long timestampNanos) {
-      if (smartCapture.pending() || draftCapture.pending() || workspaceSubmissionPending()
-         || workspace().locked() || workspace().editing() || workspace().selectedIds().isEmpty()) return false;
-      var baseline = List.copyOf(workspace().selectedParts());
-      var result = io.github.fastformer.workspace.transform.SelectionTransformCalculator.scrollStack(
-         baseline, stack.axis(), stack.side(), stack.steps());
-      if (result.failureKey() != null) {
-         captureFailed(result.failureKey());
-         return false;
-      }
-      if (!workspace().beginEdit()) return false;
-      result.parts().forEach(workspace()::updatePart);
-      boolean changed = workspace().finishScrollEdit(stack, timestampNanos,
-         io.github.fastformer.client.FastFormerClientConfig.scrollHistoryMergeNanos());
-      synchronizeDerivedWorkspaceState();
-      return changed;
-   }
-
-   private boolean moveSelected(BlockPos offset, long timestampNanos, boolean scroll) {
-      if (smartCapture.pending() || draftCapture.pending() || workspaceSubmissionPending() || offset == null || offset.equals(BlockPos.ZERO)
-         || workspace().selectedIds().isEmpty() || !workspace().beginEdit()) {
-         return false;
-      }
-      Vec3 delta = Vec3.atLowerCornerOf(offset);
-      for (ClientSelectionPart part : List.copyOf(workspace().selectedParts())) {
-         workspace().updatePart(part.withTranslation(part.transform().translation().add(delta)));
-      }
-      boolean changed = scroll
-         ? workspace().finishScrollEdit(offset, timestampNanos, io.github.fastformer.client.FastFormerClientConfig.scrollHistoryMergeNanos())
-         : workspace().finishEdit();
-      synchronizeDerivedWorkspaceState();
-      return changed;
-   }
-
-   public boolean canAdjustAabbFace(ClientSelectionPart part) {
-      return part != null && part.canAdjustGeometry();
-   }
-
-   /** Checks whether the captured selection can be adjusted in this environment. */
-   public boolean sourceSnapshotMatches(ClientSelectionPart part) {
-      return sourceState(part) == SourceState.MATCHES;
-   }
-
-   /**
-    * Checks adjustment readiness without replacing the captured block states.
-    * The server transaction checks conflicts when the workspace is written.
-    */
-   public SourceState sourceState(ClientSelectionPart part) {
-      if (part == null || !canAdjustAabbFace(part)) {
-         return SourceState.NOT_ADJUSTABLE;
-      }
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft == null || minecraft.level == null) {
-         return SourceState.LEVEL_UNAVAILABLE;
-      }
-      // The part already owns the immutable source snapshot captured when the
-      // selection was created. Reading the live world here changes the meaning
-      // of an adjustment and rejects valid states, such as unsupported fence
-      // connections. The server transaction performs the authoritative
-      // conflict check when it writes the operation.
-      return SourceState.MATCHES;
-   }
-
-   /** Why a source check passed or failed. */
-   public enum SourceState {
-      PENDING,
-      MATCHES,
-      SOURCE_CHANGED,
-      LEVEL_UNAVAILABLE,
-      NOT_ADJUSTABLE
-   }
-
-   /**
-    * Decides whether an adjustment gesture can start, and names the reason when it
-    * cannot. READY means the source check passed. The caller starts the edit,
-    * because a face drag selects and activates its part before the edit begins.
-    */
-   public AabbAdjustDecision aabbAdjustDecision(ClientSelectionPart part) {
-      if (workspaceSubmissionPending()) {
-         return AabbAdjustDecision.SUBMISSION_PENDING;
-      }
-      return switch (sourceState(part)) {
-         case PENDING -> AabbAdjustDecision.CAPTURE_PENDING;
-         case MATCHES -> AabbAdjustDecision.READY;
-         case SOURCE_CHANGED -> AabbAdjustDecision.SOURCE_CHANGED;
-         case LEVEL_UNAVAILABLE -> {
-            reportMissingLevel();
-            yield AabbAdjustDecision.ENVIRONMENT_UNAVAILABLE;
-         }
-         case NOT_ADJUSTABLE -> AabbAdjustDecision.NO_TARGET;
-      };
-   }
-
-   /** Warns one time about a missing client level, then stays quiet on later inputs. */
-   private void reportMissingLevel() {
-      if (missingLevelLogged) {
-         return;
-      }
-      missingLevelLogged = true;
-      LOGGER.warn("FastFormer blocked a selection adjustment because the client level is not available");
-   }
-
-   /**
-    * The result of an AABB-adjust start request. READY means the client start check
-    * passed. The server write-time guard is a later boundary and does not recapture
-    * the edit-start source.
-    */
-   public enum AabbAdjustDecision {
-      CAPTURE_PENDING,
-      READY,
-      DRAG_STARTED,
-      ADJUSTED,
-      UNCHANGED,
-      SUBMISSION_PENDING,
-      SOURCE_CHANGED,
-      ENVIRONMENT_UNAVAILABLE,
-      NO_TARGET,
-      EDIT_UNAVAILABLE;
-
-      /** True when the source check passed, so the caller can begin the edit. */
-      public boolean ready() {
-         return this == READY;
-      }
-
-      /** True when the point adjustment changed the selection. */
-      public boolean adjusted() {
-         return this == ADJUSTED;
-      }
-   }
-
-   /**
-    * The actionbar key that explains a blocked adjustment. Returns null when the
-    * adjustment ran. It also returns null for ENVIRONMENT_UNAVAILABLE and
-    * EDIT_UNAVAILABLE: a missing level and a live edit already have another owner,
-    * so a second message does not help the player.
-    */
-   public String aabbAdjustFailureKey(AabbAdjustDecision decision) {
-      if (decision == null) {
-         return null;
-      }
-      return switch (decision) {
-         case CAPTURE_PENDING -> "fastformer.message.operation_capture_pending";
-         case SUBMISSION_PENDING -> "fastformer.message.operation_submit_pending";
-         case SOURCE_CHANGED -> "fastformer.message.operation_source_changed";
-         case NO_TARGET -> "fastformer.message.operation_adjust_unavailable";
-         case READY, DRAG_STARTED, ADJUSTED, UNCHANGED, EDIT_UNAVAILABLE,
-              ENVIRONMENT_UNAVAILABLE -> null;
-      };
-   }
-
-   /** Starts a point adjustment and reports why it cannot start. */
-   public AabbAdjustDecision adjustActiveAabbPoint(int mouseButton, BlockPos worldPoint) {
-      return adjustAabbPoint(workspace().activeId(), mouseButton, worldPoint);
-   }
-
-   /** Validates the current source of the explicitly addressed selection before editing. */
-   public AabbAdjustDecision adjustAabbPoint(int partId, int mouseButton, BlockPos worldPoint) {
-      if (worldPoint == null || mouseButton < 0 || mouseButton > 2) {
-         return AabbAdjustDecision.NO_TARGET;
-      }
-      ClientSelectionPart part = workspace().part(partId).orElse(null);
-      if (workspace().editing()) return AabbAdjustDecision.EDIT_UNAVAILABLE;
-      AabbAdjustDecision decision = aabbAdjustDecision(part);
-      if (decision == AabbAdjustDecision.CAPTURE_PENDING) {
-         if (!workspace().beginEdit()) return AabbAdjustDecision.EDIT_UNAVAILABLE;
-         pendingPointAdjustment = new PendingPointAdjustment(workspace(), workspace().activeEditToken(), part, mouseButton, worldPoint.immutable());
-         return AabbAdjustDecision.ADJUSTED;
-      }
-      if (!decision.ready()) {
-         return decision;
-      }
-      if (!workspace().beginEdit()) {
-         return AabbAdjustDecision.EDIT_UNAVAILABLE;
-      }
-      return capturePointAdjustment(part, mouseButton, worldPoint);
-   }
-
-   private AabbAdjustDecision capturePointAdjustment(ClientSelectionPart part, int mouseButton, BlockPos worldPoint) {
-      Vec3 translation = part.transform().translation();
-      BlockPos localPoint = new BlockPos(
-         Mth.floor(worldPoint.getX() - translation.x),
-         Mth.floor(worldPoint.getY() - translation.y),
-         Mth.floor(worldPoint.getZ() - translation.z)
-      );
-      OperationSelectionVolume selection = mouseButton == 2
-         ? part.selection().expandCuboidTo(localPoint)
-         : part.selection().withCuboidPoint(mouseButton, localPoint);
-      if (selection == null) {
-         workspace().cancelEdit();
-         return AabbAdjustDecision.UNCHANGED;
-      }
-      WorkspaceTransform transform = part.transform().withRepeats(
-         part.transform().repeats(), BlockPos.ZERO
-      );
-      var owner = workspace();
-      var token = owner.activeEditToken();
-      boolean started = resizeCapture.start(selection, part, () -> ownsCurrentInteraction() && workspace() == owner && owner.ownsEdit(token), blocks -> {
-         owner.updatePart(part.withSelection(selection).withBlocks(blocks).withTransform(transform));
-         owner.finishEdit(token);
-         synchronizeDerivedWorkspaceState();
-      }, key -> { owner.cancelEdit(token); captureFailed(key); });
-      if (!started) owner.cancelEdit(token);
-      return started ? AabbAdjustDecision.ADJUSTED : AabbAdjustDecision.UNCHANGED;
-   }
-
-   private void continuePointAdjustment() {
-      var pending = pendingPointAdjustment;
-      if (pending == null) return;
-      if (workspace() != pending.owner() || !pending.owner().ownsEdit(pending.token())
-         || pending.owner().part(pending.part().id()).orElse(null) != pending.part()) {
-         pending.owner().cancelEdit(pending.token());
-         pendingPointAdjustment = null;
-         return;
-      }
-      var decision = aabbAdjustDecision(pending.part());
-      if (decision == AabbAdjustDecision.CAPTURE_PENDING) return;
-      pendingPointAdjustment = null;
-      if (decision.ready()) capturePointAdjustment(pending.part(), pending.button(), pending.point());
-      else {
-         pending.owner().cancelEdit(pending.token());
-         String key = aabbAdjustFailureKey(decision);
-         if (key != null) captureFailed(key);
-      }
-   }
-
-   public void updateAabbFaceGesture(
-      ClientOperationWorkspace.EditToken editToken,
-      ClientSelectionPart baseline, int axis, boolean positiveFace, int outwardSteps
-   ) {
-      if (workspaceSubmissionPending() || !workspace().ownsEdit(editToken)
-         || !canAdjustAabbFace(baseline) || axis < 0 || axis > 2) {
-         return;
-      }
-      AABB bounds = baseline.selection().bounds();
-      double minX = bounds.minX;
-      double minY = bounds.minY;
-      double minZ = bounds.minZ;
-      double maxX = bounds.maxX;
-      double maxY = bounds.maxY;
-      double maxZ = bounds.maxZ;
-      double signed = (positiveFace ? 1.0 : -1.0) * outwardSteps;
-      switch (axis) {
-         case 0 -> {
-            if (positiveFace) maxX = Math.max(minX + 1.0, maxX + signed);
-            else minX = Math.min(maxX - 1.0, minX + signed);
-         }
-         case 1 -> {
-            if (positiveFace) maxY = Math.max(minY + 1.0, maxY + signed);
-            else minY = Math.min(maxY - 1.0, minY + signed);
-         }
-         case 2 -> {
-            if (positiveFace) maxZ = Math.max(minZ + 1.0, maxZ + signed);
-            else minZ = Math.min(maxZ - 1.0, minZ + signed);
-         }
-         default -> {
-            return;
-         }
-      }
-      OperationSelectionVolume selection = new OperationSelectionVolume(
-         OperationSelectionMode.CUBOID,
-         new AABB(minX, minY, minZ, maxX, maxY, maxZ),
-         null,
-         List.of(),
-         0,
-         baseline.selection().point1(),
-         baseline.selection().point2()
-      );
-      WorkspaceTransform transform = baseline.transform().withRepeats(
-         baseline.transform().repeats(), BlockPos.ZERO
-      );
-      ClientSelectionPart current = workspace().part(baseline.id()).orElse(baseline);
-      if (selection.equals(pendingResizeSelection) && java.util.Objects.equals(resizeToken, editToken)) return;
-      pendingResizeSelection = selection;
-      resizeToken = editToken;
-      resizeFinishRequested = false;
-      var owner = workspace();
-      resizeCapture.start(selection, current, () -> ownsCurrentInteraction() && workspace() == owner && owner.ownsEdit(editToken), blocks -> {
-         owner.updatePart(baseline.withSelection(selection).withBlocks(blocks).withTransform(transform));
-         if (resizeFinishRequested) owner.finishEdit(editToken);
-         pendingResizeSelection = null;
-         resizeToken = null;
-         synchronizeDerivedWorkspaceState();
-      }, key -> { owner.cancelEdit(editToken); pendingResizeSelection = null; resizeToken = null; captureFailed(key); });
-   }
-
-   /** Returns a failure message once per edit, or null when no new message is needed. */
-   public String updateTransformGesture(
-      ClientOperationWorkspace.EditToken editToken,
-      List<ClientSelectionPart> baseline,
-      boolean common,
-      AxisGizmo.Operation operation,
-      Axis axis,
-      int direction,
-      int totalSteps,
-      double rotationRadians
-   ) {
-      return updateTransformGesture(editToken, baseline, common, operation, axis, direction, totalSteps,
-         rotationRadians, io.github.fastformer.workspace.transform.WorkspaceRotation.unitAxis(axis), null);
-   }
-
-   public String updateTransformGesture(
-      ClientOperationWorkspace.EditToken editToken, List<ClientSelectionPart> baseline, boolean common,
-      AxisGizmo.Operation operation, Axis axis, int direction, int totalSteps, double rotationRadians,
-      Vec3 rotationAxis, Vec3 rotationPivot
-   ) {
-      if (workspaceSubmissionPending() || !workspace().ownsEdit(editToken)) {
-         return null;
-      }
-      if (totalSteps == 0) {
-         baseline.forEach(part -> {
-            boolean alreadyFixed = workspace().part(part.id())
-               .map(current -> current.editability() == ClientSelectionPart.Editability.LOCKED).orElse(false);
-            workspace().updatePart(alreadyFixed ? part.fixed() : part);
-         });
-         synchronizeDerivedWorkspaceState();
-         return null;
-      }
-      var result = io.github.fastformer.workspace.transform.SelectionTransformCalculator.calculate(
-         baseline, common, operation, axis, direction, totalSteps, rotationRadians, rotationAxis, rotationPivot);
-      if (result.failureKey() != null) {
-         if (editToken.equals(lastTooLargeGesture)) return null;
-         lastTooLargeGesture = editToken;
-         return result.failureKey();
-      }
-      result.parts().forEach(workspace()::updatePart);
-      synchronizeDerivedWorkspaceState();
-      return null;
-   }
-
-   public boolean finishTransformGesture(ClientOperationWorkspace.EditToken editToken) {
-      if (!workspace().ownsEdit(editToken)) return false;
-      if (resizeCapture.pending() && java.util.Objects.equals(resizeToken, editToken)) {
-         resizeFinishRequested = true;
-         return true;
-      }
-      boolean changed = workspace().finishEdit(editToken);
-      if (java.util.Objects.equals(lastTooLargeGesture, editToken)) {
-         lastTooLargeGesture = null;
-      }
-      synchronizeDerivedWorkspaceState();
       return changed;
    }
 
@@ -983,7 +626,7 @@ public final class OperationContext {
             return false;
          }
          UUID transferId = UUID.randomUUID();
-         if (!io.github.fastformer.client.input.FastPlaceClientInput.beginWorkspaceRequest(transferId)) {
+         if (!FastPlaceClientInput.beginWorkspaceRequest(transferId)) {
             lastOperationFailureKey = "fastformer.message.operation_submit_state_changed";
             return false;
          }
@@ -1005,7 +648,7 @@ public final class OperationContext {
             lastOperationFailureKey = "fastformer.message.operation_submit_state_changed";
             submission.clear();
             workspace().setLocked(false);
-            io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(transferId);
+            FastPlaceClientInput.abortWorkspaceRequest(transferId);
             synchronizeDerivedWorkspaceState();
             return false;
          }
@@ -1013,9 +656,9 @@ public final class OperationContext {
          var playerSession = currentScope();
          if (playerSession != null) {
             var remainder = submittedPartIds == null ? null
-               : io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
+               : SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
             playerSession.setSubmissionRemainder(remainder == null || remainder.parts().isEmpty() && (submittedDraft || !selectionDraftActive()) ? null
-               : new io.github.fastformer.client.session.draft.ClientOperationDraft.Remainder(
+               : new ClientOperationDraft.Remainder(
                   remainder, submittedDraft ? new ClientSelectionSession().draftState() : selectionDraft()));
          }
          workspace().setLocked(true);
@@ -1028,20 +671,20 @@ public final class OperationContext {
             submission -> {
                if (submission == null) {
                   abortSubmission(); owner.setLocked(false);
-                  io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(transferId);
+                  FastPlaceClientInput.abortWorkspaceRequest(transferId);
                   synchronizeDerivedWorkspaceState();
                } else {
                   try { submission.send(); }
                   catch (RuntimeException exception) {
                      abortSubmission(); owner.setLocked(false);
-                     io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(transferId);
+                     FastPlaceClientInput.abortWorkspaceRequest(transferId);
                      captureFailed("fastformer.message.operation_submit_unavailable");
                   }
                }
             });
          if (!queued) {
             abortSubmission(); owner.setLocked(false);
-            io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(transferId);
+            FastPlaceClientInput.abortWorkspaceRequest(transferId);
             lastOperationFailureKey = "fastformer.message.operation_submit_storage_failed";
          }
          return queued;
@@ -1050,7 +693,7 @@ public final class OperationContext {
          UUID failedTransferId = submission.transferId();
          abortSubmission();
          workspace().setLocked(false);
-         io.github.fastformer.client.input.FastPlaceClientInput.abortWorkspaceRequest(failedTransferId);
+         FastPlaceClientInput.abortWorkspaceRequest(failedTransferId);
          synchronizeDerivedWorkspaceState();
          return false;
       }
@@ -1091,7 +734,7 @@ public final class OperationContext {
 
    private void sendReceiptQuery(ResourceLocation dimension, List<UUID> transferIds) {
       try {
-         int limit = io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload
+         int limit = OperationWorkspaceReceiptQueryPayload
             .MAX_TRANSFER_IDS;
          // A large set needs more than one packet. Each query stays inside the limit.
          for (int start = 0; start < transferIds.size(); start += limit) {
@@ -1099,7 +742,7 @@ public final class OperationContext {
                transferIds.subList(start, Math.min(start + limit, transferIds.size()))
             );
             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-               new io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload(
+               new OperationWorkspaceReceiptQueryPayload(
                   dimension, batch
                )
             );
@@ -1237,7 +880,7 @@ public final class OperationContext {
          }
          if (submittedPartIds != null) finishSubmittedParts();
          else clearWorkspace();
-         io.github.fastformer.client.input.FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
+         FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
          return;
       }
       if (!shouldRetainWorkspaceAfterFailure(payload.retryable()) && submittedPartIds == null) {
@@ -1257,7 +900,7 @@ public final class OperationContext {
                true
             );
          }
-         io.github.fastformer.client.input.FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
+         FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
          return;
       }
       // The workspace stays for editing and for a retry, so the durable copy stays too.
@@ -1281,16 +924,7 @@ public final class OperationContext {
             Component.translatable(payload.failure().messageKey()), true
          );
       }
-      io.github.fastformer.client.input.FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
-   }
-
-   public void cancelTransformGesture(ClientOperationWorkspace.EditToken editToken) {
-      if (java.util.Objects.equals(resizeToken, editToken)) { resizeCapture.cancel(); resizeToken = null; pendingResizeSelection = null; }
-      if (!workspace().cancelEdit(editToken)) return;
-      if (java.util.Objects.equals(lastTooLargeGesture, editToken)) {
-         lastTooLargeGesture = null;
-      }
-      synchronizeDerivedWorkspaceState();
+      FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
    }
 
    private void clearSubmissionRemainder() {
@@ -1316,14 +950,11 @@ public final class OperationContext {
    }
 
    private void clearTransientOperationState() {
-      draftCapture.cancel(); resizeCapture.cancel(); deleteCapture.cancel(); smartCapture.cancel();
+      draftCapture.cancel(); transforms.cancel(); deleteCapture.cancel(); smartCapture.cancel();
       submittedPartIds = null;
       submittedDraft = false;
-      pendingPointAdjustment = null;
-      resizeToken = null; pendingResizeSelection = null;
-      resizeFinishRequested = false;
+
       lastOperationFailureKey = null;
-      lastTooLargeGesture = null;
    }
 
    static boolean shouldClearWorkspaceAfterSnapshot(
@@ -1383,10 +1014,9 @@ public final class OperationContext {
    /** Ends a reconnect boundary once the snapshot that followed it has settled. */
    public void onClientTick() {
       ClientSessionSystem.instance().drainStorageResults();
-      long captureDeadline = System.nanoTime() + io.github.fastformer.client.operation.selection.SelectionBlockCapture.NANOS_PER_TICK;
-      draftCapture.tick(captureDeadline); resizeCapture.tick(captureDeadline); deleteCapture.tick(captureDeadline);
+      long captureDeadline = System.nanoTime() + SelectionBlockCapture.NANOS_PER_TICK;
+      draftCapture.tick(captureDeadline); transforms.tick(captureDeadline); deleteCapture.tick(captureDeadline);
       smartCapture.tick(captureDeadline);
-      continuePointAdjustment();
       selectionSession().publishInteractionScene();
       WorkspacePreviewComposer.prunePartGeometry();
       if (workspaceSubmissionPending() && submission.tick()) {
@@ -1395,7 +1025,7 @@ public final class OperationContext {
          workspace().setLocked(false);
          // Keep the draft available for retry. A late result cannot affect a
          // later submission because its transfer id is no longer current.
-         io.github.fastformer.client.input.FastPlaceClientInput.expireWorkspaceRequest(expiredTransferId);
+         FastPlaceClientInput.expireWorkspaceRequest(expiredTransferId);
          synchronizeDerivedWorkspaceState();
          Minecraft minecraft = Minecraft.getInstance();
          if (minecraft != null && minecraft.player != null) {
@@ -1423,12 +1053,12 @@ public final class OperationContext {
       return deleteCapture.pending() || submission.pending(selectionSession().interactionOwnerId());
    }
 
-   private final io.github.fastformer.client.operation.selection.SelectionBlockCapture draftCapture = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
-   private final io.github.fastformer.client.operation.selection.SmartSelectionCapture smartCapture = new io.github.fastformer.client.operation.selection.SmartSelectionCapture();
+   private final SelectionBlockCapture draftCapture = new SelectionBlockCapture();
+   private final SmartSelectionCapture smartCapture = new SmartSelectionCapture();
 
    public boolean smartTool() { return draftSelectionMode() == OperationSelectionMode.SMART; }
    public boolean smartEditing() {
-      return smartCapture.pending() || io.github.fastformer.client.operation.selection.SmartSelectionEdits.editing(workspace());
+      return smartCapture.pending() || SmartSelectionEdits.editing(workspace());
    }
    public boolean smartSampling() { return smartCapture.pending(); }
 
@@ -1436,14 +1066,14 @@ public final class OperationContext {
       if (position == null || workspaceSubmissionPending() || workspaceEditInProgress() || workspace().locked()) return false;
       selectionSession().retain();
       if (button == 0) {
-         io.github.fastformer.client.operation.selection.SmartSelectionEdits.remove(workspace(), position, alternative);
+         SmartSelectionEdits.remove(workspace(), position, alternative);
          settleSelectionRemoval();
          return true;
       }
       if (button != 1) return true;
       if (alternative) {
-         var snapshot = io.github.fastformer.client.operation.selection.SmartSelectionCapture.captureCell(Minecraft.getInstance().level, position);
-         io.github.fastformer.client.operation.selection.SmartSelectionEdits.addCell(workspace(), position, snapshot);
+         var snapshot = SmartSelectionCapture.captureCell(Minecraft.getInstance().level, position);
+         SmartSelectionEdits.addCell(workspace(), position, snapshot);
          synchronizeDerivedWorkspaceState();
          return true;
       }
@@ -1452,25 +1082,17 @@ public final class OperationContext {
       long revision = owner.revision();
       return smartCapture.start(position, alternative,
          () -> ownsCurrentInteraction() && owner == workspace() && session == selectionSession() && revision == owner.revision() && smartTool(), blocks -> {
-            io.github.fastformer.client.operation.selection.SmartSelectionEdits.add(owner, blocks);
+            SmartSelectionEdits.add(owner, blocks);
             synchronizeDerivedWorkspaceState();
          }, this::captureFailed);
    }
-   private final io.github.fastformer.client.operation.selection.SelectionBlockCapture deleteCapture = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
+   private final SelectionBlockCapture deleteCapture = new SelectionBlockCapture();
    private java.util.Set<Integer> submittedPartIds;
    private boolean submittedDraft;
-   private final io.github.fastformer.client.operation.selection.SelectionBlockCapture resizeCapture = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();
-   private OperationSelectionVolume pendingResizeSelection;
-   private ClientOperationWorkspace.EditToken resizeToken;
-   private boolean resizeFinishRequested;
-   private PendingPointAdjustment pendingPointAdjustment;
-   private record PendingPointAdjustment(ClientOperationWorkspace owner, ClientOperationWorkspace.EditToken token,
-      ClientSelectionPart part, int button, BlockPos point) { }
-
    private void captureFailed(String key) {
       lastOperationFailureKey = key;
       var player = Minecraft.getInstance().player;
-      if (player != null) player.displayClientMessage(net.minecraft.network.chat.Component.translatable(key), true);
+      if (player != null) player.displayClientMessage(Component.translatable(key), true);
    }
 
    private boolean finishDraft(int prismBaseCount) {

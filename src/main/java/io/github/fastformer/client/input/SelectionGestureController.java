@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.operation.transform.OperationTransforms;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.drag.DeferredDragClick;
@@ -13,7 +15,6 @@ import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.interaction.InteractionPressBinding;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
-import io.github.fastformer.client.operation.controller.OperationContext;
 import io.github.fastformer.client.operation.input.SelectionPointerPress;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
@@ -33,7 +34,7 @@ final class SelectionGestureController {
       if (capture == null) return;
       var drag = gestures.capturedBy(capture);
       if (drag == null) return;
-      ClientSessionSystem.instance().operations().cancelTransformGesture(drag.editToken());
+      ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
       finishPointer(session, capture.gestureToken());
       gestures.clear(drag);
    }
@@ -77,7 +78,7 @@ final class SelectionGestureController {
       }
       Vec3 radial = handle.drawsRing() ? target.hit().point().subtract(target.gizmo().center()) : Vec3.ZERO;
       if (handle.drawsRing() && radial.lengthSqr() < 1.0E-7) {
-         ClientSessionSystem.instance().operations().cancelTransformGesture(editToken);
+         ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(editToken);
          return false;
       }
       session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
@@ -94,28 +95,28 @@ final class SelectionGestureController {
       return true;
    }
 
-   private static OperationContext.AabbAdjustDecision beginWorkspaceFaceDrag(ClientInputSession session,
+   private static OperationTransforms.AabbAdjustDecision beginWorkspaceFaceDrag(ClientInputSession session,
       OperationInteractionIntent.Face target, SelectionPointerPress press
    ) {
       if (session.selectionGestures().active()) {
-         return OperationContext.AabbAdjustDecision.EDIT_UNAVAILABLE;
+         return OperationTransforms.AabbAdjustDecision.EDIT_UNAVAILABLE;
       }
       if (ClientSessionSystem.instance().operations().workspaceSubmissionPending()) {
-         return OperationContext.AabbAdjustDecision.SUBMISSION_PENDING;
+         return OperationTransforms.AabbAdjustDecision.SUBMISSION_PENDING;
       }
       if (target == null || !target.adjustable()) {
-         return OperationContext.AabbAdjustDecision.NO_TARGET;
+         return OperationTransforms.AabbAdjustDecision.NO_TARGET;
       }
       var workspace = ClientSessionSystem.instance().operations().workspace();
       ClientSelectionPart part = workspace.part(target.partId()).orElse(null);
-      OperationContext.AabbAdjustDecision decision = ClientSessionSystem.instance().operations().aabbAdjustDecision(part);
-      if (!decision.ready() && decision != OperationContext.AabbAdjustDecision.CAPTURE_PENDING) {
+      OperationTransforms.AabbAdjustDecision decision = ClientSessionSystem.instance().operations().transforms().aabbAdjustDecision(part);
+      if (!decision.ready() && decision != OperationTransforms.AabbAdjustDecision.CAPTURE_PENDING) {
          return decision;
       }
       return captureWorkspaceFaceDrag(session, target, press, part, !decision.ready());
    }
 
-   static OperationContext.AabbAdjustDecision captureWorkspaceFaceDrag(ClientInputSession session,
+   static OperationTransforms.AabbAdjustDecision captureWorkspaceFaceDrag(ClientInputSession session,
       OperationInteractionIntent.Face target, SelectionPointerPress press, ClientSelectionPart part, boolean awaitingSource
    ) {
       var workspace = ClientSessionSystem.instance().operations().workspace();
@@ -124,7 +125,7 @@ final class SelectionGestureController {
       }
       workspace.activate(part.id());
       if (!workspace.beginEdit()) {
-         return OperationContext.AabbAdjustDecision.EDIT_UNAVAILABLE;
+         return OperationTransforms.AabbAdjustDecision.EDIT_UNAVAILABLE;
       }
       var editToken = workspace.activeEditToken();
       OperationGeometry.RayHit hit = target.hit();
@@ -139,7 +140,7 @@ final class SelectionGestureController {
          part, axis, positive, DragAxisFrame.start(hit.point(), false), hit.normal(), 0,
          capture, DeferredDragClick.start(press.pressedAtNanos(), press.shortPressSteps()), hit, editToken, awaitingSource
       ));
-      return OperationContext.AabbAdjustDecision.DRAG_STARTED;
+      return OperationTransforms.AabbAdjustDecision.DRAG_STARTED;
    }
 
    private static void selectOrBeginWorkspaceFace(ClientInputSession session,
@@ -167,17 +168,17 @@ final class SelectionGestureController {
             && drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGestureToken)) {
             if (drag.operation() == AxisGizmo.Operation.ROTATE) {
                double radians = RotationInputAngles.selectionFinish(drag.rotationRadians(), drag.freeRotation());
-               String failure = ClientSessionSystem.instance().operations().updateTransformGesture(drag.editToken(), drag.baseline(),
+               String failure = ClientSessionSystem.instance().operations().transforms().updateTransformGesture(drag.editToken(), drag.baseline(),
                   drag.common(), drag.operation(), drag.axis(), 1, GizmoDragCalculator.rotationSteps(radians), radians,
                   drag.axisVector(), drag.center());
                ClientInteractionFeedback.show(Minecraft.getInstance(), failure);
             }
-            ClientSessionSystem.instance().operations().finishTransformGesture(drag.editToken());
+            ClientSessionSystem.instance().operations().transforms().finishTransformGesture(drag.editToken());
             if (session.modifier.held()) {
                session.modifier.consume();
             }
          } else {
-            ClientSessionSystem.instance().operations().cancelTransformGesture(drag.editToken());
+            ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
          }
          finishPointer(session, drag.capture().gestureToken());
       }
@@ -188,9 +189,9 @@ final class SelectionGestureController {
       WorkspaceFaceDrag drag = session.selectionGestures().face();
       if (drag != null) {
          if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_FACE) && drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGestureToken)) {
-            ClientSessionSystem.instance().operations().finishTransformGesture(drag.editToken());
+            ClientSessionSystem.instance().operations().transforms().finishTransformGesture(drag.editToken());
          } else {
-            ClientSessionSystem.instance().operations().cancelTransformGesture(drag.editToken());
+            ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
          }
          finishPointer(session, drag.capture().gestureToken());
       }
@@ -210,7 +211,7 @@ final class SelectionGestureController {
       if (!session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_GIZMO)
          || !drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGestureToken)
          || !ClientSessionSystem.instance().operations().workspace().ownsEdit(drag.editToken())) {
-         ClientSessionSystem.instance().operations().cancelTransformGesture(drag.editToken());
+         ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
          finishPointer(session, drag.capture().gestureToken());
          session.selectionGestures().clear(drag);
          return;
@@ -239,7 +240,7 @@ final class SelectionGestureController {
          return;
       }
       int direction = drag.direction() == AxisGizmo.Direction.NEGATIVE ? -1 : 1;
-      String failureKey = ClientSessionSystem.instance().operations().updateTransformGesture(
+      String failureKey = ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
          drag.editToken(), drag.baseline(), drag.common(), drag.operation(), drag.axis(), direction, totalSteps, rotationRadians,
          drag.axisVector(), drag.center()
       );
@@ -273,13 +274,13 @@ final class SelectionGestureController {
       if (!session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_FACE)
          || !drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGestureToken)
          || !ClientSessionSystem.instance().operations().workspace().ownsEdit(drag.editToken())) {
-         ClientSessionSystem.instance().operations().cancelTransformGesture(drag.editToken());
+         ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
          finishPointer(session, drag.capture().gestureToken());
          session.selectionGestures().clear(drag);
          return;
       }
       if (drag.awaitingSource()) {
-         var decision = ClientSessionSystem.instance().operations().aabbAdjustDecision(drag.baseline());
+         var decision = ClientSessionSystem.instance().operations().transforms().aabbAdjustDecision(drag.baseline());
          drag = resolveFaceSource(session, drag, decision);
          if (drag == null || drag.awaitingSource()) return;
          original = drag;
@@ -296,7 +297,7 @@ final class SelectionGestureController {
       }
       int totalSteps = drag.frame().project(axisPoint, drag.normal());
       if (totalSteps != drag.sentSteps()) {
-         ClientSessionSystem.instance().operations().updateAabbFaceGesture(
+         ClientSessionSystem.instance().operations().transforms().updateAabbFaceGesture(
             drag.editToken(), drag.baseline(), drag.axis(), drag.positive(), totalSteps
          );
          drag = drag.withSentSteps(totalSteps);
@@ -305,10 +306,10 @@ final class SelectionGestureController {
    }
 
    static WorkspaceFaceDrag resolveFaceSource(ClientInputSession session, WorkspaceFaceDrag drag,
-      OperationContext.AabbAdjustDecision decision
+      OperationTransforms.AabbAdjustDecision decision
    ) {
       if (session.selectionGestures().face() != drag) return null;
-      if (decision == OperationContext.AabbAdjustDecision.CAPTURE_PENDING) return drag;
+      if (decision == OperationTransforms.AabbAdjustDecision.CAPTURE_PENDING) return drag;
       if (!decision.ready()) {
          cancelActive(session);
          ClientInteractionFeedback.showAabbAdjustFailure(Minecraft.getInstance(), decision);

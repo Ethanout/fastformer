@@ -208,7 +208,7 @@ class SelectionStackTest {
    @Test void scrollMovementFixesSmartGroupAndUndoRestoresIt() {
       workspace().addParts(List.of(smartPart()));
       var before = workspace().draftState();
-      assertTrue(ClientSessionSystem.instance().operations().moveSelected(BlockPos.ZERO.east()));
+      assertTrue(ClientSessionSystem.instance().operations().transforms().moveSelected(BlockPos.ZERO.east()));
       assertFalse(workspace().parts().getFirst().smartEditable());
       assertTrue(workspace().parts().getFirst().transformed());
       assertTrue(ClientSessionSystem.instance().operations().undo());

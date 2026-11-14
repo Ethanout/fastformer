@@ -49,9 +49,9 @@ class GroupRepeatTest {
             assertTrue(ClientSessionSystem.instance().operations().workspace().beginEdit());
             var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
             var baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
-            assertNull(ClientSessionSystem.instance().operations().updateTransformGesture(edit, baseline, false,
+            assertNull(ClientSessionSystem.instance().operations().transforms().updateTransformGesture(edit, baseline, false,
                AxisGizmo.Operation.SCALE, Axis.X, 1, steps, Double.NaN));
-            assertTrue(ClientSessionSystem.instance().operations().finishTransformGesture(edit));
+            assertTrue(ClientSessionSystem.instance().operations().transforms().finishTransformGesture(edit));
          }
          var adjusted = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
          assertEquals(2, adjusted.transform().repeats().max().getX());
@@ -94,15 +94,15 @@ class GroupRepeatTest {
                var baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
                long revision = ClientSessionSystem.instance().operations().workspace().revision();
 
-               assertEquals(expected, ClientSessionSystem.instance().operations().updateTransformGesture(
+               assertEquals(expected, ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
                   edit, baseline, true, AxisGizmo.Operation.ROTATE, Axis.Y, 1, 1, 0.1
                ));
-               assertNull(ClientSessionSystem.instance().operations().updateTransformGesture(
+               assertNull(ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
                   edit, baseline, true, AxisGizmo.Operation.ROTATE, Axis.Y, 1, 2, 0.2
                ));
                assertEquals(baseline, ClientSessionSystem.instance().operations().workspace().selectedParts());
                assertEquals(revision, ClientSessionSystem.instance().operations().workspace().revision());
-               ClientSessionSystem.instance().operations().finishTransformGesture(edit);
+               ClientSessionSystem.instance().operations().transforms().finishTransformGesture(edit);
             }
          }
       } finally {
@@ -126,7 +126,7 @@ class GroupRepeatTest {
             var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
             var baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-            ClientSessionSystem.instance().operations().updateTransformGesture(
+            ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
                edit, baseline, true, operation, Axis.X, 1, -1, Double.NaN
             );
 
@@ -154,7 +154,7 @@ class GroupRepeatTest {
       var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
       List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-      ClientSessionSystem.instance().operations().updateTransformGesture(
+      ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
          edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
@@ -184,7 +184,7 @@ class GroupRepeatTest {
       var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
       List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-      ClientSessionSystem.instance().operations().updateTransformGesture(
+      ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
          edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 
@@ -227,7 +227,7 @@ class GroupRepeatTest {
 
       // Three blocks of travel, as FastPlaceClientInput sends for a gesture without
       // whole-group repeats.
-      ClientSessionSystem.instance().operations().updateTransformGesture(
+      ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
          edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 3, Double.NaN
       );
 
@@ -263,7 +263,7 @@ class GroupRepeatTest {
       var edit = ClientSessionSystem.instance().operations().workspace().activeEditToken();
       List<ClientSelectionPart> baseline = ClientSessionSystem.instance().operations().workspace().selectedParts();
 
-      ClientSessionSystem.instance().operations().updateTransformGesture(
+      ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
          edit, baseline, true, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, Double.NaN
       );
 

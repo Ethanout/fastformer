@@ -1,9 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.operation.transform.OperationTransforms;
+
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static io.github.fastformer.client.operation.controller.OperationContext.AabbAdjustDecision.*;
+import static io.github.fastformer.client.operation.transform.OperationTransforms.AabbAdjustDecision.*;
 
 import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
@@ -76,7 +78,7 @@ class SelectionFaceCaptureTest {
 
    @Test void pushingFaceKeepsSelectionAdjustableUntilExplicitFix() {
       var drag = beginPending();
-      ClientSessionSystem.instance().operations().updateAabbFaceGesture(drag.editToken(), drag.baseline(), 0, true, 2);
+      ClientSessionSystem.instance().operations().transforms().updateAabbFaceGesture(drag.editToken(), drag.baseline(), 0, true, 2);
       SelectionGestureController.finishFace(input);
       var expanded = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
       assertEquals(5.0, expanded.selection().bounds().maxX);

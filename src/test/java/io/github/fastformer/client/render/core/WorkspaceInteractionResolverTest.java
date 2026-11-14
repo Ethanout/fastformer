@@ -121,9 +121,9 @@ class WorkspaceInteractionResolverTest {
          assertTrue(face.adjustable());
          assertTrue(workspace.beginEdit());
          var token = workspace.activeEditToken();
-         ClientSessionSystem.instance().operations().updateAabbFaceGesture(
+         ClientSessionSystem.instance().operations().transforms().updateAabbFaceGesture(
             token, first, 2, true, 2);
-         ClientSessionSystem.instance().operations().finishTransformGesture(token);
+         ClientSessionSystem.instance().operations().transforms().finishTransformGesture(token);
          var resized = workspace.part(1).orElseThrow();
          assertEquals(5.0, resized.selection().bounds().maxZ);
          assertTrue(resized.canAdjustGeometry());
@@ -178,7 +178,7 @@ class WorkspaceInteractionResolverTest {
          assertEquals(Set.of(1, 2), workspace.selectedIds());
          var targets = io.github.fastformer.client.input.drag.WorkspaceGizmoDrag.targets(workspace, 1, false);
          assertTrue(workspace.beginEdit());
-         ClientSessionSystem.instance().operations().updateTransformGesture(
+         ClientSessionSystem.instance().operations().transforms().updateTransformGesture(
             workspace.activeEditToken(), targets, false, AxisGizmo.Operation.MOVE, Axis.X, 1, 3, Double.NaN
          );
          assertEquals(first.transform().translation().add(3, 0, 0), workspace.part(1).orElseThrow().transform().translation());

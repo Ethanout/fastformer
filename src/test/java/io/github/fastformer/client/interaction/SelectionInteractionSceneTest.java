@@ -154,7 +154,7 @@ class SelectionInteractionSceneTest {
       ClientSessionSystem.instance().operations().clearWorkspace();
       try {
          ClientSessionSystem.instance().operations().workspace().addParts(List.of(cuboid(0)));
-         assertTrue(ClientSessionSystem.instance().operations().moveSelected(new BlockPos(4, 0, 0)));
+         assertTrue(ClientSessionSystem.instance().operations().transforms().moveSelected(new BlockPos(4, 0, 0)));
          var moved = ClientSessionSystem.instance().operations().interactionScene();
          assertEquals(cuboid(0).selection().bounds().move(4, 0, 0), moved.bounds(1));
          assertTrue(ClientSessionSystem.instance().operations().undo());
@@ -226,8 +226,8 @@ class SelectionInteractionSceneTest {
          workspace.beginEdit();
          var current = workspace.activeEditToken();
          var unpublished = ClientSessionSystem.instance().operations().interactionScene();
-         ClientSessionSystem.instance().operations().cancelTransformGesture(token);
-         assertFalse(ClientSessionSystem.instance().operations().finishTransformGesture(token));
+         ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(token);
+         assertFalse(ClientSessionSystem.instance().operations().transforms().finishTransformGesture(token));
          assertTrue(workspace.ownsEdit(current));
          assertSame(unpublished, ClientSessionSystem.instance().operations().interactionScene());
       } finally {

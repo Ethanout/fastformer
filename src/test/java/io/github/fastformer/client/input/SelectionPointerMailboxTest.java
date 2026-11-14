@@ -74,14 +74,14 @@ class SelectionPointerMailboxTest {
       var original = workspace.part(1).orElseThrow();
       assertTrue(workspace.beginEdit());
       var token = workspace.activeEditToken();
-      ClientSessionSystem.instance().operations().updateTransformGesture(token, List.of(original), false,
+      ClientSessionSystem.instance().operations().transforms().updateTransformGesture(token, List.of(original), false,
          AxisGizmo.Operation.MOVE, Axis.X, 1, 2, Double.NaN);
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
-      ClientSessionSystem.instance().operations().updateTransformGesture(token, List.of(original), false,
+      ClientSessionSystem.instance().operations().transforms().updateTransformGesture(token, List.of(original), false,
          AxisGizmo.Operation.MOVE, Axis.X, 1, 0, Double.NaN);
       assertEquals(original.transform(), workspace.part(1).orElseThrow().transform());
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
-      ClientSessionSystem.instance().operations().finishTransformGesture(token);
+      ClientSessionSystem.instance().operations().transforms().finishTransformGesture(token);
       assertFalse(workspace.part(1).orElseThrow().canAdjustGeometry());
       assertTrue(ClientSessionSystem.instance().operations().undo());
       assertTrue(workspace.part(1).orElseThrow().canAdjustGeometry());
@@ -408,7 +408,7 @@ class SelectionPointerMailboxTest {
       var old = ClientSessionSystem.instance().operations().selectionGestures().gizmo();
       assertNotNull(old);
       long oldRouting = this.input.clickGestureToken;
-      ClientSessionSystem.instance().operations().cancelTransformGesture(old.editToken());
+      ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(old.editToken());
       ClientSessionSystem.instance().operations().selectionGestures().clear(old);
       bindFaceDrag(press);
       var replacement = ClientSessionSystem.instance().operations().selectionGestures().capture();

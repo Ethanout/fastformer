@@ -57,15 +57,15 @@ class OperationPreviewRendererTest {
          second = workspace.part(2).orElseThrow();
          assertTrue(workspace.beginEdit());
          var token = workspace.activeEditToken();
-         ClientSessionSystem.instance().operations().updateTransformGesture(token, List.of(first), false,
+         ClientSessionSystem.instance().operations().transforms().updateTransformGesture(token, List.of(first), false,
             AxisGizmo.Operation.MOVE, Axis.X, 1, 4, Double.NaN);
          if (separateDrag) {
-            assertTrue(ClientSessionSystem.instance().operations().finishTransformGesture(token));
+            assertTrue(ClientSessionSystem.instance().operations().transforms().finishTransformGesture(token));
             first = workspace.part(1).orElseThrow();
             assertTrue(workspace.beginEdit());
             token = workspace.activeEditToken();
          }
-         ClientSessionSystem.instance().operations().updateTransformGesture(token, List.of(first), false,
+         ClientSessionSystem.instance().operations().transforms().updateTransformGesture(token, List.of(first), false,
             AxisGizmo.Operation.MOVE, Axis.X, 1, separateDrag ? -4 : 0, Double.NaN);
          var returned = ClientSessionSystem.instance().operations().interactionScene().parts().get(1);
          assertEquals(selection.bounds(), returned.bounds());
@@ -75,7 +75,7 @@ class OperationPreviewRendererTest {
          assertTrue(OperationPreviewRenderer.shouldRenderPartOutline(returned, false));
          assertTrue(InteractionVisibility.isVisible(returned.gizmo(), true));
          assertFalse(InteractionVisibility.isVisible(returned.gizmo(), false));
-         assertTrue(ClientSessionSystem.instance().operations().finishTransformGesture(token));
+         assertTrue(ClientSessionSystem.instance().operations().transforms().finishTransformGesture(token));
          ClientSessionSystem.instance().operations().selectWorkspacePart(2, false);
          assertTrue(OperationPreviewRenderer.shouldRenderPartOutline(ClientSessionSystem.instance().operations().interactionScene().parts().get(1), false));
          assertEquals(second, workspace.latestPart().orElseThrow());

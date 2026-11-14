@@ -45,7 +45,7 @@ final class SelectionInputDispatcher {
             if (session.routing.dispatch(ClientInputStateMachine.InputKind.POINTER) == ClientInputStateMachine.Dispatch.OPERATION
                && snapshot.matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace())
                && !session.selectionGestures().active() && snapshot.point() != null) {
-               var decision = ClientSessionSystem.instance().operations().adjustAabbPoint(snapshot.partId(), snapshot.button(), snapshot.point());
+               var decision = ClientSessionSystem.instance().operations().transforms().adjustAabbPoint(snapshot.partId(), snapshot.button(), snapshot.point());
                ClientInteractionFeedback.showAabbAdjustFailure(minecraft, decision);
             }
             session.selectionPointer.dispatched(press.identity(), null, 0L);
@@ -75,7 +75,7 @@ final class SelectionInputDispatcher {
       var drag = gestures.capturedBy(capture);
       if (drag != null) {
          if (cancelled) {
-            ClientSessionSystem.instance().operations().cancelTransformGesture(drag.editToken());
+            ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
             SelectionGestureController.finishPointer(session, capture.gestureToken());
             gestures.clear(drag);
          } else if (drag instanceof WorkspaceFaceDrag) {
