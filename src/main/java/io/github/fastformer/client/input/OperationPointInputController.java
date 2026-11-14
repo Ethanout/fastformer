@@ -34,8 +34,8 @@ final class OperationPointInputController {
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id())) {
          return java.util.Optional.empty();
       }
-      int pointIndex = FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex();
-      Vec3 center = FastPlaceClientPreviewCore.operationPointCenter(pointIndex);
+      int pointIndex = ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex();
+      Vec3 center = ClientSessionSystem.instance().operations().remotePointer().operationPointCenter(pointIndex);
       if (pointIndex < 0 || center == null) return java.util.Optional.empty();
       BlockPos initialPoint = BlockPos.containing(center);
       Vec3 eye = minecraft.player.getEyePosition();
@@ -45,8 +45,8 @@ final class OperationPointInputController {
          OperationPointDragCalculator.axisOffset(center, eye, view, 1),
          OperationPointDragCalculator.axisOffset(center, eye, view, 2)
       );
-      SelectionPrism.GridPlane plane = FastPlaceClientPreviewCore.operationPointGridPlane(pointIndex);
-      SelectionPrism.GridLine line = FastPlaceClientPreviewCore.operationPointGridLine(pointIndex);
+      SelectionPrism.GridPlane plane = ClientSessionSystem.instance().operations().remotePointer().operationPointGridPlane(pointIndex);
+      SelectionPrism.GridLine line = ClientSessionSystem.instance().operations().remotePointer().operationPointGridLine(pointIndex);
       Vec3 planeHit = plane == null ? null : plane.rayIntersection(eye, view);
       return java.util.Optional.of(new OperationPointDragPress(
          1L, mouseButton, occurredAtNanos, ClientSessionSystem.instance().operations().remoteSelectionIdentity(),
@@ -215,8 +215,8 @@ final class OperationPointInputController {
          return;
       }
       if (finished.pointIndex() == 0
-         && FastPlaceClientPreviewCore.operationPrismBaseOpen()
-         && FastPlaceClientPreviewCore.operationPointCount() >= 3
+         && ClientSessionSystem.instance().operations().remotePointer().operationPrismBaseOpen()
+         && ClientSessionSystem.instance().operations().remotePointer().operationPointCount() >= 3
          && sendPointClick(minecraft, finished, OperationPointClickPayload.Action.CLOSE)) {
          session.lastOperationPointRightClickAt = 0L;
          session.lastOperationPointRightClickIndex = -1;
@@ -229,8 +229,8 @@ final class OperationPointInputController {
          boolean doubleClick = finished.pointIndex() == session.lastOperationPointRightClickIndex
             && now - session.lastOperationPointRightClickAt <= OPERATION_POINT_DOUBLE_CLICK_NANOS;
          if (doubleClick
-            && FastPlaceClientPreviewCore.operationPrismBaseOpen()
-            && FastPlaceClientPreviewCore.operationPointCount() >= 3
+            && ClientSessionSystem.instance().operations().remotePointer().operationPrismBaseOpen()
+            && ClientSessionSystem.instance().operations().remotePointer().operationPointCount() >= 3
             && sendPointClick(minecraft, finished, OperationPointClickPayload.Action.CLOSE)) {
             session.lastOperationPointRightClickAt = 0L;
             session.lastOperationPointRightClickIndex = -1;

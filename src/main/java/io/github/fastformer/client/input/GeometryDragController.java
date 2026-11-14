@@ -29,7 +29,7 @@ final class GeometryDragController {
          return false;
       }
       AxisGizmo.Handle handle = hit.handle();
-      double baseValue = FastPlaceClientPreviewCore.operationGizmoValue(handle.axis(), handle.operation());
+      double baseValue = ClientSessionSystem.instance().operations().remotePointer().operationGizmoValue(handle.axis(), handle.operation());
       if (handle.drawsRing()) {
          Vec3 radial = hit.point().subtract(gizmo.center());
          if (radial.lengthSqr() < 1.0E-7) {

@@ -14,10 +14,10 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.transform` | 绑定工作区的移动、旋转、翻转、堆叠和面／点调整；自管扫描、完成与取消 |
 | `client.operation.submission` | 绑定编辑器的提交准备、等待、超时、在线结果与回执查询；存储、连接及输入通过接口注入 |
 | `client.operation.edit` | 绑定选区会话的选点、智能采样、草稿补全、局部撤回和删除捕获 |
-| `client.operation.pointer` | 绑定选区的手柄／面／部件命中、创建候选与变换方块缓存；不依赖渲染入口 |
+| `client.operation.pointer` | 绑定选区的手柄／面／部件命中、创建候选与变换方块缓存；RemoteSelectionPointer 拥有所属远端预览的选点、棱柱约束和手柄查询，输入与绘制复用，不依赖渲染入口 |
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
-| `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回 |
+| `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回；共享射线用途优先级及有距离上限的点格命中 |
 | `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式按键／滚轮决策 |
 | `client.mode.input.pointer` | 不可变鼠标事实、左右键动作与共享捕获优先级；模式只决策，不查询实时客户端 |
 | `client.preview` / `frame` | 预览模型／绘制契约、显式世界绘制帧和统一动画相位；完整跨模式 PreviewFrame 仍在迁移 |

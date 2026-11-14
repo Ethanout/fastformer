@@ -17,7 +17,6 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.gizmo.GizmoViewScale;
-import io.github.fastformer.client.gizmo.OperationGizmoPresentation;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.ModifierReticleMode;
 import io.github.fastformer.client.input.PointerDragSnapshotView;
@@ -39,8 +38,8 @@ import io.github.fastformer.client.preview.geometry.GeometryPreviewModel;
 import io.github.fastformer.client.render.hud.GeometryTextBlockRenderer;
 import io.github.fastformer.client.render.hud.GizmoHudTextFormatter;
 import io.github.fastformer.client.render.hud.PreviewFeedbackHud;
-import io.github.fastformer.client.render.interaction.OperationPointerKind;
-import io.github.fastformer.client.render.interaction.OperationPointerTarget;
+import io.github.fastformer.client.operation.pointer.OperationPointerKind;
+import io.github.fastformer.client.operation.pointer.OperationPointerTarget;
 import io.github.fastformer.client.render.model.*;
 import io.github.fastformer.client.session.preview.ClientPreviewState;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
@@ -52,7 +51,6 @@ import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.fastplace.geometry.TransformFrame;
 import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
@@ -151,6 +149,9 @@ public final class FastPlaceClientPreviewCore {
    private static ClientPreviewState previews() {
       return ClientSessionSystem.instance().previews();
    }
+   private static io.github.fastformer.client.operation.pointer.RemoteSelectionPointer remotePointer() {
+      return ClientSessionSystem.instance().operations().remotePointer();
+   }
    /** Owns transient interaction feedback and its HUD rendering. */
    private static final PreviewFeedbackHud FEEDBACK = new PreviewFeedbackHud(FastPlaceClientPreviewCore::gizmoAxisHudColor);
    static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
@@ -234,14 +235,6 @@ public final class FastPlaceClientPreviewCore {
          || ClientSessionSystem.instance().operations().selectionSessionActive();
    }
 
-   public static boolean operationNeedsSecond() {
-      return previews().operation().active() && !previews().operation().hasSecond();
-   }
-
-   public static boolean operationNeedsFirst() {
-      return previews().operation().active() && !previews().operation().hasFirst();
-   }
-
    public static boolean operationSelectionReady() {
       return ClientSessionSystem.instance().operations().operationSelectionReady();
    }
@@ -254,10 +247,6 @@ public final class FastPlaceClientPreviewCore {
       return ClientSessionSystem.instance().operations().operationAdjustmentStarted();
    }
 
-   public static int operationPointCount() {
-      return previews().operation().active() ? previews().operation().points().size() : 0;
-   }
-
    public static boolean operationCuboid() {
       return ClientSessionSystem.instance().operations().operationCuboid();
    }
@@ -266,192 +255,12 @@ public final class FastPlaceClientPreviewCore {
       return ClientSessionSystem.instance().operations().operationPrism();
    }
 
-   public static boolean operationPrismBaseOpen() {
-      return previews().operation().active()
-         && previews().operation().operationSelectionMode() == OperationSelectionMode.PRISM
-         && previews().operation().operationPrismBasePointCount() == 0;
-   }
-
-   public static boolean operationPointSelected() {
-      return previews().operation().active()
-         && previews().operation().operationSelectedPointIndex() >= 0
-         && previews().operation().operationSelectedPointIndex() < previews().operation().points().size();
-   }
-
-   public static int operationSelectedPointIndex() {
-      return operationPointSelected() ? previews().operation().operationSelectedPointIndex() : -1;
-   }
-
-   public static Vec3 operationPointCenter(int index) {
-      return previews().operation().active() && index >= 0 && index < previews().operation().points().size()
-         ? Vec3.atCenterOf(previews().operation().points().get(index))
-         : null;
-   }
-
-   public static int operationPointUnderCrosshairIndex() {
-      if (!previews().operation().active() || operationSelectionConfirmed() || previews().operation().points().isEmpty()) {
-         return -1;
-      }
-      BlockPos point = pointUnderCrosshair(previews().operation().points(), true);
-      return point == null ? -1 : previews().operation().points().indexOf(point);
-   }
-
-   public static SelectionPrism.EdgeInsertion operationPrismEdgeInsertion() {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (!operationPrism() || operationSelectionConfirmed() || PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()) || player == null || previews().operation().points().size() < 2
-         || operationPointUnderCrosshairIndex() >= 0) {
-         return null;
-      }
-      var ray = blockPointer(player);
-      return SelectionPrism.resolveEdgeInsertion(
-         previews().operation().points(),
-         previews().operation().operationPrismBasePointCount(),
-         player.getEyePosition(),
-         player.getViewVector(1.0F),
-         ray.distance()
-      );
-   }
-
-   public static SelectionPrism.GridPlane operationPointGridPlane(int pointIndex) {
-      if (!operationPrism() || pointIndex < 0 || pointIndex >= previews().operation().points().size()) {
-         return null;
-      }
-      int baseCount = previews().operation().operationPrismBasePointCount() >= 3
-         ? previews().operation().operationPrismBasePointCount()
-         : previews().operation().points().size();
-      return pointIndex < baseCount && baseCount >= 3
-         ? SelectionPrism.gridPlane(previews().operation().points().subList(0, baseCount))
-         : null;
-   }
-
-   public static SelectionPrism.GridLine operationPointGridLine(int pointIndex) {
-      if (!operationPrism() || pointIndex < 0 || pointIndex >= previews().operation().points().size()) {
-         return null;
-      }
-      int closedBaseCount = previews().operation().operationPrismBasePointCount();
-      int baseCount = closedBaseCount >= 3 ? closedBaseCount : previews().operation().points().size();
-      if (baseCount < 3 || pointIndex != 0 && (closedBaseCount < 3 || pointIndex < baseCount)) {
-         return null;
-      }
-      return SelectionPrism.heightGridLine(previews().operation().points().subList(0, baseCount));
-   }
-
-   public static BlockPos operationCandidatePoint() {
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft.player == null || operationSelectionConfirmed()) {
-         return null;
-      }
-      var ray = blockPointer(minecraft.player);
-      BlockHitResult hit = ray.hit();
-      if (operationPrismBaseOpen() && previews().operation().points().size() >= 3) {
-         return SelectionPrism.resolveBasePlanePoint(
-            previews().operation().points(),
-            minecraft.player.getEyePosition(),
-            minecraft.player.getViewVector(1.0F),
-            ray.distance()
-         );
-      }
-      if (operationWaitingForPrismHeight()) {
-         int baseCount = previews().operation().operationPrismBasePointCount();
-         return SelectionPrism.resolveHeightPoint(
-            previews().operation().points().subList(0, baseCount),
-            minecraft.player.getEyePosition(),
-            minecraft.player.getViewVector(1.0F),
-            ray.distance()
-         );
-      }
-      return hit.getType() == Type.BLOCK ? hit.getBlockPos() : null;
-   }
-
-   public static OperationPointerTarget operationPointerTarget() {
-      Minecraft minecraft = Minecraft.getInstance();
-      LocalPlayer player = minecraft.player;
-      if (player == null) {
-         return OperationPointerTarget.none();
-      }
-      BlockHitResult worldHit = raycastBlocks(player);
-      OperationGeometry.RayHit faceHit = null;
-      if (operationCuboid() && operationSelectionReady()) {
-         OperationSelectionVolume selection = operationSelection();
-         if (selection != null) {
-            faceHit = selection.raycast(player.getEyePosition(), player.getViewVector(1.0F), visiblePreviewReach(player));
-         }
-      }
-      double worldDistance = worldHit.getType() == Type.BLOCK
-         ? player.getEyePosition().distanceTo(worldHit.getLocation())
-         : Double.POSITIVE_INFINITY;
-      if (worldHit.getType() == Type.BLOCK && (faceHit == null || worldDistance < faceHit.distance())) {
-         return OperationPointerTarget.world(worldHit.getBlockPos(), worldDistance);
-      }
-      return faceHit == null ? OperationPointerTarget.none() : OperationPointerTarget.face(faceHit);
-   }
-
-   private static boolean operationWaitingForPrismHeight() {
-      return previews().operation().active()
-         && previews().operation().operationSelectionMode() == OperationSelectionMode.PRISM
-         && previews().operation().operationPrismBasePointCount() >= 3
-         && previews().operation().points().size() == previews().operation().operationPrismBasePointCount();
-   }
-
-   public static AxisGizmo operationGizmo() {
-      if (ClientSessionSystem.instance().operations().active()) {
-         return null;
-      }
-      OperationSelectionVolume selection = operationSelection();
-      Minecraft minecraft = Minecraft.getInstance();
-      if (selection == null
-         || !operationSelectionReady()
-         || minecraft.player == null) {
-         return null;
-      }
-      AxisGizmo.Operation[] operations = OperationGizmoPresentation.operations(previews().operation().operationStageMode())
-         .toArray(AxisGizmo.Operation[]::new);
-      if (operations.length == 0) {
-         return null;
-      }
-      AABB bounds = selection.bounds();
-      Vec3 center = bounds.getCenter();
-      BlockPos minDisplacement = OperationGeometry.stackDisplacement(bounds, previews().operation().operationStackMin());
-      BlockPos maxDisplacement = OperationGeometry.stackDisplacement(bounds, previews().operation().operationStackMax());
-      center = center.add(
-         (minDisplacement.getX() + maxDisplacement.getX()) * 0.5,
-         (minDisplacement.getY() + maxDisplacement.getY()) * 0.5,
-         (minDisplacement.getZ() + maxDisplacement.getZ()) * 0.5
-      ).add(Vec3.atLowerCornerOf(previews().operation().operationTranslation()));
-      Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
-      GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
-      TransformFrame frame = TransformFrame.world(center);
-      AxisGizmo gizmo = AxisGizmo.inFrame(
-         frame,
-         scale.axisLength(),
-         scale.handleRadius(),
-         operations
-      ).withTextComponent(GizmoTextComponent.pointLevel());
-      AxisGizmo.Hit hit = gizmo.hitTest(
-         minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F), PREVIEW_REACH
-      );
-      AxisGizmo.HandleKey hovered = hit == null ? null : hit.handle().key();
-      return gizmo.withState(hovered, PointerDragSnapshotView.operationKey(FastPlaceClientInput.currentSession()));
-   }
-
-   public static double operationGizmoValue(Axis axis, AxisGizmo.Operation operation) {
-      if (!operationSelectionReady() || axis == null || operation == null) {
-         return 0.0;
-      }
-      return switch (operation) {
-         case MOVE -> axisComponent(Vec3.atLowerCornerOf(previews().operation().operationTranslation()), axis);
-         case SCALE -> axisComponent(Vec3.atLowerCornerOf(previews().operation().operationStackVector()), axis);
-         case ROTATE -> Math.toDegrees(axisComponent(previews().operation().operationRotation(), axis));
-      };
-   }
-
    public static AxisGizmo.Hit operationGizmoHit() {
       OperationInteractionIntent.Gizmo workspaceTarget = operationWorkspaceGizmoHit();
       if (ClientSessionSystem.instance().operations().active()) {
          return workspaceTarget == null ? null : workspaceTarget.hit();
       }
-      AxisGizmo gizmo = operationGizmo();
+      AxisGizmo gizmo = remotePointer().operationGizmo();
       Minecraft minecraft = Minecraft.getInstance();
       return gizmo == null || minecraft.player == null
          ? null
@@ -466,18 +275,10 @@ public final class FastPlaceClientPreviewCore {
       return ClientSessionSystem.instance().operations().pointer().frame().gizmo();
    }
 
-   public static OperationGeometry.RayHit operationFaceHit() {
-      if (!operationCuboid() || operationSelectionConfirmed() || PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())) {
-         return null;
-      }
-      OperationPointerTarget target = operationPointerTarget();
-      return target.kind() == OperationPointerKind.FACE ? target.face() : null;
-   }
-
    static OperationGeometry.RayHit operationFaceTarget(OperationSelectionVolume selection) {
       OperationGeometry.RayHit dragged = PointerDragSnapshotView.operationFaceHit(FastPlaceClientInput.currentSession());
       if (dragged == null) {
-         return operationFaceHit();
+         return remotePointer().operationFaceHit();
       }
       if (selection == null || selection.prism() != null || dragged.axis() < 0 || dragged.axis() > 2) {
          return dragged;
@@ -645,13 +446,13 @@ public final class FastPlaceClientPreviewCore {
          return geometryCandidatePoint(minecraft, player);
       }
       if (previews().operation().active()) {
-         return operationCandidatePoint();
+         return remotePointer().operationCandidatePoint();
       }
       return previews().building().active() ? buildingCandidatePoint(previews().building(), player) : null;
    }
 
    private static List<BlockPos> closablePathPoints(int minimumPoints) {
-      if (operationPrismBaseOpen() && previews().operation().points().size() >= minimumPoints) {
+      if (remotePointer().operationPrismBaseOpen() && previews().operation().points().size() >= minimumPoints) {
          return previews().operation().points();
       }
       if (previews().geometry().active()
@@ -670,39 +471,19 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static BlockPos pointUnderCrosshair(List<BlockPos> points) {
-      return pointUnderCrosshair(points, false);
-   }
-
-   private static BlockPos pointUnderCrosshair(List<BlockPos> points, boolean throughBlocks) {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
       if (player == null || points.isEmpty()) {
          return null;
       }
       Vec3 eye = player.getEyePosition();
-      Vec3 direction = player.getViewVector(1.0F).normalize();
       double maxDistance = PREVIEW_REACH;
-      if (!throughBlocks) {
-         BlockHitResult worldHit = raycastBlocks(player);
-         if (worldHit.getType() == Type.BLOCK) {
-            maxDistance = Math.min(maxDistance, eye.distanceTo(worldHit.getLocation()) + 1.0E-4);
-         }
+      BlockHitResult worldHit = raycastBlocks(player);
+      if (worldHit.getType() == Type.BLOCK) {
+         maxDistance = Math.min(maxDistance, eye.distanceTo(worldHit.getLocation()) + 1.0E-4);
       }
-      Vec3 end = eye.add(direction.scale(maxDistance));
-      BlockPos closest = null;
-      double bestRayDistance = Double.POSITIVE_INFINITY;
-      for (BlockPos point : points) {
-         java.util.Optional<Vec3> hit = new AABB(point).clip(eye, end);
-         if (hit.isPresent()) {
-            double rayDistance = eye.distanceToSqr(hit.orElseThrow());
-            if (rayDistance >= bestRayDistance) {
-               continue;
-            }
-            bestRayDistance = rayDistance;
-            closest = point;
-         }
-      }
-      return closest;
+      return io.github.fastformer.client.interaction.pointer.PointRaycast.nearest(
+         points, eye, player.getViewVector(1.0F), maxDistance);
    }
 
    public static BlockPos lineModeCandidate() {
@@ -717,31 +498,8 @@ public final class FastPlaceClientPreviewCore {
    }
 
    public static AABB operationBounds() {
-      OperationSelectionVolume selection = operationSelection();
+      OperationSelectionVolume selection = remotePointer().operationSelection();
       return selection == null ? null : selection.bounds();
-   }
-
-   public static OperationSelectionVolume operationSelection() {
-      OperationPreviewPayload snapshot = previews().operation();
-      if (!snapshot.active()) {
-         return null;
-      }
-      if (snapshot.operationSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID
-         && snapshot.selectionMin() != null && snapshot.selectionMax() != null) {
-         return OperationSelectionVolume.cuboid(
-            snapshot.selectionMin(), snapshot.selectionMax(),
-            snapshot.points().isEmpty() ? null : snapshot.points().getFirst(),
-            snapshot.points().size() < 2 ? null : snapshot.points().get(1)
-         );
-      }
-      return OperationSelectionVolume.create(
-            snapshot.operationSelectionMode(),
-            snapshot.points(),
-            snapshot.operationPrismBasePointCount(),
-            snapshot.operationMinOffset(),
-            snapshot.operationMaxOffset(),
-            snapshot.operationHullInflation()
-         );
    }
 
    public static boolean usesAngleDistance() {
@@ -1266,7 +1024,7 @@ public final class FastPlaceClientPreviewCore {
       }
       OperationInteractionIntent operationTarget = operationInteractionIntent().orElse(null);
       if (operationGizmoHit() == null
-         && operationPointUnderCrosshairIndex() < 0
+         && remotePointer().operationPointUnderCrosshairIndex() < 0
          && operationTarget instanceof OperationInteractionIntent.Face face) {
          for (Component line : WorkspacePointerPrompt.crosshairActionLines(face, workspaceLocked)) {
             graphics.drawString(minecraft.font, line, x, y, GeometryPalette.text().argb(), true);
@@ -1371,7 +1129,7 @@ public final class FastPlaceClientPreviewCore {
       }
       if (previews().operation().active()) {
          return new GizmoHudInput(
-            operationGizmo(),
+            remotePointer().operationGizmo(),
             PointerDragSnapshotView.operationAxis(FastPlaceClientInput.currentSession()),
             PointerDragSnapshotView.operationOperation(FastPlaceClientInput.currentSession()),
             PointerDragSnapshotView.operationBaseValue(FastPlaceClientInput.currentSession()),
@@ -1401,7 +1159,7 @@ public final class FastPlaceClientPreviewCore {
          return geometryGizmoValue(geometryPlan, axis, operation);
       }
       if (operationSelectionReady()) {
-         return operationGizmoValue(axis, operation);
+         return remotePointer().operationGizmoValue(axis, operation);
       }
       double value = input.gizmo() == null
          ? input.dragBaseValue()
@@ -1872,21 +1630,14 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static LongRangeBlockRaycast.Result blockPointer(LocalPlayer player) {
-      PreviewRenderOwner owner = PreviewRenderOwner.select(
-         previews().building().active(),
-         previews().operation().active(),
-         ClientSessionSystem.instance().operations().active(),
-         previews().geometry().active()
-      );
-      boolean placement = owner == PreviewRenderOwner.BUILDING || owner == PreviewRenderOwner.NONE
-         && !ClientSessionSystem.instance().operations().selectionSessionActive() && !ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
-         && io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(player.getMainHandItem());
-      boolean selection = owner == PreviewRenderOwner.OPERATION || ClientSessionSystem.instance().operations().selectionSessionActive()
-         || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
-         || owner == PreviewRenderOwner.NONE && player.getMainHandItem().isEmpty();
+      var operations = ClientSessionSystem.instance().operations();
+      var hand = player.getMainHandItem();
+      var policy = io.github.fastformer.client.interaction.pointer.PointerRayPolicy.select(
+         previews().geometry().active(), previews().building().active(), operations.active(),
+         operations.selectionSessionActive() || operations.selectionEdits().selectionDraftActive(),
+         hand.isEmpty(), PlaceableItems.isPlaceable(hand));
       var pointer = ClientSessionSystem.instance().inputSession().pointer();
-      return selection ? pointer.selection(player, FastPlaceClientInput.modifierHeld())
-         : placement ? pointer.placement(player) : pointer.outline(player);
+      return pointer.sample(player, FastPlaceClientInput.modifierHeld(), policy);
    }
 
    static double pendingGridDashOffset() {

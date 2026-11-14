@@ -69,6 +69,8 @@ public final class OperationContext {
    private final OperationSubmissions submissions;
    private final io.github.fastformer.client.operation.pointer.WorkspacePointerResolver pointer;
    public io.github.fastformer.client.operation.pointer.WorkspacePointerResolver pointer() { return pointer; }
+   private final io.github.fastformer.client.operation.pointer.RemoteSelectionPointer remotePointer;
+   public io.github.fastformer.client.operation.pointer.RemoteSelectionPointer remotePointer() { return remotePointer; }
    private final OperationPreviewState preview = new OperationPreviewState();
    private final OperationReceipts receipts = new OperationReceipts(() -> ClientSessionSystem.instance().submissions(),
       () -> {
@@ -111,6 +113,18 @@ public final class OperationContext {
          selectionEdits::capturePending, this::ownsCurrentInteraction,
          this::captureFailed, this::synchronizeDerivedWorkspaceState);
       var rays = Objects.requireNonNull(input, "input").pointer();
+      this.remotePointer = new io.github.fastformer.client.operation.pointer.RemoteSelectionPointer(preview::live, this::active,
+         context -> {
+            var previews = ClientSessionSystem.instance().previews();
+            var hand = context.player().getMainHandItem();
+            var policy = io.github.fastformer.client.interaction.pointer.PointerRayPolicy.select(
+               previews.geometry().active(), previews.building().active(), active(),
+               selectionSessionActive() || selectionEdits.selectionDraftActive(), hand.isEmpty(),
+               io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(hand));
+            return rays.sample(context.player(), context.alternative(), policy);
+         },
+         () -> io.github.fastformer.client.interaction.intent.InteractionContext.capture(Minecraft.getInstance()),
+         () -> io.github.fastformer.client.input.PointerDragSnapshotView.operationKey(input));
       this.pointer = new io.github.fastformer.client.operation.pointer.WorkspacePointerResolver(selection,
          selectionEdits::smartEditing, this::failedWorkspaceTargets, rays,
          new io.github.fastformer.client.operation.pointer.SelectionCreationPointer(selection, selectionEdits,
@@ -508,13 +522,7 @@ public final class OperationContext {
    }
 
    private boolean selectionReady(OperationPreviewPayload payload) {
-      OperationSelectionMode mode = payload.operationSelectionMode();
-      return mode == OperationSelectionMode.CUBOID
-         ? payload.hasFirst() && payload.hasSecond()
-         : mode == OperationSelectionMode.PRISM
-            ? payload.operationPrismBasePointCount() >= 3
-               && payload.points().size() > payload.operationPrismBasePointCount()
-            : payload.points().size() >= mode.requiredPoints();
+      return io.github.fastformer.client.operation.pointer.RemoteSelectionPointer.ready(payload);
    }
 
    private void synchronizeDerivedWorkspaceState() {

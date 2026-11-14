@@ -20,7 +20,7 @@ public record OperationPointCommandPress(
    }
 
    public static OperationPointCommandPress select(long occurredAtNanos) {
-      int index = FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex();
+      int index = ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex();
       return new OperationPointCommandPress(
          ClientSessionSystem.instance().operations().interactionScene().owner(),
          ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(),

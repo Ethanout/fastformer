@@ -34,7 +34,7 @@ final class OperationPointCommandDispatcher {
    }
 
    static boolean insertEdge(Minecraft minecraft) {
-      if (FastPlaceClientPreviewCore.operationPrismEdgeInsertion() == null
+      if (ClientSessionSystem.instance().operations().remotePointer().operationPrismEdgeInsertion() == null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationInsertPointPayload.TYPE.id())) return false;
       ClientInputSession session = FastPlaceClientInput.currentSession();
       session.captureOperationPointCommand(OperationPointCommandPress.insert(System.nanoTime()));
@@ -43,11 +43,11 @@ final class OperationPointCommandDispatcher {
 
    static boolean queueNext(ClientInputSession session, Minecraft minecraft) {
       if (!ClientSessionSystem.instance().operations().operationPrism()
-         || FastPlaceClientPreviewCore.operationCandidatePoint() == null
+         || ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint() == null
          || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) return false;
-      OperationPointPayload.Role role = FastPlaceClientPreviewCore.operationNeedsFirst()
+      OperationPointPayload.Role role = ClientSessionSystem.instance().operations().remotePointer().operationNeedsFirst()
          ? OperationPointPayload.Role.FIRST
-         : FastPlaceClientPreviewCore.operationNeedsSecond()
+         : ClientSessionSystem.instance().operations().remotePointer().operationNeedsSecond()
          ? OperationPointPayload.Role.SECOND : OperationPointPayload.Role.EXTRA;
       session.postRemoteSelectionPoint(RemoteSelectionPointDispatcher.capture(role));
       return true;
@@ -55,7 +55,7 @@ final class OperationPointCommandDispatcher {
 
    static boolean select(Minecraft minecraft) {
       if (!ClientSessionSystem.instance().operations().operationPrism()) return false;
-      int index = FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex();
+      int index = ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex();
       if (index < 0 || !NetworkRegistry.hasChannel(minecraft.getConnection(), OperationSelectPointPayload.TYPE.id())) return false;
       FastPlaceClientInput.currentSession().captureOperationPointCommand(OperationPointCommandPress.select(System.nanoTime()));
       return true;

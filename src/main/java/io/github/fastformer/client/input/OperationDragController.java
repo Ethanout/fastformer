@@ -27,7 +27,7 @@ final class OperationDragController {
    private OperationDragController() { }
 
    static boolean beginFace(Minecraft minecraft, ClientInputSession session, int mouseButton, int shortPressSteps) {
-      OperationSelectionVolume selection = FastPlaceClientPreviewCore.operationSelection();
+      OperationSelectionVolume selection = ClientSessionSystem.instance().operations().remotePointer().operationSelection();
       if (selection == null
          || shortPressSteps == 0
          || !ClientSessionSystem.instance().operations().operationSelectionReady()
@@ -37,7 +37,7 @@ final class OperationDragController {
 
       Vec3 eye = minecraft.player.getEyePosition();
       OperationGeometry.RayHit hit = ClientSessionSystem.instance().operations().operationCuboid()
-         ? FastPlaceClientPreviewCore.operationFaceHit()
+         ? ClientSessionSystem.instance().operations().remotePointer().operationFaceHit()
          : selection.raycast(eye, minecraft.player.getViewVector(1.0F), LongRangeBlockRaycast.MAX_REACH);
       if (hit == null) {
          return false;
@@ -70,7 +70,7 @@ final class OperationDragController {
    }
 
    static boolean beginGizmo(Minecraft minecraft, ClientInputSession session, int mouseButton) {
-      AxisGizmo gizmo = FastPlaceClientPreviewCore.operationGizmo();
+      AxisGizmo gizmo = ClientSessionSystem.instance().operations().remotePointer().operationGizmo();
       AxisGizmo.Hit hit = gizmoHit(minecraft, gizmo);
       if (gizmo == null || hit == null) {
          return false;
@@ -83,7 +83,7 @@ final class OperationDragController {
       boolean positive = handle.direction() != AxisGizmo.Direction.NEGATIVE;
       Vec3 vector = gizmo.axisVector(handle.axis()).scale(positive ? 1.0 : -1.0);
       int encodedAxis = handle.operation() == AxisGizmo.Operation.MOVE
-         ? axis + (FastPlaceClientPreviewCore.operationPointSelected() ? 6 : 3)
+         ? axis + (ClientSessionSystem.instance().operations().remotePointer().operationPointSelected() ? 6 : 3)
          : axis;
       session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       session.operationDrag = new OperationDrag(
@@ -104,7 +104,7 @@ final class OperationDragController {
    }
 
    static AxisGizmo.Hit gizmoHit(Minecraft minecraft) {
-      return gizmoHit(minecraft, FastPlaceClientPreviewCore.operationGizmo());
+      return gizmoHit(minecraft, ClientSessionSystem.instance().operations().remotePointer().operationGizmo());
    }
 
    private static AxisGizmo.Hit gizmoHit(Minecraft minecraft, AxisGizmo gizmo) {
@@ -126,7 +126,7 @@ final class OperationDragController {
          drag = drag.withDeferredClick(drag.deferredClick().cancel());
       }
       if (drag.faceHit() != null && ClientSessionSystem.instance().operations().operationCuboid()) {
-         OperationSelectionVolume selection = FastPlaceClientPreviewCore.operationSelection();
+         OperationSelectionVolume selection = ClientSessionSystem.instance().operations().remotePointer().operationSelection();
          boolean inside = selection != null
             && selection.bounds().inflate(OperationSelectionVolume.RAYCAST_INFLATE).contains(eye);
          if (inside != drag.frame().reversed()) {

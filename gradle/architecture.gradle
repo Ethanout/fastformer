@@ -117,7 +117,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                 violations.add("Selection pointer resolution must use its bound session and explicit context: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.client.input') &&
-                    (dependencies =~ /FastPlaceClientPreviewCore\.operation(?:InteractionIntent|WorkspaceGizmoHit|GizmoHit)\s*\(/).find()) {
+                    (dependencies =~ /FastPlaceClientPreviewCore\.operation(?:InteractionIntent|WorkspaceGizmoHit|GizmoHit|NeedsFirst|NeedsSecond|PointCount|PrismBaseOpen|PointSelected|SelectedPointIndex|PointCenter|PointUnderCrosshairIndex|PrismEdgeInsertion|PointGridPlane|PointGridLine|CandidatePoint|PointerTarget|Selection|FaceHit|Gizmo|GizmoValue)\s*\(/).find()) {
                 violations.add("Input must resolve workspace targets through its owned pointer capability: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.client.render') &&

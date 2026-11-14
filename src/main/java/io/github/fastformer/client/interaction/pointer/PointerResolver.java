@@ -13,6 +13,14 @@ public final class PointerResolver {
    private final EnumMap<Policy, LongRangeBlockRaycast.Result> samples = new EnumMap<>(Policy.class);
    private View sampledView;
 
+   public LongRangeBlockRaycast.Result sample(LocalPlayer player, boolean throughFluids, PointerRayPolicy policy) {
+      return switch (policy) {
+         case OUTLINE -> outline(player);
+         case PLACEMENT -> placement(player);
+         case SELECTION -> selection(player, throughFluids);
+      };
+   }
+
    public LongRangeBlockRaycast.Result outline(LocalPlayer player) {
       View view = view(player);
       return resolve(view, Policy.OUTLINE, () -> LongRangeBlockRaycast.clip(

@@ -93,13 +93,13 @@ final class OperationPreviewRenderer {
       boolean closingPrismBase = snapshot.operationSelectionMode() == OperationSelectionMode.PRISM
          && snapshot.operationPrismBasePointCount() == 0
          && points.size() >= 3
-         && operationPointUnderCrosshairIndex() == 0;
-      SelectionPrism.EdgeInsertion edgeInsertion = closingPrismBase ? null : operationPrismEdgeInsertion();
+         && ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex() == 0;
+      SelectionPrism.EdgeInsertion edgeInsertion = closingPrismBase ? null : ClientSessionSystem.instance().operations().remotePointer().operationPrismEdgeInsertion();
       BlockPos candidate = closingPrismBase
          ? null
          : edgeInsertion != null
          ? edgeInsertion.point()
-         : operationSelectionReady() ? null : operationCandidatePoint();
+         : operationSelectionReady() ? null : ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint();
       List<BlockPos> previewPoints = new ArrayList<>(points);
       if (closingPrismBase) {
          previewPoints.add(points.getFirst());
@@ -124,7 +124,7 @@ final class OperationPreviewRenderer {
       }
       AABB bounds = selection == null ? null : selection.bounds();
       Vec3 eye = player.getEyePosition();
-      AxisGizmo gizmo = operationGizmo();
+      AxisGizmo gizmo = ClientSessionSystem.instance().operations().remotePointer().operationGizmo();
       OperationGeometry.RayHit hit = operationFaceTarget(selection);
       OperationGeometry.RayHit guideHit = OPERATION_FACE_INTERPOLATOR.update(hit, System.nanoTime());
       float pulse = ghostBreathPulse();
@@ -186,7 +186,7 @@ final class OperationPreviewRenderer {
       renderOperationPointDragGuides(poseStack, buffers, camera, snapshot, opacity);
       new io.github.fastformer.client.controlpoint.ControlPointRenderer(opacity, pendingGridDashOffset(), PreviewStyle.DASH_LENGTH).render(
          poseStack, buffers, camera, io.github.fastformer.client.controlpoint.ControlPointPresentation.selection(
-            snapshot, candidate, edgeInsertion != null, operationPointUnderCrosshairIndex())
+            snapshot, candidate, edgeInsertion != null, ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex())
       );
       if (gizmo != null) {
          new GizmoRenderer(opacity).renderGeometryGizmo(poseStack, buffers, camera, gizmo, operationGizmoAlpha(gizmo));

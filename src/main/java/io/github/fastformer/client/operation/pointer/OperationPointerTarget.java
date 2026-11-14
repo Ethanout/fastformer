@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.interaction;
+package io.github.fastformer.client.operation.pointer;
 
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import net.minecraft.core.BlockPos;

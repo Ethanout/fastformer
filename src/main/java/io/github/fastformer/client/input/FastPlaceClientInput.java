@@ -31,8 +31,8 @@ import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionController;
 import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
-import io.github.fastformer.client.render.interaction.OperationPointerKind;
-import io.github.fastformer.client.render.interaction.OperationPointerTarget;
+import io.github.fastformer.client.operation.pointer.OperationPointerKind;
+import io.github.fastformer.client.operation.pointer.OperationPointerTarget;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.ui.GeometryRadialScreen;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
@@ -292,7 +292,7 @@ public final class FastPlaceClientInput {
          if ((event.key() == 257 || event.key() == 335) && operationSession) {
             var intent = ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
             BlockPos candidate = ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing()
-               ? FastPlaceClientPreviewCore.operationCandidatePoint()
+               ? ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint()
                : intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null;
             inputSession().undoPress.cancel();
             inputSession().undoPressCaptured = false;
@@ -447,7 +447,7 @@ public final class FastPlaceClientInput {
          case FLIP_SELECTION -> ClientSessionSystem.instance().operations().transforms().transformSelected(minecraft, true);
          case DELETE_SELECTION -> {
             var intent = ClientSessionSystem.instance().operations().pointer().resolve(InteractionContext.capture(Minecraft.getInstance())).orElse(null);
-            BlockPos candidate = ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing() ? FastPlaceClientPreviewCore.operationCandidatePoint()
+            BlockPos candidate = ClientSessionSystem.instance().operations().selectionEdits().remoteSelectionPointing() ? ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint()
                : intent instanceof OperationInteractionIntent.CreateSelection create ? create.point() : null;
             ClientSessionSystem.instance().operations().deletions().delete(candidate);
          }
@@ -674,7 +674,7 @@ public final class FastPlaceClientInput {
          }
          if (ClientSessionSystem.instance().operations().operationCuboid()) {
             if (!modifierHeld() && !InteractionContext.vanillaOwnsPointer(minecraft)) {
-               OperationPointerTarget target = FastPlaceClientPreviewCore.operationPointerTarget();
+               OperationPointerTarget target = ClientSessionSystem.instance().operations().remotePointer().operationPointerTarget();
                if (target.kind() == OperationPointerKind.WORLD) {
                   queueCuboidPointUndo(minecraft, System.nanoTime());
                   inputSession().operationClick.capture(0);
@@ -694,7 +694,7 @@ public final class FastPlaceClientInput {
          }
          if (ClientSessionSystem.instance().operations().operationPrism()
             && (inputSession().operationClick.owns(MouseButtonInputSemantics.LEFT_BUTTON)
-               || FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex() >= 0)) {
+               || ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex() >= 0)) {
             inputSession().operationClick.capture(0);
             event.setSwingHand(false);
             event.setCanceled(true);
@@ -710,7 +710,7 @@ public final class FastPlaceClientInput {
          }
          if (!InteractionContext.vanillaOwnsPointer(minecraft)
             && ClientSessionSystem.instance().operations().operationPrism()
-            && FastPlaceClientPreviewCore.operationCandidatePoint() != null
+            && ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint() != null
             && (inputSession().operationClick.owns(MouseButtonInputSemantics.LEFT_BUTTON) || sendNextOperationPrismPoint(minecraft))) {
             inputSession().operationClick.capture(0);
             event.setSwingHand(false);
@@ -719,7 +719,7 @@ public final class FastPlaceClientInput {
          }
          if (!operationSession
             && !InteractionContext.vanillaOwnsPointer(minecraft)
-            && FastPlaceClientPreviewCore.operationCandidatePoint() != null) {
+            && ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint() != null) {
             queueCuboidPointUndo(minecraft, System.nanoTime());
             inputSession().operationClick.capture(0);
             event.setSwingHand(false);
@@ -741,7 +741,7 @@ public final class FastPlaceClientInput {
          && inputRoute == ClientInputStateMachine.Dispatch.VANILLA
          && !InteractionContext.vanillaOwnsPointer(minecraft)
          && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())
-         && FastPlaceClientPreviewCore.operationCandidatePoint() != null) {
+         && ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint() != null) {
          queueRemoteSelectionPoint(nextCuboidPointRole());
          event.setSwingHand(false);
          event.setCanceled(true);
@@ -1077,7 +1077,7 @@ public final class FastPlaceClientInput {
                }
                case CUBOID_NEXT_POINT -> {
                   if (inputSession().acceptCuboidPointPress(MouseButtonInputSemantics.RIGHT_BUTTON,
-                     FastPlaceClientPreviewCore.operationCandidatePoint(), occurredAtNanos)) {
+                     ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint(), occurredAtNanos)) {
                      queueRemoteSelectionPoint(nextCuboidPointRole());
                   }
                   inputSession().operationClick.capture(1);
@@ -1100,7 +1100,7 @@ public final class FastPlaceClientInput {
          && event.getAction() == 1
          && operationSession
          && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id())) {
-         BlockPos point = FastPlaceClientPreviewCore.operationCandidatePoint();
+         BlockPos point = ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint();
          if (point != null) {
             queueRemoteSelectionPoint(OperationPointPayload.Role.EXTRA);
             event.setCanceled(true);
@@ -1348,7 +1348,7 @@ public final class FastPlaceClientInput {
    }
 
    private static OperationPointPayload.Role nextCuboidPointRole() {
-      return FastPlaceClientPreviewCore.operationNeedsFirst() ? OperationPointPayload.Role.FIRST : OperationPointPayload.Role.SECOND;
+      return ClientSessionSystem.instance().operations().remotePointer().operationNeedsFirst() ? OperationPointPayload.Role.FIRST : OperationPointPayload.Role.SECOND;
    }
 
    static void queueRemoteSelectionPoint(OperationPointPayload.Role role) {
@@ -1397,12 +1397,12 @@ public final class FastPlaceClientInput {
       boolean geometrySession,
       boolean operationSession
    ) {
-      OperationPointerTarget pointerTarget = FastPlaceClientPreviewCore.operationPointerTarget();
+      OperationPointerTarget pointerTarget = ClientSessionSystem.instance().operations().remotePointer().operationPointerTarget();
       boolean operationPointTarget = ClientSessionSystem.instance().operations().operationPrism()
          && inputSession().operationDrag == null
          && inputSession().operationPointDrag == null
-         && FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex() >= 0
-         && FastPlaceClientPreviewCore.operationPointCenter(FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex()) != null
+         && ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex() >= 0
+         && ClientSessionSystem.instance().operations().remotePointer().operationPointCenter(ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex()) != null
          && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id());
       boolean operationUndo = leftDecision.action() == OperationInputSemantics.LeftAction.SELECTION_UNDO
          || leftDecision.action() == OperationInputSemantics.LeftAction.ADJUSTMENT_UNDO;
@@ -1442,7 +1442,7 @@ public final class FastPlaceClientInput {
       boolean geometrySession,
       boolean operationSession
    ) {
-      OperationPointerTarget pointerTarget = FastPlaceClientPreviewCore.operationPointerTarget();
+      OperationPointerTarget pointerTarget = ClientSessionSystem.instance().operations().remotePointer().operationPointerTarget();
       boolean vanillaOwnsPointer = InteractionContext.vanillaOwnsPointer(minecraft);
       boolean operationAdjust = operationSession
          && ClientSessionSystem.instance().operations().operationSelectionReady()
@@ -1450,8 +1450,8 @@ public final class FastPlaceClientInput {
       boolean operationPointTarget = ClientSessionSystem.instance().operations().operationPrism()
          && inputSession().operationDrag == null
          && inputSession().operationPointDrag == null
-         && FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex() >= 0
-         && FastPlaceClientPreviewCore.operationPointCenter(FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex()) != null
+         && ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex() >= 0
+         && ClientSessionSystem.instance().operations().remotePointer().operationPointCenter(ClientSessionSystem.instance().operations().remotePointer().operationPointUnderCrosshairIndex()) != null
          && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id());
       if (!geometrySession && !operationSession) return PointerDecision.Right.NONE;
       var decision = ClientModes.registry().onPointer(
@@ -1467,15 +1467,15 @@ public final class FastPlaceClientInput {
          operationPointTarget,
          !vanillaOwnsPointer
             && ClientSessionSystem.instance().operations().operationPrism()
-            && FastPlaceClientPreviewCore.operationPrismEdgeInsertion() != null
+            && ClientSessionSystem.instance().operations().remotePointer().operationPrismEdgeInsertion() != null
             && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationInsertPointPayload.TYPE.id()),
          !vanillaOwnsPointer
             && ClientSessionSystem.instance().operations().operationPrism()
-            && FastPlaceClientPreviewCore.operationCandidatePoint() != null
+            && ClientSessionSystem.instance().operations().remotePointer().operationCandidatePoint() != null
             && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointPayload.TYPE.id()),
          ClientSessionSystem.instance().operations().operationCuboid() && pointerTarget.kind() == OperationPointerKind.WORLD,
          ClientSessionSystem.instance().operations().operationCuboid() && pointerTarget.kind() == OperationPointerKind.FACE,
-         !ClientSessionSystem.instance().operations().operationPrism() && FastPlaceClientPreviewCore.operationPrismBaseOpen()
+         !ClientSessionSystem.instance().operations().operationPrism() && ClientSessionSystem.instance().operations().remotePointer().operationPrismBaseOpen()
       ));
       return decision instanceof PointerDecision.Right right ? right : PointerDecision.Right.NONE;
    }
