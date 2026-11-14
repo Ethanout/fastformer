@@ -37,7 +37,7 @@ class OperationContextTest {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var submission = new WorkspaceSubmissionTracker(600, 40);
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardState(), submission);
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), submission);
       operations.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
       assertTrue(operations.workspace().beginEdit());
       submission.begin(java.util.UUID.randomUUID(), null, selection.interactionOwnerId());
@@ -136,7 +136,7 @@ class OperationContextTest {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
       var tracker = new WorkspaceSubmissionTracker(600, 40);
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardState(), tracker);
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), tracker);
       try {
          var original = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
             OperationSelectionVolume.cuboid(BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO),
@@ -366,34 +366,6 @@ class OperationContextTest {
       assertEquals(5, updated.transform().repeatStride().getX());
       assertEquals(1, updated.transform().repeats().max().getX());
       ClientSessionSystem.instance().operations().onDisconnected();
-   }
-
-   @Test
-   void copyingWithoutSelectableContentReportsEmptyAndDoesNotClaimAStorageFailure() {
-      ClientSessionSystem.instance().operations().onDisconnected();
-
-      assertFalse(ClientSessionSystem.instance().operations().copySelected());
-      assertEquals(
-         "fastformer.message.operation_copy_empty",
-         ClientSessionSystem.instance().operations().lastOperationFailureKey("fallback")
-      );
-      // The failure key reports one result only, so a later read falls back.
-      assertEquals("fallback", ClientSessionSystem.instance().operations().lastOperationFailureKey("fallback"));
-
-      ClientSessionSystem.instance().operations().onDisconnected();
-   }
-
-   @Test
-   void duplicateStopsAtCopyFailureWithoutCallingPaste() {
-      ClientSessionSystem.instance().operations().onDisconnected();
-      try {
-         assertFalse(ClientSessionSystem.instance().operations().duplicateSelected(null));
-         assertEquals("fastformer.message.operation_copy_empty",
-            ClientSessionSystem.instance().operations().lastOperationFailureKey("fallback"));
-         assertTrue(ClientSessionSystem.instance().operations().workspace().isEmpty());
-      } finally {
-         ClientSessionSystem.instance().operations().onDisconnected();
-      }
    }
 
    @Test

@@ -25,9 +25,9 @@ class ClientScopeRepositoryTest {
       assertTrue(a.operations().synchronize(OperationPreviewPayload.inactive(80)));
       assertTrue(b.operations().synchronize(OperationPreviewPayload.inactive(2)));
       assertFalse(a.operations().synchronize(OperationPreviewPayload.inactive(80)));
-      assertFalse(a.operations().copySelected());
+      assertFalse(a.operations().submitWorkspace(null));
       assertEquals("fallback", b.operations().lastOperationFailureKey("fallback"));
-      assertEquals("fastformer.message.operation_copy_empty", a.operations().lastOperationFailureKey("fallback"));
+      assertEquals("fastformer.message.operation_submit_invalid", a.operations().lastOperationFailureKey("fallback"));
       assertNotSame(a.operations().sourceMask(), b.operations().sourceMask());
    }
 
@@ -39,7 +39,7 @@ class ClientScopeRepositoryTest {
       var a = repository.activate(aId);
       assertTrue(a.operations().handleCreateClick(1, BlockPos.ZERO));
       a.operations().setAltMode(true);
-      assertFalse(a.operations().copySelected());
+      assertFalse(a.operations().submitWorkspace(null));
 
       var b = repository.activate(new ClientScopeId("b", "minecraft:overworld", player));
       assertSame(b.operations(), repository.operations());

@@ -10,6 +10,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.input` | 输入会话与紧密协作的调度控制器；规则、状态和通用手势分别放在 `policy`、`state`、`gesture` |
 | `client.operation.controller` | 作用域持有的 OperationContext：协调编辑、捕获、提交与生命周期；能力拆分仍在继续 |
 | `client.operation.preview` | 作用域自己的预览 revision、快照等待和显式恢复确认 |
+| `client.operation.clipboard` | 绑定工作区的复制／原位复制／粘贴、明确结果和客户端共享剪贴板存储 |
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
@@ -106,6 +107,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `ClientDraftRepository` 持有草稿文件位置、读取状态和已保存内容的对象身份，负责严格读取、回执等待、提交归属探测、结算余量和删除。它只返回读取结果，不修改输入或选区。旧写盘回调只能确认原草稿，无法让替换后的未保存草稿变为可驱逐。管理器保留暂存／恢复协调、提示和双文件提交编排，不再用并行映射管理草稿或回执。编辑上下文已实例化；各编辑能力和跨仓库提交编排仍需继续拆分。
 
 `ClientScope` 持有自己的 `OperationContext`，输入、渲染和网络消费通过当前作用域取得实例，不保留静态控制器转发。捕获、提交等待、失败高亮和源遮罩不跨作用域共享；捕获及保存回调继续检查当前选区所有者。环境离开取消临时任务，重置预览边界；首次进入不制造重连提示。剪贴板属于客户端仓库，继续跨世界共享。
+
+`OperationClipboardActions` 构造时绑定工作区、共享仓库、提交／编辑门禁和变更通知。它不查询全局编辑器，直接返回 `ClipboardActionResult`；提示层使用该结果，不再从编辑器读取剪贴板失败。`OperationClipboardRepository` 内部拥有缓存与文件位置，成功落盘后才发布内存，读取失败保持可重试。复制、原位复制和粘贴保留原有容量、内容预算与定位规则。
 
 旧 `ClientSessionManager` 已删除，由 `ClientSessionSystem` 提供当前作用域及协调入口，查询命名为 `currentScope`。草稿模型和 Codec 位于 draft，回执模型、Codec、缓存及重试保存位于 receipt，队列和 NBT 辅助位于 storage，来源和结算规则位于 submission；相关纯单元测试跟随被测能力迁包。整个 client.session 树执行包容量和职责说明检查，不保留旧路径别名。
 

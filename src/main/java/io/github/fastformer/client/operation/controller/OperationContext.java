@@ -2,13 +2,9 @@ package io.github.fastformer.client.operation.controller;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
-import io.github.fastformer.client.operation.clipboard.ClipboardCopy;
-import io.github.fastformer.client.operation.clipboard.OperationClipboard;
-import io.github.fastformer.client.operation.clipboard.OperationClipboardCodec;
-import io.github.fastformer.client.operation.clipboard.OperationClipboardState;
-import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
-import io.github.fastformer.client.operation.clipboard.PastePlacement;
 import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
+import io.github.fastformer.client.operation.clipboard.OperationClipboardActions;
+import io.github.fastformer.client.operation.clipboard.OperationClipboardRepository;
 import io.github.fastformer.client.operation.preview.OperationPreviewState;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
@@ -35,27 +31,18 @@ import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayl
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.preview.Composition;
 import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 /** Owns editable operations, captures, and submission state for one client scope. */
@@ -63,9 +50,8 @@ public final class OperationContext {
    private static final Logger LOGGER = LogUtils.getLogger();
    private final java.util.LinkedHashSet<BlockPos> failedTargets = new java.util.LinkedHashSet<>();
    private List<ClientSelectionPart> failedWorkspaceDraft = List.of();
-   private static final String CLIPBOARD_FILE_NAME = "fastformer-operation-clipboard.nbt.gz";
    private final SourceBlockRenderMask sourceMask = new SourceBlockRenderMask();
-   private final OperationClipboardState clipboard;
+   private final OperationClipboardActions clipboard;
    private String lastOperationFailureKey;
    private ClientOperationWorkspace.EditToken lastTooLargeGesture;
    /** Stops the client log from repeating one warning on every mouse press. */
@@ -75,13 +61,14 @@ public final class OperationContext {
 
    private final ClientSelectionSession selection;
 
-   public OperationContext(ClientSelectionSession selection, OperationClipboardState clipboard) {
+   public OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard) {
       this(selection, clipboard, new WorkspaceSubmissionTracker(20 * 30, 20 * 2));
    }
 
-   OperationContext(ClientSelectionSession selection, OperationClipboardState clipboard, WorkspaceSubmissionTracker submission) {
+   OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard, WorkspaceSubmissionTracker submission) {
       this.selection = java.util.Objects.requireNonNull(selection, "selection");
-      this.clipboard = java.util.Objects.requireNonNull(clipboard, "clipboard");
+      this.clipboard = new OperationClipboardActions(selection.workspace(), clipboard,
+         this::workspaceSubmissionPending, this::workspaceEditInProgress, this::synchronizeDerivedWorkspaceState);
       this.submission = java.util.Objects.requireNonNull(submission, "submission");
    }
 
@@ -362,99 +349,8 @@ public final class OperationContext {
       ClientSessionSystem.instance().discardCurrentDraft();
    }
 
-   public boolean copySelected() {
-      lastOperationFailureKey = null;
-      ClipboardCopy copied = OperationClipboard.fromWorkspace(workspace());
-      if (copied instanceof ClipboardCopy.Empty) {
-         lastOperationFailureKey = "fastformer.message.operation_copy_empty";
-         return false;
-      }
-      if (copied instanceof ClipboardCopy.TooLarge tooLarge) {
-         lastOperationFailureKey = tooLarge.limit() == Composition.Limit.WORK
-            ? "fastformer.message.workspace_work_too_large"
-            : "fastformer.message.workspace_result_too_large";
-         return false;
-      }
-      OperationClipboard value = ((ClipboardCopy.Copied)copied).clipboard();
-      try {
-         clipboard.saveAndPublish(value, clipboard ->
-            OperationClipboardStore.save(clipboardFile(), OperationClipboardCodec.encode(clipboard))
-         );
-         return true;
-      } catch (IOException | RuntimeException exception) {
-         lastOperationFailureKey = "fastformer.message.operation_copy_storage_failed";
-         return false;
-      }
-   }
-
-   public boolean duplicateSelected(Minecraft minecraft) {
-      lastOperationFailureKey = null;
-      if (workspaceSubmissionPending() || workspaceEditInProgress()) {
-         lastOperationFailureKey = "fastformer.message.operation_paste_pending";
-         return false;
-      }
-      var selected = workspace().selectedParts();
-      if (selected.isEmpty()) {
-         lastOperationFailureKey = "fastformer.message.operation_copy_empty";
-         return false;
-      }
-      if (selected.size() > ClientOperationWorkspace.MAX_PARTS - workspace().size()) {
-         lastOperationFailureKey = "fastformer.message.operation_paste_limit";
-         return false;
-      }
-      // Validate resolved content with the same aggregate budget as copy and paste.
-      var copied = OperationClipboard.fromWorkspace(workspace());
-      if (copied instanceof ClipboardCopy.TooLarge tooLarge) {
-         lastOperationFailureKey = tooLarge.limit() == Composition.Limit.WORK
-            ? "fastformer.message.workspace_work_too_large" : "fastformer.message.workspace_result_too_large";
-         return false;
-      }
-      if (copied instanceof ClipboardCopy.Empty) {
-         lastOperationFailureKey = "fastformer.message.operation_copy_empty";
-         return false;
-      }
-      if (!workspace().addParts(selected.stream().map(ClientSelectionPart::duplicate).toList())) {
-         lastOperationFailureKey = "fastformer.message.operation_paste_unavailable";
-         return false;
-      }
-      synchronizeDerivedWorkspaceState();
-      return true;
-   }
-
-   public boolean paste(Minecraft minecraft) {
-      lastOperationFailureKey = null;
-      if (workspaceSubmissionPending()) {
-         lastOperationFailureKey = "fastformer.message.operation_paste_pending";
-         return false;
-      }
-      OperationClipboard value = loadClipboard(minecraft).orElse(null);
-      if (value == null || value.parts().size() > ClientOperationWorkspace.MAX_PARTS - workspace().size()) {
-         lastOperationFailureKey = value == null
-            ? "fastformer.message.operation_paste_clipboard_invalid"
-            : "fastformer.message.operation_paste_limit";
-         return false;
-      }
-      Vec3 offset;
-      if (active()) {
-         offset = PastePlacement.inWorkspace(value.bounds());
-      } else {
-         HitResult hitResult = minecraft.hitResult;
-         if (!(hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) {
-            lastOperationFailureKey = "fastformer.message.operation_paste_no_anchor";
-            return false;
-         }
-         offset = PastePlacement.atSurface(value.bounds(), hit.getLocation(), hit.getDirection());
-      }
-      List<ClientSelectionPart> parts = value.instantiate().stream()
-         .map(part -> part.withTranslation(offset))
-         .toList();
-      boolean added = workspace().addParts(parts);
-      if (added) {
-         synchronizeDerivedWorkspaceState();
-      } else {
-         lastOperationFailureKey = "fastformer.message.operation_paste_unavailable";
-      }
-      return added;
+   public OperationClipboardActions clipboard() {
+      return clipboard;
    }
 
    public String lastOperationFailureKey(String fallback) {
@@ -1525,29 +1421,6 @@ public final class OperationContext {
 
    public boolean workspaceSubmissionPending() {
       return deleteCapture.pending() || submission.pending(selectionSession().interactionOwnerId());
-   }
-
-   private Optional<OperationClipboard> loadClipboard(Minecraft minecraft) {
-      if (minecraft.level == null) {
-         return Optional.empty();
-      }
-      try {
-         return clipboard.load(() -> {
-            CompoundTag root = OperationClipboardStore.loadStrict(clipboardFile()).orElse(null);
-            if (root == null) {
-               return Optional.empty();
-            }
-            return Optional.of(OperationClipboardCodec.decode(
-               root, minecraft.level.registryAccess().lookupOrThrow(Registries.BLOCK)
-            ));
-         });
-      } catch (IOException | RuntimeException exception) {
-         return Optional.empty();
-      }
-   }
-
-   private Path clipboardFile() {
-      return FMLPaths.CONFIGDIR.get().resolve(CLIPBOARD_FILE_NAME);
    }
 
    private final io.github.fastformer.client.operation.selection.SelectionBlockCapture draftCapture = new io.github.fastformer.client.operation.selection.SelectionBlockCapture();

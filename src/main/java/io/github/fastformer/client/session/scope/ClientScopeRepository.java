@@ -2,7 +2,7 @@ package io.github.fastformer.client.session.scope;
 
 import io.github.fastformer.client.input.ClientInputSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.client.operation.clipboard.OperationClipboardState;
+import io.github.fastformer.client.operation.clipboard.OperationClipboardRepository;
 import io.github.fastformer.client.operation.controller.OperationContext;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,7 +11,7 @@ import java.util.Objects;
 /** Owns world scope identity, activation boundaries, fallback gestures, and safe eviction. */
 public final class ClientScopeRepository {
    private final Map<ClientScopeId, ClientScope> scopes = new HashMap<>();
-   private final OperationClipboardState clipboard = new OperationClipboardState();
+   private final OperationClipboardRepository clipboard = new OperationClipboardRepository();
    private final ClientSelectionSession unboundSelection = new ClientSelectionSession();
    private final ClientInputSession unboundInput = new ClientInputSession(unboundSelection.gestures());
    private final OperationContext unboundOperations = new OperationContext(unboundSelection, clipboard);

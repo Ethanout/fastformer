@@ -2,7 +2,7 @@ package io.github.fastformer.client.session.scope;
 
 import io.github.fastformer.client.input.ClientInputSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.client.operation.clipboard.OperationClipboardState;
+import io.github.fastformer.client.operation.clipboard.OperationClipboardRepository;
 import io.github.fastformer.client.operation.controller.OperationContext;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.session.draft.ClientDraftRepository;
@@ -31,10 +31,10 @@ public final class ClientScope {
    }
 
    public ClientScope(ClientScopeId id) {
-      this(id, new OperationClipboardState());
+      this(id, new OperationClipboardRepository());
    }
 
-   ClientScope(ClientScopeId id, OperationClipboardState clipboard) {
+   ClientScope(ClientScopeId id, OperationClipboardRepository clipboard) {
       this.id = Objects.requireNonNull(id, "id");
       this.receipts = new ClientReceiptRepository(() -> ClientScopeFiles.receipts(id));
       this.drafts = new ClientDraftRepository(() -> ClientScopeFiles.draft(id));

@@ -453,10 +453,10 @@ public final class FastPlaceClientInput {
          return decision.consumesPress();
       }
       switch (decision.command()) {
-         case COPY -> ClientInteractionFeedback.showCopyResult(minecraft, ClientSessionSystem.instance().operations().copySelected());
-         case PASTE -> ClientInteractionFeedback.showPasteResult(minecraft, ClientSessionSystem.instance().operations().paste(minecraft));
+         case COPY -> ClientInteractionFeedback.showCopyResult(minecraft, ClientSessionSystem.instance().operations().clipboard().copy());
+         case PASTE -> ClientInteractionFeedback.showPasteResult(minecraft, ClientSessionSystem.instance().operations().clipboard().paste(minecraft));
          case TOGGLE_SELECT_ALL -> ClientSessionSystem.instance().operations().toggleAllWorkspaceParts();
-         case DUPLICATE -> ClientInteractionFeedback.showPasteResult(minecraft, ClientSessionSystem.instance().operations().duplicateSelected(minecraft));
+         case DUPLICATE -> ClientInteractionFeedback.showPasteResult(minecraft, ClientSessionSystem.instance().operations().clipboard().duplicate());
          case ROTATE_SELECTION -> ClientSessionSystem.instance().operations().transformSelected(minecraft, false);
          case FLIP_SELECTION -> ClientSessionSystem.instance().operations().transformSelected(minecraft, true);
          case DELETE_SELECTION -> {

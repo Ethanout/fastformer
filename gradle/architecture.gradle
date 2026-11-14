@@ -30,6 +30,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.server.command') ||
                     packageName.startsWith('io.github.fastformer.client.session') ||
                     packageName.startsWith('io.github.fastformer.client.operation.preview') ||
+                    packageName.startsWith('io.github.fastformer.client.operation.clipboard') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -54,6 +55,10 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && source.name == 'OperationContext.java' &&
                     (text =~ /(?m)^\s*(?:public|private|protected)?\s*static\s+(?!final\b)[\w.<>?,]+\s+\w+\s*(?:=|;)/).find()) {
                 violations.add("Operation state must belong to its client scope: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.operation.clipboard') &&
+                    (dependencies =~ /io\.github\.fastformer\.client\.(?:session|input|operation\.controller)\./).find()) {
+                violations.add("Clipboard capability depends on its assembly or input caller: ${path}")
             }
             if (main && (text =~ /\b(?:[\w]+GameTests|[\w]*TestAccess|RecoveryProcessTests)\b/).find()) {
                 violations.add("Production source depends on test harness: ${path}")
