@@ -59,7 +59,7 @@ class ClientScopeReclamationTest {
       do {
          manager.drainStorageResults();
          Thread.sleep(5);
-      } while (manager.forScope(player, key.connection(), key.dimension()) == original
+      } while (manager.forScope(key) == original
          && System.nanoTime() < deadline);
 
       var replacement = manager.activateScope(player, key.connection(), key.dimension());

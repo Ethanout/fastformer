@@ -3,6 +3,7 @@ package io.github.fastformer.client.session.scope;
 import io.github.fastformer.client.session.ClientOperationDraft;
 import io.github.fastformer.client.session.OperationDraftIdentity;
 import io.github.fastformer.client.session.OperationSubmissionOrigin;
+import io.github.fastformer.client.session.receipt.ClientReceiptRepository;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
@@ -14,6 +15,7 @@ import java.util.UUID;
 /** State of one server, dimension, and player; independent of LocalPlayer replacement. */
 public final class ClientScope {
    private final ClientScopeId id;
+   private final ClientReceiptRepository receipts;
    private final ClientSelectionSession selectionSession = new ClientSelectionSession();
    private final ClientInputSession inputSession;
    private ClientOperationDraft suspendedOperationDraft;
@@ -25,7 +27,12 @@ public final class ClientScope {
 
    public ClientScope(ClientScopeId id) {
       this.id = Objects.requireNonNull(id, "id");
+      this.receipts = new ClientReceiptRepository(() -> ClientScopeFiles.receipts(id));
       this.inputSession = new ClientInputSession(selectionSession.gestures());
+   }
+
+   public ClientReceiptRepository receipts() {
+      return receipts;
    }
 
    public ClientScopeId id() {

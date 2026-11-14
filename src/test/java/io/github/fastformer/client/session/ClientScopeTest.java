@@ -40,7 +40,7 @@ class ClientScopeTest {
    void managerCreatesStateWithTheRequestedIdentity() {
       var manager = new ClientSessionManager();
       UUID player = UUID.randomUUID();
-      var a = manager.forScope(player, "server-a", "minecraft:overworld");
+      var a = manager.forScope(new ClientScopeId("server-a", "minecraft:overworld", player));
       var b = manager.activateScope(player, "server-b", "minecraft:the_nether");
       org.junit.jupiter.api.Assertions.assertEquals(
          new ClientScopeId("server-a", "minecraft:overworld", player), a.id());
@@ -202,8 +202,8 @@ class ClientScopeTest {
       UUID playerId = UUID.randomUUID();
       ClientSessionManager manager = new ClientSessionManager();
 
-      ClientScope first = manager.forScope(playerId, "session-reuse", "minecraft:overworld");
-      ClientScope second = manager.forScope(playerId, "session-reuse", "minecraft:overworld");
+      ClientScope first = manager.forScope(new ClientScopeId("session-reuse", "minecraft:overworld", playerId));
+      ClientScope second = manager.forScope(new ClientScopeId("session-reuse", "minecraft:overworld", playerId));
 
       assertSame(first, second);
    }
@@ -215,9 +215,9 @@ class ClientScopeTest {
       ClientSessionManager manager = new ClientSessionManager();
       manager.activateScope(playerId, "server-a", "minecraft:overworld").selectionSession()
          .addDraftPoint(new net.minecraft.core.BlockPos(1, 2, 3));
-      ClientScope overworld = manager.forScope(playerId, "server-a", "minecraft:overworld");
+      ClientScope overworld = manager.forScope(new ClientScopeId("server-a", "minecraft:overworld", playerId));
       ClientScope nether = manager.activateScope(playerId, "server-a", "minecraft:the_nether");
-      ClientScope otherServer = manager.forScope(playerId, "server-b", "minecraft:overworld");
+      ClientScope otherServer = manager.forScope(new ClientScopeId("server-b", "minecraft:overworld", playerId));
 
       org.junit.jupiter.api.Assertions.assertFalse(overworld.selectionSession().hasDraft());
       org.junit.jupiter.api.Assertions.assertNotSame(overworld, nether);

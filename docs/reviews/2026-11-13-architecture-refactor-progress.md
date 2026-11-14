@@ -407,3 +407,10 @@
 - 当前身份由当前作用域派生，删除独立的 currentKey 字段。草稿读取只接收所属作用域，不能把另一身份和状态对象组合传入；保留原文件摘要、跨维度清理、失败重试和安全驱逐条件。
 - 测试夹具使用完整身份；补充身份不变、必填玩家、同玩家跨环境隔离和非当前环境读取结果隔离测试。`.temp/architecture-client-scope-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过。
 - Draft／Receipt 仓库拆分、OperationContext 实例化、Mode、PreviewFrame、PointerResolver 和实机验收仍未完成。实际试玩存档未清除。
+
+## 回执仓库归属作用域（2026-11-14）
+
+- `ClientScope` 持有 `ClientReceiptRepository`，后者拥有回执缓存、读取状态、文件位置、只读保护、明确重试和安全驱逐条件。删除管理器的 receiptStores、receiptLoadStates、receiptFiles 三张映射及仅供测试的回执路径安装入口；测试直接配置所属仓库的文件位置。
+- 回执改用自己的 `ReceiptReadState`，不再借用含 AWAITING_RECEIPT 的草稿枚举。读取失败只随实际尝试返回一次；环境切换只自动重试暂时失败，版本不匹配等待明确重试，未保存回执仍阻止驱逐。管理器保留错误提示和草稿等待的协调。
+- `ClientScopeFiles` 统一草稿／回执路径摘要，保留原服务器、维度、玩家三字段及换行分隔。未引入旧格式读取或迁移，实际试玩存档未清除。
+- 新增损坏文件缓存／修复重试、旧格式禁止覆盖、失败保存保留脏状态测试。`.temp/architecture-client-receipt-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过。Draft 仓库、OperationContext、Mode 与实机验收仍未完成。

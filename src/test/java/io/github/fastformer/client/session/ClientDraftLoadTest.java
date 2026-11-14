@@ -30,7 +30,7 @@ class ClientDraftLoadTest {
    void draftReadUsesItsOwnerWhileAnotherWorldIsActive() throws Exception {
       var manager = new ClientSessionManager();
       UUID player = UUID.randomUUID();
-      var owner = manager.forScope(player, "server-a", "minecraft:overworld");
+      var owner = manager.forScope(new ClientScopeId("server-a", "minecraft:overworld", player));
       var active = manager.activateScope(player, "server-b", "minecraft:the_nether");
       Path file = directory.resolve("corrupt-current-version.nbt.gz");
       OperationClipboardStore.save(file, draftTag(ClientOperationDraft.CURRENT_VERSION));
@@ -46,7 +46,7 @@ class ClientDraftLoadTest {
    @Test
    void failedReadKeepsTheFileAndBlocksAnotherAttempt() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "load-a", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("load-a", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       Path file = this.directory.resolve("transient.nbt.gz");
       Files.write(file, new byte[]{1, 2, 3, 4});
@@ -66,7 +66,7 @@ class ClientDraftLoadTest {
    @Test
    void versionMismatchHasItsOwnStateAndKeepsTheFile() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "load-b", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("load-b", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       Path file = this.directory.resolve("future.nbt.gz");
       OperationClipboardStore.save(file, draftTag(ClientOperationDraft.CURRENT_VERSION + 1));
@@ -82,7 +82,7 @@ class ClientDraftLoadTest {
    @Test
    void unreadableContentKeepsTheFileAndReportsCorruption() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "load-c", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("load-c", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       Path file = this.directory.resolve("broken.nbt.gz");
       OperationClipboardStore.save(file, draftTag(ClientOperationDraft.CURRENT_VERSION));
@@ -97,7 +97,7 @@ class ClientDraftLoadTest {
    @Test
    void aMissingFileCompletesTheReadWithoutADraft() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "load-d", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("load-d", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       Path file = this.directory.resolve("absent.nbt.gz");
 
@@ -110,7 +110,7 @@ class ClientDraftLoadTest {
    @Test
    void anUnchangedScopeNeverRetriesAFailedRead() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "load-e", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("load-e", "minecraft:overworld", UUID.randomUUID()));
       UUID playerId = session.id().playerId();
       Path file = this.directory.resolve("repeated.nbt.gz");
       Files.write(file, new byte[]{7, 7});
@@ -132,7 +132,7 @@ class ClientDraftLoadTest {
    @Test
    void reEnteringAnEnvironmentRetriesOnlyATransientFailure() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "load-f", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("load-f", "minecraft:overworld", UUID.randomUUID()));
       UUID playerId = session.id().playerId();
       ClientScopeId key = session.id();
       Path file = this.directory.resolve("boundary.nbt.gz");
@@ -158,7 +158,7 @@ class ClientDraftLoadTest {
    @Test
    void explicitRetryClearsOneFailedRead() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "load-g", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("load-g", "minecraft:overworld", UUID.randomUUID()));
       UUID playerId = session.id().playerId();
       Path file = this.directory.resolve("retry.nbt.gz");
 
@@ -183,7 +183,7 @@ class ClientDraftLoadTest {
    @Test
    void explicitRetryReadsAValidDraftAndStagesIt() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "load-h", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("load-h", "minecraft:overworld", UUID.randomUUID()));
       UUID playerId = session.id().playerId();
       Path file = this.directory.resolve("retry-valid.nbt.gz");
 
@@ -225,7 +225,7 @@ class ClientDraftLoadTest {
    @Test
    void anAppliedDraftNeverReachesTheStagedSlot() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "guard-a", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("guard-a", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       Path file = this.directory.resolve("applied.nbt.gz");
       UUID transferId = UUID.randomUUID();
@@ -254,7 +254,7 @@ class ClientDraftLoadTest {
    @Test
    void aDraftWithoutAnAppliedResultIsStillStaged() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "guard-b", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("guard-b", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       Path file = this.directory.resolve("pending.nbt.gz");
       UUID transferId = UUID.randomUUID();
@@ -280,7 +280,7 @@ class ClientDraftLoadTest {
    @Test
    void aDraftThatNamesNoSubmissionIsStillStaged() throws Exception {
       ClientSessionManager manager = new ClientSessionManager();
-      ClientScope session = manager.forScope(UUID.randomUUID(), "guard-c", "minecraft:overworld");
+      ClientScope session = manager.forScope(new ClientScopeId("guard-c", "minecraft:overworld", UUID.randomUUID()));
       ClientScopeId key = session.id();
       Path file = this.directory.resolve("unnamed.nbt.gz");
       OperationClipboardStore.save(file, validDraftTag());
@@ -322,7 +322,7 @@ class ClientDraftLoadTest {
       UUID playerId = UUID.randomUUID();
       var key = new ClientScopeId("reconnect-timeout", "minecraft:overworld", playerId);
       manager.installDraftFile(key, directory.resolve("reconnect-draft.nbt.gz"));
-      manager.installReceiptFile(key, directory.resolve("reconnect-receipts.nbt.gz"));
+      manager.forScope(key).receipts().useFile(directory.resolve("reconnect-receipts.nbt.gz"));
       ClientScope session = manager.activateScope(
          playerId, key.connection(), key.dimension()
       );

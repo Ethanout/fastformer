@@ -3,14 +3,13 @@ package io.github.fastformer.client.session;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.scope.ClientScopeId;
+import io.github.fastformer.client.session.scope.ClientScopeFiles;
+import io.github.fastformer.client.session.receipt.ReceiptReadState;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -26,15 +25,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.storage.LevelResource;
-import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 /** Owns top-level client session transitions and keeps them out of event handlers. */
 public final class ClientSessionManager {
    private static final ClientSessionManager INSTANCE = new ClientSessionManager();
    private static final Logger LOGGER = LogUtils.getLogger();
-   private static final String DRAFT_DIRECTORY = "fastformer/session-drafts";
-   private static final String RECEIPT_DIRECTORY = "fastformer/session-receipts";
 
    private final Map<ClientScopeId, ClientScope> playerSessions = new HashMap<>();
    private final io.github.fastformer.client.operation.selection.ClientSelectionSession unboundSelection =
@@ -43,11 +39,6 @@ public final class ClientSessionManager {
       new io.github.fastformer.client.input.ClientInputSession(unboundSelection.gestures());
    /** Explicit read result for each scope draft file. Absent means NOT_LOADED. */
    private final Map<ClientScopeId, ClientDraftLoadState> draftLoadStates = new HashMap<>();
-   /** Submission receipts of each scope, read from disk at the first use. */
-   private final Map<ClientScopeId, OperationSubmissionReceiptStore> receiptStores = new HashMap<>();
-   private final Map<ClientScopeId, ClientDraftLoadState> receiptLoadStates = new HashMap<>();
-   /** Receipt files of one scope. The read path uses this, and a test supplies its own path. */
-   private final Map<ClientScopeId, Path> receiptFiles = new HashMap<>();
    /** Draft files of one scope. The read, save and delete paths use this, and a test supplies its own path. */
    private final Map<ClientScopeId, Path> draftFiles = new HashMap<>();
    /** Identity of the staged draft whose exact contents were loaded or saved successfully. */
@@ -108,9 +99,7 @@ public final class ClientSessionManager {
    }
 
    /** Returns the session isolated to one connection, player, and dimension. */
-   public ClientScope forScope(UUID playerId, String connection, String dimension) {
-      if (playerId == null) throw new IllegalArgumentException("playerId must not be null");
-      ClientScopeId key = new ClientScopeId(connection, dimension, playerId);
+   public ClientScope forScope(ClientScopeId key) {
       return playerSessions.computeIfAbsent(key, ClientScope::new);
    }
 
@@ -139,13 +128,8 @@ public final class ClientSessionManager {
          // repeated call for an unchanged scope never retries.
          this.draftLoadStates.remove(nextKey);
       }
-      if (scopeChanged
-         && this.receiptLoadStates.getOrDefault(nextKey, ClientDraftLoadState.NOT_LOADED)
-            == ClientDraftLoadState.RETRYABLE_FAILURE) {
-         // The same boundary serves the receipt file. The cached store came from the failed
-         // read, so it leaves with the state and the next use reads the file again. A
-         // version mismatch stays recorded, because only a newer client can read it.
-         this.recordReceiptLoadStateCleared(nextKey);
+      if (scopeChanged && forScope(nextKey).receipts().retryTransientFailure()) {
+         this.rearmDraftReadAfterReceipt(nextKey);
       }
       if (scopeChanged || firstActivation) {
          // Every entry into an environment is a cleanup boundary. The applied drafts of
@@ -174,19 +158,13 @@ public final class ClientSessionManager {
          if (session == current || liveWorkBlocksDraftRead(session)) continue;
          var draft = session.suspendedOperationDraftData();
          if (draft != null && durableDrafts.get(key) != draft) continue;
-         var receipts = receiptStores.get(key);
-         if (receipts != null && receipts.dirty()) continue;
+         if (!session.receipts().canEvict()) continue;
          if (draftLoadStates.getOrDefault(key, ClientDraftLoadState.NOT_LOADED).blocksRead()
             && draftLoadStates.get(key) != ClientDraftLoadState.READY) continue;
-         if (receiptLoadStates.getOrDefault(key, ClientDraftLoadState.NOT_LOADED).blocksRead()
-            && receiptLoadStates.get(key) != ClientDraftLoadState.READY) continue;
          entries.remove();
          durableDrafts.remove(key);
          draftLoadStates.remove(key);
-         receiptStores.remove(key);
-         receiptLoadStates.remove(key);
          draftFiles.remove(key);
-         receiptFiles.remove(key);
          cleanupReplayed.remove(key);
       }
    }
@@ -489,7 +467,7 @@ public final class ClientSessionManager {
       if (currentScopeId() == null || !store.dirty()) {
          return !store.dirty();
       }
-      saveReceiptStore(currentScopeId(), store, "fastformer.message.operation_receipt_save_failed");
+      saveReceiptStore(currentScopeId(), "fastformer.message.operation_receipt_save_failed");
       return !store.dirty();
    }
 
@@ -753,92 +731,36 @@ public final class ClientSessionManager {
       return currentScopeId() == null ? List.of() : receiptStore(currentScopeId()).open();
    }
 
-   /** Reports the receipt store of one scope and records a failed read. */
+   /** Reads through the scope repository and reports each failed attempt once. */
    OperationSubmissionReceiptStore receiptStore(ClientScopeId key) {
-      OperationSubmissionReceiptStore cached = this.receiptStores.get(key);
-      if (cached != null) return cached;
-      OperationSubmissionReceiptStore store;
-      try {
-         store = OperationSubmissionReceiptStore.load(receiptFileFor(key));
-      } catch (OperationSubmissionReceiptCodec.VersionMismatchException exception) {
-         this.recordReceiptLoadState(key, ClientDraftLoadState.VERSION_INCOMPATIBLE);
-         LOGGER.warn("Unsupported FastFormer submission receipt version; the file stays", exception);
-         showDraftMessage("fastformer.message.operation_receipt_version_incompatible");
-         store = OperationSubmissionReceiptStore.unreadable();
-      } catch (IOException | RuntimeException exception) {
-         // The read may fail for a reason that a later boundary can clear, such as a file
-         // that another process held. The state therefore allows one retry, and the client
-         // keeps the file either way.
-         this.recordReceiptLoadState(key, ClientDraftLoadState.RETRYABLE_FAILURE);
-         LOGGER.warn("Unable to read the FastFormer submission receipts; the file stays", exception);
-         showDraftMessage("fastformer.message.operation_receipt_load_failed");
-         store = OperationSubmissionReceiptStore.unreadable();
-      }
-      this.receiptStores.put(key, store);
-      if (!store.readOnly()) {
-         // The receipt answer is available now, so a draft that waited for it may be read and
-         // judged again at the next draft pass.
+      var repository = forScope(key).receipts();
+      var read = repository.read();
+      if (read.failure() != null) {
+         LOGGER.warn("Unable to read the FastFormer submission receipts; the file stays", read.failure());
+         showDraftMessage(repository.readState() == ReceiptReadState.VERSION_INCOMPATIBLE
+            ? "fastformer.message.operation_receipt_version_incompatible"
+            : "fastformer.message.operation_receipt_load_failed");
+      } else if (read.newlyRead()) {
          this.rearmDraftReadAfterReceipt(key);
       }
-      return store;
+      return read.store();
    }
 
-   private boolean saveReceiptStore(ClientScopeId key, OperationSubmissionReceiptStore store, String failureKey) {
+   private boolean saveReceiptStore(ClientScopeId key, String failureKey) {
       try {
-         store.save(receiptFileFor(key));
-         this.recordReceiptLoadState(key, ClientDraftLoadState.READY);
+         forScope(key).receipts().save();
          return true;
       } catch (IOException | RuntimeException exception) {
          LOGGER.warn("Unable to save the FastFormer submission receipts", exception);
-         // The player must learn that this submission cannot be recovered later.
          showDraftMessage(failureKey);
          return false;
       }
    }
 
-   /** The recorded read result of one scope receipt file. */
-   ClientDraftLoadState receiptLoadState(ClientScopeId key) {
-      return key == null
-         ? ClientDraftLoadState.NOT_LOADED
-         : this.receiptLoadStates.getOrDefault(key, ClientDraftLoadState.NOT_LOADED);
-   }
-
-   /** Records the read result of one scope receipt file. */
-   void recordReceiptLoadState(ClientScopeId key, ClientDraftLoadState state) {
-      if (key != null && state != null) {
-         this.receiptLoadStates.put(key, state);
-      }
-   }
-
-   /** The recorded read result of one scope receipt file. */
-   public ClientDraftLoadState currentReceiptLoadState() {
-      return this.receiptLoadState(currentScopeId());
-   }
-
-   /**
-    * Clears a failed receipt read of the current scope so the next use reads the file again.
-    *
-    * <p>This is the explicit retry boundary for the receipt file, the same way
-    * {@link #retryCurrentDraftLoad()} serves the draft file. A failed read stays recorded
-    * until an explicit boundary, so a damaged file is read once and not on every tick.</p>
-    */
    public boolean retryCurrentReceiptLoad() {
-      if (currentScopeId() == null) return false;
-      if (!this.receiptLoadState(currentScopeId()).mayRetry()) return false;
-      this.recordReceiptLoadStateCleared(currentScopeId());
+      if (current == null || !current.receipts().retry()) return false;
+      this.rearmDraftReadAfterReceipt(current.id());
       return true;
-   }
-
-   private void recordReceiptLoadStateCleared(ClientScopeId key) {
-      this.receiptLoadStates.remove(key);
-      // The cached store came from the failed read. Drop it, so the next use reads again.
-      OperationSubmissionReceiptStore cached = this.receiptStores.get(key);
-      if (cached != null && cached.readOnly()) {
-         this.receiptStores.remove(key);
-      }
-      // The receipt read is about to be attempted again, so a draft that waited for an answer
-      // may also be read and judged again.
-      this.rearmDraftReadAfterReceipt(key);
    }
 
    /**
@@ -851,13 +773,6 @@ public final class ClientSessionManager {
    private void rearmDraftReadAfterReceipt(ClientScopeId key) {
       if (key != null && this.draftLoadState(key) == ClientDraftLoadState.AWAITING_RECEIPT) {
          this.draftLoadStates.remove(key);
-      }
-   }
-
-   /** Uses an explicit receipt file for one scope. The read path uses this. */
-   void installReceiptFile(ClientScopeId key, Path file) {
-      if (key != null && file != null) {
-         this.receiptFiles.put(key, file);
       }
    }
 
@@ -875,12 +790,11 @@ public final class ClientSessionManager {
 
    private Path draftFileFor(ClientScopeId key) {
       Path override = key == null ? null : this.draftFiles.get(key);
-      return override != null ? override : draftFile(key);
+      return override != null ? override : ClientScopeFiles.draft(key);
    }
 
    private Path receiptFileFor(ClientScopeId key) {
-      Path override = key == null ? null : this.receiptFiles.get(key);
-      return override != null ? override : receiptFile(key);
+      return forScope(key).receipts().file();
    }
 
    private void loadDraftOnce(Minecraft minecraft, ClientScope session) {
@@ -1032,26 +946,6 @@ public final class ClientSessionManager {
       // must never break the scope bookkeeping that produced it.
       if (minecraft == null || minecraft.player == null) return;
       minecraft.player.displayClientMessage(Component.translatable(translationKey), false);
-   }
-
-   private static Path draftFile(ClientScopeId key) {
-      String scope = key.connection() + "\n" + key.dimension() + "\n" + key.playerId();
-      return FMLPaths.CONFIGDIR.get().resolve(DRAFT_DIRECTORY).resolve(sha256(scope) + ".nbt.gz");
-   }
-
-   private static Path receiptFile(ClientScopeId key) {
-      String scope = key.connection() + "\n" + key.dimension() + "\n" + key.playerId();
-      return FMLPaths.CONFIGDIR.get().resolve(RECEIPT_DIRECTORY).resolve(sha256(scope) + ".nbt.gz");
-   }
-
-   private static String sha256(String value) {
-      try {
-         byte[] digest = MessageDigest.getInstance("SHA-256")
-            .digest(value.getBytes(StandardCharsets.UTF_8));
-         return java.util.HexFormat.of().formatHex(digest);
-      } catch (NoSuchAlgorithmException exception) {
-         throw new IllegalStateException("SHA-256 is not available", exception);
-      }
    }
 
    private static String connectionIdentity(Minecraft minecraft) {
