@@ -21,6 +21,7 @@ public final class ClientScope {
    private final ClientInputSession inputSession;
    private ClientOperationDraft suspendedOperationDraft;
    private ClientOperationDraft.Remainder submissionRemainder;
+   private boolean cleanupReplayPending = true;
 
    public void setSubmissionRemainder(ClientOperationDraft.Remainder remainder) {
       this.submissionRemainder = remainder;
@@ -31,6 +32,24 @@ public final class ClientScope {
       this.receipts = new ClientReceiptRepository(() -> ClientScopeFiles.receipts(id));
       this.drafts = new ClientDraftRepository(() -> ClientScopeFiles.draft(id));
       this.inputSession = new ClientInputSession(selectionSession.gestures());
+   }
+
+   public boolean hasLiveWork() {
+      return !workspace().isEmpty() || selectionSession.hasDraft() || inputSession.blocksDraftLoad();
+   }
+
+   public boolean canEvict() {
+      return !hasLiveWork() && drafts.canEvict(suspendedOperationDraft) && receipts.canEvict();
+   }
+
+   void armCleanupReplay() {
+      cleanupReplayPending = true;
+   }
+
+   public boolean claimCleanupReplay() {
+      if (!cleanupReplayPending) return false;
+      cleanupReplayPending = false;
+      return true;
    }
 
    public ClientDraftRepository drafts() {

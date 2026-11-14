@@ -14,6 +14,7 @@ import io.github.fastformer.client.session.receipt.OperationSubmissionReceiptSto
 import io.github.fastformer.client.session.receipt.ReceiptReadState;
 import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.scope.ClientScopeId;
+import io.github.fastformer.client.session.scope.ClientScopeRepository;
 import io.github.fastformer.client.session.storage.ClientStorageQueue;
 import io.github.fastformer.client.session.submission.OperationDraftSettlement;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
@@ -21,10 +22,8 @@ import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
@@ -43,15 +42,8 @@ public final class ClientSessionSystem {
    private static final ClientSessionSystem INSTANCE = new ClientSessionSystem();
    private static final Logger LOGGER = LogUtils.getLogger();
 
-   private final Map<ClientScopeId, ClientScope> playerSessions = new HashMap<>();
-   private final io.github.fastformer.client.operation.selection.ClientSelectionSession unboundSelection =
-      new io.github.fastformer.client.operation.selection.ClientSelectionSession();
-   private final io.github.fastformer.client.input.ClientInputSession unboundInput =
-      new io.github.fastformer.client.input.ClientInputSession(unboundSelection.gestures());
+   private final ClientScopeRepository scopes = new ClientScopeRepository();
    private boolean reclaimScopesPending;
-   /** Scopes whose applied-draft cleanup already ran in this process. */
-   private final java.util.Set<ClientScopeId> cleanupReplayed = new java.util.HashSet<>();
-   private ClientScope current;
    private Object callbackConnection;
    private UUID callbackSessionId;
    private final ClientStorageQueue storage = new ClientStorageQueue();
@@ -77,88 +69,49 @@ public final class ClientSessionSystem {
 
    /** Returns the most recently active player session, including across disconnects. */
    public ClientScope currentScope() {
-      return current;
+      return scopes.current();
    }
 
    private ClientScopeId currentScopeId() {
-      return current == null ? null : current.id();
+      return scopes.current() == null ? null : scopes.current().id();
    }
 
-   /** Input and selection share one gesture owner even before any world has been attached. */
    public io.github.fastformer.client.input.ClientInputSession inputSession() {
-      return current == null ? unboundInput : current.inputSession();
+      return scopes.inputSession();
    }
 
    public io.github.fastformer.client.operation.selection.ClientSelectionSession selectionSession() {
-      return current == null ? unboundSelection : current.selectionSession();
+      return scopes.selectionSession();
    }
 
    public void clearUnboundInteraction() {
-      unboundInput.reset();
-      unboundSelection.clearLiveInteraction();
+      scopes.clearUnboundInteraction();
    }
 
    public ClientScope forCurrent(Minecraft minecraft) {
       observePlayer(minecraft);
-      return current;
+      return scopes.current();
    }
 
    /** Returns the session isolated to one connection, player, and dimension. */
    public ClientScope forScope(ClientScopeId key) {
-      return playerSessions.computeIfAbsent(key, ClientScope::new);
+      return scopes.resolve(key);
    }
 
    ClientScope activateScope(UUID playerId, String connection, String dimension) {
-      ClientScopeId nextKey = new ClientScopeId(connection, dimension, playerId);
-      ClientScopeId currentKey = currentScopeId();
-      boolean firstActivation = currentKey == null;
-      boolean scopeChanged = currentKey != null && !currentKey.equals(nextKey);
-      if (scopeChanged
-         && currentKey.connection().equals(nextKey.connection())
-         && currentKey.playerId().equals(nextKey.playerId()) && current != null) {
-         // A dimension change inside one connection unloads the client world first, which
-         // suspends the live draft into the file of the environment being left. Keep that
-         // draft and its file: deleting it here destroyed the only copy before the new
-         // environment had returned any snapshot that could confirm or reject it.
-         current.detachEnvironment();
-      }
-      else if (scopeChanged && current != null) {
-         current.resetInput();
-      }
-      if (scopeChanged) forScope(nextKey).drafts().retryTransientFailure();
-      if (scopeChanged && forScope(nextKey).receipts().retryTransientFailure()) {
-         this.rearmDraftReadAfterReceipt(nextKey);
-      }
-      if (scopeChanged || firstActivation) {
-         // Every entry into an environment is a cleanup boundary. The applied drafts of
-         // this scope are cleared once more before the draft file is read.
-         this.cleanupReplayed.remove(nextKey);
-      }
-      ClientScope next = playerSessions.computeIfAbsent(nextKey, ClientScope::new);
-      if (scopeChanged || firstActivation) next.resetInput();
-      current = next;
-      if (scopeChanged) {
+      var previous = scopes.current();
+      var next = scopes.activate(new ClientScopeId(connection, dimension, playerId));
+      if (previous != null && previous != next) {
          reclaimScopesPending = true;
-         if (storage.idle() && unsentReceiptSaves.pendingCount() == 0) reclaimInactiveScopes();
+         reclaimInactiveScopes();
       }
       return next;
    }
 
-   /** Keeps unsaved or unreadable scopes; successful disk state can be loaded on the next entry. */
    void reclaimInactiveScopes() {
       if (!storage.idle() || unsentReceiptSaves.pendingCount() != 0) return;
       reclaimScopesPending = false;
-      var entries = playerSessions.entrySet().iterator();
-      while (entries.hasNext()) {
-         var entry = entries.next();
-         ClientScopeId key = entry.getKey();
-         ClientScope session = entry.getValue();
-         if (session == current || liveWorkBlocksDraftRead(session)) continue;
-         if (!session.drafts().canEvict(session.suspendedOperationDraftData())) continue;
-         if (!session.receipts().canEvict()) continue;
-         entries.remove();
-         cleanupReplayed.remove(key);
-      }
+      scopes.reclaimInactive();
    }
 
    /** Records the current player identity without coupling the session box to LocalPlayer lifetime. */
@@ -172,7 +125,7 @@ public final class ClientSessionSystem {
       ClientScope session = activateScope(minecraft.player.getUUID(), connection, dimension);
       // The cleanup runs first. An applied draft must never return to the editor, because
       // the world already holds its result. The read below would stage that draft.
-      if (currentScopeId() != null && this.cleanupReplayed.add(currentScopeId())) {
+      if (session.claimCleanupReplay()) {
          this.replayPendingCleanups();
       }
       this.loadDraftOnce(minecraft, session);
@@ -199,11 +152,11 @@ public final class ClientSessionSystem {
    public void suspendCurrentDraft(
       OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID submissionId
    ) {
-      if (this.current == null || currentScopeId() == null) return;
-      this.current.suspendOperationDraft(identity, originWhenNoIdentity, submissionId);
-      ClientOperationDraft draft = this.current.suspendedOperationDraftData();
+      if (scopes.current() == null || currentScopeId() == null) return;
+      scopes.current().suspendOperationDraft(identity, originWhenNoIdentity, submissionId);
+      ClientOperationDraft draft = scopes.current().suspendedOperationDraftData();
       if (draft == null) return;
-      var owner = current;
+      var owner = scopes.current();
       Path file = owner.drafts().file();
       boolean queued = storage.submitPrepared(() -> {
          Object ticket = OperationClipboardStore.reserve(file);
@@ -230,15 +183,15 @@ public final class ClientSessionSystem {
     * staged copy is consumed either way, so the restore prompt cannot return in a loop.</p>
     */
    public boolean restoreCurrentDraft(OperationDraftIdentity identity) {
-      if (this.current == null) return false;
-      boolean hadStagedDraft = this.current.suspendedOperationDraft();
-      boolean restored = this.current.restoreSuspendedOperationDraft(identity);
+      if (scopes.current() == null) return false;
+      boolean hadStagedDraft = scopes.current().suspendedOperationDraft();
+      boolean restored = scopes.current().restoreSuspendedOperationDraft(identity);
       if (!hadStagedDraft) return false;
       if (restored) {
          // The draft returned to the editor, so its durable copy is spent.
          this.deleteCurrentDraftFile();
          if (currentScopeId() != null) {
-            current.drafts().markReady();
+            scopes.current().drafts().markReady();
          }
          return true;
       }
@@ -246,7 +199,7 @@ public final class ClientSessionSystem {
       // record a retryable state: entering this environment again reads the file once
       // more. Deleting it here destroyed the only remaining copy.
       if (currentScopeId() != null) {
-         current.drafts().restoreRejected();
+         scopes.current().drafts().restoreRejected();
       }
       showDraftMessage("fastformer.message.operation_draft_restore_kept");
       return false;
@@ -267,12 +220,12 @@ public final class ClientSessionSystem {
       io.github.fastformer.workspace.submission.OperationWorkspacePlan plan, java.util.function.BooleanSupplier owned,
       java.util.function.Consumer<io.github.fastformer.client.placement.ClientPlacementRouter.WorkspaceSubmission> complete
    ) {
-      if (this.current == null || currentScopeId() == null || transferId == null) return false;
+      if (scopes.current() == null || currentScopeId() == null || transferId == null) return false;
       ClientOperationDraft draft =
-         this.current.buildSubmittedDraft(identity, originWhenNoIdentity, transferId);
+         scopes.current().buildSubmittedDraft(identity, originWhenNoIdentity, transferId);
       if (draft == null) return false;
       ClientScopeId key = currentScopeId();
-      var session = current;
+      var session = scopes.current();
       var store = receiptStore(key);
       var receipt = new OperationSubmissionReceipt(transferId, originWhenNoIdentity, identity,
          ResourceLocation.parse(key.dimension()), OperationSubmissionOutcome.IN_FLIGHT, System.currentTimeMillis());
@@ -292,7 +245,7 @@ public final class ClientSessionSystem {
             boolean durable = error == null && OperationClipboardStore.current(receiptFile, receiptTicket)
                && OperationClipboardStore.current(draftFile, draftTicket);
             if (durable) { store.confirmSaved(receipts); session.drafts().markReady(); }
-            if (current != session || !java.util.Objects.equals(currentScopeId(), key) || !owned.getAsBoolean()) {
+            if (scopes.current() != session || !java.util.Objects.equals(currentScopeId(), key) || !owned.getAsBoolean()) {
                recordUnsentSubmission(store, receipt, receiptFile);
                return;
             }
@@ -318,17 +271,17 @@ public final class ClientSessionSystem {
     * {@link #settleAppliedSubmission(UUID)}, which clears each owner on its own.</p>
     */
    public void discardCurrentDraft() {
-      if (this.current != null) this.current.discardSuspendedOperationDraft();
+      if (scopes.current() != null) scopes.current().discardSuspendedOperationDraft();
       this.deleteCurrentDraftFile();
       if (currentScopeId() != null) {
-         current.drafts().markReady();
+         scopes.current().drafts().markReady();
       }
    }
 
    /** The submission id of the staged draft, or null when nothing is staged. */
    public UUID stagedSubmissionId() {
-      if (this.current == null) return null;
-      ClientOperationDraft staged = this.current.suspendedOperationDraftData();
+      if (scopes.current() == null) return null;
+      ClientOperationDraft staged = scopes.current().suspendedOperationDraftData();
       return staged == null ? null : staged.submissionId();
    }
 
@@ -342,7 +295,7 @@ public final class ClientSessionSystem {
    public OperationDraftSettlement.DurableProbe probeDurableDraft() {
       if (currentScopeId() == null) return OperationDraftSettlement.DurableProbe.absent();
       try {
-         return current.drafts().probe();
+         return scopes.current().drafts().probe();
       } catch (IOException | RuntimeException exception) {
          LOGGER.warn("Unable to read the FastFormer draft ownership; the file stays", exception);
          return OperationDraftSettlement.DurableProbe.unreadable();
@@ -360,11 +313,11 @@ public final class ClientSessionSystem {
          transferId,
          this.stagedSubmissionId(),
          () -> {
-            if (this.current != null) {
-               var draft = this.current.suspendedOperationDraftData();
-               this.current.discardSuspendedOperationDraft();
+            if (scopes.current() != null) {
+               var draft = scopes.current().suspendedOperationDraftData();
+               scopes.current().discardSuspendedOperationDraft();
                if (draft != null && draft.remainder() != null) {
-                  this.current.stageSuspendedOperationDraft(draft.remainder().asDraft());
+                  scopes.current().stageSuspendedOperationDraft(draft.remainder().asDraft());
                }
             }
          }
@@ -512,7 +465,7 @@ public final class ClientSessionSystem {
     */
    public boolean retryCurrentDraftLoad() {
       if (currentScopeId() == null) return false;
-      return current.drafts().retry();
+      return scopes.current().drafts().retry();
    }
 
    public ClientDraftLoadState currentDraftLoadState() {
@@ -526,7 +479,7 @@ public final class ClientSessionSystem {
    }
 
    public boolean currentDraftPending() {
-      return this.current != null && this.current.suspendedOperationDraft();
+      return scopes.current() != null && scopes.current().suspendedOperationDraft();
    }
 
    /** Accepts a server snapshot and binds its callback session to the current connection. */
@@ -721,8 +674,8 @@ public final class ClientSessionSystem {
    }
 
    public boolean retryCurrentReceiptLoad() {
-      if (current == null || !current.receipts().retry()) return false;
-      this.rearmDraftReadAfterReceipt(current.id());
+      if (scopes.current() == null || !scopes.current().receipts().retry()) return false;
+      this.rearmDraftReadAfterReceipt(scopes.current().id());
       return true;
    }
 
@@ -763,7 +716,7 @@ public final class ClientSessionSystem {
    ClientDraftLoadState attemptDraftLoad(
       ClientScope session, HolderGetter<Block> blocks
    ) {
-      var read = session.drafts().read(blocks, liveWorkBlocksDraftRead(session),
+      var read = session.drafts().read(blocks, session.hasLiveWork(),
          transfer -> this.receiptVerdict(session.id(), transfer));
       if (read.failure() != null) {
          reportDraftLoadFailure(read.state(), read.failure());
@@ -779,19 +732,6 @@ public final class ClientSessionSystem {
          reclaimScopesPending = true;
       }
       return read.state();
-   }
-
-   /**
-    * True when this environment already holds live work that a staged draft would replace.
-    *
-    * <p>A durable copy that returns now would clear the workspace or the selection the player
-    * is using. The copy therefore waits for a later boundary instead of overwriting live
-    * work. The scope guard keeps the read out of the per-tick path.</p>
-    */
-   static boolean liveWorkBlocksDraftRead(ClientScope session) {
-      return session != null
-         && (!session.workspace().isEmpty() || session.selectionSession().hasDraft()
-            || session.inputSession().blocksDraftLoad());
    }
 
    private static void reportDraftLoadFailure(ClientDraftLoadState state, Exception cause) {

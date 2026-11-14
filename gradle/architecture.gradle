@@ -148,7 +148,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                 violations.add("Active scope identity must come from the scope itself: ${path}")
             }
             if (main && source.name == 'ClientSessionSystem.java' &&
-                    (dependencies =~ /\b(?:receiptStores|receiptLoadStates|receiptFiles|draftLoadStates|draftFiles|durableDrafts)\b/).find()) {
+                    (dependencies =~ /\b(?:receiptStores|receiptLoadStates|receiptFiles|draftLoadStates|draftFiles|durableDrafts|playerSessions|cleanupReplayed|unboundInput|unboundSelection)\b/).find()) {
                 violations.add("Persistent client state belongs to the scope repositories: ${path}")
             }
             if (main && source.name == 'ServerInputDispatcher.java' &&

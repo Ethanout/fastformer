@@ -428,3 +428,10 @@
 - 草稿模型／Codec、回执模型／Codec／延迟保存、有界队列／NBT 辅助、提交来源／结算规则分别迁入 draft、receipt、storage、submission；纯能力测试跟随迁包，跨能力回归仍由会话层测试覆盖。共享身份 Codec 方法和队列入口只为真实跨包调用公开。
 - 整个 client.session 树纳入包容量和职责说明检查；补齐 reconnect 的包说明。首轮检查捕获该说明缺失，修正后 `.temp/architecture-client-session-layout-final-verified.log` 的完整 check 与独立新目录全量 312 项必需 GameTest 通过。
 - 作用域仓库、提交编排、OperationContext、Mode、PreviewFrame、PointerResolver 和实机验收仍需继续。实际试玩存档未清除。
+
+## 作用域仓库与输入边界（2026-11-14）
+
+- `ClientScopeRepository` 拥有作用域集合、当前作用域、激活边界、备用输入／选区和驱逐；总入口仅在共享 IO 队列及延迟回执保存空闲后调用驱逐。不再保留总入口的 playerSessions、独立当前字段、备用状态和 cleanupReplayed 集合。
+- 清理重放标记归具体作用域，重新进入时重新设为待处理；重复激活同一作用域不会重复重放。跨维度、跨玩家／服务器的不同清理语义保留。草稿／回执的读取失败和未保存内容仍阻止驱逐。
+- `hasLiveWork` 和 `canEvict` 由作用域表达；输入测试直接查询所属对象。三项输入边界测试改用真实仓库，不再反射构造会话总入口或调用其私有激活／草稿门禁方法；输入内部字段继续保持包内可见。
+- `.temp/architecture-client-scope-repository-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过。新增清理重放的每次进入／跨环境隔离测试。提交编排、OperationContext、Mode 与实机验收仍未完成；实际试玩存档未清除。
