@@ -81,9 +81,9 @@ final class SelectionGestureController {
          ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(editToken);
          return false;
       }
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
+      session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
       var capture = SelectionDragCapture.create(
-         ClientSessionSystem.instance().operations().interactionScene().owner(), workspace, targets, mouseButton, session.pointerGestureToken
+         ClientSessionSystem.instance().operations().interactionScene().owner(), workspace, targets, mouseButton, session.pointerGesture.activeToken()
       );
       session.selectionGestures().begin(new WorkspaceGizmoDrag(
          target.partId(), target.common(), handle.operation(), handle.axis(),
@@ -132,9 +132,9 @@ final class SelectionGestureController {
       int axis = hit.axis();
       Vec3 worldAxis = ClientInputMath.worldAxis(axis);
       boolean positive = hit.normal().dot(worldAxis) > 0.0;
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_FACE);
+      session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_FACE);
       var capture = SelectionDragCapture.create(
-         ClientSessionSystem.instance().operations().interactionScene().owner(), workspace, List.of(part), press.button(), session.pointerGestureToken
+         ClientSessionSystem.instance().operations().interactionScene().owner(), workspace, List.of(part), press.button(), session.pointerGesture.activeToken()
       );
       session.selectionGestures().begin(new WorkspaceFaceDrag(
          part, axis, positive, DragAxisFrame.start(hit.point(), false), hit.normal(), 0,
@@ -164,8 +164,8 @@ final class SelectionGestureController {
    static void finishGizmo(ClientInputSession session) {
       WorkspaceGizmoDrag drag = session.selectionGestures().gizmo();
       if (drag != null) {
-         if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_GIZMO)
-            && drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGestureToken)) {
+         if (session.pointerGesture.owns(session.pointerGesture.activeToken(), PointerGestureState.Kind.WORKSPACE_GIZMO)
+            && drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGesture.activeToken())) {
             if (drag.operation() == AxisGizmo.Operation.ROTATE) {
                double radians = RotationInputAngles.selectionFinish(drag.rotationRadians(), drag.freeRotation());
                String failure = ClientSessionSystem.instance().operations().transforms().updateTransformGesture(drag.editToken(), drag.baseline(),
@@ -188,7 +188,7 @@ final class SelectionGestureController {
    static void finishFace(ClientInputSession session) {
       WorkspaceFaceDrag drag = session.selectionGestures().face();
       if (drag != null) {
-         if (session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_FACE) && drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGestureToken)) {
+         if (session.pointerGesture.owns(session.pointerGesture.activeToken(), PointerGestureState.Kind.WORKSPACE_FACE) && drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGesture.activeToken())) {
             ClientSessionSystem.instance().operations().transforms().finishTransformGesture(drag.editToken());
          } else {
             ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
@@ -200,7 +200,6 @@ final class SelectionGestureController {
 
    static void finishPointer(ClientInputSession session, long token) {
       session.pointerGesture.finish(token);
-      if (session.pointerGestureToken == token) session.pointerGestureToken = 0L;
    }
 
    static void updateGizmo(ClientInputSession session, Minecraft minecraft, boolean control) {
@@ -208,8 +207,8 @@ final class SelectionGestureController {
       if (drag == null || minecraft.player == null) {
          return;
       }
-      if (!session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_GIZMO)
-         || !drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGestureToken)
+      if (!session.pointerGesture.owns(session.pointerGesture.activeToken(), PointerGestureState.Kind.WORKSPACE_GIZMO)
+         || !drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGesture.activeToken())
          || !ClientSessionSystem.instance().operations().workspace().ownsEdit(drag.editToken())) {
          ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
          finishPointer(session, drag.capture().gestureToken());
@@ -271,8 +270,8 @@ final class SelectionGestureController {
          return;
       }
       WorkspaceFaceDrag original = drag;
-      if (!session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.WORKSPACE_FACE)
-         || !drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGestureToken)
+      if (!session.pointerGesture.owns(session.pointerGesture.activeToken(), PointerGestureState.Kind.WORKSPACE_FACE)
+         || !drag.capture().matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), session.pointerGesture.activeToken())
          || !ClientSessionSystem.instance().operations().workspace().ownsEdit(drag.editToken())) {
          ClientSessionSystem.instance().operations().transforms().cancelTransformGesture(drag.editToken());
          finishPointer(session, drag.capture().gestureToken());

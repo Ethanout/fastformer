@@ -74,24 +74,22 @@ class SelectionPointerReleaseTest {
       var pointer = pointer();
       long previous = pointer.begin(PointerGestureState.Kind.WORKSPACE_FACE);
       long current = pointer.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
-      FastPlaceClientInput.inputSession().pointerGestureToken = current;
       release(previous);
       assertTrue(pointer.owns(current, PointerGestureState.Kind.WORKSPACE_GIZMO));
-      assertEquals(current, FastPlaceClientInput.inputSession().pointerGestureToken);
+      assertEquals(current, FastPlaceClientInput.inputSession().pointerGesture.activeToken());
       release(current);
       assertEquals(0L, pointer.activeToken());
-      assertEquals(0L, FastPlaceClientInput.inputSession().pointerGestureToken);
+      assertEquals(0L, FastPlaceClientInput.inputSession().pointerGesture.activeToken());
    }
 
    @Test
    void emptySelectionReleaseCannotFinishAnUnrelatedGesture() throws Exception {
       var pointer = pointer();
       long current = pointer.begin(PointerGestureState.Kind.OPERATION_POINT);
-      FastPlaceClientInput.inputSession().pointerGestureToken = current;
       invoke("finishWorkspaceFaceDrag");
       invoke("finishWorkspaceGizmoDrag");
       assertTrue(pointer.owns(current, PointerGestureState.Kind.OPERATION_POINT));
-      assertEquals(current, FastPlaceClientInput.inputSession().pointerGestureToken);
+      assertEquals(current, FastPlaceClientInput.inputSession().pointerGesture.activeToken());
    }
 
    private static void release(long token) throws Exception {

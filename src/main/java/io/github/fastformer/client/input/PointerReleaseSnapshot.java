@@ -7,7 +7,7 @@ record PointerReleaseSnapshot(int button, long occurredAtNanos, long clickToken,
    boolean dispatch(ClientInputSession session, MouseDragReleaseSemantics.Target currentTarget,
       Runnable finish) {
       if (target == MouseDragReleaseSemantics.Target.NONE || target != currentTarget
-         || session.clickGestureToken != clickToken || session.pointerGestureToken != pointerToken
+         || session.clickGestureToken != clickToken || session.pointerGesture.activeToken() != pointerToken
          || !session.routing.finishGesture(button, clickToken)) {
          return false;
       }

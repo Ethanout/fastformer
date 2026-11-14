@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render;
+package io.github.fastformer.client.feedback;
 
 /**
  * Keeps short-lived HUD feedback visible before fading it out.

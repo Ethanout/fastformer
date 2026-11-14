@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render.hud;
 
 import io.github.fastformer.core.math.Axis;
+import io.github.fastformer.client.feedback.HudValueFormatter;
 
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;

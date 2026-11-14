@@ -4,9 +4,6 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.input.ScrollDecision;
 import io.github.fastformer.client.mode.input.ScrollInput;
 import io.github.fastformer.client.mode.input.ScrollView;
-import io.github.fastformer.client.mode.input.KeyDecision;
-import io.github.fastformer.client.mode.input.KeyInput;
-import io.github.fastformer.client.mode.input.KeyView;
 import io.github.fastformer.client.mode.input.pointer.PointerDecision;
 import io.github.fastformer.client.mode.input.pointer.PointerInput;
 import io.github.fastformer.client.mode.input.pointer.PointerView;
@@ -21,7 +18,6 @@ public interface ClientMode {
    Optional<State> observe(ModeObservation observation);
 
    default ScrollDecision onScroll(ScrollInput input, ScrollView view) { return ScrollDecision.pass(); }
-   default KeyDecision onKey(KeyInput input, KeyView view) { return KeyDecision.PASS; }
    default PointerDecision onPointer(PointerInput input, PointerView view) { return PointerDecision.Flow.PASS; }
 
    /** Tasks are not editable interaction sessions, even when they own input. */

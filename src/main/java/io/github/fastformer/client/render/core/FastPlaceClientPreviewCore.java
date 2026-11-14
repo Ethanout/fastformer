@@ -15,7 +15,6 @@ import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.ModifierReticleMode;
 import io.github.fastformer.client.input.PointerDragSnapshotView;
@@ -26,17 +25,18 @@ import io.github.fastformer.client.render.OperationFaceHitInterpolator;
 import io.github.fastformer.client.render.SmoothReticlePostEffect;
 import io.github.fastformer.client.render.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspaceSubmissionHud;
-import io.github.fastformer.client.lifecycle.ClientBackgroundTasks;
+import io.github.fastformer.client.preview.ClientPreviewSystem;
 import io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem;
 import io.github.fastformer.client.preview.frame.WorldPreviewFrame;
 import io.github.fastformer.client.preview.quickshape.QuickShapePreviewInput;
-import io.github.fastformer.client.preview.quickshape.QuickShapePreviewMode;
-import io.github.fastformer.client.preview.geometry.GeometryPreviewMode;
 import io.github.fastformer.client.preview.geometry.GeometryPreviewInput;
 import io.github.fastformer.client.preview.geometry.GeometryPreviewModel;
 import io.github.fastformer.client.render.hud.GeometryTextBlockRenderer;
 import io.github.fastformer.client.render.hud.GizmoHudTextFormatter;
 import io.github.fastformer.client.render.hud.PreviewFeedbackHud;
+import io.github.fastformer.client.feedback.InteractionFeedback;
+import io.github.fastformer.client.feedback.AxisFeedback;
+import io.github.fastformer.client.feedback.ScrollFeedbackData;
 import io.github.fastformer.client.operation.pointer.OperationPointerKind;
 import io.github.fastformer.client.operation.pointer.OperationPointerTarget;
 import io.github.fastformer.client.render.model.*;
@@ -105,19 +105,16 @@ import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
-import org.slf4j.Logger;
 
 @EventBusSubscriber(
    modid = "fastformer",
    value = {Dist.CLIENT}
 )
 public final class FastPlaceClientPreviewCore {
-   private static final Logger LOGGER = LogUtils.getLogger();
    private static final double PREVIEW_REACH = LongRangeBlockRaycast.MAX_REACH;
    static final float GHOST_FACE_ALPHA_MIN = 0.10F;
    static final float GHOST_FACE_ALPHA_MAX = PreviewStyle.FACE_ALPHA;
    private static final long FACE_NORMAL_INTERPOLATION_NANOS = 100_000_000L;
-   private static final long PREVIEW_FAILURE_LOG_INTERVAL_NANOS = 5_000_000_000L;
    static final float SELECTION_HIGHLIGHT_ALPHA = PreviewStyle.FACE_HOVER_ALPHA;
    static final float GHOST_OUTLINE_ALPHA_MIN = 0.70F;
    static final float GHOST_OUTLINE_ALPHA_MAX = PreviewStyle.OUTLINE_ALPHA;
@@ -125,9 +122,8 @@ public final class FastPlaceClientPreviewCore {
    /** Drops cached meshes that baked the previous theme's colors. */
    public static void onThemeChanged() {
       ClientSessionSystem.instance().inputSession().invalidateGeometryPlan();
-      QUICK_SHAPE_PREVIEW.clear();
+      ClientPreviewSystem.instance().clear();
       PreviewRenderResources.clearShells();
-      GEOMETRY_PREVIEW.clear();
    }
 
    /** Theme ink; every ink pass is preceded by a {@link GeometryPalette#halo()} pass. */
@@ -147,49 +143,14 @@ public final class FastPlaceClientPreviewCore {
    private static io.github.fastformer.client.operation.pointer.RemoteSelectionPointer remotePointer() {
       return ClientSessionSystem.instance().operations().remotePointer();
    }
-   /** Owns transient interaction feedback and its HUD rendering. */
-   private static final PreviewFeedbackHud FEEDBACK = new PreviewFeedbackHud(FastPlaceClientPreviewCore::gizmoAxisHudColor);
+   private static InteractionFeedback feedback() {
+      return ClientSessionSystem.instance().inputSession().feedback();
+   }
    static final OperationFaceHitInterpolator OPERATION_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
    static final OperationFaceHitInterpolator WORKSPACE_FACE_INTERPOLATOR = new OperationFaceHitInterpolator(FACE_NORMAL_INTERPOLATION_NANOS);
-   private static long lastPreviewFailureLogAt;
-   private static final QuickShapePreviewMode QUICK_SHAPE_PREVIEW = new QuickShapePreviewMode(
-      previews(), () -> PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
-      FastPlaceClientPreviewCore::logPreviewFailure, ClientBackgroundTasks.serial("preview-generation", 16)
-   );
-   private static final GeometryPreviewMode GEOMETRY_PREVIEW = new GeometryPreviewMode(
-      FastPlaceClientPreviewCore::logPreviewFailure, ClientBackgroundTasks.serial("preview-mesh", 16));
    private static boolean smoothReticleFrame;
 
    private FastPlaceClientPreviewCore() {
-   }
-
-   /** Advances preview generation and clears feedback outside the focused world. */
-   public static void onClientTick() {
-      Minecraft minecraft = Minecraft.getInstance();
-      // Hover acceleration and transient HUD feedback belong to the focused
-      // world view. Do not carry either across a menu, pause screen, or world
-      // boundary where the crosshair is no longer selecting a block.
-      if (minecraft.player == null || minecraft.level == null || minecraft.screen != null) FEEDBACK.clear();
-      if (minecraft.player != null && minecraft.level != null && minecraft.screen == null && minecraft.isWindowActive()) {
-         QUICK_SHAPE_PREVIEW.tick();
-      }
-   }
-
-   public static void noteScrollFeedback() {
-      long now = System.nanoTime();
-      FEEDBACK.noteScroll(previews().building(), now);
-   }
-
-   /** Clears HUD and hover feedback when the input state cancels a session. */
-   public static void clearTransientFeedback() {
-      FEEDBACK.clear();
-   }
-
-   public static void noteGizmoFeedback(
-      Axis axis, AxisGizmo.Operation operation, int steps, double baseValue
-   ) {
-      FEEDBACK.noteGizmo(axis, operation, steps,
-         GeometryNumbers.finiteOr(baseValue, operation == AxisGizmo.Operation.SCALE ? 1.0 : 0.0), System.nanoTime());
    }
 
    public static boolean active() {
@@ -384,7 +345,7 @@ public final class FastPlaceClientPreviewCore {
          return;
       }
       BuildingPreviewSnapshot snapshot = previews().building();
-      boolean persistentFreeScroll = FEEDBACK.refreshFreeScrollSession(previews().building(), System.nanoTime());
+      boolean persistentFreeScroll = feedback().refreshFreeScrollSession(previews().building(), System.nanoTime());
       boolean reconnectRestorePending = ClientSessionSystem.instance().operations().reconnectRestorePending()
          || previews().reconnectRestorePending();
       // A local submission locks the workspace before the server reports its task.
@@ -754,15 +715,15 @@ public final class FastPlaceClientPreviewCore {
             operation = hit.handle().operation();
             hoveredGizmo = true;
             long now = System.nanoTime();
-            double speed = FEEDBACK.gizmoDwellMultiplier(axis.name() + ":" + operation.name(), now);
-            gizmoAlpha = FEEDBACK.gizmoAlpha(now, axis.name() + ":" + operation.name(), speed);
-            retainedGizmo = gizmoAlpha > 0 && axis == FEEDBACK.lastGizmoAxis();
+            double speed = feedback().gizmoDwellMultiplier(axis.name() + ":" + operation.name(), now);
+            gizmoAlpha = feedback().gizmoAlpha(now, axis.name() + ":" + operation.name(), speed);
+            retainedGizmo = gizmoAlpha > 0 && axis == feedback().lastGizmoAxis();
          } else {
             long now = System.nanoTime();
-            gizmoAlpha = FEEDBACK.gizmoAlpha(now, null, 1.0);
+            gizmoAlpha = feedback().gizmoAlpha(now, null, 1.0);
             if (gizmoAlpha > 0) {
-               axis = FEEDBACK.lastGizmoAxis();
-               operation = FEEDBACK.lastGizmoOperation();
+               axis = feedback().lastGizmoAxis();
+               operation = feedback().lastGizmoOperation();
                retainedGizmo = axis != null;
             }
          }
@@ -781,9 +742,9 @@ public final class FastPlaceClientPreviewCore {
          if (useTemplate) {
             double baseValue = dragAxis != null
                ? hudInput.dragBaseValue()
-               : FEEDBACK.lastGizmoBaseValue();
+               : feedback().lastGizmoBaseValue();
             double currentValue = gizmoHudValue(hudInput, geometryPlan, axis, operation);
-            int steps = dragAxis != null ? hudInput.dragSteps() : FEEDBACK.lastGizmoSteps();
+            int steps = dragAxis != null ? hudInput.dragSteps() : feedback().lastGizmoSteps();
             GizmoTextContext context = hudInput.operationSelection() && operationSelectionReady()
                ? GizmoHudTextFormatter.operationTransformTextContext(axis, operation, baseValue, currentValue, steps)
                : GizmoHudTextFormatter.textContext(axis, operation, baseValue, currentValue, steps);
@@ -798,13 +759,13 @@ public final class FastPlaceClientPreviewCore {
             if (valueAvailable) {
                double baseValue = dragAxis != null
                   ? hudInput.dragBaseValue()
-                  : FEEDBACK.lastGizmoBaseValue();
+                  : feedback().lastGizmoBaseValue();
                double currentValue = gizmoHudValue(hudInput, geometryPlan, axis, operation);
                String value = GizmoHudTextFormatter.formatValue(
-                  dragAxis != null ? hudInput.dragOperation() : FEEDBACK.lastGizmoOperation(),
+                  dragAxis != null ? hudInput.dragOperation() : feedback().lastGizmoOperation(),
                   baseValue,
                   currentValue,
-                  dragAxis != null ? hudInput.dragSteps() : FEEDBACK.lastGizmoSteps()
+                  dragAxis != null ? hudInput.dragSteps() : feedback().lastGizmoSteps()
                );
                int valueColor = retainedGizmo ? withAlpha(axisColor, gizmoAlpha) : axisColor;
                graphics.drawString(minecraft.font, value, labelEnd + 3, y, valueColor, true);
@@ -935,9 +896,9 @@ public final class FastPlaceClientPreviewCore {
       GuiGraphics graphics, Minecraft minecraft, boolean persistentFreeScroll,
       io.github.fastformer.client.render.hud.BottomHudLayout bottomLayout
    ) {
-      FEEDBACK.renderScrollFeedback(
-         graphics, minecraft, scrollFeedbackData(), persistentFreeScroll, System.nanoTime(), bottomLayout
-      );
+      Object target = minecraft.hitResult instanceof BlockHitResult hit ? hit.getBlockPos().immutable() : null;
+      int alpha = feedback().scrollAlpha(persistentFreeScroll, target, System.nanoTime());
+      PreviewFeedbackHud.renderScrollFeedback(graphics, minecraft, scrollFeedbackData(), alpha, bottomLayout);
    }
 
    private static ScrollFeedbackData scrollFeedbackData() {
@@ -945,14 +906,14 @@ public final class FastPlaceClientPreviewCore {
       BlockPos value = operationSelectionConfirmed() && PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())
             ? previews().operation().stackVector()
             : previews().operation().translation();
-         return FEEDBACK.coordinates(value);
+         return feedback().coordinates(value);
       }
       if (previews().geometry().active() && previews().geometry().mode() == GeometryMode.CONE_PRISM) {
          Vec3 offset = previews().geometry().coneTopOffset();
          return new ScrollFeedbackData(
             List.of(
-               new AxisFeedback("X", GeometryNumbers.fixed(offset.x, 2), FEEDBACK.axisColor(Axis.X)),
-               new AxisFeedback("Z", GeometryNumbers.fixed(offset.z, 2), FEEDBACK.axisColor(Axis.Z))
+               new AxisFeedback("X", GeometryNumbers.fixed(offset.x, 2), feedback().axisColor(Axis.X)),
+               new AxisFeedback("Z", GeometryNumbers.fixed(offset.z, 2), feedback().axisColor(Axis.Z))
             ),
             ""
          );
@@ -962,11 +923,11 @@ public final class FastPlaceClientPreviewCore {
          // Keep the free-scroll payload aligned with persistent visibility.
          // effectiveStage() can briefly describe the previous server snapshot
          // while the active line session already owns the scroll offset.
-         if (FEEDBACK.freeScrollSession() && building.points().size() <= 1) {
+         if (feedback().freeScrollSession() && building.points().size() <= 1) {
             BlockPos offset = building.points().size() == 1
-               ? building.freeScrollOffset() : FEEDBACK.freeScrollOffset();
-            ScrollFeedbackData data = FEEDBACK.coordinates(offset);
-            FEEDBACK.rememberFreeScrollData(data);
+               ? building.freeScrollOffset() : feedback().freeScrollOffset();
+            ScrollFeedbackData data = feedback().coordinates(offset);
+            feedback().rememberFreeScrollData(data);
             return data;
          }
          QuickShapeStage stage = effectiveStage(building);
@@ -982,9 +943,9 @@ public final class FastPlaceClientPreviewCore {
                );
             }
          }
-         if (stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(QUICK_SHAPE_PREVIEW.effectiveModes(previews().building()))) {
+         if (stage == QuickShapeStage.VOLUME && FastPlaceGeometry.usesVolumeOffset(ClientPreviewSystem.instance().quickShape().effectiveModes(previews().building()))) {
             return previews().building().volumeMode() == VolumeMode.FREE
-               ? FEEDBACK.coordinates(previews().building().volumeBaseOffset())
+               ? feedback().coordinates(previews().building().volumeBaseOffset())
                : new ScrollFeedbackData(List.of(), formatScalar(previews().building().volumeBaseOffset()));
          }
       }
@@ -992,25 +953,15 @@ public final class FastPlaceClientPreviewCore {
       // server applies the new offset. Keep rendering the latched value for
       // that gap; otherwise the HUD disappears even though the session is
       // still valid and the feedback component keeps it visible.
-      if (FEEDBACK.freeScrollSession()) {
-         ScrollFeedbackData data = FEEDBACK.freeScrollData();
-         return data != null ? data : FEEDBACK.coordinates(FEEDBACK.freeScrollOffset());
+      if (feedback().freeScrollSession()) {
+         ScrollFeedbackData data = feedback().freeScrollData();
+         return data != null ? data : feedback().coordinates(feedback().freeScrollOffset());
       }
       return null;
    }
 
    private static int withAlpha(int color, int alpha) {
       return (Math.clamp(alpha, 0, 255) << 24) | (color & 0x00FFFFFF);
-   }
-
-   static void logPreviewFailure(String message, Throwable failure) {
-      long now = System.nanoTime();
-      if (lastPreviewFailureLogAt == 0L
-         || now < lastPreviewFailureLogAt
-         || now - lastPreviewFailureLogAt >= PREVIEW_FAILURE_LOG_INTERVAL_NANOS) {
-         lastPreviewFailureLogAt = now;
-         LOGGER.warn(message, failure);
-      }
    }
 
 
@@ -1141,16 +1092,16 @@ public final class FastPlaceClientPreviewCore {
             BlockPos hovered = snapshot.points().isEmpty() ? null : pointUnderCrosshair(List.of(snapshot.points().getFirst()));
             var context = previewPlacementContext(snapshot, player);
             var prototype = PlaceableItems.placementState(player.getMainHandItem(), player, context).orElse(null);
-            var model = QUICK_SHAPE_PREVIEW.buildModel(new QuickShapePreviewInput(snapshot, player, player.getEyePosition(),
+            var model = ClientPreviewSystem.instance().quickShape().buildModel(new QuickShapePreviewInput(snapshot, player, player.getEyePosition(),
                player.getViewVector(1.0F), candidate, hovered, prototype, context));
-            QUICK_SHAPE_PREVIEW.drawWorld(worldPreviewFrame(event, minecraft), model);
+            ClientPreviewSystem.instance().quickShape().drawWorld(worldPreviewFrame(event, minecraft), model);
          }
       }
    }
 
    private static void renderGeometryWall(RenderLevelStageEvent event, Minecraft minecraft) {
       Vec3 view = minecraft.player == null ? new Vec3(0, 0, 1) : minecraft.player.getViewVector(1.0F);
-      GEOMETRY_PREVIEW.drawWorld(worldPreviewFrame(event, minecraft), geometryPreviewModel(view));
+      ClientPreviewSystem.instance().geometry().drawWorld(worldPreviewFrame(event, minecraft), geometryPreviewModel(view));
    }
 
    private static WorldPreviewFrame worldPreviewFrame(RenderLevelStageEvent event, Minecraft minecraft) {
@@ -1176,7 +1127,7 @@ public final class FastPlaceClientPreviewCore {
    private static GeometryPreviewModel geometryPreviewModel(Vec3 view) {
       var pointer = ClientSessionSystem.instance().geometryPointer();
       var plan = pointer.plan();
-      var model = GEOMETRY_PREVIEW.buildModel(new GeometryPreviewInput(previews().geometry(),
+      var model = ClientPreviewSystem.instance().geometry().buildModel(new GeometryPreviewInput(previews().geometry(),
          PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), plan));
       return model.withGizmo(pointer.presentedPlan().gizmo());
    }
@@ -1198,9 +1149,9 @@ public final class FastPlaceClientPreviewCore {
    public static void clearWorldRenderState() {
       ClientSessionSystem.instance().inputSession().clearGeometryPointer();
       OPERATION_FACE_INTERPOLATOR.reset();
-      QUICK_SHAPE_PREVIEW.clear();
+      ClientPreviewSystem.instance().quickShape().clear();
       PreviewRenderResources.clearShells();
-      GEOMETRY_PREVIEW.clear();
+      ClientPreviewSystem.instance().geometry().clear();
       SmoothReticlePostEffect.reset();
       smoothReticleFrame = false;
    }

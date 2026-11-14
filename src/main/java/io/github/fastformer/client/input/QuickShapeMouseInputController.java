@@ -7,7 +7,6 @@ import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload;
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;

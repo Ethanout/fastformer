@@ -27,7 +27,10 @@ public final class BindingConfiguration {
 
    private BindingConfiguration() {}
    public static BindingConfiguration instance() { return INSTANCE; }
-   public BindingSystem createSystem() { return new BindingSystem(matcher, () -> rules, options::enabled); }
+   public BindingSystem createSystem() { return createSystem(() -> {}); }
+   public BindingSystem createSystem(Runnable definitionsChanged) {
+      return new BindingSystem(matcher, () -> rules, options::enabled, this::revision, definitionsChanged);
+   }
    public OptionStore options() { return options; }
    public List<String> diagnostics() { return diagnostics; }
    public long revision() { return revision; }

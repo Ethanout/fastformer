@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render;
+package io.github.fastformer.client.feedback;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;

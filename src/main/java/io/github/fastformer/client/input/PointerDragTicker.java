@@ -4,7 +4,6 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.policy.DragAdvanceSemantics;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import net.minecraft.client.Minecraft;
 
 /** Advances one pointer drag owner per client tick. */
@@ -19,10 +18,10 @@ final class PointerDragTicker {
 
       DragAdvanceSemantics.Plan plan = DragAdvanceSemantics.plan(new DragAdvanceSemantics.State(
          session.operationDrag != null,
-         session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.OPERATION_FACE)
-            || session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.OPERATION_GIZMO),
+         session.pointerGesture.owns(session.pointerGesture.activeToken(), PointerGestureState.Kind.OPERATION_FACE)
+            || session.pointerGesture.owns(session.pointerGesture.activeToken(), PointerGestureState.Kind.OPERATION_GIZMO),
          session.operationPointDrag != null,
-         session.pointerGesture.owns(session.pointerGestureToken, PointerGestureState.Kind.OPERATION_POINT),
+         session.pointerGesture.owns(session.pointerGesture.activeToken(), PointerGestureState.Kind.OPERATION_POINT),
          session.geometryGizmoDrag != null,
          workspaceGizmo,
          workspaceFace,

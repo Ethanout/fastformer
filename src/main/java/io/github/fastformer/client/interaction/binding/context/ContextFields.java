@@ -26,7 +26,9 @@ public final class ContextFields {
    public static ContextFields defaults() {
       ContextFields result = new ContextFields();
       for (String field : List.of("session", "stage", "mode", "profile", "sneaking", "screen",
-         "aiming", "tinker_consumes", "range", "in_fluid", "through_fluids", "near_first_point")) {
+         "aiming", "tinker_consumes", "range", "in_fluid", "through_fluids", "near_first_point",
+         "key_action", "input_phase", "player_present", "idle_actions_allowed", "fill_ready", "can_start_fill",
+         "can_replace", "creative", "feature_enabled", "window_active", "interaction_allowed", "use_held")) {
          result.register(field, JsonElement::equals);
       }
       for (String field : List.of("items", "aiming_tag", "modifiers")) result.register(field, ContextFields::contains);

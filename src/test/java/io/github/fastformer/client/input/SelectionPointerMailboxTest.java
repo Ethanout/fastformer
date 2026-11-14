@@ -477,9 +477,9 @@ class SelectionPointerMailboxTest {
       var workspace = ClientSessionSystem.instance().operations().workspace();
       var part = workspace.part(1).orElseThrow();
       assertTrue(workspace.beginEdit());
-      this.input.pointerGestureToken = this.input.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_FACE);
+      this.input.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_FACE);
       var capture = SelectionDragCapture.create(ClientSessionSystem.instance().operations().interactionScene().owner(), workspace,
-         List.of(part), press.snapshot().button(), this.input.pointerGestureToken);
+         List.of(part), press.snapshot().button(), this.input.pointerGesture.activeToken());
       var drag = new WorkspaceFaceDrag(part, 0, true, DragAxisFrame.start(Vec3.ZERO, false),
          new Vec3(1, 0, 0), 0, capture, DeferredDragClick.none(), null, workspace.activeEditToken(), false);
       ClientSessionSystem.instance().operations().selectionGestures().begin(drag);

@@ -7,7 +7,7 @@ import java.util.Set;
 
 /** Physical trigger description; duration values come from binding data. */
 public record InputPattern(String button, String gesture, int durationMillis, String holdStart) {
-   private static final Set<String> GESTURES = Set.of("press", "release", "hold", "double", "scroll_up", "scroll_down", "key");
+   private static final Set<String> GESTURES = Set.of("press", "release", "hold", "double", "scroll_up", "scroll_down", "key", "tick", "interaction");
    public static final Codec<InputPattern> CODEC = RecordCodecBuilder.<InputPattern>create(instance -> instance.group(
       Codec.STRING.fieldOf("button").forGetter(InputPattern::button),
       Codec.STRING.fieldOf("gesture").forGetter(InputPattern::gesture),

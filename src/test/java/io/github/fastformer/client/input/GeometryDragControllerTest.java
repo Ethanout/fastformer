@@ -19,7 +19,7 @@ class GeometryDragControllerTest {
       GeometryDragController.update(null, session, false);
       assertNull(session.geometryGizmoDrag);
       assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
-      assertEquals(0L, session.pointerGestureToken);
+      assertEquals(0L, session.pointerGesture.activeToken());
       GeometryDragController.finish(null, session);
       assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
    }
@@ -30,17 +30,16 @@ class GeometryDragControllerTest {
       GeometryDragController.finish(null, session);
       assertNull(session.geometryGizmoDrag);
       assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
-      assertEquals(0L, session.pointerGestureToken);
+      assertEquals(0L, session.pointerGesture.activeToken());
    }
 
    @Test
    void staleReleaseDiscardsOldDragWithoutFinishingNewGesture() {
       var session = capture(PointerGestureState.Kind.BUILDING_GEOMETRY);
       long next = session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
-      session.pointerGestureToken = next;
       GeometryDragController.finish(null, session);
       assertNull(session.geometryGizmoDrag);
-      assertEquals(next, session.pointerGestureToken);
+      assertEquals(next, session.pointerGesture.activeToken());
       assertTrue(session.pointerGesture.owns(next, PointerGestureState.Kind.WORKSPACE_GIZMO));
    }
 
@@ -48,7 +47,6 @@ class GeometryDragControllerTest {
    void staleTickCannotAccessWorldOrReleaseReplacementCapture() {
       var session = capture(PointerGestureState.Kind.BUILDING_GEOMETRY);
       long next = session.pointerGesture.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
-      session.pointerGestureToken = next;
       GeometryDragController.update(null, session, false);
       assertNull(session.geometryGizmoDrag);
       assertTrue(session.pointerGesture.owns(next, PointerGestureState.Kind.BUILDING_GEOMETRY));
@@ -73,7 +71,7 @@ class GeometryDragControllerTest {
    @Test
    void replacedOrCancelledCaptureCannotRouteOldDrag() {
       var session = capture(PointerGestureState.Kind.BUILDING_GEOMETRY);
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+      session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       session.geometryGizmoDrag = session.geometryGizmoDrag.withSentSteps(2);
       assertEquals(GeometryDragController.Target.NONE, GeometryDragController.target(session, true, true));
       session.pointerGesture.cancel();
@@ -82,10 +80,10 @@ class GeometryDragControllerTest {
 
    private static ClientInputSession capture(PointerGestureState.Kind kind) {
       var session = new ClientInputSession();
-      session.pointerGestureToken = session.pointerGesture.begin(kind);
+      session.pointerGesture.begin(kind);
       session.geometryGizmoDrag = new GeometryGizmoDrag(AxisGizmo.Operation.MOVE, Axis.X,
          Vec3.ZERO, new Vec3(1, 0, 0), 0, 0, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO,
-         AxisGizmo.Direction.POSITIVE, 0).withCapture(session.pointerGestureToken);
+         AxisGizmo.Direction.POSITIVE, 0).withCapture(session.pointerGesture.activeToken());
       return session;
    }
 }

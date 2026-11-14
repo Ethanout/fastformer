@@ -34,6 +34,9 @@ import java.util.function.Consumer;
 
 /** Transient input state owned by one player environment, never persisted with a draft. */
 public final class ClientInputSession {
+   private final io.github.fastformer.client.feedback.InteractionFeedback feedback =
+      new io.github.fastformer.client.feedback.InteractionFeedback();
+   public io.github.fastformer.client.feedback.InteractionFeedback feedback() { return feedback; }
    private final io.github.fastformer.client.interaction.pointer.PointerResolver pointer =
       new io.github.fastformer.client.interaction.pointer.PointerResolver();
    public io.github.fastformer.client.interaction.pointer.PointerResolver pointer() { return pointer; }
@@ -97,7 +100,6 @@ public final class ClientInputSession {
       routing = new ClientInputStateMachine();
    }
    final ModifierGestureState modifier = new ModifierGestureState();
-   long pointerGestureToken;
    long clickGestureToken;
    OperationDrag operationDrag;
    OperationPointDrag operationPointDrag;
@@ -143,6 +145,7 @@ public final class ClientInputSession {
    }
 
    public void reset() {
+      feedback.clear();
       pointer.invalidate();
       clearGeometryPointer();
       smartFill.clear();
@@ -218,7 +221,6 @@ public final class ClientInputSession {
       this.undoPress.cancel();
       this.undoPressCaptured = false;
       this.clickGestureToken = 0L;
-      this.pointerGestureToken = 0L;
    }
 
    void postSubmissionCompleted(ClientSemanticEvent.SubmissionCompleted event) {
@@ -324,7 +326,6 @@ public final class ClientInputSession {
       if (this.geometryGizmoDrag != null && this.geometryGizmoCapture.owns(this.geometryGizmoDrag.captureToken())) {
          long token = this.geometryGizmoDrag.captureToken();
          this.pointerGesture.finish(token);
-         if (this.pointerGestureToken == token) this.pointerGestureToken = 0;
          this.geometryGizmoDrag = null;
       }
       this.geometryGizmoCapture.cancel();

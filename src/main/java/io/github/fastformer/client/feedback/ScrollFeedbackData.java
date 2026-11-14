@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.model;
+package io.github.fastformer.client.feedback;
 
 import java.util.List;
 

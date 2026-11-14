@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.hud;
+package io.github.fastformer.client.feedback;
 
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 

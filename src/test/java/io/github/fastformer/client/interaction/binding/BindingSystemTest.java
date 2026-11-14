@@ -56,6 +56,59 @@ class BindingSystemTest {
       assertTrue(calls.isEmpty());
    }
 
+   @Test void reloadBeforePhysicalReleaseCancelsCapturedPressWithoutReplayingOrUsingNewReleaseRules() {
+      var revision = new java.util.concurrent.atomic.AtomicLong();
+      var cancellations = new java.util.concurrent.atomic.AtomicInteger();
+      var file = BindingFile.parse(JsonParser.parseString("""
+         {"bindings":[
+          {"id":"fastformer:pending","context":{"session":"fastformer:idle"},
+           "input":{"button":"right","gesture":"hold","hold_start":"deferred"},
+           "action":"fastformer:quick_shape/start"},
+          {"id":"fastformer:new_release","context":{},
+           "input":{"button":"right","gesture":"release"},
+           "action":"fastformer:quick_shape/middle_confirm"}]}
+         """));
+      var actions = BuiltinBindingActions.create();
+      var rules = file.bindings().stream().map(binding -> new BindingSystem.Rule(binding, actions.resolve(binding.action()).getOrThrow())).toList();
+      var published = new java.util.concurrent.atomic.AtomicReference<>(rules);
+      var reloading = new BindingSystem(new ContextMatcher(ContextFields.defaults().freeze()), published::get,
+         id -> true, revision::get, cancellations::incrementAndGet);
+
+      assertTrue(reloading.onButton(1, "right", true, PRESS, IDLE, commands));
+      published.set(rules.subList(1, 2));
+      revision.incrementAndGet();
+      assertTrue(reloading.onButton(1, "right", false, PRESS + 80_000_000L, IDLE, commands));
+      reloading.tick(PRESS + 400_000_000L);
+      assertEquals(1, cancellations.get());
+      assertTrue(calls.isEmpty());
+      assertFalse(reloading.active());
+
+      assertTrue(reloading.onButton(1, "right", false, PRESS + 500_000_000L, IDLE, commands));
+      assertEquals(List.of("confirm"), calls);
+   }
+
+   @Test void reloadBeforeHoldThresholdDiscardsStartAndNotifiesOwnerBeforeClearingCapture() {
+      var revision = new java.util.concurrent.atomic.AtomicLong();
+      var callbacks = new ArrayList<Boolean>();
+      var reference = new java.util.concurrent.atomic.AtomicReference<BindingSystem>();
+      var file = BindingFile.parse(JsonParser.parseString("""
+         {"bindings":[{"id":"fastformer:pending","context":{},
+          "input":{"button":"right","gesture":"hold","hold_start":"deferred"},
+          "action":"fastformer:quick_shape/start"}]}
+         """));
+      var actions = BuiltinBindingActions.create();
+      var rules = file.bindings().stream().map(binding -> new BindingSystem.Rule(binding, actions.resolve(binding.action()).getOrThrow())).toList();
+      var reloading = new BindingSystem(new ContextMatcher(ContextFields.defaults().freeze()), () -> rules,
+         id -> true, revision::get, () -> callbacks.add(reference.get().active()));
+      reference.set(reloading);
+      assertTrue(reloading.onButton(1, "right", true, PRESS, IDLE, commands));
+      revision.incrementAndGet();
+      reloading.tick(PRESS + 300_000_000L);
+      assertEquals(List.of(true), callbacks);
+      assertFalse(reloading.active());
+      assertTrue(calls.isEmpty());
+   }
+
    private BindingSystem system(boolean enabled) {
       BindingFile file = BindingFile.parse(JsonParser.parseString("""
          {"option":"fastformer:hold_line","bindings":[

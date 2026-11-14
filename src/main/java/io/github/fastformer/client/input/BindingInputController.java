@@ -7,7 +7,6 @@ import com.google.gson.*;
 import io.github.fastformer.client.interaction.binding.*;
 import io.github.fastformer.client.interaction.binding.action.BindingCommands;
 import io.github.fastformer.client.interaction.binding.context.BindingContext;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.common.interaction.binding.SessionProfiles;
 import io.github.fastformer.fastplace.geometry.raycast.*;
 import io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext;
@@ -23,7 +22,6 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 /** Adapts data bindings to existing input commands, owning pending replay and acknowledgement cleanup. */
 final class BindingInputController {
    private BindingSystem system;
-   private long definitionRevision;
    private Object environment;
    private Object player;
    private ItemStack item;
@@ -35,7 +33,7 @@ final class BindingInputController {
 
    boolean onIdlePress(Minecraft minecraft, ClientInputSession owner, int button, long now, boolean control, IdlePressSnapshot press) {
       if (button != 1 || press.outline() == null) return false;
-      BindingSystem bindings = system();
+      BindingSystem bindings = system(minecraft, owner);
       boolean handled = bindings.onButton(button, "right", true, now, context(minecraft, true, false),
          commands(minecraft, owner, press, control, now));
       if (handled) {
@@ -49,6 +47,8 @@ final class BindingInputController {
    }
 
    boolean onButton(Minecraft minecraft, ClientInputSession owner, int action, int button, long now) {
+      boolean wasActive = active();
+      if (system != null && system.synchronizeDefinitions() && wasActive) return true;
       if (system == null || !system.active() && profile.equals(SessionProfiles.NONE)) return false;
       if (!intact(minecraft)) { cancel(minecraft, owner); return false; }
       if (action == 1 && button == 0) { cancel(minecraft, owner); return true; }
@@ -62,18 +62,30 @@ final class BindingInputController {
    }
 
    boolean onKey(Minecraft minecraft, ClientInputSession owner, int key, int action, long now) {
+      boolean wasActive = active();
+      if (system != null && system.synchronizeDefinitions() && wasActive) return key == 81 && action == 1;
       if (action != 1 || key != 81 || !active()) return false;
       cancel(minecraft, owner);
       return true;
    }
 
+   boolean onToolKey(Minecraft minecraft, ClientInputSession owner, Set<String> names, BindingContext context, long now) {
+      return system(minecraft, owner).onKey(names, context, commands(minecraft, owner, null, false, now));
+   }
+
+   boolean onToolSignal(Minecraft minecraft, ClientInputSession owner, String name, String gesture, BindingContext context, long now) {
+      return system(minecraft, owner).onSignal(name, gesture, context, commands(minecraft, owner, null, false, now));
+   }
+
+   io.github.fastformer.client.interaction.binding.action.BindingAction.Result onToolSignalResult(
+      Minecraft minecraft, ClientInputSession owner, String name, String gesture, BindingContext context, long now) {
+      return system(minecraft, owner).onSignalResult(name, gesture, context, commands(minecraft, owner, null, false, now));
+   }
+
    void tick(Minecraft minecraft, ClientInputSession owner, long now) {
       if (system == null) return;
-      if (definitionRevision != BindingConfiguration.instance().revision() || active() && !intact(minecraft)) {
-         cancel(minecraft, owner);
-         definitionRevision = BindingConfiguration.instance().revision();
-         return;
-      }
+      if (system.synchronizeDefinitions()) return;
+      if (active() && !intact(minecraft)) { cancel(minecraft, owner); return; }
       system.tick(now);
       if (profile.equals(SessionProfiles.NONE)) return;
       ResourceLocation published = ClientSessionSystem.instance().previews().buildingProfile();
@@ -106,11 +118,10 @@ final class BindingInputController {
       clearCapturedContext();
    }
 
-   private BindingSystem system() {
+   private BindingSystem system(Minecraft minecraft, ClientInputSession owner) {
       if (system == null) {
          var configuration = BindingConfiguration.instance();
-         system = configuration.createSystem();
-         definitionRevision = configuration.revision();
+         system = configuration.createSystem(() -> { if (active()) cancel(minecraft, owner); });
       }
       return system;
    }
@@ -186,6 +197,27 @@ final class BindingInputController {
          public boolean undoPoint() { return QuickShapeMouseInputController.captureUndo(minecraft, owner, 1, 0, now); }
          public boolean cancel() { BindingInputController.this.cancel(minecraft, owner); return true; }
          public boolean cycleMode() { return false; }
+         public boolean tool(io.github.fastformer.client.interaction.binding.action.ToolCommand command) {
+            switch (command) {
+               case TOGGLE_REPLACEMENT -> io.github.fastformer.client.placement.QuickReplaceMode.toggle(minecraft);
+               case BEGIN_REPLACEMENT -> io.github.fastformer.client.placement.QuickReplaceMode.beginStroke(minecraft);
+               case APPLY_REPLACEMENT -> io.github.fastformer.client.placement.QuickReplaceMode.replace(minecraft);
+               case END_REPLACEMENT -> io.github.fastformer.client.placement.QuickReplaceMode.finishStroke(minecraft);
+               case HISTORY_UNDO, HISTORY_REDO -> {
+                  io.github.fastformer.client.placement.QuickReplaceMode.finishStroke(minecraft);
+                  minecraft.options.keyUse.setDown(false);
+                  WorldHistoryCommandDispatcher.send(minecraft, command ==
+                     io.github.fastformer.client.interaction.binding.action.ToolCommand.HISTORY_UNDO ? 90 : 89);
+               }
+               case START_FILL -> owner.smartFill().start(minecraft);
+               case CONFIRM_FILL -> owner.smartFill().confirm(minecraft);
+               case CAPTURE_SWAP_KEY -> {
+                  while (minecraft.options.keySwapOffhand.consumeClick()) { }
+                  return false;
+               }
+            }
+            return true;
+         }
          public void replayPress(long occurredAtNanos) {
             if (press == null || !intact(minecraft)) return;
             if (IdleSessionEntryController.replay(minecraft, owner, 1, occurredAtNanos, control, press)) return;

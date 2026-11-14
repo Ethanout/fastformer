@@ -1,13 +1,12 @@
-package io.github.fastformer.client.render;
+package io.github.fastformer.client.feedback;
 
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.client.render.model.ScrollFeedbackData;
 import net.minecraft.core.BlockPos;
 
 /** Owns transient HUD timers and hover acceleration for the preview client. */
-public final class PreviewFeedbackState {
+final class InteractionFeedbackState {
    static final long FREE_SCROLL_TRANSITION_GRACE_NANOS = 1_000_000_000L;
    private final HudFadeTimer scroll = new HudFadeTimer(1_000_000_000L, 400_000_000L);
    private final HudFadeTimer gizmo = new HudFadeTimer(1_000_000_000L, 400_000_000L);

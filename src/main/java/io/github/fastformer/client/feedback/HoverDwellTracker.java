@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render;
+package io.github.fastformer.client.feedback;
 
 /** Tracks continuous hover time and switches to the fast rate after the dwell threshold. */
 public final class HoverDwellTracker {

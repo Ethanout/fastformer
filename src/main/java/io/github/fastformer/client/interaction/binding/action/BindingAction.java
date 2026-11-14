@@ -6,5 +6,10 @@ import io.github.fastformer.client.interaction.binding.context.BindingContext;
 @FunctionalInterface
 public interface BindingAction {
    Result execute(BindingContext context, BindingCommands commands);
-   enum Result { PASS, HANDLED }
+   enum Result {
+      PASS, HANDLED, HANDLED_PASS_VANILLA;
+
+      public boolean handled() { return this != PASS; }
+      public boolean consumesVanilla() { return this == HANDLED; }
+   }
 }

@@ -14,13 +14,12 @@ class OperationDragControllerTest {
    void lateUpdateCannotEndNewCaptureOfSameKind() {
       var session = capture();
       long next = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
-      session.pointerGestureToken = next;
       session.operationDrag = session.operationDrag.withSentSteps(3)
          .withFrame(DragAxisFrame.start(Vec3.ZERO, true))
          .withDeferredClick(DeferredDragClick.none());
       OperationDragController.update(null, session);
       assertNull(session.operationDrag);
-      assertEquals(next, session.pointerGestureToken);
+      assertEquals(next, session.pointerGesture.activeToken());
       assertTrue(session.pointerGesture.owns(next, PointerGestureState.Kind.OPERATION_FACE));
    }
 
@@ -28,11 +27,10 @@ class OperationDragControllerTest {
    void lateReleaseCannotEndNewWorkspaceCapture() {
       var session = capture();
       long next = session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
-      session.pointerGestureToken = next;
       OperationDragController.finish(null, session, 20L);
       OperationDragController.finish(null, session, 30L);
       assertNull(session.operationDrag);
-      assertEquals(next, session.pointerGestureToken);
+      assertEquals(next, session.pointerGesture.activeToken());
       assertTrue(session.pointerGesture.owns(next, PointerGestureState.Kind.WORKSPACE_GIZMO));
    }
 
@@ -41,7 +39,7 @@ class OperationDragControllerTest {
       var session = capture();
       OperationDragController.update(null, session);
       assertNull(session.operationDrag);
-      assertEquals(0L, session.pointerGestureToken);
+      assertEquals(0L, session.pointerGesture.activeToken());
       assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
    }
 
@@ -52,16 +50,16 @@ class OperationDragControllerTest {
       OperationDragController.cancel(session);
       OperationDragController.finish(null, session, 20L);
       assertNull(session.operationDrag);
-      assertEquals(0L, session.pointerGestureToken);
+      assertEquals(0L, session.pointerGesture.activeToken());
       assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
    }
 
    private static ClientInputSession capture() {
       var session = new ClientInputSession();
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
+      session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_FACE);
       session.operationDrag = new OperationDrag(0, true, DragAxisFrame.start(Vec3.ZERO, false),
          new Vec3(1, 0, 0), 0, 0, null, null, 0.0, DeferredDragClick.none(),
-         session.pointerGestureToken, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped(), 1L);
+         session.pointerGesture.activeToken(), 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped(), 1L);
       return session;
    }
 }

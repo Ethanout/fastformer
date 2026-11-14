@@ -14,10 +14,9 @@ class OperationPointInputControllerTest {
    @Test
    void queuedCancelCannotClearReplacementDrag() {
       var session = capture();
-      long previous = session.pointerGestureToken;
+      long previous = session.pointerGesture.activeToken();
       session.operationPointPointer.dispatched(7L, 11L, previous);
       long replacement = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
-      session.pointerGestureToken = replacement;
       session.operationPointDrag = new OperationPointDrag(1, 0, BlockPos.ZERO, BlockPos.ZERO,
          null, Vec3.ZERO, null, 0, Vec3.ZERO, OperationPointDragConstraint.FREE, 20L, replacement);
       var current = session.operationPointDrag;
@@ -40,7 +39,7 @@ class OperationPointInputControllerTest {
       OperationPointInputController.cancel(session);
       OperationPointInputController.cancel(session);
       assertNull(session.operationPointDrag);
-      assertEquals(0L, session.pointerGestureToken);
+      assertEquals(0L, session.pointerGesture.activeToken());
       assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
       assertEquals(0L, session.lastOperationPointLeftClickAt);
       assertEquals(-1, session.lastOperationPointLeftClickIndex);
@@ -53,10 +52,9 @@ class OperationPointInputControllerTest {
    void cancelStaleDragPreservesReplacementCapture() {
       var session = capture();
       long next = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
-      session.pointerGestureToken = next;
       OperationPointInputController.cancel(session);
       assertNull(session.operationPointDrag);
-      assertEquals(next, session.pointerGestureToken);
+      assertEquals(next, session.pointerGesture.activeToken());
       assertTrue(session.pointerGesture.owns(next, PointerGestureState.Kind.OPERATION_POINT));
    }
 
@@ -64,12 +62,11 @@ class OperationPointInputControllerTest {
    void lateUpdateKeepsNewCaptureEvenWhenItHasSameKind() {
       var session = capture();
       long next = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
-      session.pointerGestureToken = next;
       session.operationPointDrag = session.operationPointDrag.withSentTarget(new BlockPos(1, 0, 0))
          .withConstraint(OperationPointDragConstraint.LINE);
       OperationPointInputController.updateOperationPointDrag(null, session);
       assertNull(session.operationPointDrag);
-      assertEquals(next, session.pointerGestureToken);
+      assertEquals(next, session.pointerGesture.activeToken());
       assertTrue(session.pointerGesture.owns(next, PointerGestureState.Kind.OPERATION_POINT));
    }
 
@@ -77,10 +74,9 @@ class OperationPointInputControllerTest {
    void lateReleaseCannotFinishNewWorkspaceCapture() {
       var session = capture();
       long next = session.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_GIZMO);
-      session.pointerGestureToken = next;
       assertNull(OperationPointInputController.finishOperationPointDrag(null, session));
       assertNull(OperationPointInputController.finishOperationPointDrag(null, session));
-      assertEquals(next, session.pointerGestureToken);
+      assertEquals(next, session.pointerGesture.activeToken());
       assertTrue(session.pointerGesture.owns(next, PointerGestureState.Kind.WORKSPACE_GIZMO));
    }
 
@@ -89,16 +85,16 @@ class OperationPointInputControllerTest {
       var session = capture();
       OperationPointInputController.updateOperationPointDrag(null, session);
       assertNull(session.operationPointDrag);
-      assertEquals(0L, session.pointerGestureToken);
+      assertEquals(0L, session.pointerGesture.activeToken());
       assertEquals(PointerGestureState.Kind.NONE, session.pointerGesture.kind());
    }
 
    private static ClientInputSession capture() {
       var session = new ClientInputSession();
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
+      session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
       session.operationPointDrag = new OperationPointDrag(0, 0, BlockPos.ZERO, BlockPos.ZERO,
          null, Vec3.ZERO, null, 0, Vec3.ZERO, OperationPointDragConstraint.FREE, 10L,
-         session.pointerGestureToken);
+         session.pointerGesture.activeToken());
       return session;
    }
 }

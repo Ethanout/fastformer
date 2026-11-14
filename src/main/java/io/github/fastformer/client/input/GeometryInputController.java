@@ -9,7 +9,6 @@ import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryMode;
@@ -257,9 +256,9 @@ final class GeometryInputController {
    }
 
    static void beginGeometryGizmoDrag(ClientInputSession session, GeometryGizmoDrag captured) {
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
-      session.geometryGizmoDrag = captured.withCapture(session.pointerGestureToken);
-      FastPlaceClientPreviewCore.noteGizmoFeedback(captured.axis(), captured.operation(), 0, captured.baseValue());
+      session.pointerGesture.begin(PointerGestureState.Kind.BUILDING_GEOMETRY);
+      session.geometryGizmoDrag = captured.withCapture(session.pointerGesture.activeToken());
+      session.feedback().noteGizmo(captured.axis(), captured.operation(), 0, captured.baseValue());
    }
 
 }

@@ -1,10 +1,10 @@
-package io.github.fastformer.client.render;
+package io.github.fastformer.client.feedback;
 
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.client.render.model.AxisFeedback;
-import io.github.fastformer.client.render.model.ScrollFeedbackData;
+import io.github.fastformer.client.feedback.AxisFeedback;
+import io.github.fastformer.client.feedback.ScrollFeedbackData;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
@@ -12,10 +12,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-class PreviewFeedbackStateTest {
+class InteractionFeedbackStateTest {
    @Test
    void clearResetsGizmoFeedbackAlongsideTransientTimers() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.noteGizmo(Axis.Y, AxisGizmo.Operation.SCALE, 4, 2.5);
       state.gizmo().touch(100L);
       state.gizmoDwell().multiplier("Y:SCALE", 100L);
@@ -32,7 +32,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void clearResetsLatchedFreeScrollSession() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.beginFreeScrollSession(new BlockPos(3, -2, 7));
 
       state.clear();
@@ -43,7 +43,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void freeScrollSessionRetainsLatestOffsetUntilItEnds() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       BlockPos offset = new BlockPos(3, -2, 7);
 
       state.beginFreeScrollSession(offset);
@@ -59,7 +59,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void freeScrollSessionSurvivesInactiveWheelSnapshot() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       BlockPos offset = new BlockPos(3, -2, 7);
 
       assertEquals(true, state.refreshFreeScrollSession(true, true, offset, 100L));
@@ -71,7 +71,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void activeNonFreeScrollSnapshotEndsLatchedSession() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.refreshFreeScrollSession(true, true, new BlockPos(3, -2, 7), 100L);
 
       assertEquals(false, state.refreshFreeScrollSession(true, false, null, 200L));
@@ -82,7 +82,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void inactiveSnapshotKeepsLabelAfterTransientTimerExpires() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.refreshFreeScrollSession(true, true, new BlockPos(3, -2, 7), 100L);
       state.scroll().touch(1_000_000_000L);
 
@@ -93,7 +93,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void freeScrollDataSurvivesOffsetChangesAndClearsAtSessionBoundary() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       BlockPos offset = new BlockPos(3, -2, 7);
       ScrollFeedbackData data = new ScrollFeedbackData(
          List.of(new AxisFeedback("X", "3", 0xFFFFFFFF)), ""
@@ -114,7 +114,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void repeatedFreeScrollSnapshotsKeepTheVisibleText() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       BlockPos offset = new BlockPos(3, -2, 7);
       ScrollFeedbackData data = new ScrollFeedbackData(
          List.of(new AxisFeedback("X", "3", 0xFFFFFFFF)), ""
@@ -129,7 +129,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void wheelTransitionKeepsLabelAcrossTemporaryActiveSnapshot() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       BlockPos offset = new BlockPos(3, -2, 7);
       long wheelAt = 1_000_000_000L;
       state.refreshFreeScrollSession(true, true, offset, wheelAt);
@@ -138,13 +138,13 @@ class PreviewFeedbackStateTest {
       assertEquals(true, state.refreshFreeScrollSession(true, false, null, wheelAt + 500_000_000L));
       assertEquals(offset, state.freeScrollOffset());
       assertEquals(false, state.refreshFreeScrollSession(
-         true, false, null, wheelAt + PreviewFeedbackState.FREE_SCROLL_TRANSITION_GRACE_NANOS
+         true, false, null, wheelAt + InteractionFeedbackState.FREE_SCROLL_TRANSITION_GRACE_NANOS
       ));
    }
 
    @Test
    void switchingDwellTargetDoesNotRestoreFadedGizmoAlpha() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.gizmo().touch(0L);
 
       assertEquals(255, gizmoAlpha(state, "A", 100_000_000L));
@@ -155,7 +155,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void dwellMultiplierIncreaseStillAcceleratesTheSameTarget() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.gizmo().touch(0L);
 
       // The first read resets the dwell window, so it still uses base speed.
@@ -169,7 +169,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void lostHoverKeepsGizmoFadeProgressAtBaseSpeed() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.gizmo().touch(0L);
 
       assertEquals(255, gizmoAlpha(state, "A", 100_000_000L));
@@ -182,7 +182,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void newWheelInputShowsScrollFeedbackAgain() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.scroll().touch(0L);
       assertEquals(255, state.scroll().alpha(0L, 1.0));
       assertEquals(0, state.scroll().alpha(2_000_000_000L, 3.0));
@@ -195,7 +195,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void multipleSameFrameReadsDoNotAdvanceTheFadeTwice() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.scroll().touch(0L);
       // One frame of 400 ms at x3 consumes 1200 ms: hold 1000 ms plus 200 ms of fade.
       long frame = 400_000_000L;
@@ -209,7 +209,7 @@ class PreviewFeedbackStateTest {
 
    @Test
    void clearRestoresHiddenGizmoFeedback() {
-      PreviewFeedbackState state = new PreviewFeedbackState();
+      InteractionFeedbackState state = new InteractionFeedbackState();
       state.gizmo().touch(0L);
       assertEquals(0, state.gizmo().alpha(2_000_000_000L, 3.0));
 
@@ -218,7 +218,7 @@ class PreviewFeedbackStateTest {
       assertEquals(0, state.gizmo().alpha(2_000_000_000L));
    }
 
-   private static int gizmoAlpha(PreviewFeedbackState state, String target, long now) {
+   private static int gizmoAlpha(InteractionFeedbackState state, String target, long now) {
       return state.gizmo().alpha(now, state.gizmoDwell().multiplier(target, now));
    }
 }

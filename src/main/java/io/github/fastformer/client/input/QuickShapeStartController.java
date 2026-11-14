@@ -5,7 +5,6 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.BlockHitResult;

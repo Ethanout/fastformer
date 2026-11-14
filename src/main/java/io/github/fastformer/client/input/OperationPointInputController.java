@@ -8,7 +8,6 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.PointerGestureState;
 import io.github.fastformer.client.operation.input.OperationPointDragEvent;
 import io.github.fastformer.client.operation.input.OperationPointDragPress;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
 import io.github.fastformer.protocol.c2s.operation.OperationPointClickPayload;
@@ -70,7 +69,7 @@ final class OperationPointInputController {
       }
       session.clickGestureToken = session.routing.beginGesture(press.button());
       if (beginOperationPointDrag(minecraft, session, press)) {
-         session.operationPointPointer.dispatched(press.identity(), session.clickGestureToken, session.pointerGestureToken);
+         session.operationPointPointer.dispatched(press.identity(), session.clickGestureToken, session.pointerGesture.activeToken());
       } else if (session.routing.finishGesture(press.button(), session.clickGestureToken)) {
          session.clickGestureToken = 0L;
       }
@@ -89,7 +88,7 @@ final class OperationPointInputController {
       if (dispatched == null) return;
       OperationPointDrag drag = session.operationPointDrag;
       if (drag == null || drag.captureToken() != dispatched.pointerToken()
-         || session.pointerGestureToken != dispatched.pointerToken()) return;
+         || session.pointerGesture.activeToken() != dispatched.pointerToken()) return;
       if (session.clickGestureToken == dispatched.clickToken()) {
          session.routing.finishGesture(session.operationPointDrag == null ? -1 : session.operationPointDrag.mouseButton(), dispatched.clickToken());
          session.clickGestureToken = 0L;
@@ -100,7 +99,7 @@ final class OperationPointInputController {
    private static void finishQueuedPress(Minecraft minecraft, ClientInputSession session, OperationPointDragEvent.Release release) {
       var dispatched = session.operationPointPointer.take(release.identity());
       if (dispatched == null || dispatched.clickToken() != session.clickGestureToken
-         || dispatched.pointerToken() != session.pointerGestureToken
+         || dispatched.pointerToken() != session.pointerGesture.activeToken()
          || !session.routing.finishGesture(release.button(), dispatched.clickToken())) return;
       session.clickGestureToken = 0L;
       OperationPointDrag finished = finishOperationPointDrag(minecraft, session, release.eye(), release.view());
@@ -108,14 +107,14 @@ final class OperationPointInputController {
    }
 
    private static boolean beginOperationPointDrag(Minecraft minecraft, ClientInputSession session, OperationPointDragPress press) {
-      session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
+      session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
       session.operationPointDrag = new OperationPointDrag(
          press.pointIndex(), press.button(), press.initialPoint(), press.initialPoint(), press.plane(), press.planeGrabOffset(),
          press.line(), press.lineGrabBaseline(), press.axisBaselines(), press.constraint(), press.occurredAtNanos(),
-         session.pointerGestureToken, press.revision(), press.callbackScope()
+         session.pointerGesture.activeToken(), press.revision(), press.callbackScope()
       );
       PacketDistributor.sendToServer(
-         new OperationPointDragPayload(session.pointerGestureToken, press.revision(), press.callbackScope(),
+         new OperationPointDragPayload(session.pointerGesture.activeToken(), press.revision(), press.callbackScope(),
             press.pointIndex(), press.initialPoint(), session.operationPointDrag.constraint(), false),
          new CustomPacketPayload[0]
       );
@@ -200,7 +199,6 @@ final class OperationPointInputController {
    private static void clearCapture(ClientInputSession session, OperationPointDrag drag) {
       if (session.operationPointDrag == drag) session.operationPointDrag = null;
       session.pointerGesture.finish(drag.captureToken());
-      if (session.pointerGestureToken == drag.captureToken()) session.pointerGestureToken = 0L;
    }
 
    static void finishOperationPointClick(Minecraft minecraft, ClientInputSession session, OperationPointDrag finished, long now) {

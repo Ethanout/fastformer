@@ -30,7 +30,6 @@ import io.github.fastformer.client.placement.ClientForcedPlacement;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionController;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.client.operation.pointer.OperationPointerKind;
 import io.github.fastformer.client.operation.pointer.OperationPointerTarget;
 import io.github.fastformer.client.session.ClientSessionSystem;
@@ -55,7 +54,6 @@ import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ClientTickEvent.Post;
 import net.neoforged.neoforge.client.event.InputEvent.InteractionKeyMappingTriggered;
 import net.neoforged.neoforge.client.event.InputEvent.Key;
 import net.neoforged.neoforge.client.event.InputEvent.MouseButton.Pre;
@@ -184,19 +182,9 @@ public final class FastPlaceClientInput {
          && minecraft.options.keySwapOffhand.matches(input.key(), input.scanCode())) {
          minecraft.options.keySwapOffhand.consumeClick();
       }
-      if (minecraft.screen == null
-         && minecraft.options.keySwapOffhand.matches(input.key(), input.scanCode())
-         && (inputSession().smartFill().active()
-            || !input.controlDown() && ClientSessionSystem.instance().modeView().idleActionsAllowed()
-               && !QuickReplaceMode.active() && inputSession().smartFill().canStart(minecraft))) {
-         while (minecraft.options.keySwapOffhand.consumeClick()) { }
-         if (input.action() == 1 && !inputSession().smartFill().active()) {
-            inputSession().smartFill().start(minecraft);
-            synchronizeInputState();
-            // The request already owns this press. A fast preview reply must not
-            // turn the queued copy of the same press into confirmation.
-            return;
-         }
+      if (ClientModeKeyInput.capture(minecraft, inputSession(), input)) {
+         synchronizeInputState();
+         return;
       }
       if (input.action() == 1 && (input.key() == 257 || input.key() == 335)) {
          input = input.withQuickShapeSubmission(ClientSessionSystem.instance().previews().buildingSubmission().orElse(null));
@@ -399,7 +387,7 @@ public final class FastPlaceClientInput {
       cancelOperationGesture(minecraft);
       resetModifierState(minecraft);
       if (!cancellingQuickShape) ClientSessionSystem.instance().operations().clearWorkspace();
-      FastPlaceClientPreviewCore.clearTransientFeedback();
+      inputSession().feedback().clear();
       if (NetworkRegistry.hasChannel(minecraft.getConnection(), QuitFastPlacePayload.TYPE.id())) {
          PacketDistributor.sendToServer(QuitFastPlacePayload.INSTANCE, new CustomPacketPayload[0]);
       }
@@ -595,9 +583,9 @@ public final class FastPlaceClientInput {
          event.setCanceled(true);
          return;
       }
-      if (QuickReplaceMode.active()) {
-         if (QuickReplaceMode.canReplace(minecraft) && event.isUseItem() && minecraft.screen == null) {
-            QuickReplaceMode.replace(minecraft);
+      var replacement = QuickReplaceBindingInput.interaction(minecraft, inputSession(), event.isUseItem());
+      if (replacement.owns()) {
+         if (replacement.consumesVanilla()) {
             event.setSwingHand(false);
             event.setCanceled(true);
          }
@@ -790,20 +778,17 @@ public final class FastPlaceClientInput {
       Minecraft minecraft = Minecraft.getInstance();
       // A change of input owner can consume release before MouseHandler clears the vanilla key.
       if (event.getAction() == MouseButtonInputSemantics.RELEASE && minecraft.options.keyUse.matchesMouse(event.getButton())) {
-         QuickReplaceMode.finishStroke(minecraft);
          minecraft.options.keyUse.setDown(false);
          ClientForcedPlacement.input(minecraft.player, event.getAction());
       }
+      var replacement = QuickReplaceBindingInput.mouse(minecraft, inputSession(),
+         event.getAction(), event.getButton(), occurredAtNanos);
+      if (replacement.consumesVanilla()) event.setCanceled(true);
       if (minecraft.player == null || minecraft.screen != null || minecraft.getConnection() == null) {
          inputSession().bindings.cancel(minecraft, inputSession());
          return;
       }
-      if (QuickReplaceMode.active()) {
-         if (event.getAction() == MouseButtonInputSemantics.PRESS && minecraft.options.keyUse.matchesMouse(event.getButton())) {
-            QuickReplaceMode.beginStroke(minecraft);
-         }
-         return;
-      }
+      if (replacement.owns()) return;
       synchronizeInputState();
       boolean physicalAlt = physicalAltDown(minecraft, false);
       if (inputSession().bindings.onButton(minecraft, inputSession(), event.getAction(), event.getButton(), occurredAtNanos)) {
@@ -1118,7 +1103,7 @@ public final class FastPlaceClientInput {
          return false;
       }
       session.postPointerRelease(new PointerReleaseSnapshot(button, occurredAtNanos,
-         session.clickGestureToken, session.pointerGestureToken, target));
+         session.clickGestureToken, session.pointerGesture.activeToken(), target));
       return true;
    }
 
@@ -1511,27 +1496,24 @@ public final class FastPlaceClientInput {
       return NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id()) && beginUndoPress();
    }
 
-   @SubscribeEvent
-   public static void onClientTick(Post event) {
-      Minecraft minecraft = Minecraft.getInstance();
-      io.github.fastformer.client.interaction.binding.BindingConfiguration.instance().tick(System.nanoTime());
+   public static void prepareTick(Minecraft minecraft) {
       resumeSoundAfterSuppressedPause(minecraft);
-      ClientSessionSystem.instance().observePlayer(minecraft);
-      if (minecraft.player == null || minecraft.getConnection() == null) {
-         InputWorldCleanup.clear(minecraft, inputSession());
-        return;
-      }
-      io.github.fastformer.client.network.inbound.ClientInboundSystem.onClientTick();
+   }
+
+   public static void clearWorldInput(Minecraft minecraft) {
+      InputWorldCleanup.clear(minecraft, inputSession());
+   }
+
+   public static void dispatchTick(Minecraft minecraft) {
       inputSession().bindings.tick(minecraft, inputSession(), System.nanoTime());
       inputSession().smartFill().tick(minecraft);
       inputSession().drainSubmissionEvents();
       IdleSelectionEntryController.dispatch(minecraft, inputSession());
       drainQueuedInput(minecraft);
       QuickShapeSubmissionController.tick(minecraft, inputSession().quickShapeSubmission);
-      ClientSessionSystem.instance().operations().onClientTick();
-      ClientSessionSystem.instance().operations().sourceMask().reapply();
-      ClientSessionSystem.instance().previews().tickReconnectBoundary();
-      FastPlaceClientPreviewCore.onClientTick();
+   }
+
+   public static void advanceTick(Minecraft minecraft) {
       synchronizeInputState();
       if (minecraft.screen != null || !minecraft.isWindowActive()) {
          inputSession().idleEntry.clear();
@@ -1544,18 +1526,7 @@ public final class FastPlaceClientInput {
       )) {
          suspendPointerGesture(minecraft);
       }
-      if (QuickReplaceMode.active()) {
-         if (!minecraft.player.isCreative() || !ClientSessionSystem.instance().previews().building().enabled()) {
-            QuickReplaceMode.toggle(minecraft);
-         } else if (inputSession().routing.routesToVanilla(ClientInputStateMachine.InputKind.INTERACTION)
-            && QuickReplaceMode.canReplace(minecraft) && minecraft.screen == null
-            && minecraft.isWindowActive() && minecraft.options.keyUse.isDown()) {
-            QuickReplaceMode.replace(minecraft);
-         } else {
-            QuickReplaceMode.finishStroke(minecraft);
-         }
-         return;
-      }
+      if (QuickReplaceBindingInput.tick(minecraft, inputSession())) return;
       if (inputSession().routing.dispatch(ClientInputStateMachine.InputKind.KEY)
          != ClientInputStateMachine.Dispatch.BLOCKED) {
          pollModifierKeys(minecraft);
@@ -1573,7 +1544,9 @@ public final class FastPlaceClientInput {
 
    @SubscribeEvent
    public static void onMouseScroll(MouseScrollingEvent event) {
-      if (QuickReplaceMode.active()) return;
+      var replacement = QuickReplaceBindingInput.scroll(Minecraft.getInstance(), inputSession(), event.getScrollDeltaY());
+      if (replacement.consumesVanilla()) event.setCanceled(true);
+      if (replacement.owns()) return;
       synchronizeInputState();
       Minecraft minecraft = Minecraft.getInstance();
       boolean sessionReady = minecraft.player != null && minecraft.screen == null;
@@ -1748,7 +1721,7 @@ public final class FastPlaceClientInput {
 
    private static boolean ownsSelectionCapture(SelectionDragCapture capture) {
       return capture.matches(
-         ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), inputSession().pointerGestureToken
+         ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().workspace(), inputSession().pointerGesture.activeToken()
       );
    }
 
@@ -1882,21 +1855,19 @@ public final class FastPlaceClientInput {
    }
 
    private static boolean ownsPointerGesture(PointerGestureState.Kind kind) {
-      return inputSession().pointerGesture.owns(inputSession().pointerGestureToken, kind);
+      return inputSession().pointerGesture.owns(inputSession().pointerGesture.activeToken(), kind);
    }
 
    static void finishPointerGesture() {
-      finishPointerGesture(inputSession().pointerGestureToken);
+      finishPointerGesture(inputSession().pointerGesture.activeToken());
    }
 
    static void finishPointerGesture(long token) {
       inputSession().pointerGesture.finish(token);
-      if (inputSession().pointerGestureToken == token) inputSession().pointerGestureToken = 0L;
    }
 
    private static void cancelPointerGesture() {
       inputSession().pointerGesture.cancel();
-      inputSession().pointerGestureToken = 0L;
    }
 
 }

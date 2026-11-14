@@ -4,7 +4,6 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.operation.input.OperationPointCommandEvent;
 import io.github.fastformer.client.operation.input.OperationPointCommandPress;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.operation.OperationInsertPointPayload;
 import io.github.fastformer.protocol.c2s.operation.OperationPointPayload;
 import io.github.fastformer.protocol.c2s.operation.OperationSelectPointPayload;

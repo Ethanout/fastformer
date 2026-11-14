@@ -1,0 +1,85 @@
+{
+  "tree": {
+    "session:fastformer:quick_replace": {
+      "@use/press": {"id": "fastformer:quick_replace/begin_stroke", "action": "fastformer:quick_replace/begin_stroke"},
+      "@use/release": {"id": "fastformer:quick_replace/end_stroke", "action": "fastformer:quick_replace/end_stroke"},
+      "use/interaction": {"id": "fastformer:quick_replace/use",
+        "if": {"can_replace": true, "screen": false}, "action": "fastformer:quick_replace/apply"},
+      "client/tick": [
+        {"id": "fastformer:quick_replace/disable_without_creative", "priority": 20,
+         "if": {"creative": false}, "action": "fastformer:quick_replace/toggle"},
+        {"id": "fastformer:quick_replace/disable_without_feature", "priority": 20,
+         "if": {"feature_enabled": false}, "action": "fastformer:quick_replace/toggle"},
+        {"id": "fastformer:quick_replace/continue_stroke", "priority": 10,
+         "if": {"interaction_allowed": true, "can_replace": true, "screen": false, "window_active": true, "use_held": true},
+         "action": "fastformer:quick_replace/apply"},
+        {"id": "fastformer:quick_replace/finish_inactive_stroke", "action": "fastformer:quick_replace/end_stroke"}
+      ],
+      "scroll/scroll_up": {"id": "fastformer:quick_replace/pass_scroll_up", "action": "fastformer:pass"},
+      "scroll/scroll_down": {"id": "fastformer:quick_replace/pass_scroll_down", "action": "fastformer:pass"},
+      "key.keyboard.r/key": {
+        "id": "fastformer:quick_replace/toggle", "priority": 100,
+        "if": {"input_phase": "dispatch", "screen": false, "key_action": "press", "!modifiers": ["control"]},
+        "action": "fastformer:quick_replace/toggle"
+      },
+      "key.keyboard.z/key": {
+        "id": "fastformer:quick_replace/undo", "priority": 100,
+        "if": {"input_phase": "dispatch", "screen": false, "key_action": "press", "modifiers": ["control"]},
+        "action": "fastformer:history/undo"
+      },
+      "key.keyboard.y/key": {
+        "id": "fastformer:quick_replace/redo", "priority": 100,
+        "if": {"input_phase": "dispatch", "screen": false, "key_action": "press", "modifiers": ["control"]},
+        "action": "fastformer:history/redo"
+      },
+      "*/key": {"id": "fastformer:quick_replace/block_other_keys", "priority": 100,
+        "if": {"input_phase": "dispatch"}, "action": "fastformer:block"}
+    },
+    "session:fastformer:smart_fill": {
+      "@swap_offhand/key": [
+        {"id": "fastformer:smart_fill/confirm_swap", "priority": 50,
+         "if": {"input_phase": "dispatch", "screen": false, "player_present": true, "key_action": "press",
+                "fill_ready": true, "!modifiers": ["control"]},
+         "action": "fastformer:smart_fill/confirm"},
+        {"id": "fastformer:smart_fill/block_swap", "priority": 50,
+         "if": {"input_phase": "dispatch", "screen": false, "player_present": true, "!modifiers": ["control"]},
+         "action": "fastformer:block"}
+      ],
+      "key.keyboard.enter/key": [
+        {"id": "fastformer:smart_fill/confirm_enter", "priority": 50,
+         "if": {"input_phase": "dispatch", "screen": false, "player_present": true, "key_action": "press", "fill_ready": true},
+         "action": "fastformer:smart_fill/confirm"},
+        {"id": "fastformer:smart_fill/block_enter", "priority": 50, "if": {"input_phase": "dispatch", "screen": false, "player_present": true},
+         "action": "fastformer:block"}
+      ],
+      "key.keyboard.keypad.enter/key": [
+        {"id": "fastformer:smart_fill/confirm_keypad_enter", "priority": 50,
+         "if": {"input_phase": "dispatch", "screen": false, "player_present": true, "key_action": "press", "fill_ready": true},
+         "action": "fastformer:smart_fill/confirm"},
+        {"id": "fastformer:smart_fill/block_keypad_enter", "priority": 50, "if": {"input_phase": "dispatch", "screen": false, "player_present": true},
+         "action": "fastformer:block"}
+      ]
+    }
+  },
+  "bindings": [
+    {"id": "fastformer:idle/capture_fill_swap", "priority": 20,
+     "context": {"input_phase": "capture", "screen": false, "player_present": true,
+                 "idle_actions_allowed": true, "can_start_fill": true, "!modifiers": ["control"]},
+     "input": {"button": "@swap_offhand", "gesture": "key"}, "action": "fastformer:input/capture_swap_key"},
+    {"id": "fastformer:smart_fill/capture_swap",
+     "context": {"input_phase": "capture", "session": "fastformer:smart_fill", "screen": false},
+     "input": {"button": "@swap_offhand", "gesture": "key"}, "action": "fastformer:input/capture_swap_key"},
+    {"id": "fastformer:idle/start_fill", "priority": 10,
+     "context": {"screen": false, "player_present": true, "idle_actions_allowed": true,
+                 "key_action": "press", "can_start_fill": true, "!modifiers": ["control"]},
+     "input": {"button": "@swap_offhand", "gesture": "key"}, "action": "fastformer:smart_fill/start"},
+    {"id": "fastformer:idle/block_fill_release",
+     "context": {"input_phase": "dispatch", "screen": false, "player_present": true, "idle_actions_allowed": true,
+                 "can_start_fill": true, "!modifiers": ["control"]},
+     "input": {"button": "@swap_offhand", "gesture": "key"}, "action": "fastformer:block"},
+    {"id": "fastformer:idle/toggle_replacement",
+     "context": {"input_phase": "dispatch", "screen": false, "player_present": true, "idle_actions_allowed": true,
+                 "key_action": "press", "!modifiers": ["control"]},
+     "input": {"button": "key.keyboard.r", "gesture": "key"}, "action": "fastformer:quick_replace/toggle"}
+  ]
+}

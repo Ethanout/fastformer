@@ -21,7 +21,6 @@ class ClientInputSessionTest {
       var request = UUID.randomUUID();
       assertTrue(input.routing.submit(request));
       long pointer = input.pointerGesture.begin(PointerGestureState.Kind.WORKSPACE_FACE);
-      input.pointerGestureToken = pointer;
       input.clickGestureToken = 42;
       input.undoPress.press(100);
       assertTrue(input.captureQuickShapeButton(1));
@@ -46,7 +45,7 @@ class ClientInputSessionTest {
       assertFalse(input.routing.completeSubmission(request, ClientInputStateMachine.SubmissionEvent.SUCCEEDED,
          ClientInputStateMachine.State.ADJUSTING));
       assertFalse(input.pointerGesture.owns(pointer, PointerGestureState.Kind.WORKSPACE_FACE));
-      assertEquals(0, input.pointerGestureToken);
+      assertEquals(0, input.pointerGesture.activeToken());
       assertEquals(0, input.clickGestureToken);
       assertFalse(input.undoPress.release(101, 10));
       assertFalse(input.hasQuickShapeButtons());

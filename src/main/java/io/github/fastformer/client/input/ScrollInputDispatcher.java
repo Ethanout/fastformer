@@ -3,7 +3,6 @@ package io.github.fastformer.client.input;
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.protocol.c2s.geometry.ScrollCandidatePayload;
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -32,7 +31,7 @@ final class ScrollInputDispatcher {
          && NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id())
          && ClientSessionSystem.instance().usesScrollContext()) {
          PacketDistributor.sendToServer(new ScrollCandidatePayload(event.direction()));
-         FastPlaceClientPreviewCore.noteScrollFeedback();
+         session.feedback().noteScroll(ClientSessionSystem.instance().previews().building(), System.nanoTime());
       }
    }
 }

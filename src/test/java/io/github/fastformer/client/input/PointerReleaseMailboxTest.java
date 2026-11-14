@@ -39,7 +39,7 @@ class PointerReleaseMailboxTest {
    void replacementPointerRejectsOldReleaseEvenWithSameClick() {
       var session = session();
       var old = release(session);
-      session.pointerGestureToken++;
+      session.pointerGesture.begin(io.github.fastformer.client.input.state.PointerGestureState.Kind.BUILDING_GEOMETRY);
       assertFalse(old.dispatch(session, TARGET, () -> fail("Old release executed")));
       assertTrue(session.routing.accepts(session.clickGestureToken));
    }
@@ -48,7 +48,7 @@ class PointerReleaseMailboxTest {
    void wrongButtonOrChangedTargetCannotFinishGesture() {
       var session = session();
       var wrongButton = new PointerReleaseSnapshot(0, 123L, session.clickGestureToken,
-         session.pointerGestureToken, TARGET);
+         session.pointerGesture.activeToken(), TARGET);
       assertFalse(wrongButton.dispatch(session, TARGET, () -> fail("Wrong button executed")));
       assertFalse(release(session).dispatch(session, MouseDragReleaseSemantics.Target.OPERATION_CAPTURE,
          () -> fail("Changed target executed")));
@@ -85,11 +85,11 @@ class PointerReleaseMailboxTest {
       var session = new ClientInputSession();
       session.routing.observe(ClientInputStateMachine.State.GEOMETRY);
       session.clickGestureToken = session.routing.beginGesture(1);
-      session.pointerGestureToken = 10L;
+      session.pointerGesture.begin(io.github.fastformer.client.input.state.PointerGestureState.Kind.BUILDING_GEOMETRY);
       return session;
    }
 
    private static PointerReleaseSnapshot release(ClientInputSession session) {
-      return new PointerReleaseSnapshot(1, 123L, session.clickGestureToken, session.pointerGestureToken, TARGET);
+      return new PointerReleaseSnapshot(1, 123L, session.clickGestureToken, session.pointerGesture.activeToken(), TARGET);
    }
 }

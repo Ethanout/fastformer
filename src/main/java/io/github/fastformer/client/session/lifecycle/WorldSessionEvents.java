@@ -19,7 +19,7 @@ public final class WorldSessionEvents {
       @Override public void resetPreviewSession() { ClientSessionSystem.instance().previews().resetConnection(); }
       @Override public void disconnectOperation() { ClientSessionSystem.instance().operations().onDisconnected(); }
       @Override public void clearInteractionCache() { ClientSessionSystem.instance().operations().pointer().clear(); }
-      @Override public void clearFeedback() { FastPlaceClientPreviewCore.clearTransientFeedback(); }
+      @Override public void clearFeedback() { ClientSessionSystem.instance().inputSession().feedback().clear(); }
       @Override public void clearWorldRenderState() { FastPlaceClientPreviewCore.clearWorldRenderState(); }
    });
 

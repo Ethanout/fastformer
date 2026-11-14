@@ -6,7 +6,6 @@ import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.GizmoDragCalculator;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.protocol.c2s.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.protocol.c2s.operation.OperationTransformPayload;
@@ -40,7 +39,7 @@ final class GeometryDragController {
             gizmo.center(), radial.normalize(), GizmoDragCalculator.rotationTangent(gizmo.axisVector(handle.axis()), radial.normalize()),
              handle.direction(), mouseButton
           );
-          session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+          session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       } else {
          Vec3 axis = gizmo.axisVector(handle.axis());
          if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
@@ -50,12 +49,12 @@ final class GeometryDragController {
              handle.operation(), handle.axis(), hit.point(), axis, 0, baseValue,
              Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, handle.direction(), mouseButton
           );
-          session.pointerGestureToken = session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
+          session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       }
-      session.geometryGizmoDrag = session.geometryGizmoDrag.withCapture(session.pointerGestureToken);
+      session.geometryGizmoDrag = session.geometryGizmoDrag.withCapture(session.pointerGesture.activeToken());
       session.operationTransformCapture = new ClientInputSession.OperationTransformCapture(GeometryInputController.nextRequestId(),
          ClientSessionSystem.instance().operations().remoteSelectionRevision(), ClientSessionSystem.instance().operations().remoteSelectionCallbackScope());
-      FastPlaceClientPreviewCore.noteGizmoFeedback(handle.axis(), handle.operation(), 0, baseValue);
+      session.feedback().noteGizmo(handle.axis(), handle.operation(), 0, baseValue);
       return true;
    }
 
@@ -124,7 +123,7 @@ final class GeometryDragController {
          }
          PacketDistributor.sendToServer(payload, new CustomPacketPayload[0]);
           session.geometryGizmoDrag = session.geometryGizmoDrag.withSentSteps(session.geometryGizmoDrag.sentSteps() + clippedDelta);
-          FastPlaceClientPreviewCore.noteGizmoFeedback(
+          session.feedback().noteGizmo(
              session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.sentSteps(), session.geometryGizmoDrag.baseValue()
           );
       }
@@ -137,7 +136,7 @@ final class GeometryDragController {
       if (session.geometryGizmoDrag != null && (operationTransform
          ? NetworkRegistry.hasChannel(minecraft.getConnection(), OperationTransformPayload.TYPE.id())
          : NetworkRegistry.hasChannel(minecraft.getConnection(), GeometryGizmoDragPayload.TYPE.id()))) {
-         FastPlaceClientPreviewCore.noteGizmoFeedback(
+         session.feedback().noteGizmo(
             session.geometryGizmoDrag.axis(), session.geometryGizmoDrag.operation(), session.geometryGizmoDrag.sentSteps(), session.geometryGizmoDrag.baseValue()
          );
          CustomPacketPayload payload = operationTransform
@@ -210,7 +209,6 @@ final class GeometryDragController {
       session.geometryGizmoDrag = null;
       session.operationTransformCapture = null;
       session.pointerGesture.finish(token);
-      if (session.pointerGestureToken == token) session.pointerGestureToken = 0L;
    }
 
    enum Target { NONE, GEOMETRY, OPERATION }

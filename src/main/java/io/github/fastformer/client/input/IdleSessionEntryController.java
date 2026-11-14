@@ -4,7 +4,6 @@ import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.ClientBlockTinker;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
 import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
