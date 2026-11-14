@@ -5,7 +5,7 @@ import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.common.selection.PointMotionLimits;
 import java.util.function.Predicate;
 import io.github.fastformer.fastplace.selection.OperationPointDragConstraint;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.common.history.SessionHistoryLimits;
 
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 
@@ -21,7 +21,7 @@ import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -51,18 +51,18 @@ public final class OperationSession {
    private TransformDrag transformDrag;
 
    public OperationSession() {
-      this(OperationSelectionMode.CUBOID, FastPlaceSettings.DEFAULT_SESSION_UNDO_HISTORY_LIMIT);
+      this(OperationSelectionMode.CUBOID, SessionHistoryLimits.DEFAULT_SESSION_UNDO_HISTORY_LIMIT);
    }
 
    public OperationSession(OperationSelectionMode initialMode) {
-      this(initialMode, FastPlaceSettings.DEFAULT_SESSION_UNDO_HISTORY_LIMIT);
+      this(initialMode, SessionHistoryLimits.DEFAULT_SESSION_UNDO_HISTORY_LIMIT);
    }
 
    public OperationSession(OperationSelectionMode initialMode, int historyLimit) {
       this.selectionMode = initialMode == null || initialMode == OperationSelectionMode.CONVEX_HULL
          ? OperationSelectionMode.CUBOID
          : initialMode;
-      this.historyLimit = Math.clamp(historyLimit, 1, FastPlaceSettings.MAX_UNDO_HISTORY_LIMIT);
+      this.historyLimit = Math.clamp(historyLimit, 1, SessionHistoryLimits.MAX_UNDO_HISTORY_LIMIT);
    }
 
    public List<BlockPos> points() {
@@ -469,7 +469,7 @@ public final class OperationSession {
    }
 
    public boolean adjustOperationTransform(
-      io.github.fastformer.fastplace.geometry.AxisGizmo.Operation operation,
+      io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation operation,
       Axis axis,
       int steps
    ) {
@@ -477,11 +477,11 @@ public final class OperationSession {
          return false;
       }
       int axisIndex = axis.ordinal();
-      if (this.transformState.stageMode == OperationStageMode.TRANSFORM && operation != io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.ROTATE) {
-         this.scroll(addAxis(BlockPos.ZERO, axisIndex, steps), operation == io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.SCALE);
+      if (this.transformState.stageMode == OperationStageMode.TRANSFORM && operation != io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation.ROTATE) {
+         this.scroll(addAxis(BlockPos.ZERO, axisIndex, steps), operation == io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation.SCALE);
          return true;
       }
-      if (this.transformState.stageMode == OperationStageMode.TRANSFORM && operation == io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.ROTATE) {
+      if (this.transformState.stageMode == OperationStageMode.TRANSFORM && operation == io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation.ROTATE) {
          double radians = steps * Math.PI * 2.0 / 1024.0;
          this.transformState.rotation = switch (axis) {
             case X -> this.transformState.rotation.add(radians, 0.0, 0.0);
@@ -882,7 +882,7 @@ public final class OperationSession {
    }
 
    public void updateHistoryLimit(int historyLimit) {
-      this.historyLimit = Math.clamp(historyLimit, 1, FastPlaceSettings.MAX_UNDO_HISTORY_LIMIT);
+      this.historyLimit = Math.clamp(historyLimit, 1, SessionHistoryLimits.MAX_UNDO_HISTORY_LIMIT);
       trimHistory(this.undoHistory, this.historyLimit);
       trimHistory(this.redoHistory, this.historyLimit);
    }

@@ -1,4 +1,5 @@
 package io.github.fastformer.client.gizmo;
+import io.github.fastformer.common.geometry.model.TransformFrame;
 
 import io.github.fastformer.core.math.Axis;
 
@@ -6,8 +7,8 @@ import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.PlaneAxes;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.model.PlaneAxes;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.world.phys.Vec3;
@@ -119,7 +120,7 @@ public final class GizmoRenderer {
       PoseStack poseStack,
       BufferSource buffers,
       Vec3 camera,
-      io.github.fastformer.fastplace.geometry.TransformFrame frame,
+      io.github.fastformer.common.geometry.model.TransformFrame frame,
       double axisLength,
       Axis highlightedAxis,
       float alphaScale
@@ -148,7 +149,7 @@ public final class GizmoRenderer {
    ) {
       int rgb = Math.round(red * 255) << 16 | Math.round(green * 255) << 8 | Math.round(blue * 255);
       io.github.fastformer.client.render.guide.GuideRenderer.renderDashedLine(
-         poseStack, consumer, from, to, new io.github.fastformer.fastplace.geometry.GeometryPalette.Color(rgb),
+         poseStack, consumer, from, to, new io.github.fastformer.client.preview.style.GeometryPalette.Color(rgb),
          alpha, 0.0, io.github.fastformer.client.render.PreviewStyle.DASH_LENGTH, opacity);
    }
 
@@ -214,7 +215,7 @@ public final class GizmoRenderer {
    }
 
    private static float[] gizmoAxisColor(Axis axis) {
-      int color = AxisGizmo.axisColor(axis);
+      int color = GizmoColors.axis(axis);
       return new float[]{
          ((color >>> 16) & 0xFF) / 255.0F,
          ((color >>> 8) & 0xFF) / 255.0F,
@@ -223,7 +224,7 @@ public final class GizmoRenderer {
    }
 
    private static float[] gizmoHandleColor(AxisGizmo.Handle handle) {
-      int color = handle.hoverFeedback().color(handle.hovered(), handle.active());
+      int color = GizmoColors.handle(handle);
       return new float[]{
          ((color >>> 16) & 0xFF) / 255.0F,
          ((color >>> 8) & 0xFF) / 255.0F,

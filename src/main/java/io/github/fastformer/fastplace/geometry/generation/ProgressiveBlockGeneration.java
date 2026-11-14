@@ -1,4 +1,5 @@
 package io.github.fastformer.fastplace.geometry.generation;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import java.util.AbstractList;

@@ -14,7 +14,7 @@ import static io.github.fastformer.server.history.HistoryService.DEFAULT_LIMIT;
 
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import net.minecraft.server.level.ServerPlayer;
 import io.github.fastformer.server.history.replay.HistoryRecoveryPolicy;
@@ -159,7 +159,7 @@ final class OwnerHistory {
       if (context.server() == null) return;
       persistence.track(clearsDirty, publication, context.server()::execute, dirty -> {
          var player = context.onlinePlayer();
-         if (player != null) FastPlaceMessages.chat(player, FastPlaceMessages.text(dirty
+         if (player != null) PlayerMessages.chat(player, PlayerMessages.text(dirty
             ? "fastformer.message.history_save_retry" : "fastformer.message.history_save_recovered"));
       });
    }
@@ -239,7 +239,7 @@ final class OwnerHistory {
          task.releaseMemoryReservation();
          active = null;
          pendingTask = task;
-         context.actionBar(FastPlaceMessages.text("fastformer.message.restore_failed_retry"));
+         context.actionBar(PlayerMessages.text("fastformer.message.restore_failed_retry"));
           LOGGER.error(
              "FastFormer history task failed for {} (operation={}) and was retained for recovery: {}",
              context.owner(),

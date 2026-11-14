@@ -3,8 +3,8 @@ package io.github.fastformer.client.interaction;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.TransformFrame;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.model.TransformFrame;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;

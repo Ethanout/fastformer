@@ -1,7 +1,7 @@
 package io.github.fastformer.server.session.execution;
 
 import io.github.fastformer.core.lifecycle.Scoped;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.task.TaskCancellationResult;
@@ -75,7 +75,7 @@ abstract class TaskExecution<T extends WorldTask> implements Scoped {
 
    private void handOver(WorldTaskContext context, HistoryService history) {
       if (cancel(context, history).handled()) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
+         context.actionBar(PlayerMessages.text("fastformer.message.recovery_journal_blocked"));
       }
    }
 

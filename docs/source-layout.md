@@ -22,9 +22,10 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.geometry.transform` | 几何拖动与 HUD 共用的变换基线和局部轴数值；按连续性版本重置 |
 | `client.quickshape.pointer` | 起形候选、放置上下文、路径数据及有效模式／滚轮规则；输入和绘制复用，不依赖渲染入口 |
 | `client.interaction.path` | 冻结路径闭合命中：保留选区／几何／起形优先级、悬停与双击不同最少点数及世界遮挡 |
-| `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式按键／滚轮决策 |
+| `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式滚轮／指针决策；快速工具按键已迁入数据绑定 |
+| `client.feedback` | 所属输入环境的调整反馈、计时／悬停衰减、自由滚轮快照过渡与数值显示数据；不依赖绘制或全局会话 |
 | `client.mode.input.pointer` | 不可变鼠标事实、左右键动作与共享捕获优先级；模式只决策，不查询实时客户端 |
-| `client.preview` / `frame` | 预览模型／绘制契约、显式世界绘制帧和统一动画相位；完整跨模式 PreviewFrame 仍在迁移 |
+| `client.preview` / `frame` | ClientPreviewSystem 拥有预览能力与异步结果推进；预览模型／绘制契约、显式世界绘制帧和统一动画相位；完整跨模式 PreviewFrame 仍在迁移 |
 | `client.preview.quickshape` | 起形模型构建、生成任务与降级、方块层与控制点绘制，以及自有外壳／网格缓存和取消 |
 | `client.preview.geometry` | 从共享几何计划构建方块绘制层，绘制控制点／导引线／手柄，并拥有幽灵网格与 GPU 缓存；不重新生成交互计划 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
@@ -35,7 +36,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.session.submission` | 双文件提交准备、未发送回执重试及暂存／耐久草稿分别结算；每次操作冻结所属作用域 |
 | `client.session.reconnect` | 有界快照等待；不持有草稿、不决定恢复行为 |
 | `client.session.preview` | 会话系统持有的服务端快照、revision、网络应用、起形提交、重连确认与几何连续性；不依赖渲染 |
-| `client.session.lifecycle` | 客户端世界离开事件、按顺序通知清理能力并汇总失败 |
+| `client.session.lifecycle` | 客户端世界离开事件、按顺序通知清理能力并汇总失败；ClientSessionTick 明确编排入站、输入、操作结算与预览推进 |
 | `client.network.inbound` | 客户端载荷类型注册、连接校验与 tick 投递 |
 | `client.network.outbound` | 可选通道检查与向当前连接发送请求；设置界面和放置网关共用 |
 | `core.registry` | 无游戏依赖的注册表；拒绝重复键，装配结束后冻结 |

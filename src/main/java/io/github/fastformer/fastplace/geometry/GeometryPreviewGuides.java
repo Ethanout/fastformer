@@ -1,13 +1,14 @@
 package io.github.fastformer.fastplace.geometry;
+import io.github.fastformer.common.geometry.model.GuideLine;
 
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointShape;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.common.geometry.ControlPointRole;
+import io.github.fastformer.common.geometry.controlpoint.ControlPointShape;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGenerator;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.common.geometry.PolyhedronSizeMode;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;

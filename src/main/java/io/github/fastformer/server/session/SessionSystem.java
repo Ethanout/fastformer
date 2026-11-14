@@ -2,12 +2,11 @@ package io.github.fastformer.server.session;
 
 import io.github.fastformer.core.lifecycle.Scope;
 import io.github.fastformer.core.lifecycle.ScopedKey;
-import io.github.fastformer.fastplace.interaction.SpecialItemHandlers;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.session.InteractionState;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.common.interaction.InteractionState;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.feedback.TaskFeedback;
+import io.github.fastformer.server.mode.ServerModes;
 import io.github.fastformer.server.session.execution.PlacementTasks;
 import io.github.fastformer.server.session.execution.OperationTasks;
 import io.github.fastformer.server.network.upload.UploadSystem;
@@ -42,6 +41,7 @@ public final class SessionSystem implements AutoCloseable {
    final QuickShapeSystem quickShape = states.get(ScopedKey.create("quick_shape", () -> new QuickShapeSystem(this)));
    final OperationSystem operation = states.get(ScopedKey.create("operation", () -> new OperationSystem(this)));
    final GeometrySystem geometry = states.get(ScopedKey.create("geometry", () -> new GeometrySystem(this)));
+   private final ServerModes modes = new ServerModes(quickShape, operation, geometry, this::quit);
    private final TaskFeedback feedback = states.get(ScopedKey.create("task_feedback", TaskFeedback::new));
    private final WorkspaceSubmissionLedger submissions = states.get(ScopedKey.create("workspace_submissions", WorkspaceSubmissionLedger::new));
    private boolean closed;
@@ -81,29 +81,16 @@ public final class SessionSystem implements AutoCloseable {
 
    public void setModifierHeld(ServerPlayer player, boolean held) {
       InteractionModifierState.set(player, held);
-      quickShape.session(player).ifPresent(draft -> {
-         draft.setModifierHeld(held);
-         FastPlaceNetwork.syncPreview(player, draft);
-      });
-      operation.session(player).ifPresent(session -> FastPlaceNetwork.syncOperation(player, session));
-      geometry.session(player).ifPresent(session -> FastPlaceNetwork.syncGeometry(player, session));
+      modes.modifierChanged(player, held, true);
    }
 
    public InteractionState classify(ServerPlayer player) {
-      if (operation.active(player)) return InteractionState.OPERATION;
-      if (geometry.active(player)) return InteractionState.GEOMETRY;
-      if (quickShape.active(player)) return InteractionState.BUILDING;
-      if (SpecialItemHandlers.isSpecial(player.getMainHandItem())) return InteractionState.SPECIAL_ITEM;
-      if (player.getMainHandItem().isEmpty()) return InteractionState.OPERATION;
-      if (PlaceableItems.isPlaceable(player.getMainHandItem())) return InteractionState.BUILDING;
-      return InteractionState.VANILLA;
+      return modes.current(player).interactionState();
    }
 
    /** Ends active editors, retaining parked dimension drafts and world tasks. */
    public void cancelEditing(ServerPlayer player) {
-      quickShape.endEditing(player);
-      operation.cancel(player);
-      geometry.cancel(player);
+      modes.cancelEditing(player);
    }
 
    public void quit(ServerPlayer player) {
@@ -114,7 +101,7 @@ public final class SessionSystem implements AutoCloseable {
          placements.cancel(player);
          operationTasks.cancel(player);
       }
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.quit"));
+      PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.quit"));
    }
 
    /** Cancels editing and world work when creative editing or recovery admission is unavailable. */
@@ -126,18 +113,16 @@ public final class SessionSystem implements AutoCloseable {
       operationTasks.cancel(player);
       HistorySystem.of(player).cancel(player);
       if (taskWasActive && !io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.recovery_journal_blocked"));
       }
    }
 
    /** Drops player-bound editing state; queued world work keeps its own lifetime. */
    public void discardPlayer(ServerPlayer player) {
       SmartFillSystem.forget(player);
-      quickShape.discardPlayer(player.getUUID());
       InteractionModifierState.reset(player);
       QuickReplaceSystem.forget(player);
-      operation.remove(player);
-      geometry.remove(player);
+      modes.discardPlayer(player);
       HistorySystem.of(player).remove(player);
       ServerInputDispatcher.clearPlacementActions(player);
       FastPlaceNetwork.forgetActivity(player);
@@ -148,33 +133,22 @@ public final class SessionSystem implements AutoCloseable {
       if (player == null) return;
       UUID owner = player.getUUID();
       resetModifier(player);
-      quickShape.parkDimensionSession(owner, from);
-      operation.parkDimensionSession(owner, from);
-      geometry.parkDimensionSession(owner, from);
+      modes.parkDimension(owner, from);
       ServerInputDispatcher.clearPlacementActions(player);
-      quickShape.restoreDimensionSession(owner, to);
-      operation.restoreDimensionSession(owner, to);
-      geometry.restoreDimensionSession(owner, to);
+      modes.restoreDimension(owner, to);
       FastPlaceNetwork.forgetActivity(player);
       syncCurrentPreview(player);
    }
 
    public void syncCurrentPreview(ServerPlayer player) {
-      quickShape.session(player).ifPresent(draft -> draft.setModifierHeld(modifierHeld(player)));
+      modes.modifierChanged(player, modifierHeld(player), false);
       PreviewSync.syncInteractionUpdates(player);
-      if (operation.active(player)) {
-         operation.session(player).ifPresent(session -> FastPlaceNetwork.syncOperation(player, session));
-      } else if (geometry.active(player)) {
-         geometry.session(player).ifPresent(session -> FastPlaceNetwork.syncGeometry(player, session));
-      } else {
-         quickShape.session(player).ifPresentOrElse(draft -> FastPlaceNetwork.syncPreview(player, draft),
-            () -> FastPlaceNetwork.syncSettings(player));
-      }
+      modes.active(player).ifPresentOrElse(mode -> mode.sync(player), () -> FastPlaceNetwork.syncSettings(player));
    }
 
    private void resetModifier(ServerPlayer player) {
       InteractionModifierState.reset(player);
-      quickShape.session(player).ifPresent(draft -> draft.setModifierHeld(false));
+      modes.modifierChanged(player, false, false);
    }
 
    /** Remove admission before cleanup, so a late lookup cannot recreate the old server runtime. */
@@ -194,6 +168,7 @@ public final class SessionSystem implements AutoCloseable {
    public OperationTasks operationTasks() { return operationTasks; }
 
    public WorkspaceSubmissionLedger submissions() { return submissions; }
+   public ServerModes modes() { return modes; }
 
    @Override public void close() {
       closed = true;

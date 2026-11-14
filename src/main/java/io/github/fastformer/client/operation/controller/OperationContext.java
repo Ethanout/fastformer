@@ -120,7 +120,7 @@ public final class OperationContext {
             var policy = io.github.fastformer.client.interaction.pointer.PointerRayPolicy.select(
                previews.geometry().active(), previews.building().active(), active(),
                selectionSessionActive() || selectionEdits.selectionDraftActive(), hand.isEmpty(),
-               io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(hand));
+               io.github.fastformer.common.placement.context.PlaceableItems.isPlaceable(hand));
             return rays.sample(context.player(), context.alternative(), policy);
          },
          () -> io.github.fastformer.client.interaction.intent.InteractionContext.capture(Minecraft.getInstance()),

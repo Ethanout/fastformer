@@ -63,7 +63,7 @@ public final class ClientSessionSystem {
    }
 
    public boolean usesScrollContext() {
-      if (previews.geometry().active()) return geometryPointer().allows(io.github.fastformer.fastplace.geometry.GeometryAction.SCALAR_ADJUST);
+      if (previews.geometry().active()) return geometryPointer().allows(io.github.fastformer.common.geometry.GeometryAction.SCALAR_ADJUST);
       return !previews.operation().active() && io.github.fastformer.client.quickshape.pointer.QuickShapeModes.scrollContext(previews.building());
    }
 
@@ -73,7 +73,7 @@ public final class ClientSessionSystem {
       var geometry = previews.geometry();
       var operationPath = operation.active() && operation.operationSelectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.PRISM
          && operation.operationPrismBasePointCount() == 0 ? operation.points() : java.util.List.<BlockPos>of();
-      var geometryPath = geometry.active() && geometry.mode() == io.github.fastformer.fastplace.geometry.GeometryMode.WALL
+      var geometryPath = geometry.active() && geometry.mode() == io.github.fastformer.common.geometry.GeometryMode.WALL
          && !geometry.closed() ? geometry.points() : java.util.List.<BlockPos>of();
       BlockPos candidate = null;
       if (c != null) {
@@ -86,7 +86,7 @@ public final class ClientSessionSystem {
    }
 
    /** Samples the established ray purpose for this input owner's environment. */
-   public io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.Result pointerRay(
+   public io.github.fastformer.common.raycast.LongRangeBlockRaycast.Result pointerRay(
       io.github.fastformer.client.input.ClientInputSession input,
       io.github.fastformer.client.interaction.intent.InteractionContext context) {
       var operations = operations();
@@ -94,7 +94,7 @@ public final class ClientSessionSystem {
       var policy = io.github.fastformer.client.interaction.pointer.PointerRayPolicy.select(
          previews.geometry().active(), previews.building().active(), operations.active(),
          operations.selectionSessionActive() || operations.selectionEdits().selectionDraftActive(),
-         hand.isEmpty(), io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(hand));
+         hand.isEmpty(), io.github.fastformer.common.placement.context.PlaceableItems.isPlaceable(hand));
       return input.pointer().sample(context.player(), context.alternative(), policy);
    }
    private final io.github.fastformer.client.session.preview.ClientPreviewUpdates previewUpdates =

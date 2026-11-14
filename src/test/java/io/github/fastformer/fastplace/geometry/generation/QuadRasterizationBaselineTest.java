@@ -1,8 +1,11 @@
 package io.github.fastformer.fastplace.geometry.generation;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+
+import io.github.fastformer.common.geometry.LineTieBias;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.model.FillMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;

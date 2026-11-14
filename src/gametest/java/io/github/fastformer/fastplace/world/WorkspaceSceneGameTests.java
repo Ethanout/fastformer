@@ -8,7 +8,7 @@ import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.interaction.ProtectedInteractionTick;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.session.OperationSystem;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
@@ -123,7 +123,7 @@ public final class WorkspaceSceneGameTests {
    }
 
    private static OperationWorkspacePlan.Part part(int id, BlockPos pos, net.minecraft.world.level.block.state.BlockState state, BlockPos offset) {
-      return new OperationWorkspacePlan.Part(id, ClientSelectionPart.Source.WORLD, Map.of(pos, new ClientBlockSnapshot(state, null)),
+      return new OperationWorkspacePlan.Part(id, ClientSelectionPart.Source.WORLD, Map.of(pos, new BlockSnapshot(state, null)),
          WorkspaceTransform.IDENTITY.withTranslation(net.minecraft.world.phys.Vec3.atLowerCornerOf(offset)), false);
    }
 }

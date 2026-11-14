@@ -1,6 +1,6 @@
 package io.github.fastformer.client.geometry.pointer;
 
-import io.github.fastformer.fastplace.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryHit;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;

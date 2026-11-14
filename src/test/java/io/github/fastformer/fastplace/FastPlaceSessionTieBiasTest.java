@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
 
 import io.github.fastformer.fastplace.world.*;
 
@@ -9,7 +9,7 @@ import io.github.fastformer.fastplace.workflow.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.common.geometry.LineTieBias;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;

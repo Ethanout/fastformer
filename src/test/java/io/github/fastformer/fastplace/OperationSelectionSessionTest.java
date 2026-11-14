@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
@@ -525,7 +525,7 @@ class OperationSelectionSessionTest {
       session.scroll(new BlockPos(2, 0, 0), false);
       session.scroll(new BlockPos(0, 1, 0), true);
       assertTrue(session.adjustOperationTransform(
-         io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.ROTATE,
+         io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation.ROTATE,
          Axis.Z,
          256
       ));

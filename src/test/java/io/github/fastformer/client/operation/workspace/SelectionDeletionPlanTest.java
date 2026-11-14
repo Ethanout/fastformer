@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.workspace;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.List;
@@ -50,13 +50,13 @@ class SelectionDeletionPlanTest {
    }
 
    private static ClientSelectionPart part(int id, ClientSelectionPart.Source source,
-      Map<BlockPos, ClientBlockSnapshot> blocks, WorkspaceTransform transform) {
+      Map<BlockPos, BlockSnapshot> blocks, WorkspaceTransform transform) {
       return new ClientSelectionPart(id, source, null, blocks, transform, false, blocks, null, ClientSelectionPart.Editability.FREE);
    }
 
-   private static ClientBlockSnapshot snapshot() throws Exception {
+   private static BlockSnapshot snapshot() throws Exception {
       var field = Unsafe.class.getDeclaredField("theUnsafe");
       field.setAccessible(true);
-      return (ClientBlockSnapshot)((Unsafe)field.get(null)).allocateInstance(ClientBlockSnapshot.class);
+      return (BlockSnapshot)((Unsafe)field.get(null)).allocateInstance(BlockSnapshot.class);
    }
 }

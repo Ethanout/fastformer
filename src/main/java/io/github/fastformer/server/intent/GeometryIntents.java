@@ -1,9 +1,9 @@
 package io.github.fastformer.server.intent;
 
 import io.github.fastformer.core.command.Intent;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.PolyhedronSizeMode;
 import java.util.Objects;
 
 /** Geometry edits shared by commands and other input sources. */

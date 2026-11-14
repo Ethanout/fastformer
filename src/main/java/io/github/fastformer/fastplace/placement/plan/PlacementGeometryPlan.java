@@ -1,10 +1,10 @@
 package io.github.fastformer.fastplace.placement.plan;
 
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 

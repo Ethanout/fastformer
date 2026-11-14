@@ -1,4 +1,6 @@
 package io.github.fastformer.fastplace.geometry;
+import io.github.fastformer.common.geometry.model.GeometryConstraints;
+import io.github.fastformer.common.geometry.model.GuideLine;
 
 import static io.github.fastformer.common.math.MinecraftVectors.dominantAxis;
 

@@ -2,7 +2,7 @@ package io.github.fastformer.client.feedback;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import net.minecraft.core.BlockPos;
 
 /** Owns transient HUD timers and hover acceleration for the preview client. */

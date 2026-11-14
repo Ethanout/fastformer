@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import io.github.fastformer.client.operation.clipboard.ClipboardCopy;
 import io.github.fastformer.client.operation.clipboard.OperationClipboard;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.Composition;
@@ -110,7 +110,7 @@ class WorkspaceContentPreparerTest {
 
    @Test
    void submissionPreparationKeepsContentAndPendingDeleteSourceSnapshots() {
-      ClientBlockSnapshot content = snapshot();
+      BlockSnapshot content = snapshot();
       ClientSelectionPart empty = part(1, Map.of(), false, Map.of());
       ClientSelectionPart write = part(2, Map.of(BlockPos.ZERO, content), false, Map.of())
          .withTranslation(new Vec3(1, 0, 0));
@@ -176,15 +176,15 @@ class WorkspaceContentPreparerTest {
    }
 
    private static ClientSelectionPart part(
-      int id, Map<BlockPos, ClientBlockSnapshot> blocks, boolean pendingDelete,
-      Map<BlockPos, ClientBlockSnapshot> sourceSnapshot
+      int id, Map<BlockPos, BlockSnapshot> blocks, boolean pendingDelete,
+      Map<BlockPos, BlockSnapshot> sourceSnapshot
    ) {
       return part(id, blocks, pendingDelete, sourceSnapshot, WorkspaceTransform.IDENTITY);
    }
 
    private static ClientSelectionPart part(
-      int id, Map<BlockPos, ClientBlockSnapshot> blocks, boolean pendingDelete,
-      Map<BlockPos, ClientBlockSnapshot> sourceSnapshot, WorkspaceTransform transform
+      int id, Map<BlockPos, BlockSnapshot> blocks, boolean pendingDelete,
+      Map<BlockPos, BlockSnapshot> sourceSnapshot, WorkspaceTransform transform
    ) {
       return new ClientSelectionPart(
          id,
@@ -199,11 +199,11 @@ class WorkspaceContentPreparerTest {
       );
    }
 
-   private static ClientBlockSnapshot snapshot() {
+   private static BlockSnapshot snapshot() {
       try {
          Field field = Unsafe.class.getDeclaredField("theUnsafe");
          field.setAccessible(true);
-         return (ClientBlockSnapshot)((Unsafe)field.get(null)).allocateInstance(ClientBlockSnapshot.class);
+         return (BlockSnapshot)((Unsafe)field.get(null)).allocateInstance(BlockSnapshot.class);
       } catch (ReflectiveOperationException exception) {
          throw new AssertionError(exception);
       }

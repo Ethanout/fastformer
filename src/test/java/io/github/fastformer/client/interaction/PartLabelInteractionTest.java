@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.client.render.WorkspacePartLabelHint;
+import io.github.fastformer.client.interaction.intent.WorkspacePartLabelHint;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -30,7 +30,7 @@ class PartLabelInteractionTest {
       assertEquals(normal.anchor(), hovered.anchor());
       assertEquals(0.025F, normal.appearance().scale());
       assertEquals(normal.appearance().scale(), hovered.appearance().scale());
-      assertEquals(io.github.fastformer.fastplace.geometry.GeometryPalette.paperInk().argb(), hovered.appearance().textColor());
+      assertEquals(io.github.fastformer.client.preview.style.GeometryPalette.paperInk().argb(), hovered.appearance().textColor());
       assertNotEquals(normal.appearance().backgroundColor(), hovered.appearance().backgroundColor());
    }
 

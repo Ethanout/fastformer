@@ -1,6 +1,6 @@
 package io.github.fastformer.server.selection;
 
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;

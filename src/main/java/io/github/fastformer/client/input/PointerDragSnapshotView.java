@@ -8,7 +8,7 @@ import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import net.minecraft.core.BlockPos;

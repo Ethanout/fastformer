@@ -3,7 +3,7 @@ package io.github.fastformer.client.placement;
 import io.github.fastformer.client.input.mouse.UsePressSequence;
 import io.github.fastformer.client.interaction.ClientInteractionUpdates;
 import io.github.fastformer.client.session.ClientSessionSystem;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.context.PlaceableItems;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.client.player.LocalPlayer;

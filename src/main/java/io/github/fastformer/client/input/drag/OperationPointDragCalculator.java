@@ -69,7 +69,7 @@ public final class OperationPointDragCalculator {
       }
       Vec3 ray = MinecraftVectors.normalizeDirectionOrZero(view);
       SelectionPrism.GridLine targetingLine = drag.line().through(drag.initialPoint());
-      Vec3 linePoint = OperationGeometry.closestPointOnAxisToRay(
+      Vec3 linePoint = io.github.fastformer.common.math.RayAxisProjection.closestPoint(
          targetingLine.anchor(), targetingLine.direction(), eye, ray
       );
       double rayDistance = Math.max(0.0, linePoint.subtract(eye).dot(ray));
@@ -117,7 +117,7 @@ public final class OperationPointDragCalculator {
 
    public static double axisOffset(Vec3 origin, Vec3 eye, Vec3 view, int axis) {
       Vec3 axisVector = ClientInputMath.worldAxis(axis);
-      return OperationGeometry.closestPointOnAxisToRay(origin, axisVector, eye, view)
+      return io.github.fastformer.common.math.RayAxisProjection.closestPoint(origin, axisVector, eye, view)
          .subtract(origin)
          .dot(axisVector);
    }

@@ -251,7 +251,7 @@ public final class SmartFillGameTests {
             command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.DISCOVER);
             helper.assertFalse(SmartFillSystem.active(player), "frame face unexpectedly required a preview");
             helper.assertTrue(SessionSystem.of(player).placementTasks().active(player), "cube face " + next[0] + " was not recognized; hit="
-               + io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clip(
+               + io.github.fastformer.common.raycast.LongRangeBlockRaycast.clip(
                   player.level(), player, player.getEyePosition(), player.getViewVector(1)).hit().getBlockPos()
                + "; world busy=" + io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()));
             next[0]++;

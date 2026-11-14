@@ -1,7 +1,7 @@
 package io.github.fastformer.client.controlpoint;
 
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
+import io.github.fastformer.common.geometry.ControlPointRole;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import java.util.List;
 import net.minecraft.core.BlockPos;

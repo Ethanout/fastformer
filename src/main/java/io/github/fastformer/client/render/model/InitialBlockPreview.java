@@ -1,12 +1,13 @@
 package io.github.fastformer.client.render.model;
 
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
 import io.github.fastformer.client.render.ShapeShellMesh;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointStyle;
+import io.github.fastformer.client.preview.style.ControlPointStyle;
 import io.github.fastformer.fastplace.geometry.raycast.SelectionTargetShape;
-import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,10 +20,10 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 
 public record InitialBlockPreview(BlockPos position, BlockState state, ShapeShellMesh.Mesh mesh) {
-   public static InitialBlockPreview resolve(Player player, BlockHitResult hit, boolean embedded) {
+   public static InitialBlockPreview resolve(Player player, BlockHitResult hit, boolean embedded, boolean passesThroughFluids) {
       if (hit.getType() != HitResult.Type.BLOCK) return null;
       boolean selection = !PlaceableItems.isPlaceable(player.getMainHandItem());
-      var context = PlacementContextSnapshot.capture(
+      var context = PlacementContexts.capture(
          player.level(), player, player.getMainHandItem(), hit, embedded || selection
       );
       BlockPos position = embedded || selection ? hit.getBlockPos() : context.placementPosition();
@@ -32,7 +33,7 @@ public record InitialBlockPreview(BlockPos position, BlockState state, ShapeShel
       var level = selection ? player.level() : PreviewBlockOcclusion.level(Set.of(position), state, Map.of());
       var shape = selection
          ? SelectionTargetShape.resolve(level, position, CollisionContext.of(player),
-            io.github.fastformer.common.raycast.InteractionRaycastRules.passesThroughFluids(player, FastPlaceClientInput.modifierHeld()))
+             passesThroughFluids)
          : state.getShape(level, position, CollisionContext.of(player));
       var boxes = shape.toAabbs();
       return new InitialBlockPreview(position, state, mesh(position, boxes));
@@ -42,7 +43,7 @@ public record InitialBlockPreview(BlockPos position, BlockState state, ShapeShel
       var style = ControlPointStyle.START;
       var face = new ShapeShellMesh.Color(style.red(), style.green(), style.blue());
       // Contours use the main ink: a tinted outline at candidate alpha vanishes on grass.
-      var ink = io.github.fastformer.fastplace.geometry.GeometryPalette.ink();
+      var ink = io.github.fastformer.client.preview.style.GeometryPalette.ink();
       var outline = new ShapeShellMesh.Color(ink.red(), ink.green(), ink.blue());
       return ShapeShellMesh.build(List.of(new ShapeShellMesh.Part(
          boxes.stream().map(box -> box.move(position)).toList(), face, outline, true

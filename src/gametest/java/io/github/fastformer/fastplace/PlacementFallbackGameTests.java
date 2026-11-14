@@ -1,14 +1,16 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.Lifecycle;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.placement.context.PlacementFallbackRule;
-import io.github.fastformer.fastplace.placement.context.PlacementFallbacks;
+import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.context.PlacementFallbackRule;
+import io.github.fastformer.common.placement.context.PlacementFallbacks;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -43,8 +45,8 @@ public final class PlacementFallbackGameTests {
          player.setYRot(yaw);
          player.setYHeadRot(yaw);
          var hit = new BlockHitResult(floor.getCenter().add(0, 0.5, 0), Direction.UP, floor, false);
-         var snapshot = PlacementContextSnapshot.capture(player.level(), player, stack, hit, false);
-         var context = snapshot.context(player.level(), player, stack);
+         var snapshot = PlacementContexts.capture(player.level(), player, stack, hit, false);
+         var context = PlacementContexts.context(snapshot, player.level(), player, stack);
          helper.assertTrue(Blocks.LADDER.getStateForPlacement(context) == null, "test ladder unexpectedly has support");
          Direction expected = player.getDirection().getOpposite();
          player.setYRot(yaw + 90);
@@ -69,8 +71,8 @@ public final class PlacementFallbackGameTests {
       helper.getLevel().setBlockAndUpdate(wall, Blocks.STONE.defaultBlockState());
       var stack = new ItemStack(Blocks.LADDER);
       var hit = new BlockHitResult(wall.getCenter().add(0.5, 0, 0), Direction.EAST, wall, false);
-      var snapshot = PlacementContextSnapshot.capture(player.level(), player, stack, hit, false);
-      var expected = Blocks.LADDER.getStateForPlacement(snapshot.context(player.level(), player, stack));
+      var snapshot = PlacementContexts.capture(player.level(), player, stack, hit, false);
+      var expected = Blocks.LADDER.getStateForPlacement(PlacementContexts.context(snapshot, player.level(), player, stack));
       helper.assertTrue(expected != null && expected.getValue(BlockStateProperties.HORIZONTAL_FACING) == Direction.EAST,
          "test wall does not select east");
       helper.assertTrue(PlaceableItems.placementState(stack, player, snapshot).orElseThrow().equals(expected),
@@ -86,7 +88,7 @@ public final class PlacementFallbackGameTests {
       helper.getLevel().setBlock(target, Blocks.WATER.defaultBlockState(), PlacementUpdateMode.CLIENT_ONLY.flags());
       var stack = new ItemStack(Blocks.LADDER);
       var hit = new BlockHitResult(target.getCenter(), Direction.UP, target, false);
-      var snapshot = PlacementContextSnapshot.capture(player.level(), player, stack, hit, false);
+      var snapshot = PlacementContexts.capture(player.level(), player, stack, hit, false);
       var state = PlaceableItems.placementState(stack, player, snapshot).orElseThrow();
       helper.assertTrue(state.getValue(BlockStateProperties.WATERLOGGED), "fallback removed source water");
       stack.set(DataComponents.BLOCK_STATE, new BlockItemStateProperties(Map.of("facing", "south", "waterlogged", "false")));
@@ -105,7 +107,7 @@ public final class PlacementFallbackGameTests {
          var stack = new ItemStack(block);
          for (Direction face : Direction.values()) {
             var snapshot = VirtualSupportGameTests.snapshot(target, face);
-            helper.assertTrue(block.getStateForPlacement(snapshot.context(player.level(), player, stack)) == null,
+            helper.assertTrue(block.getStateForPlacement(PlacementContexts.context(snapshot, player.level(), player, stack)) == null,
                "test attachment unexpectedly has support");
             var state = PlaceableItems.placementState(stack, player, snapshot).orElseThrow();
             var expectedFace = face == Direction.UP ? AttachFace.FLOOR : face == Direction.DOWN ? AttachFace.CEILING : AttachFace.WALL;
@@ -124,7 +126,7 @@ public final class PlacementFallbackGameTests {
       var stack = new ItemStack(Blocks.LADDER);
       BlockPos target = helper.absolutePos(new BlockPos(2, 3, 2));
       var hit = new BlockHitResult(target.getCenter(), Direction.UP, target, false);
-      var context = PlacementContextSnapshot.capture(player.level(), player, stack, hit, false).context(player.level(), player, stack);
+      var context = PlacementContexts.context(PlacementContexts.capture(player.level(), player, stack, hit, false), player.level(), player, stack);
       var rules = new MappedRegistry<>(PlacementFallbacks.REGISTRY, Lifecycle.stable());
       addRule(rules, "z_low", 0, true, "\"facing\":\"west\"");
       addRule(rules, "z_high", 10, true, "\"facing\":\"south\"");

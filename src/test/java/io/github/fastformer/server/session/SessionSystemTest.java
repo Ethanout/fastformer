@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
-import io.github.fastformer.fastplace.session.GeometrySession;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.server.task.block.PlacementTask;
@@ -23,6 +25,19 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class SessionSystemTest {
+   @Test
+   void registryContainsEveryGeometryModeExactlyOnceAndCannotBeMutated() {
+      try (var runtime = new SessionSystem()) {
+         var modes = runtime.modes().registered();
+         assertEquals(GeometryMode.values().length + 4, modes.size());
+         assertEquals(modes.size(), modes.stream().map(mode -> mode.id()).distinct().count());
+         for (GeometryMode shape : GeometryMode.values()) {
+            assertTrue(modes.stream().anyMatch(mode -> mode.id().equals("geometry/" + shape.name().toLowerCase(java.util.Locale.ROOT))));
+         }
+         assertThrows(UnsupportedOperationException.class, () -> modes.clear());
+      }
+   }
+
    @Test
    void dimensionChangeParksAndRestoresTheSameDraft() {
       try (var runtime = new SessionSystem()) {

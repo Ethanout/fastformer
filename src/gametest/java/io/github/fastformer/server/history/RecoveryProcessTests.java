@@ -23,7 +23,7 @@ import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.TaskBudgets;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
@@ -157,8 +157,8 @@ public final class RecoveryProcessTests {
       ));
 
       WorldTaskContext workspaceContext = new WorldTaskContext(server, UUID.randomUUID());
-      Map<BlockPos, ClientBlockSnapshot> desired = new LinkedHashMap<>();
-      desired.put(WORKSPACE_POS, new ClientBlockSnapshot(Blocks.DIAMOND_BLOCK.defaultBlockState(), null));
+      Map<BlockPos, BlockSnapshot> desired = new LinkedHashMap<>();
+      desired.put(WORKSPACE_POS, new BlockSnapshot(Blocks.DIAMOND_BLOCK.defaultBlockState(), null));
       var workspacePart = new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, desired, WorkspaceTransform.IDENTITY, false
       );

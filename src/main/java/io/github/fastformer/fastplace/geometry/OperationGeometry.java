@@ -41,21 +41,6 @@ public final class OperationGeometry {
       return new AABB(minX, minY, minZ, maxX + 1.0, maxY + 1.0, maxZ + 1.0);
    }
 
-   public static Vec3 closestPointOnAxisToRay(Vec3 axisOrigin, Vec3 axis, Vec3 eye, Vec3 view) {
-      Vec3 localAxis = normalize(axis);
-      Vec3 localView = normalize(view);
-      double parallel = localAxis.dot(localView);
-      double denominator = 1.0 - parallel * parallel;
-      Vec3 eyeFromAxis = eye.subtract(axisOrigin);
-      if (denominator < EPSILON) {
-         return axisOrigin.add(localAxis.scale(eyeFromAxis.dot(localAxis)));
-      }
-
-      double rayDistance = (parallel * localAxis.dot(eyeFromAxis) - localView.dot(eyeFromAxis)) / denominator;
-      Vec3 rayPoint = eye.add(localView.scale(Math.max(0.0, rayDistance)));
-      return axisOrigin.add(localAxis.scale(rayPoint.subtract(axisOrigin).dot(localAxis)));
-   }
-
    public static int closestWorldAxisToRay(Vec3 axisOrigin, Vec3 eye, Vec3 view) {
       return closestWorldAxisToRay(axisOrigin, eye, view, -1);
    }
@@ -80,7 +65,7 @@ public final class OperationGeometry {
          if (axis == excludedAxis) {
             continue;
          }
-         Vec3 axisPoint = closestPointOnAxisToRay(axisOrigin, axes[axis], eye, ray);
+         Vec3 axisPoint = io.github.fastformer.common.math.RayAxisProjection.closestPoint(axisOrigin, axes[axis], eye, ray);
          double rayDistance = Math.max(0.0, axisPoint.subtract(eye).dot(ray));
          double distance = axisPoint.distanceToSqr(eye.add(ray.scale(rayDistance)));
          double conditioning = 1.0 - Math.abs(axes[axis].dot(ray));

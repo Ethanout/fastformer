@@ -2,7 +2,7 @@ package io.github.fastformer.client.placement.effect;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
 import io.github.fastformer.fastplace.geometry.generation.GenerationLimitExceeded;
 import io.github.fastformer.fastplace.geometry.generation.GeneratedBlockSets;

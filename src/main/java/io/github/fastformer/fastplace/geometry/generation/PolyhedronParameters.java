@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.TransformFrame;
+import io.github.fastformer.common.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.model.TransformFrame;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;
 

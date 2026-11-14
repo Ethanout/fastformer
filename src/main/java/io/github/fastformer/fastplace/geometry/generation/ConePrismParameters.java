@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.GeometryNumbers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

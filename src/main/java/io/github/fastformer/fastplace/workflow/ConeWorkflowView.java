@@ -1,9 +1,9 @@
 package io.github.fastformer.fastplace.workflow;
 
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.ConePrismStage;
 import net.minecraft.world.phys.Vec3;
 
 public record ConeWorkflowView(GeometryWorkflowView.Context context, int coneShapeVariant, ConePlaneMode conePlaneMode,

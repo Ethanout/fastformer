@@ -29,7 +29,7 @@ import io.github.fastformer.client.render.model.GhostQuad;
 import io.github.fastformer.client.render.model.PendingGhostMesh;
 import io.github.fastformer.client.render.theme.VisualThemes;
 import io.github.fastformer.client.render.type.HaloLineRenderType;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;

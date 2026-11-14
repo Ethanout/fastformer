@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.gesture.PathCloseGesture;
 import io.github.fastformer.client.input.gesture.PathClosePress;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.common.geometry.interaction.PointerGesture;
 import io.github.fastformer.protocol.c2s.geometry.GeometryInteractionPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryPointPayload;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;

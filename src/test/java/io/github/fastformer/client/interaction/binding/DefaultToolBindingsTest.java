@@ -147,6 +147,34 @@ class DefaultToolBindingsTest {
       assertTrue(custom.onSignalResult("scroll", "scroll_up", active, commands).consumesVanilla());
    }
 
+   @Test void fillPointerUseAndWheelDefaultToBlockAndUserOverridesCanYieldVanilla() throws Exception {
+      var context = new BindingContext(java.util.Map.of("session", new com.google.gson.JsonPrimitive("fastformer:smart_fill"),
+         "standard_mouse_button", new com.google.gson.JsonPrimitive(true)));
+      var defaults = defaults();
+      var system = system(defaults);
+      for (String button : List.of("left", "right", "middle")) for (String gesture : List.of("press", "release"))
+         assertTrue(system.onSignalResult(button, gesture, context, commands).consumesVanilla());
+      assertTrue(system.onSignalResult("use", "interaction", context, commands).consumesVanilla());
+      assertTrue(system.onSignalResult("attack", "interaction", context, commands).consumesVanilla());
+      assertTrue(system.onSignalResult("scroll", "scroll_up", context, commands).consumesVanilla());
+      assertTrue(system.onSignalResult("scroll", "scroll_down", context, commands).consumesVanilla());
+      var custom = system(UserOverrides.merge(defaults, JsonParser.parseString("""
+         {"bindings":[
+          {"id":"fastformer:smart_fill/block_right_press","enabled":false},
+          {"id":"fastformer:smart_fill/block_scroll_up","action":"fastformer:vanilla"},
+          {"id":"fastformer:smart_fill/block_use","action":"fastformer:pass"}
+         ]}
+         """).getAsJsonObject()));
+      assertEquals(BindingAction.Result.PASS, custom.onSignalResult("right", "press", context, commands));
+      assertEquals(BindingAction.Result.HANDLED_PASS_VANILLA, custom.onSignalResult("scroll", "scroll_up", context, commands));
+      assertEquals(BindingAction.Result.PASS, custom.onSignalResult("use", "interaction", context, commands));
+      assertEquals(BindingAction.Result.PASS, system(new BindingFile(List.of(), List.of(), List.of()))
+         .onSignalResult("left", "press", context, commands));
+      var extraButton = new BindingContext(java.util.Map.of("session", new com.google.gson.JsonPrimitive("fastformer:smart_fill"),
+         "standard_mouse_button", new com.google.gson.JsonPrimitive(false)));
+      assertTrue(system.onSignalResult("mouse.4", "press", extraButton, commands).consumesVanilla());
+   }
+
    private Decision decide(BindingSystem system, State state, int key, int action, boolean control, View view) {
       commands.last = Decision.PASS;
       var names = new HashSet<String>();

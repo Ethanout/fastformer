@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.raycast;
 
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 
 import io.github.fastformer.common.raycast.InteractionShapeSnapshot;

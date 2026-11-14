@@ -4,7 +4,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import io.github.fastformer.core.command.Intent;
 import io.github.fastformer.core.command.IntentSource;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.gate.CommandAdmission;
 import io.github.fastformer.server.intent.PlayerIntentSystem;
 import java.util.Map;
@@ -36,7 +36,7 @@ public record CommandChoices<T>(Map<String, T> values, String usage) {
          if (admitFirst && !CommandAdmission.available(player)) return 0;
          T value = values.get(StringArgumentType.getString(context, "mode"));
          if (value == null) {
-            FastPlaceMessages.chat(player, FastPlaceMessages.text(usage));
+            PlayerMessages.chat(player, PlayerMessages.text(usage));
             return 0;
          }
          if (!admitFirst && !CommandAdmission.available(player)) return 0;

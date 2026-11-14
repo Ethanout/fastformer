@@ -261,7 +261,7 @@ tasks.register('verifyModJar') {
     inputs.file(tasks.named('jar').flatMap { it.archiveFile })
     doLast {
         def requiredEntries = [
-                'io/github/fastformer/fastplace/text/FastPlaceMessages.class',
+                'io/github/fastformer/server/feedback/PlayerMessages.class',
                 'io/github/fastformer/server/session/QuickShapeSystem.class',
                 'io/github/fastformer/server/session/OperationSystem.class',
                 'io/github/fastformer/server/session/GeometrySystem.class',
@@ -280,7 +280,7 @@ tasks.register('verifyModJar') {
                  'io/github/fastformer/server/task/WorldTaskContext.class',
                  'io/github/fastformer/server/task/WorldTaskScheduler.class',
                  'io/github/fastformer/server/feedback/TaskFeedback.class',
-                'io/github/fastformer/fastplace/geometry/GeometryAction.class',
+                'io/github/fastformer/common/geometry/GeometryAction.class',
                 'io/github/fastformer/fastplace/geometry/generation/PlanarFaceRasterizer.class',
                 'io/github/fastformer/fastplace/geometry/generation/ArbitraryConvexPolyhedronGenerator.class'
         ]
@@ -327,8 +327,8 @@ tasks.register('deployTo233') {
         )
 
         new java.util.zip.ZipFile(targetFile).withCloseable { zip ->
-            if (zip.getEntry('io/github/fastformer/fastplace/text/FastPlaceMessages.class') == null) {
-                throw new GradleException('Deployed mod jar is missing FastPlaceMessages.class')
+            if (zip.getEntry('io/github/fastformer/server/feedback/PlayerMessages.class') == null) {
+                throw new GradleException('Deployed mod jar is missing PlayerMessages.class')
             }
         }
     }

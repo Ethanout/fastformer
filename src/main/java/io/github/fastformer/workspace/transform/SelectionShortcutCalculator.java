@@ -2,7 +2,7 @@ package io.github.fastformer.workspace.transform;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceSymmetry;
 import io.github.fastformer.workspace.preview.Composition;
@@ -37,7 +37,7 @@ public final class SelectionShortcutCalculator {
          var transform = part.transform();
          var symmetry = transform.symmetry().then(operation, pivot.subtract(transform.translation()));
          ClientSelectionPart updated = part.withTransform(transform.withSymmetry(symmetry)).fixed();
-         Composition<ClientBlockSnapshot> composition = batch.compose(updated);
+         Composition<BlockSnapshot> composition = batch.compose(updated);
          if (composition instanceof Composition.OverBudget<?> over) {
             return new SelectionTransformCalculator.Result(List.of(), over.limit() == Composition.Limit.WORK
                ? "fastformer.message.workspace_work_too_large" : "fastformer.message.workspace_result_too_large");

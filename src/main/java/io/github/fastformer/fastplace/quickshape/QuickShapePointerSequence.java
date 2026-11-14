@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.quickshape;
 
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
+
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 
 /** Allows ordered actions from one published revision while that same draft advances. */

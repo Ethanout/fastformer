@@ -1,14 +1,16 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.common.geometry.session.GeometrySession;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.ControlPointRole;
+import io.github.fastformer.common.geometry.PolyhedronSizeMode;
 import io.github.fastformer.fastplace.workflow.ConvexPolyhedronWorkflow;
 import io.github.fastformer.fastplace.world.*;
 import java.util.List;

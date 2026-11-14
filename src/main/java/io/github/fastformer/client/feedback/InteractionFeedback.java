@@ -2,9 +2,9 @@ package io.github.fastformer.client.feedback;
 
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.core.math.Axis;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.GeometryNumbers;
+import io.github.fastformer.common.quickshape.mode.LineMode;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -16,7 +16,7 @@ public final class InteractionFeedback {
    private final InteractionFeedbackState state = new InteractionFeedbackState();
    private final Function<Axis, Integer> axisColor;
 
-   public InteractionFeedback() { this(axis -> 0xFF000000 | AxisGizmo.axisColor(axis)); }
+   public InteractionFeedback() { this(axis -> 0xFF000000 | io.github.fastformer.client.gizmo.GizmoColors.axis(axis)); }
 
    public InteractionFeedback(Function<Axis, Integer> axisColor) {
       this.axisColor = Objects.requireNonNull(axisColor, "axisColor");

@@ -1,8 +1,8 @@
 package io.github.fastformer.protocol.c2s.geometry;
 
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.common.geometry.interaction.PointerGesture;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;

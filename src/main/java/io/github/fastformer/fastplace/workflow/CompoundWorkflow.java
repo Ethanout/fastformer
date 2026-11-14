@@ -1,18 +1,20 @@
 package io.github.fastformer.fastplace.workflow;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.session.GeometrySession;
+
+import io.github.fastformer.common.geometry.model.FillMode;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryMode;
 
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewGuides;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.GeometryAction;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewBlocks;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
 import io.github.fastformer.fastplace.geometry.generation.LoftGenerator;
 import io.github.fastformer.fastplace.geometry.generation.SweepGenerator;

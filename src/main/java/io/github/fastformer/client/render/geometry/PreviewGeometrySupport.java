@@ -2,11 +2,11 @@ package io.github.fastformer.client.render.geometry;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.fastplace.geometry.GuideLine;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.VolumeMode;
+import io.github.fastformer.common.geometry.model.GuideLine;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
 import java.util.ArrayList;
@@ -149,7 +149,7 @@ public final class PreviewGeometrySupport {
    }
 
    public static float[] softLocalAxisColor(Axis axis) {
-      var color = io.github.fastformer.fastplace.geometry.GeometryPalette.softAxis(axis);
+      var color = io.github.fastformer.client.preview.style.GeometryPalette.softAxis(axis);
       return new float[]{color.red(), color.green(), color.blue()};
    }
 

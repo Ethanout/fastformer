@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.clipboard;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ public final class OperationClipboardCodec {
          CompoundTag partTag = new CompoundTag();
          partTag.putInt("Id", part.originalId());
          ListTag blocks = new ListTag();
-         for (Map.Entry<BlockPos, ClientBlockSnapshot> entry : part.blocks().entrySet()) {
+         for (Map.Entry<BlockPos, BlockSnapshot> entry : part.blocks().entrySet()) {
             if (++total > MAX_BLOCKS) {
                throw new IllegalArgumentException("Clipboard exceeds the client block limit");
             }
@@ -71,7 +71,7 @@ public final class OperationClipboardCodec {
          if (blockTags.isEmpty()) {
             throw new IOException("Clipboard part has no blocks");
          }
-         LinkedHashMap<BlockPos, ClientBlockSnapshot> snapshots = new LinkedHashMap<>();
+         LinkedHashMap<BlockPos, BlockSnapshot> snapshots = new LinkedHashMap<>();
          for (int blockIndex = 0; blockIndex < blockTags.size(); blockIndex++) {
             if (++total > MAX_BLOCKS) {
                throw new IOException("Clipboard exceeds the client block limit");
@@ -87,7 +87,7 @@ public final class OperationClipboardCodec {
             CompoundTag blockEntity = blockTag.contains("BlockEntity", Tag.TAG_COMPOUND)
                ? blockTag.getCompound("BlockEntity")
                : null;
-            snapshots.put(pos, new ClientBlockSnapshot(state, blockEntity));
+            snapshots.put(pos, new BlockSnapshot(state, blockEntity));
          }
          parts.add(new OperationClipboard.Part(partTag.getInt("Id"), snapshots));
       }

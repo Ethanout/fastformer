@@ -3,10 +3,10 @@ package io.github.fastformer.client.geometry.transform;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.core.math.Axis;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.TransformFrame;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.model.TransformFrame;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;

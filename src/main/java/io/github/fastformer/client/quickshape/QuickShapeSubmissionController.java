@@ -8,7 +8,7 @@ import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectContext;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
 import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 import io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload;
 import java.util.concurrent.ForkJoinPool;
 import net.minecraft.client.Minecraft;

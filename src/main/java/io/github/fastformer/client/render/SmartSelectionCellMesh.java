@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render;
 
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;

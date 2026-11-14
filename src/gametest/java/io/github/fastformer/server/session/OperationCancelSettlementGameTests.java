@@ -8,7 +8,7 @@ import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.session.SessionSystem;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
@@ -275,8 +275,8 @@ public final class OperationCancelSettlementGameTests {
    }
 
    private static OperationWorkspacePlan clipboardPlan(BlockPos pos, net.minecraft.world.level.block.Block block) {
-      Map<BlockPos, ClientBlockSnapshot> blocks = new LinkedHashMap<>();
-      blocks.put(pos, new ClientBlockSnapshot(block.defaultBlockState(), null));
+      Map<BlockPos, BlockSnapshot> blocks = new LinkedHashMap<>();
+      blocks.put(pos, new BlockSnapshot(block.defaultBlockState(), null));
       return new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, blocks, WorkspaceTransform.IDENTITY, false
       )));

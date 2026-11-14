@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.placement.effect.woodframe;
 
 import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
-import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.common.geometry.LineTieBias;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

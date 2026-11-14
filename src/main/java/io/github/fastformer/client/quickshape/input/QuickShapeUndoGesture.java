@@ -10,12 +10,14 @@ public final class QuickShapeUndoGesture {
    public sealed interface Event {
       record Press(QuickShapeSubmissionSnapshot draft, long occurredAtNanos, Vec3 eye, Vec3 view) implements Event { }
       record Release(Press press, long occurredAtNanos) implements Event { }
+      record Cancel(Press press) implements Event { }
    }
 
    private Event.Press physicalPress;
    private Event.Press activePress;
 
    public boolean captured() { return physicalPress != null || activePress != null; }
+   public boolean physicalCaptured() { return physicalPress != null; }
 
    public Event.Press press(QuickShapeSubmissionSnapshot draft, long time, Vec3 eye, Vec3 view) {
       if (physicalPress != null) return null;
@@ -30,9 +32,21 @@ public final class QuickShapeUndoGesture {
       return release;
    }
 
+   /** Physical release still ends capture when the binding omits or overrides undo release. */
+   public Event.Cancel abandon(int button) {
+      if (button != 0 || physicalPress == null) return null;
+      var cancelled = new Event.Cancel(physicalPress);
+      physicalPress = null;
+      return cancelled;
+   }
+
    public Event.Press dispatch(Event event, ClientInputStateMachine routing, QuickShapeSubmissionSnapshot current) {
       if (event instanceof Event.Press press) {
          activePress = matches(press, routing, current) ? press : null;
+         return null;
+      }
+      if (event instanceof Event.Cancel cancelled) {
+         if (activePress == cancelled.press()) activePress = null;
          return null;
       }
       var release = (Event.Release) event;

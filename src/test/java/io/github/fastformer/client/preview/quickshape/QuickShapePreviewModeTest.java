@@ -3,7 +3,7 @@ package io.github.fastformer.client.preview.quickshape;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.GuideLine;
+import io.github.fastformer.common.geometry.model.GuideLine;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;

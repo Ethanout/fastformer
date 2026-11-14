@@ -1,7 +1,7 @@
 package io.github.fastformer.server.settings;
 
 import io.github.fastformer.core.command.Intent;
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.model.FillMode;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;

@@ -10,7 +10,7 @@ import io.github.fastformer.server.command.CommandSystem;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.interaction.BlockTinker;
 import io.github.fastformer.server.replace.QuickReplaceSystem;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.input.ServerInputDispatcher;

@@ -3,7 +3,7 @@ package io.github.fastformer.client.operation.selection;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
@@ -25,18 +25,18 @@ public final class SmartSelectionEdits {
       return workspace.selections().topPart().filter(ClientSelectionPart::smartEditable);
    }
 
-   public static OperationSelectionVolume volume(Map<BlockPos, ClientBlockSnapshot> blocks) {
+   public static OperationSelectionVolume volume(Map<BlockPos, BlockSnapshot> blocks) {
       var bounds = OccupiedBlockBounds.from(blocks.keySet()).orElseThrow().aabb();
       return new OperationSelectionVolume(OperationSelectionMode.SMART, bounds, null, List.of(), 0, null, null);
    }
 
-   public static boolean add(ClientOperationWorkspace workspace, Map<BlockPos, ClientBlockSnapshot> region) {
+   public static boolean add(ClientOperationWorkspace workspace, Map<BlockPos, BlockSnapshot> region) {
       if (region.isEmpty()) return false;
       var current = active(workspace).orElse(null);
       if (current == null) return workspace.addParts(List.of(new ClientSelectionPart(0,
          ClientSelectionPart.Source.WORLD, volume(region), region, WorkspaceTransform.IDENTITY, false)));
       if (!workspace.beginEdit()) return false;
-      Map<BlockPos, ClientBlockSnapshot> merged = new LinkedHashMap<>(region);
+      Map<BlockPos, BlockSnapshot> merged = new LinkedHashMap<>(region);
       // Existing snapshots remain authoritative even if a neighbor changed after selection.
       merged.putAll(current.blocks());
       workspace.updatePart(current.withSelection(volume(merged)).withBlocks(merged));
@@ -50,7 +50,7 @@ public final class SmartSelectionEdits {
       if (part == null || !workspace.beginEdit()) return false;
       var removed = singleBlock ? java.util.Set.of(position)
          : workspace.smartTopology(part).membersAt(position);
-      Map<BlockPos, ClientBlockSnapshot> remaining = new LinkedHashMap<>(part.blocks());
+      Map<BlockPos, BlockSnapshot> remaining = new LinkedHashMap<>(part.blocks());
       remaining.keySet().removeAll(removed);
       if (remaining.isEmpty()) workspace.removePartDuringEdit(part.id());
       else workspace.updatePart(part.withSelection(volume(remaining)).withBlocks(remaining));
@@ -58,7 +58,7 @@ public final class SmartSelectionEdits {
    }
 
    /** Single-cell expansion requires an editable neighbor and never replaces its snapshot. */
-   public static boolean addCell(ClientOperationWorkspace workspace, BlockPos position, ClientBlockSnapshot snapshot) {
+   public static boolean addCell(ClientOperationWorkspace workspace, BlockPos position, BlockSnapshot snapshot) {
       var current = active(workspace).orElse(null);
       if (snapshot == null || current == null || current.blocks().containsKey(position)) return false;
       var cell = Map.of(position, snapshot);

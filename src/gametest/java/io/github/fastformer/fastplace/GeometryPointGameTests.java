@@ -7,10 +7,10 @@ import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.common.geometry.interaction.PointerGesture;
 import io.github.fastformer.protocol.c2s.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryInteractionPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryPointPayload;

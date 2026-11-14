@@ -20,7 +20,7 @@ import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.TaskBudgets;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
@@ -156,10 +156,10 @@ public final class TaskLifecycleGameTests {
       BlockPos support = helper.absolutePos(new BlockPos(1, 2, 1));
       BlockPos grass = support.above();
       UUID owner = UUID.randomUUID();
-      Map<BlockPos, ClientBlockSnapshot> blocks = new LinkedHashMap<>();
+      Map<BlockPos, BlockSnapshot> blocks = new LinkedHashMap<>();
       // Insert in the unsafe order to verify task-wide support-first ordering.
-      blocks.put(grass, new ClientBlockSnapshot(Blocks.SHORT_GRASS.defaultBlockState(), null));
-      blocks.put(support, new ClientBlockSnapshot(Blocks.DIRT.defaultBlockState(), null));
+      blocks.put(grass, new BlockSnapshot(Blocks.SHORT_GRASS.defaultBlockState(), null));
+      blocks.put(support, new BlockSnapshot(Blocks.DIRT.defaultBlockState(), null));
       OperationWorkspacePlan.Part part = new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, blocks, WorkspaceTransform.IDENTITY, false
       );
@@ -313,9 +313,9 @@ public final class TaskLifecycleGameTests {
    }
 
    private static SubmittedWorkspaceTask workspaceTask(ServerLevel level, Set<BlockPos> positions) {
-      Map<BlockPos, ClientBlockSnapshot> blocks = new LinkedHashMap<>();
+      Map<BlockPos, BlockSnapshot> blocks = new LinkedHashMap<>();
       positions.forEach(pos -> blocks.put(
-         pos, new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)
+         pos, new BlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)
       ));
       OperationWorkspacePlan.Part part = new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, blocks, WorkspaceTransform.IDENTITY, false

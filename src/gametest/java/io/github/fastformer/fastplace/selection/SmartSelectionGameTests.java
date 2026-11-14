@@ -6,7 +6,7 @@ import io.github.fastformer.client.operation.selection.SmartSelectionEdits;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
 import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -30,7 +30,7 @@ public final class SmartSelectionGameTests {
       var seed = helper.absolutePos(new BlockPos(1, 1, 1));
       var neighbor = seed.east();
       helper.getLevel().setBlock(neighbor, Blocks.AIR.defaultBlockState(), 2);
-      SmartSelectionEdits.add(workspace, Map.of(seed, new ClientBlockSnapshot(Blocks.OAK_LOG.defaultBlockState(), null)));
+      SmartSelectionEdits.add(workspace, Map.of(seed, new BlockSnapshot(Blocks.OAK_LOG.defaultBlockState(), null)));
       var air = io.github.fastformer.client.operation.selection.SmartSelectionCapture.captureCell(helper.getLevel(), neighbor);
       helper.assertTrue(air != null && air.state().isAir(), "Air was dropped during single-cell capture");
       helper.assertTrue(SmartSelectionEdits.addCell(workspace, neighbor, air), "Adjacent air could not be added");
@@ -72,7 +72,7 @@ public final class SmartSelectionGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 20)
    public static void smartRayUsesOutlineShapesAndLeavesGapsOpen(GameTestHelper helper) {
-      var slab = new ClientBlockSnapshot(Blocks.STONE_SLAB.defaultBlockState(), null);
+      var slab = new BlockSnapshot(Blocks.STONE_SLAB.defaultBlockState(), null);
       var blocks = Map.of(BlockPos.ZERO, slab, new BlockPos(8, 0, 0), slab);
       var direction = new Vec3(0, 0, 1);
       helper.assertTrue(SmartSelectionRaycast.hit(blocks, null, CollisionContext.empty(), new Vec3(0.5, 0.25, -3), direction, 10) != null,
@@ -88,9 +88,9 @@ public final class SmartSelectionGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 20)
    public static void cellRemovalAndMixedDraftRoundTripKeepMembership(GameTestHelper helper) throws Exception {
-      var fence = new ClientBlockSnapshot(Blocks.OAK_FENCE.defaultBlockState(), null);
-      var connectedFence = new ClientBlockSnapshot(Blocks.OAK_FENCE.defaultBlockState().setValue(FenceBlock.WEST, true), null);
-      var planks = new ClientBlockSnapshot(Blocks.OAK_PLANKS.defaultBlockState(), null);
+      var fence = new BlockSnapshot(Blocks.OAK_FENCE.defaultBlockState(), null);
+      var connectedFence = new BlockSnapshot(Blocks.OAK_FENCE.defaultBlockState().setValue(FenceBlock.WEST, true), null);
+      var planks = new BlockSnapshot(Blocks.OAK_PLANKS.defaultBlockState(), null);
       var workspace = new ClientOperationWorkspace();
       SmartSelectionEdits.add(workspace, Map.of(BlockPos.ZERO, fence, BlockPos.ZERO.east(), planks, BlockPos.ZERO.east(2), connectedFence));
       var before = workspace.parts();

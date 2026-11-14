@@ -1,7 +1,7 @@
 package io.github.fastformer.client.operation.selection;
 
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import net.minecraft.core.BlockPos;
 import java.util.concurrent.atomic.*;
 import org.junit.jupiter.api.Test;
@@ -15,7 +15,7 @@ class SelectionBlockCaptureTest {
       try {
          var world = new World();
          var capture = new SelectionBlockCapture(() -> world);
-         var result = new AtomicReference<java.util.Map<BlockPos, ClientBlockSnapshot>>();
+         var result = new AtomicReference<java.util.Map<BlockPos, BlockSnapshot>>();
          capture.start(OperationSelectionVolume.cuboid(position, position, position, position),
             null, () -> true, result::set, key -> fail(key));
          while (capture.pending()) capture.tick();
@@ -30,7 +30,7 @@ class SelectionBlockCaptureTest {
       final Thread owner = Thread.currentThread();
       public Object identity() { return this; }
       public boolean loaded(BlockPos position) { return loaded; }
-      public ClientBlockSnapshot read(BlockPos position) { assertSame(owner, Thread.currentThread()); reads++; return null; }
+      public BlockSnapshot read(BlockPos position) { assertSame(owner, Thread.currentThread()); reads++; return null; }
    }
    private static OperationSelectionVolume selection(int maxX) {
       return OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(maxX, 9, 9), null, null);

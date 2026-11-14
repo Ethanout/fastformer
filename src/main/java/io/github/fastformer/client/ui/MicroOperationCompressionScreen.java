@@ -1,6 +1,6 @@
 package io.github.fastformer.client.ui;
 
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import io.github.fastformer.common.history.HistoryCompressionLimits;
 import io.github.fastformer.common.history.CompressionSetting;
 import io.github.fastformer.common.history.CompressionTier;

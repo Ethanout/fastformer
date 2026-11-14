@@ -2,8 +2,8 @@ package io.github.fastformer.client.geometry.pointer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import java.util.ArrayList;
 import java.util.List;

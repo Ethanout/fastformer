@@ -8,7 +8,7 @@ import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.WorldBatchFeedback;
 import io.github.fastformer.fastplace.world.WorldOperationMetrics;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
@@ -158,7 +158,7 @@ public final class HistoryReplayTask {
             if (!this.recovery) {
                this.releaseAfterCancelledJournal();
             }
-            context.actionBar(FastPlaceMessages.text(
+            context.actionBar(PlayerMessages.text(
                this.phase == Phase.CONFLICT ? "fastformer.message.cancelled" : "fastformer.message.restore_failed_retry"
             ));
             return true;
@@ -170,7 +170,7 @@ public final class HistoryReplayTask {
             this.metrics.phase(WorldOperationPhase.WORLD_UNLOADED);
             this.releaseMemoryReservation();
             if (!this.dimensionNoticeSent) {
-               context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
+               context.actionBar(PlayerMessages.text("fastformer.message.history_dimension_failed"));
                this.dimensionNoticeSent = true;
             }
             return false;
@@ -184,11 +184,11 @@ public final class HistoryReplayTask {
             return false;
          }
          if (!this.ensureMemoryReservation()) {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+            context.actionBar(PlayerMessages.text("fastformer.message.operation_memory_unsafe"));
             return false;
          }
          if (!this.acquireLease(context)) {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
+            context.actionBar(PlayerMessages.text("fastformer.message.world_write_waiting"));
             return false;
          }
          Step step = switch (phase) {
@@ -213,7 +213,7 @@ public final class HistoryReplayTask {
    private Step prepareBatch(WorldTaskContext context) {
       if (this.recovery && this.batch == null) {
          this.retainRecovery = true;
-         context.actionBar(FastPlaceMessages.text("fastformer.message.history_conflict"));
+         context.actionBar(PlayerMessages.text("fastformer.message.history_conflict"));
          return Step.FINISHED;
       }
       if (this.batch == null) {
@@ -222,7 +222,7 @@ public final class HistoryReplayTask {
             if (!this.recovery) {
                this.releaseLease();
                if (this.cancelRequested) {
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.cancelled"));
+                  context.actionBar(PlayerMessages.text("fastformer.message.cancelled"));
                   return Step.FINISHED;
                }
                PageState page = historyAccess.requestPage(context, undo, requested - completed);
@@ -234,7 +234,7 @@ public final class HistoryReplayTask {
                }
                this.completedSuccessfully = true;
                context.actionBar(
-                  FastPlaceMessages.text(
+                  PlayerMessages.text(
                      this.undo ? "fastformer.message.history_complete_undo" : "fastformer.message.history_complete_redo", this.completed
                   )
                );
@@ -266,7 +266,7 @@ public final class HistoryReplayTask {
       this.retainRecovery = true;
       if (this.blockedNoticeTicks-- <= 0) {
          this.blockedNoticeTicks = 100;
-         context.actionBar(FastPlaceMessages.text("fastformer.message.task_recovery_blocked"));
+         context.actionBar(PlayerMessages.text("fastformer.message.task_recovery_blocked"));
       }
       return Step.YIELD;
    }
@@ -278,16 +278,16 @@ public final class HistoryReplayTask {
       }
       if (this.journal != null && !this.journal.resolve(context)) {
          this.durabilityRetryTicks = 100;
-         context.actionBar(FastPlaceMessages.text("fastformer.message.restore_failed_retry"));
+         context.actionBar(PlayerMessages.text("fastformer.message.restore_failed_retry"));
          return Step.YIELD;
       }
       this.releaseLease();
       this.journal = null;
       if (this.recovery && this.skippedConflicts > 0) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.restore_complete_conflicts", this.skippedConflicts));
+         context.actionBar(PlayerMessages.text("fastformer.message.restore_complete_conflicts", this.skippedConflicts));
       } else {
          context.actionBar(
-            FastPlaceMessages.text(
+            PlayerMessages.text(
                this.recovery
                   ? "fastformer.message.restore_complete"
                   : "fastformer.message.history_conflict"
@@ -315,7 +315,7 @@ public final class HistoryReplayTask {
             if (this.confirmedConflicts.get(this.index)) {
                boolean skip = conflictChoice == HistoryConflictResponsePayload.Choice.SKIP;
                if (!replayState.captureConflict(level, index, skip)) {
-                  context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
+                  context.actionBar(PlayerMessages.text("fastformer.message.history_dimension_failed"));
                   return Step.FINISHED;
                }
             } else {
@@ -344,7 +344,7 @@ public final class HistoryReplayTask {
    private Step prepareBatchJournal(WorldTaskContext context) {
       JournalPreparation preparation = this.prepareJournal(context);
       if (preparation == JournalPreparation.PENDING) {
-         context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_preparing"));
+         context.actionBar(PlayerMessages.text("fastformer.message.recovery_journal_preparing"));
          return Step.YIELD;
       }
       if (preparation == JournalPreparation.FAILED) {
@@ -357,7 +357,7 @@ public final class HistoryReplayTask {
             this.phase,
             this.metrics.summary()
          );
-         context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_failed"));
+         context.actionBar(PlayerMessages.text("fastformer.message.recovery_journal_failed"));
          return Step.FINISHED;
       }
       this.phase = Phase.APPLY;
@@ -437,7 +437,7 @@ public final class HistoryReplayTask {
          this.releaseLease();
          this.completedSuccessfully = true;
          context.actionBar(
-            FastPlaceMessages.text(
+            PlayerMessages.text(
                this.undo ? "fastformer.message.history_complete_undo" : "fastformer.message.history_complete_redo",
                this.completed
             )
@@ -489,7 +489,7 @@ public final class HistoryReplayTask {
                }
                this.partialApplyIndex = appliedIndex;
                this.partialApplyState = partial.orElseThrow();
-               context.actionBar(FastPlaceMessages.text("fastformer.message.restore_failed_retry"));
+               context.actionBar(PlayerMessages.text("fastformer.message.restore_failed_retry"));
                return Step.YIELD;
             }
          }
@@ -501,7 +501,7 @@ public final class HistoryReplayTask {
       }
       if (this.phase == Phase.FAILED) {
          this.retainRecovery = true;
-         context.actionBar(FastPlaceMessages.text("fastformer.message.task_recovery_blocked"));
+         context.actionBar(PlayerMessages.text("fastformer.message.task_recovery_blocked"));
          return Step.YIELD;
       }
       if (this.index < 0) {
@@ -512,7 +512,7 @@ public final class HistoryReplayTask {
          }
          this.retainRecovery = this.recovery;
          context.actionBar(
-            FastPlaceMessages.text(
+            PlayerMessages.text(
                "fastformer.message.history_conflict"
             )
          );
@@ -530,11 +530,11 @@ public final class HistoryReplayTask {
          case ROLLBACK, FAILED, RESOLVE -> Math.clamp(this.batch.size() - 1 - this.index, 0, this.batch.size());
       };
       if (this.recovery) {
-         context.actionBar(FastPlaceMessages.text(
+         context.actionBar(PlayerMessages.text(
             "fastformer.message.recovery_progress", processed, this.batch.size()
          ));
       } else {
-         context.actionBar(FastPlaceMessages.text(
+         context.actionBar(PlayerMessages.text(
             this.undo ? "fastformer.message.history_progress_undo" : "fastformer.message.history_progress_redo",
             Math.min(this.completed + 1, this.requested),
             this.requested,

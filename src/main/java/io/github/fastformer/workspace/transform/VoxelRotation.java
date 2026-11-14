@@ -2,7 +2,7 @@ package io.github.fastformer.workspace.transform;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.WorkspaceSymmetry;
 import io.github.fastformer.workspace.preview.Composition;
 import io.github.fastformer.workspace.preview.CompositionCounter;
@@ -60,16 +60,16 @@ public final class VoxelRotation {
    }
 
    /** Turns representable block orientations with their cells on all three axes. */
-   public static ValueRotation<ClientBlockSnapshot> snapshotValues() {
+   public static ValueRotation<BlockSnapshot> snapshotValues() {
       return new ValueRotation<>() {
          @Override
-         public Function<ClientBlockSnapshot, ClientBlockSnapshot> forAxis(Axis axis, double radians) {
+         public Function<BlockSnapshot, BlockSnapshot> forAxis(Axis axis, double radians) {
             return snapshot -> rotateSnapshot(snapshot, axis, radians);
          }
 
          @Override
-         public Function<ClientBlockSnapshot, ClientBlockSnapshot> forSymmetry(WorkspaceSymmetry symmetry) {
-            return snapshot -> new ClientBlockSnapshot(BlockStateRotation.transform(snapshot.state(), symmetry), snapshot.blockEntity());
+         public Function<BlockSnapshot, BlockSnapshot> forSymmetry(WorkspaceSymmetry symmetry) {
+            return snapshot -> new BlockSnapshot(BlockStateRotation.transform(snapshot.state(), symmetry), snapshot.blockEntity());
          }
       };
    }
@@ -94,8 +94,8 @@ public final class VoxelRotation {
     * <p>Preview and submission both use this entry, so a rotated operation shows the same
     * states that it writes to the world.
     */
-   public static RotationResult<ClientBlockSnapshot> rotateStageSnapshots(
-      Map<BlockPos, ClientBlockSnapshot> source, Vec3 rotation
+   public static RotationResult<BlockSnapshot> rotateStageSnapshots(
+      Map<BlockPos, BlockSnapshot> source, Vec3 rotation
    ) {
       return rotateStage(source, rotation, snapshotValues());
    }
@@ -169,8 +169,8 @@ public final class VoxelRotation {
       };
    }
 
-   public static Map<BlockPos, ClientBlockSnapshot> rotate(
-      Map<BlockPos, ClientBlockSnapshot> source,
+   public static Map<BlockPos, BlockSnapshot> rotate(
+      Map<BlockPos, BlockSnapshot> source,
       Vec3 pivot,
       Axis axis,
       double radians
@@ -363,14 +363,14 @@ public final class VoxelRotation {
     * <p>Quarter turns use the same axis signs as the cell transform. Other angles keep
     * the original state because Minecraft cannot represent arbitrary orientations.
     */
-   private static ClientBlockSnapshot rotateSnapshot(
-      ClientBlockSnapshot snapshot, Axis axis, double radians
+   private static BlockSnapshot rotateSnapshot(
+      BlockSnapshot snapshot, Axis axis, double radians
    ) {
       int quarterTurns = (int)Math.rint(radians / QUARTER_TURN);
       if (Math.abs(radians - quarterTurns * QUARTER_TURN) > ORTHOGONAL_EPSILON) {
          return snapshot;
       }
       BlockState rotated = BlockStateRotation.rotate(snapshot.state(), axis, quarterTurns);
-      return new ClientBlockSnapshot(rotated, snapshot.blockEntity());
+      return new BlockSnapshot(rotated, snapshot.blockEntity());
    }
 }

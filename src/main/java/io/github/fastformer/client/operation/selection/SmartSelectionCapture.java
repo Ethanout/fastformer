@@ -3,7 +3,7 @@ package io.github.fastformer.client.operation.selection;
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
 import io.github.fastformer.fastplace.selection.SmartSelectionSearch;
 import io.github.fastformer.fastplace.selection.SmartSelectionSimilarity;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -21,18 +21,18 @@ public final class SmartSelectionCapture {
    public boolean pending() { return pending != null; }
    public void cancel() { pending = null; }
 
-   public static ClientBlockSnapshot captureCell(net.minecraft.world.level.Level level, BlockPos position) {
+   public static BlockSnapshot captureCell(net.minecraft.world.level.Level level, BlockPos position) {
       if (level == null || level.isOutsideBuildHeight(position) || !level.hasChunkAt(position)) return null;
       if (SourceMaskRenderFilter.instance().hides(position)) {
-         return new ClientBlockSnapshot(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), null);
+         return new BlockSnapshot(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), null);
       }
       var state = level.getBlockState(position);
       var entity = state.isAir() ? null : level.getBlockEntity(position);
-      return new ClientBlockSnapshot(state, entity == null ? null : entity.saveWithFullMetadata(level.registryAccess()));
+      return new BlockSnapshot(state, entity == null ? null : entity.saveWithFullMetadata(level.registryAccess()));
    }
 
    public boolean start(BlockPos seed, boolean family, BooleanSupplier owned,
-      Consumer<Map<BlockPos, ClientBlockSnapshot>> complete, Consumer<String> failed) {
+      Consumer<Map<BlockPos, BlockSnapshot>> complete, Consumer<String> failed) {
       var minecraft = Minecraft.getInstance();
       if (minecraft == null || minecraft.level == null || pending != null) return false;
       ClientLevel level = minecraft.level;
@@ -70,13 +70,13 @@ public final class SmartSelectionCapture {
       BlockState state = job.level.getBlockState(position);
       if (!job.matches.test(state)) return false;
       var entity = job.level.getBlockEntity(position);
-      job.blocks.put(position, new ClientBlockSnapshot(state,
+      job.blocks.put(position, new BlockSnapshot(state,
          entity == null ? null : entity.saveWithFullMetadata(job.level.registryAccess())));
       return true;
    }
 
    private record Job(ClientLevel level, SmartSelectionSearch search, Predicate<BlockState> matches,
-      BooleanSupplier owned, Consumer<Map<BlockPos, ClientBlockSnapshot>> complete, Consumer<String> failed,
-      Set<BlockPos> hidden, Map<BlockPos, ClientBlockSnapshot> blocks) { }
+      BooleanSupplier owned, Consumer<Map<BlockPos, BlockSnapshot>> complete, Consumer<String> failed,
+      Set<BlockPos> hidden, Map<BlockPos, BlockSnapshot> blocks) { }
    private static final class UnloadedBoundary extends RuntimeException { }
 }

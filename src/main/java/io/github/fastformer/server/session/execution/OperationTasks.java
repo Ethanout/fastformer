@@ -1,7 +1,7 @@
 package io.github.fastformer.server.session.execution;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.recovery.JournalPreparation;
@@ -77,7 +77,7 @@ public final class OperationTasks extends TaskExecution<WorldTask> {
       } else if (task.hasWrites()) {
          JournalPreparation publication = history.pollPreparedOperation(context, task.preparedBatch(), task.journal());
          if (publication == JournalPreparation.PENDING) {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.history_saving"));
+            context.actionBar(PlayerMessages.text("fastformer.message.history_saving"));
             return;
          }
          if (publication == JournalPreparation.FAILED) {
@@ -124,20 +124,20 @@ public final class OperationTasks extends TaskExecution<WorldTask> {
 
    private void reportProgress(WorldTaskContext context, WorldTask task, TaskStep step) {
       context.actionBar(switch (step) {
-         case WAITING -> FastPlaceMessages.text("fastformer.message.world_write_waiting");
-         case WORLD_UNLOADED -> FastPlaceMessages.text("fastformer.message.history_dimension_failed");
-         default -> FastPlaceMessages.text("fastformer.message.operation_phase", task.phaseName());
+         case WAITING -> PlayerMessages.text("fastformer.message.world_write_waiting");
+         case WORLD_UNLOADED -> PlayerMessages.text("fastformer.message.history_dimension_failed");
+         default -> PlayerMessages.text("fastformer.message.operation_phase", task.phaseName());
       });
    }
 
    private MutableComponent completionStatus(WorldTask task, TaskStep step, boolean recoveryCreated) {
       return switch (step) {
-         case COMPLETE -> FastPlaceMessages.text("fastformer.message.operation_complete");
-         case EMPTY -> FastPlaceMessages.text("fastformer.message.operation_empty");
+         case COMPLETE -> PlayerMessages.text("fastformer.message.operation_complete");
+         case EMPTY -> PlayerMessages.text("fastformer.message.operation_empty");
          case FAILED -> operationFailureStatus(task, recoveryCreated);
-         case JOURNAL_FAILED -> FastPlaceMessages.text("fastformer.message.recovery_journal_failed");
-         case MEMORY_UNSAFE -> FastPlaceMessages.text("fastformer.message.operation_memory_unsafe");
-         default -> FastPlaceMessages.text("fastformer.message.operation_too_large_run");
+         case JOURNAL_FAILED -> PlayerMessages.text("fastformer.message.recovery_journal_failed");
+         case MEMORY_UNSAFE -> PlayerMessages.text("fastformer.message.operation_memory_unsafe");
+         default -> PlayerMessages.text("fastformer.message.operation_too_large_run");
       };
    }
 
@@ -147,7 +147,7 @@ public final class OperationTasks extends TaskExecution<WorldTask> {
       String key = recoveryCreated
          ? "fastformer.message.operation_failed_rollback"
          : "fastformer.message.operation_failed_no_recovery";
-      return FastPlaceMessages.text(key, task.phaseName(), task.operationId(), task.metricsSummary());
+      return PlayerMessages.text(key, task.phaseName(), task.operationId(), task.metricsSummary());
    }
 
    /**

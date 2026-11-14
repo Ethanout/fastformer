@@ -4,7 +4,7 @@ import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

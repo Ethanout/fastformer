@@ -10,7 +10,7 @@ import io.github.fastformer.workspace.preview.WorkspaceSelectionBounds;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;

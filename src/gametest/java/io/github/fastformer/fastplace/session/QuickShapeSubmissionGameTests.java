@@ -2,14 +2,14 @@ package io.github.fastformer.fastplace.session;
 
 import io.github.fastformer.server.session.SessionSystem;
 
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -30,7 +30,7 @@ public final class QuickShapeSubmissionGameTests {
    public static void submissionParametersPreserveRegisteredBlockState(GameTestHelper helper) {
       var player = helper.makeMockServerPlayerInLevel();
       var value = new io.github.fastformer.protocol.s2c.preview.QuickShapeSubmissionParametersPayload(
-         12, 789, Blocks.OAK_LOG.defaultBlockState(), io.github.fastformer.fastplace.geometry.generation.LineTieBias.OPPOSITE,
+         12, 789, Blocks.OAK_LOG.defaultBlockState(), io.github.fastformer.common.geometry.LineTieBias.OPPOSITE,
          io.github.fastformer.server.sync.PreviewSync.callbackScope(player));
       var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
       try {

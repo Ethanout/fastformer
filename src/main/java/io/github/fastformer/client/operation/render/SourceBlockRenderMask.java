@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.render;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
 import io.github.fastformer.client.render.mask.SourceMaskRenderHooks;
@@ -91,7 +91,7 @@ public final class SourceBlockRenderMask {
     * <p>The committed blocks come from the server update, never from a local prediction. The
     * client only stops hiding the old source positions.
     */
-   public void complete(Map<BlockPos, ClientBlockSnapshot> committedTargets) {
+   public void complete(Map<BlockPos, BlockSnapshot> committedTargets) {
       this.discard();
    }
 }

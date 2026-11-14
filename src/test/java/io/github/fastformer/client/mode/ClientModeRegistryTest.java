@@ -43,6 +43,22 @@ class ClientModeRegistryTest {
       }
    }
 
+   @Test void dataDrivenFillInputsDoNotChangeKeyboardCancellationOrSubmissionAdmission() {
+      var fill = ClientModes.registry().policy(State.FILL_PREVIEW);
+      for (var input : ClientInputStateMachine.InputKind.values()) {
+         var expected = switch (input) {
+            case POINTER, INTERACTION, SCROLL -> ClientInputStateMachine.Dispatch.VANILLA;
+            case CANCEL -> ClientInputStateMachine.Dispatch.CANCEL;
+            default -> ClientInputStateMachine.Dispatch.BLOCKED;
+         };
+         assertEquals(expected, fill.dispatch(input), input.name());
+      }
+      assertThrows(IllegalArgumentException.class, () -> new ModeInputPolicy(VANILLA, BLOCKED, BLOCKED, BLOCKED, CANCEL,
+         false, false, true, java.util.Set.of(ClientInputStateMachine.InputKind.CANCEL)));
+      assertThrows(IllegalArgumentException.class, () -> new ModeInputPolicy(VANILLA, BLOCKED, BLOCKED, BLOCKED, CANCEL,
+         false, false, true, java.util.Set.of(ClientInputStateMachine.InputKind.SUBMIT)));
+   }
+
    @Test void missingPhasesAndDuplicateRegistrationFailWithoutPartiallyAddingDefinitions() {
       var registry = new ClientModeRegistry();
       var idlePolicy = policy();

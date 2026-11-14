@@ -40,7 +40,6 @@ class WorkspaceKeyboardSemanticsTest {
       return WorkspaceKeyboardSemantics.decide(
          WorkspaceKeyboardSemantics.Command.UNDO,
          keyRoute,
-         keyRoute,
          new WorkspaceKeyboardSemantics.WorkspaceFacts(
             workspaceActive, undoDepth, editing, submissionPending
          )
@@ -48,29 +47,19 @@ class WorkspaceKeyboardSemanticsTest {
    }
 
    private static WorkspaceKeyboardSemantics.Decision decideOn(WorkspaceKeyboardSemantics.Command command) {
-      return WorkspaceKeyboardSemantics.decide(command, OPERATION, OPERATION, withParts());
+      return WorkspaceKeyboardSemantics.decide(command, OPERATION, withParts());
    }
 
    @Test
    void physicalKeyPressesProduceWorkspaceCommands() {
-      assertEquals(WorkspaceKeyboardSemantics.Command.ROTATE_SELECTION,
-         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 82, true));
-      assertEquals(WorkspaceKeyboardSemantics.Command.FLIP_SELECTION,
-         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 70, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
          WorkspaceKeyboardSemantics.fromPhysicalKey(2, 70, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 70, false));
-      assertEquals(WorkspaceKeyboardSemantics.Command.DUPLICATE,
-         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 68, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 68, false));
-      assertEquals(WorkspaceKeyboardSemantics.Command.COPY,
-         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 67, true));
-      assertEquals(WorkspaceKeyboardSemantics.Command.PASTE,
-         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 86, true));
-      assertEquals(WorkspaceKeyboardSemantics.Command.TOGGLE_SELECT_ALL,
-         WorkspaceKeyboardSemantics.fromPhysicalKey(1, 65, true));
+      for (int migrated : new int[]{65, 67, 68, 70, 82, 86, 88})
+         assertEquals(WorkspaceKeyboardSemantics.Command.NONE, WorkspaceKeyboardSemantics.fromPhysicalKey(1, migrated, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.UNDO,
          WorkspaceKeyboardSemantics.fromPhysicalKey(1, 90, true));
       assertEquals(WorkspaceKeyboardSemantics.Command.REMOVE_SELECTED,
@@ -84,36 +73,16 @@ class WorkspaceKeyboardSemanticsTest {
    }
 
    @Test
-   void transformsConsumeBusyPressesAndLeaveVanillaSessionsAlone() {
-      for (var command : new WorkspaceKeyboardSemantics.Command[]{
-         WorkspaceKeyboardSemantics.Command.ROTATE_SELECTION, WorkspaceKeyboardSemantics.Command.FLIP_SELECTION,
-         WorkspaceKeyboardSemantics.Command.DUPLICATE
-      }) {
-         assertTrue(decideOn(command).accepted());
-         assertTrue(WorkspaceKeyboardSemantics.decide(command, BLOCKED, BLOCKED, withParts()).consumesPress());
-         assertFalse(WorkspaceKeyboardSemantics.decide(command, VANILLA, VANILLA, withParts()).consumesPress());
-         var busy = WorkspaceKeyboardSemantics.decide(command, OPERATION, OPERATION,
-            new WorkspaceKeyboardSemantics.WorkspaceFacts(true, 1, true, false));
-         assertEquals(WorkspaceKeyboardSemantics.Rejection.EDIT_IN_PROGRESS, busy.rejection());
-         assertTrue(busy.consumesPress());
-         var pending = WorkspaceKeyboardSemantics.decide(command, OPERATION, OPERATION,
-            new WorkspaceKeyboardSemantics.WorkspaceFacts(true, 1, false, true));
-         assertEquals(WorkspaceKeyboardSemantics.Rejection.SUBMISSION_PENDING, pending.rejection());
-         assertTrue(pending.consumesPress());
-      }
-   }
-
-   @Test
    void workspaceEditsRunOnlyInAnOperationPhase() {
       WorkspaceKeyboardSemantics.Decision otherPhase = WorkspaceKeyboardSemantics.decide(
-         WorkspaceKeyboardSemantics.Command.COPY, VANILLA, VANILLA, withParts()
+         WorkspaceKeyboardSemantics.Command.DELETE_SELECTION, VANILLA, withParts()
       );
       assertEquals(WorkspaceKeyboardSemantics.Rejection.PHASE_BLOCKED, otherPhase.rejection());
       assertFalse(otherPhase.consumesPress());
       assertFalse(otherPhase.handsPressToWorldUndo());
 
       WorkspaceKeyboardSemantics.Decision noContent = WorkspaceKeyboardSemantics.decide(
-         WorkspaceKeyboardSemantics.Command.TOGGLE_SELECT_ALL, OPERATION, OPERATION, empty()
+         WorkspaceKeyboardSemantics.Command.REMOVE_SELECTED, OPERATION, empty()
       );
       assertEquals(WorkspaceKeyboardSemantics.Rejection.WORKSPACE_INACTIVE, noContent.rejection());
       assertFalse(noContent.consumesPress());
@@ -122,35 +91,8 @@ class WorkspaceKeyboardSemanticsTest {
 
    @Test
    void acceptedCommandsNameTheirCommand() {
-      assertEquals(WorkspaceKeyboardSemantics.Command.COPY, decideOn(WorkspaceKeyboardSemantics.Command.COPY).command());
       assertTrue(decideOn(WorkspaceKeyboardSemantics.Command.REMOVE_SELECTED).accepted());
       assertTrue(decideOn(WorkspaceKeyboardSemantics.Command.DELETE_SELECTION).accepted());
-   }
-
-   @Test
-   void pasteUsesItsDedicatedPhaseRoute() {
-      assertTrue(WorkspaceKeyboardSemantics.decide(
-         WorkspaceKeyboardSemantics.Command.PASTE, VANILLA, OPERATION, empty()
-      ).accepted());
-
-      WorkspaceKeyboardSemantics.Decision blocked = WorkspaceKeyboardSemantics.decide(
-         WorkspaceKeyboardSemantics.Command.PASTE, OPERATION, BLOCKED, withParts()
-      );
-      assertEquals(WorkspaceKeyboardSemantics.Rejection.PHASE_BLOCKED, blocked.rejection());
-      assertFalse(blocked.handsPressToWorldUndo());
-   }
-
-   @Test
-   void duplicateRequiresBothWorkspaceOwnershipAndAnAvailablePasteRoute() {
-      assertTrue(decideOn(WorkspaceKeyboardSemantics.Command.DUPLICATE).accepted());
-      var blocked = WorkspaceKeyboardSemantics.decide(
-         WorkspaceKeyboardSemantics.Command.DUPLICATE, OPERATION, BLOCKED, withParts());
-      assertFalse(blocked.accepted());
-      assertTrue(blocked.consumesPress());
-      assertFalse(WorkspaceKeyboardSemantics.decide(
-         WorkspaceKeyboardSemantics.Command.DUPLICATE, VANILLA, OPERATION, empty()).accepted());
-      assertEquals(WorkspaceKeyboardSemantics.Command.NONE,
-         WorkspaceKeyboardSemantics.fromPhysicalKey(2, 68, true));
    }
 
    @Test

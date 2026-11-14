@@ -9,7 +9,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
@@ -289,9 +289,9 @@ public final class BlockEditTransaction {
          return;
       }
       if (outcome == Outcome.RESTORED) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_confirm_failed"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.placement_confirm_failed"));
       } else if (outcome == Outcome.RECOVERY_BLOCKED) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.task_recovery_blocked"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.task_recovery_blocked"));
       }
    }
 

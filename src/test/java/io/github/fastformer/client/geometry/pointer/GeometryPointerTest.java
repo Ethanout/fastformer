@@ -3,9 +3,11 @@ package io.github.fastformer.client.geometry.pointer;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.InteractionContext;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.geometry.GeometryAction;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.preview.GeometryTextBlock;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -63,6 +65,27 @@ class GeometryPointerTest {
       assertNotNull(second.candidateHit());
    }
 
+   @Test void textCacheDoesNotFreezeGizmoCaptureAndClearsWithOwner() {
+      var state = new AtomicReference<>(selectedConvex());
+      var captured = new AtomicReference<AxisGizmo.HandleKey>();
+      var pointer = new GeometryPointer(state::get, () -> 1, () -> 1, () -> context, ignored -> ray(5),
+         captured::get, (message, failure) -> fail(message, failure));
+      var first = pointer.presentedPlan();
+      assertNotNull(first.gizmo());
+      var key = first.gizmo().handles().getFirst().key();
+      captured.set(key);
+      var second = pointer.presentedPlan();
+      assertSame(first.textBlock(GeometryTextBlock.STATUS_ID), second.textBlock(GeometryTextBlock.STATUS_ID));
+      assertTrue(second.gizmo().handles().stream().anyMatch(handle -> handle.key().equals(key) && handle.active()));
+      captured.set(null);
+      assertTrue(pointer.presentedPlan().gizmo().handles().stream().noneMatch(AxisGizmo.Handle::active));
+      pointer.clear();
+      var afterClear = pointer.presentedPlan();
+      assertNotSame(second.textBlock(GeometryTextBlock.STATUS_ID), afterClear.textBlock(GeometryTextBlock.STATUS_ID));
+      pointer.invalidatePlan();
+      assertNotSame(afterClear.textBlock(GeometryTextBlock.STATUS_ID), pointer.presentedPlan().textBlock(GeometryTextBlock.STATUS_ID));
+   }
+
    private GeometryPointer pointer(AtomicReference<GeometryPreviewPayload> state,
       java.util.function.Supplier<InteractionContext> context, AtomicReference<LongRangeBlockRaycast.Result> ray) {
       return new GeometryPointer(state::get, () -> 1, () -> 1, context, ignored -> ray.get(), () -> null,
@@ -71,6 +94,15 @@ class GeometryPointerTest {
 
    private static LongRangeBlockRaycast.Result ray(int z) {
       return new LongRangeBlockRaycast.Result(new BlockHitResult(new Vec3(0.5,0.5,z), Direction.NORTH, new BlockPos(0,0,z), false), 20, 20, null, 1, 0);
+   }
+
+   private static GeometryPreviewPayload selectedConvex() {
+      var p = wall(List.of(BlockPos.ZERO, new BlockPos(4, 0, 0), new BlockPos(8, 0, 0)), false);
+      return new GeometryPreviewPayload(true, GeometryMode.CONVEX_POLYHEDRON, p.points(), p.pointLocations(), p.pointRoles(),
+         p.closed(), p.ctrlHeld(), p.extrusion(), p.polyhedronShapeVariant(), p.coneShapeVariant(), p.compoundShapeVariant(),
+         p.polyhedronSizeMode(), p.fillMode(), p.conePlaneMode(), p.coneRadius(), p.coneScaleX(), p.coneScaleZ(),
+         p.coneTopScaleOffset(), p.coneTopOffset(), p.coneRotationRadians(), p.coneGizmoLocal(), p.rotation(),
+         p.polyhedronLocalScale(), p.polyhedronWorldScale(), p.polyhedronGizmoLocal(), 1);
    }
 
    private static GeometryPreviewPayload wall(List<BlockPos> points, boolean closed) {

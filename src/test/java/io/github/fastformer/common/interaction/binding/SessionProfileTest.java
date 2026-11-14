@@ -1,8 +1,12 @@
 package io.github.fastformer.common.interaction.binding;
 
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.QuickShapeWorkflow;
+
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
-import io.github.fastformer.fastplace.quickshape.*;
 import java.util.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;

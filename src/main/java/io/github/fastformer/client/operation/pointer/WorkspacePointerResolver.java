@@ -12,10 +12,10 @@ import io.github.fastformer.client.interaction.intent.InteractionIntentProvider;
 import io.github.fastformer.client.interaction.intent.InteractionIntentResolver;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ import net.minecraft.world.phys.Vec3;
 /** Resolves operation pointer targets against the persistent client workspace. */
 public final class WorkspacePointerResolver {
    private static final double REACH = LongRangeBlockRaycast.MAX_REACH;
-   private final IdentityHashMap<ClientSelectionPart, Map<BlockPos, ClientBlockSnapshot>> resolvedCache =
+   private final IdentityHashMap<ClientSelectionPart, Map<BlockPos, BlockSnapshot>> resolvedCache =
       new IdentityHashMap<>();
    private long resolvedCacheRevision = Long.MIN_VALUE;
    private java.util.UUID resolvedCacheOwner;
@@ -280,7 +280,7 @@ public final class WorkspacePointerResolver {
             : net.minecraft.world.phys.shapes.CollisionContext.of(minecraft.player), eye, view, REACH);
    }
 
-   Map<BlockPos, ClientBlockSnapshot> resolvePartBlocks(ClientSelectionPart part) {
+   Map<BlockPos, BlockSnapshot> resolvePartBlocks(ClientSelectionPart part) {
       long revision = selection.workspace().revision();
       if (resolvedCacheRevision != revision || !selection.interactionOwnerId().equals(resolvedCacheOwner)) {
          clearModels();
@@ -291,8 +291,8 @@ public final class WorkspacePointerResolver {
    }
 
    /** Resolves the portion still visible after a rejected workspace submission. */
-   public Map<BlockPos, ClientBlockSnapshot> visibleBlocks(ClientSelectionPart part) {
-      Map<BlockPos, ClientBlockSnapshot> resolved = resolvePartBlocks(part);
+   public Map<BlockPos, BlockSnapshot> visibleBlocks(ClientSelectionPart part) {
+      Map<BlockPos, BlockSnapshot> resolved = resolvePartBlocks(part);
       Set<BlockPos> failed = failedTargets.get();
       return withoutFailedTargets(resolved, failed);
    }

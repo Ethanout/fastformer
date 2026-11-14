@@ -1,8 +1,8 @@
 package io.github.fastformer.client.preview.quickshape;
 
 import io.github.fastformer.client.render.model.BuildingRenderFrame;
-import io.github.fastformer.fastplace.geometry.GuideLine;
-import io.github.fastformer.fastplace.geometry.GuidePlane;
+import io.github.fastformer.common.geometry.model.GuideLine;
+import io.github.fastformer.common.geometry.model.GuidePlane;
 import java.util.List;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.level.block.state.BlockState;

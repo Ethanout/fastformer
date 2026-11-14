@@ -2,17 +2,18 @@ package io.github.fastformer.client.geometry.pointer;
 
 import io.github.fastformer.client.geometry.transform.GeometryTransformValues;
 import io.github.fastformer.client.gizmo.GizmoViewScale;
+import io.github.fastformer.client.geometry.presentation.GeometryTextPresentation;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.pointer.PointRaycast;
 import io.github.fastformer.core.math.Axis;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.GeometryAction;
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionHit;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionHit;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.workflow.GeometryWorkflows;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import java.util.List;
@@ -34,6 +35,7 @@ public final class GeometryPointer {
    private final Supplier<AxisGizmo.HandleKey> captured;
    private final GeometryPlanCache plans;
    private final GeometryTransformValues transforms;
+   private final GeometryTextPresentation textPresentation = new GeometryTextPresentation();
 
    public GeometryPointer(Supplier<GeometryPreviewPayload> preview, LongSupplier version, LongSupplier transformVersion,
       Supplier<InteractionContext> context, Function<InteractionContext, LongRangeBlockRaycast.Result> raycast,
@@ -93,7 +95,7 @@ public final class GeometryPointer {
 
    /** Drawing keeps the scaled handle even when vanilla temporarily owns input. */
    public GeometryPreviewPlan presentedPlan() {
-      var plan = plan();
+      var plan = textPresentation.present(plan());
       var c = context.get();
       return c == null ? plan : plan.withGizmo(present(plan.gizmo(), c, raycast.apply(c)));
    }
@@ -114,8 +116,8 @@ public final class GeometryPointer {
       return transforms.value(plan, axis, operation);
    }
 
-   public void clear() { plans.clear(); transforms.clear(); }
-   public void invalidatePlan() { plans.clear(); }
+   public void clear() { plans.clear(); transforms.clear(); textPresentation.clear(); }
+   public void invalidatePlan() { plans.clear(); textPresentation.clear(); }
 
    private AxisGizmo present(AxisGizmo gizmo, InteractionContext c, LongRangeBlockRaycast.Result ray) {
       if (gizmo == null) return null;

@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.selection;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import java.util.Map;
@@ -32,7 +32,7 @@ public final class SelectionBlockCapture {
    public int peakBlocks() { return peakBlocks; }
 
    public boolean start(OperationSelectionVolume selection, ClientSelectionPart baseline,
-      BooleanSupplier owned, Consumer<Map<BlockPos, ClientBlockSnapshot>> complete, Consumer<String> failed) {
+      BooleanSupplier owned, Consumer<Map<BlockPos, BlockSnapshot>> complete, Consumer<String> failed) {
       cancel();
       scannedCells = 0; peakTickNanos = 0; peakBlocks = 0;
       var world = source.get();
@@ -59,7 +59,7 @@ public final class SelectionBlockCapture {
       try {
          scanned = ScanSlice.run(job.cursor, CELLS_PER_TICK, deadline, System::nanoTime, pos -> {
             if (!job.selection.intersects(new AABB(pos))) return;
-            ClientBlockSnapshot previous = job.baseline == null ? null : job.baseline.blocks().get(pos);
+            BlockSnapshot previous = job.baseline == null ? null : job.baseline.blocks().get(pos);
             if (previous != null) { job.blocks.put(pos, previous); return; }
             // An empty entry in the baseline is an intentional air cell. Keep
             // it empty while resizing instead of reading a changed neighbor.
@@ -86,13 +86,13 @@ public final class SelectionBlockCapture {
    interface SnapshotSource {
       Object identity();
       boolean loaded(BlockPos position);
-      ClientBlockSnapshot read(BlockPos position);
+      BlockSnapshot read(BlockPos position);
    }
 
    private static final SnapshotSource HEADLESS = new SnapshotSource() {
       public Object identity() { return this; }
       public boolean loaded(BlockPos position) { return true; }
-      public ClientBlockSnapshot read(BlockPos position) { return null; }
+      public BlockSnapshot read(BlockPos position) { return null; }
    };
 
    private static SnapshotSource currentWorld() {
@@ -103,22 +103,22 @@ public final class SelectionBlockCapture {
       return new SnapshotSource() {
          public Object identity() { return level; }
          public boolean loaded(BlockPos position) { return level.hasChunkAt(position); }
-         public ClientBlockSnapshot read(BlockPos position) {
+         public BlockSnapshot read(BlockPos position) {
             var state = level.getBlockState(position);
             if (state.isAir()) return null;
             var entity = level.getBlockEntity(position);
-            return new ClientBlockSnapshot(state, entity == null ? null : entity.saveWithFullMetadata(level.registryAccess()));
+            return new BlockSnapshot(state, entity == null ? null : entity.saveWithFullMetadata(level.registryAccess()));
          }
       };
    }
 
    private record Job(SnapshotSource world, OperationSelectionVolume selection,
       ClientSelectionPart baseline, ScanCursor cursor, BooleanSupplier owned,
-      Consumer<Map<BlockPos, ClientBlockSnapshot>> complete, Consumer<String> failed,
+      Consumer<Map<BlockPos, BlockSnapshot>> complete, Consumer<String> failed,
       Set<BlockPos> hiddenSources,
-      io.github.fastformer.fastplace.geometry.BlockPositionMaps.Builder<ClientBlockSnapshot> blocks) {
+      io.github.fastformer.fastplace.geometry.BlockPositionMaps.Builder<BlockSnapshot> blocks) {
       Job(SnapshotSource world, OperationSelectionVolume selection, ClientSelectionPart baseline,
-         ScanCursor cursor, BooleanSupplier owned, Consumer<Map<BlockPos, ClientBlockSnapshot>> complete, Consumer<String> failed) {
+         ScanCursor cursor, BooleanSupplier owned, Consumer<Map<BlockPos, BlockSnapshot>> complete, Consumer<String> failed) {
          this(world, selection, baseline, cursor, owned, complete, failed,
             Set.copyOf(SourceMaskRenderFilter.instance().positions()),
             new io.github.fastformer.fastplace.geometry.BlockPositionMaps.Builder<>());

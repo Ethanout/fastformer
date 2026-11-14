@@ -14,12 +14,12 @@ import java.util.function.BooleanSupplier;
 final class PhysicalInputMailbox {
    private sealed interface PhysicalEvent {
       record Key(KeyboardInputSnapshot value) implements PhysicalEvent { }
-      record Scroll(ScrollInputSnapshot value) implements PhysicalEvent { }
+      record Scroll(ScrollInputSnapshot value, BooleanSupplier valid) implements PhysicalEvent { }
       record SelectionPointer(SelectionPointerEvent value) implements PhysicalEvent { }
       record RemotePoint(RemoteSelectionPointRequest value) implements PhysicalEvent { }
       record PointerRelease(PointerReleaseSnapshot value) implements PhysicalEvent { }
-      record QuickShapeUndo(QuickShapeUndoGesture.Event value) implements PhysicalEvent { }
-      record QuickShapePointer(QuickShapePointerPress value) implements PhysicalEvent { }
+      record QuickShapeUndo(QuickShapeUndoGesture.Event value, BooleanSupplier valid) implements PhysicalEvent { }
+      record QuickShapePointer(QuickShapePointerPress value, BooleanSupplier valid) implements PhysicalEvent { }
       record StartPlacement(StartPlacementPayload.Target value) implements PhysicalEvent { }
       record GeometryGizmo(GeometryGizmoCapture.Event value) implements PhysicalEvent { }
       record GeometryPointer(GeometryInputController.PointerPress value) implements PhysicalEvent { }
@@ -57,7 +57,11 @@ final class PhysicalInputMailbox {
    }
 
    void postScroll(ScrollInputSnapshot event) {
-      this.events.post(new PhysicalEvent.Scroll(java.util.Objects.requireNonNull(event)));
+      postScroll(event, () -> true);
+   }
+
+   void postScroll(ScrollInputSnapshot event, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.Scroll(java.util.Objects.requireNonNull(event), valid));
    }
 
    void postSelectionPointer(SelectionPointerEvent event) {
@@ -74,11 +78,19 @@ final class PhysicalInputMailbox {
    }
 
    void postQuickShapeUndo(QuickShapeUndoGesture.Event event) {
-      this.events.post(new PhysicalEvent.QuickShapeUndo(java.util.Objects.requireNonNull(event)));
+      postQuickShapeUndo(event, () -> true);
+   }
+
+   void postQuickShapeUndo(QuickShapeUndoGesture.Event event, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.QuickShapeUndo(java.util.Objects.requireNonNull(event), valid));
    }
 
    void postQuickShapePointer(QuickShapePointerPress event) {
-      this.events.post(new PhysicalEvent.QuickShapePointer(java.util.Objects.requireNonNull(event)));
+      postQuickShapePointer(event, () -> true);
+   }
+
+   void postQuickShapePointer(QuickShapePointerPress event, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.QuickShapePointer(java.util.Objects.requireNonNull(event), valid));
    }
 
    void postStartPlacement(StartPlacementPayload.Target target) {
@@ -111,12 +123,12 @@ final class PhysicalInputMailbox {
          }
          switch (event) {
             case PhysicalEvent.Key value -> sink.accept(value.value());
-            case PhysicalEvent.Scroll value -> sink.accept(value.value());
+            case PhysicalEvent.Scroll value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
             case PhysicalEvent.SelectionPointer value -> sink.accept(value.value());
             case PhysicalEvent.RemotePoint value -> sink.accept(value.value());
             case PhysicalEvent.PointerRelease value -> sink.accept(value.value());
-            case PhysicalEvent.QuickShapeUndo value -> sink.accept(value.value());
-            case PhysicalEvent.QuickShapePointer value -> sink.accept(value.value());
+            case PhysicalEvent.QuickShapeUndo value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
+            case PhysicalEvent.QuickShapePointer value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
             case PhysicalEvent.StartPlacement value -> sink.accept(value.value());
             case PhysicalEvent.GeometryGizmo value -> sink.accept(value.value());
             case PhysicalEvent.GeometryPointer value -> sink.accept(value.value());

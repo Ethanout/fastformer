@@ -1,11 +1,13 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
 import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.server.session.QuickShapeSystem;
 
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
 
 import io.github.fastformer.FastFormer;
 import net.minecraft.core.BlockPos;
@@ -36,8 +38,8 @@ public final class PlacementContextGameTests {
       level.setBlock(target.west(), Blocks.STONE.defaultBlockState(), 2);
       var hit = new BlockHitResult(target.getCenter().add(0, 0.5, 0), Direction.UP, target, false);
       var stack = new ItemStack(Blocks.OAK_FENCE);
-      var embedded = PlacementContextSnapshot.capture(level, player, stack, hit, true);
-      var surface = PlacementContextSnapshot.capture(level, player, stack, hit, false);
+      var embedded = PlacementContexts.capture(level, player, stack, hit, true);
+      var surface = PlacementContexts.capture(level, player, stack, hit, false);
       var insideState = PlaceableItems.placementState(stack, player, embedded).orElseThrow();
       var outsideState = PlaceableItems.placementState(stack, player, surface).orElseThrow();
       helper.assertTrue(insideState.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WEST),
@@ -48,8 +50,8 @@ public final class PlacementContextGameTests {
       level.setBlock(target, Blocks.OAK_SLAB.defaultBlockState()
          .setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED, true), 2);
       stack = new ItemStack(Blocks.CHAIN);
-      embedded = PlacementContextSnapshot.capture(level, player, stack, hit, true);
-      surface = PlacementContextSnapshot.capture(level, player, stack, hit, false);
+      embedded = PlacementContexts.capture(level, player, stack, hit, true);
+      surface = PlacementContexts.capture(level, player, stack, hit, false);
       helper.assertTrue(PlaceableItems.placementState(stack, player, embedded).orElseThrow()
          .getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.WATERLOGGED),
          "embedded chain did not use water in the target cell");
@@ -85,7 +87,7 @@ public final class PlacementContextGameTests {
             Vec3 location = target.getCenter().add(Vec3.atLowerCornerOf(face.getNormal()).scale(0.5));
             var hit = new BlockHitResult(location, face, target, false);
             var vanilla = new BlockPlaceContext(player.level(), player, InteractionHand.MAIN_HAND, stack, hit);
-            var snapshot = PlacementContextSnapshot.capture(player.level(), player, stack, hit, false);
+            var snapshot = PlacementContexts.capture(player.level(), player, stack, hit, false);
             helper.assertTrue(snapshot.placementPosition().equals(vanilla.getClickedPos()), "first point differs from vanilla position");
             var expected = ((BlockItem)stack.getItem()).getBlock().getStateForPlacement(vanilla);
             helper.assertTrue(PlaceableItems.placementState(stack, player, snapshot).orElseThrow().equals(expected),
@@ -103,15 +105,15 @@ public final class PlacementContextGameTests {
       BlockPos target = helper.absolutePos(new BlockPos(2, 2, 2));
       var hit = new BlockHitResult(target.getCenter().add(0, 0.5, 0), Direction.UP, target, false);
       helper.getLevel().setBlockAndUpdate(target, Blocks.OAK_SLAB.defaultBlockState());
-      var snapshot = PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, false);
+      var snapshot = PlacementContexts.capture(player.level(), player, player.getMainHandItem(), hit, false);
       helper.assertTrue(snapshot.placementPosition().equals(target), "slab merge preview moved outside the target");
       QuickShapeSystem.of(player).addInitialPoint(player, hit, false);
       helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(target), "slab merge selected another cell");
       SessionSystem.of(player).cancelEditing(player);
       helper.getLevel().setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
-      snapshot = PlacementContextSnapshot.capture(player.level(), player, player.getMainHandItem(), hit, true);
+      snapshot = PlacementContexts.capture(player.level(), player, player.getMainHandItem(), hit, true);
       helper.assertTrue(snapshot.placementPosition().equals(target)
-         && snapshot.context(player.level(), player, player.getMainHandItem()).getClickedPos().equals(target),
+         && PlacementContexts.context(snapshot, player.level(), player, player.getMainHandItem()).getClickedPos().equals(target),
          "embedded state was not calculated at the hit block");
       QuickShapeSystem.of(player).addInitialPoint(player, hit, true);
       helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().getFirst().equals(target), "embedded point moved outside the hit block");

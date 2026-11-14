@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render.mask;
 
-import io.github.fastformer.client.mixin.LevelRendererAccessor;
+import io.github.fastformer.client.mixin.access.LevelRendererAccessor;
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter.Snapshot;
 import java.util.HashSet;
 import java.util.LinkedHashSet;

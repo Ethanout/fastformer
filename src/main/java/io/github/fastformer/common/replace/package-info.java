@@ -1,2 +1,2 @@
-/** Shared replacement target prediction and adaptive ray interpolation. */
+/** Shared replacement results and pure adaptive ray interpolation. */
 package io.github.fastformer.common.replace;

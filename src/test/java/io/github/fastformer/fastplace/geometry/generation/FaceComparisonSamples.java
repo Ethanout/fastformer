@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.geometry.generation.face.classify.FaceClass;
-import io.github.fastformer.fastplace.geometry.generation.face.classify.FaceClassifier;
+import io.github.fastformer.common.geometry.raster.face.classify.FaceClass;
+import io.github.fastformer.common.geometry.raster.face.classify.FaceClassifier;
 import java.util.List;
 import java.util.Random;
 import net.minecraft.core.BlockPos;

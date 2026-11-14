@@ -1,6 +1,6 @@
 package io.github.fastformer.protocol.c2s.geometry;
 
-import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryMode;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

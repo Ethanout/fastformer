@@ -1,4 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+
+import io.github.fastformer.common.geometry.LineTieBias;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -13,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.model.FillMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;

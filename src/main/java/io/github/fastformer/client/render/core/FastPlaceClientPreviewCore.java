@@ -7,7 +7,7 @@ import static io.github.fastformer.common.math.MinecraftVectors.normalize;
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.client.render.PreviewStyle;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 
 import static io.github.fastformer.client.render.core.PreviewRenderResources.*;
 import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
@@ -16,17 +16,17 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.client.input.ModifierReticleMode;
+import io.github.fastformer.client.preview.frame.ModifierReticleMode;
 import io.github.fastformer.client.input.PointerDragSnapshotView;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.placement.QuickReplaceMode;
 import io.github.fastformer.client.render.OperationFaceHitInterpolator;
 import io.github.fastformer.client.render.SmoothReticlePostEffect;
-import io.github.fastformer.client.render.WorkspacePointerPrompt;
+import io.github.fastformer.client.interaction.intent.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspaceSubmissionHud;
 import io.github.fastformer.client.preview.ClientPreviewSystem;
-import io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem;
+import io.github.fastformer.client.preview.frame.PreviewAnimation;
 import io.github.fastformer.client.preview.frame.WorldPreviewFrame;
 import io.github.fastformer.client.preview.quickshape.QuickShapePreviewInput;
 import io.github.fastformer.client.preview.geometry.GeometryPreviewInput;
@@ -41,38 +41,38 @@ import io.github.fastformer.client.operation.pointer.OperationPointerKind;
 import io.github.fastformer.client.operation.pointer.OperationPointerTarget;
 import io.github.fastformer.client.render.model.*;
 import io.github.fastformer.client.session.preview.ClientPreviewState;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.GeometryAction;
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.common.geometry.ConePrismStage;
+import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionHit;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
-import io.github.fastformer.fastplace.geometry.text.GizmoTextContext;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
-import io.github.fastformer.fastplace.quickshape.QuickShapeMode;
-import io.github.fastformer.fastplace.quickshape.QuickShapeModeRules;
-import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionHit;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.geometry.gizmo.GizmoTextComponent;
+import io.github.fastformer.common.geometry.gizmo.GizmoTextContext;
+import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.QuickShapeMode;
+import io.github.fastformer.common.quickshape.mode.QuickShapeModeRules;
+import io.github.fastformer.common.quickshape.mode.QuickShapeStage;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
+import io.github.fastformer.common.quickshape.mode.VolumeMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStageMode;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
-import io.github.fastformer.fastplace.text.TranslatableText;
+import io.github.fastformer.common.text.TranslatableText;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
@@ -122,8 +122,9 @@ public final class FastPlaceClientPreviewCore {
    /** Drops cached meshes that baked the previous theme's colors. */
    public static void onThemeChanged() {
       ClientSessionSystem.instance().inputSession().invalidateGeometryPlan();
-      ClientPreviewSystem.instance().clear();
+      ClientPreviewSystem.instance().invalidateResources();
       PreviewRenderResources.clearShells();
+       SmoothReticlePostEffect.reloadResources();
    }
 
    /** Theme ink; every ink pass is preceded by a {@link GeometryPalette#halo()} pass. */
@@ -605,7 +606,7 @@ public final class FastPlaceClientPreviewCore {
          Minecraft minecraft = Minecraft.getInstance();
          if (minecraft.player == null || minecraft.screen != null || QuickReplaceMode.active()
             || !previews().building().enabled()) return null;
-         if (idlePreviewHit(minecraft) != null) {
+         if (ClientPreviewSystem.instance().idleFrame().block() != null) {
             return (PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())
                ? Component.translatable("fastformer.hud.idle_entry_far_placement", keyName(minecraft.options.keyUse), keyName(minecraft.options.keyPickItem))
                : Component.translatable("fastformer.hud.idle_entry_far", keyName(minecraft.options.keyUse)))
@@ -835,7 +836,7 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static int gizmoAxisHudColor(Axis axis) {
-      return 0xFF000000 | AxisGizmo.axisColor(axis);
+      return 0xFF000000 | io.github.fastformer.client.gizmo.GizmoColors.axis(axis);
    }
 
    private static void restoreVanillaCrosshairIfNeeded(GuiGraphics graphics) {
@@ -993,9 +994,7 @@ public final class FastPlaceClientPreviewCore {
       var player = minecraft.player;
       if (player == null || minecraft.level == null || QuickReplaceMode.active()) return false;
       if (ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
-         var hit = idlePreviewHit(minecraft);
-         var preview = hit == null ? null : InitialBlockPreview.resolve(player, hit, FastPlaceClientInput.modifierHeld());
-         return preview != null && !preview.mesh().edges().isEmpty();
+          return ClientPreviewSystem.instance().idleFrame().hasOutline();
       }
       var snapshot = previews().building();
       var pointer = operationInteractionIntent().orElse(null);
@@ -1008,19 +1007,10 @@ public final class FastPlaceClientPreviewCore {
       if (!snapshot.enabled() || !(player.getMainHandItem().isEmpty()
          || PlaceableItems.isPlaceable(player.getMainHandItem()))) return false;
       var preview = InitialBlockPreview.resolve(player, raycastBlocks(player),
-         PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()));
+          PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
+          io.github.fastformer.common.raycast.InteractionRaycastRules.passesThroughFluids(player,
+             PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())));
       return preview != null && !preview.mesh().edges().isEmpty();
-   }
-
-   private static BlockHitResult idlePreviewHit(Minecraft minecraft) {
-      var player = minecraft.player;
-      if (player == null || minecraft.level == null || !player.isCreative() || !enabled()
-         || minecraft.screen != null || minecraft.getCameraEntity() != player
-         || !FastPlaceClientInput.modifierHeld() && minecraft.hitResult != null
-            && minecraft.hitResult.getType() == Type.ENTITY) return null;
-      var hit = ClientSessionSystem.instance().inputSession().pointer().selection(player, FastPlaceClientInput.modifierHeld()).hit();
-      boolean embedded = FastPlaceClientInput.modifierHeld() && PlaceableItems.isPlaceable(player.getMainHandItem());
-      return embedded || LongRangeBlockRaycast.beyondInteractionRange(player, hit) ? hit : null;
    }
 
    @SubscribeEvent
@@ -1038,21 +1028,24 @@ public final class FastPlaceClientPreviewCore {
       if (event.getStage() == Stage.AFTER_PARTICLES) {
           Minecraft minecraft = Minecraft.getInstance();
           LocalPlayer player = minecraft.player;
-          io.github.fastformer.client.render.HistoryConflictRenderer.render(event, minecraft);
+          io.github.fastformer.client.render.HistoryConflictRenderer.render(event, minecraft,
+             io.github.fastformer.client.input.HistoryConflictConfirmation.pending(),
+             io.github.fastformer.client.input.HistoryConflictConfirmation.positions());
           if (FastPlaceClientInput.currentSession().smartFill().active()) {
-             SmartFillPreviewRenderer.render(event, minecraft);
+             var system = ClientPreviewSystem.instance();
+             system.fill().drawWorld(worldPreviewFrame(event, minecraft), system.fillFrame());
              return;
           }
           if (QuickReplaceMode.active()) {
              if (QuickReplaceMode.canReplace(minecraft) && minecraft.level != null && player != null) {
-                QuickReplacePreviewRenderer.render(event, minecraft, player);
+                var system = ClientPreviewSystem.instance();
+                system.replace().drawWorld(worldPreviewFrame(event, minecraft), system.replaceFrame());
              }
              return;
           }
           if (ClientSessionSystem.instance().modeView().idleActionsAllowed()) {
-             var hit = idlePreviewHit(minecraft);
-             if (hit != null) InitialBlockPreviewRenderer.render(event, minecraft, player, hit,
-                FastPlaceClientInput.modifierHeld(), 1.0F);
+              var system = ClientPreviewSystem.instance();
+              system.idle().drawWorld(worldPreviewFrame(event, minecraft), system.idleFrame());
              return;
           }
           OperationInteractionIntent pointerIntent = player == null ? null : operationInteractionIntent().orElse(null);
@@ -1105,8 +1098,8 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static WorldPreviewFrame worldPreviewFrame(RenderLevelStageEvent event, Minecraft minecraft) {
-      return new WorldPreviewFrame(event.getPoseStack(), minecraft.renderBuffers().bufferSource(), event.getCamera().getPosition(),
-         1.0F, ClientPreviewFrameSystem.animation(), io.github.fastformer.client.render.theme.VisualThemes.revision(),
+      return new WorldPreviewFrame(minecraft, event.getPoseStack(), minecraft.renderBuffers().bufferSource(), event.getCamera().getPosition(),
+         1.0F, PreviewAnimation.current(), io.github.fastformer.client.render.theme.VisualThemes.revision(),
          event.getModelViewMatrix(), event.getProjectionMatrix());
    }
 
@@ -1129,7 +1122,7 @@ public final class FastPlaceClientPreviewCore {
       var plan = pointer.plan();
       var model = ClientPreviewSystem.instance().geometry().buildModel(new GeometryPreviewInput(previews().geometry(),
          PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), plan));
-      return model.withGizmo(pointer.presentedPlan().gizmo());
+      return new GeometryPreviewModel(pointer.presentedPlan(), model.blocks());
    }
 
    private static double visiblePreviewReach(LocalPlayer player) {
@@ -1149,9 +1142,8 @@ public final class FastPlaceClientPreviewCore {
    public static void clearWorldRenderState() {
       ClientSessionSystem.instance().inputSession().clearGeometryPointer();
       OPERATION_FACE_INTERPOLATOR.reset();
-      ClientPreviewSystem.instance().quickShape().clear();
+        ClientPreviewSystem.instance().clear();
       PreviewRenderResources.clearShells();
-      ClientPreviewSystem.instance().geometry().clear();
       SmoothReticlePostEffect.reset();
       smoothReticleFrame = false;
    }
@@ -1185,12 +1177,12 @@ public final class FastPlaceClientPreviewCore {
    }
 
    static double pendingGridDashOffset() {
-      return io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation()
+      return io.github.fastformer.client.preview.frame.PreviewAnimation.current()
          .dashOffset(PENDING_DASH_SPEED, SELECTION_DASH_PERIOD);
    }
 
    static float ghostBreathPulse() {
-      return io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation()
+      return io.github.fastformer.client.preview.frame.PreviewAnimation.current()
          .breathPulse(GHOST_BREATH_PERIOD_NANOS);
    }
 
@@ -1219,7 +1211,7 @@ public final class FastPlaceClientPreviewCore {
       } else if (stage == QuickShapeStage.LINE && snapshot.lineMode() == LineMode.RAYCAST) {
          return Component.translatable(
                "fastformer.message.context.raycast",
-               snapshot.raycastPlacement() == io.github.fastformer.fastplace.quickshape.RaycastPlacement.EMBEDDED
+               snapshot.raycastPlacement() == io.github.fastformer.common.quickshape.mode.RaycastPlacement.EMBEDDED
                   ? Component.translatable("fastformer.mode.raycast.embedded")
                   : Component.translatable("fastformer.mode.raycast.surface")
             )

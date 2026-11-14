@@ -7,7 +7,7 @@ import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistoryRecoveryReconciler;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.session.QuickShapeSystem;
@@ -81,7 +81,7 @@ public final class PlayerLifecycleEvents {
       HistorySystem.of(player).trimToSetting(player, FastPlaceSettings.load(player).worldUndoHistoryLimit());
       SessionSystem.of(player.getServer()).feedback().attach(player);
       if (!RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.recovery_journal_blocked"));
       }
    }
 

@@ -3,9 +3,9 @@ package io.github.fastformer.client.session.preview;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewEffectSnapshot;
 
 import static org.junit.jupiter.api.Assertions.*;
-import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.common.geometry.LineTieBias;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;

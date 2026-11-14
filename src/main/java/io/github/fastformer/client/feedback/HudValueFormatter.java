@@ -1,6 +1,6 @@
 package io.github.fastformer.client.feedback;
 
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.GeometryNumbers;
 
 /** Formats compact numeric values displayed beside the crosshair. */
 public final class HudValueFormatter {

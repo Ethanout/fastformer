@@ -6,7 +6,7 @@ import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.workspace.WorkspaceLimits;
 import io.github.fastformer.workspace.geometry.WorkspaceGeometryBudget;
 import io.github.fastformer.workspace.geometry.WorkspaceGeometryCost;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.Composition;
@@ -61,7 +61,7 @@ public final class OperationWorkspaceValidator {
          return Result.failed(List.of());
       }
 
-      var scene = new io.github.fastformer.workspace.preview.WorkspaceScene<ClientBlockSnapshot>(snapshot -> !snapshot.state().isAir());
+      var scene = new io.github.fastformer.workspace.preview.WorkspaceScene<BlockSnapshot>(snapshot -> !snapshot.state().isAir());
       for (OperationWorkspacePlan.Part part : parts) {
          if (part.source() == ClientSelectionPart.Source.WORLD) {
             scene.clearSources(part.blocks().keySet());
@@ -71,13 +71,13 @@ public final class OperationWorkspaceValidator {
          if (part.pendingDelete()) {
             continue;
          }
-         Composition<ClientBlockSnapshot> composition = WorkspacePreviewComposer.composeSnapshots(
+         Composition<BlockSnapshot> composition = WorkspacePreviewComposer.composeSnapshots(
             part.blocks(), part.transform(), CompositionBudget.server(maxBlocks)
          );
-         if (!(composition instanceof Composition.Composed<ClientBlockSnapshot> composed)) {
+         if (!(composition instanceof Composition.Composed<BlockSnapshot> composed)) {
             return Result.failed(List.of());
          }
-         Map<BlockPos, ClientBlockSnapshot> resolved = composed.values();
+         Map<BlockPos, BlockSnapshot> resolved = composed.values();
          scene.overlay(part.id(), resolved);
          if (scene.blocks().size() > maxBlocks) {
             return Result.failed(List.of());
@@ -130,7 +130,7 @@ public final class OperationWorkspaceValidator {
       boolean success,
       List<Integer> invalidPartIds,
       Set<BlockPos> clears,
-      Map<BlockPos, ClientBlockSnapshot> writes
+      Map<BlockPos, BlockSnapshot> writes
    ) {
       public Result {
          invalidPartIds = List.copyOf(invalidPartIds);

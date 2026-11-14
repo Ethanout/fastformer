@@ -1,11 +1,13 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.placement.context.PlacementSupportQuery;
-import io.github.fastformer.fastplace.placement.context.VirtualSupportPlacement;
+import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.context.PlacementSupportQuery;
+import io.github.fastformer.common.placement.context.VirtualSupportPlacement;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
@@ -119,7 +121,7 @@ public final class VirtualSupportGameTests {
       var player = helper.makeMockServerPlayerInLevel();
       BlockPos target = helper.absolutePos(new BlockPos(2, 3, 2));
       var cocoaStack = new ItemStack(Blocks.COCOA);
-      var cocoaContext = snapshot(target, Direction.EAST).context(player.level(), player, cocoaStack);
+      var cocoaContext = PlacementContexts.context(snapshot(target, Direction.EAST), player.level(), player, cocoaStack);
       helper.assertTrue(VirtualSupportPlacement.resolve((BlockItem)cocoaStack.getItem(), cocoaContext, cocoaContext) == null,
          "stone support unexpectedly replaced the cocoa log requirement");
       helper.assertTrue(PlaceableItems.placementState(cocoaStack, player, snapshot(target, Direction.EAST)).orElseThrow()
@@ -128,7 +130,7 @@ public final class VirtualSupportGameTests {
       BlockPos outside = new BlockPos(target.getX(), helper.getLevel().getMaxBuildHeight(), target.getZ());
       var ladderStack = new ItemStack(Blocks.LADDER);
       var ladderSnapshot = snapshot(outside, Direction.UP);
-      var ladderContext = ladderSnapshot.context(player.level(), player, ladderStack);
+      var ladderContext = PlacementContexts.context(ladderSnapshot, player.level(), player, ladderStack);
       helper.assertTrue(VirtualSupportPlacement.resolve((BlockItem)ladderStack.getItem(), ladderContext, ladderContext) == null,
          "virtual support bypassed the world height limit");
       var fallback = PlaceableItems.placementState(ladderStack, player, ladderSnapshot).orElseThrow();
@@ -186,13 +188,13 @@ public final class VirtualSupportGameTests {
       var snapshot = snapshot(target, Direction.EAST);
       for (Block neighbor : new Block[] {Blocks.AIR, Blocks.STONE}) {
          helper.getLevel().setBlock(target.west(), neighbor.defaultBlockState(), PlacementUpdateMode.CLIENT_ONLY.flags());
-         var expected = Blocks.OAK_FENCE.getStateForPlacement(snapshot.context(player.level(), player, stack));
+         var expected = Blocks.OAK_FENCE.getStateForPlacement(PlacementContexts.context(snapshot, player.level(), player, stack));
          helper.assertTrue(PlaceableItems.placementState(stack, player, snapshot).orElseThrow().equals(expected),
             "virtual support changed a valid fence connection");
       }
       helper.getLevel().setBlock(target.west(), Blocks.AIR.defaultBlockState(), PlacementUpdateMode.CLIENT_ONLY.flags());
       var skullStack = new ItemStack(Items.SKELETON_SKULL);
-      var vanillaSkull = ((BlockItem)skullStack.getItem()).getPlacementState(snapshot.context(player.level(), player, skullStack));
+      var vanillaSkull = ((BlockItem)skullStack.getItem()).getPlacementState(PlacementContexts.context(snapshot, player.level(), player, skullStack));
       helper.assertTrue(vanillaSkull != null && vanillaSkull.is(Blocks.SKELETON_SKULL), "vanilla no longer allows a standing skull without support");
       helper.assertTrue(PlaceableItems.placementState(skullStack, player, snapshot).orElseThrow().equals(vanillaSkull),
          "virtual support replaced a valid standing skull");

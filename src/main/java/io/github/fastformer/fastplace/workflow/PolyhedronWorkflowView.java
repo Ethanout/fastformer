@@ -1,8 +1,8 @@
 package io.github.fastformer.fastplace.workflow;
 
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.PolyhedronSizeMode;
 import net.minecraft.world.phys.Vec3;
 
 public record PolyhedronWorkflowView(GeometryWorkflowView.Context context, int polyhedronShapeVariant,

@@ -1,12 +1,14 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.LineTieBias;
 
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.common.geometry.model.FillMode;
+
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.VolumeMode;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 
 import io.github.fastformer.fastplace.world.*;
 

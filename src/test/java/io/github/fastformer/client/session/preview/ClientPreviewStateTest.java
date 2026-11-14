@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.protocol.s2c.preview.ActivityStatePayload;

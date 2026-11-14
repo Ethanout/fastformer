@@ -1,23 +1,25 @@
 package io.github.fastformer.fastplace.workflow;
 
+import io.github.fastformer.common.geometry.session.GeometrySession;
+
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
 import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryPoints;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks;
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryPoints;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewBlocks;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewGuides;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
 import io.github.fastformer.fastplace.geometry.generation.PolyhedronGenerator;
 import io.github.fastformer.fastplace.geometry.generation.PolyhedronParameters;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-import io.github.fastformer.fastplace.geometry.text.GeometryStageDisplay;
+import io.github.fastformer.common.geometry.PolyhedronSizeMode;
+import io.github.fastformer.common.geometry.preview.GeometryStageDisplay;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.world.*;
 import java.util.ArrayList;

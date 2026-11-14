@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render;
 
-import io.github.fastformer.client.input.ModifierReticleMode;
+import io.github.fastformer.client.preview.frame.ModifierReticleMode;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import java.io.IOException;

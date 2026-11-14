@@ -1,8 +1,15 @@
 package io.github.fastformer.server.sync;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.common.geometry.session.GeometrySession;
+import io.github.fastformer.common.geometry.session.WallGeometryState;
+import io.github.fastformer.common.geometry.session.ConePrismGeometryState;
+import io.github.fastformer.common.geometry.session.PolyhedronGeometryState;
+import io.github.fastformer.common.geometry.session.CompoundGeometryState;
+import io.github.fastformer.common.geometry.session.ConvexPolyhedronGeometryState;
+
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.PolyhedronSizeMode;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;

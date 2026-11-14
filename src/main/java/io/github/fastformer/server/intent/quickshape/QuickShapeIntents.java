@@ -1,7 +1,7 @@
 package io.github.fastformer.server.intent.quickshape;
 
 import io.github.fastformer.core.command.Intent;
-import io.github.fastformer.fastplace.quickshape.QuickShapeMode;
+import io.github.fastformer.common.quickshape.mode.QuickShapeMode;
 import java.util.Objects;
 
 /** Explicit quick-shape edits; the workflow owns their stage-specific interpretation. */

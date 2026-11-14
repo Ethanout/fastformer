@@ -1,7 +1,7 @@
 package io.github.fastformer.client.render.hud;
 
 import io.github.fastformer.client.render.PreviewStyle;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;

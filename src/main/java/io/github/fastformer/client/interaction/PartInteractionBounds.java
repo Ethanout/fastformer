@@ -1,6 +1,6 @@
 package io.github.fastformer.client.interaction;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.preview.Composition;
 import io.github.fastformer.workspace.preview.CompositionBudget;
@@ -26,7 +26,7 @@ public final class PartInteractionBounds {
       var composition = WorkspacePreviewComposer.composeSnapshots(
          part.blocks(), part.transform().withoutRepeats(), CompositionBudget.RENDER
       );
-      if (composition instanceof Composition.Composed<ClientBlockSnapshot> composed) {
+      if (composition instanceof Composition.Composed<BlockSnapshot> composed) {
          return OccupiedBlockBounds.from(composed.values().keySet()).map(OccupiedBlockBounds::aabb).orElse(null);
       }
       return null;

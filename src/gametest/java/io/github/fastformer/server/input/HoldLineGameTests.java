@@ -1,5 +1,9 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+
+import io.github.fastformer.common.quickshape.mode.LineMode;
+
 import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
@@ -10,7 +14,6 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.geometry.raycast.*;
-import io.github.fastformer.fastplace.quickshape.*;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload;

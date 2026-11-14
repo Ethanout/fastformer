@@ -1,7 +1,7 @@
 package io.github.fastformer.server.interaction.profile;
 
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import java.util.Locale;
 

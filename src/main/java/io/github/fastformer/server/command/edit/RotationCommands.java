@@ -6,7 +6,7 @@ import io.github.fastformer.server.intent.GeometryIntents;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
@@ -31,7 +31,7 @@ public final class RotationCommands {
       root.then(Commands.literal("mat").then(Commands.argument("values", StringArgumentType.greedyString()).executes(context -> {
          double[] values = parseNumbers(StringArgumentType.getString(context, "values"));
          if (values.length != 9) {
-            FastPlaceMessages.chat(context.getSource().getPlayerOrException(), FastPlaceMessages.text("fastformer.message.rotate_matrix_usage"));
+            PlayerMessages.chat(context.getSource().getPlayerOrException(), PlayerMessages.text("fastformer.message.rotate_matrix_usage"));
             return 0;
          }
          ServerPlayer player = context.getSource().getPlayerOrException();
@@ -51,7 +51,7 @@ public final class RotationCommands {
          .then(Commands.argument("steps", IntegerArgumentType.integer()).executes(context -> {
             int axis = parseAxis(StringArgumentType.getString(context, "axis"));
             if (axis < 0) {
-               FastPlaceMessages.chat(context.getSource().getPlayerOrException(), FastPlaceMessages.text("fastformer.message.rotate_axis_usage"));
+               PlayerMessages.chat(context.getSource().getPlayerOrException(), PlayerMessages.text("fastformer.message.rotate_axis_usage"));
                return 0;
             }
             ServerPlayer player = context.getSource().getPlayerOrException();
@@ -71,21 +71,21 @@ public final class RotationCommands {
             return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
                new GeometryIntents.Quaternion(values[0], values[1], values[2], values[3])).handled() ? 1 : 0;
          }
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_quat_usage"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_quat_usage"));
          return 0;
       }
       if (normalized.startsWith("mat")) {
          if (values.length == 9) {
             return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND, new GeometryIntents.Matrix(values)).handled() ? 1 : 0;
          }
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_mat_usage"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_mat_usage"));
          return 0;
       }
       if (values.length == 3) {
          return PlayerIntentSystem.dispatch(player, IntentSource.COMMAND,
             new GeometryIntents.Euler(values[0], values[1], values[2])).handled() ? 1 : 0;
       }
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_usage"));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_usage"));
       return 0;
    }
 

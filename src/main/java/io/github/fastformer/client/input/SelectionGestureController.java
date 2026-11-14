@@ -16,7 +16,7 @@ import io.github.fastformer.client.interaction.InteractionPressBinding;
 import io.github.fastformer.client.interaction.SelectionDragCapture;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.input.SelectionPointerPress;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.transform.RepeatDragQuantizer;
@@ -285,7 +285,7 @@ final class SelectionGestureController {
          original = drag;
       }
       long now = System.nanoTime();
-      Vec3 axisPoint = OperationGeometry.closestPointOnAxisToRay(
+      Vec3 axisPoint = io.github.fastformer.common.math.RayAxisProjection.closestPoint(
          drag.frame().origin(), drag.normal(), minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F)
       );
       if (drag.deferredClick().awaitingRelease(now, FastPlaceClientInput.OPERATION_FACE_SHORT_PRESS_NANOS)) {

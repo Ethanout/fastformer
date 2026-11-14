@@ -2,7 +2,7 @@ package io.github.fastformer.server.settings;
 
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.protocol.settings.SettingKey;
 import io.github.fastformer.protocol.settings.SettingsKeys;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,15 +23,15 @@ final class SettingsCommandFeedback {
          value = settings.sessionUndoHistoryLimit();
       } else if (key == SettingsKeys.MIDDLE_CONFIRM) {
          message = changed ? "middle_confirm_set" : "middle_confirm_status";
-         value = FastPlaceMessages.text(settings.middleConfirmEnabled() ? "fastformer.message.enabled" : "fastformer.message.disabled");
+         value = PlayerMessages.text(settings.middleConfirmEnabled() ? "fastformer.message.enabled" : "fastformer.message.disabled");
       } else if (changed && key == SettingsKeys.PLACEMENT_CONFLICT) {
          message = "placement_conflict_value";
-         value = FastPlaceMessages.text(settings.placementConflictMode());
+         value = PlayerMessages.text(settings.placementConflictMode());
       } else if (changed && key == SettingsKeys.PLACEMENT_UPDATE) {
          message = "placement_update_value";
-         value = FastPlaceMessages.text(settings.placementUpdateMode());
+         value = PlayerMessages.text(settings.placementUpdateMode());
       } else return IntentResult.pass();
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message." + message, value));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message." + message, value));
       return IntentResult.success();
    }
 }

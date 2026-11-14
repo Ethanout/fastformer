@@ -4,7 +4,7 @@ import static io.github.fastformer.client.render.type.PreviewRenderTypes.PENDING
 
 import io.github.fastformer.client.controlpoint.ControlPointRenderer;
 import io.github.fastformer.client.gizmo.GizmoRenderer;
-import io.github.fastformer.client.preview.PreviewMode;
+import io.github.fastformer.client.preview.frame.PreviewMode;
 import io.github.fastformer.client.preview.frame.WorldPreviewFrame;
 import io.github.fastformer.client.render.PreviewStyle;
 import io.github.fastformer.client.render.guide.GuideRenderer;

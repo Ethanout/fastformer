@@ -1,16 +1,18 @@
 package io.github.fastformer.client.operation.pointer;
 
+import io.github.fastformer.common.geometry.gizmo.GizmoTextComponent;
+
 import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.gizmo.OperationGizmoPresentation;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.pointer.PointRaycast;
 import io.github.fastformer.core.math.Axis;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.fastplace.geometry.TransformFrame;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.geometry.model.TransformFrame;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
@@ -142,7 +144,7 @@ public final class RemoteSelectionPointer {
          .add(Vec3.atLowerCornerOf(p.operationTranslation()));
       var scale = GizmoViewScale.fromDistance(context.camera().distanceTo(center));
       var gizmo = AxisGizmo.inFrame(TransformFrame.world(center), scale.axisLength(), scale.handleRadius(), operations)
-         .withTextComponent(io.github.fastformer.fastplace.geometry.text.GizmoTextComponent.pointLevel());
+         .withTextComponent(io.github.fastformer.common.geometry.gizmo.GizmoTextComponent.pointLevel());
       var hit = gizmo.hitTest(context.eye(), context.view(), LongRangeBlockRaycast.MAX_REACH);
       return gizmo.withState(hit == null ? null : hit.handle().key(), captured.get());
    }

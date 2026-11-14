@@ -7,9 +7,9 @@ import io.github.fastformer.client.input.drag.DragAxisFrame;
 import io.github.fastformer.client.input.drag.OperationDrag;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.protocol.c2s.operation.OperationExtendPayload;
 import net.minecraft.client.Minecraft;
@@ -109,7 +109,7 @@ final class OperationDragController {
    private static AxisGizmo.Hit gizmoHit(Minecraft minecraft, AxisGizmo gizmo) {
       return gizmo == null || minecraft.player == null ? null
          : gizmo.hitTest(minecraft.player.getEyePosition(), minecraft.player.getViewVector(1.0F),
-            io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.MAX_REACH);
+            io.github.fastformer.common.raycast.LongRangeBlockRaycast.MAX_REACH);
    }
 
    static void update(Minecraft minecraft, ClientInputSession session) {
@@ -117,7 +117,7 @@ final class OperationDragController {
       if (!acceptsCapture(session, drag)) return;
       Vec3 eye = minecraft.player.getEyePosition();
       Vec3 view = minecraft.player.getViewVector(1.0F);
-      Vec3 axisPoint = OperationGeometry.closestPointOnAxisToRay(drag.frame().origin(), drag.normal(), eye, view);
+      Vec3 axisPoint = io.github.fastformer.common.math.RayAxisProjection.closestPoint(drag.frame().origin(), drag.normal(), eye, view);
       int projectedSteps = drag.frame().project(axisPoint, drag.normal());
       long now = System.nanoTime();
       if (drag.faceHit() != null && drag.deferredClick().awaitingRelease(now, FACE_SHORT_PRESS_NANOS)) return;

@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render.style;
 
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
@@ -14,7 +14,7 @@ public record VisualStyleContext(ResourceLocation theme, Pass pass, boolean dyna
       var window = Minecraft.getInstance().getWindow();
       return new VisualStyleContext(ResourceLocation.fromNamespaceAndPath("fastformer",
          GeometryPalette.theme().name().toLowerCase(java.util.Locale.ROOT)), pass, dynamic,
-         io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation().elapsedSeconds(),
+         io.github.fastformer.client.preview.frame.PreviewAnimation.current().elapsedSeconds(),
          guiScaleFactor(), window.getWidth(), window.getHeight());
    }
 

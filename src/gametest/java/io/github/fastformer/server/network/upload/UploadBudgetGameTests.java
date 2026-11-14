@@ -3,7 +3,7 @@ package io.github.fastformer.server.network.upload;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.util.*;
@@ -21,8 +21,8 @@ public final class UploadBudgetGameTests {
    @GameTest(template = "fastformergametests.empty", batch = "upload_decode_budget", timeoutTicks = 100000)
    public static void concurrentLargeDecodesKeepServerResponsive(GameTestHelper helper) throws Exception {
       int cells = 65_536;
-      var blocks = new LinkedHashMap<BlockPos, ClientBlockSnapshot>();
-      var stone = new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null);
+      var blocks = new LinkedHashMap<BlockPos, BlockSnapshot>();
+      var stone = new BlockSnapshot(Blocks.STONE.defaultBlockState(), null);
       for (int i = 0; i < cells; i++) blocks.put(new BlockPos(i % 256, 64, i / 256), stone);
       var plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, ClientSelectionPart.Source.WORLD,
          blocks, WorkspaceTransform.IDENTITY, false)));

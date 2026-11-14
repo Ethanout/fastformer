@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import com.google.gson.*;
@@ -21,6 +22,17 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 /** Adapts data bindings to existing input commands, owning pending replay and acknowledgement cleanup. */
 final class BindingInputController {
+   private static final BindingCommands WORKSPACE_PROBE = new BindingCommands() {
+      public boolean start(ResourceLocation profile) { return true; }
+      public boolean point() { return true; }
+      public boolean middleConfirm() { return true; }
+      public boolean undoPoint() { return true; }
+      public boolean cancel() { return true; }
+      public boolean cycleMode() { return true; }
+      public boolean tool(io.github.fastformer.client.interaction.binding.action.ToolCommand command) { return true; }
+      public boolean workspace(io.github.fastformer.client.interaction.binding.action.WorkspaceCommand command) { return true; }
+      public void replayPress(long time) { }
+   };
    private BindingSystem system;
    private Object environment;
    private Object player;
@@ -73,6 +85,12 @@ final class BindingInputController {
       return system(minecraft, owner).onKey(names, context, commands(minecraft, owner, null, false, now));
    }
 
+   /** Probe uses the same rules without editing the workspace or emitting feedback. */
+   boolean onWorkspaceKey(Minecraft minecraft, ClientInputSession owner, Set<String> names, BindingContext context, long now, boolean probe) {
+      var result = system(minecraft, owner).onKeyResult(names, context, probe ? WORKSPACE_PROBE : commands(minecraft, owner, null, false, now));
+      return probe ? result.consumesVanilla() : result.handled();
+   }
+
    boolean onToolSignal(Minecraft minecraft, ClientInputSession owner, String name, String gesture, BindingContext context, long now) {
       return system(minecraft, owner).onSignal(name, gesture, context, commands(minecraft, owner, null, false, now));
    }
@@ -80,6 +98,16 @@ final class BindingInputController {
    io.github.fastformer.client.interaction.binding.action.BindingAction.Result onToolSignalResult(
       Minecraft minecraft, ClientInputSession owner, String name, String gesture, BindingContext context, long now) {
       return system(minecraft, owner).onSignalResult(name, gesture, context, commands(minecraft, owner, null, false, now));
+   }
+
+   io.github.fastformer.client.interaction.binding.action.BindingAction.Result onLineSignal(
+      Minecraft minecraft, ClientInputSession owner, String name, String gesture, BindingContext context,
+      BindingCommands commands) {
+      return system(minecraft, owner).onSignalResult(name, gesture, context, commands);
+   }
+
+   void synchronizeLineDefinitions(Minecraft minecraft, ClientInputSession owner) {
+      system(minecraft, owner).synchronizeDefinitions();
    }
 
    void tick(Minecraft minecraft, ClientInputSession owner, long now) {
@@ -121,7 +149,10 @@ final class BindingInputController {
    private BindingSystem system(Minecraft minecraft, ClientInputSession owner) {
       if (system == null) {
          var configuration = BindingConfiguration.instance();
-         system = configuration.createSystem(() -> { if (active()) cancel(minecraft, owner); });
+         system = configuration.createSystem(() -> {
+            owner.cancelLineBindingInput();
+            if (active()) cancel(minecraft, owner);
+         });
       }
       return system;
    }
@@ -162,7 +193,7 @@ final class BindingInputController {
       JsonArray items = new JsonArray();
       items.add(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(minecraft.player.getMainHandItem().getItem()).toString());
       minecraft.player.getMainHandItem().getTags().forEach(tag -> items.add("#" + tag.location()));
-      if (io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())) items.add("#fastformer:placeable");
+      if (io.github.fastformer.common.placement.context.PlaceableItems.isPlaceable(minecraft.player.getMainHandItem())) items.add("#fastformer:placeable");
       facts.put("items", items);
       facts.put("modifiers", new JsonArray());
       JsonArray tags = new JsonArray();
@@ -174,6 +205,19 @@ final class BindingInputController {
 
    private BindingCommands commands(Minecraft minecraft, ClientInputSession owner, IdlePressSnapshot press, boolean control, long now) {
       return new BindingCommands() {
+         public boolean workspace(io.github.fastformer.client.interaction.binding.action.WorkspaceCommand command) {
+            var operations = ClientSessionSystem.instance().operations();
+            switch (command) {
+               case COPY -> ClientInteractionFeedback.showCopyResult(minecraft, operations.clipboard().copy());
+               case PASTE -> ClientInteractionFeedback.showPasteResult(minecraft, operations.clipboard().paste(minecraft));
+               case TOGGLE_SELECT_ALL -> operations.toggleAllWorkspaceParts();
+               case DUPLICATE -> ClientInteractionFeedback.showPasteResult(minecraft, operations.clipboard().duplicate());
+               case ROTATE_SELECTION -> operations.transforms().transformSelected(minecraft, false);
+               case FLIP_SELECTION -> operations.transforms().transformSelected(minecraft, true);
+               case REPORT_SUBMISSION_PENDING -> ClientInteractionFeedback.show(minecraft, "fastformer.message.operation_submit_pending");
+            }
+            return true;
+         }
          public boolean start(ResourceLocation requestedProfile) {
             if (press == null) return false;
             var constraints = SessionProfiles.find(minecraft.player.registryAccess(), requestedProfile).orElse(null);

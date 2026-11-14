@@ -6,7 +6,7 @@ import io.github.fastformer.client.operation.input.SelectionScrollAction;
 import io.github.fastformer.client.operation.selection.SelectionBlockCapture;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.core.math.Axis;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.workspace.model.ClientSelectionPart;

@@ -1,4 +1,8 @@
 package io.github.fastformer.fastplace.geometry.generation;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+import io.github.fastformer.common.geometry.raster.line.LinePath;
+
+import io.github.fastformer.common.geometry.LineTieBias;
 
 import static io.github.fastformer.common.math.BlockQuads.isParallelogramAfterFlooring;
 
@@ -51,7 +55,8 @@ final class PlanarFaceRasterizer {
       if (normal.lengthSqr() < EPSILON) {
          return Set.of();
       }
-      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
+      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices,
+         observer == null ? BlockGenerationObserver.NONE : observer);
       return resolveSweepAttempt(
          vertices,
          frame,
@@ -76,7 +81,7 @@ final class PlanarFaceRasterizer {
          return Set.of();
       }
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
-      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
+      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices, effectiveObserver);
       if (vertices.size() == 4 && frame != null && isParallelogramAfterFlooring(vertices)) {
          LinkedHashSet<BlockPos> exact = new LinkedHashSet<>();
          List<BlockPos> corners = vertices.stream().map(BlockPos::containing).toList();
@@ -87,15 +92,16 @@ final class PlanarFaceRasterizer {
                return limitSentinel(maxBlocks, effectiveObserver);
             }
             effectiveObserver.checkCancelled();
-            exact.addAll(LineGenerator.path(first, second, tieBias));
+            exact.addAll(LinePath.path(first, second, tieBias, maxBlocks, effectiveObserver));
             if (exact.size() > maxBlocks) {
                return limitSentinel(maxBlocks, effectiveObserver);
             }
          }
          return observedCopy(exact, maxBlocks, effectiveObserver);
       }
-      ProjectedBresenhamFace.Raster projected = ProjectedBresenhamFace.raster(vertices);
-      return observedCopy(projected.outline(), maxBlocks, effectiveObserver);
+      ProjectedBresenhamFace.Raster projected = ProjectedBresenhamFace.outline(vertices, maxBlocks, effectiveObserver);
+      return projected.limitExceeded() ? limitSentinel(maxBlocks, effectiveObserver)
+         : observedCopy(projected.outline(), maxBlocks, effectiveObserver);
    }
 
    private static Set<BlockPos> generateBresenham(
@@ -105,7 +111,7 @@ final class PlanarFaceRasterizer {
       LineTieBias tieBias
    ) {
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
-      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
+      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices, effectiveObserver);
       BresenhamFaceSweep.Attempt swept = lineSweep(frame, vertices.size(), tieBias, maxBlocks, effectiveObserver);
       return resolveSweepAttempt(vertices, frame, maxBlocks, effectiveObserver, tieBias, swept);
    }
@@ -123,8 +129,9 @@ final class PlanarFaceRasterizer {
          return observedCopy(swept.result().fill(), maxBlocks, effectiveObserver);
       }
       if (swept.status() == BresenhamFaceSweep.Status.NOT_APPLICABLE) {
-         ProjectedBresenhamFace.Raster projected = ProjectedBresenhamFace.raster(vertices);
-         return observedCopy(projected.fill(), maxBlocks, effectiveObserver);
+         ProjectedBresenhamFace.Raster projected = ProjectedBresenhamFace.raster(vertices, maxBlocks, effectiveObserver);
+         return projected.limitExceeded() ? limitSentinel(maxBlocks, effectiveObserver)
+            : observedCopy(projected.fill(), maxBlocks, effectiveObserver);
       }
       if (swept.status() == BresenhamFaceSweep.Status.NO_VALID_CANDIDATE) {
          return emergencyFallback(vertices, maxBlocks, effectiveObserver, tieBias);
@@ -139,7 +146,7 @@ final class PlanarFaceRasterizer {
       LineTieBias tieBias
    ) {
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
-      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
+      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices, effectiveObserver);
       BresenhamFaceSweep.Attempt emergency = BresenhamFaceSweep.emergencyFallback(
          frame,
          tieBias,
@@ -162,10 +169,15 @@ final class PlanarFaceRasterizer {
       BlockGenerationObserver observer,
       LineTieBias tieBias
    ) {
-      LinkedHashSet<BlockPos> result = new LinkedHashSet<>(ProjectedBresenhamFace.raster(vertices).fill());
+      var projected = ProjectedBresenhamFace.raster(vertices, maxBlocks, observer);
+      if (projected.limitExceeded()) return limitSentinel(maxBlocks, observer);
+      LinkedHashSet<BlockPos> result = new LinkedHashSet<>(projected.fill());
       List<BlockPos> corners = vertices.stream().map(BlockPos::containing).toList();
       for (int index = 0; index < corners.size(); index++) {
-         result.addAll(LineGenerator.path(corners.get(index), corners.get((index + 1) % corners.size()), tieBias));
+         BlockPos first = corners.get(index);
+         BlockPos second = corners.get((index + 1) % corners.size());
+         if (LinePath.estimateBlocks(first, second) > maxBlocks) return limitSentinel(maxBlocks, observer);
+         result.addAll(LinePath.path(first, second, tieBias, maxBlocks, observer));
          if (result.size() > maxBlocks) {
             return limitSentinel(maxBlocks, observer);
          }
@@ -193,7 +205,7 @@ final class PlanarFaceRasterizer {
       LineTieBias tieBias
    ) {
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
-      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
+      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices, effectiveObserver);
       BresenhamFaceSweep.Attempt attempt = QuadFaceRasterizer.attempt(
          frame,
          tieBias,
@@ -208,10 +220,7 @@ final class PlanarFaceRasterizer {
       }
       // Preserve authored edges if the constrained raster has no valid candidate.
       // This deterministic fallback is bounded and still reports cancellation and limits.
-      Set<BlockPos> fallback = lastResortOwnedRaster(vertices, maxBlocks, effectiveObserver, tieBias);
-      return GenerationLimitExceeded.is(fallback)
-         ? fallback
-         : observedCopy(fallback, maxBlocks, effectiveObserver);
+      return lastResortOwnedRaster(vertices, maxBlocks, effectiveObserver, tieBias);
    }
 
    static Set<BlockPos> interpolatedQuadOutline(
@@ -221,7 +230,7 @@ final class PlanarFaceRasterizer {
       LineTieBias tieBias
    ) {
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
-      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
+      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices, effectiveObserver);
       Set<BlockPos> translated = translatedQuadOutline(vertices, maxBlocks, effectiveObserver, tieBias);
       if (translated != null) {
          return translated;
@@ -238,7 +247,7 @@ final class PlanarFaceRasterizer {
       LineTieBias tieBias
    ) {
       BlockGenerationObserver effectiveObserver = observer == null ? BlockGenerationObserver.NONE : observer;
-      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices);
+      ProjectedBresenhamFace.Frame frame = ProjectedBresenhamFace.Frame.create(vertices, effectiveObserver);
       BresenhamFaceSweep.Attempt attempt = QuadFaceRasterizer.attempt(
          frame,
          tieBias,
@@ -275,8 +284,8 @@ final class PlanarFaceRasterizer {
          return limitSentinel(maxBlocks, observer);
       }
 
-      List<BlockPos> first = LineGenerator.path(corners.get(0), corners.get(1), tieBias);
-      List<BlockPos> second = LineGenerator.path(corners.get(0), corners.get(3), tieBias);
+      List<BlockPos> first = LinePath.path(corners.get(0), corners.get(1), tieBias, maxBlocks, observer);
+      List<BlockPos> second = LinePath.path(corners.get(0), corners.get(3), tieBias, maxBlocks, observer);
       BlockPos firstOffset = corners.get(3).subtract(corners.get(0));
       BlockPos secondOffset = corners.get(1).subtract(corners.get(0));
       LinkedHashSet<BlockPos> exact = new LinkedHashSet<>();

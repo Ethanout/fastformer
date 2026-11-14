@@ -8,7 +8,7 @@ import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.command.IntentSource;
 import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.server.task.TaskCancellationResult;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.fill.SmartFillSystem;
 import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.history.HistoryService;
@@ -80,14 +80,14 @@ final class HistoryIntentHandlers {
    private static boolean finishTaskCancellation(ServerPlayer player, TaskCancellationResult result, int count) {
       if (!result.handled()) return false;
       if (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.task_cancelled_before_write"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.task_cancelled_before_write"));
       } else if (result == TaskCancellationResult.RECOVERY_BLOCKED) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.task_recovery_blocked"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.task_recovery_blocked"));
       }
       int remaining = HistoryService.remainingAfterUncommittedUndo(count);
       if (remaining > 0 && (result == TaskCancellationResult.CANCELLED_BEFORE_WRITE || result == TaskCancellationResult.ROLLBACK_STARTED)) {
          HistorySystem.of(player).deferUndoAfterRecovery(player, remaining);
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.task_cancelled_batch_deferred"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.task_cancelled_batch_deferred"));
       }
       return true;
    }

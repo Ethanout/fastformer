@@ -1,15 +1,17 @@
 package io.github.fastformer.client.quickshape.pointer;
 
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.QuickShapeInputRules;
-import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.QuickShapeInputRules;
+import io.github.fastformer.common.quickshape.mode.QuickShapeStage;
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -78,7 +80,7 @@ public final class QuickShapePointer {
       if (p.active()) return true;
       var c = context.get();
       return c != null && c.player() != null
-         && io.github.fastformer.fastplace.placement.context.PlaceableItems.isPlaceable(c.player().getMainHandItem());
+         && io.github.fastformer.common.placement.context.PlaceableItems.isPlaceable(c.player().getMainHandItem());
    }
 
    static BlockPos resolveCandidate(BuildingPreviewSnapshot p, Vec3 eye, Vec3 view, BlockHitResult hit, boolean modifier) {
@@ -98,6 +100,6 @@ public final class QuickShapePointer {
    }
 
    private static PlacementContextSnapshot capturePlacement(InteractionContext c, BlockHitResult hit, boolean embedded) {
-      return PlacementContextSnapshot.capture(c.player().level(), c.player(), c.player().getMainHandItem(), hit, embedded);
+      return PlacementContexts.capture(c.player().level(), c.player(), c.player().getMainHandItem(), hit, embedded);
    }
 }

@@ -3,11 +3,11 @@ package io.github.fastformer.protocol.s2c.geometry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.ControlPointRole;
+import io.github.fastformer.common.geometry.PolyhedronSizeMode;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.netty.buffer.Unpooled;
 import java.util.List;

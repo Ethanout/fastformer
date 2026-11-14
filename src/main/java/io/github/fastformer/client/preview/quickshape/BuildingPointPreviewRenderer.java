@@ -1,5 +1,7 @@
 package io.github.fastformer.client.preview.quickshape;
 
+import io.github.fastformer.client.preview.style.ControlPointStyle;
+
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
 import io.github.fastformer.client.render.PreviewMaterialRenderer;
@@ -7,8 +9,8 @@ import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.shell.ShapeShellRenderer;
 import io.github.fastformer.client.render.type.PreviewRenderTypes;
 import io.github.fastformer.client.preview.frame.AnimationPhase;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,10 +40,10 @@ final class BuildingPointPreviewRenderer {
             fallback.add(point);
             continue;
          }
-         var style = point.feedback().style(point.role(), point.hovered());
+         var style = ControlPointStyle.resolve(point);
          var level = PreviewBlockOcclusion.level(minecraft.level, Map.of(pos, at));
          PreviewMaterialRenderer.drawMarker(pose, buffers, minecraft, camera,
-            Map.of(pos, new ClientBlockSnapshot(at, null)), level,
+            Map.of(pos, new BlockSnapshot(at, null)), level,
             style.red(), style.green(), style.blue(), style.alpha() * opacity, !point.confirmed());
          var boxes = at.getShape(level, pos, CollisionContext.of(minecraft.player)).toAabbs().stream()
             .map(box -> box.move(pos)).toList();

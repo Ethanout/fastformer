@@ -1,6 +1,6 @@
 package io.github.fastformer.protocol.s2c.preview;
 
-import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.common.geometry.LineTieBias;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;

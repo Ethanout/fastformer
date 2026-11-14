@@ -1,9 +1,9 @@
 package io.github.fastformer.client.interaction;
 
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
-import io.github.fastformer.client.render.WorkspacePartLabelHint;
+import io.github.fastformer.client.interaction.intent.WorkspacePartLabelHint;
 import io.github.fastformer.client.render.PreviewStyle;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import java.util.UUID;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.AABB;

@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
@@ -19,7 +19,7 @@ import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationStageMode;
@@ -559,11 +559,11 @@ class OperationContextTest {
          new io.github.fastformer.client.operation.submission.SubmissionScope.WholeWorkspace()).accepted());
    }
 
-   private static ClientBlockSnapshot snapshot() {
+   private static BlockSnapshot snapshot() {
       try {
          Field field = Unsafe.class.getDeclaredField("theUnsafe");
          field.setAccessible(true);
-         return (ClientBlockSnapshot)((Unsafe)field.get(null)).allocateInstance(ClientBlockSnapshot.class);
+         return (BlockSnapshot)((Unsafe)field.get(null)).allocateInstance(BlockSnapshot.class);
       } catch (ReflectiveOperationException exception) {
          throw new AssertionError(exception);
       }

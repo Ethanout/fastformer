@@ -9,7 +9,7 @@ import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.WorldChangeTransaction;
 import io.github.fastformer.fastplace.world.WorldOperationCommit;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
@@ -857,7 +857,7 @@ public final class PlacementTask extends LeasedJournaledTask {
       if (before == null) {
          Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
          if (snapshot.isEmpty()) {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.block_snapshot_failed", pos.toShortString()));
+            context.actionBar(PlayerMessages.text("fastformer.message.block_snapshot_failed", pos.toShortString()));
             return BlockWriteResult.FAILED;
          }
          before = snapshot.orElseThrow();

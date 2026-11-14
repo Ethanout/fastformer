@@ -1,7 +1,7 @@
 package io.github.fastformer.common.preview.quickshape;
 
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 

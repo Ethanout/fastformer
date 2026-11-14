@@ -1,11 +1,14 @@
 package io.github.fastformer.fastplace.geometry.generation;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+
+import io.github.fastformer.common.geometry.LineTieBias;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.model.FillMode;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;

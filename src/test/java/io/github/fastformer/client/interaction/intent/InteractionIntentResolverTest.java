@@ -1,5 +1,7 @@
 package io.github.fastformer.client.interaction.intent;
 
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
@@ -60,11 +62,11 @@ class InteractionIntentResolverTest {
 
    @Test
    void gizmoTargetsProvideOperationHoverText() {
-      io.github.fastformer.fastplace.geometry.AxisGizmo gizmo =
-         new io.github.fastformer.fastplace.geometry.AxisGizmo(Vec3.ZERO, 1.0, 0.1);
-      io.github.fastformer.fastplace.geometry.AxisGizmo.Handle handle = gizmo.handles().getFirst();
+      io.github.fastformer.common.geometry.gizmo.AxisGizmo gizmo =
+         new io.github.fastformer.common.geometry.gizmo.AxisGizmo(Vec3.ZERO, 1.0, 0.1);
+      io.github.fastformer.common.geometry.gizmo.AxisGizmo.Handle handle = gizmo.handles().getFirst();
       OperationInteractionIntent.Gizmo target = new OperationInteractionIntent.Gizmo(
-         1, false, gizmo, new io.github.fastformer.fastplace.geometry.AxisGizmo.Hit(handle, Vec3.ZERO, 1.0, 0.1)
+         1, false, gizmo, new io.github.fastformer.common.geometry.gizmo.AxisGizmo.Hit(handle, Vec3.ZERO, 1.0, 0.1)
       );
       assertEquals(true, target.hoverText().isPresent());
    }

@@ -7,7 +7,7 @@ import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import io.github.fastformer.client.render.type.PreviewRenderTypes;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import io.github.fastformer.client.render.guide.GuideRenderer;
 import net.minecraft.util.RandomSource;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -17,9 +17,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
-import io.github.fastformer.client.interaction.InteractionObject;
-import io.github.fastformer.client.interaction.PartLabelInteraction;
+import io.github.fastformer.common.world.BlockSnapshot;
 
 /** Renders client workspace blocks and the small labels attached to them. */
 public final class WorkspacePreviewRenderer {
@@ -29,7 +27,7 @@ public final class WorkspacePreviewRenderer {
 
    public static void renderBlocks(
       PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
-      Map<BlockPos, ClientBlockSnapshot> blocks, float red, float green, float blue,
+      Map<BlockPos, BlockSnapshot> blocks, float red, float green, float blue,
       float alpha, float worldOpacity
    ) {
       renderBlocks(poseStack, buffers, minecraft, camera, blocks, blocks, red, green, blue, alpha, worldOpacity);
@@ -37,8 +35,8 @@ public final class WorkspacePreviewRenderer {
 
    public static void renderBlocks(
       PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
-      Map<BlockPos, ClientBlockSnapshot> blocks,
-      Map<BlockPos, ClientBlockSnapshot> occlusionBlocks,
+      Map<BlockPos, BlockSnapshot> blocks,
+      Map<BlockPos, BlockSnapshot> occlusionBlocks,
       float red, float green, float blue, float alpha, float worldOpacity
    ) {
       renderBlocks(poseStack, buffers, minecraft, camera, blocks, occlusionBlocks, red, green, blue, alpha, worldOpacity, false);
@@ -46,7 +44,7 @@ public final class WorkspacePreviewRenderer {
 
    public static void renderBlocks(
       PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
-      Map<BlockPos, ClientBlockSnapshot> blocks, Map<BlockPos, ClientBlockSnapshot> occlusionBlocks,
+      Map<BlockPos, BlockSnapshot> blocks, Map<BlockPos, BlockSnapshot> occlusionBlocks,
       float red, float green, float blue, float alpha, float worldOpacity, boolean dynamic
    ) {
       if (minecraft.level != null && FastPlaceClientShaders.previewMaterial() != null) {
@@ -76,7 +74,7 @@ public final class WorkspacePreviewRenderer {
 
    /** Uses snapshot states and vanilla models for both moving previews and x-ray previews. */
    public static void renderBlockModels(PoseStack pose, VertexConsumer vertices, Minecraft minecraft, Vec3 origin,
-      Map<BlockPos, ClientBlockSnapshot> blocks, net.minecraft.world.level.BlockAndTintGetter previewLevel) {
+      Map<BlockPos, BlockSnapshot> blocks, net.minecraft.world.level.BlockAndTintGetter previewLevel) {
       BlockRenderDispatcher renderer = minecraft.getBlockRenderer();
       for (var entry : blocks.entrySet()) {
          pose.pushPose();
@@ -93,22 +91,18 @@ public final class WorkspacePreviewRenderer {
 
    public static void renderPartLabel(
       PoseStack poseStack, BufferSource buffers, Minecraft minecraft, Vec3 camera,
-      InteractionObject object, PartLabelInteraction.Context context
+       Vec3 anchor, Component text, float scale, int textColor, int backgroundColor
    ) {
-      var label = PartLabelInteraction.present(object, context);
-      Vec3 anchor = label.anchor();
-      Component text = label.text();
-      var appearance = label.appearance();
       poseStack.pushPose();
       poseStack.translate(anchor.x - camera.x, anchor.y - camera.y, anchor.z - camera.z);
       poseStack.mulPose(minecraft.gameRenderer.getMainCamera().rotation());
-      poseStack.scale(-appearance.scale(), -appearance.scale(), appearance.scale());
+       poseStack.scale(-scale, -scale, scale);
       float x = -minecraft.font.width(text) * 0.5F;
       minecraft.font.drawInBatch(
          text, x, -minecraft.font.lineHeight * 0.5F,
-         appearance.textColor(),
+          textColor,
          false, poseStack.last().pose(), buffers, Font.DisplayMode.SEE_THROUGH,
-         appearance.backgroundColor(), 0x00F000F0
+          backgroundColor, 0x00F000F0
       );
       poseStack.popPose();
    }

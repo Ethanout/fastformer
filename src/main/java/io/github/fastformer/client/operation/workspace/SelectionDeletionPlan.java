@@ -1,7 +1,7 @@
 package io.github.fastformer.client.operation.workspace;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.WorkspaceScene;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
@@ -14,8 +14,8 @@ import net.minecraft.core.BlockPos;
 public final class SelectionDeletionPlan {
    private SelectionDeletionPlan() { }
    public static List<OperationWorkspacePlan.Part> parts(List<ClientSelectionPart> parts, Set<Integer> selected) {
-      var scene = new WorkspaceScene<ClientBlockSnapshot>(value -> true);
-      var sources = new LinkedHashMap<BlockPos, ClientBlockSnapshot>();
+      var scene = new WorkspaceScene<BlockSnapshot>(value -> true);
+      var sources = new LinkedHashMap<BlockPos, BlockSnapshot>();
       int id = 0;
       for (var part : parts) {
          if (!selected.contains(part.id()) || part.source() != ClientSelectionPart.Source.WORLD) continue;

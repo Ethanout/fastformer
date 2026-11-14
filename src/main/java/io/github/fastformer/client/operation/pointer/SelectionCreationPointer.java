@@ -53,7 +53,7 @@ public final class SelectionCreationPointer implements InteractionIntentProvider
       return intent(remoteCandidate(remote, context, sample(context)));
    }
 
-   private io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.Result sample(InteractionContext context) {
+   private io.github.fastformer.common.raycast.LongRangeBlockRaycast.Result sample(InteractionContext context) {
       return pointer.selection(context.player(), context.alternative());
    }
 
@@ -82,7 +82,7 @@ public final class SelectionCreationPointer implements InteractionIntentProvider
    }
 
    static BlockPos remoteCandidate(OperationPreviewPayload remote, InteractionContext context,
-      io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.Result ray) {
+      io.github.fastformer.common.raycast.LongRangeBlockRaycast.Result ray) {
       if (remote.active() && remote.operationSelectionConfirmed()) return null;
       if (remote.active() && remote.operationSelectionMode() == OperationSelectionMode.PRISM) {
          int baseCount = remote.operationPrismBasePointCount();

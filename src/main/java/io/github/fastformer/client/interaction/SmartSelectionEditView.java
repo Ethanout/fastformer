@@ -3,7 +3,7 @@ package io.github.fastformer.client.interaction;
 import io.github.fastformer.client.session.ClientSessionSystem;
 
 import io.github.fastformer.client.input.FastPlaceClientInput;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.selection.SmartSelectionRaycast;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;

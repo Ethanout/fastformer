@@ -2,7 +2,7 @@ package io.github.fastformer.client.input.drag;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import net.minecraft.world.phys.Vec3;
 
 /** Immutable state for geometry and confirmed-operation gizmo dragging. */

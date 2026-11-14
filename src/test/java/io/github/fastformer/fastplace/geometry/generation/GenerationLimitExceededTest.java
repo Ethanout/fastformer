@@ -1,10 +1,11 @@
 package io.github.fastformer.fastplace.geometry.generation;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.model.FillMode;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;

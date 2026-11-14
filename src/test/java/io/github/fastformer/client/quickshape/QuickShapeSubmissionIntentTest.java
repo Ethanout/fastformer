@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
 import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
-import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.ArrayDeque;

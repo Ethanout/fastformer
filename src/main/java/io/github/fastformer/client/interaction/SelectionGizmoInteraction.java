@@ -1,9 +1,9 @@
 package io.github.fastformer.client.interaction;
 
 import io.github.fastformer.client.gizmo.GizmoViewScale;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.TransformFrame;
-import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.model.TransformFrame;
+import io.github.fastformer.common.geometry.gizmo.GizmoTextComponent;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.transform.WorkspaceRotation;

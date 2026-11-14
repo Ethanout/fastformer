@@ -1,14 +1,14 @@
 package io.github.fastformer.fastplace.workflow;
 
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryMode;
 
 import io.github.fastformer.fastplace.world.*;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryStage;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

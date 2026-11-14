@@ -1,16 +1,16 @@
 package io.github.fastformer.common.preview.quickshape;
 
-import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.LineTieBias;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
+import io.github.fastformer.common.quickshape.mode.VolumeMode;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;

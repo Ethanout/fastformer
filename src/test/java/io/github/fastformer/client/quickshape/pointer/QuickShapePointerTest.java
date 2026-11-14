@@ -1,13 +1,19 @@
 package io.github.fastformer.client.quickshape.pointer;
 
+import io.github.fastformer.common.quickshape.mode.QuickShapeStage;
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.VolumeMode;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
-import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.quickshape.*;
+import io.github.fastformer.common.geometry.LineTieBias;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.core.BlockPos;

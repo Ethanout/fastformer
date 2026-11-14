@@ -3,7 +3,7 @@ package io.github.fastformer.workspace.transform;
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
@@ -44,7 +44,7 @@ public final class VoxelRotationSnapshotGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void positiveQuarterTurnTurnsTheStateWithItsCell(GameTestHelper helper) {
-      VoxelRotation.RotationResult<ClientBlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
+      VoxelRotation.RotationResult<BlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
          northSouthLine(), new Vec3(0.0, QUARTER, 0.0)
       );
 
@@ -61,7 +61,7 @@ public final class VoxelRotationSnapshotGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void negativeQuarterTurnIsTheOppositeOfThePositiveOne(GameTestHelper helper) {
-      VoxelRotation.RotationResult<ClientBlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
+      VoxelRotation.RotationResult<BlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
          northSouthLine(), new Vec3(0.0, -QUARTER, 0.0)
       );
 
@@ -78,7 +78,7 @@ public final class VoxelRotationSnapshotGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void halfTurnTurnsTheStateWithItsCell(GameTestHelper helper) {
-      VoxelRotation.RotationResult<ClientBlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
+      VoxelRotation.RotationResult<BlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
          northSouthLine(), new Vec3(0.0, Math.PI, 0.0)
       );
 
@@ -95,10 +95,10 @@ public final class VoxelRotationSnapshotGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void aNonRightAngleMovesTheCellAndKeepsTheState(GameTestHelper helper) {
-      Map<BlockPos, ClientBlockSnapshot> source = northSouthLine();
+      Map<BlockPos, BlockSnapshot> source = northSouthLine();
       BlockState before = source.get(BlockPos.ZERO).state();
 
-      VoxelRotation.RotationResult<ClientBlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
+      VoxelRotation.RotationResult<BlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
          source, new Vec3(0.0, Math.toRadians(45.0), 0.0)
       );
 
@@ -111,11 +111,11 @@ public final class VoxelRotationSnapshotGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void anUnrepresentableHorizontalFacingKeepsTheState(GameTestHelper helper) {
-      Map<BlockPos, ClientBlockSnapshot> source = new LinkedHashMap<>();
+      Map<BlockPos, BlockSnapshot> source = new LinkedHashMap<>();
       source.put(BlockPos.ZERO, snapshot(furnaceFacingNorth()));
       source.put(new BlockPos(0, 1, 0), snapshot(Blocks.STONE.defaultBlockState()));
 
-      VoxelRotation.RotationResult<ClientBlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
+      VoxelRotation.RotationResult<BlockSnapshot> rotated = VoxelRotation.rotateStageSnapshots(
          source, new Vec3(QUARTER, 0.0, 0.0)
       );
 
@@ -171,7 +171,7 @@ public final class VoxelRotationSnapshotGameTests {
       }
       CompoundTag data = new CompoundTag();
       data.putString("marker", "preserve");
-      var source = new ClientBlockSnapshot(Blocks.PISTON_HEAD.defaultBlockState(), data);
+      var source = new BlockSnapshot(Blocks.PISTON_HEAD.defaultBlockState(), data);
       var rotated = VoxelRotation.snapshotValues().forAxis(Axis.X, QUARTER).apply(source);
       helper.assertTrue(data.equals(rotated.blockEntity()), "rotation must preserve snapshot data");
       helper.succeed();
@@ -226,7 +226,7 @@ public final class VoxelRotationSnapshotGameTests {
       helper.succeed();
    }
 
-   private static ClientBlockSnapshot turnSnapshot(BlockState state, Axis axis, int turns) {
+   private static BlockSnapshot turnSnapshot(BlockState state, Axis axis, int turns) {
       return VoxelRotation.snapshotValues().forAxis(axis, QUARTER * turns).apply(snapshot(state));
    }
 
@@ -281,7 +281,7 @@ public final class VoxelRotationSnapshotGameTests {
          Vec3.ZERO, new Vec3(0.0, QUARTER, 0.0), OperationStackRegion.origin()
       );
 
-      Map<BlockPos, ClientBlockSnapshot> typed = WorkspacePreviewComposer.resolveSnapshots(
+      Map<BlockPos, BlockSnapshot> typed = WorkspacePreviewComposer.resolveSnapshots(
          northSouthLine(), transform
       );
       helper.assertTrue(
@@ -296,8 +296,8 @@ public final class VoxelRotationSnapshotGameTests {
    }
 
    /** A north facing furnace at the origin, with its neighbour to the north at -Z. */
-   private static Map<BlockPos, ClientBlockSnapshot> northSouthLine() {
-      Map<BlockPos, ClientBlockSnapshot> source = new LinkedHashMap<>();
+   private static Map<BlockPos, BlockSnapshot> northSouthLine() {
+      Map<BlockPos, BlockSnapshot> source = new LinkedHashMap<>();
       source.put(BlockPos.ZERO, snapshot(furnaceFacingNorth()));
       source.put(new BlockPos(0, 0, -1), snapshot(Blocks.STONE.defaultBlockState()));
       return source;
@@ -307,11 +307,11 @@ public final class VoxelRotationSnapshotGameTests {
       return Blocks.FURNACE.defaultBlockState().setValue(HorizontalDirectionalBlock.FACING, Direction.NORTH);
    }
 
-   private static ClientBlockSnapshot snapshot(BlockState state) {
-      return new ClientBlockSnapshot(state, null);
+   private static BlockSnapshot snapshot(BlockState state) {
+      return new BlockSnapshot(state, null);
    }
 
-   private static Direction facing(ClientBlockSnapshot snapshot) {
+   private static Direction facing(BlockSnapshot snapshot) {
       return snapshot.state().getValue(HorizontalDirectionalBlock.FACING);
    }
 }

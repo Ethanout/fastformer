@@ -6,8 +6,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.fastformer.client.render.WorkspacePreviewRenderer;
 import io.github.fastformer.client.render.geometry.DashedBoxRenderer;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointStyle;
+import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.client.preview.style.ControlPointStyle;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -43,7 +43,7 @@ public final class ControlPointRenderer {
          if (!point.confirmed()) {
             continue;
          }
-         ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+         ControlPointStyle style = ControlPointStyle.resolve(point);
          addControlPointBox(
             poseStack,
             occludedBoxes,
@@ -57,7 +57,7 @@ public final class ControlPointRenderer {
       VertexConsumer boxes = buffers.getBuffer(RenderType.debugFilledBox());
       for (ControlPoint point : points) {
          if (point.confirmed()) {
-            ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+            ControlPointStyle style = ControlPointStyle.resolve(point);
             addControlPointBox(poseStack, boxes, camera, point, style.alpha() * worldPreviewOpacity);
          }
       }
@@ -104,7 +104,7 @@ public final class ControlPointRenderer {
          }
          Vec3 center = point.center();
          Vec3 halfExtents = point.shape().visualHalfExtents(point.center());
-         ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+         ControlPointStyle style = ControlPointStyle.resolve(point);
          DashedBoxRenderer.renderColored(poseStack, lines, center,
             halfExtents.add(CONTROL_POINT_OUTLINE_INFLATE, CONTROL_POINT_OUTLINE_INFLATE, CONTROL_POINT_OUTLINE_INFLATE),
             style.color(), style.alpha() * alphaScale * worldPreviewOpacity, false);
@@ -126,7 +126,7 @@ public final class ControlPointRenderer {
          if (point.confirmed()) {
             continue;
          }
-         ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+         ControlPointStyle style = ControlPointStyle.resolve(point);
          renderPendingBox(
             poseStack,
             lines,
@@ -144,7 +144,7 @@ public final class ControlPointRenderer {
    ) {
       Vec3 center = point.center();
       Vec3 halfExtents = point.shape().visualHalfExtents(point.center());
-      ControlPointStyle style = point.feedback().style(point.role(), point.hovered());
+      ControlPointStyle style = ControlPointStyle.resolve(point);
       LevelRenderer.addChainedFilledBoxVertices(
          poseStack,
          consumer,

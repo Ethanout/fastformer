@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.input.mouse.PointerButtonCapture;
+import io.github.fastformer.client.interaction.binding.tool.QuickShapeLineInputState;
 
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
@@ -69,6 +70,13 @@ public final class ClientInputSession {
    public ClientSmartFillSession smartFill() { return smartFill; }
    final IdleEntryGesture idleEntry = new IdleEntryGesture();
    final BindingInputController bindings = new BindingInputController();
+   public ClientInputStateMachine.State inputState() { return routing.state(); }
+   public boolean routesToVanilla(ClientInputStateMachine.InputKind kind) { return routing.routesToVanilla(kind); }
+   public io.github.fastformer.client.interaction.binding.action.BindingAction.Result dispatchToolBinding(
+      net.minecraft.client.Minecraft minecraft, String name, String gesture,
+      io.github.fastformer.client.interaction.binding.context.BindingContext context, long now) {
+      return bindings.onToolSignalResult(minecraft, this, name, gesture, context, now);
+   }
    final RightClickInertiaGuard entryPressGuard = new RightClickInertiaGuard();
    final RightClickInertiaGuard cuboidPointPressGuard = new RightClickInertiaGuard();
    int idleEntryButton = -1;
@@ -82,6 +90,7 @@ public final class ClientInputSession {
    private final PhysicalInputMailbox physicalEvents = new PhysicalInputMailbox();
    final ShortPressTracker undoPress = new ShortPressTracker();
    final QuickShapeUndoGesture quickShapeUndo = new QuickShapeUndoGesture();
+   final QuickShapeLineInputState lineInput = new QuickShapeLineInputState();
    final SelectionPointerCapture selectionPointer = new SelectionPointerCapture();
    final OperationPointDragCapture operationPointPointer = new OperationPointDragCapture();
    final GeometryGizmoCapture geometryGizmoCapture = new GeometryGizmoCapture();
@@ -128,6 +137,10 @@ public final class ClientInputSession {
       if (button < 0 || button >= this.quickShapeButtons.length || !this.quickShapeButtons[button]) return false;
       this.quickShapeButtons[button] = false;
       return true;
+   }
+
+   boolean quickShapeButtonCaptured(int button) {
+      return button >= 0 && button < this.quickShapeButtons.length && this.quickShapeButtons[button];
    }
 
    boolean hasQuickShapeButtons() {
@@ -203,10 +216,38 @@ public final class ClientInputSession {
 
    private void clearPointerCaptures() {
       cancelQueuedGeometryInput();
+      this.lineInput.clear();
       java.util.Arrays.fill(this.quickShapeButtons, false);
       this.quickShapeUndo.cancel();
       this.selectionPointer.clear();
       this.operationPointPointer.clear();
+   }
+
+   void cancelLineBindingInput() {
+      this.lineInput.clear();
+      java.util.Arrays.fill(this.quickShapeButtons, false);
+      this.quickShapeUndo.cancel();
+   }
+
+   void finishLinePhysicalRelease(int button) {
+      releaseQuickShapeButton(button);
+      var cancelled = this.quickShapeUndo.abandon(button);
+      if (cancelled != null) postLineUndo(cancelled);
+   }
+
+   void postLinePointer(QuickShapePointerPress event) {
+      long generation = this.lineInput.generation();
+      this.physicalEvents.postQuickShapePointer(event, () -> this.lineInput.accepts(generation));
+   }
+
+   void postLineUndo(QuickShapeUndoGesture.Event event) {
+      long generation = this.lineInput.generation();
+      this.physicalEvents.postQuickShapeUndo(event, () -> this.lineInput.accepts(generation));
+   }
+
+   void postLineScroll(ScrollInputSnapshot event) {
+      long generation = this.lineInput.generation();
+      this.physicalEvents.postScroll(event, () -> this.lineInput.accepts(generation));
    }
 
    /** Releases all pointer-owned state without touching the active draft. */

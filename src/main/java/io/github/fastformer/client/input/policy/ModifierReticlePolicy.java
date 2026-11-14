@@ -1,10 +1,10 @@
 package io.github.fastformer.client.input.policy;
 
-import io.github.fastformer.client.input.ModifierReticleMode;
+import io.github.fastformer.client.preview.frame.ModifierReticleMode;
 import io.github.fastformer.client.quickshape.pointer.QuickShapeModes;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.ConePrismStage;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 
 /** Pointer hint semantics; drawing only consumes the resulting reticle mode. */

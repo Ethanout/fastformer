@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.common.geometry.GeometryAction;
+
 import java.util.EnumSet;
 import java.util.Set;
 

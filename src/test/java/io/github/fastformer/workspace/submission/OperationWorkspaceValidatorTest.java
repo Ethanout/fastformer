@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import java.lang.reflect.Field;
@@ -101,7 +101,7 @@ class OperationWorkspaceValidatorTest {
    @Test
    void doesNotReadLiveWorldWhenSubmittingSavedWorldSnapshot() throws ReflectiveOperationException {
       BlockPos source = new BlockPos(4, 5, 6);
-      ClientBlockSnapshot clientSnapshot = inertSnapshot();
+      BlockSnapshot clientSnapshot = inertSnapshot();
       OperationWorkspacePlan.Part part = new OperationWorkspacePlan.Part(
          1,
          ClientSelectionPart.Source.WORLD,
@@ -119,10 +119,10 @@ class OperationWorkspaceValidatorTest {
       assertTrue(result.clears().contains(source));
    }
 
-   private static ClientBlockSnapshot inertSnapshot() throws ReflectiveOperationException {
+   private static BlockSnapshot inertSnapshot() throws ReflectiveOperationException {
       Field field = Unsafe.class.getDeclaredField("theUnsafe");
       field.setAccessible(true);
-      return (ClientBlockSnapshot)((Unsafe)field.get(null)).allocateInstance(ClientBlockSnapshot.class);
+      return (BlockSnapshot)((Unsafe)field.get(null)).allocateInstance(BlockSnapshot.class);
    }
 
    private static OperationWorkspacePlan.Part emptyPart(int id) {
@@ -140,8 +140,8 @@ class OperationWorkspaceValidatorTest {
     */
    @Test
    void rejectsRealUpscaleWhoseScannedVolumeExceedsTheLimit() throws ReflectiveOperationException {
-      ClientBlockSnapshot snapshot = inertSnapshot();
-      Map<BlockPos, ClientBlockSnapshot> dense = Map.of(
+      BlockSnapshot snapshot = inertSnapshot();
+      Map<BlockPos, BlockSnapshot> dense = Map.of(
          new BlockPos(0, 0, 0), snapshot,
          new BlockPos(1, 0, 0), snapshot
       );
@@ -158,8 +158,8 @@ class OperationWorkspaceValidatorTest {
 
    @Test
    void rejectsSparsePartWhoseRepeatCellsPushItPastTheCap() throws ReflectiveOperationException {
-      ClientBlockSnapshot snapshot = inertSnapshot();
-      Map<BlockPos, ClientBlockSnapshot> sparse = Map.of(
+      BlockSnapshot snapshot = inertSnapshot();
+      Map<BlockPos, BlockSnapshot> sparse = Map.of(
          new BlockPos(0, 64, 0), snapshot,
          new BlockPos(100, 64, 0), snapshot
       );
@@ -178,8 +178,8 @@ class OperationWorkspaceValidatorTest {
 
    @Test
    void rejectsUnboundedRepeatRegionOnASparsePart() throws ReflectiveOperationException {
-      ClientBlockSnapshot snapshot = inertSnapshot();
-      Map<BlockPos, ClientBlockSnapshot> sparse = Map.of(
+      BlockSnapshot snapshot = inertSnapshot();
+      Map<BlockPos, BlockSnapshot> sparse = Map.of(
          new BlockPos(0, 0, 0), snapshot,
          new BlockPos(1_000_000, 0, 0), snapshot
       );
@@ -197,9 +197,9 @@ class OperationWorkspaceValidatorTest {
 
    @Test
    void acceptsPartThatScalesToAnEmptySampleThroughTheFullPath() throws ReflectiveOperationException {
-      ClientBlockSnapshot snapshot = inertSnapshot();
+      BlockSnapshot snapshot = inertSnapshot();
       // Only x=0 and x=2 are occupied. A scale of one third samples x=1, which is empty.
-      Map<BlockPos, ClientBlockSnapshot> threeWide = Map.of(
+      Map<BlockPos, BlockSnapshot> threeWide = Map.of(
          new BlockPos(0, 64, 0), snapshot,
          new BlockPos(2, 64, 0), snapshot
       );
@@ -216,7 +216,7 @@ class OperationWorkspaceValidatorTest {
 
    private static OperationWorkspacePlan.Part part(
       int id,
-      Map<BlockPos, ClientBlockSnapshot> blocks,
+      Map<BlockPos, BlockSnapshot> blocks,
       WorkspaceTransform transform,
       boolean pendingDelete
    ) {

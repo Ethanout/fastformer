@@ -9,7 +9,7 @@ import io.github.fastformer.server.task.WorldTaskSchedulerTestAccess;
 import io.github.fastformer.server.input.ServerInputDispatcher;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.session.SessionSystem;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
@@ -52,10 +52,10 @@ public final class WorkspaceReplayGameTests {
       level.setBlock(selected, Blocks.GOLD_BLOCK.defaultBlockState(), 18);
       level.setBlock(untouched, Blocks.DIAMOND_BLOCK.defaultBlockState(), 18);
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, null,
-         Map.of(selected, new ClientBlockSnapshot(level.getBlockState(selected), null)),
+         Map.of(selected, new BlockSnapshot(level.getBlockState(selected), null)),
          WorkspaceTransform.IDENTITY.withTranslation(new net.minecraft.world.phys.Vec3(5, 0, 0)), false);
       var other = new ClientSelectionPart(2, ClientSelectionPart.Source.WORLD, null,
-         Map.of(untouched, new ClientBlockSnapshot(level.getBlockState(untouched), null)), WorkspaceTransform.IDENTITY, false);
+         Map.of(untouched, new BlockSnapshot(level.getBlockState(untouched), null)), WorkspaceTransform.IDENTITY, false);
       var deletion = new OperationWorkspacePlan(io.github.fastformer.client.operation.workspace.SelectionDeletionPlan.parts(
          List.of(part, other), java.util.Set.of(1)));
       UUID transfer = UUID.randomUUID();
@@ -339,8 +339,8 @@ public final class WorkspaceReplayGameTests {
 
    private static OperationWorkspacePlan plan(GameTestHelper helper, int x, int z) {
       BlockPos pos = helper.absolutePos(new BlockPos(x, 1, z));
-      Map<BlockPos, ClientBlockSnapshot> blocks = new LinkedHashMap<>();
-      blocks.put(pos, new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null));
+      Map<BlockPos, BlockSnapshot> blocks = new LinkedHashMap<>();
+      blocks.put(pos, new BlockSnapshot(Blocks.STONE.defaultBlockState(), null));
       return new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.WORLD, blocks, WorkspaceTransform.IDENTITY, false
       )));

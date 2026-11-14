@@ -5,7 +5,7 @@ import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.protocol.c2s.placement.IdleSelectionEntryPayload;

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
@@ -28,8 +28,8 @@ class WorkspacePreviewComposerCacheTest {
       ClientSelectionPart part = part(1, BlockPos.ZERO, rotated());
 
       WorkspacePreviewComposer.GeometryFrame frame = WorkspacePreviewComposer.frameForPart(part);
-      Map<BlockPos, ClientBlockSnapshot> first = WorkspacePreviewComposer.resolvedForPart(part);
-      Map<BlockPos, ClientBlockSnapshot> second = WorkspacePreviewComposer.resolvedForPart(part);
+      Map<BlockPos, BlockSnapshot> first = WorkspacePreviewComposer.resolvedForPart(part);
+      Map<BlockPos, BlockSnapshot> second = WorkspacePreviewComposer.resolvedForPart(part);
 
       assertTrue(frame != null);
       assertSame(first, second);
@@ -47,7 +47,7 @@ class WorkspacePreviewComposerCacheTest {
       ClientSelectionPart replacement = part(4, new BlockPos(8, 0, 0), translated());
 
       WorkspacePreviewComposer.resolvedForPart(first);
-      Map<BlockPos, ClientBlockSnapshot> resolved = WorkspacePreviewComposer.resolvedForPart(replacement);
+      Map<BlockPos, BlockSnapshot> resolved = WorkspacePreviewComposer.resolvedForPart(replacement);
 
       assertEquals(Map.of(new BlockPos(9, 0, 0), replacement.blocks().get(new BlockPos(8, 0, 0))), resolved);
    }
@@ -101,11 +101,11 @@ class WorkspacePreviewComposerCacheTest {
       );
    }
 
-   private static ClientBlockSnapshot snapshot() {
+   private static BlockSnapshot snapshot() {
       try {
          Field field = Unsafe.class.getDeclaredField("theUnsafe");
          field.setAccessible(true);
-         return (ClientBlockSnapshot)((Unsafe)field.get(null)).allocateInstance(ClientBlockSnapshot.class);
+         return (BlockSnapshot)((Unsafe)field.get(null)).allocateInstance(BlockSnapshot.class);
       } catch (ReflectiveOperationException exception) {
          throw new AssertionError(exception);
       }

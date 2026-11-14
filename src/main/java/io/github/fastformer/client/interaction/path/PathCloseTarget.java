@@ -1,7 +1,7 @@
 package io.github.fastformer.client.interaction.path;
 
 import io.github.fastformer.client.interaction.pointer.PointRaycast;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.HitResult.Type;

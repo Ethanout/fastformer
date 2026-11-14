@@ -1,29 +1,31 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.common.geometry.session.GeometrySession;
+
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.server.session.slot.PlayerSessions;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
 import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionHit;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
-import io.github.fastformer.fastplace.geometry.polyhedron.PolyhedronSizeMode;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.ConePrismStage;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionHit;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.common.geometry.interaction.PointerGesture;
+import io.github.fastformer.common.geometry.PolyhedronSizeMode;
+import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.workflow.*;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.network.FastPlaceNetwork;
@@ -37,7 +39,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-public final class GeometrySystem implements io.github.fastformer.core.lifecycle.Scoped {
+public final class GeometrySystem implements io.github.fastformer.core.lifecycle.Scoped, io.github.fastformer.server.mode.ServerEditor {
    final PlayerSessions<GeometrySession> sessions = new PlayerSessions<>();
    private final SessionSystem runtime;
 
@@ -115,7 +117,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          if (!workflow.allows(session, GeometryAction.POINT_INPUT)) {
             Component message = workflow.pointBlockedMessage(session);
             if (!message.getString().isEmpty()) {
-               FastPlaceMessages.actionBar(player, message);
+               PlayerMessages.actionBar(player, message);
             }
             return;
          }
@@ -241,77 +243,77 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
    public boolean rotateEuler(ServerPlayer player, double xDegrees, double yDegrees, double zDegrees) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
       }
       if (!session.polyhedron().setEulerDegrees(xDegrees, yDegrees, zDegrees)) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_invalid"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_invalid"));
          return false;
       }
       FastPlaceNetwork.syncGeometry(player, session);
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_euler_value", xDegrees, yDegrees, zDegrees));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_euler_value", xDegrees, yDegrees, zDegrees));
       return true;
    }
 
    public boolean rotateQuaternion(ServerPlayer player, double w, double x, double y, double z) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
       }
       if (!session.polyhedron().setQuaternion(w, x, y, z)) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_invalid"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_invalid"));
          return false;
       }
       FastPlaceNetwork.syncGeometry(player, session);
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_quat_value", w, x, y, z));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_quat_value", w, x, y, z));
       return true;
    }
 
    public boolean rotateMatrix(ServerPlayer player, double[] matrix) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
       }
       if (!session.polyhedron().setMatrix(matrix)) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_invalid"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_invalid"));
          return false;
       }
       FastPlaceNetwork.syncGeometry(player, session);
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_matrix_set"));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_matrix_set"));
       return true;
    }
 
    public boolean rotateSnap(ServerPlayer player, int axis, int steps, boolean fine) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
       }
       session.polyhedron().rotateSnap(axis, steps, fine ? 1024 : 16);
       FastPlaceNetwork.syncGeometry(player, session);
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.rotate_snap_value", axisName(axis), steps, fine ? 1024 : 16));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.rotate_snap_value", axisName(axis), steps, fine ? 1024 : 16));
       return true;
    }
 
    public boolean setConePlaneMode(ServerPlayer player, ConePlaneMode mode) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.CONE_PRISM) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.cone_session_only"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.cone_session_only"));
          return false;
       }
       session.cone().setConePlaneMode(mode);
       FastPlaceSettings.load(player).setConePlaneMode(player, mode);
       FastPlaceNetwork.syncGeometry(player, session);
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.cone_plane_value", FastPlaceMessages.text(mode)));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.cone_plane_value", PlayerMessages.text(mode)));
       return true;
    }
 
    public boolean setPolyhedronSizeMode(ServerPlayer player, PolyhedronSizeMode mode) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.POLYHEDRON || session.closed()) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.geometry_polyhedron_only"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.geometry_polyhedron_only"));
          return false;
       }
       session.polyhedron().setPolyhedronSizeMode(mode);
@@ -338,15 +340,15 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
    public boolean setConeEllipse(ServerPlayer player, double scaleX, double scaleZ) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session == null || session.mode() != GeometryMode.CONE_PRISM) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.cone_session_only"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.cone_session_only"));
          return false;
       }
       if (!session.cone().setConeScale(scaleX, scaleZ)) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.number_invalid"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.number_invalid"));
          return false;
       }
       FastPlaceNetwork.syncGeometry(player, session);
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.cone_scale_value", session.cone().coneScaleX(), session.cone().coneScaleZ()));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.cone_scale_value", session.cone().coneScaleX(), session.cone().coneScaleZ()));
       return true;
    }
 
@@ -357,7 +359,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          || !workflow.allows(session, GeometryAction.CONFIRM)
          || !workflow.canFill(session)
          || PlaceableItems.defaultBlockState(player.getMainHandItem()).isEmpty()) {
-         FastPlaceMessages.actionBar(player, fillBlockedMessage(session, player));
+         PlayerMessages.actionBar(player, fillBlockedMessage(session, player));
          return false;
       }
       BlockState placeState = PlaceableItems.defaultBlockState(player.getMainHandItem()).orElseThrow();
@@ -365,7 +367,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       FillMode fillMode = FastPlaceSettings.load(player).fillMode();
       GeometryBuildResult build = workflow.build(session, context(player), fillMode, max + 1);
       if (!build.ready()) {
-         FastPlaceMessages.actionBar(player, build.blockedReason());
+         PlayerMessages.actionBar(player, build.blockedReason());
          return false;
       }
       if (!runtime.quickShape.queueGeneratedPlacement(
@@ -400,12 +402,12 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
     * Moves the geometry session of a dimension aside. A shape is dimension-bound
     * because its points are absolute world coordinates.
     */
-   void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+   @Override public void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
       sessions.park(owner, dimension);
    }
 
    /** Restores the geometry session that belongs to the target dimension. */
-   void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+   @Override public void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
       sessions.restore(owner, dimension);
    }
 

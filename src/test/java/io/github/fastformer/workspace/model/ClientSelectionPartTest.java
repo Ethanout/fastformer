@@ -1,5 +1,7 @@
 package io.github.fastformer.workspace.model;
 
+import io.github.fastformer.common.world.BlockSnapshot;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -193,11 +195,11 @@ class ClientSelectionPartTest {
       assertEquals(original.blocks(), restored.withTranslation(new Vec3(2, 0, 0)).baseline().sourceSnapshot());
    }
 
-   private static ClientBlockSnapshot snapshot() {
+   private static BlockSnapshot snapshot() {
       try {
          var field = Unsafe.class.getDeclaredField("theUnsafe");
          field.setAccessible(true);
-         return (ClientBlockSnapshot)((Unsafe)field.get(null)).allocateInstance(ClientBlockSnapshot.class);
+         return (BlockSnapshot)((Unsafe)field.get(null)).allocateInstance(BlockSnapshot.class);
       } catch (ReflectiveOperationException exception) {
          throw new AssertionError(exception);
       }

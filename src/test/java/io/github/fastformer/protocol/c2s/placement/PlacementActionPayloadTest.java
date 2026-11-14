@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.netty.buffer.Unpooled;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;

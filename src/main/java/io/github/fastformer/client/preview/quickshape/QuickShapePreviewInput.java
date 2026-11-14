@@ -1,7 +1,7 @@
 package io.github.fastformer.client.preview.quickshape;
 
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import java.util.Objects;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;

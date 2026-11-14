@@ -1,25 +1,28 @@
 package io.github.fastformer.fastplace.geometry.generation;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+
+import io.github.fastformer.common.geometry.LineTieBias;
 
 import static io.github.fastformer.common.math.MinecraftVectors.normalize;
 import static io.github.fastformer.common.math.MinecraftVectors.dominantAxis;
 import static io.github.fastformer.common.math.MinecraftVectors.axisVector;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.model.FillMode;
 
-import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.QuickShapeStage;
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.VolumeMode;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 
 import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.fastplace.geometry.GuideLine;
-import io.github.fastformer.fastplace.geometry.GuidePlane;
-import io.github.fastformer.fastplace.geometry.GeometryConstraints;
-import io.github.fastformer.fastplace.geometry.PlaneAxes;
+import io.github.fastformer.common.geometry.model.GuideLine;
+import io.github.fastformer.common.geometry.model.GuidePlane;
+import io.github.fastformer.common.geometry.model.GeometryConstraints;
+import io.github.fastformer.common.geometry.model.PlaneAxes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;

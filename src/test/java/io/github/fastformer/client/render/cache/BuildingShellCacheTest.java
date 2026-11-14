@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.model.BuildingSpecialBlock;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointStyle;
+import io.github.fastformer.client.preview.style.ControlPointStyle;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;

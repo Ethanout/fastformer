@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input.drag;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import net.minecraft.world.phys.Vec3;

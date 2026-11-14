@@ -1,6 +1,6 @@
 package io.github.fastformer.workspace.submission;
 
-import io.github.fastformer.fastplace.text.TranslatableText;
+import io.github.fastformer.common.text.TranslatableText;
 
 import io.github.fastformer.fastplace.world.*;
 

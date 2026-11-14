@@ -1,6 +1,6 @@
 package io.github.fastformer.client;
 
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import io.github.fastformer.fastplace.settings.FlightSettings;
 import net.neoforged.neoforge.common.ModConfigSpec;
 

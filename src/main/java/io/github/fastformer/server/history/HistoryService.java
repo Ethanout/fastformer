@@ -21,7 +21,7 @@ import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTask;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
@@ -118,7 +118,7 @@ public final class HistoryService implements AutoCloseable {
 
    public HistoryService(Gate<ServerPlayer> available, Gate<ServerPlayer> activity, HistoryRepository<HistoryEntry> repository,
       EntryReplayRegistry replayTypes) {
-      this(available, activity, repository, replayTypes, (context, key) -> context.actionBar(FastPlaceMessages.text(key)));
+      this(available, activity, repository, replayTypes, (context, key) -> context.actionBar(PlayerMessages.text(key)));
    }
 
    HistoryService(Gate<ServerPlayer> available, Gate<ServerPlayer> activity, HistoryRepository<HistoryEntry> repository,
@@ -328,19 +328,19 @@ public final class HistoryService implements AutoCloseable {
       if (owner.loading.snapshotFailed()) {
          if (!owner.loading.snapshotPending() && available.test(player).allowed()) {
             startHistorySnapshotLoad(player, owner);
-            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.history_loading_older"));
+            PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.history_loading_older"));
          } else {
-            FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.history_load_failed"));
+            PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.history_load_failed"));
          }
          return false;
       }
       if (!activity.test(player).allowed()) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.history_wait_task"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.history_wait_task"));
          return false;
       }
       HistoryMemoryCache<HistoryEntry> history = owner.history;
       if (history == null) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text(
+         PlayerMessages.actionBar(player, PlayerMessages.text(
             undo ? "fastformer.message.history_no_undo" : "fastformer.message.history_no_redo"
          ));
          return false;
@@ -354,7 +354,7 @@ public final class HistoryService implements AutoCloseable {
          return true;
       }
       if (history.size(undo) == 0) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text(
+         PlayerMessages.actionBar(player, PlayerMessages.text(
             undo ? "fastformer.message.history_no_undo" : "fastformer.message.history_no_redo"
          ));
          return false;
@@ -365,7 +365,7 @@ public final class HistoryService implements AutoCloseable {
       // after a dimension change; tickOwner will retain it in WORLD_UNLOADED
       // state until that level is available and then continue automatically.
       if (next != null && RecoverySystem.of(player.getServer()).writeLeases().busy(next.dimension())) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.world_write_waiting"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.world_write_waiting"));
          return false;
       }
       owner.active = new HistoryReplayTask(
@@ -375,9 +375,9 @@ public final class HistoryService implements AutoCloseable {
          requested,
          FastPlaceSettings.load(player).placementUpdateMode(), replayTypes
       );
-      FastPlaceMessages.actionBar(
+      PlayerMessages.actionBar(
          player,
-         FastPlaceMessages.text(undo ? "fastformer.message.history_start_undo" : "fastformer.message.history_start_redo", requested)
+         PlayerMessages.text(undo ? "fastformer.message.history_start_undo" : "fastformer.message.history_start_redo", requested)
       );
       return true;
    }
@@ -675,7 +675,7 @@ public final class HistoryService implements AutoCloseable {
       try {
          owner.loading.attachSnapshot(owner::mergeSnapshot);
       } catch (RuntimeException failure) {
-         context.chat(FastPlaceMessages.text("fastformer.message.history_load_failed"));
+         context.chat(PlayerMessages.text("fastformer.message.history_load_failed"));
          LOGGER.error("Could not load durable history for {}", context.owner(), failure);
       }
    }
@@ -696,7 +696,7 @@ public final class HistoryService implements AutoCloseable {
             trim(owner.historyLimit, history);
          });
       } catch (RuntimeException failure) {
-         context.chat(FastPlaceMessages.text("fastformer.message.history_load_failed"));
+         context.chat(PlayerMessages.text("fastformer.message.history_load_failed"));
          LOGGER.error("Could not load or merge an older history page for {}", context.owner(), failure);
          return;
       }
@@ -709,7 +709,7 @@ public final class HistoryService implements AutoCloseable {
 
    private void startHistoryPageLoad(ServerPlayer player, OwnerHistory owner, HistoryPageLoadPlan plan) {
       owner.loading.startPage(player.getUUID(), plan, repository);
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.history_loading_older"));
+      PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.history_loading_older"));
    }
    private void trim(int limit, HistoryMemoryCache<HistoryEntry> history) {
       history.trim(boundedLimit(limit), OwnerHistory.MAX_MEMORY_BYTES);

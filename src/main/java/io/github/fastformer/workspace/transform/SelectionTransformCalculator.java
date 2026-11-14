@@ -2,7 +2,7 @@ package io.github.fastformer.workspace.transform;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.Composition;
@@ -11,7 +11,7 @@ import io.github.fastformer.workspace.preview.CompositionBudget;
 import io.github.fastformer.workspace.preview.WorkspaceSelectionBounds;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -53,15 +53,15 @@ public final class SelectionTransformCalculator {
       // Copies stay on the base cell lattice, so a repeat gesture never moves a copy that
       // an earlier gesture placed.
       AABB groupCellBounds = commonScale ? WorkspaceSelectionBounds.baseBox(baseline) : null;
-      java.util.IdentityHashMap<ClientSelectionPart, Map<BlockPos, ClientBlockSnapshot>> resolved = new java.util.IdentityHashMap<>();
+      java.util.IdentityHashMap<ClientSelectionPart, Map<BlockPos, BlockSnapshot>> resolved = new java.util.IdentityHashMap<>();
       if (operation == AxisGizmo.Operation.ROTATE) {
          CompositionBatch batch = new CompositionBatch(CompositionBudget.INTERACTION);
          for (ClientSelectionPart part : baseline) {
-            Composition<ClientBlockSnapshot> composition = batch.compose(part);
+            Composition<BlockSnapshot> composition = batch.compose(part);
             if (composition instanceof Composition.OverBudget<?> over) {
                return failure(over);
             }
-            resolved.put(part, ((Composition.Composed<ClientBlockSnapshot>)composition).values());
+            resolved.put(part, ((Composition.Composed<BlockSnapshot>)composition).values());
          }
       }
       OccupiedBlockBounds groupBounds = common ? resolved.values().stream()
@@ -109,12 +109,12 @@ public final class SelectionTransformCalculator {
             }
          };
          if (operation == AxisGizmo.Operation.ROTATE) {
-            Composition<ClientBlockSnapshot> composition = rotatedBatch.compose(part.withTransform(updated));
+            Composition<BlockSnapshot> composition = rotatedBatch.compose(part.withTransform(updated));
             if (composition instanceof Composition.OverBudget<?> over) {
                return failure(over);
             }
             var before = OccupiedBlockBounds.from(resolved.getOrDefault(part, Map.of()).keySet()).orElse(null);
-            var after = OccupiedBlockBounds.from(((Composition.Composed<ClientBlockSnapshot>)composition).values().keySet()).orElse(null);
+            var after = OccupiedBlockBounds.from(((Composition.Composed<BlockSnapshot>)composition).values().keySet()).orElse(null);
             if (before != null && after != null) {
                Vec3 pivot = rotationPivot;
                if (pivot == null) pivot = common && groupBounds != null ? groupBounds.center() : before.center();

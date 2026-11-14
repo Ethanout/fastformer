@@ -2,8 +2,8 @@ package io.github.fastformer.client.render.geometry;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
-import io.github.fastformer.fastplace.geometry.GuideLine;
+import io.github.fastformer.client.preview.style.GeometryPalette;
+import io.github.fastformer.common.geometry.model.GuideLine;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;

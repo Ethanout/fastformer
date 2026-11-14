@@ -1,10 +1,11 @@
 package io.github.fastformer.fastplace.placement.plan;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 
 import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
@@ -83,7 +84,7 @@ public record PlacementGenerationPlan(
    private BlockGenerationResult generateTargets(ProgressiveBlockGeneration progress) {
       return new PlacementGeometryPlan(points, modes, polygonHeightConfirmed, polygonVolumeShape,
          taskPlan.maxPlacement(), effect).generate(progress == null
-            ? io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver.NONE : progress);
+            ? io.github.fastformer.common.geometry.raster.BlockGenerationObserver.NONE : progress);
    }
 
    public record GeneratedPlacement(BlockGenerationResult result) {

@@ -72,6 +72,8 @@ public final class ClientModeRegistry {
 
    public ScrollDecision onScroll(State state, ScrollInput input, ScrollView view) {
       ordered();
+      if (policy(state).dataDrivenInputs().contains(io.github.fastformer.client.input.state.ClientInputStateMachine.InputKind.SCROLL))
+         return ScrollDecision.pass();
       Definition owner = owners.get(Objects.requireNonNull(state, "state"));
       ScrollDecision result = Objects.requireNonNull(owner.mode().onScroll(
          Objects.requireNonNull(input, "input"), Objects.requireNonNull(view, "view")), "scroll decision");

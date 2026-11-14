@@ -1,0 +1,323 @@
+{
+  "bindings": [
+    {
+      "id": "fastformer:workspace/select_all",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_active": true
+      },
+      "input": {
+        "button": "key.keyboard.a",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/toggle_select_all"
+    },
+    {
+      "id": "fastformer:workspace/copy",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_active": true
+      },
+      "input": {
+        "button": "key.keyboard.c",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/copy"
+    },
+    {
+      "id": "fastformer:workspace/paste",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "paste_allowed": true
+      },
+      "input": {
+        "button": "key.keyboard.v",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/paste"
+    },
+    {
+      "id": "fastformer:workspace/duplicate_blocked",
+      "priority": 40,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "blocked",
+        "workspace_active": true
+      },
+      "input": {
+        "button": "key.keyboard.d",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/duplicate_pending",
+      "priority": 30,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_submission_pending": true
+      },
+      "input": {
+        "button": "key.keyboard.d",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/submission_pending"
+    },
+    {
+      "id": "fastformer:workspace/duplicate_editing",
+      "priority": 20,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_editing": true
+      },
+      "input": {
+        "button": "key.keyboard.d",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/duplicate_paste_blocked",
+      "priority": 10,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "paste_allowed": false
+      },
+      "input": {
+        "button": "key.keyboard.d",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/duplicate",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_active": true
+      },
+      "input": {
+        "button": "key.keyboard.d",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/duplicate"
+    },
+    {
+      "id": "fastformer:workspace/rotate_blocked",
+      "priority": 40,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "blocked",
+        "workspace_active": true
+      },
+      "input": {
+        "button": "key.keyboard.r",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/rotate_pending",
+      "priority": 30,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_submission_pending": true
+      },
+      "input": {
+        "button": "key.keyboard.r",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/submission_pending"
+    },
+    {
+      "id": "fastformer:workspace/rotate_editing",
+      "priority": 20,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_editing": true
+      },
+      "input": {
+        "button": "key.keyboard.r",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/rotate",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_active": true
+      },
+      "input": {
+        "button": "key.keyboard.r",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/rotate"
+    },
+    {
+      "id": "fastformer:workspace/flip_blocked",
+      "priority": 40,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "blocked",
+        "workspace_active": true
+      },
+      "input": {
+        "button": "key.keyboard.f",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/flip_pending",
+      "priority": 30,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_submission_pending": true
+      },
+      "input": {
+        "button": "key.keyboard.f",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/submission_pending"
+    },
+    {
+      "id": "fastformer:workspace/flip_editing",
+      "priority": 20,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_editing": true
+      },
+      "input": {
+        "button": "key.keyboard.f",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:workspace/flip",
+      "priority": 0,
+      "context": {
+        "input_phase": "workspace",
+        "screen": false,
+        "player_present": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ],
+        "key_route": "operation",
+        "workspace_active": true
+      },
+      "input": {
+        "button": "key.keyboard.f",
+        "gesture": "key"
+      },
+      "action": "fastformer:workspace/flip"
+    }
+  ]
+}

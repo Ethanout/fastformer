@@ -1,5 +1,9 @@
 package io.github.fastformer.client.render.core;
 
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.model.GuideLine;
+import io.github.fastformer.common.geometry.model.GuidePlane;
+
 import io.github.fastformer.client.operation.pointer.WorkspacePartInteractionCapabilities;
 
 import io.github.fastformer.client.session.ClientSessionSystem;
@@ -25,7 +29,7 @@ import io.github.fastformer.client.interaction.PartLabelInteraction;
 import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
-import io.github.fastformer.client.render.WorkspacePointerPrompt;
+import io.github.fastformer.client.interaction.intent.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspacePreviewRenderer;
 import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
 import io.github.fastformer.fastplace.geometry.*;
@@ -33,7 +37,7 @@ import io.github.fastformer.fastplace.geometry.generation.*;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import java.util.*;
 import java.util.concurrent.*;
@@ -226,11 +230,11 @@ final class OperationPreviewRenderer {
 
       List<ClientSelectionPart> parts = workspace.parts();
       ClientSessionSystem.instance().operations().pointer().prune(parts);
-      Map<Integer, Map<BlockPos, ClientBlockSnapshot>> resolvedParts = new LinkedHashMap<>();
-      var scene = new io.github.fastformer.workspace.preview.WorkspaceScene<ClientBlockSnapshot>(snapshot -> !snapshot.state().isAir());
+      Map<Integer, Map<BlockPos, BlockSnapshot>> resolvedParts = new LinkedHashMap<>();
+      var scene = new io.github.fastformer.workspace.preview.WorkspaceScene<BlockSnapshot>(snapshot -> !snapshot.state().isAir());
       for (ClientSelectionPart part : parts) {
          if (!part.pendingDelete()) {
-            Map<BlockPos, ClientBlockSnapshot> resolved = ClientSessionSystem.instance().operations().pointer().visibleBlocks(part);
+            Map<BlockPos, BlockSnapshot> resolved = ClientSessionSystem.instance().operations().pointer().visibleBlocks(part);
             resolvedParts.put(part.id(), resolved);
             scene.overlay(part.id(), resolved);
          }
@@ -239,10 +243,10 @@ final class OperationPreviewRenderer {
       for (ClientSelectionPart part : parts) {
          var interactionPart = interactionScene.parts().get(part.id());
          if (interactionPart == null || interactionPart.bounds() == null) continue;
-         Map<BlockPos, ClientBlockSnapshot> resolved = part.pendingDelete()
+         Map<BlockPos, BlockSnapshot> resolved = part.pendingDelete()
             ? ClientSessionSystem.instance().operations().pointer().visibleBlocks(part)
             : resolvedParts.getOrDefault(part.id(), Map.of());
-         Map<BlockPos, ClientBlockSnapshot> ownedBlocks = blocksOwnedByPart(resolved, scene.owners(), part.id());
+         Map<BlockPos, BlockSnapshot> ownedBlocks = blocksOwnedByPart(resolved, scene.owners(), part.id());
          if (!shouldRenderPartBlocks(part)) {
             ownedBlocks = ownedBlocks.entrySet().stream()
                .filter(entry -> !part.pendingDelete() && io.github.fastformer.client.render.mask.SourceMaskRenderFilter.instance().hides(entry.getKey()))
@@ -258,7 +262,7 @@ final class OperationPreviewRenderer {
          }
       }
       for (ClientSelectionPart part : parts) {
-         Map<BlockPos, ClientBlockSnapshot> resolved = part.pendingDelete()
+         Map<BlockPos, BlockSnapshot> resolved = part.pendingDelete()
             ? ClientSessionSystem.instance().operations().pointer().visibleBlocks(part)
             : resolvedParts.getOrDefault(part.id(), Map.of());
          boolean selected = workspace.selectedIds().contains(part.id());
@@ -307,11 +311,12 @@ final class OperationPreviewRenderer {
          if (part.smart()) SmartSelectionRenderer.render(event, minecraft, part, resolved,
             (selected || hovered || part.smartEditable() ? 0.9F : 0.5F) * selectionOpacity);
          if (!part.smart() && !altFocused && WorkspacePartInteractionCapabilities.canSelect(part, interactionBounds)) {
+             var label = PartLabelInteraction.present(interactionPart.label(),
+                new PartLabelInteraction.Context(selected, ClientSessionSystem.instance().operations().hoveredLabel(interactionPart.label()),
+                   workspaceLocked, controlHeld, pointerIntent, pulse));
             WorkspacePreviewRenderer.renderPartLabel(
                poseStack, buffers, minecraft, camera,
-               interactionPart.label(),
-               new PartLabelInteraction.Context(selected, ClientSessionSystem.instance().operations().hoveredLabel(interactionPart.label()),
-                  workspaceLocked, controlHeld, pointerIntent, pulse)
+                label.anchor(), label.text(), label.appearance().scale(), label.appearance().textColor(), label.appearance().backgroundColor()
             );
          }
 
@@ -498,38 +503,15 @@ final class OperationPreviewRenderer {
       var inputSession = FastPlaceClientInput.currentSession();
       SelectionPrism.GridPlane plane = PointerDragSnapshotView.pointPlane(inputSession);
       SelectionPrism.GridLine line = PointerDragSnapshotView.pointLine(inputSession);
-      if (plane == null && line == null) {
-         return;
-      }
-      VertexConsumer consumer = buffers.getBuffer(GHOST_OUTLINE_LINES);
-      if (plane != null) {
-         List<BlockPos> guidePoints = snapshot.operationSelectionMode() == OperationSelectionMode.CUBOID
-            && snapshot.selectionMin() != null && snapshot.selectionMax() != null
-            ? List.of(snapshot.selectionMin(), snapshot.selectionMax())
-            : snapshot.points();
-         List<Vec3> bounds = new ArrayList<>(guidePoints.stream().map(Vec3::atCenterOf).toList());
-         BlockPos target = PointerDragSnapshotView.pointTarget(inputSession);
-         if (target != null) {
-            bounds.add(Vec3.atCenterOf(target));
-         }
-         io.github.fastformer.client.render.guide.GuideRenderer.renderGeometryPlanes(
-            poseStack, consumer, camera, List.of(new GuidePlane(plane.anchor(), plane.normal(), bounds, true)), opacity
-         );
-      }
-      if (line != null) {
-         Vec3 anchor = line.anchor();
-         double radius = Math.max(8.0, camera.distanceTo(anchor) * 0.3);
-         BlockPos target = PointerDragSnapshotView.pointTarget(inputSession);
-         if (target != null) {
-            radius = Math.max(radius, Math.abs(Vec3.atCenterOf(target).subtract(anchor).dot(line.direction())) + 4.0);
-         }
-         io.github.fastformer.client.render.guide.GuideRenderer.renderGeometryLines(
-            poseStack,
-            consumer,
-            camera,
-            List.of(new GuideLine(anchor.subtract(line.direction().scale(radius)), anchor.add(line.direction().scale(radius)))), opacity
-         );
-      }
+      if (plane == null && line == null) return;
+      var points = snapshot.operationSelectionMode() == OperationSelectionMode.CUBOID
+         && snapshot.selectionMin() != null && snapshot.selectionMax() != null
+         ? List.of(snapshot.selectionMin(), snapshot.selectionMax()) : snapshot.points();
+      io.github.fastformer.client.render.guide.SelectionPointGuides.capture(points,
+         PointerDragSnapshotView.pointTarget(inputSession), camera,
+         plane == null ? null : plane.anchor(), plane == null ? null : plane.normal(),
+         line == null ? null : line.anchor(), line == null ? null : line.direction())
+         .draw(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, opacity);
       buffers.endBatch(GHOST_OUTLINE_LINES);
    }
 

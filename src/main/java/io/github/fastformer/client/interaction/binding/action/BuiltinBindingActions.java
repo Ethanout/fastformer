@@ -27,7 +27,23 @@ public final class BuiltinBindingActions {
       register(actions, "smart_fill/start", commands -> commands.tool(ToolCommand.START_FILL));
       register(actions, "smart_fill/confirm", commands -> commands.tool(ToolCommand.CONFIRM_FILL));
       register(actions, "input/capture_swap_key", commands -> commands.tool(ToolCommand.CAPTURE_SWAP_KEY));
+      register(actions, "workspace/copy", commands -> commands.workspace(WorkspaceCommand.COPY));
+      register(actions, "workspace/paste", commands -> commands.workspace(WorkspaceCommand.PASTE));
+      register(actions, "workspace/toggle_select_all", commands -> commands.workspace(WorkspaceCommand.TOGGLE_SELECT_ALL));
+      register(actions, "workspace/duplicate", commands -> commands.workspace(WorkspaceCommand.DUPLICATE));
+      register(actions, "workspace/rotate", commands -> commands.workspace(WorkspaceCommand.ROTATE_SELECTION));
+      register(actions, "workspace/flip", commands -> commands.workspace(WorkspaceCommand.FLIP_SELECTION));
+      register(actions, "workspace/submission_pending", commands -> commands.workspace(WorkspaceCommand.REPORT_SUBMISSION_PENDING));
+      register(actions, "quick_shape/line/point", commands -> commands.quickShapeLine(QuickShapeLineCommand.POINT));
+      register(actions, "quick_shape/line/middle", commands -> commands.quickShapeLine(QuickShapeLineCommand.MIDDLE));
+      register(actions, "quick_shape/line/begin_undo", commands -> commands.quickShapeLine(QuickShapeLineCommand.BEGIN_UNDO));
+      register(actions, "quick_shape/line/end_undo", commands -> commands.quickShapeLine(QuickShapeLineCommand.END_UNDO));
+      register(actions, "quick_shape/line/release", commands -> commands.quickShapeLine(QuickShapeLineCommand.RELEASE_POINTER));
+      register(actions, "quick_shape/line/scroll_up", commands -> commands.quickShapeLine(QuickShapeLineCommand.SCROLL_UP));
+      register(actions, "quick_shape/line/scroll_down", commands -> commands.quickShapeLine(QuickShapeLineCommand.SCROLL_DOWN));
+      registerPassVanilla(actions, "quick_shape/line/yield_scroll", commands -> commands.quickShapeLine(QuickShapeLineCommand.YIELD_SCROLL));
       actions.register(id("pass"), Codec.unit(true), ignored -> (context, commands) -> BindingAction.Result.PASS);
+      actions.register(id("vanilla"), Codec.unit(true), ignored -> (context, commands) -> BindingAction.Result.HANDLED_PASS_VANILLA);
       actions.register(id("block"), Codec.unit(true), ignored -> (context, commands) -> BindingAction.Result.HANDLED);
       return actions.freeze();
    }

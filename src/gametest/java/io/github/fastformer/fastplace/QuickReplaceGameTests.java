@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.common.placement.context.QuickReplaceTargets;
+
 import io.github.fastformer.server.history.HistoryTestAccess;
 
 import io.github.fastformer.server.history.HistorySystem;
@@ -71,13 +73,13 @@ public final class QuickReplaceGameTests {
       var player = player(helper, pos, 2);
       helper.getLevel().setBlock(pos, Blocks.SHORT_GRASS.defaultBlockState(), 18);
       helper.getLevel().setBlock(pos.south(), Blocks.STONE.defaultBlockState(), 18);
-      var plant = QuickReplaceTarget.resolve(player);
+      var plant = QuickReplaceTargets.resolve(player);
       helper.assertTrue(plant != null && plant.position().equals(pos), "Replacement ray passed through grass");
       var stairs = Blocks.OAK_STAIRS.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.WEST)
          .setValue(BlockStateProperties.HALF, net.minecraft.world.level.block.state.properties.Half.TOP);
       helper.getLevel().setBlock(pos, stairs, 18);
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.STONE_STAIRS));
-      var target = QuickReplaceTarget.resolve(player);
+      var target = QuickReplaceTargets.resolve(player);
       helper.assertTrue(target != null && target.position().equals(pos), "Stair target missing");
       helper.assertTrue(target.state().is(Blocks.STONE_STAIRS)
          && target.state().getValue(BlockStateProperties.HORIZONTAL_FACING) == Direction.WEST
@@ -94,7 +96,7 @@ public final class QuickReplaceGameTests {
       helper.assertTrue(QuickReplaceSystem.setActive(player, true), "Session did not start");
       for (int distance : new int[] {2, 12}) {
          aim(player, pos, distance);
-         var target = QuickReplaceTarget.resolve(player);
+         var target = QuickReplaceTargets.resolve(player);
          var ray = (net.minecraft.world.phys.BlockHitResult)player.pick(player.blockInteractionRange(), 1, false);
          helper.assertTrue(target != null && target.position().equals(pos),
             "Target differs at distance " + distance + ": expected=" + pos + ", actual=" + target
@@ -135,7 +137,7 @@ public final class QuickReplaceGameTests {
             player.setYRot((float)-Math.toDegrees(Math.atan2(delta.x, delta.z)));
             player.setYHeadRot(player.getYRot());
             player.setXRot((float)-Math.toDegrees(Math.atan2(delta.y, Math.hypot(delta.x, delta.z))));
-            var target = QuickReplaceTarget.resolve(player);
+            var target = QuickReplaceTargets.resolve(player);
             helper.assertTrue(QuickReplaceSystem.sample(player, 1, false), "second sample failed: target=" + target
                + ", expected=" + last + ", busy=" + HistorySystem.of(player).busy(player));
             QuickReplaceSystem.sample(player, 1, true);

@@ -1,7 +1,7 @@
 package io.github.fastformer.client.operation.workspace;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboard;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.preview.Composition;
 import io.github.fastformer.workspace.preview.CompositionBatch;
@@ -21,11 +21,11 @@ public final class WorkspaceContentPreparer {
       List<OperationClipboard.Part> copied = new ArrayList<>();
       CompositionBatch batch = new CompositionBatch(CompositionBudget.INTERACTION);
       for (ClientSelectionPart part : safeParts(parts)) {
-         Composition<ClientBlockSnapshot> composition = batch.compose(part);
-         if (composition instanceof Composition.OverBudget<ClientBlockSnapshot> over) {
+         Composition<BlockSnapshot> composition = batch.compose(part);
+         if (composition instanceof Composition.OverBudget<BlockSnapshot> over) {
             return new ClipboardPreparation.TooLarge(over.limit(), over.cap(), over.reached());
          }
-         Map<BlockPos, ClientBlockSnapshot> blocks = ((Composition.Composed<ClientBlockSnapshot>)composition).values();
+         Map<BlockPos, BlockSnapshot> blocks = ((Composition.Composed<BlockSnapshot>)composition).values();
          if (!blocks.isEmpty()) {
             copied.add(new OperationClipboard.Part(part.id(), blocks));
          }
@@ -51,7 +51,7 @@ public final class WorkspaceContentPreparer {
    }
 
    private static OperationWorkspacePlan.Part submissionPart(ClientSelectionPart part) {
-      Map<BlockPos, ClientBlockSnapshot> blocks = part.pendingDelete() && !part.sourceSnapshot().isEmpty()
+      Map<BlockPos, BlockSnapshot> blocks = part.pendingDelete() && !part.sourceSnapshot().isEmpty()
          ? part.sourceSnapshot()
          : part.blocks();
       return new OperationWorkspacePlan.Part(

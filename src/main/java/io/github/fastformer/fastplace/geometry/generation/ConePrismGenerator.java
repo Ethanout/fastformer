@@ -1,6 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.model.FillMode;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import net.minecraft.core.BlockPos;

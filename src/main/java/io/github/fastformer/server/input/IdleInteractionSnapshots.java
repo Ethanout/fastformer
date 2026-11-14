@@ -1,12 +1,14 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.common.raycast.InteractionShapeSnapshot;
 import io.github.fastformer.fastplace.interaction.EntryDoubleClickTolerance;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
 import io.github.fastformer.protocol.s2c.placement.IdleInteractionSnapshotPayload;
 import io.github.fastformer.server.session.QuickShapeSystem;
@@ -74,7 +76,7 @@ public final class IdleInteractionSnapshots {
       ItemStack item = player.getMainHandItem().copy();
       PlacementContextSnapshot placement = null;
       if (PlaceableItems.isPlaceable(item)) {
-         placement = PlacementContextSnapshot.capture(level, player, item, request.hit(), request.rules().embedded());
+         placement = PlacementContexts.capture(level, player, item, request.hit(), request.rules().embedded());
          var state = PlaceableItems.placementState(item, player, placement);
          if (state.isPresent()) placement = placement.withCapturedState(item.getItem(), state.orElseThrow());
       }

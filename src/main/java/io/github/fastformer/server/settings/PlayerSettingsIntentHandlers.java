@@ -4,7 +4,7 @@ import io.github.fastformer.core.command.IntentBus;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.BlockActivityRules;
 import io.github.fastformer.network.FastPlaceNetwork;
 import io.github.fastformer.protocol.s2c.settings.OpenSettingsPayload;
@@ -25,14 +25,14 @@ public final class PlayerSettingsIntentHandlers {
             settings.setFillMode(player, value);
             SessionSystem.of(player).syncCurrentPreview(player);
          });
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.fill_mode_status", FastPlaceMessages.text(settings.fillMode())));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.fill_mode_status", PlayerMessages.text(settings.fillMode())));
          return IntentResult.success();
       });
       bus.register(PlayerSettingsIntents.MaxPlacement.class, Gate.require("settings", context -> true), (context, intent) -> {
          var player = context.actor();
          var settings = FastPlaceSettings.load(player);
          intent.value().ifPresent(value -> settings.setMaxPlacement(player, value));
-         FastPlaceMessages.chat(player, FastPlaceMessages.text(intent.value().isPresent()
+         PlayerMessages.chat(player, PlayerMessages.text(intent.value().isPresent()
             ? "fastformer.message.max_placement" : "fastformer.message.max_placement_status", settings.maxPlacement()));
          return IntentResult.success();
       });
@@ -49,15 +49,15 @@ public final class PlayerSettingsIntentHandlers {
          if (settings.enabled()) SessionSystem.of(player).cancelEditing(player);
          else SessionSystem.of(player).stopUnavailable(player);
          FastPlaceNetwork.syncSettings(player);
-         FastPlaceMessages.chat(player, FastPlaceMessages.text(settings.enabled() ? "fastformer.message.enabled" : "fastformer.message.disabled"));
+         PlayerMessages.chat(player, PlayerMessages.text(settings.enabled() ? "fastformer.message.enabled" : "fastformer.message.disabled"));
          return IntentResult.success();
       });
       bus.register(PlayerSettingsIntents.Status.class, Gate.require("settings", context -> true), (context, intent) -> {
          var player = context.actor();
          var settings = FastPlaceSettings.load(player);
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.status",
-            FastPlaceMessages.text(settings.enabled() ? "fastformer.message.enabled" : "fastformer.message.disabled"),
-            FastPlaceMessages.text(settings.fillMode()), settings.maxPlacement()));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.status",
+            PlayerMessages.text(settings.enabled() ? "fastformer.message.enabled" : "fastformer.message.disabled"),
+            PlayerMessages.text(settings.fillMode()), settings.maxPlacement()));
          return IntentResult.success();
       });
       bus.register(PlayerSettingsIntents.OpenScreen.class, Gate.require("settings", context -> true), (context, intent) -> openScreen(context.actor()));
@@ -65,7 +65,7 @@ public final class PlayerSettingsIntentHandlers {
 
    private static IntentResult openScreen(ServerPlayer player) {
       if (!player.connection.hasChannel(OpenSettingsPayload.TYPE)) {
-         FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.settings_client_unavailable"));
+         PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.settings_client_unavailable"));
          return IntentResult.pass();
       }
       var settings = FastPlaceSettings.load(player);

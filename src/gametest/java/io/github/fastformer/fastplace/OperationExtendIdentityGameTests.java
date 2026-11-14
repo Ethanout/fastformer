@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+
 import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.server.history.HistoryTestAccess;
@@ -37,7 +39,7 @@ public final class OperationExtendIdentityGameTests {
          session.confirmSelection();
          long revision = PreviewSync.operationRevision(player);
          var scope = PreviewSync.callbackScope(player);
-         int move = io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.MOVE.ordinal();
+         int move = io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation.MOVE.ordinal();
          ServerInputDispatcher.operationTransform(player, new io.github.fastformer.protocol.c2s.operation.OperationTransformPayload(100, 100, revision, scope, move, 0, 1, 2, false));
          helper.assertTrue(session.translation().getX() == 2 && session.transformActive(), "first transform did not apply");
          long next = PreviewSync.operationRevision(player);

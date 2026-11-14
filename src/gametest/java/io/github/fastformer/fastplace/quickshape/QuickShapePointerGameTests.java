@@ -1,5 +1,9 @@
 package io.github.fastformer.fastplace.quickshape;
 
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+
 import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.server.history.HistoryTestAccess;
@@ -39,7 +43,7 @@ public final class QuickShapePointerGameTests {
       PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
-      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
+      var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       helper.succeedWhen(() -> {
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
          helper.assertTrue(eye.distanceTo(hit.getLocation()) < 3, "test target was outside close range");
@@ -106,7 +110,7 @@ public final class QuickShapePointerGameTests {
       PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
-      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(
+      var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(
          player.level(), player, eye, view).hit();
       boolean[] submitted = {false};
       helper.succeedWhen(() -> {
@@ -127,7 +131,7 @@ public final class QuickShapePointerGameTests {
             PreviewSync.syncPreview(player, draft);
             var nearEye = player.getEyePosition();
             var nearView = player.getViewVector(1);
-            var nearHit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(
+            var nearHit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(
                player.level(), player, nearEye, nearView).hit();
             var candidate = QuickShapeSystem.of(player).candidateContext(player).resolve(nearHit, nearEye, nearView);
             ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
@@ -168,7 +172,7 @@ public final class QuickShapePointerGameTests {
       PreviewSync.syncPreview(player, draft);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
-      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
+      var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       var candidate = QuickShapeSystem.of(player).candidateContext(player).resolve(hit, eye, view);
       var request = new QuickShapePointerPayload(PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
          QuickShapePointerPayload.Action.MIDDLE, candidate, eye, view, true, 1);
@@ -258,7 +262,7 @@ public final class QuickShapePointerGameTests {
       var scope = PreviewSync.callbackScope(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
-      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
+      var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       var candidate = QuickShapeSystem.of(player).candidateContext(player).resolve(hit, eye, view);
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
@@ -294,7 +298,7 @@ public final class QuickShapePointerGameTests {
       PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
-      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
+      var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       helper.succeedWhen(() -> {
          helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
          helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), blockedMessage(player, "idle start is blocked by a world task"));
@@ -320,7 +324,7 @@ public final class QuickShapePointerGameTests {
       PreviewSync.syncSettings(player);
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
-      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
+      var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       var stale = startRequest(player, 42L, hit, eye, view);
       PreviewSync.syncSettings(player);
       helper.succeedWhen(() -> {

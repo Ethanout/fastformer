@@ -1,2 +1,2 @@
-/** Server-owned deferred task feedback; disconnect does not discard pending results. */
+/** Sanitized player messages and deferred task feedback; pending results survive disconnect. */
 package io.github.fastformer.server.feedback;

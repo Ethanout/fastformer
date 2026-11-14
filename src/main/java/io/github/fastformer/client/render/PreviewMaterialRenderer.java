@@ -9,7 +9,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import io.github.fastformer.client.render.theme.VisualThemes;
 import io.github.fastformer.client.render.type.PreviewRenderTypes;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
@@ -34,20 +34,20 @@ public final class PreviewMaterialRenderer {
    }
 
    public static void draw(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
-      Map<BlockPos, ClientBlockSnapshot> blocks, BlockAndTintGetter previewLevel,
+      Map<BlockPos, BlockSnapshot> blocks, BlockAndTintGetter previewLevel,
       float red, float green, float blue, float alpha, boolean dynamic) {
       draw(pose, buffers, minecraft, camera, blocks, previewLevel, red, green, blue, alpha, dynamic, false);
    }
 
    /** Semantic markers use bright pigment over a faint model texture. */
    public static void drawMarker(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
-      Map<BlockPos, ClientBlockSnapshot> blocks, BlockAndTintGetter previewLevel,
+      Map<BlockPos, BlockSnapshot> blocks, BlockAndTintGetter previewLevel,
       float red, float green, float blue, float alpha, boolean dynamic) {
       draw(pose, buffers, minecraft, camera, blocks, previewLevel, red, green, blue, alpha, dynamic, true);
    }
 
    private static void draw(PoseStack pose, BufferSource buffers, Minecraft minecraft, Vec3 camera,
-      Map<BlockPos, ClientBlockSnapshot> blocks, BlockAndTintGetter previewLevel,
+      Map<BlockPos, BlockSnapshot> blocks, BlockAndTintGetter previewLevel,
       float red, float green, float blue, float alpha, boolean dynamic, boolean marker) {
       if (blocks.isEmpty() || alpha <= 0) return;
       var shader = io.github.fastformer.client.render.style.VisualStyleHooks.shader(FastPlaceClientShaders.previewMaterial(),
@@ -79,7 +79,7 @@ public final class PreviewMaterialRenderer {
          shader.safeGetUniform("MarkerTint").set(marker ? 1F : 0F);
          shader.safeGetUniform("HatchStrength").set(VisualThemes.value("hatch_strength", 0));
          shader.safeGetUniform("HatchScale").set(VisualThemes.value("hatch_scale", 12));
-         shader.safeGetUniform("BoilFrame").set((float)io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation().sheet(dynamic));
+         shader.safeGetUniform("BoilFrame").set((float)io.github.fastformer.client.preview.frame.PreviewAnimation.current().sheet(dynamic));
          // Both themes use model depth; the line shader controls the hidden appearance.
          RenderSystem.enableDepthTest();
          RenderSystem.depthFunc(org.lwjgl.opengl.GL11.GL_LEQUAL);

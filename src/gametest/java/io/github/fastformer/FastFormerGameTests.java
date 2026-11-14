@@ -1,4 +1,5 @@
 package io.github.fastformer;
+import io.github.fastformer.common.geometry.model.FillMode;
 
 import io.github.fastformer.server.history.HistorySystem;
 
@@ -30,13 +31,13 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 public final class FastFormerGameTests {
    @GameTest(template = "empty", timeoutTicks = 20)
    public static void statusMessageSurvivesSystemChatCodec(GameTestHelper helper) {
-      var message = io.github.fastformer.fastplace.text.FastPlaceMessages.text(
+      var message = io.github.fastformer.server.feedback.PlayerMessages.text(
          "fastformer.message.operation_failed_rollback", "写入",
          UUID.fromString("84143053-e7df-416c-a2d0-91de44255dbe"),
          "operation=84143053-e7df-416c-a2d0-91de44255dbe, phase=JOURNAL, targets=684, snapshots=684, writes=5, placed=4",
          "x".repeat(2000), Double.NaN,
          Float.POSITIVE_INFINITY, -30000000, 262144,
-         io.github.fastformer.fastplace.text.FastPlaceMessages.text(
+         io.github.fastformer.server.feedback.PlayerMessages.text(
             "fastformer.test.nested", net.minecraft.network.chat.Component.literal("selection")
                .withStyle(net.minecraft.ChatFormatting.GOLD).append(" bounds")
          ),
@@ -88,8 +89,8 @@ public final class FastFormerGameTests {
          var location = net.minecraft.world.phys.Vec3.atCenterOf(pos)
             .add(net.minecraft.world.phys.Vec3.atLowerCornerOf(face.getNormal()).scale(0.5));
          var hit = new net.minecraft.world.phys.BlockHitResult(location, face, pos, false);
-         var embedded = io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot.capture(level, player, stack, hit, true);
-         var surface = io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot.capture(level, player, stack, hit, false);
+         var embedded = io.github.fastformer.common.placement.context.PlacementContexts.capture(level, player, stack, hit, true);
+         var surface = io.github.fastformer.common.placement.context.PlacementContexts.capture(level, player, stack, hit, false);
          helper.assertTrue(embedded.clickedFace() == face, "embedded placement changed entry face");
          helper.assertTrue(embedded.hitLocation().equals(location), "embedded placement changed entry plane");
          helper.assertTrue(embedded.placementPosition().equals(pos), "embedded placement uses the surface cell");
@@ -102,12 +103,12 @@ public final class FastFormerGameTests {
    @GameTest(template = "empty", timeoutTicks = 20)
    public static void woodFrameEffectAppliesLogStatesDuringLineAndFaceStages(GameTestHelper helper) {
       var modes = new io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.Modes(
-         io.github.fastformer.fastplace.quickshape.PointMode.RAYCAST,
-         io.github.fastformer.fastplace.quickshape.RaycastPlacement.EMBEDDED,
-         io.github.fastformer.fastplace.quickshape.LineMode.AXIS,
-         io.github.fastformer.fastplace.quickshape.FaceMode.COORDINATE_PLANE,
-         io.github.fastformer.fastplace.quickshape.VolumeMode.FREE,
-         io.github.fastformer.fastplace.geometry.FillMode.OUTLINE, 0.0, false
+         io.github.fastformer.common.quickshape.mode.PointMode.RAYCAST,
+         io.github.fastformer.common.quickshape.mode.RaycastPlacement.EMBEDDED,
+         io.github.fastformer.common.quickshape.mode.LineMode.AXIS,
+         io.github.fastformer.common.quickshape.mode.FaceMode.COORDINATE_PLANE,
+         io.github.fastformer.common.quickshape.mode.VolumeMode.FREE,
+         io.github.fastformer.common.geometry.model.FillMode.OUTLINE, 0.0, false
       );
       var effect = new io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect();
       for (var points : List.of(
@@ -117,11 +118,11 @@ public final class FastFormerGameTests {
          var context = new io.github.fastformer.fastplace.placement.effect.PlacementEffectContext(
             null, net.minecraft.world.item.ItemStack.EMPTY, Blocks.OAK_LOG.defaultBlockState(),
             net.minecraft.core.Direction.Axis.Y, points, modes, false,
-            io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE, null
+            io.github.fastformer.common.quickshape.mode.PolygonVolumeShape.EXTRUDE, null
          );
          helper.assertTrue(effect.matches(context), "wood effect rejected line or face stage");
          var targets = io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.blocks(
-            points, modes, false, io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE, 1000
+            points, modes, false, io.github.fastformer.common.quickshape.mode.PolygonVolumeShape.EXTRUDE, 1000
          );
          var states = effect.resolve(context).stateOverrides().apply(targets);
          var axis = net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS;
@@ -161,7 +162,7 @@ public final class FastFormerGameTests {
          Blocks.SNOW.defaultBlockState().setValue(net.minecraft.world.level.block.SnowLayerBlock.LAYERS, 2)
       )) {
          level.setBlock(target, state, 2);
-         var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(
+         var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(
             level, source, start, down
          ).hit();
          helper.assertTrue(hit.getBlockPos().equals(support), "replaceable block intercepted placement: " + state);
@@ -169,7 +170,7 @@ public final class FastFormerGameTests {
          helper.assertTrue(hit.getBlockPos().relative(hit.getDirection()).equals(target), "surface target changed");
       }
       level.setBlock(target, Blocks.TORCH.defaultBlockState(), 2);
-      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clipForPlacement(level, source, start, down).hit();
+      var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(level, source, start, down).hit();
       helper.assertTrue(hit.getBlockPos().equals(target), "nonreplaceable torch was skipped");
       helper.succeed();
    }
@@ -183,7 +184,7 @@ public final class FastFormerGameTests {
       level.setBlock(support, Blocks.STONE.defaultBlockState(), 2);
       level.setBlock(grass, Blocks.SHORT_GRASS.defaultBlockState(), 2);
 
-      var hit = io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast.clip(
+      var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clip(
          level,
          source,
          net.minecraft.world.phys.Vec3.atCenterOf(grass).add(0, 3, 0),

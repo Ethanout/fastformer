@@ -1,6 +1,8 @@
 package io.github.fastformer.client.placement;
 
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.context.QuickReplaceTargets;
+
+import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.common.replace.QuickReplaceTarget;
 import io.github.fastformer.protocol.c2s.placement.QuickReplaceSessionPayload;
 import io.github.fastformer.protocol.s2c.placement.QuickReplaceStatePayload;
@@ -79,7 +81,7 @@ public final class QuickReplaceMode {
       if (!canReplace(minecraft) || minecraft.level == null) {
          return null;
       }
-      var target = QuickReplaceTarget.resolve(minecraft.player);
+      var target = QuickReplaceTargets.resolve(minecraft.player);
       return target == null ? null : new Preview(target.position(), target.state());
    }
 

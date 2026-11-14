@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.session;
 
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
 
 import java.util.List;
 import net.minecraft.core.BlockPos;

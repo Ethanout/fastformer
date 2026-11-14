@@ -1,18 +1,20 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.common.geometry.session.GeometrySession;
+
 import io.github.fastformer.core.math.Axis;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewGuides;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointShape;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.ControlPointRole;
+import io.github.fastformer.common.geometry.controlpoint.ControlPointShape;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
 import io.github.fastformer.fastplace.session.*;

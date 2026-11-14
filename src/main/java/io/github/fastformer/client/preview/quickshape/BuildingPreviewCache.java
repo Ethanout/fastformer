@@ -1,4 +1,7 @@
 package io.github.fastformer.client.preview.quickshape;
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
+
+import io.github.fastformer.client.preview.style.ControlPointStyle;
 
 import io.github.fastformer.client.controlpoint.ControlPointPresentation;
 import io.github.fastformer.client.placement.effect.PlacementEffectPreview;
@@ -11,20 +14,20 @@ import io.github.fastformer.client.render.model.BuildingRenderKey;
 import io.github.fastformer.client.render.model.BuildingRenderLayers;
 import io.github.fastformer.client.render.model.BuildingSpecialBlock;
 import io.github.fastformer.client.session.preview.ClientPreviewState;
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewBlocks;
+import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.fastplace.geometry.generation.GenerationLimitExceeded;
-import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.common.geometry.LineTieBias;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
 import io.github.fastformer.fastplace.geometry.generation.WallGenerator;
 import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.QuickShapeStage;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -160,7 +163,7 @@ final class BuildingPreviewCache {
             false,
             BlockPos.ZERO,
             blockLimit,
-            progress == null ? io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver.NONE : progress
+            progress == null ? io.github.fastformer.common.geometry.raster.BlockGenerationObserver.NONE : progress
          )
          : FastPlaceGeometry.blocks(
             points,
@@ -168,7 +171,7 @@ final class BuildingPreviewCache {
             polygonHeightConfirmed,
             snapshot.polygonVolumeShape(),
             blockLimit,
-            progress == null ? io.github.fastformer.fastplace.geometry.generation.BlockGenerationObserver.NONE : progress
+            progress == null ? io.github.fastformer.common.geometry.raster.BlockGenerationObserver.NONE : progress
           );
    }
 
@@ -474,7 +477,7 @@ final class BuildingPreviewCache {
             result.put(
                pos.immutable(),
                new BuildingSpecialBlock(
-                  point.feedback().style(point.role(), point.hovered()), point.confirmed()
+                  ControlPointStyle.resolve(point), point.confirmed()
                )
             );
          }

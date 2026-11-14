@@ -2,7 +2,7 @@ package io.github.fastformer.server.interaction.profile;
 
 import io.github.fastformer.common.interaction.binding.SessionProfile;
 import io.github.fastformer.common.interaction.binding.SessionProfiles;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.BlockHitResult;

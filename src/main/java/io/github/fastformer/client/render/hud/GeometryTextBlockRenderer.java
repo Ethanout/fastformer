@@ -1,10 +1,10 @@
 package io.github.fastformer.client.render.hud;
 
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import io.github.fastformer.client.render.PreviewStyle;
 
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.text.GeometryTextBlock;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.preview.GeometryTextBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;

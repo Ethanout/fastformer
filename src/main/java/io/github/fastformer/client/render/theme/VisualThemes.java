@@ -2,8 +2,8 @@ package io.github.fastformer.client.render.theme;
 
 import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
-import io.github.fastformer.fastplace.geometry.VisualTheme;
+import io.github.fastformer.client.preview.style.GeometryPalette;
+import io.github.fastformer.client.preview.style.VisualTheme;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Locale;
@@ -21,10 +21,13 @@ import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 @EventBusSubscriber(modid = "fastformer", value = Dist.CLIENT)
 public final class VisualThemes {
    private static volatile Map<GeometryPalette.Theme, VisualTheme> themes = Map.of();
+   private static final java.util.concurrent.atomic.AtomicLong geometryRevision = new java.util.concurrent.atomic.AtomicLong();
 
    private VisualThemes() { }
 
-   public static long revision() { return GeometryPalette.revision(); }
+   public static long revision() { return GeometryPalette.revision() + geometryRevision.get(); }
+
+   public static void invalidateGeometry() { geometryRevision.incrementAndGet(); }
 
    public static GeometryPalette.Color color(String name, GeometryPalette.Color fallback) {
       return new GeometryPalette.Color(current().colors().getOrDefault(name, fallback.rgb()));
@@ -34,8 +37,8 @@ public final class VisualThemes {
       return current().values().getOrDefault(name, fallback);
    }
 
-   public static io.github.fastformer.fastplace.geometry.DistanceCurve curve(String name) {
-      return current().curves().getOrDefault(name, io.github.fastformer.fastplace.geometry.DistanceCurve.CONSTANT);
+   public static io.github.fastformer.client.preview.style.DistanceCurve curve(String name) {
+      return current().curves().getOrDefault(name, io.github.fastformer.client.preview.style.DistanceCurve.CONSTANT);
    }
 
    private static VisualTheme current() {
@@ -66,8 +69,6 @@ public final class VisualThemes {
       protected void apply(Map<GeometryPalette.Theme, VisualTheme> loaded, ResourceManager resources, ProfilerFiller profiler) {
          themes = loaded;
          GeometryPalette.installThemes(loaded);
-         io.github.fastformer.client.render.core.FastPlaceClientPreviewCore.onThemeChanged();
-         io.github.fastformer.client.render.SmoothReticlePostEffect.reloadResources();
       }
    }
 }

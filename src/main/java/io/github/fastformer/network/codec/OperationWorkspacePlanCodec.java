@@ -6,7 +6,7 @@ import io.github.fastformer.fastplace.selection.OperationStackRegion;
 
 import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.WorkspaceLimits;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -124,7 +124,7 @@ public final class OperationWorkspacePlanCodec {
          if (blockTags.isEmpty()) {
             throw new IOException("Workspace part has no blocks");
          }
-         LinkedHashMap<BlockPos, ClientBlockSnapshot> snapshots = new LinkedHashMap<>();
+         LinkedHashMap<BlockPos, BlockSnapshot> snapshots = new LinkedHashMap<>();
          for (int blockIndex = 0; blockIndex < blockTags.size(); blockIndex++) {
             if ((total & 255) == 0 && (Thread.currentThread().isInterrupted() || System.nanoTime() - started > 10_000_000_000L)) {
                throw new IOException("Workspace decoding exceeded its time budget");
@@ -141,7 +141,7 @@ public final class OperationWorkspacePlanCodec {
             BlockState state = NbtUtils.readBlockState(blocks, stateTag);
             CompoundTag blockEntity = blockTag.contains("BlockEntity", Tag.TAG_COMPOUND)
                ? blockTag.getCompound("BlockEntity") : null;
-            snapshots.put(BlockPos.of(blockTag.getLong("Pos")), new ClientBlockSnapshot(state, blockEntity));
+            snapshots.put(BlockPos.of(blockTag.getLong("Pos")), new BlockSnapshot(state, blockEntity));
          }
          parts.add(new OperationWorkspacePlan.Part(
             partTag.getInt("Id"), source, snapshots, readTransform(partTag), partTag.getBoolean("PendingDelete")

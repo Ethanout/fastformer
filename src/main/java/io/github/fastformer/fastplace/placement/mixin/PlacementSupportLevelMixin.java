@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.placement.mixin;
 
-import io.github.fastformer.fastplace.placement.context.PlacementSupportQuery;
+import io.github.fastformer.common.placement.context.PlacementSupportQuery;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;

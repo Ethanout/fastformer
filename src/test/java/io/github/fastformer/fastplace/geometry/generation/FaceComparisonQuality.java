@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
+import io.github.fastformer.common.geometry.LineTieBias;
+
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;

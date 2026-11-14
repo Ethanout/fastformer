@@ -2,10 +2,10 @@ package io.github.fastformer.client.preview.geometry;
 
 import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
 import io.github.fastformer.client.render.model.GeometryRenderLayers;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.ConePrismStage;
+import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGenerator;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;

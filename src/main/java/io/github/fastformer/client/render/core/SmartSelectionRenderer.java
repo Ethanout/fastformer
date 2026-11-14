@@ -11,9 +11,9 @@ import io.github.fastformer.client.render.cache.BuildingShellEdgeBuffer;
 import io.github.fastformer.client.render.hud.SelectionScreenProjection;
 import io.github.fastformer.client.render.hud.ScreenPixelHysteresis;
 import io.github.fastformer.client.render.type.PreviewRenderTypes;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import io.github.fastformer.fastplace.selection.SmartSelectionTopology;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import java.util.HashMap;
 import java.util.Map;
@@ -51,7 +51,7 @@ final class SmartSelectionRenderer {
    }
 
    static void render(RenderLevelStageEvent event, Minecraft minecraft, ClientSelectionPart part,
-      Map<BlockPos, ClientBlockSnapshot> blocks, float alpha) {
+      Map<BlockPos, BlockSnapshot> blocks, float alpha) {
       Entry entry = CACHE.get(part.id());
       if (entry == null || entry.blocks != blocks) {
          if (entry != null) entry.close();
@@ -226,7 +226,7 @@ final class SmartSelectionRenderer {
    }
 
    private static final class Entry {
-      final Map<BlockPos, ClientBlockSnapshot> blocks;
+      final Map<BlockPos, BlockSnapshot> blocks;
       final Map<BlockPos, BlockState> states = new HashMap<>();
       final SmartSelectionTopology topology;
       final net.minecraft.world.level.BlockGetter preview;
@@ -236,7 +236,7 @@ final class SmartSelectionRenderer {
       final io.github.fastformer.client.render.cache.BuildingShellFaceBuffer faces = new io.github.fastformer.client.render.cache.BuildingShellFaceBuffer();
       final BuildingShellEdgeBuffer airEdges = new BuildingShellEdgeBuffer();
       final java.util.List<ShapeShellMesh.StyledEdge> airOutline;
-      Entry(Map<BlockPos, ClientBlockSnapshot> blocks, Minecraft minecraft, ClientSelectionPart part) {
+      Entry(Map<BlockPos, BlockSnapshot> blocks, Minecraft minecraft, ClientSelectionPart part) {
          this.blocks = blocks;
          blocks.forEach((position, snapshot) -> states.put(position, snapshot.state()));
          airOutline = SmartSelectionAirOutline.build(blocks.entrySet().stream().filter(entry -> entry.getValue().state().isAir())

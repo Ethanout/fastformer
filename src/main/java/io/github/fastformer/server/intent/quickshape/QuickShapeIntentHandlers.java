@@ -4,7 +4,7 @@ import io.github.fastformer.core.command.IntentBus;
 import io.github.fastformer.core.command.IntentContext;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.gate.Gate;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import net.minecraft.server.level.ServerPlayer;
@@ -49,12 +49,12 @@ public final class QuickShapeIntentHandlers {
 
    private static boolean finite(ServerPlayer player, double value) {
       if (Double.isFinite(value)) return true;
-      FastPlaceMessages.chat(player, FastPlaceMessages.text("fastformer.message.number_invalid"));
+      PlayerMessages.chat(player, PlayerMessages.text("fastformer.message.number_invalid"));
       return false;
    }
 
    private static IntentResult result(ServerPlayer player, boolean applied, String failure) {
-      if (!applied) FastPlaceMessages.chat(player, FastPlaceMessages.text(failure));
+      if (!applied) PlayerMessages.chat(player, PlayerMessages.text(failure));
       return IntentResult.handled(applied);
    }
 }

@@ -1,6 +1,8 @@
 package io.github.fastformer.workspace.model;
 
 import io.github.fastformer.workspace.selection.SelectionBaseline;
+
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.WorkspaceLimits;
 import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import java.util.Map;
@@ -11,15 +13,15 @@ import net.minecraft.world.phys.Vec3;
 /** One independently addressable workspace component. Selection state is client-owned. */
 public record ClientSelectionPart(
    int id, Source source, OperationSelectionVolume selection,
-   Map<BlockPos, ClientBlockSnapshot> blocks, WorkspaceTransform transform,
-   boolean pendingDelete, Map<BlockPos, ClientBlockSnapshot> sourceSnapshot,
+   Map<BlockPos, BlockSnapshot> blocks, WorkspaceTransform transform,
+   boolean pendingDelete, Map<BlockPos, BlockSnapshot> sourceSnapshot,
    SelectionBaseline baseline, Editability editability
 ) {
    private static final double ORTHOGONAL_EPSILON = 1.0E-5;
    public enum Editability { FREE, LOCKED }
 
    public ClientSelectionPart(int id, Source source, OperationSelectionVolume selection,
-      Map<BlockPos, ClientBlockSnapshot> blocks, WorkspaceTransform transform, boolean pendingDelete) {
+      Map<BlockPos, BlockSnapshot> blocks, WorkspaceTransform transform, boolean pendingDelete) {
       this(id, source, selection, blocks, transform, pendingDelete, blocks, null, Editability.FREE);
    }
 
@@ -69,8 +71,8 @@ public record ClientSelectionPart(
       return copy(this.id, this.source, value, this.blocks, this.transform, this.pendingDelete, this.sourceSnapshot, this.baseline, this.editability);
    }
 
-   public ClientSelectionPart withBlocks(Map<BlockPos, ClientBlockSnapshot> value) {
-      Map<BlockPos, ClientBlockSnapshot> nextSource = this.baseline == null ? value : this.sourceSnapshot;
+   public ClientSelectionPart withBlocks(Map<BlockPos, BlockSnapshot> value) {
+      Map<BlockPos, BlockSnapshot> nextSource = this.baseline == null ? value : this.sourceSnapshot;
       ClientSelectionPart updated = copy(this.id, this.source, this.selection, value, this.transform,
          this.pendingDelete, nextSource, this.baseline, this.editability);
       return this.baseline == null ? updated : updated.withTransform(this.transform);
@@ -90,8 +92,8 @@ public record ClientSelectionPart(
    public boolean orientedCuboid() { return this.selection != null && this.selection.mode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID && !this.axisAlignedCuboid(); }
 
    private static boolean orthogonal(double radians) { double quarterTurns = radians / (Math.PI * 0.5); return Math.abs(quarterTurns - Math.rint(quarterTurns)) <= ORTHOGONAL_EPSILON; }
-   private static ClientSelectionPart copy(int id, Source source, OperationSelectionVolume selection, Map<BlockPos, ClientBlockSnapshot> blocks, WorkspaceTransform transform, boolean pendingDelete, Map<BlockPos, ClientBlockSnapshot> sourceSnapshot, SelectionBaseline baseline, Editability editability) { return new ClientSelectionPart(id, source, selection, blocks, transform, pendingDelete, sourceSnapshot, baseline, editability); }
-   private static Map<BlockPos, ClientBlockSnapshot> immutable(Map<BlockPos, ClientBlockSnapshot> values) {
+   private static ClientSelectionPart copy(int id, Source source, OperationSelectionVolume selection, Map<BlockPos, BlockSnapshot> blocks, WorkspaceTransform transform, boolean pendingDelete, Map<BlockPos, BlockSnapshot> sourceSnapshot, SelectionBaseline baseline, Editability editability) { return new ClientSelectionPart(id, source, selection, blocks, transform, pendingDelete, sourceSnapshot, baseline, editability); }
+   private static Map<BlockPos, BlockSnapshot> immutable(Map<BlockPos, BlockSnapshot> values) {
       return values == null ? Map.of() : BlockPositionMaps.copyOf(values);
    }
    public enum Source { WORLD, CLIPBOARD }

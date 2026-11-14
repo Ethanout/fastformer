@@ -1,7 +1,9 @@
 package io.github.fastformer.fastplace.placement;
 
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
+import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.BlockEditTransaction;
 import io.github.fastformer.server.input.ServerInputDispatcher;
@@ -28,7 +30,7 @@ public final class ForcedPlacement {
          || !io.github.fastformer.server.input.IdleInteractionSnapshots.idle(player)) return false;
       if (ServerInputDispatcher.interactionBlocked(player)) return true;
       var level = player.serverLevel();
-      var snapshot = PlacementContextSnapshot.capture(level, player, player.getMainHandItem(), hit, false);
+      var snapshot = PlacementContexts.capture(level, player, player.getMainHandItem(), hit, false);
       var pos = snapshot.placementPosition();
       if (!level.isInWorldBounds(pos) || !level.hasChunkAt(pos) || !level.getWorldBorder().isWithinBounds(pos)
          || !level.mayInteract(player, pos) || !player.canInteractWithBlock(pos, 0)) return true;

@@ -3,7 +3,7 @@ package io.github.fastformer.client.render.model;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
 import io.github.fastformer.client.render.PreviewMaterialRenderer;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -21,7 +21,7 @@ public final class PlacementModelPreview {
    private Map<BlockPos, BlockState> overrides;
    private BlockState state;
    private Object models;
-   private Map<BlockPos, ClientBlockSnapshot> snapshots = Map.of();
+   private Map<BlockPos, BlockSnapshot> snapshots = Map.of();
    private Map<BlockPos, BlockState> states = Map.of();
    private Set<BlockPos> fallback = Set.of();
 
@@ -31,14 +31,14 @@ public final class PlacementModelPreview {
       if (minecraft.level == null || positions.isEmpty()) return Set.of();
       if (this.positions != positions || this.state != state || this.overrides != overrides
          || this.models != minecraft.getModelManager().getMissingModel()) {
-         Map<BlockPos, ClientBlockSnapshot> snapshots = new HashMap<>();
+         Map<BlockPos, BlockSnapshot> snapshots = new HashMap<>();
          Set<BlockPos> fallback = new HashSet<>();
          for (BlockPos pos : positions) {
             BlockState at = overrides.getOrDefault(pos, state);
             if (at == null || at.getRenderShape() != RenderShape.MODEL
                || minecraft.getBlockRenderer().getBlockModel(at) == minecraft.getModelManager().getMissingModel()) {
                fallback.add(pos);
-            } else snapshots.put(pos, new ClientBlockSnapshot(at, null));
+            } else snapshots.put(pos, new BlockSnapshot(at, null));
          }
          this.positions = positions;
          this.state = state;

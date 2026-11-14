@@ -1,5 +1,7 @@
 package io.github.fastformer.server.command;
 
+import io.github.fastformer.common.history.SessionHistoryLimits;
+
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -8,10 +10,10 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.fastformer.core.command.Intent;
 import io.github.fastformer.core.command.IntentSource;
-import io.github.fastformer.fastplace.geometry.FillMode;
+import io.github.fastformer.common.geometry.model.FillMode;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.protocol.settings.SettingsKeys;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.intent.PlayerIntentSystem;
@@ -58,7 +60,7 @@ public final class SettingsCommands {
 
    public static LiteralArgumentBuilder<CommandSourceStack> sessionUndoHistoryLimitCommand() {
       return Commands.literal("session_undo_history").executes(context -> dispatch(context, SettingsKeys.SESSION_HISTORY_LIMIT.query()))
-         .then(Commands.argument("count", IntegerArgumentType.integer(1, FastPlaceSettings.MAX_UNDO_HISTORY_LIMIT)).executes(context ->
+         .then(Commands.argument("count", IntegerArgumentType.integer(1, SessionHistoryLimits.MAX_UNDO_HISTORY_LIMIT)).executes(context ->
             dispatch(context, SettingsKeys.SESSION_HISTORY_LIMIT.set(IntegerArgumentType.getInteger(context, "count")))));
    }
 
@@ -99,7 +101,7 @@ public final class SettingsCommands {
    }
 
    private static int usage(CommandContext<CommandSourceStack> context, String key) throws CommandSyntaxException {
-      FastPlaceMessages.chat(context.getSource().getPlayerOrException(), FastPlaceMessages.text("fastformer.message." + key));
+      PlayerMessages.chat(context.getSource().getPlayerOrException(), PlayerMessages.text("fastformer.message." + key));
       return 0;
    }
 }

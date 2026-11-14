@@ -16,7 +16,7 @@ import io.github.fastformer.server.task.TaskBudgets;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.block.SelectionOperationTask;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
@@ -152,10 +152,10 @@ public final class TaskFailureRecoveryGameTests {
    }
 
    private static SubmittedWorkspaceTask workspaceTask(ServerLevel level, BlockPos origin) {
-      Map<BlockPos, ClientBlockSnapshot> desired = new LinkedHashMap<>();
+      Map<BlockPos, BlockSnapshot> desired = new LinkedHashMap<>();
       for (int index = 0; index < COUNT; index++) {
          desired.put(origin.offset(index, 0, 0),
-            new ClientBlockSnapshot(Blocks.DIAMOND_BLOCK.defaultBlockState(), null));
+            new BlockSnapshot(Blocks.DIAMOND_BLOCK.defaultBlockState(), null));
       }
       var part = new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.CLIPBOARD, desired, WorkspaceTransform.IDENTITY, false

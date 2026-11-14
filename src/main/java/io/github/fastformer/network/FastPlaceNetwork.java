@@ -14,8 +14,8 @@ import io.github.fastformer.protocol.s2c.movement.ForwardDashStartPayload;
 import io.github.fastformer.protocol.c2s.settings.SettingPayload;
 
 import io.github.fastformer.server.replace.QuickReplaceSystem;
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
-import io.github.fastformer.fastplace.session.GeometrySession;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.network.transport.ClientboundTransport;
 import io.github.fastformer.protocol.c2s.geometry.ClosePathPayload;

@@ -1,6 +1,8 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.quickshape.FaceMode;
+import io.github.fastformer.common.geometry.LineTieBias;
+
+import io.github.fastformer.common.quickshape.mode.FaceMode;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;

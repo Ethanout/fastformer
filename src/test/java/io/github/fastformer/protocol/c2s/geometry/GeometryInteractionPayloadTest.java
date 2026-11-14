@@ -3,9 +3,9 @@ package io.github.fastformer.protocol.c2s.geometry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.common.geometry.interaction.PointerGesture;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.netty.buffer.Unpooled;
 import java.util.UUID;

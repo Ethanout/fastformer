@@ -68,7 +68,11 @@ public final class BindingSystem {
 
    /** Physical key and live key-mapping aliases share one priority-ordered dispatch. */
    public boolean onKey(Set<String> keys, BindingContext context, BindingCommands commands) {
-      return dispatch(name -> name.equals("*") || keys.contains(name), "key", context, commands);
+      return onKeyResult(keys, context, commands).handled();
+   }
+
+   public BindingAction.Result onKeyResult(Set<String> keys, BindingContext context, BindingCommands commands) {
+      return dispatchResult(name -> name.equals("*") || keys.contains(name), "key", context, commands);
    }
 
    public boolean onSignal(String name, String gesture, BindingContext context, BindingCommands commands) {
@@ -76,7 +80,7 @@ public final class BindingSystem {
    }
 
    public BindingAction.Result onSignalResult(String name, String gesture, BindingContext context, BindingCommands commands) {
-      return dispatchResult(name::equals, gesture, context, commands);
+      return dispatchResult(candidate -> candidate.equals("*") || candidate.equals(name), gesture, context, commands);
    }
 
    public void tick(long now) {

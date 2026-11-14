@@ -2,7 +2,7 @@ package io.github.fastformer.client.quickshape;
 
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.quickshape.QuickShapeSubmissionPoints;
+import io.github.fastformer.common.quickshape.QuickShapeSubmissionPoints;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;

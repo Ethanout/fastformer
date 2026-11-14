@@ -1,6 +1,6 @@
 package io.github.fastformer.client.session.preview;
 
-import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
+import io.github.fastformer.common.geometry.ConePrismStage;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 
 /** Geometry workflow continuity, independent of whether a frame was drawn between updates. */

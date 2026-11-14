@@ -2,7 +2,7 @@ package io.github.fastformer.server.session;
 
 import com.mojang.authlib.GameProfile;
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.server.player.PlayerStateRegistry;
 import java.util.UUID;
 import net.minecraft.gametest.framework.GameTest;

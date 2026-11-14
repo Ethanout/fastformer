@@ -1,6 +1,6 @@
 package io.github.fastformer.client.preview.geometry;
 
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import java.util.Objects;
 

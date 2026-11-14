@@ -3,7 +3,7 @@ package io.github.fastformer.client.render.geometry;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.fastformer.client.render.theme.VisualThemes;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import net.minecraft.world.phys.Vec3;
 import io.github.fastformer.client.render.style.DrawVisualStrokeEvent;
 import io.github.fastformer.client.render.style.VisualStyleContext;
@@ -54,7 +54,7 @@ public final class PencilStroke {
          segment(pose, vertices, from, to, direction, red, green, blue, alpha, dash.at(0), dash.at(1));
          return;
       }
-      int sheet = io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation().sheet(dynamic);
+      int sheet = io.github.fastformer.client.preview.frame.PreviewAnimation.current().sheet(dynamic);
       double fromScale = worldPerPixel(pose, from);
       double toScale = worldPerPixel(pose, to);
       double fromJitterScale = fromScale * jitterMultiplier(pose, from);

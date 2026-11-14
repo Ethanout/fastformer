@@ -18,7 +18,7 @@ import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.block.WorldTaskFixtures;
 import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.task.WorldTask;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
@@ -151,12 +151,12 @@ public final class FirstWriteGameTests {
       int resumes;
 
       FirstWriteScenario(ServerLevel level, BlockPos origin, int count, boolean workspace) {
-         Map<BlockPos, ClientBlockSnapshot> desired = new LinkedHashMap<>();
+         Map<BlockPos, BlockSnapshot> desired = new LinkedHashMap<>();
          for (int index = 0; index < count; index++) {
             BlockPos source = position(origin, index);
             level.setBlock(source, Blocks.GOLD_BLOCK.defaultBlockState(), 2);
             level.setBlock(source.above(), Blocks.AIR.defaultBlockState(), 2);
-            desired.put(source.above(), new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null));
+            desired.put(source.above(), new BlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null));
          }
          if (workspace) {
             var part = new OperationWorkspacePlan.Part(1, ClientSelectionPart.Source.CLIPBOARD,

@@ -23,7 +23,7 @@ import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.TaskBudgets;
 import io.github.fastformer.fastplace.world.memory.MemoryReservation;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
@@ -205,7 +205,7 @@ public final class TaskCommitFailureGameTests {
       }
       if (kind == 1) {
          var part = new OperationWorkspacePlan.Part(1, ClientSelectionPart.Source.CLIPBOARD,
-            Map.of(target, new ClientBlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)), WorkspaceTransform.IDENTITY, false);
+            Map.of(target, new BlockSnapshot(Blocks.GOLD_BLOCK.defaultBlockState(), null)), WorkspaceTransform.IDENTITY, false);
          return WorldTaskFixtures.workspace(UUID.randomUUID(), new OperationWorkspacePlan(List.of(part)),
             PlacementUpdateMode.CLIENT_ONLY, 16, level.dimension(), journal);
       }

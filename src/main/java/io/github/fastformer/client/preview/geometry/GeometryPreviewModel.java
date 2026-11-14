@@ -1,8 +1,8 @@
 package io.github.fastformer.client.preview.geometry;
 
 import io.github.fastformer.client.render.model.GeometryRenderLayers;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import java.util.Objects;
 
 /** The cached geometry plan and its block membership, with per-frame gizmo presentation. */

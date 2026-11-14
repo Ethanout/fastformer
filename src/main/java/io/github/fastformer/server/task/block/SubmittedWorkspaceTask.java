@@ -15,7 +15,7 @@ import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import io.github.fastformer.workspace.submission.OperationWorkspaceValidator;
 import io.github.fastformer.workspace.submission.WorkspaceFailure;
@@ -54,10 +54,10 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
    private final ResourceKey<Level> dimension;
    private WorkspaceTickBarrier tickBarrier;
    private long blockEntityReserve;
-   private Map<BlockPos, ClientBlockSnapshot> desired = Map.of();
-   private Iterator<Map.Entry<BlockPos, ClientBlockSnapshot>> captureIterator;
+   private Map<BlockPos, BlockSnapshot> desired = Map.of();
+   private Iterator<Map.Entry<BlockPos, BlockSnapshot>> captureIterator;
    private boolean captureComplete;
-   private final ArrayDeque<Map.Entry<BlockPos, ClientBlockSnapshot>> writable = new ArrayDeque<>();
+   private final ArrayDeque<Map.Entry<BlockPos, BlockSnapshot>> writable = new ArrayDeque<>();
    private Iterator<BlockPos> finalizationIterator;
    private List<Integer> invalidPartIds = List.of();
    private final java.util.LinkedHashSet<BlockPos> failedTargetPositions = new java.util.LinkedHashSet<>();
@@ -208,7 +208,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
          return CaptureStep.RETRY;
       }
       if (captureIterator != null && captureIterator.hasNext()) {
-         Map.Entry<BlockPos, ClientBlockSnapshot> entry = captureIterator.next();
+         Map.Entry<BlockPos, BlockSnapshot> entry = captureIterator.next();
          if (!captureExpected(level, entry)) {
             return CaptureStep.FAILED;
          }
@@ -245,7 +245,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
          reportFailure(WorkspaceFailure.INVALID_PLAN, null);
          return TaskStep.FAILED;
       }
-      LinkedHashMap<BlockPos, ClientBlockSnapshot> composed = composeDesiredSnapshots(validated);
+      LinkedHashMap<BlockPos, BlockSnapshot> composed = composeDesiredSnapshots(validated);
       if (composed.isEmpty()) {
          captureComplete = true;
          return TaskStep.EMPTY;
@@ -260,15 +260,15 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       return TaskStep.ACTIVE;
    }
 
-   static LinkedHashMap<BlockPos, ClientBlockSnapshot> composeDesiredSnapshots(
+   static LinkedHashMap<BlockPos, BlockSnapshot> composeDesiredSnapshots(
       OperationWorkspaceValidator.Result validated
    ) {
-      ClientBlockSnapshot air = new ClientBlockSnapshot(Blocks.AIR.defaultBlockState(), null);
-      var scene = new WorkspaceScene<ClientBlockSnapshot>(snapshot -> !snapshot.state().isAir());
+      BlockSnapshot air = new BlockSnapshot(Blocks.AIR.defaultBlockState(), null);
+      var scene = new WorkspaceScene<BlockSnapshot>(snapshot -> !snapshot.state().isAir());
       scene.clearSources(validated.clears());
       scene.overlay(1, validated.writes());
       var composed = scene.desired(air);
-      LinkedHashMap<BlockPos, ClientBlockSnapshot> supportFirst = new LinkedHashMap<>();
+      LinkedHashMap<BlockPos, BlockSnapshot> supportFirst = new LinkedHashMap<>();
       orderedPositions(composed.keySet()).forEach(pos -> supportFirst.put(pos, composed.get(pos)));
       return supportFirst;
    }
@@ -281,7 +281,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       return ordered;
    }
 
-   private boolean captureExpected(ServerLevel level, Map.Entry<BlockPos, ClientBlockSnapshot> entry) {
+   private boolean captureExpected(ServerLevel level, Map.Entry<BlockPos, BlockSnapshot> entry) {
       if (!validSnapshot(level, entry.getKey(), entry.getValue())) {
          reportFailure(WorkspaceFailure.INVALID_BLOCK_ENTITY, entry.getKey());
          failedTargetPositions.add(entry.getKey().immutable());
@@ -302,7 +302,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       return true;
    }
 
-   private static boolean validSnapshot(ServerLevel level, BlockPos pos, ClientBlockSnapshot snapshot) {
+   private static boolean validSnapshot(ServerLevel level, BlockPos pos, BlockSnapshot snapshot) {
       if (snapshot.blockEntity() == null) {
          return true;
       }
@@ -321,7 +321,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       }
    }
 
-   private boolean write(ServerLevel level, Map.Entry<BlockPos, ClientBlockSnapshot> entry) {
+   private boolean write(ServerLevel level, Map.Entry<BlockPos, BlockSnapshot> entry) {
       BlockPos pos = entry.getKey();
       ReversibleBlockSnapshot before = transaction.expectedAt(pos);
       if (before == null || !before.matches(level, pos)) {
@@ -329,7 +329,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
          failedTargetPositions.add(pos.immutable());
          return false;
       }
-      ClientBlockSnapshot target = entry.getValue();
+      BlockSnapshot target = entry.getValue();
       ReversibleBlockSnapshot desiredSnapshot = new ReversibleBlockSnapshot(
          pos,
          target.state(),
@@ -383,7 +383,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       if (preparation == JournalPreparation.READY && !slice.isEmpty()) {
          metrics.journalReady();
          for (ReversibleBlockSnapshot snapshot : slice) {
-            ClientBlockSnapshot target = desired.get(snapshot.pos());
+            BlockSnapshot target = desired.get(snapshot.pos());
             if (target == null) {
                return JournalPreparation.FAILED;
             }
@@ -398,7 +398,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       Collection<ReversibleBlockSnapshot> before
    ) {
       return PlacementTask.lazyMappedCollection(before, original -> {
-         ClientBlockSnapshot target = desired.get(original.pos());
+         BlockSnapshot target = desired.get(original.pos());
          if (target == null) {
             throw new IllegalStateException("Workspace journal target is missing");
          }
@@ -464,8 +464,8 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
          : MemoryReservationAttempt.RETRY;
    }
 
-   private static ClientBlockSnapshot clientSnapshot(ReversibleBlockSnapshot snapshot) {
-      return new ClientBlockSnapshot(
+   private static BlockSnapshot clientSnapshot(ReversibleBlockSnapshot snapshot) {
+      return new BlockSnapshot(
          snapshot.state(), snapshot.blockEntity() == null ? null : snapshot.blockEntity().data()
       );
    }

@@ -12,8 +12,8 @@
     "BlockBreakPredictionMixin",
     "LightBlockOutlineMixin",
     "BlockEntityRenderDispatcherMixin",
-    "LevelRendererAccessor",
-    "GuiAccessor",
+    "access.LevelRendererAccessor",
+    "access.GuiAccessor",
     "MinecraftUseInvoker",
     "RenderChunkRegionMixin"
   ]

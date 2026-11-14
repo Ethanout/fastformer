@@ -5,7 +5,7 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.selection.SelectionToolPreference;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;

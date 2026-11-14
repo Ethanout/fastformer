@@ -1,5 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
+import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
@@ -23,27 +25,60 @@ final class ProjectedBresenhamFace {
    }
 
    static Raster raster(List<Vec3> vertices) {
-      Frame frame = Frame.create(vertices);
+      return raster(vertices, Integer.MAX_VALUE, BlockGenerationObserver.NONE);
+   }
+
+   /** Candidate construction reports scan work only; callers publish the accepted result. */
+   static Raster raster(List<Vec3> vertices, int maxBlocks, BlockGenerationObserver observer) {
+      return raster(vertices, maxBlocks, observer, false);
+   }
+
+   static Raster outline(List<Vec3> vertices, int maxBlocks, BlockGenerationObserver observer) {
+      return raster(vertices, maxBlocks, observer, true);
+   }
+
+   private static Raster raster(List<Vec3> vertices, int maxBlocks, BlockGenerationObserver observer, boolean outlineOnly) {
+      BlockGenerationObserver progress = observer == null ? BlockGenerationObserver.NONE : observer;
+      progress.checkCancelled();
+      Frame frame = Frame.create(vertices, progress);
       if (frame == null) {
-         return new Raster(Set.of(), Set.of(), Set.of(), Set.of(), null);
+         return new Raster(Set.of(), Set.of(), Set.of(), Set.of(), null, false);
       }
       NavigableMap<Integer, Row> rows = new TreeMap<>();
       LinkedHashSet<Point2> ownedBoundaryColumns = new LinkedHashSet<>();
       for (int index = 0; index < frame.vertices().size(); index++) {
+         progress.checkCancelled();
          Int3 first = frame.vertices().get(index);
          Int3 second = frame.vertices().get((index + 1) % frame.vertices().size());
-         List<Point2> edge = path2d(new Point2(first.x(), first.y()), new Point2(second.x(), second.y()));
-         ownedBoundaryColumns.addAll(edge);
-         for (Point2 point : edge) {
-            rows.compute(point.v(), (ignored, row) -> row == null ? new Row(point.u(), point.u()) : row.include(point.u()));
+         Point2 from = new Point2(first.x(), first.y());
+         Point2 to = new Point2(second.x(), second.y());
+         long edgeLength = 1L + Math.max(Math.abs((long)to.u() - from.u()), Math.abs((long)to.v() - from.v()));
+         if (edgeLength > maxBlocks) return Raster.exceeded();
+         walk2d(from, to, point -> {
+            ownedBoundaryColumns.add(point);
+            if (!outlineOnly) rows.compute(point.v(), (ignored, row) -> row == null ? new Row(point.u(), point.u()) : row.include(point.u()));
+         }, progress);
+         if (ownedBoundaryColumns.size() > maxBlocks) {
+            return Raster.exceeded();
          }
       }
 
-      GeneratedCells generated = scanCells(rows, frame);
+      if (outlineOnly) {
+         LinkedHashSet<BlockPos> boundary = new LinkedHashSet<>();
+         for (Point2 point : ownedBoundaryColumns) {
+            progress.checkCancelled();
+            boundary.add(frame.restore(point.u(), point.v()));
+         }
+         Set<BlockPos> outline = Collections.unmodifiableSet(boundary);
+         return new Raster(Set.of(), Set.of(), outline, outline, frame, false);
+      }
+      GeneratedCells generated = scanCells(rows, frame, maxBlocks, progress);
+      if (generated == null) return Raster.exceeded();
       Set<BlockPos> cells = Collections.unmodifiableSet(generated.blocks());
 
       LinkedHashSet<BlockPos> logicalOutline = new LinkedHashSet<>();
       for (Point2 point : ownedBoundaryColumns) {
+         progress.checkCancelled();
          logicalOutline.add(generated.requireBlock(point));
       }
       Set<BlockPos> outline = Collections.unmodifiableSet(logicalOutline);
@@ -52,19 +87,22 @@ final class ProjectedBresenhamFace {
          cells,
          outline,
          outline,
-         frame
+         frame,
+         false
       );
    }
 
-   private static GeneratedCells scanCells(NavigableMap<Integer, Row> rows, Frame frame) {
-      GeneratedCells result = new GeneratedCells();
+   private static GeneratedCells scanCells(NavigableMap<Integer, Row> rows, Frame frame, int maxBlocks, BlockGenerationObserver observer) {
+      GeneratedCells result = new GeneratedCells(maxBlocks, observer);
       ScanRow previous = null;
       for (Map.Entry<Integer, Row> entry : rows.entrySet()) {
+         observer.checkCancelled();
          ScanRow current = new ScanRow(entry.getKey(), entry.getValue());
          if (previous != null) {
             current = advance(previous, current, result, frame);
+            if (current == null) return null;
          }
-         result.emit(current, frame);
+         if (!result.emit(current, frame)) return null;
          previous = current;
       }
       return result;
@@ -94,8 +132,7 @@ final class ProjectedBresenhamFace {
       if (connector.v() == to.v()) {
          return current.include(connector.u());
       }
-      output.emit(connector, frame);
-      return current;
+      return output.emit(connector, frame) ? current : null;
    }
 
    private static Point2 chooseConnector(
@@ -132,7 +169,7 @@ final class ProjectedBresenhamFace {
       return inside;
    }
 
-   private static List<Point2> path2d(Point2 from, Point2 to) {
+   private static void walk2d(Point2 from, Point2 to, Consumer<Point2> output, BlockGenerationObserver observer) {
       Point2 start = compare(from, to) <= 0 ? from : to;
       Point2 end = start == from ? to : from;
       long du = (long)end.u() - start.u();
@@ -144,17 +181,15 @@ final class ProjectedBresenhamFace {
       long minor = uMajor ? av : au;
       int su = Long.compare(du, 0L);
       int sv = Long.compare(dv, 0L);
-      ArrayList<Point2> result = new ArrayList<>((int)Math.min(Integer.MAX_VALUE, major + 1L));
       for (long step = 0; step <= major; step++) {
-         long progress = major == 0L ? 0L : (step * minor + major / 2L) / major;
-         long u = (long)start.u() + su * (uMajor ? step : progress);
-         long v = (long)start.v() + sv * (uMajor ? progress : step);
-         result.add(new Point2(safeInt(u), safeInt(v)));
+         observer.checkCancelled();
+         observer.onScanned(1L);
+         long canonicalStep = start == from ? step : major - step;
+         long progress = major == 0L ? 0L : (canonicalStep * minor + major / 2L) / major;
+         long u = (long)start.u() + su * (uMajor ? canonicalStep : progress);
+         long v = (long)start.v() + sv * (uMajor ? progress : canonicalStep);
+         output.accept(new Point2(safeInt(u), safeInt(v)));
       }
-      if (start != from) {
-         java.util.Collections.reverse(result);
-      }
-      return List.copyOf(result);
    }
 
    private static int compare(Point2 first, Point2 second) {
@@ -179,8 +214,13 @@ final class ProjectedBresenhamFace {
       Set<BlockPos> fill,
       Set<BlockPos> logicalOutline,
       Set<BlockPos> outline,
-      Frame frame
+      Frame frame,
+      boolean limitExceeded
    ) {
+      static Raster exceeded() {
+         return new Raster(Set.of(), Set.of(), Set.of(), Set.of(), null, true);
+      }
+
       boolean logicalSingleLayer() {
          if (this.frame == null) {
             return this.logical.isEmpty();
@@ -256,17 +296,28 @@ final class ProjectedBresenhamFace {
 
    /** Owns the one and only lift from a projected column to a world block. */
    private static final class GeneratedCells {
+      private final int maxBlocks;
+      private final BlockGenerationObserver observer;
       private final Map<Point2, Integer> heights = new HashMap<>();
       private final Map<Point2, BlockPos> byColumn = new LinkedHashMap<>();
       private final LinkedHashSet<BlockPos> blocks = new LinkedHashSet<>();
 
-      void emit(ScanRow row, Frame frame) {
-         for (long u = row.span().minimum(); u <= row.span().maximum(); u++) {
-            this.emit(new Point2((int)u, row.v()), frame);
-         }
+      GeneratedCells(int maxBlocks, BlockGenerationObserver observer) {
+         this.maxBlocks = maxBlocks;
+         this.observer = observer;
       }
 
-      void emit(Point2 point, Frame frame) {
+      boolean emit(ScanRow row, Frame frame) {
+         for (long u = row.span().minimum(); u <= row.span().maximum(); u++) {
+            if (!this.emit(new Point2((int)u, row.v()), frame)) return false;
+         }
+         return true;
+      }
+
+      boolean emit(Point2 point, Frame frame) {
+         this.observer.checkCancelled();
+         this.observer.onScanned(1L);
+         if (this.blocks.size() >= this.maxBlocks) return false;
          if (this.byColumn.containsKey(point)) {
             throw new IllegalStateException("projection column emitted twice: " + point);
          }
@@ -275,6 +326,7 @@ final class ProjectedBresenhamFace {
          if (!this.blocks.add(block)) {
             throw new IllegalStateException("two projection columns restored to " + block);
          }
+         return true;
       }
 
       int height(Point2 point, Frame frame) {
@@ -299,6 +351,11 @@ final class ProjectedBresenhamFace {
 
    record Frame(BlockPos anchor, int[] order, int[] signs, List<Int3> vertices, Vec3 normal) {
       static Frame create(List<Vec3> source) {
+         return create(source, BlockGenerationObserver.NONE);
+      }
+
+      static Frame create(List<Vec3> source, BlockGenerationObserver observer) {
+         observer.checkCancelled();
          if (source.size() < 3) {
             return null;
          }
@@ -312,6 +369,7 @@ final class ProjectedBresenhamFace {
                }
                for (int[] order : ORDERS) {
                   for (int mask = 0; mask < 8; mask++) {
+                     observer.checkCancelled();
                      int[] signs = {
                         (mask & 1) == 0 ? -1 : 1,
                         (mask & 2) == 0 ? -1 : 1,

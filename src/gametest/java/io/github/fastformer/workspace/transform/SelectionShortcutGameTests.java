@@ -7,11 +7,11 @@ import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
 import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
 import io.github.fastformer.core.math.Axis;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceSymmetry;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
@@ -75,8 +75,8 @@ public final class SelectionShortcutGameTests {
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void clipboardQuarterTurnsDoNotDriftWhenAxisWidthsHaveDifferentParity(GameTestHelper helper) {
       var workspace = new ClientOperationWorkspace();
-      var blocks = Map.of(BlockPos.ZERO, new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null),
-         new BlockPos(1, 0, 0), new ClientBlockSnapshot(Blocks.OAK_STAIRS.defaultBlockState(), null));
+      var blocks = Map.of(BlockPos.ZERO, new BlockSnapshot(Blocks.STONE.defaultBlockState(), null),
+         new BlockPos(1, 0, 0), new BlockSnapshot(Blocks.OAK_STAIRS.defaultBlockState(), null));
       workspace.addParts(List.of(new ClientSelectionPart(0, ClientSelectionPart.Source.CLIPBOARD, null, blocks,
          WorkspaceTransform.IDENTITY.withTranslation(new Vec3(10, 3, -7)), false)));
       var before = resolved(workspace.parts().getFirst());
@@ -149,9 +149,9 @@ public final class SelectionShortcutGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void localRotationAfterShortcutsKeepsCellsAndFacingsTogether(GameTestHelper helper) {
-      var blocks = new java.util.LinkedHashMap<BlockPos, ClientBlockSnapshot>();
+      var blocks = new java.util.LinkedHashMap<BlockPos, BlockSnapshot>();
       for (Direction direction : Direction.values()) {
-         blocks.put(BlockPos.ZERO.relative(direction), new ClientBlockSnapshot(Blocks.PISTON_HEAD.defaultBlockState()
+         blocks.put(BlockPos.ZERO.relative(direction), new BlockSnapshot(Blocks.PISTON_HEAD.defaultBlockState()
             .setValue(BlockStateProperties.FACING, direction), null));
       }
       var volume = OperationSelectionVolume.cuboid(new BlockPos(-1, -1, -1), new BlockPos(1, 1, 1), null, null);
@@ -185,8 +185,8 @@ public final class SelectionShortcutGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void rotatedRepeatHandlesMeasureTheLocalWidth(GameTestHelper helper) {
-      var blocks = new java.util.LinkedHashMap<BlockPos, ClientBlockSnapshot>();
-      for (int x = 0; x < 5; x++) blocks.put(new BlockPos(x, 0, 0), new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null));
+      var blocks = new java.util.LinkedHashMap<BlockPos, BlockSnapshot>();
+      for (int x = 0; x < 5; x++) blocks.put(new BlockPos(x, 0, 0), new BlockSnapshot(Blocks.STONE.defaultBlockState(), null));
       var volume = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(4, 0, 0), null, null);
       var symmetry = WorkspaceSymmetry.IDENTITY.then(WorkspaceSymmetry.quarterTurnY(), new Vec3(2.5, 0.5, 0.5));
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume, blocks,
@@ -204,8 +204,8 @@ public final class SelectionShortcutGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void rotatedScaleKeepsExistingCellsAndExtendsAlongLocalHandles(GameTestHelper helper) {
-      var blocks = new java.util.LinkedHashMap<BlockPos, ClientBlockSnapshot>();
-      for (int x = 0; x < 5; x++) blocks.put(new BlockPos(x, 0, 0), new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null));
+      var blocks = new java.util.LinkedHashMap<BlockPos, BlockSnapshot>();
+      for (int x = 0; x < 5; x++) blocks.put(new BlockPos(x, 0, 0), new BlockSnapshot(Blocks.STONE.defaultBlockState(), null));
       var volume = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(4, 0, 0), null, null);
       Vec3 pivot = new Vec3(2.5, 0.5, 0.5);
       for (Vec3 rotation : List.of(new Vec3(0, Math.PI / 2, 0), new Vec3(0, Math.atan2(3, 4), 0), new Vec3(0.37, 0.63, -0.29))) {
@@ -241,8 +241,8 @@ public final class SelectionShortcutGameTests {
 
    @GameTest(template = "fastformergametests.empty", timeoutTicks = 40)
    public static void rotationAfterRepeatingKeepsTheWholeSelectionCentre(GameTestHelper helper) {
-      var blocks = new java.util.LinkedHashMap<BlockPos, ClientBlockSnapshot>();
-      for (int x = 0; x < 5; x++) blocks.put(new BlockPos(x, 0, 0), new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null));
+      var blocks = new java.util.LinkedHashMap<BlockPos, BlockSnapshot>();
+      for (int x = 0; x < 5; x++) blocks.put(new BlockPos(x, 0, 0), new BlockSnapshot(Blocks.STONE.defaultBlockState(), null));
       var volume = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(4, 0, 0), null, null);
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume, blocks, WorkspaceTransform.IDENTITY, false).fixed();
       part = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, 0).parts().getFirst();
@@ -261,10 +261,10 @@ public final class SelectionShortcutGameTests {
    private static ClientSelectionPart part(BlockPos point) {
       return new ClientSelectionPart(0, ClientSelectionPart.Source.WORLD,
          OperationSelectionVolume.cuboid(point, point, point, point),
-         Map.of(point, new ClientBlockSnapshot(Blocks.OAK_STAIRS.defaultBlockState(), null)), WorkspaceTransform.IDENTITY, false);
+         Map.of(point, new BlockSnapshot(Blocks.OAK_STAIRS.defaultBlockState(), null)), WorkspaceTransform.IDENTITY, false);
    }
 
-   private static Map<BlockPos, ClientBlockSnapshot> resolved(ClientSelectionPart part) {
+   private static Map<BlockPos, BlockSnapshot> resolved(ClientSelectionPart part) {
       return WorkspacePreviewComposer.resolveSnapshots(part.blocks(), part.transform());
    }
 

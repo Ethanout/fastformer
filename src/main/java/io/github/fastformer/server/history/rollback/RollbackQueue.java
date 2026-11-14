@@ -1,7 +1,7 @@
 package io.github.fastformer.server.history.rollback;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
@@ -68,7 +68,7 @@ public final class RollbackQueue {
       if (capture.journal() != null && !capture.journal().resolveAfterRollback(context.server())) return;
       captures.removeFirst();
       context.writeLeases().releaseCurrentLease(capture.dimension(), context.owner());
-      context.actionBar(FastPlaceMessages.text("fastformer.message.restore_complete"));
+      context.actionBar(PlayerMessages.text("fastformer.message.restore_complete"));
    }
 
    private boolean startReady(RollbackRequest request, boolean blocked, Consumer<ReadyRecovery> install,

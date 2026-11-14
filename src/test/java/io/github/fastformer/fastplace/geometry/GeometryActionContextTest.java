@@ -1,8 +1,11 @@
 package io.github.fastformer.fastplace.geometry;
 
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryMode;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.session.GeometrySession;
+import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.fastplace.workflow.WallWorkflow;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

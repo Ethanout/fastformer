@@ -1,10 +1,10 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.session.ClientSessionSystem;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.protocol.c2s.placement.SmartFillCommandPayload;
 import io.github.fastformer.protocol.s2c.preview.SmartFillPreviewPayload;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
@@ -17,13 +17,13 @@ import net.neoforged.neoforge.network.registration.NetworkRegistry;
 public final class ClientSmartFillSession {
    private sealed interface Phase permits Waiting, Preview, Confirming { UUID id(); long started(); }
    private record Waiting(UUID id, long started) implements Phase { }
-   private record Preview(UUID id, long started, Map<BlockPos, ClientBlockSnapshot> blocks) implements Phase { }
+   private record Preview(UUID id, long started, Map<BlockPos, BlockSnapshot> blocks) implements Phase { }
    private record Confirming(UUID id, long started) implements Phase { }
    private Phase phase;
 
    public boolean active() { return phase != null; }
    public boolean ready() { return phase instanceof Preview; }
-   public Map<BlockPos, ClientBlockSnapshot> blocks() { return phase instanceof Preview preview ? preview.blocks() : Map.of(); }
+   public Map<BlockPos, BlockSnapshot> blocks() { return phase instanceof Preview preview ? preview.blocks() : Map.of(); }
    public String statusKey() {
       return phase instanceof Preview ? "fastformer.fill.preview" : phase instanceof Confirming
          ? "fastformer.fill.submitting" : "fastformer.fill.searching";
@@ -55,8 +55,8 @@ public final class ClientSmartFillSession {
       if (phase == null || !phase.id().equals(payload.id())) return;
       if (payload.targets().isEmpty()) { clear(); return; }
       if (!(phase instanceof Waiting)) return;
-      Map<BlockPos, ClientBlockSnapshot> blocks = new java.util.LinkedHashMap<>();
-      var snapshot = new ClientBlockSnapshot(payload.state(), null);
+      Map<BlockPos, BlockSnapshot> blocks = new java.util.LinkedHashMap<>();
+      var snapshot = new BlockSnapshot(payload.state(), null);
       for (BlockPos position : payload.targets()) blocks.put(position, snapshot);
       phase = new Preview(payload.id(), System.nanoTime(), Map.copyOf(blocks));
    }

@@ -8,7 +8,7 @@ import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.workspace.geometry.WorkspaceGeometryBudget;
 import io.github.fastformer.workspace.geometry.WorkspaceGeometryCost;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
@@ -41,8 +41,8 @@ public final class WorkspacePreviewComposer {
       return compose(source, transform, VoxelRotation.positionOnly(), budget);
    }
 
-   public static Composition<ClientBlockSnapshot> composeSnapshots(
-      Map<BlockPos, ClientBlockSnapshot> source, WorkspaceTransform transform, CompositionBudget budget
+   public static Composition<BlockSnapshot> composeSnapshots(
+      Map<BlockPos, BlockSnapshot> source, WorkspaceTransform transform, CompositionBudget budget
    ) {
       return compose(source, transform, VoxelRotation.snapshotValues(), budget);
    }
@@ -59,8 +59,8 @@ public final class WorkspacePreviewComposer {
     * Test and legacy helper. Production callers must use {@link #composeSnapshots}
     * and handle {@link Composition.OverBudget}.
     */
-   public static Map<BlockPos, ClientBlockSnapshot> resolveSnapshots(
-      Map<BlockPos, ClientBlockSnapshot> source, WorkspaceTransform transform
+   public static Map<BlockPos, BlockSnapshot> resolveSnapshots(
+      Map<BlockPos, BlockSnapshot> source, WorkspaceTransform transform
    ) {
       return requireComposed(composeSnapshots(source, transform, CompositionBudget.INTERACTION));
    }
@@ -119,9 +119,9 @@ public final class WorkspacePreviewComposer {
    /** A cached resolved map is bounded separately because it can contain up to 100,000 cells. */
    private static final class ResolvedEntry {
       private final WeakReference<ClientSelectionPart> part;
-      private final Map<BlockPos, ClientBlockSnapshot> values;
+      private final Map<BlockPos, BlockSnapshot> values;
 
-      private ResolvedEntry(ClientSelectionPart part, Map<BlockPos, ClientBlockSnapshot> values) {
+      private ResolvedEntry(ClientSelectionPart part, Map<BlockPos, BlockSnapshot> values) {
          this.part = new WeakReference<>(part);
          this.values = values;
       }
@@ -163,7 +163,7 @@ public final class WorkspacePreviewComposer {
     * <p>Equal to {@link #resolve(ClientSelectionPart)}. Geometry consumers share this result
     * instead of each running the pipeline again.
     */
-   public static Map<BlockPos, ClientBlockSnapshot> resolvedForPart(ClientSelectionPart part) {
+   public static Map<BlockPos, BlockSnapshot> resolvedForPart(ClientSelectionPart part) {
       if (part == null) {
          return Map.of();
       }
@@ -171,10 +171,10 @@ public final class WorkspacePreviewComposer {
       if (entry != null) {
          return entry.values;
       }
-      Composition<ClientBlockSnapshot> composition = composeSnapshots(
+      Composition<BlockSnapshot> composition = composeSnapshots(
          part.blocks(), part.transform(), CompositionBudget.RENDER
       );
-      if (!(composition instanceof Composition.Composed<ClientBlockSnapshot> composed)) {
+      if (!(composition instanceof Composition.Composed<BlockSnapshot> composed)) {
          return Map.of();
       }
       if (canResolveForFrame(part)) {
@@ -221,8 +221,8 @@ public final class WorkspacePreviewComposer {
       return null;
    }
 
-   private static void cacheComposed(ClientSelectionPart part, Composition<ClientBlockSnapshot> composition) {
-      if (composition instanceof Composition.Composed<ClientBlockSnapshot> composed) {
+   private static void cacheComposed(ClientSelectionPart part, Composition<BlockSnapshot> composition) {
+      if (composition instanceof Composition.Composed<BlockSnapshot> composed) {
          cacheFrame(part, composed.frame());
          cacheResolved(part, composed.values());
       }
@@ -234,7 +234,7 @@ public final class WorkspacePreviewComposer {
       entry.computed = true;
    }
 
-   private static void cacheResolved(ClientSelectionPart part, Map<BlockPos, ClientBlockSnapshot> values) {
+   private static void cacheResolved(ClientSelectionPart part, Map<BlockPos, BlockSnapshot> values) {
       if (values.size() > RESOLVED_CACHE_BLOCK_LIMIT) {
          return;
       }
@@ -567,11 +567,11 @@ public final class WorkspacePreviewComposer {
       return new ComposedValues<>(BlockPositionMaps.copyOf(result), Set.copyOf(overlaps));
    }
 
-   public static Map<BlockPos, ClientBlockSnapshot> resolve(ClientSelectionPart part) {
+   public static Map<BlockPos, BlockSnapshot> resolve(ClientSelectionPart part) {
       return requireComposed(compose(part, CompositionBudget.INTERACTION));
    }
 
-   public static Composition<ClientBlockSnapshot> compose(ClientSelectionPart part, CompositionBudget budget) {
+   public static Composition<BlockSnapshot> compose(ClientSelectionPart part, CompositionBudget budget) {
       if (part == null) {
          return new Composition.Composed<>(Map.of(), null);
       }
@@ -579,14 +579,14 @@ public final class WorkspacePreviewComposer {
    }
 
    /** Resolves only workspaces small enough to render without stalling the client thread. */
-   public static Map<BlockPos, ClientBlockSnapshot> resolveForRendering(ClientSelectionPart part) {
+   public static Map<BlockPos, BlockSnapshot> resolveForRendering(ClientSelectionPart part) {
       if (part == null) {
          return Map.of();
       }
-      Composition<ClientBlockSnapshot> composition = composeSnapshots(
+      Composition<BlockSnapshot> composition = composeSnapshots(
          part.blocks(), part.transform(), CompositionBudget.RENDER
       );
-      return composition instanceof Composition.Composed<ClientBlockSnapshot> composed
+      return composition instanceof Composition.Composed<BlockSnapshot> composed
          ? composed.values()
          : Map.of();
    }

@@ -2,10 +2,10 @@ package io.github.fastformer.fastplace.placement.effect.woodframe;
 
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 
-import io.github.fastformer.fastplace.geometry.generation.LineTieBias;
+import io.github.fastformer.common.geometry.LineTieBias;
 import io.github.fastformer.fastplace.geometry.generation.PlanarFaceGeometry;
 import java.util.AbstractMap;
 import java.util.AbstractSet;

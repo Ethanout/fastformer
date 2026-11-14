@@ -9,7 +9,7 @@ import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.SelectionBaseline;
@@ -233,8 +233,8 @@ public final class ClientOperationDraftCodec {
    private static ClientSelectionPart decodePart(
       CompoundTag tag, HolderGetter<Block> blocks, BlockCounter counter
    ) throws IOException {
-      Map<BlockPos, ClientBlockSnapshot> values = decodeBlocks(requiredList(tag, "Blocks"), blocks, counter);
-      Map<BlockPos, ClientBlockSnapshot> source = tag.getBoolean("SourceMatchesBlocks")
+      Map<BlockPos, BlockSnapshot> values = decodeBlocks(requiredList(tag, "Blocks"), blocks, counter);
+      Map<BlockPos, BlockSnapshot> source = tag.getBoolean("SourceMatchesBlocks")
          ? values : decodeBlocks(requiredList(tag, "SourceSnapshot"), blocks, counter);
       OperationSelectionVolume selection = tag.contains("Selection", Tag.TAG_COMPOUND)
          ? decodeSelection(tag.getCompound("Selection")) : null;
@@ -244,7 +244,7 @@ public final class ClientOperationDraftCodec {
          CompoundTag baselineTag = tag.getCompound("Baseline");
          OperationSelectionVolume baselineSelection = baselineTag.contains("Selection", Tag.TAG_COMPOUND)
             ? decodeSelection(baselineTag.getCompound("Selection")) : null;
-         Map<BlockPos, ClientBlockSnapshot> baselineSource = baselineTag.getBoolean("SourceMatchesPart")
+         Map<BlockPos, BlockSnapshot> baselineSource = baselineTag.getBoolean("SourceMatchesPart")
             ? source : decodeBlocks(requiredList(baselineTag, "SourceSnapshot"), blocks, counter);
          baseline = new SelectionBaseline(
             baselineSelection, decodeTransform(requiredCompound(baselineTag, "Transform")), baselineSource
@@ -342,9 +342,9 @@ public final class ClientOperationDraftCodec {
       );
    }
 
-   private static ListTag encodeBlocks(Map<BlockPos, ClientBlockSnapshot> blocks, BlockCounter counter) {
+   private static ListTag encodeBlocks(Map<BlockPos, BlockSnapshot> blocks, BlockCounter counter) {
       ListTag list = new ListTag();
-      for (Map.Entry<BlockPos, ClientBlockSnapshot> entry : blocks.entrySet()) {
+      for (Map.Entry<BlockPos, BlockSnapshot> entry : blocks.entrySet()) {
          counter.add();
          CompoundTag block = new CompoundTag();
          block.putLong("Pos", entry.getKey().asLong());
@@ -355,13 +355,13 @@ public final class ClientOperationDraftCodec {
       return list;
    }
 
-   private static Map<BlockPos, ClientBlockSnapshot> decodeBlocks(
+   private static Map<BlockPos, BlockSnapshot> decodeBlocks(
       ListTag tags, HolderGetter<Block> blocks, BlockCounter counter
    ) throws IOException {
       if (!tags.isEmpty() && blocks == null) {
          throw new IOException("Operation draft block registry is unavailable");
       }
-      LinkedHashMap<BlockPos, ClientBlockSnapshot> values = new LinkedHashMap<>();
+      LinkedHashMap<BlockPos, BlockSnapshot> values = new LinkedHashMap<>();
       for (int index = 0; index < tags.size(); index++) {
          counter.addChecked();
          CompoundTag block = tags.getCompound(index);
@@ -373,7 +373,7 @@ public final class ClientOperationDraftCodec {
          BlockState state = NbtUtils.readBlockState(blocks, stateTag);
          CompoundTag blockEntity = block.contains("BlockEntity", Tag.TAG_COMPOUND)
             ? block.getCompound("BlockEntity") : null;
-         if (values.put(BlockPos.of(block.getLong("Pos")), new ClientBlockSnapshot(state, blockEntity)) != null) {
+         if (values.put(BlockPos.of(block.getLong("Pos")), new BlockSnapshot(state, blockEntity)) != null) {
             throw new IOException("Duplicate operation draft block position");
          }
       }

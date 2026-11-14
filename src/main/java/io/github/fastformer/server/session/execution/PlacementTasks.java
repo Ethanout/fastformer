@@ -2,7 +2,7 @@ package io.github.fastformer.server.session.execution;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.WorldOperationPhase;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.recovery.JournalPreparation;
@@ -44,7 +44,7 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
          if (step == TaskStep.COMPLETE && task.hasWrites()) {
             JournalPreparation historyCommit = history.pollPreparedOperation(context, task.preparedBatch(), task.journal());
             if (historyCommit == JournalPreparation.PENDING) {
-               context.actionBar(FastPlaceMessages.text("fastformer.message.history_saving"));
+               context.actionBar(PlayerMessages.text("fastformer.message.history_saving"));
                return;
             }
             if (historyCommit == JournalPreparation.FAILED) {
@@ -62,11 +62,11 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
          if (step == TaskStep.COMPLETE) {
             task.markComplete();
             LOGGER.info("FastFormer placement operation {} finished: {}", task.operationId(), task.metricsSummary());
-            context.chat(FastPlaceMessages.text("fastformer.message.placement_placed", task.placed()));
+            context.chat(PlayerMessages.text("fastformer.message.placement_placed", task.placed()));
          } else if (step == TaskStep.CONSTRAINTS_FAILED) {
-            context.chat(FastPlaceMessages.text("fastformer.message.face_generation_constraints_failed"));
+            context.chat(PlayerMessages.text("fastformer.message.face_generation_constraints_failed"));
          } else {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.operation_empty"));
+            context.actionBar(PlayerMessages.text("fastformer.message.operation_empty"));
          }
       } catch (RuntimeException | OutOfMemoryError exception) {
          settleFailedTask(context, task, history);
@@ -77,21 +77,21 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
 
    private void reportTaskProgress(WorldTaskContext context, PlacementTask task, TaskStep step) {
       switch (step) {
-         case WAITING -> context.actionBar(FastPlaceMessages.text("fastformer.message.world_write_waiting"));
-         case WORLD_UNLOADED -> context.actionBar(FastPlaceMessages.text("fastformer.message.history_dimension_failed"));
-         case VALIDATING -> context.actionBar(FastPlaceMessages.text(
+         case WAITING -> context.actionBar(PlayerMessages.text("fastformer.message.world_write_waiting"));
+         case WORLD_UNLOADED -> context.actionBar(PlayerMessages.text("fastformer.message.history_dimension_failed"));
+         case VALIDATING -> context.actionBar(PlayerMessages.text(
             "fastformer.message.placement_validating", task.validationRemaining()));
-         case PREPARING_JOURNAL -> context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_preparing"));
-         case FINALIZING -> context.actionBar(FastPlaceMessages.text("fastformer.message.placement_finalizing"));
-         case COMMITTING -> context.actionBar(FastPlaceMessages.text("fastformer.message.recovery_journal_finalizing"));
+         case PREPARING_JOURNAL -> context.actionBar(PlayerMessages.text("fastformer.message.recovery_journal_preparing"));
+         case FINALIZING -> context.actionBar(PlayerMessages.text("fastformer.message.placement_finalizing"));
+         case COMMITTING -> context.actionBar(PlayerMessages.text("fastformer.message.recovery_journal_finalizing"));
          case GENERATING -> {
             ProgressiveBlockGeneration.Snapshot progress = task.generationProgress();
             context.actionBar(progress == null
-               ? FastPlaceMessages.text("fastformer.message.placement_generating")
-               : FastPlaceMessages.text("fastformer.message.placement_generation_progress",
+               ? PlayerMessages.text("fastformer.message.placement_generating")
+               : PlayerMessages.text("fastformer.message.placement_generation_progress",
                   progress.scanned(), progress.estimatedScan(), progress.generated()));
          }
-         case ACTIVE -> context.actionBar(FastPlaceMessages.text(
+         case ACTIVE -> context.actionBar(PlayerMessages.text(
             "fastformer.message.placement_progress", task.processed(), task.total(), task.placed()));
          default -> throw new IllegalArgumentException("Not a placement progress step: " + step);
       }
@@ -99,13 +99,13 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
 
    private MutableComponent placementFailureStatus(PlacementTask task, UUID owner, TaskStep step) {
       return switch (step) {
-         case EXCEEDED -> FastPlaceMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement());
-         case MEMORY_UNSAFE -> FastPlaceMessages.text("fastformer.message.operation_memory_unsafe");
-         case JOURNAL_FAILED -> FastPlaceMessages.text("fastformer.message.recovery_journal_failed");
-         case BLOCKED -> FastPlaceMessages.text("fastformer.message.recovery_journal_blocked");
+         case EXCEEDED -> PlayerMessages.text("fastformer.message.placement_exceeds_max", task.maxPlacement());
+         case MEMORY_UNSAFE -> PlayerMessages.text("fastformer.message.operation_memory_unsafe");
+         case JOURNAL_FAILED -> PlayerMessages.text("fastformer.message.recovery_journal_failed");
+         case BLOCKED -> PlayerMessages.text("fastformer.message.recovery_journal_blocked");
          default -> switch (task.failurePhase()) {
-            case GENERATION -> FastPlaceMessages.text("fastformer.message.placement_generation_failed");
-            case SNAPSHOT -> FastPlaceMessages.text("fastformer.message.placement_snapshot_validation_failed");
+            case GENERATION -> PlayerMessages.text("fastformer.message.placement_generation_failed");
+            case SNAPSHOT -> PlayerMessages.text("fastformer.message.placement_snapshot_validation_failed");
             default -> failureStatus(task, owner);
          };
       };
@@ -123,7 +123,7 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
 
    private MutableComponent failureStatus(PlacementTask task, UUID owner) {
       if (task.failurePhase() == WorldOperationPhase.COMMIT && task.hasWrites()) {
-         return FastPlaceMessages.text(
+         return PlayerMessages.text(
             "fastformer.message.placement_history_unavailable",
             task.operationId().toString()
          );
@@ -131,7 +131,7 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
       String key = task.recoveryTaskCreated()
          ? "fastformer.message.placement_failed_rollback"
          : "fastformer.message.placement_failed_no_recovery";
-      return FastPlaceMessages.text(
+      return PlayerMessages.text(
          key,
          task.failurePhase().name(),
          task.operationId().toString(),

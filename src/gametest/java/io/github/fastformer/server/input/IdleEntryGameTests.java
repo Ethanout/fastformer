@@ -7,7 +7,7 @@ import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import io.github.fastformer.fastplace.geometry.raycast.SessionEntryRaycast;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
@@ -110,12 +110,12 @@ public final class IdleEntryGameTests {
          var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          var placement = draft.placementContext();
          helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click lost the captured placement anchor");
-         helper.assertTrue(io.github.fastformer.fastplace.placement.context.PlaceableItems.placementState(
+         helper.assertTrue(io.github.fastformer.common.placement.context.PlaceableItems.placementState(
             player.getMainHandItem(), player, placement).orElseThrow().equals(expected), "second click recalculated the first placed state");
-         helper.assertTrue(io.github.fastformer.fastplace.placement.context.PlaceableItems.placementState(
+         helper.assertTrue(io.github.fastformer.common.placement.context.PlaceableItems.placementState(
             new ItemStack(Items.STONE), player, placement).orElseThrow().is(Blocks.STONE), "changing material reused the old stair state");
          var payload = new io.github.fastformer.protocol.s2c.preview.BuildingPreviewSessionPayload(true, true, true,
-            false, false, false, io.github.fastformer.fastplace.quickshape.PolygonVolumeShape.EXTRUDE,
+            false, false, false, io.github.fastformer.common.quickshape.mode.PolygonVolumeShape.EXTRUDE,
             draft.points(), BlockPos.ZERO, placement);
          var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
          try {

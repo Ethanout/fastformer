@@ -3,7 +3,7 @@ package io.github.fastformer.client.operation.pointer;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.InteractionContext;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.fastplace.selection.OperationMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationStageMode;

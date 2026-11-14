@@ -1,7 +1,7 @@
 package io.github.fastformer.client.interaction.pointer;
 
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import java.util.EnumMap;
 import java.util.Objects;
 import java.util.function.Supplier;

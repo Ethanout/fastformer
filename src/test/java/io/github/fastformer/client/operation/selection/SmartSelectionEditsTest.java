@@ -5,7 +5,7 @@ import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.interaction.SelectionGizmoInteraction;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
 import io.github.fastformer.fastplace.selection.SmartSelectionTopology;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import java.util.List;
 import java.util.Map;
@@ -123,11 +123,11 @@ class SmartSelectionEditsTest {
       assertEquals(Set.of(BlockPos.ZERO.east(2)), workspace.parts().getFirst().blocks().keySet());
    }
 
-   static Map<BlockPos, ClientBlockSnapshot> row(int... positions) throws Exception {
+   static Map<BlockPos, BlockSnapshot> row(int... positions) throws Exception {
       var field = Unsafe.class.getDeclaredField("theUnsafe");
       field.setAccessible(true);
-      var snapshot = (ClientBlockSnapshot)((Unsafe)field.get(null)).allocateInstance(ClientBlockSnapshot.class);
-      Map<BlockPos, ClientBlockSnapshot> blocks = new java.util.LinkedHashMap<>();
+      var snapshot = (BlockSnapshot)((Unsafe)field.get(null)).allocateInstance(BlockSnapshot.class);
+      Map<BlockPos, BlockSnapshot> blocks = new java.util.LinkedHashMap<>();
       for (int x : positions) blocks.put(new BlockPos(x, 0, 0), snapshot);
       return Map.copyOf(blocks);
    }

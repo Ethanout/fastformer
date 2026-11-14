@@ -2,7 +2,7 @@ package io.github.fastformer.client.render.hud;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import org.junit.jupiter.api.Test;
 
 class GizmoHudTextFormatterTest {

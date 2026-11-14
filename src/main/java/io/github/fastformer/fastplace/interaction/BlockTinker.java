@@ -9,7 +9,7 @@ import io.github.fastformer.common.tinker.TinkerContext;
 import io.github.fastformer.common.tinker.TinkerRules;
 import io.github.fastformer.common.tinker.rule.StandardTinkerRules;
 import io.github.fastformer.common.tinker.state.TinkerCopperCycle;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.server.history.entry.BlockEditHistoryMetadata;
 import io.github.fastformer.server.history.HistoryStorageConfig;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;

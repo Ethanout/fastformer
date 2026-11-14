@@ -5,7 +5,7 @@ import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.core.command.IntentSource;
-import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistoryTestAccess;

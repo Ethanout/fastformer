@@ -1,5 +1,9 @@
 package io.github.fastformer.fastplace;
 
+import io.github.fastformer.common.geometry.interaction.PointerGesture;
+
+import io.github.fastformer.common.geometry.session.GeometrySession;
+
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.fastformer.core.math.Axis;
@@ -10,15 +14,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryAction;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.GeometryAction;
 import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.interaction.HoverFeedback;
+import io.github.fastformer.common.geometry.GeometryHit;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.common.geometry.gizmo.HoverFeedback;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.workflow.*;
 import io.github.fastformer.fastplace.world.*;
@@ -49,14 +53,14 @@ class ConvexPolyhedronPointInteractionTest {
       assertTrue(plan.gizmo().handles().stream().allMatch(handle -> handle.operation() == AxisGizmo.Operation.MOVE));
       assertEquals("${axis} ${operation}", plan.gizmo().textComponent().hoverTemplate().template());
       assertTrue(plan.gizmo().handles().stream().allMatch(
-         handle -> handle.hoverFeedback().hoverColor() == io.github.fastformer.fastplace.geometry.GeometryPalette.gizmoHover().rgb()
+         handle -> handle.hoverFeedback() instanceof HoverFeedback.PointColors
       ));
       assertEquals(4, plan.controlPoints().size());
       assertEquals(3, plan.interactionTargets().size());
       assertIterableEquals(List.of(0, 1, 2), plan.interactionTargets().stream().map(GeometryInteractionTarget::index).toList());
       assertTrue(plan.interactionTargets().stream().allMatch(target -> target.type() == GeometryInteractionTarget.TargetType.CONTROL_POINT));
       assertTrue(plan.interactionTargets().stream().allMatch(target ->
-         target.action(io.github.fastformer.fastplace.geometry.interaction.PointerGesture.LEFT_CLICK) == GeometryInteractionAction.SELECT_CONTROL_POINT
+         target.action(io.github.fastformer.common.geometry.interaction.PointerGesture.LEFT_CLICK) == GeometryInteractionAction.SELECT_CONTROL_POINT
       ));
    }
 

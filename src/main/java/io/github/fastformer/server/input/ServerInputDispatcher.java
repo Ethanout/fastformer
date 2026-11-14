@@ -1,5 +1,8 @@
 package io.github.fastformer.server.input;
 
+import io.github.fastformer.common.geometry.session.GeometrySession;
+import io.github.fastformer.common.interaction.InteractionState;
+
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.server.session.SessionSystem;
@@ -13,23 +16,21 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.server.gate.ServerOperationGates;
 
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryHit;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryPointerSequence;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionAction;
-import io.github.fastformer.fastplace.geometry.interaction.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.geometry.interaction.PointerGesture;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.interaction.SpecialItemHandlers;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
+import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
+import io.github.fastformer.common.geometry.interaction.PointerGesture;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.session.*;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.protocol.c2s.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryInteractionPayload;
@@ -85,20 +86,7 @@ public final class ServerInputDispatcher {
          return false;
       }
 
-      return switch (SessionSystem.of(player).classify(player)) {
-         // Selection points belong to explicit selection commands, not vanilla item callbacks.
-         case OPERATION, VANILLA -> false;
-         case GEOMETRY -> rightClickGeometry(player, hit);
-         case SPECIAL_ITEM -> SpecialItemHandlers.useOnBlock(player, hit.getBlockPos());
-         case BUILDING -> {
-            if (!PlaceableItems.isPlaceable(player.getMainHandItem())) {
-               SessionSystem.of(player).quit(player);
-               yield false;
-            }
-            QuickShapeSystem.of(player).addPoint(player, hit);
-            yield true;
-         }
-      };
+      return SessionSystem.of(player).modes().current(player).rightClickBlock(player, hit);
    }
 
    public static boolean rightClickItem(ServerPlayer player) {
@@ -107,26 +95,7 @@ public final class ServerInputDispatcher {
       }
 
       BlockHitResult hit = raycastBlocks(player, EXTENDED_REACH);
-      return switch (SessionSystem.of(player).classify(player)) {
-         case OPERATION -> false;
-         case BUILDING -> {
-            if (hit.getType() == HitResult.Type.BLOCK) {
-               QuickShapeSystem.of(player).addPoint(player, hit);
-            } else {
-               if (!QuickShapeSystem.of(player).active(player)) {
-                  yield false;
-               }
-               QuickShapeDraft session = QuickShapeSystem.of(player).session(player).orElse(null);
-               BlockPos offset = session != null ? session.freeScrollOffset() : BlockPos.ZERO;
-               BlockPos first = session != null && !session.points().isEmpty() ? session.points().getFirst() : BlockPos.ZERO;
-               BlockPos anchor = first.offset(offset);
-               QuickShapeSystem.of(player).addPoint(player, anchor, anchor);
-            }
-            yield true;
-         }
-         case GEOMETRY -> rightClickGeometry(player, hit);
-         case SPECIAL_ITEM, VANILLA -> false;
-      };
+      return SessionSystem.of(player).modes().current(player).rightClickItem(player, hit);
    }
 
    public static void startPlacement(ServerPlayer player, StartPlacementPayload payload) {
@@ -134,10 +103,7 @@ public final class ServerInputDispatcher {
          || !acceptPlacementAction(player, payload.requestId())) {
          return;
       }
-      if (!PlaceableItems.isPlaceable(player.getMainHandItem())
-         || QuickShapeSystem.of(player).active(player)
-         || OperationSystem.of(player).active(player)
-         || GeometrySystem.of(player).active(player)) {
+      if (!PlaceableItems.isPlaceable(player.getMainHandItem()) || SessionSystem.of(player).modes().hasActive(player)) {
          return;
       }
       StartPlacementPayload.Target target = payload.target();
@@ -161,7 +127,7 @@ public final class ServerInputDispatcher {
             QuickShapeSystem.of(player).beginAtInteraction(player, entry.placement(), target.eye(), target.view());
          } else {
             boolean embedded = entry == null ? target.embedded() : entry.rules().embedded();
-            var placement = io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot.capture(
+            var placement = io.github.fastformer.common.placement.context.PlacementContexts.capture(
                player.level(), player, player.getMainHandItem(), hit, embedded);
             QuickShapeSystem.of(player).beginAtInteraction(player, placement, target.eye(), target.view(), target.profile(), profile);
          }
@@ -449,7 +415,7 @@ public final class ServerInputDispatcher {
       if (interactionBlocked(player) || !canOperate(player)) {
          return false;
       }
-      if (!QuickShapeSystem.of(player).active(player) || GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player)) return false;
+      if (!SessionSystem.of(player).modes().ownsInput(player, InteractionState.BUILDING)) return false;
       QuickShapeSystem.of(player).cycleFillMode(player);
       return true;
    }
@@ -477,10 +443,10 @@ public final class ServerInputDispatcher {
    ) {
       if (payload == null || interactionBlocked(player) || !canOperate(player)
          || !acceptPlacementAction(player, payload.requestId())) return;
-      if (!QuickShapeSystem.of(player).active(player) || GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player)
+      if (!SessionSystem.of(player).modes().ownsInput(player, InteractionState.BUILDING)
          || !PreviewSync.buildingSubmissionParametersMatch(player)
          || !payload.matches(PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player))) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_confirm_failed"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.placement_confirm_failed"));
          return;
       }
       QuickShapeSystem.of(player).fill(player);
@@ -489,7 +455,7 @@ public final class ServerInputDispatcher {
    public static void quickShapePointer(ServerPlayer player,
       io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload payload) {
       if (payload == null || interactionBlocked(player) || !canOperate(player)
-         || !QuickShapeSystem.of(player).active(player) || GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player)
+         || !SessionSystem.of(player).modes().ownsInput(player, InteractionState.BUILDING)
          || !PlaceableItems.isPlaceable(player.getMainHandItem())) return;
       var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       var scope = PreviewSync.callbackScope(player);
@@ -531,7 +497,7 @@ public final class ServerInputDispatcher {
             if (draft != null && candidateContext.modifierHeld() == payload.modifierHeld()
                && draft.points().equals(candidateContext.points())
                && candidateContext.resolve(hit, payload.eye(), payload.view()).equals(payload.candidate())
-               && io.github.fastformer.fastplace.quickshape.QuickShapeOverlap.overlaps(
+               && io.github.fastformer.common.quickshape.QuickShapeOverlap.overlaps(
                   draft.points(), payload.candidate(),
                   FastPlaceSettings.load(player).faceMode(), draft.polygonClosed())) {
                QuickShapeSystem.of(player).fillConfirmed(player);
@@ -543,7 +509,7 @@ public final class ServerInputDispatcher {
          case MIDDLE -> {
             QuickShapeDraft draft = QuickShapeSystem.of(player).session(player).orElse(null);
             if (draft == null || !io.github.fastformer.server.interaction.profile.ProfileConstraints.middleConfirm(draft, FastPlaceSettings.load(player))
-               || io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
+               || io.github.fastformer.common.quickshape.QuickShapeInputRules.ignoresMiddleClick(
                   FastPlaceSettings.load(player).faceMode(), draft.points().size(), draft.polygonClosed())) return;
             if (QuickShapeSystem.of(player).confirmCapturedPoint(player, payload, hit, candidateContext) && QuickShapeSystem.of(player).active(player)) QuickShapeSystem.of(player).fill(player);
          }
@@ -556,7 +522,7 @@ public final class ServerInputDispatcher {
 
    public static void quickShape(ServerPlayer player) {
       QuickShapeDraft session = QuickShapeSystem.of(player).session(player).orElse(null);
-      if (session != null && io.github.fastformer.fastplace.quickshape.QuickShapeInputRules.ignoresMiddleClick(
+      if (session != null && io.github.fastformer.common.quickshape.QuickShapeInputRules.ignoresMiddleClick(
          FastPlaceSettings.load(player).faceMode(), session.points().size(), session.polygonClosed()
       )) {
          return;
@@ -627,18 +593,14 @@ public final class ServerInputDispatcher {
    }
 
    private static boolean hasActiveSession(ServerPlayer player) {
-      return GeometrySystem.of(player).active(player) || OperationSystem.of(player).active(player) || QuickShapeSystem.of(player).active(player);
+      return SessionSystem.of(player).modes().hasActive(player);
    }
 
    public static BlockHitResult raycastBlocks(ServerPlayer player, double range) {
       Vec3 start = player.getEyePosition();
       Vec3 view = player.getViewVector(1.0F);
-      LongRangeBlockRaycast.Result result = switch (SessionSystem.of(player).classify(player)) {
-         case BUILDING -> LongRangeBlockRaycast.clipForPlacement(player.level(), player, start, view);
-         case OPERATION -> LongRangeBlockRaycast.clipForSelection(player.level(), player, start, view,
-            SessionSystem.of(player).modifierHeld(player));
-         default -> LongRangeBlockRaycast.clip(player.level(), player, start, view);
-      };
+      SessionSystem sessions = SessionSystem.of(player);
+      LongRangeBlockRaycast.Result result = sessions.modes().current(player).raycast(player, start, view, sessions.modifierHeld(player));
       BlockHitResult hit = result.hit();
       if (hit.getType() != HitResult.Type.BLOCK || isWithinRaycastRange(start, hit.getLocation(), range)) {
          return hit;
@@ -795,24 +757,8 @@ public final class ServerInputDispatcher {
       }
    }
 
-   private static boolean rightClickGeometry(ServerPlayer player, BlockHitResult hit) {
-      return rightClickGeometry(player, hit, player.getEyePosition(), player.getViewVector(1.0F));
-   }
-
    private static boolean rightClickGeometry(ServerPlayer player, BlockHitResult hit, Vec3 eye, Vec3 view) {
-      if (GeometrySystem.of(player).confirmsOnRightClick(player)) {
-         return hit != null && GeometrySystem.of(player).fill(player);
-      }
-      if (hit == null || hit.getType() != HitResult.Type.BLOCK) {
-         return false;
-      }
-      GeometryHit geometryHit = GeometryHit.from(hit);
-      if (GeometrySystem.of(player).active(player)) {
-         GeometrySystem.of(player).addPoint(player, geometryHit, eye, view);
-      } else {
-         GeometrySystem.of(player).start(player, geometryHit);
-      }
-      return true;
+      return SessionSystem.of(player).modes().geometryPoint(player, hit, eye, view);
    }
 
    static boolean capturedGeometryConfirmAllowed(BlockHitResult hit, boolean vanillaOwnsInput) {

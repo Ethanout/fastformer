@@ -2,10 +2,11 @@ package io.github.fastformer.server.session;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.session.GeometrySession;
-import io.github.fastformer.fastplace.session.InteractionState;
+import io.github.fastformer.common.geometry.session.GeometrySession;
+import io.github.fastformer.common.interaction.InteractionState;
 import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.server.player.PlayerStateRegistry;
 import io.github.fastformer.server.task.block.PlacementTask;
@@ -13,6 +14,7 @@ import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.workspace.submission.OperationConflictMode;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
@@ -20,6 +22,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -27,6 +31,61 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class SessionBoundaryGameTests {
    private SessionBoundaryGameTests() {}
+
+   @GameTest(template = "fastformergametests.empty")
+   public static void everyGeometryModeRoutesCapturedPointsToItsOwnDraft(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      var system = SessionSystem.of(player);
+      try {
+         for (GeometryMode mode : GeometryMode.values()) {
+            var draft = new GeometrySession();
+            draft.setMode(mode);
+            system.geometry.sessions.activate(player.getUUID(), draft);
+            var registered = system.modes().active(player).orElseThrow();
+            helper.assertTrue(registered.id().equals("geometry/" + mode.name().toLowerCase(java.util.Locale.ROOT)),
+               "wrong geometry registration for " + mode);
+            BlockPos point = helper.absolutePos(new BlockPos(2, 2, 2));
+            Vec3 location = Vec3.atCenterOf(point);
+            var hit = new BlockHitResult(location, Direction.UP, point, false);
+            helper.assertTrue(system.modes().geometryPoint(player, hit, player.getEyePosition(), player.getViewVector(1.0F)),
+               "registered geometry rejected point for " + mode);
+            helper.assertTrue(!draft.points().isEmpty(), "point did not reach typed geometry draft for " + mode);
+            system.cancelEditing(player);
+         }
+      } finally {
+         system.discardPlayer(player);
+         PlayerStateRegistry.detach(player);
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty")
+   public static void cycleUsesSelectionPriorityButConfirmKeepsGeometryPriority(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      var system = SessionSystem.of(player);
+      var selection = new OperationSession(OperationSelectionMode.PRISM, 10);
+      var geometry = new GeometrySession();
+      var shape = new QuickShapeDraft();
+      shape.addPoint(helper.absolutePos(new BlockPos(2, 2, 2)), Vec3.ZERO, new Vec3(0, 0, 1));
+      system.quickShape.sessions.activate(player.getUUID(), shape);
+      system.operation.sessions.activate(player.getUUID(), selection);
+      system.geometry.sessions.activate(player.getUUID(), geometry);
+      player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Blocks.STONE));
+      try {
+         var previousMode = selection.selectionMode();
+         helper.assertTrue(system.modes().cycle(player, null).handled(), "selection cycle not handled");
+         helper.assertTrue(selection.selectionMode() != previousMode, "cycle did not use selection priority");
+         helper.assertFalse(system.modes().confirm(player).handled(), "incomplete geometry unexpectedly confirmed");
+         helper.assertTrue(system.quickShape.session(player).orElse(null) == shape, "confirm incorrectly reached quick shape");
+         helper.assertFalse(system.placementTasks().active(player), "blocked geometry confirm scheduled lower-priority placement");
+         helper.assertFalse(system.modes().allowsCommandAdjust(player), "command adjust bypassed an incomplete active editor");
+      } finally {
+         system.placementTasks().cancel(player);
+         system.discardPlayer(player);
+         PlayerStateRegistry.detach(player);
+      }
+      helper.succeed();
+   }
 
    @GameTest(template = "fastformergametests.empty")
    public static void cancelEditingRetainsParkedWorkAndQueuedTask(GameTestHelper helper) {

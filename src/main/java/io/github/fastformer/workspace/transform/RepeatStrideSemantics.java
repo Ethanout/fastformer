@@ -4,7 +4,7 @@ import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.preview.WorkspaceSelectionBounds;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import java.util.List;
 import net.minecraft.world.phys.AABB;
 

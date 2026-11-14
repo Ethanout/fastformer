@@ -1233,3 +1233,168 @@ client/interaction/binding/
 11. 现有 `IdleEntryGameTests` 和 `QuickReplaceGameTests` 全部通过。
 
 **进度记录**：在 `2026-11-13-architecture-refactor-progress.md` 中新增“数据化交互绑定 / 长按画线”一节，写明完成项和验证结果。
+
+---
+
+## 10. 面光栅化调度器（FaceRasterDispatcher）实现规格
+
+> 2026-11-14 实验后决定：**暂时保留面模式与多边面两种入口各自的原有形状**。10.7 第 3、4 步暂不执行；默认策略不得暗中统一两条路由。分类、注册、同步和快速算法只能在保留该入口结果的前提下接入。`TranslatedScan` 继续保留。对比证据见 `progress/face-raster-comparison.md`。
+
+> 需求（2026-11-14，用户确认）：面填充算法要拆开、可选择，并通过调度器分派。
+> - **平行四边形**：调度器先按朝向剪枝。简单情况各用一套专用的快速算法，只有真正倾斜的面才进入复杂算法。
+> - **多边形**（顶点数不等于 4，或者四边形但不是平行四边形）：直接使用 `ProjectedBresenhamFace`。
+> - **可选择**：服务器或作者可以为每一类面指定使用哪个算法，以及失败时依次退到哪个算法。
+>
+> 本节取代 6.3 中“删除 `TranslatedScanFaceRasterizer`”的提议。它先作为可选算法保留，是否删除由 10.6 的对比实验决定。
+
+### 10.1 现状（2026-11-14 实测调用链）
+
+| 入口 | 路径 |
+|---|---|
+| 面模式（坐标平面、基准面）、斜盒体 | `QuadFaceGenerator` / `TiltedBoxGenerator` → `PlanarFaceRasterizer.generateInterpolatedQuad` → `QuadFaceRasterizer`（法平面高度场，218 行）→ 失败时 `lastResortOwnedRaster` |
+| 多边面、棱柱底面、棱锥截面 | `PolygonFaceGenerator` → `PlanarFaceRasterizer.generate` → 4 个顶点时 `BresenhamFaceSweep.attempt` → `TranslatedScanFaceRasterizer`（2463 行，外加 `FlowGraph` / `CountingUnionFind` / `ExteriorUnionFind`）；不是 4 个顶点时 `ProjectedBresenhamFace.raster` |
+| 兜底 | `emergencyFallback` → `TranslatedScanFaceRasterizer.emergencyFallback` → `lastResortOwnedRaster` |
+| 轮廓（OUTLINE） | 平行四边形用四条 `LineGenerator.path`；其他形状用 `ProjectedBresenhamFace.outline` |
+
+存在三个问题：
+- 分派散落在 `PlanarFaceRasterizer` 的 if 链里，并且以“前一个算法失败了”作为路由依据。
+- 同一个平行四边形，从面模式进来和从多边面进来，走的是两套不同的算法，**同形状不同结果**。
+- 横平竖直这样的简单面也要跑完整的高度场或最小割计算。
+
+### 10.2 目标结构
+
+```
+fastplace/geometry/generation/face/        （迁移到 common/geometry/raster/face/ 时整体移动）
+  FaceRasterDispatcher      唯一入口：rasterize(FaceRequest) → FaceRasterResult
+  FaceRequest               record(List<Vec3> vertices, FillMode fill, LineTieBias tieBias, int maxBlocks, BlockGenerationObserver observer)
+  FaceRasterResult          sealed：Filled(Set<BlockPos>) | LimitExceeded | NotApplicable | NoValidCandidate
+  classify/
+    FaceClass               enum，见 10.3
+    FaceShape               record：类别、取整角点、法向轴、平行轴等分类事实
+    FaceClassifier          纯函数，只用整数运算：顶点 → FaceShape
+  algorithm/
+    FaceRasterAlgorithm     接口：ResourceLocation id(); boolean accepts(FaceShape); FaceRasterResult rasterize(FaceShape, FaceRequest)
+    FaceRasterAlgorithms    Registry<ResourceLocation, FaceRasterAlgorithm>
+    AxisRectangleRaster     fastformer:axis_rectangle
+    CoordinatePlaneRaster   fastformer:coordinate_plane
+    AxisExtrusionRaster     fastformer:axis_extrusion
+    NormalPlaneRaster       fastformer:normal_plane（原 QuadFaceRasterizer + NormalPlaneFaceRasterizer）
+    scan/TranslatedScan*    fastformer:translated_scan（原 TranslatedScanFaceRasterizer，拆成 4～5 个类）
+    ProjectedPolygonRaster  fastformer:projected_polygon（原 ProjectedBresenhamFace）
+    EdgeOnlyRaster          fastformer:edge_only（原 lastResortOwnedRaster，保证一定有结果）
+  policy/
+    FaceRasterPolicy        每个 FaceClass 对应一条算法链（List<ResourceLocation>）
+    FaceRasterPolicies      默认策略，以及按数据加载的策略（10.5）
+```
+
+完成后，`PlanarFaceRasterizer`、`BresenhamFaceSweep`、`QuadFaceRasterizer` 里的分派代码全部删除。以下入口统一改为调用调度器：
+- `PolygonFaceGenerator`
+- `QuadFaceGenerator`
+- `TiltedBoxGenerator`
+- `PrismGenerator`
+- `PyramidGenerator`
+- `BresenhamColumnVolume` 的面部分
+
+### 10.3 分类（剪枝）规则
+
+`FaceClassifier` 先把顶点取整成方块角点，再从上到下判断，命中第一条即停：
+
+| FaceClass | 判定（只用整数运算） | 默认算法链 | 说明 |
+|---|---|---|---|
+| `AXIS_RECTANGLE` | 是平行四边形，且两条边向量各自只有一个非零分量，分别落在不同的轴上 | `axis_rectangle` | 横平竖直的矩形。两层循环直接填，复杂度 O(面积)，不需要任何搜索 |
+| `COORDINATE_PLANE` | 是平行四边形，所有角点有一个坐标分量相同（面躺在 x、y 或 z 等于常数的平面上），但边是斜的 | `coordinate_plane` → `normal_plane` | 退化为 2D 问题：在该平面上用 2D Bresenham 画四条边，再按行扫描填充。四条边与 `LineGenerator.path` 一格不差 |
+| `AXIS_EXTRUSION` | 是平行四边形，其中一条边向量只有一个非零分量（面内有一个方向与坐标轴平行），但面不在坐标平面上 | `axis_extrusion` → `normal_plane` | 把另一条斜边沿这个坐标轴平移：`path(c0,c1) × [0..L]`。天然没有洞，也没有多余厚度 |
+| `TILTED_PARALLELOGRAM` | 其余的平行四边形 | `normal_plane` → `translated_scan` → `edge_only` | 真正的空间倾斜面，使用复杂算法 |
+| `POLYGON` | 顶点数不为 4，或者是 4 个顶点但不是平行四边形 | `projected_polygon` → `edge_only` | 按需求直接使用 `ProjectedBresenhamFace` |
+| `DEGENERATE` | 角点共线、重合，或面积为零 | `edge_only` | 只画边 |
+
+几条约束：
+- 平行四边形判定统一使用 `common.math.BlockQuads.isParallelogram`（基于取整后的角点），不得另写一份。
+- 分类只在调度器入口执行一次，各算法内部不再重复判断朝向。
+- 新增类别时，在 `FaceClass` 加值，并在 `FaceClassifier` 中按顺序插入判断。顺序就是剪枝优先级：越简单的类别越靠前。
+
+### 10.4 调度与失败处理
+
+```
+shape = FaceClassifier.classify(request)
+for id in policy.chain(shape.kind()):
+    algo = FaceRasterAlgorithms.get(id)
+    if !algo.accepts(shape): continue
+    r = algo.rasterize(shape, request)
+    Filled           -> return r
+    LimitExceeded    -> return r          # 超出上限立即返回，不再尝试更贵的算法
+    NotApplicable    -> continue
+    NoValidCandidate -> continue          # 记 debug 日志：哪个算法、哪一类面
+return EdgeOnlyRaster.rasterize(shape, request)   # 永远有结果
+```
+
+**轮廓（OUTLINE）**：
+- 所有平行四边形类别统一画四条 `LineGenerator.path`，即现有 `translatedQuadOutline` 的逻辑，与选用哪个填充算法无关。
+- `POLYGON` 使用 `projected_polygon` 的轮廓。
+- 轮廓不走填充算法链。
+
+**取消与上限**：每个算法内部都要调用 `observer.checkCancelled()`，并在超过 `maxBlocks` 时提前返回 `LimitExceeded`，与现有约定一致。
+
+### 10.5 “可选”的范围与同步（必须保证预览与写入一致）
+
+**选择权在服务端。** 预览显示的方块必须与实际写入世界的方块一致，所以策略属于服务器规则：
+- 默认策略写在 `FaceRasterPolicies.DEFAULT` 中。
+- 数据包可以用 `data/<ns>/fastformer/face_raster_policy/default.json` 覆盖，格式如下：
+  ```json
+  { "chains": {
+      "axis_rectangle":       ["fastformer:axis_rectangle"],
+      "coordinate_plane":     ["fastformer:coordinate_plane", "fastformer:normal_plane"],
+      "axis_extrusion":       ["fastformer:axis_extrusion", "fastformer:normal_plane"],
+      "tilted_parallelogram": ["fastformer:normal_plane", "fastformer:translated_scan"],
+      "polygon":              ["fastformer:projected_polygon"] } }
+  ```
+
+**同步到客户端**：
+- 策略随数据包注册表同步到客户端，写法与第 9 节的 `SessionProfile` 相同。
+- 客户端预览使用同一份策略。
+- 策略的哈希写入预览快照的参数。客户端与服务端的哈希不一致时，以服务端为准，并让客户端预览失效。
+
+**加载校验**：
+- 未注册的算法 id：加载时报错，回退到默认链。
+- 任何一条链都不能为空。
+
+**调试覆盖（可选，第一版不做）**：可以预留一个玩家级覆盖，例如 `/ff debug face_raster <class> <algo>`。只允许有权限的 OP 使用，并且只影响该玩家自己。
+
+`FaceRasterizationMode` 枚举及其残留（如果还有）在这一步彻底删除，由策略取代。
+
+### 10.6 算法契约与对比实验（删除 translated_scan 之前必须完成）
+
+**契约测试**：参数化测试，每个算法都要跑一遍：
+1. **边界一致**：平行四边形类别的结果，必须包含四条 `LineGenerator.path(角点 i, 角点 i+1, tieBias)` 的全部方块。
+2. **无洞**：在面的投影平面上连通，且没有被包围的空格。连通标准以现有测试为准。
+3. **无多余厚度**：沿面的法向，每一列最多 1 格。断言方式与现有 `hasEnclosedAir`、`nonZero` 系列一致。
+4. **确定性**：输入相同时，输出的方块集合和遍历顺序都相同。
+5. **上限与取消**：超过 `maxBlocks` 时返回 `LimitExceeded`；被取消时抛出取消异常。
+6. **专用算法与通用算法等价**：`axis_rectangle`、`coordinate_plane`、`axis_extrusion` 在各自负责的类别上，结果必须与 `normal_plane` **完全相同**。做不到时，列出差异，由用户决定以哪一个为准。这一条保证剪枝只是加速，不会改变形状。
+
+**对比实验**（只读，写成测试或放在 `tools/analysis` 的脚本）：
+- **样本**：随机生成至少 5000 个四边形，平行与不平行都要有，倾斜角度各异，边长 1～128。
+- **两组对比**：
+  - `TILTED_PARALLELOGRAM` 类别：`normal_plane` 对比 `translated_scan`；
+  - 4 个顶点但不是平行四边形的情况：`projected_polygon` 对比当前的 `translated_scan`。
+- **统计项**：结果完全相同的比例、边界不一致的格数、出现洞或多余厚度的次数、P50 和 P99 耗时。
+- **输出**：写入 `docs/reviews/progress/face-raster-comparison.md`，附 3～5 个典型差异案例的方块坐标，或者截图。
+- **结论由用户决定**：差异可以接受，就删除 `translated_scan` 和它的三个辅助类；否则保留它，作为 `tilted_parallelogram` 链上的可选算法，并拆分成子包。
+
+### 10.7 实施顺序
+
+1. **骨架，不改行为**：实现 `FaceClassifier`，以及能完整复现现有路由的调度器和默认策略。例如 `polygon` 类别中 4 个顶点的情况，先继续指向 `translated_scan`。现有全部几何测试和 GameTest 必须原样通过。
+2. **专用算法**：实现 `axis_rectangle`、`coordinate_plane`、`axis_extrusion`。用 10.6 第 6 条的等价测试验证通过后，把它们放到对应类别算法链的最前面。
+3. **统一同形状两种结果**：平行四边形无论从哪个入口进来（多边面或面模式），都走同一个分类和同一条算法链。这一步**会改变**多边面模式下平行四边形的结果。改之前先用对比实验量化差异，写进进度文档，并告知用户。
+4. **切换多边形**：把“4 个顶点、不是平行四边形”的情况切到 `projected_polygon`。这一步同样会改变结果，处理方式同第 3 步。
+5. **对比实验**：按 10.6 完成，由用户决定 `translated_scan` 的去留。
+6. **收尾**：接入数据策略与同步（10.5），删除旧的分派代码，以及 `FaceRasterizationMode` 的残留。
+
+### 10.8 预留扩展
+
+| 未来需求 | 做法 |
+|---|---|
+| 新的面类别，例如 45° 斜面、正六边形 | `FaceClass` 加值，`FaceClassifier` 插入判断，补上默认算法链 |
+| 新的算法，例如更厚的面、抗锯齿 | 实现 `FaceRasterAlgorithm` 并注册，在策略里引用 |
+| 体积生成也走同一套 | `BresenhamColumnVolume`、`TiltedBoxGenerator` 的体积部分以后按同样模式建 `VolumeRasterDispatcher`；本次只约定接口名，不实现 |
+| 玩家级的算法偏好 | 由 10.5 的调试覆盖扩展而来，前提是有权限检查 |

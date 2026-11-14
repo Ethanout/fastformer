@@ -12,8 +12,8 @@ import io.github.fastformer.client.render.cache.BuildingShellEdgeBuffer;
 import io.github.fastformer.client.render.cache.BuildingShellFaceBuffer;
 import io.github.fastformer.client.render.shell.ShapeShellRenderer;
 import io.github.fastformer.client.render.type.PreviewRenderTypes;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.client.preview.style.GeometryPalette;
+import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
@@ -115,12 +115,12 @@ final class SmartSelectionIsolationRenderer {
    }
 
    private static final class Cells {
-      final Map<BlockPos, ClientBlockSnapshot> blocks;
+      final Map<BlockPos, BlockSnapshot> blocks;
       final boolean editable;
       final ShapeShellMesh.Mesh mesh;
       final BuildingShellFaceBuffer faces = new BuildingShellFaceBuffer();
       final BuildingShellEdgeBuffer edges = new BuildingShellEdgeBuffer();
-      Cells(Map<BlockPos, ClientBlockSnapshot> blocks, boolean editable) {
+      Cells(Map<BlockPos, BlockSnapshot> blocks, boolean editable) {
          this.blocks = blocks;
          this.editable = editable;
          mesh = SmartSelectionCellMesh.build(blocks.keySet(), editable);

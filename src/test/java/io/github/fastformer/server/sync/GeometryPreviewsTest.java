@@ -2,10 +2,10 @@ package io.github.fastformer.server.sync;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
-import io.github.fastformer.fastplace.session.GeometrySession;
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.ConePlaneMode;
+import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

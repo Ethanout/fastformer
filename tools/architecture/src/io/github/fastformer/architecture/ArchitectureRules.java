@@ -13,6 +13,9 @@ final class ArchitectureRules {
     static final String ROOT = "io.github.fastformer.";
     private static final Set<String> LAYERS = Set.of("core", "common", "protocol", "client", "server");
     private static final List<String> RETIRED_SUFFIXES = List.of("Manager", "Dispatcher", "Core", "Owner", "Semantics");
+    // Manual section 10 explicitly names this bounded face-algorithm entry after section 1.3 bans generic dispatchers.
+    private static final Set<String> SPECIFIED_PUBLIC_ENTRIES = Set.of(
+            ROOT + "common.geometry.raster.face.FaceRasterDispatcher");
 
     record Findings(Set<String> debt, Set<String> strict, Map<String, Set<String>> clientPackages) {}
 
@@ -72,7 +75,9 @@ final class ArchitectureRules {
         String layer = layer(owner);
         if (!LAYERS.contains(layer) && !owner.equals(ROOT + "FastFormer")) debt.add("unmigrated-type|" + owner);
         String simple = owner.substring(owner.lastIndexOf('.') + 1);
-        if (RETIRED_SUFFIXES.stream().anyMatch(simple::endsWith)) debt.add("retired-name|" + owner);
+        if (!SPECIFIED_PUBLIC_ENTRIES.contains(owner) && RETIRED_SUFFIXES.stream().anyMatch(simple::endsWith)) {
+            debt.add("retired-name|" + owner);
+        }
     }
 
     private static void inspectSource(String owner, Path sources, Set<String> debt) {

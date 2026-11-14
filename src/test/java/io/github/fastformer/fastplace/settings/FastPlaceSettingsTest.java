@@ -3,12 +3,12 @@ package io.github.fastformer.fastplace.settings;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
 import io.github.fastformer.server.session.QuickShapeSystem;
 
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.common.geometry.ConePlaneMode;
 
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
 
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 

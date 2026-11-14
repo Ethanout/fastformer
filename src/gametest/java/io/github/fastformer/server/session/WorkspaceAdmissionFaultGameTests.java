@@ -3,7 +3,7 @@ package io.github.fastformer.server.session;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.WorkspaceReplayGameTests;
 import io.github.fastformer.server.session.SessionSystem;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
@@ -97,8 +97,8 @@ public final class WorkspaceAdmissionFaultGameTests {
 
    private static OperationWorkspacePlan plan(GameTestHelper helper, int x, int z) {
       BlockPos pos = helper.absolutePos(new BlockPos(x, 1, z));
-      Map<BlockPos, ClientBlockSnapshot> blocks = new LinkedHashMap<>();
-      blocks.put(pos, new ClientBlockSnapshot(Blocks.STONE.defaultBlockState(), null));
+      Map<BlockPos, BlockSnapshot> blocks = new LinkedHashMap<>();
+      blocks.put(pos, new BlockSnapshot(Blocks.STONE.defaultBlockState(), null));
       return new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(
          1, ClientSelectionPart.Source.WORLD, blocks, WorkspaceTransform.IDENTITY, false
       )));

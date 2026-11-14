@@ -10,7 +10,7 @@ public final class GizmoDragCalculator {
    }
 
    public static int geometryEndpointSteps(GeometryGizmoDrag drag, Vec3 eye, Vec3 view) {
-      Vec3 axisPoint = OperationGeometry.closestPointOnAxisToRay(drag.origin(), drag.axisVector(), eye, view);
+      Vec3 axisPoint = io.github.fastformer.common.math.RayAxisProjection.closestPoint(drag.origin(), drag.axisVector(), eye, view);
       return (int) Math.round(axisPoint.subtract(drag.origin()).dot(drag.axisVector()) * 2.0);
    }
 
@@ -19,7 +19,7 @@ public final class GizmoDragCalculator {
    }
 
    public static double operationEndpointOffset(GeometryGizmoDrag drag, Vec3 eye, Vec3 view) {
-      Vec3 axisPoint = OperationGeometry.closestPointOnAxisToRay(drag.origin(), drag.axisVector(), eye, view);
+      Vec3 axisPoint = io.github.fastformer.common.math.RayAxisProjection.closestPoint(drag.origin(), drag.axisVector(), eye, view);
       return axisPoint.subtract(drag.origin()).dot(drag.axisVector());
    }
 

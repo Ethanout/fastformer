@@ -1,7 +1,7 @@
 package io.github.fastformer.client.ui;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.protocol.c2s.geometry.GeometrySelectModePayload;
 import java.util.List;
 import net.minecraft.client.Minecraft;
@@ -279,7 +279,7 @@ public final class GeometryRadialScreen extends Screen {
    }
 
    private static int pick(int classic, int humanist) {
-      return io.github.fastformer.fastplace.geometry.GeometryPalette.humanist() ? humanist : classic;
+      return io.github.fastformer.client.preview.style.GeometryPalette.humanist() ? humanist : classic;
    }
 
    private record Slice(GeometryMode mode, String specialTranslationKey, Sector sector, int classicColor, int humanistColor) {

@@ -1,6 +1,6 @@
 package io.github.fastformer.fastplace.geometry.generation;
 
-import io.github.fastformer.fastplace.geometry.PlaneAxes;
+import io.github.fastformer.common.geometry.model.PlaneAxes;
 import net.minecraft.world.phys.Vec3;
 
 public final class ConePrismGeometry {

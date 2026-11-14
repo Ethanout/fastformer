@@ -1,12 +1,14 @@
 package io.github.fastformer.server.fill;
 
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
 import io.github.fastformer.fastplace.fill.SmartFillSearch;
-import io.github.fastformer.fastplace.geometry.raycast.LongRangeBlockRaycast;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import io.github.fastformer.server.replace.QuickReplaceSystem;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.protocol.c2s.placement.SmartFillCommandPayload;
 import io.github.fastformer.protocol.s2c.preview.SmartFillPreviewPayload;
 import io.github.fastformer.server.sync.PreviewSync;
@@ -87,7 +89,7 @@ public final class SmartFillSystem {
       if (plan.targets().size() > FastPlaceSettings.load(player).maxPlacement()) {
          reject(player, command.id(), "fastformer.fill.too_large"); return;
       }
-      var snapshot = PlacementContextSnapshot.capture(level, player, player.getMainHandItem(), hit, false)
+      var snapshot = PlacementContexts.capture(level, player, player.getMainHandItem(), hit, false)
          .anchoredAt(plan.targets().iterator().next());
       var state = PlaceableItems.placementState(player.getMainHandItem(), player, snapshot).orElse(null);
       if (state == null || state.isAir()) { reject(player, command.id(), "fastformer.fill.not_found"); return; }
@@ -131,7 +133,7 @@ public final class SmartFillSystem {
 
    private static void submit(ServerPlayer player, Pending pending) {
       if (!QuickShapeSystem.of(player).queueAirFill(player, pending.plan().targets(), pending.material())) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.placement_confirm_failed"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.placement_confirm_failed"));
       } else {
          // Publish task ownership before ending the preview on the same connection.
          io.github.fastformer.network.FastPlaceNetwork.syncActivity(player);
@@ -145,7 +147,7 @@ public final class SmartFillSystem {
    }
 
    private static void reject(ServerPlayer player, UUID id, String message) {
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text(message));
+      PlayerMessages.actionBar(player, PlayerMessages.text(message));
       finish(player, id);
    }
    private static void publish(ServerPlayer player, Pending pending) {

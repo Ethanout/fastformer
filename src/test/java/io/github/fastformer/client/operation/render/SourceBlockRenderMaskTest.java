@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.client.render.mask.SourceMaskRenderFilter;
@@ -24,8 +24,8 @@ class SourceBlockRenderMaskTest {
 
    @Test
    void denseSourceMaskKeepsItsSnapshotAndRevisionWhenRepublished() {
-      Map<BlockPos, ClientBlockSnapshot> blocks = new java.util.LinkedHashMap<>();
-      ClientBlockSnapshot value = snapshot();
+      Map<BlockPos, BlockSnapshot> blocks = new java.util.LinkedHashMap<>();
+      BlockSnapshot value = snapshot();
       for (int x = 0; x < 100; x++) {
          for (int y = 0; y < 100; y++) {
             for (int z = 0; z < 11; z++) {
@@ -151,11 +151,11 @@ class SourceBlockRenderMaskTest {
       );
    }
 
-   private static ClientBlockSnapshot snapshot() {
+   private static BlockSnapshot snapshot() {
       try {
          Field field = Unsafe.class.getDeclaredField("theUnsafe");
          field.setAccessible(true);
-         return (ClientBlockSnapshot)((Unsafe)field.get(null)).allocateInstance(ClientBlockSnapshot.class);
+         return (BlockSnapshot)((Unsafe)field.get(null)).allocateInstance(BlockSnapshot.class);
       } catch (ReflectiveOperationException exception) {
          throw new AssertionError(exception);
       }

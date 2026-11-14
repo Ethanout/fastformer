@@ -1,9 +1,16 @@
 package io.github.fastformer.fastplace.workflow;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.controlpoint.ControlPointRole;
+import io.github.fastformer.common.geometry.session.GeometrySession;
+import io.github.fastformer.common.geometry.session.WallGeometryState;
+import io.github.fastformer.common.geometry.session.ConePrismGeometryState;
+import io.github.fastformer.common.geometry.session.PolyhedronGeometryState;
+import io.github.fastformer.common.geometry.session.CompoundGeometryState;
+import io.github.fastformer.common.geometry.session.ConvexPolyhedronGeometryState;
+
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.ControlPointRole;
 import io.github.fastformer.fastplace.session.*;
 import java.util.ArrayList;
 import java.util.List;

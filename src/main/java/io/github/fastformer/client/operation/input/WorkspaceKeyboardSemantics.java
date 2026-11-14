@@ -3,8 +3,7 @@ package io.github.fastformer.client.operation.input;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 
 /**
- * Maps physical workspace shortcuts to commands and reports who keeps the key
- * press.
+ * Owns the remaining delete and undo shortcuts while the other workspace keys use binding data.
  *
  * <p>Undo is the one command with two owners. The design gives the client
  * workspace the first turn and the world request the second turn, so this type
@@ -25,12 +24,6 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine;
  */
 public final class WorkspaceKeyboardSemantics {
    private static final int KEY_PRESS = 1;
-   private static final int KEY_A = 65;
-   private static final int KEY_C = 67;
-   private static final int KEY_D = 68;
-   private static final int KEY_F = 70;
-   private static final int KEY_R = 82;
-   private static final int KEY_V = 86;
    private static final int KEY_Z = 90;
    private static final int KEY_BACKSPACE = 259;
    private static final int KEY_DELETE = 261;
@@ -44,12 +37,6 @@ public final class WorkspaceKeyboardSemantics {
       }
       if (controlDown) {
          return switch (key) {
-            case KEY_A -> Command.TOGGLE_SELECT_ALL;
-            case KEY_D -> Command.DUPLICATE;
-            case KEY_R -> Command.ROTATE_SELECTION;
-            case KEY_F -> Command.FLIP_SELECTION;
-            case KEY_C -> Command.COPY;
-            case KEY_V -> Command.PASTE;
             case KEY_Z -> Command.UNDO;
             case KEY_BACKSPACE, KEY_DELETE -> Command.REMOVE_SELECTED;
             default -> Command.NONE;
@@ -63,7 +50,6 @@ public final class WorkspaceKeyboardSemantics {
    public static Decision decide(
       Command command,
       ClientInputStateMachine.Dispatch keyRoute,
-      ClientInputStateMachine.Dispatch pasteRoute,
       WorkspaceFacts facts
    ) {
       WorkspaceFacts supplied = facts == null ? WorkspaceFacts.inactive() : facts;
@@ -73,23 +59,8 @@ public final class WorkspaceKeyboardSemantics {
       if (command == Command.UNDO) {
          return decideUndo(keyRoute, supplied);
       }
-      if (command == Command.PASTE) {
-         return pasteRoute == ClientInputStateMachine.Dispatch.BLOCKED
-            ? Decision.rejected(Rejection.PHASE_BLOCKED)
-            : Decision.accepted(command);
-      }
       if (keyRoute != ClientInputStateMachine.Dispatch.OPERATION) {
-         if (keyRoute == ClientInputStateMachine.Dispatch.BLOCKED && supplied.workspaceActive()
-            && (command == Command.ROTATE_SELECTION || command == Command.FLIP_SELECTION || command == Command.DUPLICATE)) {
-            return Decision.rejected(Rejection.BLOCKED_INPUT_PHASE);
-         }
          return Decision.rejected(Rejection.PHASE_BLOCKED);
-      }
-      if (command == Command.ROTATE_SELECTION || command == Command.FLIP_SELECTION || command == Command.DUPLICATE) {
-         if (supplied.submissionPending()) return Decision.rejected(Rejection.SUBMISSION_PENDING);
-         if (supplied.editInProgress()) return Decision.rejected(Rejection.EDIT_IN_PROGRESS);
-         if (command == Command.DUPLICATE && pasteRoute == ClientInputStateMachine.Dispatch.BLOCKED)
-            return Decision.rejected(Rejection.BLOCKED_INPUT_PHASE);
       }
       return supplied.workspaceActive()
          ? Decision.accepted(command)
@@ -171,12 +142,6 @@ public final class WorkspaceKeyboardSemantics {
 
    public enum Command {
       NONE,
-      COPY,
-      PASTE,
-      TOGGLE_SELECT_ALL,
-      DUPLICATE,
-      ROTATE_SELECTION,
-      FLIP_SELECTION,
       DELETE_SELECTION,
       REMOVE_SELECTED,
       UNDO

@@ -15,8 +15,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffect;
 import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
 import io.github.fastformer.client.FastFormerClientConfig;
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.ArrayList;
@@ -393,7 +392,6 @@ public final class FastFormerSettingsScreen extends Screen {
 
    private void cycleTheme() {
       FastFormerClientConfig.setTheme(GeometryPalette.theme().next());
-      FastPlaceClientPreviewCore.onThemeChanged();
       this.themeButton.setMessage(this.themeLabel());
    }
 

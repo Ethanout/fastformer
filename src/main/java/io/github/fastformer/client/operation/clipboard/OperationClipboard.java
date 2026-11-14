@@ -4,7 +4,7 @@ import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.workspace.ClipboardPreparation;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.fastplace.geometry.BlockPositionMaps;
@@ -62,7 +62,7 @@ public record OperationClipboard(List<Part> parts) {
       }).toList();
    }
 
-   public record Part(int originalId, Map<BlockPos, ClientBlockSnapshot> blocks) {
+   public record Part(int originalId, Map<BlockPos, BlockSnapshot> blocks) {
       public Part {
          if (blocks == null || blocks.isEmpty()) {
             throw new IllegalArgumentException("Clipboard part is empty");

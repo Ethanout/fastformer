@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
-import io.github.fastformer.fastplace.geometry.GuideLine;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.VolumeMode;
+import io.github.fastformer.common.geometry.model.GuideLine;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.core.BlockPos;

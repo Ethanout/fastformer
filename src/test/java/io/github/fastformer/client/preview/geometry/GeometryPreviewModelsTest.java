@@ -1,8 +1,10 @@
 package io.github.fastformer.client.preview.geometry;
 
+import io.github.fastformer.common.geometry.preview.GeometryPreviewBlocks;
+
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import java.util.List;
 import java.util.Set;
@@ -15,7 +17,7 @@ class GeometryPreviewModelsTest {
       var confirmed = new BlockPos(1,0,0);
       var pending = new BlockPos(2,0,0);
       var plan = GeometryPreviewPlan.builder(List.of(marker), null).blocks(
-         new io.github.fastformer.fastplace.geometry.GeometryPreviewBlocks.Layers(Set.of(marker, confirmed), Set.of(marker, pending))).build();
+         new io.github.fastformer.common.geometry.preview.GeometryPreviewBlocks.Layers(Set.of(marker, confirmed), Set.of(marker, pending))).build();
       var cache = new GeometryPreviewModels();
       var input = new GeometryPreviewInput(GeometryPreviewPayload.inactive(), false, plan);
       var model = cache.build(input);

@@ -28,7 +28,7 @@
 - 客户端精确包图不能有环。采用强连通分量分析，报告环内每条实际包依赖边，不只找一个示例环。
 - 每个包至多 12 个顶层类型，并具有 `package-info.java`。
 - 单类型包默认不允许。确为独立系统公开入口时，在包说明中用 `@architecture-api-entry` 明示原因。该标记只豁免单类型包，不豁免其他约束。
-- 类型名不以 `Manager`、`Dispatcher`、`Core`、`Owner`、`Semantics` 结尾。
+- 类型名不以 `Manager`、`Dispatcher`、`Core`、`Owner`、`Semantics` 结尾。唯一精确命名例外为手册第 10 节明确指定的 `common.geometry.raster.face.FaceRasterDispatcher`：只分派面光栅算法，没有输入、会话或渲染职责；该例外不适用于其他包或其他 Dispatcher。
 - 生产源文件至多 800 行；算法类例外必须在源码用 `@architecture-large-algorithm` 标注原因。输入／预览两个旧总入口仍存在时必须至多 200 行，不能用算法标记豁免。
 
 迁移基线 `gradle/architecture-debt.txt` 逐条记录类型边、环内包边和布局问题；禁止通配符。基线仅防止迁移期间新增问题，不代表已有问题合理，也不代表手册已经完成。完整验收任务完全忽略基线。

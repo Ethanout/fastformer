@@ -1,8 +1,8 @@
 package io.github.fastformer.fastplace;
 
-import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
 
-import io.github.fastformer.fastplace.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

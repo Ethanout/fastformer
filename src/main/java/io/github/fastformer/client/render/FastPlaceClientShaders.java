@@ -109,7 +109,7 @@ public final class FastPlaceClientShaders {
 
    private static void configureOccludedDashes(@Nullable ShaderInstance shader) {
       if (shader == null) return;
-      boolean humanist = io.github.fastformer.fastplace.geometry.GeometryPalette.humanist();
+      boolean humanist = io.github.fastformer.client.preview.style.GeometryPalette.humanist();
       shader.safeGetUniform("OccludedOpacity").set(Math.clamp(
          VisualThemes.value("occluded_line_opacity", humanist ? 0.3F : 0F), 0F, 1F));
       shader.safeGetUniform("OccludedDash").set(VisualThemes.value("occluded_dash_length", humanist ? 0.25F : 0F),
@@ -129,7 +129,7 @@ public final class FastPlaceClientShaders {
          var point = curve.get(i);
          shader.safeGetUniform("WidthCurve" + i).set(point.distance(), point.value(), point.tangent(), 0F);
       }
-      float frame = io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation().sheet(dynamic);
+      float frame = io.github.fastformer.client.preview.frame.PreviewAnimation.current().sheet(dynamic);
       shader.safeGetUniform("BoilFrame").set(frame);
       var camera = net.minecraft.client.Minecraft.getInstance().gameRenderer.getMainCamera();
       shader.safeGetUniform("CameraRotation").set(new org.joml.Matrix4f().rotation(camera.rotation()));
@@ -144,7 +144,7 @@ public final class FastPlaceClientShaders {
       if (smartSelectionSurface == null) return net.minecraft.client.renderer.GameRenderer.getPositionColorShader();
       smartSelectionSurface.safeGetUniform("HatchScale").set(Math.max(1F, VisualThemes.value("smart_surface_hatch_scale", 8F)));
       smartSelectionSurface.safeGetUniform("HatchOpacity").set(Math.clamp(VisualThemes.value("smart_surface_hatch_opacity", 0.2F), 0F, 1F));
-      var ink = io.github.fastformer.fastplace.geometry.GeometryPalette.ink();
+      var ink = io.github.fastformer.client.preview.style.GeometryPalette.ink();
       smartSelectionSurface.safeGetUniform("InkColor").set(ink.red(), ink.green(), ink.blue());
       return VisualStyleHooks.shader(smartSelectionSurface, VisualStyleContext.Pass.MATERIAL, false);
    }

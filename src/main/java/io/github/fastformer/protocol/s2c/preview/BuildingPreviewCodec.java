@@ -1,6 +1,6 @@
 package io.github.fastformer.protocol.s2c.preview;
 
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;

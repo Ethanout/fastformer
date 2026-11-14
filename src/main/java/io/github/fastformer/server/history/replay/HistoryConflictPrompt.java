@@ -1,6 +1,6 @@
 package io.github.fastformer.server.history.replay;
 
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
 import io.github.fastformer.server.history.entry.HistoryEntry;
@@ -64,7 +64,7 @@ final class HistoryConflictPrompt {
 
          @Override
          public void remind(int count) {
-            context.actionBar(FastPlaceMessages.text("fastformer.message.history_conflict_confirm", count));
+            context.actionBar(PlayerMessages.text("fastformer.message.history_conflict_confirm", count));
          }
       }, entry, conflicts);
    }

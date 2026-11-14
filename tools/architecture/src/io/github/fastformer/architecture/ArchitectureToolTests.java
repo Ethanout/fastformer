@@ -22,9 +22,11 @@ public final class ArchitectureToolTests {
         findsOnlyRealCycleEdges();
         reportsEveryInternalCycleEdge();
         checksLayerAndCapabilityBoundaries();
+        exemptsOnlyTheExplicitFaceRasterEntryName();
+        requiresDocumentedReasonForSingletonApiPackages();
         baselineNeverAcceptsUnlistedEdges();
         exercisesCommandFailureAndReport();
-        System.out.println("Architecture tool: 7 test groups passed");
+        System.out.println("Architecture tool: 9 test groups passed");
     }
 
     private static void readsSemanticReferences() {
@@ -102,6 +104,37 @@ public final class ArchitectureToolTests {
             for (String debt : findings.debt()) if (debt.startsWith("client-cycle|")) cycleEdges.add(debt);
             require(cycleEdges.equals(Set.of("client-cycle|" + root + "a -> " + root + "b",
                     "client-cycle|" + root + "b -> " + root + "a")), "Report exactly the edges inside a real cycle");
+        } finally { deleteFixture(sources); }
+    }
+
+    private static void exemptsOnlyTheExplicitFaceRasterEntryName() throws Exception {
+        String root = "io.github.fastformer.";
+        Path sources = Files.createTempDirectory("fastformer-architecture-entry-name-");
+        try {
+            String namedEntry = root + "common.geometry.raster.face.FaceRasterDispatcher";
+            String adjacentEntry = root + "common.geometry.raster.face.OtherDispatcher";
+            String sameNameElsewhere = root + "common.other.FaceRasterDispatcher";
+            var findings = ArchitectureRules.inspect(Map.of(namedEntry, Set.of(), adjacentEntry, Set.of(),
+                    sameNameElsewhere, Set.of()), sources);
+            require(!findings.debt().contains("retired-name|" + namedEntry), "Section 10 face entry must retain its specified name");
+            require(findings.debt().contains("retired-name|" + adjacentEntry), "Nearby dispatcher names are not exempt");
+            require(findings.debt().contains("retired-name|" + sameNameElsewhere), "Same simple name in another package is not exempt");
+        } finally { deleteFixture(sources); }
+    }
+
+    private static void requiresDocumentedReasonForSingletonApiPackages() throws Exception {
+        Path sources = Files.createTempDirectory("fastformer-architecture-singleton-");
+        String documented = "io.github.fastformer.common.raster";
+        String undocumented = "io.github.fastformer.common.misc";
+        try {
+            Path api = Files.createDirectories(sources.resolve(documented.replace('.', '/')));
+            Path plain = Files.createDirectories(sources.resolve(undocumented.replace('.', '/')));
+            Files.writeString(api.resolve("package-info.java"), "/** @architecture-api-entry Observer is a shared progress contract. */");
+            Files.writeString(plain.resolve("package-info.java"), "/** One helper. */");
+            var findings = ArchitectureRules.inspect(Map.of(documented + ".Observer", Set.of(),
+                    undocumented + ".Helper", Set.of()), sources);
+            require(!findings.debt().contains("singleton-package|" + documented), "Documented public API package is allowed");
+            require(findings.debt().contains("singleton-package|" + undocumented), "Ordinary singleton remains debt");
         } finally { deleteFixture(sources); }
     }
 

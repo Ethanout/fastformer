@@ -1,5 +1,7 @@
 package io.github.fastformer.client.session;
 
+import io.github.fastformer.common.world.BlockSnapshot;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
@@ -47,7 +49,7 @@ class AsyncSubmissionPersistenceTest {
          var session = manager.activateScope(player, connection, "minecraft:overworld");
          manager.forScope(key).drafts().useFile(directory.resolve("draft-" + index));
          manager.forScope(key).receipts().useFile(directory.resolve("receipts-" + index));
-         Map<BlockPos, ClientBlockSnapshot> blocks = Map.of();
+         Map<BlockPos, BlockSnapshot> blocks = Map.of();
          var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);
          assertTrue(session.workspace().addParts(List.of(part)));
          plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));
@@ -81,7 +83,7 @@ class AsyncSubmissionPersistenceTest {
       Path draft = directory.resolve("draft.nbt.gz"), receipt = directory.resolve("receipt.nbt.gz");
       manager.forScope(key).drafts().useFile(draft);
       manager.forScope(key).receipts().useFile(receipt);
-      Map<BlockPos, ClientBlockSnapshot> blocks = Map.of();
+      Map<BlockPos, BlockSnapshot> blocks = Map.of();
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);
       assertTrue(session.workspace().addParts(List.of(part)));
       var plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));

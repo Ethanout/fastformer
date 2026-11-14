@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;

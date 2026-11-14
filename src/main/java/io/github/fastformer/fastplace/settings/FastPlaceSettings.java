@@ -1,21 +1,23 @@
 package io.github.fastformer.fastplace.settings;
 
+import io.github.fastformer.common.history.SessionHistoryLimits;
+
 import io.github.fastformer.server.history.HistorySystem;
 
-import io.github.fastformer.fastplace.geometry.FillMode;
-import io.github.fastformer.fastplace.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.cone.ConePlaneMode;
+import io.github.fastformer.common.geometry.model.FillMode;
+import io.github.fastformer.common.geometry.GeometryNumbers;
+import io.github.fastformer.common.geometry.ConePlaneMode;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.quickshape.FaceMode;
-import io.github.fastformer.fastplace.quickshape.LineMode;
-import io.github.fastformer.fastplace.quickshape.PointMode;
-import io.github.fastformer.fastplace.quickshape.QuickShapeMode;
-import io.github.fastformer.fastplace.quickshape.QuickShapeModeRules;
-import io.github.fastformer.fastplace.quickshape.QuickShapeStage;
-import io.github.fastformer.fastplace.quickshape.RaycastPlacement;
-import io.github.fastformer.fastplace.quickshape.VolumeMode;
+import io.github.fastformer.common.quickshape.mode.FaceMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
+import io.github.fastformer.common.quickshape.mode.PointMode;
+import io.github.fastformer.common.quickshape.mode.QuickShapeMode;
+import io.github.fastformer.common.quickshape.mode.QuickShapeModeRules;
+import io.github.fastformer.common.quickshape.mode.QuickShapeStage;
+import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
+import io.github.fastformer.common.quickshape.mode.VolumeMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.server.session.OperationSystem;
@@ -33,8 +35,6 @@ public final class FastPlaceSettings {
    /** Existing gameplay cap, centralized without changing accepted placement sizes. */
    public static final int MAX_PLACEMENT = 20_972_152;
    public static final int DEFAULT_WORLD_UNDO_HISTORY_LIMIT = 200;
-   public static final int DEFAULT_SESSION_UNDO_HISTORY_LIMIT = 100;
-   public static final int MAX_UNDO_HISTORY_LIMIT = 800;
    private boolean enabled = true;
    private boolean middleConfirmEnabled = true;
    private PointMode pointMode = PointMode.RAYCAST;
@@ -54,7 +54,7 @@ public final class FastPlaceSettings {
    private boolean vanillaBlockHistory;
    private int maxPlacement = MAX_PLACEMENT;
    private int worldUndoHistoryLimit = DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
-   private int sessionUndoHistoryLimit = DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
+   private int sessionUndoHistoryLimit = SessionHistoryLimits.DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
    private io.github.fastformer.common.history.HistoryCompressionLimits tinkerHistoryMergeLimits = io.github.fastformer.server.history.HistoryStorageConfig.defaultMergeLimits();
    private double angleDegrees = 0.0;
 
@@ -110,11 +110,11 @@ public final class FastPlaceSettings {
          ? Math.clamp((long)tag.getInt("maxPlacement"), 1, MAX_PLACEMENT)
          : MAX_PLACEMENT;
       settings.worldUndoHistoryLimit = tag.contains("undoHistoryLimit")
-         ? Math.clamp((long)tag.getInt("undoHistoryLimit"), 1, MAX_UNDO_HISTORY_LIMIT)
+         ? Math.clamp((long)tag.getInt("undoHistoryLimit"), 1, SessionHistoryLimits.MAX_UNDO_HISTORY_LIMIT)
          : DEFAULT_WORLD_UNDO_HISTORY_LIMIT;
       settings.sessionUndoHistoryLimit = tag.contains("sessionUndoHistoryLimit")
-         ? Math.clamp((long)tag.getInt("sessionUndoHistoryLimit"), 1, MAX_UNDO_HISTORY_LIMIT)
-         : DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
+         ? Math.clamp((long)tag.getInt("sessionUndoHistoryLimit"), 1, SessionHistoryLimits.MAX_UNDO_HISTORY_LIMIT)
+         : SessionHistoryLimits.DEFAULT_SESSION_UNDO_HISTORY_LIMIT;
       double savedAngle = tag.getDouble("angleDegrees");
       settings.tinkerHistoryMergeLimits = readTinkerHistoryLimits(tag);
       settings.angleDegrees = GeometryNumbers.finite(savedAngle)
@@ -208,7 +208,7 @@ public final class FastPlaceSettings {
    public FastPlaceGeometry.Modes modes() {
       return new FastPlaceGeometry.Modes(
          this.pointMode(), RaycastPlacement.SURFACE, this.lineMode(), this.faceMode(), this.volumeMode(), this.fillMode,
-         this.angleDegrees, false, io.github.fastformer.fastplace.geometry.generation.LineTieBias.DEFAULT
+         this.angleDegrees, false, io.github.fastformer.common.geometry.LineTieBias.DEFAULT
       );
    }
 
@@ -237,7 +237,7 @@ public final class FastPlaceSettings {
    }
 
    public void setWorldUndoHistoryLimit(ServerPlayer player, int value) {
-      this.worldUndoHistoryLimit = Math.clamp((long)value, 1, MAX_UNDO_HISTORY_LIMIT);
+      this.worldUndoHistoryLimit = Math.clamp((long)value, 1, SessionHistoryLimits.MAX_UNDO_HISTORY_LIMIT);
       this.save(player);
       HistorySystem.of(player).trimToSetting(player, this.worldUndoHistoryLimit);
    }
@@ -247,7 +247,7 @@ public final class FastPlaceSettings {
    }
 
    public void setSessionUndoHistoryLimit(ServerPlayer player, int value) {
-      this.sessionUndoHistoryLimit = Math.clamp((long)value, 1, MAX_UNDO_HISTORY_LIMIT);
+      this.sessionUndoHistoryLimit = Math.clamp((long)value, 1, SessionHistoryLimits.MAX_UNDO_HISTORY_LIMIT);
       this.save(player);
       OperationSystem.of(player).updateSessionHistoryLimit(player, this.sessionUndoHistoryLimit);
    }

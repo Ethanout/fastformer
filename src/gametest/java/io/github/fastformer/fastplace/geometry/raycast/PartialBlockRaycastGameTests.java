@@ -1,9 +1,13 @@
 package io.github.fastformer.fastplace.geometry.raycast;
 
+import io.github.fastformer.common.placement.context.PlacementContexts;
+
+import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+
 import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -78,7 +82,7 @@ public final class PartialBlockRaycastGameTests {
          helper.assertTrue(selection.getDirection() == expected.getDirection()
             && selection.getLocation().distanceToSqr(expected.getLocation()) < 1.0E-10,
             "selection ray changed the actual shape hit");
-         var snapshot = PlacementContextSnapshot.capture(level, player, stack, actual, false);
+         var snapshot = PlacementContexts.capture(level, player, stack, actual, false);
          BlockPos expectedPosition = merges ? target : target.above();
          helper.assertTrue(snapshot.placementPosition().equals(expectedPosition), "preview moved into the wrong cell");
          try {
@@ -89,7 +93,7 @@ public final class PartialBlockRaycastGameTests {
             SessionSystem.of(player).cancelEditing(player);
          }
          try {
-            var embedded = PlacementContextSnapshot.capture(level, player, stack, actual, true);
+            var embedded = PlacementContexts.capture(level, player, stack, actual, true);
             helper.assertTrue(embedded.clickedFace() == Direction.UP && embedded.hitLocation().equals(actual.getLocation()),
                "embedded placement changed the shape entry face");
             QuickShapeSystem.of(player).addInitialPoint(player, actual, true);

@@ -1,7 +1,7 @@
 package io.github.fastformer.server.feedback;
 
 import io.github.fastformer.core.lifecycle.Scoped;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,8 +29,8 @@ public final class TaskFeedback implements Scoped {
    }
 
    public void attach(ServerPlayer player) {
-      deliver(player.getUUID(), message -> FastPlaceMessages.actionBar(player, message),
-         message -> FastPlaceMessages.chat(player, message));
+      deliver(player.getUUID(), message -> PlayerMessages.actionBar(player, message),
+         message -> PlayerMessages.chat(player, message));
    }
 
    void deliver(UUID owner, Consumer<Component> actionBar, Consumer<Component> chat) {

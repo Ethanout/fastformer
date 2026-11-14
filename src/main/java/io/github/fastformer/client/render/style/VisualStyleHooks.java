@@ -28,6 +28,6 @@ public final class VisualStyleHooks {
 
    /** Call after an add-on changes geometry rules. Shader-only animation does not need a rebuild. */
    public static void invalidateGeometry() {
-      Minecraft.getInstance().execute(io.github.fastformer.client.render.core.FastPlaceClientPreviewCore::onThemeChanged);
+       io.github.fastformer.client.render.theme.VisualThemes.invalidateGeometry();
    }
 }

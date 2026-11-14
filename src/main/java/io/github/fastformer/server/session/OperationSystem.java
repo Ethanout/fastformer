@@ -1,5 +1,7 @@
 package io.github.fastformer.server.session;
 
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+
 import io.github.fastformer.core.math.Axis;
 
 
@@ -20,7 +22,7 @@ import io.github.fastformer.fastplace.session.OperationSession;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.block.SelectionOperationTask;
-import io.github.fastformer.fastplace.text.FastPlaceMessages;
+import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
 import io.github.fastformer.network.FastPlaceNetwork;
@@ -38,7 +40,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.slf4j.Logger;
 
-public final class OperationSystem implements io.github.fastformer.core.lifecycle.Scoped {
+public final class OperationSystem implements io.github.fastformer.core.lifecycle.Scoped, io.github.fastformer.server.mode.ServerEditor {
    private static final Logger LOGGER = LogUtils.getLogger();
    final PlayerSessions<OperationSession> sessions = new PlayerSessions<>();
    private final SessionSystem runtime;
@@ -109,7 +111,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          session.setFirst(point);
          return true;
       });
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_point1"));
+      PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_point1"));
       FastPlaceNetwork.syncOperation(player, session);
       return session;
    }
@@ -120,7 +122,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          session.setSecond(point);
          return true;
       });
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_point2"));
+      PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_point2"));
       FastPlaceNetwork.syncOperation(player, session);
       return session;
    }
@@ -132,7 +134,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
             session.setSecond(point);
             return true;
          });
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_point2"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_point2"));
          FastPlaceNetwork.syncOperation(player, session);
       }
    }
@@ -140,7 +142,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    public void addExtraPoint(ServerPlayer player, BlockPos point) {
       OperationSession session = sessions.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.addExtraPoint(point))) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_extra_point", session.extraPoints().size()));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_extra_point", session.extraPoints().size()));
          FastPlaceNetwork.syncOperation(player, session);
       }
    }
@@ -155,11 +157,11 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    public boolean confirmSelection(ServerPlayer player) {
       OperationSession session = sessions.active(player.getUUID());
       if (session == null || !recordEdit(session, session::confirmSelection)) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_need_points"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_need_points"));
          return false;
       }
       FastPlaceNetwork.syncOperation(player, session);
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_selection_confirmed"));
+      PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_selection_confirmed"));
       return true;
    }
 
@@ -217,9 +219,9 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    public void addSelectionPoint(ServerPlayer player, BlockPos point) {
       OperationSession session = sessions.active(player.getUUID());
       if (session != null && recordEdit(session, () -> session.addSelectionPoint(point))) {
-         FastPlaceMessages.actionBar(
+         PlayerMessages.actionBar(
             player,
-            FastPlaceMessages.text("fastformer.message.operation_selection_point", session.points().size(), session.selectionMode().requiredPoints())
+            PlayerMessages.text("fastformer.message.operation_selection_point", session.points().size(), session.selectionMode().requiredPoints())
          );
          FastPlaceNetwork.syncOperation(player, session);
       }
@@ -315,7 +317,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          return false;
       }
       session.setConflictMode(mode);
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_conflict_mode", FastPlaceMessages.text(mode)));
+      PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_conflict_mode", PlayerMessages.text(mode)));
       return true;
    }
 
@@ -327,7 +329,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       BlockPos axisStep = OperationGeometry.viewAxisStep(player.getViewVector(1.0F), steps);
       int axis = axisStep.getX() != 0 ? 0 : axisStep.getY() != 0 ? 1 : 2;
       int amount = axis == 0 ? axisStep.getX() : axis == 1 ? axisStep.getY() : axisStep.getZ();
-      var operation = io.github.fastformer.fastplace.geometry.AxisGizmo.Operation.MOVE;
+      var operation = io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation.MOVE;
       session.beginTransform(operation, Axis.values()[axis], Integer.signum(amount));
       session.updateTransform(Math.abs(amount));
       session.finishTransform();
@@ -336,7 +338,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
 
    public void adjustTransform(
       ServerPlayer player,
-      io.github.fastformer.fastplace.geometry.AxisGizmo.Operation operation,
+      io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation operation,
       Axis axis,
       int direction,
       int totalSteps,
@@ -364,7 +366,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          return false;
       }
       if (!session.stageMode().executable()) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_mode_not_implemented"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_mode_not_implemented"));
          return false;
       }
       return apply(player, copy);
@@ -373,7 +375,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    public boolean apply(ServerPlayer player, boolean copy) {
       OperationSession session = sessions.active(player.getUUID());
       if (session == null || !session.selectionReady()) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_need_points"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_need_points"));
          return false;
       }
 
@@ -387,15 +389,15 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       AABB bounds = selection.bounds();
       long volume = scanCells(bounds);
       if (volume > maxPlacement) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_too_large", maxPlacement));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_too_large", maxPlacement));
          return false;
       }
       if (!WorldOperationMemory.snapshotAdmission(volume, 0L).allowed()) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_memory_unsafe"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_memory_unsafe"));
          return false;
       }
       if (operationBusy(player)) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_task_running"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_task_running"));
          return false;
       }
       runtime.operationTasks().enqueue(
@@ -413,7 +415,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          )
       );
       cancel(player);
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_scanning"));
+      PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_scanning"));
       return true;
    }
 
@@ -465,12 +467,12 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
          // The write gate is closed for this server session, because a disk
          // journal could not be recovered safely. Refuse before the ledger begin so no
          // record claims this transfer was accepted. A later retry uses a new transfer.
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.recovery_journal_blocked"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.recovery_journal_blocked"));
          return io.github.fastformer.workspace.submission.WorkspaceAdmission.rejected();
       }
       int maxPlacement = FastPlaceSettings.load(player).maxPlacement();
       if (operationBusy(player)) {
-         FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_task_running"));
+         PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_task_running"));
          return io.github.fastformer.workspace.submission.WorkspaceAdmission.rejected();
       }
       SubmittedWorkspaceTask workspaceTask = new SubmittedWorkspaceTask(
@@ -531,7 +533,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
 
    private void announceAdmission(ServerPlayer player) {
       cancel(player);
-      FastPlaceMessages.actionBar(player, FastPlaceMessages.text("fastformer.message.operation_scanning"));
+      PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_scanning"));
    }
 
    public void cancel(ServerPlayer player) {
@@ -558,12 +560,12 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
     * Moves the operation session of a dimension aside. A selection is
     * dimension-bound because its coordinates are absolute world positions.
     */
-   void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+   @Override public void parkDimensionSession(UUID owner, ResourceKey<Level> dimension) {
       sessions.park(owner, dimension);
    }
 
    /** Restores the operation session that belongs to the target dimension. */
-   void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
+   @Override public void restoreDimensionSession(UUID owner, ResourceKey<Level> dimension) {
       sessions.restore(owner, dimension);
    }
 

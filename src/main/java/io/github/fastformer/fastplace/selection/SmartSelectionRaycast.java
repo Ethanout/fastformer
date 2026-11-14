@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace.selection;
 
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
@@ -19,7 +19,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 public final class SmartSelectionRaycast {
    private SmartSelectionRaycast() { }
 
-   public static OperationGeometry.RayHit hit(Map<BlockPos, ClientBlockSnapshot> blocks, BlockGetter world,
+   public static OperationGeometry.RayHit hit(Map<BlockPos, BlockSnapshot> blocks, BlockGetter world,
       CollisionContext collision, Vec3 eye, Vec3 view, double reach) {
       Pick picked = pick(blocks, world, collision, eye, view, reach);
       return picked == null ? null : picked.hit();
@@ -44,7 +44,7 @@ public final class SmartSelectionRaycast {
       return pick.position().relative(Direction.getNearest(normal.x, normal.y, normal.z));
    }
 
-   public static Pick pick(Map<BlockPos, ClientBlockSnapshot> blocks, BlockGetter world,
+   public static Pick pick(Map<BlockPos, BlockSnapshot> blocks, BlockGetter world,
       CollisionContext collision, Vec3 eye, Vec3 view, double reach) {
       BlockGetter snapshot = new BlockGetter() {
          public BlockEntity getBlockEntity(BlockPos pos) { return null; }

@@ -6,7 +6,7 @@ import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.GizmoDragCalculator;
 import io.github.fastformer.client.input.math.ClientInputMath;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.protocol.c2s.geometry.GeometryGizmoDragPayload;
 import io.github.fastformer.protocol.c2s.operation.OperationTransformPayload;
 import net.minecraft.client.Minecraft;

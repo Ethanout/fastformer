@@ -1,5 +1,7 @@
 package io.github.fastformer.fastplace.session;
 
+import io.github.fastformer.common.geometry.session.GeometrySession;
+
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 import net.minecraft.core.BlockPos;

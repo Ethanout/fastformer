@@ -6,7 +6,7 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionIntentTest;
 import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
-import io.github.fastformer.fastplace.quickshape.LineMode;
+import io.github.fastformer.common.quickshape.mode.LineMode;
 import java.util.ArrayDeque;
 import org.junit.jupiter.api.Test;
 

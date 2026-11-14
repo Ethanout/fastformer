@@ -3,7 +3,7 @@ package io.github.fastformer.client.render.shell;
 import io.github.fastformer.client.render.geometry.PencilStroke;
 import io.github.fastformer.client.render.geometry.PreviewQuads;
 import io.github.fastformer.client.render.ShapeShellMesh;
-import io.github.fastformer.fastplace.geometry.GuideLine;
+import io.github.fastformer.common.geometry.model.GuideLine;
 import java.util.List;
 import net.minecraft.world.phys.Vec3;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -102,7 +102,7 @@ public final class ShapeShellRenderer {
       List<GuideLine> confirmed,
       List<GuideLine> pending
    ) {
-      var ink = io.github.fastformer.fastplace.geometry.GeometryPalette.confirmedOutline();
+      var ink = io.github.fastformer.client.preview.style.GeometryPalette.confirmedOutline();
       float alpha = io.github.fastformer.client.render.PreviewStyle.OUTLINE_ALPHA;
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);

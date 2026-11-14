@@ -1,6 +1,6 @@
 package io.github.fastformer.client.render.cache;
 
-import io.github.fastformer.fastplace.geometry.GeometryPalette;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
 import io.github.fastformer.fastplace.geometry.BlockPositionMaps;

@@ -1,6 +1,6 @@
 package io.github.fastformer.server.intent;
 
-import io.github.fastformer.fastplace.session.GeometrySession;
+import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.GeometrySystem;
 import io.github.fastformer.server.session.OperationSystem;

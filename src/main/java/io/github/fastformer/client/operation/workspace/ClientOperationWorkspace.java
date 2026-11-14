@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.workspace;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.selection.ClientSelectionStack;
 import java.util.ArrayList;
@@ -690,7 +690,7 @@ public final class ClientOperationWorkspace {
    private static void addPayload(
       List<ClientOperationEventStack.SharedPayload> payloads,
       IdentityHashMap<Object, Boolean> seen,
-      Map<BlockPos, ClientBlockSnapshot> holder
+      Map<BlockPos, BlockSnapshot> holder
    ) {
       if (holder == null || seen.put(holder, Boolean.TRUE) != null) {
          return;

@@ -4,7 +4,7 @@ import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 
 import io.github.fastformer.client.placement.effect.PlacementEffectPreview;
 import io.github.fastformer.client.controlpoint.ControlPointPresentation;
-import io.github.fastformer.client.preview.PreviewMode;
+import io.github.fastformer.client.preview.frame.PreviewMode;
 import io.github.fastformer.client.preview.frame.WorldPreviewFrame;
 import io.github.fastformer.client.render.PreviewAsyncPolicy;
 import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
@@ -12,7 +12,7 @@ import io.github.fastformer.client.render.guide.GuideRenderer;
 import io.github.fastformer.client.render.shell.ShapeShellRenderer;
 import io.github.fastformer.client.session.preview.ClientPreviewState;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.geometry.GuideLine;
+import io.github.fastformer.common.geometry.model.GuideLine;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
 import java.util.ArrayList;
 import java.util.List;

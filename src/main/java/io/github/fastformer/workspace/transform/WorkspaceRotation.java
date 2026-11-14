@@ -2,7 +2,7 @@ package io.github.fastformer.workspace.transform;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.fastplace.geometry.TransformFrame;
+import io.github.fastformer.common.geometry.model.TransformFrame;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import net.minecraft.world.phys.Vec3;
 

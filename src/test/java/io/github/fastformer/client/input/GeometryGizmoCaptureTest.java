@@ -7,8 +7,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.drag.GeometryGizmoDrag;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.ArrayList;
 import java.util.List;

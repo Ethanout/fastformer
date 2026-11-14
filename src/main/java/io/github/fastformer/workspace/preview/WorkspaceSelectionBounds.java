@@ -2,7 +2,7 @@ package io.github.fastformer.workspace.preview;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.workspace.model.ClientBlockSnapshot;
+import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.selection.OccupiedBlockBounds;
@@ -117,10 +117,10 @@ public final class WorkspaceSelectionBounds {
          OccupiedBlockBounds source = OccupiedBlockBounds.from(part.blocks().keySet()).orElse(null);
          if (source != null) return rotatedCuboid(source.aabb(), transform, geometryFrame(part, transform));
       }
-      Composition<ClientBlockSnapshot> composition = WorkspacePreviewComposer.composeSnapshots(
+      Composition<BlockSnapshot> composition = WorkspacePreviewComposer.composeSnapshots(
          part.blocks(), transform, CompositionBudget.INTERACTION
       );
-      if (!(composition instanceof Composition.Composed<ClientBlockSnapshot> composed)) {
+      if (!(composition instanceof Composition.Composed<BlockSnapshot> composed)) {
          return null;
       }
       OccupiedBlockBounds occupied = OccupiedBlockBounds.from(composed.values().keySet()).orElse(null);

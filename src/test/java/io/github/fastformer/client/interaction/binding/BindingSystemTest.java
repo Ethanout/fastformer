@@ -109,6 +109,30 @@ class BindingSystemTest {
       assertTrue(calls.isEmpty());
    }
 
+   @Test void fillSignalUsesReloadedPolicyImmediatelyWithoutWaitingForTick() {
+      var revision = new java.util.concurrent.atomic.AtomicLong();
+      var rules = new java.util.concurrent.atomic.AtomicReference<List<BindingSystem.Rule>>();
+      var actions = BuiltinBindingActions.create();
+      var block = BindingFile.parse(JsonParser.parseString("""
+         {"bindings":[{"id":"fastformer:fill_wheel","context":{"session":"fastformer:smart_fill"},
+          "input":{"button":"scroll","gesture":"scroll_up"},
+          "action":"fastformer:block"}]}
+         """));
+      var binding = block.bindings().getFirst();
+      rules.set(List.of(new BindingSystem.Rule(binding, actions.resolve(binding.action()).getOrThrow())));
+      var system = new BindingSystem(new ContextMatcher(ContextFields.defaults().freeze()), rules::get, id -> true,
+         revision::get, () -> {});
+      var fill = context("fastformer:smart_fill");
+      assertTrue(system.onSignalResult("scroll", "scroll_up", fill, commands).consumesVanilla());
+      var allow = UserOverrides.merge(block, JsonParser.parseString("""
+         {"bindings":[{"id":"fastformer:fill_wheel","action":"fastformer:vanilla"}]}
+         """).getAsJsonObject()).bindings().getFirst();
+      rules.set(List.of(new BindingSystem.Rule(allow, actions.resolve(allow.action()).getOrThrow())));
+      revision.incrementAndGet();
+      assertEquals(BindingAction.Result.HANDLED_PASS_VANILLA, system.onSignalResult("scroll", "scroll_up", fill, commands));
+      assertTrue(calls.isEmpty());
+   }
+
    private BindingSystem system(boolean enabled) {
       BindingFile file = BindingFile.parse(JsonParser.parseString("""
          {"option":"fastformer:hold_line","bindings":[

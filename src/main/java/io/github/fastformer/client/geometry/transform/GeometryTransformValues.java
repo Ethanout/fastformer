@@ -1,9 +1,9 @@
 package io.github.fastformer.client.geometry.transform;
 
 import io.github.fastformer.core.math.Axis;
-import io.github.fastformer.fastplace.geometry.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryMode;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
+import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
+import io.github.fastformer.common.geometry.GeometryMode;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
@@ -51,7 +51,7 @@ public final class GeometryTransformValues {
    private static TransformStatus current(GeometryPreviewPayload p, GeometryPreviewPlan plan) {
       if (!p.active()) return null;
       if (p.mode() == GeometryMode.CONE_PRISM) {
-         if (p.conePlaneMode().stageFor(p.points().size()) != io.github.fastformer.fastplace.geometry.cone.ConePrismStage.ADJUST) return null;
+         if (p.conePlaneMode().stageFor(p.points().size()) != io.github.fastformer.common.geometry.ConePrismStage.ADJUST) return null;
          int count = Math.min(p.pointLocations().size(), p.conePlaneMode().facePointCount());
          var geometry = ConePrismGeometry.from(new ConePrismParameters(List.copyOf(p.pointLocations().subList(0, count)),
             p.pointLocations().size() > count ? Optional.of(p.pointLocations().get(count)) : Optional.empty(), p.coneShapeVariant(),

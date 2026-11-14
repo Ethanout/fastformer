@@ -1,5 +1,7 @@
 package io.github.fastformer.server.replace;
 
+import io.github.fastformer.common.placement.context.QuickReplaceTargets;
+
 import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.server.history.HistorySystem;
@@ -8,7 +10,7 @@ import io.github.fastformer.common.replace.QuickReplaceTarget;
 
 import io.github.fastformer.fastplace.interaction.BlockTinker;
 import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.placement.context.PlaceableItems;
+import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.settings.FastPlaceSettings;
 import io.github.fastformer.fastplace.world.*;
 import io.github.fastformer.server.input.ServerInputDispatcher;
@@ -86,12 +88,12 @@ public final class QuickReplaceSystem {
       stroke.lastSampleTick = tick;
       stroke.item = player.getMainHandItem().copy();
       var ray = new QuickReplaceSweep.Ray(player.getEyePosition(), player.getViewVector(1));
-      var current = new QuickReplaceSweep.Sample(ray, QuickReplaceTarget.raycast(player, ray.eye(), ray.view()));
+      var current = new QuickReplaceSweep.Sample(ray, QuickReplaceTargets.raycast(player, ray.eye(), ray.view()));
       Map<BlockPos, BlockState> changes = new java.util.LinkedHashMap<>();
       var samples = QuickReplaceSweep.trace(stroke.previous, current,
-         sampleRay -> QuickReplaceTarget.raycast(player, sampleRay.eye(), sampleRay.view()));
+         sampleRay -> QuickReplaceTargets.raycast(player, sampleRay.eye(), sampleRay.view()));
       for (var sample : samples) {
-         var target = QuickReplaceTarget.resolve(player, sample.hit());
+         var target = QuickReplaceTargets.resolve(player, sample.hit());
          if (target != null && !player.level().getBlockState(target.position()).equals(target.state())) {
             changes.putIfAbsent(target.position(), target.state());
          }

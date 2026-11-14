@@ -2,7 +2,7 @@ package io.github.fastformer.protocol.s2c.preview;
 
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSession;
 
-import io.github.fastformer.fastplace.quickshape.PolygonVolumeShape;
+import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -49,7 +49,7 @@ public record BuildingPreviewSessionPayload(
       PolygonVolumeShape polygonVolumeShape,
       List<BlockPos> points,
       BlockPos freeScrollOffset,
-      io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot placementContext
+      io.github.fastformer.common.placement.PlacementContextSnapshot placementContext
    ) {
       this(0L, new BuildingPreviewSession(
          enabled, middleConfirmEnabled, active, ctrlHeld, polygonClosed,

@@ -36,6 +36,20 @@
         "if": {"input_phase": "dispatch"}, "action": "fastformer:block"}
     },
     "session:fastformer:smart_fill": {
+      "left/press": {"id": "fastformer:smart_fill/block_left_press", "action": "fastformer:block"},
+      "left/release": {"id": "fastformer:smart_fill/block_left_release", "action": "fastformer:block"},
+      "right/press": {"id": "fastformer:smart_fill/block_right_press", "action": "fastformer:block"},
+      "right/release": {"id": "fastformer:smart_fill/block_right_release", "action": "fastformer:block"},
+      "middle/press": {"id": "fastformer:smart_fill/block_middle_press", "action": "fastformer:block"},
+      "middle/release": {"id": "fastformer:smart_fill/block_middle_release", "action": "fastformer:block"},
+      "*/press": {"id": "fastformer:smart_fill/block_other_mouse_press",
+        "if": {"standard_mouse_button": false}, "action": "fastformer:block"},
+      "*/release": {"id": "fastformer:smart_fill/block_other_mouse_release",
+        "if": {"standard_mouse_button": false}, "action": "fastformer:block"},
+      "use/interaction": {"id": "fastformer:smart_fill/block_use", "action": "fastformer:block"},
+      "attack/interaction": {"id": "fastformer:smart_fill/block_attack", "action": "fastformer:block"},
+      "scroll/scroll_up": {"id": "fastformer:smart_fill/block_scroll_up", "action": "fastformer:block"},
+      "scroll/scroll_down": {"id": "fastformer:smart_fill/block_scroll_down", "action": "fastformer:block"},
       "@swap_offhand/key": [
         {"id": "fastformer:smart_fill/confirm_swap", "priority": 50,
          "if": {"input_phase": "dispatch", "screen": false, "player_present": true, "key_action": "press",
