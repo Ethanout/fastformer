@@ -10,6 +10,7 @@ import io.github.fastformer.client.operation.clipboard.OperationClipboardActions
 import io.github.fastformer.client.operation.clipboard.OperationClipboardRepository;
 import io.github.fastformer.client.operation.input.SelectionConfirmation;
 import io.github.fastformer.client.operation.preview.OperationPreviewState;
+import io.github.fastformer.client.operation.submission.OperationReceipts;
 import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
@@ -29,7 +30,6 @@ import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
-import io.github.fastformer.client.session.receipt.OperationSubmissionReceipt;
 import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.submission.OperationDraftSettlement;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
@@ -37,10 +37,8 @@ import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
-import io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
-import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayload;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
 import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -53,7 +51,6 @@ import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -69,6 +66,14 @@ public final class OperationContext {
    private String lastOperationFailureKey;
    private final WorkspaceSubmissionTracker submission;
    private final OperationPreviewState preview = new OperationPreviewState();
+   private final OperationReceipts receipts = new OperationReceipts(ClientSessionSystem::instance,
+      () -> {
+         var minecraft = Minecraft.getInstance();
+         return !ownsCurrentInteraction() || minecraft == null || minecraft.getConnection() == null || minecraft.level == null
+            ? null : minecraft.level.dimension().location();
+      }, net.neoforged.neoforge.network.PacketDistributor::sendToServer,
+      this::showSubmissionMessage, System::currentTimeMillis,
+      failure -> LOGGER.warn("Unable to query the FastFormer workspace submission receipts", failure));
 
    private final ClientSelectionSession selection;
 
@@ -699,134 +704,8 @@ public final class OperationContext {
       }
    }
 
-   /**
-    * Sends the receipt query for every submission that still waits for a result.
-    *
-    * <p>The client calls this after a login settles. A submission that the server
-    * completes while the player is away has no receiver, so the answer must come from
-    * this query.</p>
-    */
-   public void queryOutstandingSubmissionReceipts() {
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft == null || minecraft.getConnection() == null || minecraft.level == null) {
-         return;
-      }
-      ResourceLocation dimension = minecraft.level.dimension().location();
-      List<OperationSubmissionReceipt> open =
-         ClientSessionSystem.instance().openSubmissionReceipts();
-      if (open.isEmpty()) {
-         return;
-      }
-      List<UUID> transferIds = new java.util.ArrayList<>(open.size());
-      for (OperationSubmissionReceipt receipt : open) {
-         // A receipt that already reached a final state never needs a query. Only an
-         // open submission can change, so only an open submission is asked about.
-         // A receipt of another environment is not this connection's business.
-         if (receipt.outcome().open() && receipt.dimension().equals(dimension)) {
-            transferIds.add(receipt.transferId());
-         }
-      }
-      if (transferIds.isEmpty()) {
-         return;
-      }
-      sendReceiptQuery(dimension, transferIds);
-   }
-
-   private void sendReceiptQuery(ResourceLocation dimension, List<UUID> transferIds) {
-      try {
-         int limit = OperationWorkspaceReceiptQueryPayload
-            .MAX_TRANSFER_IDS;
-         // A large set needs more than one packet. Each query stays inside the limit.
-         for (int start = 0; start < transferIds.size(); start += limit) {
-            List<UUID> batch = List.copyOf(
-               transferIds.subList(start, Math.min(start + limit, transferIds.size()))
-            );
-            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-               new OperationWorkspaceReceiptQueryPayload(
-                  dimension, batch
-               )
-            );
-         }
-      } catch (RuntimeException exception) {
-         LOGGER.warn("Unable to query the FastFormer workspace submission receipts", exception);
-      }
-   }
-
-   /**
-    * Applies the server answer to the recorded receipts.
-    *
-    * <p>The answer never triggers a new submission. It decides only whether the draft
-    * can be dropped, must stay, or must stay with a warning.</p>
-    *
-    * <p>Every entry must match the recorded receipt on dimension and transfer id. An
-    * answer for another environment must not settle a submission of this one.</p>
-    */
-   public void applyWorkspaceReceipt(OperationWorkspaceReceiptPayload payload) {
-      if (payload == null) {
-         return;
-      }
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft == null || minecraft.level == null) {
-         return;
-      }
-      if (!payload.dimension().equals(minecraft.level.dimension().location())) {
-         return;
-      }
-      ClientSessionSystem sessions = ClientSessionSystem.instance();
-      for (OperationWorkspaceReceiptPayload.Entry entry : payload.entries()) {
-         OperationSubmissionReceipt receipt = sessions.submissionReceipt(entry.transferId()).orElse(null);
-         if (receipt == null || !receipt.dimension().equals(payload.dimension())) {
-            continue;
-         }
-         if (receipt.outcome() == OperationSubmissionOutcome.APPLIED) {
-            // The client already knows that the world write happened. No later answer may
-            // replace that knowledge, including an UNKNOWN from a server ledger that
-            // restarted. Only the local cleanup can still be owed.
-            if (receipt.needsCleanup()) {
-               OperationDraftSettlement.Applied applied =
-                  sessions.settleAppliedSubmission(entry.transferId());
-               showSubmissionMessage(applied.confirmed()
-                  ? "fastformer.message.operation_submit_success"
-                  : "fastformer.message.operation_submit_cleanup_pending");
-            }
-            continue;
-         }
-         if (entry.outcome() == receipt.outcome()) {
-            continue;
-         }
-         if (entry.outcome() == OperationSubmissionOutcome.APPLIED) {
-            // The applied result is recorded with a pending cleanup, then the two draft
-            // copies are cleared, then the cleanup is recorded. A false confirmation means
-            // a copy could not be cleared or the record could not be saved. The client then
-            // keeps the pending cleanup and repeats it at the next boundary, instead of
-            // claiming a success that it cannot promise.
-            OperationDraftSettlement.Applied applied =
-               sessions.settleAppliedSubmission(entry.transferId());
-            if (applied.confirmed()) {
-               showSubmissionMessage("fastformer.message.operation_submit_success");
-            } else {
-               showSubmissionMessage("fastformer.message.operation_submit_cleanup_pending");
-            }
-            continue;
-         }
-         // The state is final for this receipt. A receipt that stays open would be
-         // queried again on every login, so every answer ends the wait.
-         sessions.updateSubmissionReceipt(
-            entry.transferId(), entry.outcome(), System.currentTimeMillis()
-         );
-         if (entry.outcome() == OperationSubmissionOutcome.FAILED_RETRYABLE) {
-            // The draft stays, and the player decides when to send it again.
-            showSubmissionMessage("fastformer.message.operation_submit_failed_retry");
-         } else if (entry.outcome() == OperationSubmissionOutcome.FAILED_NONRETRYABLE) {
-            showSubmissionMessage("fastformer.message.operation_submit_failed_final");
-         } else if (entry.outcome() == OperationSubmissionOutcome.RECOVERY_REQUIRED) {
-            showSubmissionMessage("fastformer.message.operation_submit_recovery");
-         } else if (entry.outcome() == OperationSubmissionOutcome.UNKNOWN) {
-            // The server holds no record. The outcome is unknown, not failed, so the
-            // client keeps the draft, claims nothing, and never resends on its own.
-            showSubmissionMessage("fastformer.message.operation_submit_unverified");
-         }
-      }
+   public OperationReceipts receipts() {
+      return receipts;
    }
 
    /**
@@ -1038,7 +917,7 @@ public final class OperationContext {
          // The environment returned a snapshot, so the connection is live and the scope
          // is bound. Any submission that was still open may have finished while the
          // player was away, so ask once for its result.
-         queryOutstandingSubmissionReceipts();
+         receipts.query();
       }
       // Silence is not a server rejection. The wait owns no draft and discards none on timeout.
    }

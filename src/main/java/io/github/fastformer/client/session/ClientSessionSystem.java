@@ -2,6 +2,7 @@ package io.github.fastformer.client.session;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
+import io.github.fastformer.client.operation.submission.SubmissionReceiptAccess;
 import io.github.fastformer.client.session.draft.ClientDraftLoadState;
 import io.github.fastformer.client.session.draft.ClientDraftRepository.ReceiptVerdict;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
@@ -38,7 +39,7 @@ import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 
 /** Owns top-level client session transitions and keeps them out of event handlers. */
-public final class ClientSessionSystem {
+public final class ClientSessionSystem implements SubmissionReceiptAccess {
    private static final ClientSessionSystem INSTANCE = new ClientSessionSystem();
    private static final Logger LOGGER = LogUtils.getLogger();
 

@@ -76,7 +76,7 @@ public final class ClientInboundSystem {
       callback(queue, OperationWorkspaceResultPayload.class, OperationWorkspaceResultPayload.TYPE,
          OperationWorkspaceResultPayload::callbackScope, payload -> ClientSessionSystem.instance().operations().applyWorkspaceResult(payload));
       receipt(queue, OperationWorkspaceReceiptPayload.class, OperationWorkspaceReceiptPayload.TYPE,
-         payload -> ClientSessionSystem.instance().operations().applyWorkspaceReceipt(payload));
+         payload -> ClientSessionSystem.instance().operations().receipts().apply(payload));
       receipt(queue, WorldHistoryEventPayload.class, WorldHistoryEventPayload.TYPE, payload -> ClientSessionSystem.instance().operations().applyWorldHistoryEvent(payload));
       receipt(queue, QuickReplaceStatePayload.class, QuickReplaceStatePayload.TYPE, QuickReplaceMode::receive);
       receipt(queue, InteractionUpdatesPayload.class, InteractionUpdatesPayload.TYPE, ClientInteractionUpdates::receive);

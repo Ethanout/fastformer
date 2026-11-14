@@ -32,6 +32,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.client.operation.preview') ||
                     packageName.startsWith('io.github.fastformer.client.operation.clipboard') ||
                     packageName.startsWith('io.github.fastformer.client.operation.transform') ||
+                    packageName.startsWith('io.github.fastformer.client.operation.submission') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -64,6 +65,10 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && packageName.startsWith('io.github.fastformer.client.operation.transform') &&
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:session|input|operation\.controller)\./).find()) {
                 violations.add("Transform capability depends on its assembly or input caller: ${path}")
+            }
+            if (main && source.name == 'OperationReceipts.java' &&
+                    (dependencies =~ /io\.github\.fastformer\.client\.(?:session\.ClientSessionSystem|input\.|operation\.controller\.)/).find()) {
+                violations.add("Receipt processing must use its injected storage and transport: ${path}")
             }
             if (main && (text =~ /\b(?:[\w]+GameTests|[\w]*TestAccess|RecoveryProcessTests)\b/).find()) {
                 violations.add("Production source depends on test harness: ${path}")

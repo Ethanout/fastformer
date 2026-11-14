@@ -12,6 +12,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.preview` | 作用域自己的预览 revision、快照等待和显式恢复确认 |
 | `client.operation.clipboard` | 绑定工作区的复制／原位复制／粘贴、明确结果和客户端共享剪贴板存储 |
 | `client.operation.transform` | 绑定工作区的移动、旋转、翻转、堆叠和面／点调整；自管扫描、完成与取消 |
+| `client.operation.submission` | 注入回执存储和传输的查询／结算能力；提交生命周期仍在继续迁移 |
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
@@ -112,6 +113,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `OperationClipboardActions` 构造时绑定工作区、共享仓库、提交／编辑门禁和变更通知。它不查询全局编辑器，直接返回 `ClipboardActionResult`；提示层使用该结果，不再从编辑器读取剪贴板失败。`OperationClipboardRepository` 内部拥有缓存与文件位置，成功落盘后才发布内存，读取失败保持可重试。复制、原位复制和粘贴保留原有容量、内容预算与定位规则。
 
 `OperationTransforms` 构造时绑定工作区、提交／捕获门禁、当前作用域校验、失败反馈和变更通知。它完整管理面调整扫描、延迟完成、编辑令牌和取消；输入与渲染直接使用该组件，不通过编辑器转发。工作区快照、滚轮历史合并、局部重复步长和单次失败提示的原有规则继续保留。
+
+`OperationReceipts` 通过 `SubmissionReceiptAccess` 访问回执，不依赖会话总入口。查询按当前维度过滤并按协议上限分批；答复必须匹配本地回执，已知成功不能被较弱结果覆盖。清理失败保留提示与重试，未知结果不触发重新提交。实际存储和双文件清理由 ClientSessionSystem 实现接口；消息发送、时钟和提示均在装配时注入。
 
 旧 `ClientSessionManager` 已删除，由 `ClientSessionSystem` 提供当前作用域及协调入口，查询命名为 `currentScope`。草稿模型和 Codec 位于 draft，回执模型、Codec、缓存及重试保存位于 receipt，队列和 NBT 辅助位于 storage，来源和结算规则位于 submission；相关纯单元测试跟随被测能力迁包。整个 client.session 树执行包容量和职责说明检查，不保留旧路径别名。
 
