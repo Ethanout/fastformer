@@ -2,7 +2,7 @@ package io.github.fastformer.client.session;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
-import io.github.fastformer.client.operation.submission.SubmissionReceiptAccess;
+import io.github.fastformer.client.operation.submission.SubmissionStorage;
 import io.github.fastformer.client.session.draft.ClientDraftLoadState;
 import io.github.fastformer.client.session.draft.ClientDraftRepository.ReceiptVerdict;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
@@ -39,7 +39,7 @@ import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 
 /** Owns top-level client session transitions and keeps them out of event handlers. */
-public final class ClientSessionSystem implements SubmissionReceiptAccess {
+public final class ClientSessionSystem implements SubmissionStorage {
    private static final ClientSessionSystem INSTANCE = new ClientSessionSystem();
    private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -222,10 +222,10 @@ public final class ClientSessionSystem implements SubmissionReceiptAccess {
     *
     * @return true when the save entered the bounded storage queue
     */
-   public boolean persistSubmittedDraft(
+   public boolean prepareSubmission(
       OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID transferId,
       io.github.fastformer.workspace.submission.OperationWorkspacePlan plan, java.util.function.BooleanSupplier owned,
-      java.util.function.Consumer<io.github.fastformer.client.placement.ClientPlacementRouter.WorkspaceSubmission> complete
+      java.util.function.Consumer<Runnable> complete
    ) {
       if (scopes.current() == null || currentScopeId() == null || transferId == null) return false;
       ClientOperationDraft draft =
@@ -261,7 +261,7 @@ public final class ClientSessionSystem implements SubmissionReceiptAccess {
                LOGGER.warn("Unable to persist the workspace submission", error);
                showDraftMessage("fastformer.message.operation_draft_save_failed");
             }
-            complete.accept(durable ? submission : null);
+            complete.accept(durable ? submission::send : null);
          });
       });
    }

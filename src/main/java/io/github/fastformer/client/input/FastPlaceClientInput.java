@@ -308,8 +308,9 @@ public final class FastPlaceClientInput {
             inputSession().undoPress.cancel();
             inputSession().undoPressCaptured = false;
             if (inputSession().modifier.held()) inputSession().modifier.consume();
-            if (!ClientSessionSystem.instance().operations().confirmSelection(minecraft, candidate)) {
-               ClientInteractionFeedback.showWorkspaceSubmitFailure(minecraft);
+            var result = ClientSessionSystem.instance().operations().confirmSelection(candidate);
+            if (!result.accepted()) {
+               ClientInteractionFeedback.showWorkspaceSubmitFailure(minecraft, result);
             }
             return;
          }
@@ -371,8 +372,9 @@ public final class FastPlaceClientInput {
             }
             if (operationSession) {
                if (ClientSessionSystem.instance().operations().active()) {
-                  if (!ClientSessionSystem.instance().operations().submitWorkspace(minecraft)) {
-                     ClientInteractionFeedback.showWorkspaceSubmitFailure(minecraft);
+                  var result = ClientSessionSystem.instance().operations().submissions().submitWorkspace();
+                  if (!result.accepted()) {
+                     ClientInteractionFeedback.showWorkspaceSubmitFailure(minecraft, result);
                   }
                } else if (ClientSessionSystem.instance().operations().operationAdjustmentStarted()) {
                   if (!ClientPlacementRouter.applyOperation(minecraft, controlDown)) {

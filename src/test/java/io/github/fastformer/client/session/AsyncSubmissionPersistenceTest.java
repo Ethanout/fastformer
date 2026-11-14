@@ -51,13 +51,13 @@ class AsyncSubmissionPersistenceTest {
          var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);
          assertTrue(session.workspace().addParts(List.of(part)));
          plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));
-         assertTrue(manager.persistSubmittedDraft(null, OperationSubmissionOrigin.LOCAL_ONLY, accepted, plan, () -> true, submission -> {
+         assertTrue(manager.prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, accepted, plan, () -> true, submission -> {
             assertNotNull(submission);
             published.set(true);
          }));
       }
       UUID rejected = UUID.randomUUID();
-      assertFalse(manager.persistSubmittedDraft(null, OperationSubmissionOrigin.LOCAL_ONLY, rejected, plan, () -> true,
+      assertFalse(manager.prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, rejected, plan, () -> true,
          submission -> fail("Rejected submission completed")));
       assertTrue(manager.receiptStore(key).find(rejected).isEmpty());
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
@@ -86,7 +86,7 @@ class AsyncSubmissionPersistenceTest {
       assertTrue(session.workspace().addParts(List.of(part)));
       var plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));
       var published = new AtomicBoolean();
-      assertTrue(manager.persistSubmittedDraft(null, OperationSubmissionOrigin.LOCAL_ONLY, transfer, plan, () -> !cancelled, submission -> {
+      assertTrue(manager.prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, transfer, plan, () -> !cancelled, submission -> {
          assertNotNull(submission);
          assertTrue(Files.exists(draft));
          assertTrue(Files.exists(receipt));

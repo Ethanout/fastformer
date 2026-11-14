@@ -281,7 +281,7 @@ public final class FastPlaceClientPreviewCore {
 
    public static void applyActivity(ActivityStatePayload payload) {
       if (PREVIEW_STATE.applyActivity(payload)) {
-         ClientSessionSystem.instance().operations().observeServerActivity(payload.activity());
+         ClientSessionSystem.instance().operations().submissions().observeActivity(payload.activity());
       }
    }
 

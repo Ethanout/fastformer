@@ -1,4 +1,4 @@
-package io.github.fastformer.client.operation.controller;
+package io.github.fastformer.client.operation.submission;
 
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.fastplace.session.FastPlaceActivity;
@@ -30,20 +30,12 @@ final class WorkspaceSubmissionTracker {
       this.resultGraceTicks = resultGraceTicks;
    }
 
-   void begin(UUID transferId) {
-      begin(transferId, null, null);
-   }
-
    /**
     * Starts one submission and keeps the selection identity that was live at the send.
     *
     * <p>The server preview becomes inactive as soon as the task is queued, so the
     * identity is unavailable later. A disconnect must use the copy held here.</p>
     */
-   void begin(UUID transferId, OperationDraftIdentity identity) {
-      begin(transferId, identity, null);
-   }
-
    void begin(UUID transferId, OperationDraftIdentity identity, UUID ownerId) {
       this.transferId = Objects.requireNonNull(transferId, "transferId");
       this.identity = identity;
@@ -97,10 +89,6 @@ final class WorkspaceSubmissionTracker {
 
    UUID transferId() {
       return transferId;
-   }
-
-   UUID ownerId() {
-      return ownerId;
    }
 
    Phase phase() {

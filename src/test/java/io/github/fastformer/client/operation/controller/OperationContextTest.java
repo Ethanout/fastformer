@@ -37,18 +37,17 @@ class OperationContextTest {
    @Test
    void rejectedSubmissionRemembersImmutableConflictPositionsWithoutMutatingThePayload() {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
-      var tracker = new WorkspaceSubmissionTracker(600, 40);
+      var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), tracker);
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage);
       assertTrue(operations.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD))));
-      var transfer = java.util.UUID.randomUUID();
-      tracker.begin(transfer, null, selection.interactionOwnerId());
-      operations.workspace().setLocked(true);
+      beginSubmission(operations);
+      var transfer = operations.submissions().transferId();
       var target = new BlockPos(4, 5, 6);
       var rejected = new io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload(
          transfer, false, List.of(), List.of(target));
 
-      operations.applyWorkspaceResult(rejected);
+      operations.submissions().applyResult(rejected);
 
       assertEquals(Set.of(target), operations.failedWorkspaceTargets());
       assertEquals(List.of(target), rejected.failedTargetPositions());
@@ -61,19 +60,21 @@ class OperationContextTest {
    @Test
    void disconnectClearsSubmissionAndOpenWorkspaceEdit() {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
-      var submission = new WorkspaceSubmissionTracker(600, 40);
+      var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), submission);
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage);
       operations.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
+      beginSubmission(operations);
+      // Release the transport lock to exercise cancellation of an independent open edit.
+      operations.workspace().setLocked(false);
       assertTrue(operations.workspace().beginEdit());
-      submission.begin(java.util.UUID.randomUUID(), null, selection.interactionOwnerId());
       assertTrue(operations.workspaceSubmissionPending());
 
       operations.onDisconnected();
 
       assertFalse(operations.workspaceSubmissionPending());
       assertFalse(operations.workspaceEditInProgress());
-      assertFalse(submission.pending());
+      assertFalse(operations.submissions().pending());
       assertTrue(operations.sourceMask().positions().isEmpty());
    }
 
@@ -160,9 +161,9 @@ class OperationContextTest {
    @Test
    void successfulMixedSubmissionClearsOriginalSelectionsAndSubmittedParts() {
       var selection = new io.github.fastformer.client.operation.selection.ClientSelectionSession();
-      var tracker = new WorkspaceSubmissionTracker(600, 40);
+      var storage = new io.github.fastformer.testkit.SubmissionFixture();
       var operations = new OperationContext(selection,
-         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), tracker);
+         new io.github.fastformer.client.operation.clipboard.OperationClipboardRepository(), () -> storage, current -> storage);
       try {
          var original = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD,
             OperationSelectionVolume.cuboid(BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO),
@@ -170,11 +171,11 @@ class OperationContextTest {
          var pasted = new ClientSelectionPart(2, ClientSelectionPart.Source.CLIPBOARD, null,
             Map.of(), WorkspaceTransform.IDENTITY, false);
          assertTrue(operations.workspace().addParts(List.of(original, pasted)));
-         var transferId = java.util.UUID.randomUUID();
-         tracker.begin(transferId, null, operations.interactionScene().owner());
-         operations.workspace().setLocked(true);
+         selection.retain();
+         beginSubmission(operations);
+         var transferId = operations.submissions().transferId();
 
-         operations.applyWorkspaceResult(
+         operations.submissions().applyResult(
             new io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload(
                transferId, true, List.of()));
 
@@ -257,12 +258,6 @@ class OperationContextTest {
    @Test
    void ordinaryInactiveSnapshotDoesNotClearLocalWorkspace() {
       assertFalse(OperationContext.shouldClearWorkspaceAfterSnapshot(false, false));
-   }
-
-   @Test
-   void nonRetryableWorkspaceFailureMustEndTheEditableDraft() {
-      assertFalse(OperationContext.shouldRetainWorkspaceAfterFailure(false));
-      assertTrue(OperationContext.shouldRetainWorkspaceAfterFailure(true));
    }
 
    @Test
@@ -554,6 +549,14 @@ class OperationContextTest {
          assertNull(ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(decision), () -> "unexpected message for " + decision);
       }
       assertNull(ClientSessionSystem.instance().operations().transforms().aabbAdjustFailureKey(null));
+   }
+
+   private static void beginSubmission(OperationContext operations) {
+      var part = operations.workspace().parts().getFirst();
+      var plan = new io.github.fastformer.workspace.submission.OperationWorkspacePlan.Part(
+         part.id(), part.source(), part.blocks(), part.transform(), false);
+      assertTrue(operations.submissions().submit(List.of(plan),
+         new io.github.fastformer.client.operation.submission.SubmissionScope.WholeWorkspace()).accepted());
    }
 
    private static ClientBlockSnapshot snapshot() {

@@ -2,6 +2,7 @@ package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.operation.clipboard.ClipboardActionResult;
 import io.github.fastformer.client.operation.transform.OperationTransforms;
+import io.github.fastformer.client.operation.submission.SubmissionActionResult;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -10,7 +11,6 @@ import net.minecraft.network.chat.Component;
 public final class ClientInteractionFeedback {
    private static final String COPY_SUCCESS = "fastformer.message.operation_copy_success";
    private static final String PASTE_SUCCESS = "fastformer.message.operation_paste_success";
-   private static final String SUBMIT_FAILED = "fastformer.message.operation_submit_failed";
 
    private ClientInteractionFeedback() {
    }
@@ -23,8 +23,8 @@ public final class ClientInteractionFeedback {
       show(minecraft, result.succeeded() ? PASTE_SUCCESS : result.failureKey());
    }
 
-   public static void showWorkspaceSubmitFailure(Minecraft minecraft) {
-      show(minecraft, ClientSessionSystem.instance().operations().lastOperationFailureKey(SUBMIT_FAILED));
+   public static void showWorkspaceSubmitFailure(Minecraft minecraft, SubmissionActionResult result) {
+      show(minecraft, result.failureKey());
    }
 
    /** Explains why a selection adjustment did not start. */

@@ -25,9 +25,9 @@ class ClientScopeRepositoryTest {
       assertTrue(a.operations().synchronize(OperationPreviewPayload.inactive(80)));
       assertTrue(b.operations().synchronize(OperationPreviewPayload.inactive(2)));
       assertFalse(a.operations().synchronize(OperationPreviewPayload.inactive(80)));
-      assertFalse(a.operations().submitWorkspace(null));
-      assertEquals("fallback", b.operations().lastOperationFailureKey("fallback"));
-      assertEquals("fastformer.message.operation_submit_invalid", a.operations().lastOperationFailureKey("fallback"));
+      assertEquals(io.github.fastformer.client.operation.submission.SubmissionActionResult.INVALID,
+         a.operations().submissions().submitWorkspace());
+      assertFalse(b.operations().submissions().pending());
       assertNotSame(a.operations().sourceMask(), b.operations().sourceMask());
    }
 
@@ -39,12 +39,12 @@ class ClientScopeRepositoryTest {
       var a = repository.activate(aId);
       assertTrue(a.operations().selectionEdits().handleCreateClick(1, BlockPos.ZERO));
       a.operations().setAltMode(true);
-      assertFalse(a.operations().submitWorkspace(null));
+      assertFalse(a.operations().submissions().submitWorkspace().accepted());
 
       var b = repository.activate(new ClientScopeId("b", "minecraft:overworld", player));
       assertSame(b.operations(), repository.operations());
       assertEquals(ClientSelectionState.POINTING, a.operations().interactionState());
-      assertEquals("fallback", a.operations().lastOperationFailureKey("fallback"));
+      assertFalse(a.operations().submissions().pending());
       assertTrue(a.operations().selectionEdits().selectionDraftActive());
       assertFalse(b.operations().selectionEdits().selectionDraftActive());
       assertSame(a.operations(), repository.activate(aId).operations());

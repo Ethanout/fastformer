@@ -482,3 +482,13 @@
 - 修复 `OperationWorkspaceReceiptPayload` 写入遗漏维度的问题。读取先取维度、再取回执列表；写入现按同一顺序编码。新增所有可报告结果、空列表、最大列表及后续数据边界的往返测试；修复前两项测试均失败，修复后通过。协议升级为 85，不增加旧协议解码分支。
 - `.temp/architecture-selection-receipt-verified.log`：完整 `check` 与独立新目录全量 312 项必需 GameTest 通过；`git diff --check` 通过。复查历史、草稿和恢复入口，继续只支持当前格式；试玩旧数据的直接清除授权保留，本轮无需清除实际存档。
 - 提交编排、客户端 Mode／PreviewFrame／PointerResolver、完整操作树迁移与手册其他剩余项仍未完成；长按画线仍需实机手感验收。本轮没有提交或推送 Git，正式构建仓库配置未改动。
+
+## 独立提交能力与显式范围（2026-11-14）
+
+- 选区编辑与回执编码阶段已提交并推送：`4d1f12d`。
+- `OperationSubmissions` 接管提交准备、输入请求、等待阶段、超时及在线结果结算；`WorkspaceSubmissionTracker` 随能力迁包并删除仅用于测试的 begin 重载。存储通过 `SubmissionStorage` 注入，保存完成后返回发送命令；连接与输入请求通过 `SubmissionEnvironment` 注入。组件不反向查询输入、编辑协调器或会话总入口。
+- 用 sealed `SubmissionScope` 区分整区提交和局部部件提交，局部范围明确 KEEP／REMOVE 选点草稿。范围在准入成功后冻结，修复重复提交在 pending 检查前清空原有局部范围的问题。局部成功保留余量及原选点模式；局部不可重试失败仍保留可编辑内容，整区不可重试失败仍清除草稿。
+- 删除 `lastOperationFailureKey` 及其读后即清入口。提交和确认直接返回 `SubmissionActionResult`；异步失败使用注入反馈，不让后一次操作消费前一次失败。删除协调器中的提交、回包与活动观察转发；输入、网络及预览直接调用所属能力。OperationContext 降至约 550 行。
+- 准备回调同时检查 transfer、交互所有者和冻结连接；失效回调不能发送、解锁或取消新请求。离开环境使在线工作失效但保留耐久余量，明确取消才清余量。新增九项能力测试，覆盖重复提交、范围冻结、迟到准备／回包、保存拒绝、发送失败、完整／局部失败、超时、编辑器／连接隔离和局部选点模式恢复；现有上下文回包测试通过注入真实端口驱动，不再直接操纵等待器。
+- `.temp/architecture-submission-final-verified.log`：最终完整 `check` 与独立新目录全量 312 项必需 GameTest 通过。源码布局检查新增提交能力依赖限制，以及禁止重引入旧错误通道和并行提交字段。`git diff --check` 通过；正式构建仓库配置未改动。
+- 跨仓库的双文件持久化编排仍由 ClientSessionSystem 实现，后续还需拆分；删除捕获、Mode／PreviewFrame／PointerResolver、操作树及手册其他剩余项继续保留。长按画线仍需实机手感验收，实际试玩存档未清除。

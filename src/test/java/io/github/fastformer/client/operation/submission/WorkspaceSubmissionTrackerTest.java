@@ -1,4 +1,4 @@
-package io.github.fastformer.client.operation.controller;
+package io.github.fastformer.client.operation.submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -12,7 +12,7 @@ class WorkspaceSubmissionTrackerTest {
    @Test
    void expiresWhenTheServerNeverStartsTheTask() {
       WorkspaceSubmissionTracker tracker = tracker();
-      tracker.begin(UUID.randomUUID());
+      tracker.begin(UUID.randomUUID(), null, null);
 
       assertFalse(tick(tracker, 599));
       assertTrue(tracker.tick());
@@ -21,7 +21,7 @@ class WorkspaceSubmissionTrackerTest {
    @Test
    void activeServerTaskDisablesTheStartTimeout() {
       WorkspaceSubmissionTracker tracker = tracker();
-      tracker.begin(UUID.randomUUID());
+      tracker.begin(UUID.randomUUID(), null, null);
       tracker.observeActivity(FastPlaceActivity.OPERATION_TASK);
 
       assertFalse(tick(tracker, 1_200));
@@ -31,7 +31,7 @@ class WorkspaceSubmissionTrackerTest {
    @Test
    void taskExitStartsAResultGracePeriod() {
       WorkspaceSubmissionTracker tracker = tracker();
-      tracker.begin(UUID.randomUUID());
+      tracker.begin(UUID.randomUUID(), null, null);
       tracker.observeActivity(FastPlaceActivity.OPERATION_TASK);
       tracker.observeActivity(FastPlaceActivity.NONE);
 
@@ -43,7 +43,7 @@ class WorkspaceSubmissionTrackerTest {
    void onlyTheCurrentTransferResultIsAccepted() {
       WorkspaceSubmissionTracker tracker = tracker();
       UUID current = UUID.randomUUID();
-      tracker.begin(current);
+      tracker.begin(current, null, null);
 
       assertTrue(tracker.accepts(current));
       assertFalse(tracker.accepts(UUID.randomUUID()));

@@ -74,7 +74,7 @@ public final class ClientInboundSystem {
       callback(queue, PlacementActionAckPayload.class, PlacementActionAckPayload.TYPE,
          PlacementActionAckPayload::callbackScope, FastPlaceClientInput::acknowledgePlacementRequest);
       callback(queue, OperationWorkspaceResultPayload.class, OperationWorkspaceResultPayload.TYPE,
-         OperationWorkspaceResultPayload::callbackScope, payload -> ClientSessionSystem.instance().operations().applyWorkspaceResult(payload));
+         OperationWorkspaceResultPayload::callbackScope, payload -> ClientSessionSystem.instance().operations().submissions().applyResult(payload));
       receipt(queue, OperationWorkspaceReceiptPayload.class, OperationWorkspaceReceiptPayload.TYPE,
          payload -> ClientSessionSystem.instance().operations().receipts().apply(payload));
       receipt(queue, WorldHistoryEventPayload.class, WorldHistoryEventPayload.TYPE, payload -> ClientSessionSystem.instance().operations().applyWorldHistoryEvent(payload));

@@ -12,7 +12,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.preview` | 作用域自己的预览 revision、快照等待和显式恢复确认 |
 | `client.operation.clipboard` | 绑定工作区的复制／原位复制／粘贴、明确结果和客户端共享剪贴板存储 |
 | `client.operation.transform` | 绑定工作区的移动、旋转、翻转、堆叠和面／点调整；自管扫描、完成与取消 |
-| `client.operation.submission` | 注入回执存储和传输的查询／结算能力；提交生命周期仍在继续迁移 |
+| `client.operation.submission` | 绑定编辑器的提交准备、等待、超时、在线结果与回执查询；存储、连接及输入通过接口注入 |
 | `client.operation.edit` | 绑定选区会话的选点、智能采样、草稿补全、局部撤回和取消 |
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
@@ -116,6 +116,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `OperationTransforms` 构造时绑定工作区、提交／捕获门禁、当前作用域校验、失败反馈和变更通知。它完整管理面调整扫描、延迟完成、编辑令牌和取消；输入与渲染直接使用该组件，不通过编辑器转发。工作区快照、滚轮历史合并、局部重复步长和单次失败提示的原有规则继续保留。
 
 `OperationReceipts` 通过 `SubmissionReceiptAccess` 访问回执，不依赖会话总入口。查询按当前维度过滤并按协议上限分批；答复必须匹配本地回执，已知成功不能被较弱结果覆盖。清理失败保留提示与重试，未知结果不触发重新提交。实际存储和双文件清理由 ClientSessionSystem 实现接口；消息发送、时钟和提示均在装配时注入。
+
+`OperationSubmissions` 持有一次提交的不可变 `SubmissionScope`、请求身份和等待阶段，先保存草稿与回执，再发送。`SubmissionStorage` 返回发送命令，`SubmissionEnvironment` 处理连接及输入请求，组件不查询总入口。迟到准备回调先核对请求、会话所有者和连接，重复提交不改写已有范围。`WholeWorkspace` 和 `SelectionParts` 区分整区与局部提交；后者明确保留或移除选点草稿。动作返回 `SubmissionActionResult`，没有读后即清的错误字段。离开环境保留耐久余量，明确取消才清余量；超时保留可编辑内容并拒绝迟到结果。
 
 `SelectionEdits` 完整持有选点和智能选区捕获、点击前后逆操作快照、局部撤回及模式切换。会话、预览读取、提交门禁、所有者校验和清理／反馈通过构造传入；内部不查询编辑器或总入口。异步删除通过 `unchanged()` 校验冻结基线，不读取内部历史快照。捕获按同一 tick 截止推进，退出统一取消。
 

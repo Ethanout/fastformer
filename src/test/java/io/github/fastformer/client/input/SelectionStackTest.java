@@ -188,7 +188,7 @@ class SelectionStackTest {
    @Test void enterCompletesPreviewAndSubmitsAllInOnePress() {
       addSelection(0);
       assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, B));
-      assertTrue(ClientSessionSystem.instance().operations().confirmSelection(null, A));
+      assertTrue(ClientSessionSystem.instance().operations().confirmSelection(A).accepted());
       assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       assertTrue(workspace().isEmpty());
       assertFalse(ClientSessionSystem.instance().operations().selectionEdits().undo());
@@ -226,7 +226,7 @@ class SelectionStackTest {
       var first = addSelection(0);
       addSelection(10);
       assertTrue(ClientSessionSystem.instance().operations().selectionEdits().fixActiveSelection());
-      assertTrue(ClientSessionSystem.instance().operations().confirmSelection(null, null));
+      assertTrue(ClientSessionSystem.instance().operations().confirmSelection(null).accepted());
       assertTrue(workspace().isEmpty());
       assertTrue(workspace().selectedIds().isEmpty());
       assertFalse(ClientSessionSystem.instance().operations().selectionEdits().undo());
@@ -236,7 +236,7 @@ class SelectionStackTest {
    @Test void controlEnterCompletesTheDraftAndSubmitsEveryGroup() {
       addSelection(0);
       assertTrue(ClientSessionSystem.instance().operations().selectionEdits().handleCreateClick(1, A));
-      assertTrue(ClientSessionSystem.instance().operations().confirmSelection(null, B));
+      assertTrue(ClientSessionSystem.instance().operations().confirmSelection(B).accepted());
       assertTrue(workspace().isEmpty());
       assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       assertFalse(ClientSessionSystem.instance().operations().selectionEdits().undo());

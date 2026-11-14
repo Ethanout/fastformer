@@ -1,7 +1,6 @@
 package io.github.fastformer.client.operation.controller;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.client.input.FastPlaceClientInput;
 import io.github.fastformer.client.input.drag.SelectionGestureState;
 import io.github.fastformer.client.interaction.InteractionObject;
 import io.github.fastformer.client.interaction.SelectionInteractionScene;
@@ -12,6 +11,11 @@ import io.github.fastformer.client.operation.input.SelectionConfirmation;
 import io.github.fastformer.client.operation.preview.OperationPreviewState;
 import io.github.fastformer.client.operation.edit.SelectionEdits;
 import io.github.fastformer.client.operation.submission.OperationReceipts;
+import io.github.fastformer.client.operation.submission.OperationSubmissions;
+import io.github.fastformer.client.operation.submission.SubmissionActionResult;
+import io.github.fastformer.client.operation.submission.SubmissionEnvironment;
+import io.github.fastformer.client.operation.submission.SubmissionScope;
+import io.github.fastformer.client.operation.submission.SubmissionStorage;
 import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
@@ -21,67 +25,77 @@ import io.github.fastformer.client.operation.transform.OperationTransforms;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.workspace.SelectionDeletionPlan;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
-import io.github.fastformer.client.placement.ClientPlacementRouter;
 import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.session.draft.ClientOperationDraft;
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.client.session.scope.ClientScope;
-import io.github.fastformer.client.session.submission.OperationDraftSettlement;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.fastplace.selection.OperationSelectionMode;
 import io.github.fastformer.fastplace.selection.OperationSelectionVolume;
 import io.github.fastformer.fastplace.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.session.FastPlaceActivity;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
-import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPayload;
 import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.workspace.model.WorkspaceTransform;
 import io.github.fastformer.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
 import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Owns editable operations, captures, and submission state for one client scope. */
 public final class OperationContext {
    private static final Logger LOGGER = LogUtils.getLogger();
-   private final java.util.LinkedHashSet<BlockPos> failedTargets = new java.util.LinkedHashSet<>();
+   private final LinkedHashSet<BlockPos> failedTargets = new LinkedHashSet<>();
    private List<ClientSelectionPart> failedWorkspaceDraft = List.of();
    private final SourceBlockRenderMask sourceMask = new SourceBlockRenderMask();
    private final OperationClipboardActions clipboard;
    private final OperationTransforms transforms;
    private final SelectionEdits selectionEdits;
-   private String lastOperationFailureKey;
-   private final WorkspaceSubmissionTracker submission;
+   private final OperationSubmissions submissions;
    private final OperationPreviewState preview = new OperationPreviewState();
    private final OperationReceipts receipts = new OperationReceipts(ClientSessionSystem::instance,
       () -> {
          var minecraft = Minecraft.getInstance();
          return !ownsCurrentInteraction() || minecraft == null || minecraft.getConnection() == null || minecraft.level == null
             ? null : minecraft.level.dimension().location();
-      }, net.neoforged.neoforge.network.PacketDistributor::sendToServer,
+      }, PacketDistributor::sendToServer,
       this::showSubmissionMessage, System::currentTimeMillis,
       failure -> LOGGER.warn("Unable to query the FastFormer workspace submission receipts", failure));
 
    private final ClientSelectionSession selection;
 
    public OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard) {
-      this(selection, clipboard, new WorkspaceSubmissionTracker(20 * 30, 20 * 2));
+      this(selection, clipboard, ClientSessionSystem::instance, ClientSubmissionEnvironment::new);
    }
 
-   OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard, WorkspaceSubmissionTracker submission) {
-      this.selection = java.util.Objects.requireNonNull(selection, "selection");
+   OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard,
+      Supplier<? extends SubmissionStorage> storage, Function<BooleanSupplier, SubmissionEnvironment> environment) {
+      this.selection = Objects.requireNonNull(selection, "selection");
       this.clipboard = new OperationClipboardActions(selection.workspace(), clipboard,
          this::workspaceSubmissionPending, this::workspaceEditInProgress, this::synchronizeDerivedWorkspaceState);
-      this.submission = java.util.Objects.requireNonNull(submission, "submission");
+      this.submissions = new OperationSubmissions(selection, this::remoteSelectionIdentity, deleteCapture::pending,
+         storage, environment.apply(this::ownsCurrentInteraction),
+         new OperationSubmissions.Effects(this::clearWorkspace, this::synchronizeDerivedWorkspaceState,
+            () -> sourceMask.complete(Map.of()), this::setSubmissionRemainder,
+            this::captureFailed, this::rememberFailedWorkspaceTargets,
+            () -> preview.clearSelection(selection.selectionMode())));
       this.selectionEdits = new SelectionEdits(selection, preview::live,
          () -> selectionReady(preview.live()), this::workspaceSubmissionPending, this::ownsCurrentInteraction,
          this::cancelTransforms, this::synchronizeDerivedWorkspaceState,
@@ -266,7 +280,6 @@ public final class OperationContext {
          return true;
       }
       OperationSelectionVolume capturedSelection = selection;
-      var owner = workspace();
       WorkspaceTransform transform = new WorkspaceTransform(
          Vec3.atLowerCornerOf(payload.operationTranslation()),
          payload.operationRotation(),
@@ -279,22 +292,22 @@ public final class OperationContext {
    }
 
    /** Target positions rejected for the unchanged workspace draft. */
-   public java.util.Set<BlockPos> failedWorkspaceTargets() {
+   public Set<BlockPos> failedWorkspaceTargets() {
       return failedTargetsForDraft(
          failedWorkspaceDraft, failedTargets, workspace().parts()
       );
    }
 
-   static java.util.Set<BlockPos> failedTargetsForDraft(
+   static Set<BlockPos> failedTargetsForDraft(
       List<ClientSelectionPart> failedDraft,
-      java.util.Set<BlockPos> failedTargets,
+      Set<BlockPos> failedTargets,
       List<ClientSelectionPart> currentDraft
    ) {
       if (failedDraft == null || failedTargets == null || currentDraft == null
          || !failedDraft.equals(currentDraft)) {
-         return java.util.Set.of();
+         return Set.of();
       }
-      return java.util.Set.copyOf(failedTargets);
+      return Set.copyOf(failedTargets);
    }
 
    private void rememberFailedWorkspaceTargets(List<BlockPos> positions) {
@@ -341,20 +354,14 @@ public final class OperationContext {
       return clipboard;
    }
 
-   public String lastOperationFailureKey(String fallback) {
-      String key = lastOperationFailureKey;
-      lastOperationFailureKey = null;
-      return key == null ? fallback : key;
-   }
-
    public boolean deleteSelection(Minecraft minecraft, BlockPos candidate) {
       if (workspaceSubmissionPending() || workspaceEditInProgress() || minecraft == null || minecraft.level == null) return false;
       selectionEdits.adoptRemoteDraft();
       var selected = workspace().selectedIds();
       boolean draft = selectionEdits.selectionDraftActive();
       if (selected.isEmpty() && !draft) return false;
-      var parts = new java.util.ArrayList<>(SelectionDeletionPlan.parts(workspace().parts(), selected));
-      if (!draft) return submitDeletion(minecraft, parts, selected, false);
+      var parts = new ArrayList<>(SelectionDeletionPlan.parts(workspace().parts(), selected));
+      if (!draft) return submitDeletion(parts, selected, false);
       var volume = SelectionDraftPreview.volume(selectionEdits.selectionDraft(), candidate);
       if (volume == null) return false;
       // The server selection may close while the client scans the preview box.
@@ -369,293 +376,83 @@ public final class OperationContext {
       int draftId = owner.partIds().stream().mapToInt(Integer::intValue).max().orElse(0) + 1;
       return deleteCapture.start(volume, null,
          () -> ownsCurrentInteraction() && workspace() == owner && selectionSession() == session && owner.revision() == revision && unchanged.getAsBoolean(), blocks -> {
-            var deletable = new java.util.LinkedHashMap<>(blocks);
+            var deletable = new LinkedHashMap<>(blocks);
             deletable.keySet().removeAll(protectedSources);
             if (!deletable.isEmpty()) parts.add(new OperationWorkspacePlan.Part(draftId, ClientSelectionPart.Source.WORLD,
                deletable, WorkspaceTransform.IDENTITY, true));
-            submitDeletion(minecraft, parts, selected, true);
+            submitDeletion(parts, selected, true);
          }, this::captureFailed);
    }
 
-   private boolean submitDeletion(Minecraft minecraft, List<OperationWorkspacePlan.Part> parts,
-      java.util.Set<Integer> selected, boolean draft) {
-      submittedPartIds = java.util.Set.copyOf(selected);
-      submittedDraft = draft;
-      return submitPartsOrFinishLocal(minecraft, parts);
+   private boolean submitDeletion(List<OperationWorkspacePlan.Part> parts,
+      Set<Integer> selected, boolean draft) {
+      var result = submitPartsOrFinishLocal(parts, new SubmissionScope.SelectionParts(selected,
+         draft ? SubmissionScope.DraftDisposition.REMOVE : SubmissionScope.DraftDisposition.KEEP));
+      if (!result.accepted()) captureFailed(result.failureKey());
+      return result.accepted();
    }
 
-   private boolean submitPartsOrFinishLocal(Minecraft minecraft, List<OperationWorkspacePlan.Part> parts) {
+   private SubmissionActionResult submitPartsOrFinishLocal(List<OperationWorkspacePlan.Part> parts, SubmissionScope scope) {
       if (parts.isEmpty()) {
-         finishSubmittedParts();
-         return true;
+         submissions.finish(scope);
+         return SubmissionActionResult.ACCEPTED;
       }
-      boolean submitted = submitWorkspace(minecraft, parts);
-      if (!submitted) { submittedPartIds = null; submittedDraft = false; captureFailed(lastOperationFailureKey("fastformer.message.operation_submit_invalid")); }
-      return submitted;
+      return submissions.submit(parts, scope);
    }
 
-   private void finishSubmittedParts() {
-      var remaining = SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
-      var draft = selectionEdits.selectionDraft();
-      boolean keepDraft = !submittedDraft;
-      clearWorkspace();
-      workspace().restoreDraftState(remaining);
-      if (keepDraft) selectionSession().restoreDraftState(draft);
-      if (!workspace().isEmpty() || selectionEdits.selectionDraftActive()) selectionSession().retain();
-      preview.clearSelection(selectionEdits.draftSelectionMode());
-      synchronizeDerivedWorkspaceState();
-   }
-
-   public boolean confirmSelection(Minecraft minecraft, BlockPos candidate) {
+   public SubmissionActionResult confirmSelection(BlockPos candidate) {
       selectionEdits.adoptRemoteDraft();
       var action = SelectionConfirmation.decide(
          workspace(), workspaceSubmissionPending() || selectionEdits.capturePending());
       return switch (action) {
-         case BLOCKED -> true;
+         case BLOCKED -> SubmissionActionResult.ACCEPTED;
          case SUBMIT_ALL -> selectionEdits.selectionDraftActive()
-            ? selectionEdits.completePreview(candidate, () -> {
-               if (!submitSelectionParts(minecraft)) captureFailed(lastOperationFailureKey("fastformer.message.operation_submit_invalid"));
-            }) : submitSelectionParts(minecraft);
+            ? (selectionEdits.completePreview(candidate, () -> {
+                  var result = submitSelectionParts();
+                  if (!result.accepted()) captureFailed(result.failureKey());
+               })
+               ? SubmissionActionResult.ACCEPTED : SubmissionActionResult.INVALID)
+            : submitSelectionParts();
       };
    }
 
-   public boolean submitWorkspace(Minecraft minecraft) {
-      submittedPartIds = null;
-      submittedDraft = false;
-      return submitWorkspace(minecraft, WorkspaceContentPreparer.submissionParts(workspace().parts()));
-   }
-
-   private boolean submitSelectionParts(Minecraft minecraft) {
+   private SubmissionActionResult submitSelectionParts() {
       var chosen = workspace().parts();
-      submittedPartIds = chosen.stream().map(ClientSelectionPart::id).collect(java.util.stream.Collectors.toSet());
-      submittedDraft = true;
+      var ids = chosen.stream().map(ClientSelectionPart::id).collect(Collectors.toSet());
       var parts = WorkspaceContentPreparer.confirmedParts(chosen);
-      return submitPartsOrFinishLocal(minecraft, parts);
+      return submitPartsOrFinishLocal(parts, new SubmissionScope.SelectionParts(ids, SubmissionScope.DraftDisposition.REMOVE));
    }
 
-   private boolean submitWorkspace(Minecraft minecraft, List<OperationWorkspacePlan.Part> parts) {
-      lastOperationFailureKey = null;
-      if (workspaceSubmissionPending() || workspace().editing()
-         || minecraft == null || minecraft.getConnection() == null || workspace().isEmpty() && !selectionEdits.selectionDraftActive()) {
-         lastOperationFailureKey = workspaceSubmissionPending()
-            ? "fastformer.message.operation_submit_pending"
-            : "fastformer.message.operation_submit_invalid";
-         return false;
-      }
-      try {
-         if (parts.isEmpty()) {
-            lastOperationFailureKey = "fastformer.message.operation_submit_no_content";
-            return false;
-         }
-         OperationWorkspacePlan plan = new OperationWorkspacePlan(parts);
-         if (!ClientPlacementRouter.canSubmitWorkspace(minecraft)) {
-            lastOperationFailureKey = "fastformer.message.operation_submit_unavailable";
-            return false;
-         }
-         UUID transferId = UUID.randomUUID();
-         if (!FastPlaceClientInput.beginWorkspaceRequest(transferId)) {
-            lastOperationFailureKey = "fastformer.message.operation_submit_state_changed";
-            return false;
-         }
-         // The server preview is still active here. It turns inactive when the server
-         // queues the task, so this is the last moment that can read the identity.
-         OperationDraftIdentity identity = OperationDraftIdentity.from(preview.live());
-         boolean localOnly = !selectionEdits.selectionDraftActive() && workspace().parts().stream()
-            .allMatch(part -> part.source() == ClientSelectionPart.Source.CLIPBOARD);
-         OperationSubmissionOrigin origin = localOnly
-            ? OperationSubmissionOrigin.LOCAL_ONLY : selectionSession().clientOwned()
-               ? OperationSubmissionOrigin.CLIENT_SELECTION : OperationSubmissionOrigin.SERVER_SELECTION;
-         if (origin != OperationSubmissionOrigin.SERVER_SELECTION) {
-            identity = null;
-         }
-         if (origin == OperationSubmissionOrigin.SERVER_SELECTION && identity == null) {
-            // A server selection that vanished cannot be confirmed after a reconnect, and
-            // a draft without it could never return. Do not send work that cannot be
-            // recovered.
-            lastOperationFailureKey = "fastformer.message.operation_submit_state_changed";
-            submission.clear();
-            workspace().setLocked(false);
-            FastPlaceClientInput.abortWorkspaceRequest(transferId);
-            synchronizeDerivedWorkspaceState();
-            return false;
-         }
-         submission.begin(transferId, identity, selectionSession().interactionOwnerId());
-         var playerSession = currentScope();
-         if (playerSession != null) {
-            var remainder = submittedPartIds == null ? null
-               : SelectionDeletionPlan.remaining(workspace(), submittedPartIds);
-            playerSession.setSubmissionRemainder(remainder == null || remainder.parts().isEmpty() && (submittedDraft || !selectionEdits.selectionDraftActive()) ? null
-               : new ClientOperationDraft.Remainder(
-                  remainder, submittedDraft ? new ClientSelectionSession().draftState() : selectionEdits.selectionDraft()));
-         }
-         workspace().setLocked(true);
-         var owner = workspace();
-         var connection = minecraft.getConnection();
-         var level = minecraft.level;
-         boolean queued = ClientSessionSystem.instance().persistSubmittedDraft(identity, origin, transferId, plan,
-            () -> ownsCurrentInteraction() && workspace() == owner && transferId.equals(submission.transferId())
-               && minecraft.getConnection() == connection && minecraft.level == level,
-            submission -> {
-               if (submission == null) {
-                  abortSubmission(); owner.setLocked(false);
-                  FastPlaceClientInput.abortWorkspaceRequest(transferId);
-                  synchronizeDerivedWorkspaceState();
-               } else {
-                  try { submission.send(); }
-                  catch (RuntimeException exception) {
-                     abortSubmission(); owner.setLocked(false);
-                     FastPlaceClientInput.abortWorkspaceRequest(transferId);
-                     captureFailed("fastformer.message.operation_submit_unavailable");
-                  }
-               }
-            });
-         if (!queued) {
-            abortSubmission(); owner.setLocked(false);
-            FastPlaceClientInput.abortWorkspaceRequest(transferId);
-            lastOperationFailureKey = "fastformer.message.operation_submit_storage_failed";
-         }
-         return queued;
-      } catch (RuntimeException exception) {
-         lastOperationFailureKey = "fastformer.message.operation_submit_storage_failed";
-         UUID failedTransferId = submission.transferId();
-         abortSubmission();
-         workspace().setLocked(false);
-         FastPlaceClientInput.abortWorkspaceRequest(failedTransferId);
-         synchronizeDerivedWorkspaceState();
-         return false;
-      }
-   }
+   public OperationSubmissions submissions() { return submissions; }
 
    public OperationReceipts receipts() {
       return receipts;
    }
 
-   /**
-    * Ends the durable receipt of one submission with the result that arrived online.
-    *
-    * <p>The server sends the result when the client is still connected. The receipt then
-    * has no open state left, so a later reconnect does not query it again.</p>
-    */
-   private void settleReceipt(UUID transferId, OperationSubmissionOutcome outcome) {
-      if (transferId == null) {
-         return;
-      }
-      ClientSessionSystem.instance().updateSubmissionReceipt(
-         transferId, outcome, System.currentTimeMillis()
-      );
-   }
-
    private void showSubmissionMessage(String translationKey) {
-      Minecraft minecraft = Minecraft.getInstance();
-      if (minecraft == null || minecraft.player == null) {
-         return;
-      }
-      minecraft.player.displayClientMessage(Component.translatable(translationKey), false);
-   }
-
-   public void applyWorkspaceResult(OperationWorkspaceResultPayload payload) {
-      if (payload == null || !submission.accepts(
-         payload.transferId(), selectionSession().interactionOwnerId()
-      )) {
-         return;
-      }
-      submission.clear();
-      workspace().setLocked(false);
-      if (payload.accepted()) {
-         // The completed move leaves the source mask empty. The mask needs no per-part
-         // resolve here, because the server already wrote that new state.
-         sourceMask.complete(java.util.Map.of());
-         // The applied result is recorded, then the two draft copies are cleared. The live
-         // workspace goes below, because this path holds the lock on the submitted work and
-         // the server already wrote it.
-         OperationDraftSettlement.Applied applied =
-            ClientSessionSystem.instance().settleAppliedSubmission(payload.transferId());
-         Minecraft minecraft = Minecraft.getInstance();
-         if (minecraft != null && minecraft.player != null) {
-            minecraft.player.displayClientMessage(
-               Component.translatable(applied.confirmed()
-                  ? "fastformer.message.operation_submit_success"
-                  : "fastformer.message.operation_submit_cleanup_pending"),
-               true
-            );
-         }
-         if (submittedPartIds != null) finishSubmittedParts();
-         else clearWorkspace();
-         FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
-         return;
-      }
-      if (!shouldRetainWorkspaceAfterFailure(payload.retryable()) && submittedPartIds == null) {
-         // The player cannot send this work again, and the live workspace goes. The durable
-         // copy goes with it, so a later reconnect cannot restore work that the server
-         // already refused for good.
-         settleReceipt(payload.transferId(), OperationSubmissionOutcome.FAILED_NONRETRYABLE);
-         boolean clearedDraft = ClientSessionSystem.instance()
-            .clearDraftCopies(payload.transferId()).confirmed();
-         clearWorkspace();
-         Minecraft minecraft = Minecraft.getInstance();
-         if (minecraft != null && minecraft.player != null) {
-            minecraft.player.displayClientMessage(
-               Component.translatable(clearedDraft
-                  ? "fastformer.message.operation_submit_discarded"
-                  : "fastformer.message.operation_submit_cleanup_pending"),
-               true
-            );
-         }
-         FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
-         return;
-      }
-      // The workspace stays for editing and for a retry, so the durable copy stays too.
-      clearSubmissionRemainder();
-      submittedPartIds = null;
-      submittedDraft = false;
-      settleReceipt(payload.transferId(), OperationSubmissionOutcome.FAILED_RETRYABLE);
-      synchronizeDerivedWorkspaceState();
-      if (!payload.failedPartIds().isEmpty()) {
-         workspace().selectOnly(payload.failedPartIds().getFirst());
-         for (int index = 1; index < payload.failedPartIds().size(); index++) {
-            workspace().toggleSelected(payload.failedPartIds().get(index));
-         }
-      }
-      rememberFailedWorkspaceTargets(payload.failedTargetPositions());
-      // Target positions identify world conflicts; the preview renderer will rebuild
-      // from the retained draft after the rejection and drop those stale ghosts.
-      Minecraft minecraft = Minecraft.getInstance();
+      var minecraft = Minecraft.getInstance();
       if (minecraft != null && minecraft.player != null) {
-         minecraft.player.displayClientMessage(
-            Component.translatable(payload.failure().messageKey()), true
-         );
+         minecraft.player.displayClientMessage(Component.translatable(translationKey), false);
       }
-      FastPlaceClientInput.acknowledgeWorkspaceRequest(payload.transferId());
    }
 
-   private void clearSubmissionRemainder() {
-      var session = currentScope();
-      if (session != null) session.setSubmissionRemainder(null);
-   }
-
-   private void abortSubmission() {
-      submission.clear();
-      clearSubmissionRemainder();
-      submittedPartIds = null;
-      submittedDraft = false;
+   private void setSubmissionRemainder(ClientOperationDraft.Remainder remainder) {
+      var scope = currentScope();
+      if (scope != null) scope.setSubmissionRemainder(remainder);
    }
 
    public void clearWorkspace() {
-      clearSubmissionRemainder();
+      submissions.cancel();
       clearTransientOperationState();
       selectionSession().clearLiveInteraction();
       WorkspacePreviewComposer.invalidatePartGeometry();
       clearFailedWorkspaceTargets();
       sourceMask.clear();
-      submission.clear();
    }
 
    private void clearTransientOperationState() {
       selectionEdits.cancelCaptures(); transforms.cancel(); deleteCapture.cancel();
-      submittedPartIds = null;
-      submittedDraft = false;
-
-      lastOperationFailureKey = null;
+      submissions.leave();
    }
 
    static boolean shouldClearWorkspaceAfterSnapshot(
@@ -663,10 +460,6 @@ public final class OperationContext {
       boolean submissionPending
    ) {
       return !submissionPending && previousServerOperationActive;
-   }
-
-   static boolean shouldRetainWorkspaceAfterFailure(boolean retryable) {
-      return retryable;
    }
 
    /** Ends editable client state when the connection closes. */
@@ -678,7 +471,7 @@ public final class OperationContext {
          // server may have cancelled the selection. Use the identity that the send
          // captured, so a submitted draft still reaches the disk.
          ClientSessionSystem.instance().suspendCurrentDraft(
-            submission.identity(), outstandingSubmissionOrigin(), submission.transferId()
+            submissions.identity(), outstandingSubmissionOrigin(), submissions.transferId()
          );
       } else {
          selectionSession().clearLiveInteraction();
@@ -693,7 +486,6 @@ public final class OperationContext {
       clearFailedWorkspaceTargets();
       clearTransientOperationState();
       workspace().cancelEdit();
-      submission.clear();
       preview.leaveEnvironment();
       sourceMask.clear();
    }
@@ -719,21 +511,7 @@ public final class OperationContext {
       selectionEdits.tick(captureDeadline); transforms.tick(captureDeadline); deleteCapture.tick(captureDeadline);
       selectionSession().publishInteractionScene();
       WorkspacePreviewComposer.prunePartGeometry();
-      if (workspaceSubmissionPending() && submission.tick()) {
-         UUID expiredTransferId = submission.transferId();
-         abortSubmission();
-         workspace().setLocked(false);
-         // Keep the draft available for retry. A late result cannot affect a
-         // later submission because its transfer id is no longer current.
-         FastPlaceClientInput.expireWorkspaceRequest(expiredTransferId);
-         synchronizeDerivedWorkspaceState();
-         Minecraft minecraft = Minecraft.getInstance();
-         if (minecraft != null && minecraft.player != null) {
-            minecraft.player.displayClientMessage(
-               Component.translatable("fastformer.message.operation_submit_timeout"), true
-            );
-         }
-      }
+      submissions.tick();
       if (preview.tick()) {
          // The environment returned a snapshot, so the connection is live and the scope
          // is bound. Any submission that was still open may have finished while the
@@ -743,23 +521,14 @@ public final class OperationContext {
       // Silence is not a server rejection. The wait owns no draft and discards none on timeout.
    }
 
-   public void observeServerActivity(FastPlaceActivity activity) {
-      if (workspaceSubmissionPending()) {
-         submission.observeActivity(activity);
-      }
-   }
-
    public boolean workspaceSubmissionPending() {
-      return deleteCapture.pending() || submission.pending(selectionSession().interactionOwnerId());
+      return deleteCapture.pending() || submissions.pending();
    }
 
    private final SelectionBlockCapture deleteCapture = new SelectionBlockCapture();
-   private java.util.Set<Integer> submittedPartIds;
-   private boolean submittedDraft;
    private void captureFailed(String key) {
-      lastOperationFailureKey = key;
-      var player = Minecraft.getInstance().player;
-      if (player != null) player.displayClientMessage(Component.translatable(key), true);
+      var minecraft = Minecraft.getInstance();
+      if (minecraft != null && minecraft.player != null) minecraft.player.displayClientMessage(Component.translatable(key), true);
    }
 
    private boolean selectionReady(OperationPreviewPayload payload) {

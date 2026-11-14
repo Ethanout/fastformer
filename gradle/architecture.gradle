@@ -71,9 +71,12 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:session|input|operation\.controller)\./).find()) {
                 violations.add("Selection editing must use its bound session and injected callbacks: ${path}")
             }
-            if (main && source.name == 'OperationReceipts.java' &&
+            if (main && packageName.startsWith('io.github.fastformer.client.operation.submission') &&
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:session\.ClientSessionSystem|input\.|operation\.controller\.)/).find()) {
-                violations.add("Receipt processing must use its injected storage and transport: ${path}")
+                violations.add("Submission capabilities must use injected storage, environment and effects: ${path}")
+            }
+            if (main && (text =~ /\b(?:lastOperationFailureKey|submittedPartIds|submittedDraft)\b/).find()) {
+                violations.add("Submission scope and action failures must use explicit values: ${path}")
             }
             if (main && (text =~ /\b(?:[\w]+GameTests|[\w]*TestAccess|RecoveryProcessTests)\b/).find()) {
                 violations.add("Production source depends on test harness: ${path}")
