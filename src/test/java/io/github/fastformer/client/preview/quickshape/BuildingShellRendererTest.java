@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.core;
+package io.github.fastformer.client.preview.quickshape;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

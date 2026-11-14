@@ -1,7 +1,4 @@
-package io.github.fastformer.client.render.core;
-
-import static io.github.fastformer.client.render.core.PreviewRenderResources.BUILDING_SHELL_BLOCKS_CACHE;
-import static io.github.fastformer.client.render.core.PreviewRenderResources.PREVIEW_GENERATION_EXECUTOR;
+package io.github.fastformer.client.preview.quickshape;
 
 import io.github.fastformer.client.controlpoint.ControlPointPresentation;
 import io.github.fastformer.client.placement.effect.PlacementEffectPreview;
@@ -45,13 +42,20 @@ final class BuildingPreviewCache {
    private final java.util.function.BooleanSupplier modifierHeld;
    private final java.util.function.BiConsumer<String, Throwable> failureLogger;
    private long observedBuildingVersion = -1L;
+   private final java.util.concurrent.Executor executor;
+   private final Runnable clearShells;
+   private final io.github.fastformer.client.render.cache.BuildingShellBlocksCache shellBlocks =
+      new io.github.fastformer.client.render.cache.BuildingShellBlocksCache();
 
    BuildingPreviewCache(ClientPreviewState previewState,
       java.util.function.BooleanSupplier modifierHeld,
-      java.util.function.BiConsumer<String, Throwable> failureLogger) {
+      java.util.function.BiConsumer<String, Throwable> failureLogger,
+      java.util.concurrent.Executor executor, Runnable clearShells) {
       this.previewState = previewState;
       this.modifierHeld = modifierHeld;
       this.failureLogger = failureLogger;
+      this.executor = java.util.Objects.requireNonNull(executor, "executor");
+      this.clearShells = java.util.Objects.requireNonNull(clearShells, "clearShells");
    }
 
    private BuildingPreviewSnapshot cachedConfirmedBuildingState;
@@ -60,8 +64,7 @@ final class BuildingPreviewCache {
    private BuildingPreviewKey cachedBuildingPreviewKey;
    private Set<BlockPos> cachedBuildingPreviewBlocks = Set.of();
    private Set<BlockPos> cachedBuildingFallbackBlocks = Set.of();
-   private final BuildingPreviewGenerationOwner generation =
-      new BuildingPreviewGenerationOwner();
+   private final BuildingPreviewGeneration generation = new BuildingPreviewGeneration();
    private ProgressiveBlockGeneration cachedBuildingPreviewProgress;
    private boolean cachedBuildingPreviewAtLimit;
    private long cachedBuildingPreviewResultVersion;
@@ -85,7 +88,8 @@ final class BuildingPreviewCache {
    }
 
    private void clearBuildingShellCaches() {
-      PreviewRenderResources.clearShells();
+      shellBlocks.clear();
+      clearShells.run();
    }
 
    private Set<BlockPos> confirmedBuildingBlocks(BuildingPreviewSnapshot snapshot) {
@@ -233,7 +237,7 @@ final class BuildingPreviewCache {
                   );
                   progress.complete();
                   return new BuildingBlockResult(requestKey, blocks);
-               }, PREVIEW_GENERATION_EXECUTOR);
+               }, executor);
          }
       }
       return cachedBuildingPreviewBlocks;
@@ -437,7 +441,7 @@ final class BuildingPreviewCache {
          cachedBuildingRenderKey = key;
          cachedBuildingRenderFrame = new BuildingRenderFrame(
             layers,
-            BUILDING_SHELL_BLOCKS_CACHE.resolve(layers, confirmedMarkers, pendingMarkers),
+            shellBlocks.resolve(layers, confirmedMarkers, pendingMarkers),
             controlPoints,
             specialBlockStyles,
             previewEffectStates(previewEffect, layers.allBlocks())

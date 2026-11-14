@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.core;
+package io.github.fastformer.client.preview.quickshape;
 
 import io.github.fastformer.client.render.model.BuildingBlockResult;
 import io.github.fastformer.client.render.model.BuildingPreviewKey;
@@ -9,7 +9,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 
 /** Owns the one asynchronous building-preview result that may update the current cache. */
-final class BuildingPreviewGenerationOwner {
+final class BuildingPreviewGeneration {
    private final LatestOnlyTask<BuildingPreviewKey, BuildingBlockResult> generation = new LatestOnlyTask<>();
 
    void start(BuildingPreviewKey key, Callable<BuildingBlockResult> work, Executor executor) {

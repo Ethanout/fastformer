@@ -629,3 +629,12 @@
 - 对照迁移前规则，穷举 131072 组左键事实 × 四个阶段、8192 组右键事实 × 三个阶段；另测松开／重复／其他键不被认领、PASS／BLOCK 回落及错误处理。新增源码约束禁止恢复旧分派类。
 - `.temp/architecture-mode-pointer-tests.log` 定向测试通过；`.temp/architecture-mode-pointer-verified.log` 完整 check 与新目录 312 项必需 GameTest 全部通过。实际试玩存档和正式仓库配置未改。
 - 通用按键／取消／提交、完整模式鼠标生命周期、PreviewFrame／PreviewMode、服务端 Mode、操作树及手册其余项目仍待实施。
+
+## 起形预览能力与资源所有权（2026-11-14）
+
+- 普通鼠标模式决策阶段已提交并推送：`538277f`。
+- 新增 PreviewMode、显式 WorldPreviewFrame 和首个 QuickShapePreviewMode。起形预览自行构建方块层、控制点、导引面和大规模边界降级，并拥有生成任务、外壳／模型／面／边缓存及取消。总入口仅捕获输入并调用模型构建与绘制，原主题和世界边界明确清理该能力。
+- BuildingPreviewCache、BuildingPreviewGeneration、BuildingShellRenderer 和点绘制迁入独立能力目录；通用 PlacementModelPreview 归模型渲染包。删除共享资源中的重复起形缓存、未使用的可见性结果和待定边缓存。控制点动画使用同一帧相位，透明度显式传入。
+- 补充两个缓存实例的 revision／清理隔离测试及大规模边界降级测试；原迟到任务、同键替换、队列取消与 alpha 测试迁至实际包。源码守护禁止起形预览反向依赖输入／渲染总入口和会话装配。
+- `.temp/architecture-quickshape-preview-compile.log` 编译通过；`.temp/architecture-quickshape-preview-verified.log` 完整 check 与新目录 312 项必需 GameTest 全部通过。实际试玩存档未清除。
+- 这是第一个真实 PreviewMode 实现；完整跨模式 PreviewFrame、几何／选区／空闲预览、HUD、模式生命周期和手册其他项目仍未完成。

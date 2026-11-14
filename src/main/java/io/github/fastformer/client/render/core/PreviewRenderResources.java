@@ -2,40 +2,26 @@ package io.github.fastformer.client.render.core;
 
 import io.github.fastformer.client.render.cache.*;
 import io.github.fastformer.client.render.mesh.GhostMeshBuilder;
+import io.github.fastformer.client.render.model.PlacementModelPreview;
 import io.github.fastformer.client.lifecycle.ClientBackgroundTasks;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /** Owns GPU caches and worker lifetimes for the preview renderer. */
 final class PreviewRenderResources {
    private PreviewRenderResources() { }
-   static final PlacementModelPreview CONFIRMED_MODELS = new PlacementModelPreview();
-   static final PlacementModelPreview PENDING_MODELS = new PlacementModelPreview();
    static final PlacementModelPreview INITIAL_MODEL = new PlacementModelPreview();
    static final GhostMeshCache CONFIRMED_GHOST_CACHE = new GhostMeshCache(blocks -> GhostMeshBuilder.build(blocks, true, true, true));
    static final GhostMeshCache CONFIRMED_OUTLINE_CACHE = new GhostMeshCache(blocks -> GhostMeshBuilder.build(blocks, false, true, true));
-   static final BuildingShellCache CONFIRMED_BUILDING_SHELL_CACHE = BuildingShellCache.forImmutableSnapshots(false);
-   static final BuildingShellCache PENDING_BUILDING_SHELL_CACHE = BuildingShellCache.forImmutableSnapshots(true);
-   static final BuildingShellCache CONFIRMED_FALLBACK_SHELL = BuildingShellCache.forImmutableSnapshots(false);
-   static final BuildingShellCache PENDING_FALLBACK_SHELL = BuildingShellCache.forImmutableSnapshots(true);
-   static final BuildingShellEdgeBuffer CONFIRMED_SHELL_EDGES = new BuildingShellEdgeBuffer();
-   static final BuildingShellEdgeBuffer PENDING_SHELL_EDGES = new BuildingShellEdgeBuffer();
-   static final BuildingShellFaceBuffer CONFIRMED_SHELL_FACES = new BuildingShellFaceBuffer();
-   static final BuildingShellFaceBuffer PENDING_SHELL_FACES = new BuildingShellFaceBuffer();
-   static final BuildingShellBlocksCache BUILDING_SHELL_BLOCKS_CACHE = new BuildingShellBlocksCache();
    static final ThreadPoolExecutor PREVIEW_MESH_EXECUTOR = ClientBackgroundTasks.serial("preview-mesh", 16);
-   static final ThreadPoolExecutor PREVIEW_GENERATION_EXECUTOR = ClientBackgroundTasks.serial("preview-generation", 16);
    static final PendingGhostMeshCache PENDING_GHOST_CACHE = new PendingGhostMeshCache(PREVIEW_MESH_EXECUTOR,
       GhostMeshBuilder::buildPending, failure -> FastPlaceClientPreviewCore.logPreviewFailure("Unable to build FastFormer preview mesh", failure));
    static final PendingGhostBufferCache PENDING_GHOST_BUFFER_CACHE = new PendingGhostBufferCache(FastPlaceClientPreviewCore::uploadPendingGrid);
 
    static void clearShells() {
-      CONFIRMED_MODELS.clear(); PENDING_MODELS.clear(); INITIAL_MODEL.clear();
-      CONFIRMED_FALLBACK_SHELL.clear(); PENDING_FALLBACK_SHELL.clear();
+      INITIAL_MODEL.clear();
       io.github.fastformer.client.render.PreviewMaterialRenderer.clear();
-      CONFIRMED_BUILDING_SHELL_CACHE.clear(); PENDING_BUILDING_SHELL_CACHE.clear(); BUILDING_SHELL_BLOCKS_CACHE.clear();
       SmartSelectionRenderer.clear();
       SmartSelectionIsolationRenderer.clear();
-      CONFIRMED_SHELL_FACES.clear(); PENDING_SHELL_FACES.clear(); CONFIRMED_SHELL_EDGES.clear(); PENDING_SHELL_EDGES.clear();
    }
 
    static void clearMeshes() {

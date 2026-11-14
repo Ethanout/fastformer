@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.core;
+package io.github.fastformer.client.preview.quickshape;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -12,7 +12,7 @@ import java.util.ArrayDeque;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
-class BuildingPreviewGenerationOwnerTest {
+class BuildingPreviewGenerationTest {
    @Test
    void replacementRemovesOnlyThisOwnersQueuedWork() throws Exception {
       var executor = new java.util.concurrent.ThreadPoolExecutor(1, 1, 0, java.util.concurrent.TimeUnit.SECONDS,
@@ -23,7 +23,7 @@ class BuildingPreviewGenerationOwnerTest {
          entered.countDown();
          try { release.await(); } catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
       });
-      var owner = new BuildingPreviewGenerationOwner();
+      var owner = new BuildingPreviewGeneration();
       Runnable otherOwner = () -> { };
       try {
          assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
@@ -40,7 +40,7 @@ class BuildingPreviewGenerationOwnerTest {
    }
    @Test
    void replacingTheKeyCancelsThePreviousGeneration() {
-      BuildingPreviewGenerationOwner owner = new BuildingPreviewGenerationOwner();
+      BuildingPreviewGeneration owner = new BuildingPreviewGeneration();
       var tasks = new ArrayDeque<Runnable>();
       var calls = new java.util.ArrayList<Long>();
       owner.start(key(1L), () -> { calls.add(1L); return null; }, tasks::add);
@@ -53,7 +53,7 @@ class BuildingPreviewGenerationOwnerTest {
 
    @Test
    void completedResultMustBelongToTheKeyThatStartedItsFuture() throws Exception {
-      BuildingPreviewGenerationOwner owner = new BuildingPreviewGenerationOwner();
+      BuildingPreviewGeneration owner = new BuildingPreviewGeneration();
       BuildingBlockResult stale = new BuildingBlockResult(key(1L), Set.of(BlockPos.ZERO));
 
       owner.start(key(2L), () -> stale, Runnable::run);
@@ -64,7 +64,7 @@ class BuildingPreviewGenerationOwnerTest {
 
    @Test
    void changingKeyAfterOldCompletionKeepsTheNewFutureAuthoritative() throws Exception {
-      BuildingPreviewGenerationOwner owner = new BuildingPreviewGenerationOwner();
+      BuildingPreviewGeneration owner = new BuildingPreviewGeneration();
       owner.start(key(1L), () -> new BuildingBlockResult(key(1L), Set.of(BlockPos.ZERO)), Runnable::run);
       assertTrue(owner.completed());
       var tasks = new ArrayDeque<Runnable>();
@@ -77,7 +77,7 @@ class BuildingPreviewGenerationOwnerTest {
 
    @Test
    void failedResultIsConsumedOnceAndDoesNotBlockReplacement() throws Exception {
-      BuildingPreviewGenerationOwner owner = new BuildingPreviewGenerationOwner();
+      BuildingPreviewGeneration owner = new BuildingPreviewGeneration();
       var failure = new IllegalStateException("generation failed");
       owner.start(key(1L), () -> { throw failure; }, Runnable::run);
       assertTrue(owner.completed());
@@ -93,7 +93,7 @@ class BuildingPreviewGenerationOwnerTest {
 
    @Test
    void lateWorkerCannotPublishIntoReplacementWithTheSameKey() throws Exception {
-      BuildingPreviewGenerationOwner owner = new BuildingPreviewGenerationOwner();
+      BuildingPreviewGeneration owner = new BuildingPreviewGeneration();
       var entered = new java.util.concurrent.CountDownLatch(1);
       var release = new java.util.concurrent.CountDownLatch(1);
       var exited = new java.util.concurrent.CountDownLatch(1);
@@ -128,7 +128,7 @@ class BuildingPreviewGenerationOwnerTest {
 
    @Test
    void currentCompletedResultIsTakenOnce() throws Exception {
-      BuildingPreviewGenerationOwner owner = new BuildingPreviewGenerationOwner();
+      BuildingPreviewGeneration owner = new BuildingPreviewGeneration();
       BuildingBlockResult current = new BuildingBlockResult(key(3L), Set.of(new BlockPos(1, 2, 3)));
       owner.start(key(3L), () -> current, Runnable::run);
 

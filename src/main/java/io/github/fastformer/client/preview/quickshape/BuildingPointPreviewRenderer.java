@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.core;
+package io.github.fastformer.client.preview.quickshape;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
@@ -6,6 +6,7 @@ import io.github.fastformer.client.render.PreviewMaterialRenderer;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.client.render.shell.ShapeShellRenderer;
 import io.github.fastformer.client.render.type.PreviewRenderTypes;
+import io.github.fastformer.client.preview.frame.AnimationPhase;
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.workspace.model.ClientBlockSnapshot;
 import java.util.ArrayList;
@@ -24,7 +25,7 @@ final class BuildingPointPreviewRenderer {
    private BuildingPointPreviewRenderer() { }
 
    static void render(PoseStack pose, BufferSource buffers, Vec3 camera, List<ControlPoint> points,
-      BlockState state, Map<BlockPos, BlockState> overrides, float opacity) {
+      BlockState state, Map<BlockPos, BlockState> overrides, float opacity, AnimationPhase animation) {
       var minecraft = Minecraft.getInstance();
       var fallback = new ArrayList<ControlPoint>();
       for (ControlPoint point : points) {
@@ -47,12 +48,12 @@ final class BuildingPointPreviewRenderer {
          var color = new ShapeShellMesh.Color(style.red(), style.green(), style.blue());
          var mesh = ShapeShellMesh.build(List.of(new ShapeShellMesh.Part(boxes, color, color, true)));
          var lines = point.confirmed() ? PreviewRenderTypes.GHOST_OUTLINE_LINES : PreviewRenderTypes.DYNAMIC_LINES;
-         if (point.confirmed()) ShapeShellRenderer.renderEdges(pose, buffers.getBuffer(lines), camera, mesh.edges(), style.alpha());
+         if (point.confirmed()) ShapeShellRenderer.renderEdges(pose, buffers.getBuffer(lines), camera, mesh.edges(), style.alpha() * opacity);
          else ShapeShellRenderer.renderDynamicEdges(pose, buffers.getBuffer(lines), camera, mesh.edges(), style.alpha() * opacity);
          buffers.endBatch(lines);
       }
       new io.github.fastformer.client.controlpoint.ControlPointRenderer(
-         opacity, io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation()
+         opacity, animation
             .dashOffset(io.github.fastformer.client.render.PreviewStyle.DASH_SPEED, io.github.fastformer.client.render.PreviewStyle.DASH_PERIOD),
          io.github.fastformer.client.render.PreviewStyle.DASH_LENGTH).render(pose, buffers, camera, fallback);
    }

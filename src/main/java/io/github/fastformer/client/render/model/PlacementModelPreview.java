@@ -1,4 +1,4 @@
-package io.github.fastformer.client.render.core;
+package io.github.fastformer.client.render.model;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.fastformer.client.render.PreviewBlockOcclusion;
@@ -16,7 +16,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /** Caches model eligibility separately from camera and opacity changes. */
-final class PlacementModelPreview {
+public final class PlacementModelPreview {
    private Set<BlockPos> positions;
    private Map<BlockPos, BlockState> overrides;
    private BlockState state;
@@ -25,7 +25,7 @@ final class PlacementModelPreview {
    private Map<BlockPos, BlockState> states = Map.of();
    private Set<BlockPos> fallback = Set.of();
 
-   Set<BlockPos> render(PoseStack pose, BufferSource buffers, Vec3 camera, Set<BlockPos> positions,
+   public Set<BlockPos> render(PoseStack pose, BufferSource buffers, Vec3 camera, Set<BlockPos> positions,
       BlockState state, Map<BlockPos, BlockState> overrides, float alpha, boolean dynamic) {
       Minecraft minecraft = Minecraft.getInstance();
       if (minecraft.level == null || positions.isEmpty()) return Set.of();
@@ -55,7 +55,7 @@ final class PlacementModelPreview {
       return fallback;
    }
 
-   void clear() {
+   public void clear() {
       positions = null;
       overrides = null;
       state = null;
