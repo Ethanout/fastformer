@@ -620,3 +620,12 @@
 - 新增编辑器拒绝不发布、发布后活动通知、旧 revision 拒绝、分包恢复顺序／一次确认、不同 revision 取消恢复，以及帧间几何连续性中断测试。首次定向测试编译发现新夹具把 ResourceLocation 直接传给效果快照，已修正夹具后重跑通过。
 - `.temp/architecture-preview-updates-tests.log` 定向测试通过；`.temp/architecture-preview-updates-verified.log` 最终完整 check 与新目录 312 项必需 GameTest 全部通过。实际试玩数据未清除，正式仓库配置未改变。
 - Mode 指针与通用按键处理、完整 PreviewFrame／PreviewMode、服务端模式、完整操作树和手册其余项目继续待办；本阶段不是整体完成。
+
+## 普通鼠标目标由注册模式决策（2026-11-14）
+
+- 网络预览应用阶段已提交并推送：`e16374e`。
+- ClientMode／注册表新增 onPointer。`PointerInput`、密封的左右事实与决策放入独立子包；只有 PASS 回落 Idle，返回空值或左右类型错配在边界拒绝。删除 MousePressRoutingSemantics，起形／几何／选区分别拥有普通按压规则，稳定的目标捕获优先级复用 PointerCaptureRules。
+- 输入按原捕获路由调用模式，再执行原有穷尽动作分支。保留几何右键与选区右键差异、原版接管优先、工作区目标优先、确认选区手柄捕获等行为。入口、Alt、路径、先前手势释放仍先处理；未把普通按压决策扩大到所有鼠标生命周期。
+- 对照迁移前规则，穷举 131072 组左键事实 × 四个阶段、8192 组右键事实 × 三个阶段；另测松开／重复／其他键不被认领、PASS／BLOCK 回落及错误处理。新增源码约束禁止恢复旧分派类。
+- `.temp/architecture-mode-pointer-tests.log` 定向测试通过；`.temp/architecture-mode-pointer-verified.log` 完整 check 与新目录 312 项必需 GameTest 全部通过。实际试玩存档和正式仓库配置未改。
+- 通用按键／取消／提交、完整模式鼠标生命周期、PreviewFrame／PreviewMode、服务端 Mode、操作树及手册其余项目仍待实施。

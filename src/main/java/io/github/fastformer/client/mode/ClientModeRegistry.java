@@ -7,6 +7,9 @@ import io.github.fastformer.client.mode.input.ScrollView;
 import io.github.fastformer.client.mode.input.KeyDecision;
 import io.github.fastformer.client.mode.input.KeyInput;
 import io.github.fastformer.client.mode.input.KeyView;
+import io.github.fastformer.client.mode.input.pointer.PointerDecision;
+import io.github.fastformer.client.mode.input.pointer.PointerInput;
+import io.github.fastformer.client.mode.input.pointer.PointerView;
 import io.github.fastformer.core.registry.Registry;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -95,6 +98,22 @@ public final class ClientModeRegistry {
    private List<Definition> ordered() {
       if (ordered == null) throw new IllegalStateException("Client modes are not frozen");
       return ordered;
+   }
+
+   public PointerDecision onPointer(State state, PointerInput input, PointerView view) {
+      ordered();
+      Objects.requireNonNull(input, "input");
+      Objects.requireNonNull(view, "view");
+      Definition owner = owners.get(Objects.requireNonNull(state, "state"));
+      PointerDecision result = Objects.requireNonNull(owner.mode().onPointer(input, view), "pointer decision");
+      if (result == PointerDecision.Flow.PASS && owner != owners.get(State.IDLE)) {
+         result = Objects.requireNonNull(owners.get(State.IDLE).mode().onPointer(input, view), "idle pointer decision");
+      }
+      if (result instanceof PointerDecision.Left && !(view instanceof PointerView.Left)
+         || result instanceof PointerDecision.Right && !(view instanceof PointerView.Right)) {
+         throw new IllegalStateException("Mode returned a pointer decision for another button: " + owner.id());
+      }
+      return result;
    }
 
    private record Definition(String id, ClientMode mode, int priority, Map<State, ModeInputPolicy> phases, boolean interactive) {

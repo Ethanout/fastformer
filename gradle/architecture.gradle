@@ -90,6 +90,9 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (text =~ /\bScrollInputSemantics\b/).find()) {
                 violations.add("Wheel behavior must be owned by registered client modes: ${path}")
             }
+            if (main && (text =~ /\bMousePressRoutingSemantics\b/).find()) {
+                violations.add("Pointer target decisions must be owned by registered client modes: ${path}")
+            }
             if (main && (text =~ /\bBoilClock\b/).find()) {
                 violations.add("Drawing animation must use the shared frame phase: ${path}")
             }

@@ -10,6 +10,7 @@ import io.github.fastformer.client.mode.input.ScrollInput;
 import io.github.fastformer.client.mode.input.ScrollView;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
+import io.github.fastformer.client.mode.input.pointer.*;
 import java.util.Map;
 import java.util.Optional;
 
@@ -20,6 +21,33 @@ public final class SelectionMode implements ClientMode {
       State.ADJUSTING, new ModeInputPolicy(OPERATION, OPERATION, OPERATION, OPERATION, CANCEL, true, true, false));
 
    @Override public String id() { return "fastformer:selection"; }
+   @Override public PointerDecision onPointer(PointerInput input, PointerView view) {
+      if (view instanceof PointerView.Left left && input.press(0)) {
+         var captured = PointerCaptureRules.left(left);
+         return captured == PointerDecision.Left.NONE ? PointerDecision.Left.OPERATION_CAPTURE : captured;
+      }
+      if (view instanceof PointerView.Right right && input.press(1)) return rightPress(right);
+      return PointerDecision.Flow.PASS;
+   }
+
+   private static PointerDecision.Right rightPress(PointerView.Right view) {
+      if (view.workspacePointerTarget()) return PointerDecision.Right.WORKSPACE_POINTER;
+      if (view.workspaceActive()) return PointerDecision.Right.WORKSPACE_ADJUST_OR_CAPTURE;
+      if (view.selectionConfirmed()) {
+         return view.vanillaOwnsPointer() ? PointerDecision.Right.YIELD_TO_VANILLA : PointerDecision.Right.CONFIRMED_GIZMO_CAPTURE;
+      }
+      if (view.vanillaOwnsPointer() && !view.operationAdjust() && !view.operationAlt() && !view.operationPointTarget()) {
+         return PointerDecision.Right.YIELD_TO_VANILLA;
+      }
+      if (view.operationAlt()) return PointerDecision.Right.OPERATION_ALT;
+      if (view.operationAdjust()) return PointerDecision.Right.OPERATION_ADJUST;
+      if (view.operationPointTarget()) return PointerDecision.Right.OPERATION_POINT;
+      if (view.operationEdgeTarget()) return PointerDecision.Right.OPERATION_EDGE;
+      if (view.operationNextPointTarget()) return PointerDecision.Right.OPERATION_NEXT_POINT;
+      if (view.cuboidWorldTarget()) return PointerDecision.Right.CUBOID_NEXT_POINT;
+      if (view.cuboidFaceTarget()) return PointerDecision.Right.CUBOID_FACE;
+      return view.closePathTarget() ? PointerDecision.Right.CLOSE_PATH : PointerDecision.Right.NONE;
+   }
    @Override public int priority() { return 300; }
    @Override public ScrollDecision onScroll(ScrollInput input, ScrollView view) {
       if (input.direction() != 0 && view.workspaceActive()) return ScrollDecision.workspace(input.direction());

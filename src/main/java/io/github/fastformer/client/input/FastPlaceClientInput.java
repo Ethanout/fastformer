@@ -5,7 +5,9 @@ import io.github.fastformer.client.input.drag.WorkspaceFaceDrag;
 import io.github.fastformer.client.input.drag.WorkspaceGizmoDrag;
 import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
-import io.github.fastformer.client.input.mouse.MousePressRoutingSemantics;
+import io.github.fastformer.client.mode.input.pointer.PointerDecision;
+import io.github.fastformer.client.mode.input.pointer.PointerInput;
+import io.github.fastformer.client.mode.input.pointer.PointerView;
 import io.github.fastformer.client.input.policy.CancelInputSemantics;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.ClientSemanticEvent;
@@ -934,7 +936,7 @@ public final class FastPlaceClientInput {
                && operationAdjustModifierHeld();
             boolean operationAlt = operationSession && modifierHeld();
             OperationInputSemantics.LeftDecision leftDecision = operationLeftDecision(pointerIntent);
-            MousePressRoutingSemantics.LeftTarget target = leftPressTarget(
+            PointerDecision.Left target = leftPressTarget(
                minecraft, event.getAction(), pointerIntent, leftDecision, operationAdjust, operationAlt,
                buildingSession, geometrySession, operationSession
             );
@@ -1005,11 +1007,11 @@ public final class FastPlaceClientInput {
       } else if (event.getButton() == 1 && geometrySession) {
          boolean consumed = false;
          if (event.getAction() == 1) {
-            MousePressRoutingSemantics.RightTarget target = rightPressTarget(
+            PointerDecision.Right target = rightPressTarget(
                minecraft, event.getAction(), pointerIntent, true, false
             );
-            if (target == MousePressRoutingSemantics.RightTarget.YIELD_TO_VANILLA) return;
-            consumed = target == MousePressRoutingSemantics.RightTarget.GEOMETRY_CAPTURE;
+            if (target == PointerDecision.Right.YIELD_TO_VANILLA) return;
+            consumed = target == PointerDecision.Right.GEOMETRY_CAPTURE;
          } else if (event.getAction() == 0
             && inputSession().ownsGeometryPointerButton(1)) {
             inputSession().releaseGeometryPointerButton(1);
@@ -1025,10 +1027,10 @@ public final class FastPlaceClientInput {
       } else if (event.getButton() == 1 && operationSession) {
          boolean consumed = false;
          if (event.getAction() == 1) {
-            MousePressRoutingSemantics.RightTarget target = rightPressTarget(
+            PointerDecision.Right target = rightPressTarget(
                minecraft, event.getAction(), pointerIntent, false, true
             );
-            if (target == MousePressRoutingSemantics.RightTarget.YIELD_TO_VANILLA) return;
+            if (target == PointerDecision.Right.YIELD_TO_VANILLA) return;
             consumed = switch (target) {
                case NONE, YIELD_TO_VANILLA, GEOMETRY_CAPTURE, GEOMETRY_INTERACTION -> false;
                case WORKSPACE_POINTER -> {
@@ -1384,7 +1386,7 @@ public final class FastPlaceClientInput {
    }
 
 
-   private static MousePressRoutingSemantics.LeftTarget leftPressTarget(
+   private static PointerDecision.Left leftPressTarget(
       Minecraft minecraft,
       int action,
       OperationInteractionIntent pointerIntent,
@@ -1404,10 +1406,10 @@ public final class FastPlaceClientInput {
          && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id());
       boolean operationUndo = leftDecision.action() == OperationInputSemantics.LeftAction.SELECTION_UNDO
          || leftDecision.action() == OperationInputSemantics.LeftAction.ADJUSTMENT_UNDO;
-      return MousePressRoutingSemantics.leftTarget(new MousePressRoutingSemantics.LeftState(
-         action,
-         MouseButtonInputSemantics.LEFT_BUTTON,
-         buildingSession || geometrySession || operationSession,
+      if (!buildingSession && !geometrySession && !operationSession) return PointerDecision.Left.NONE;
+      var decision = ClientModes.registry().onPointer(
+         pointerPhase(buildingSession, geometrySession, operationSession),
+         new PointerInput(action, MouseButtonInputSemantics.LEFT_BUTTON), new PointerView.Left(
          leftDecision.yieldToVanilla(),
          workspacePointerTarget(pointerIntent),
          ClientSessionSystem.instance().operations().active(),
@@ -1428,12 +1430,12 @@ public final class FastPlaceClientInput {
          inputSession().geometryGizmoDrag != null,
          geometrySession && FastPlaceClientPreviewCore.geometryGizmoHit() != null,
          geometrySession,
-         operationSession,
          NetworkRegistry.hasChannel(minecraft.getConnection(), UndoFastPlacePayload.TYPE.id())
       ));
+      return decision instanceof PointerDecision.Left left ? left : PointerDecision.Left.NONE;
    }
 
-   private static MousePressRoutingSemantics.RightTarget rightPressTarget(
+   private static PointerDecision.Right rightPressTarget(
       Minecraft minecraft,
       int action,
       OperationInteractionIntent pointerIntent,
@@ -1451,11 +1453,10 @@ public final class FastPlaceClientInput {
          && FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex() >= 0
          && FastPlaceClientPreviewCore.operationPointCenter(FastPlaceClientPreviewCore.operationPointUnderCrosshairIndex()) != null
          && NetworkRegistry.hasChannel(minecraft.getConnection(), OperationPointDragPayload.TYPE.id());
-      return MousePressRoutingSemantics.rightTarget(new MousePressRoutingSemantics.RightState(
-         action,
-         MouseButtonInputSemantics.RIGHT_BUTTON,
-         geometrySession,
-         operationSession,
+      if (!geometrySession && !operationSession) return PointerDecision.Right.NONE;
+      var decision = ClientModes.registry().onPointer(
+         pointerPhase(false, geometrySession, operationSession),
+         new PointerInput(action, MouseButtonInputSemantics.RIGHT_BUTTON), new PointerView.Right(
          vanillaOwnsPointer,
          inputSession().ownsGeometryPointerButton(MouseButtonInputSemantics.RIGHT_BUTTON),
          workspacePointerTarget(pointerIntent),
@@ -1476,6 +1477,14 @@ public final class FastPlaceClientInput {
          ClientSessionSystem.instance().operations().operationCuboid() && pointerTarget.kind() == OperationPointerKind.FACE,
          !ClientSessionSystem.instance().operations().operationPrism() && FastPlaceClientPreviewCore.operationPrismBaseOpen()
       ));
+      return decision instanceof PointerDecision.Right right ? right : PointerDecision.Right.NONE;
+   }
+
+   private static ClientInputStateMachine.State pointerPhase(boolean building, boolean geometry, boolean selection) {
+      // These routes were captured before physical gesture setup and are still authoritative.
+      return geometry ? ClientInputStateMachine.State.GEOMETRY
+         : selection ? ClientInputStateMachine.State.SELECTING
+         : building ? ClientInputStateMachine.State.BUILDING : ClientInputStateMachine.State.IDLE;
    }
 
    private static boolean workspacePointerTarget(OperationInteractionIntent pointerIntent) {

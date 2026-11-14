@@ -19,6 +19,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.interaction.intent` | 交互上下文与意图解析 |
 | `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回 |
 | `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式按键／滚轮决策 |
+| `client.mode.input.pointer` | 不可变鼠标事实、左右键动作与共享捕获优先级；模式只决策，不查询实时客户端 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
 | `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、编辑上下文、选区、工作区和暂存草稿 |
 | `client.session.receipt` | 作用域回执仓库：缓存、严格读取、文件保护、明确重试和驱逐条件 |
@@ -108,6 +109,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 `ClientSessionSystem` 持有 `ClientPreviewState`，输入与绘制读取同一份服务端快照。`modeView()` 从真实工作流所有者捕获事实，注册模式决定观察阶段；当前输入路由和待发送起形请求决定是否允许空闲操作。删除输入总入口中的 `vanillaSession()`、`activeSession()` 和重复观察链。任务遮盖仍保留底下的活动交互标志，取消／提交期间仍由路由状态持有输入。视觉层的既有绘制优先级本阶段不改。
 
 `ClientPreviewUpdates` 接收网络更新并持有应用顺序：先过重连确认或编辑器同步，再发布快照，活动 revision 被接收后才通知提交能力。恢复确认复用同一入口。网络注册不再引用渲染。起形缓存按 buildingVersion 清理，几何计划按 geometryVersion 重建；独立的 geometryTransformVersion 记录每次有效连续性中断，帧间连续收包也不会遗漏 HUD 基线重置。纯快照查询直接访问会话状态，不再经渲染总入口转发。
+
+普通左右键目标通过 `ClientMode.onPointer` 决定。输入边界一次采样目标／捕获事实，按已捕获的路由交给起形、几何或选区模式；模式返回类型明确的左右键动作，输入执行原有捕获／拖动／撤回行为。共享的 PointerCaptureRules 只处理稳定的目标优先级。松开、入口保护、Alt 创建、路径与已捕获手势仍先由所属能力处理，不被普通按压决策重新接管。
 
 `ClientScope` 持有完整的 `ClientScopeId`，管理器从当前对象派生身份，不另存可能错配的当前键。草稿读取直接接收所属作用域，按其身份记录读取结果。`ClientScopeFiles` 统一原有三字段摘要和两个当前格式文件位置，不新增迁移路径。
 

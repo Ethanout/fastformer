@@ -10,6 +10,7 @@ import io.github.fastformer.client.mode.input.ScrollInput;
 import io.github.fastformer.client.mode.input.ScrollView;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
+import io.github.fastformer.client.mode.input.pointer.*;
 import java.util.Map;
 import java.util.Optional;
 
@@ -18,6 +19,12 @@ public final class QuickShapeMode implements ClientMode {
    private static final Map<State, ModeInputPolicy> PHASES = Map.of(State.BUILDING, new ModeInputPolicy(BUILDING, BUILDING, BLOCKED, BLOCKED, CANCEL, true, true, true));
 
    @Override public String id() { return "fastformer:quick_shape"; }
+   @Override public PointerDecision onPointer(PointerInput input, PointerView view) {
+      if (!(view instanceof PointerView.Left left) || !input.press(0)) return PointerDecision.Flow.PASS;
+      var captured = PointerCaptureRules.left(left);
+      return captured != PointerDecision.Left.NONE ? captured
+         : left.undoAvailable() ? PointerDecision.Left.UNDO : PointerDecision.Left.NONE;
+   }
    @Override public int priority() { return 100; }
    @Override public ScrollDecision onScroll(ScrollInput input, ScrollView view) {
       return CandidateScrollRules.decide(input, view);
