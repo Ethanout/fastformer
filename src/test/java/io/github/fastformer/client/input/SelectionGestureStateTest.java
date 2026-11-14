@@ -1,5 +1,7 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.testkit.ClientScopes;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.drag.*;
@@ -13,8 +15,8 @@ import org.junit.jupiter.api.Test;
 class SelectionGestureStateTest {
    @Test
    void pointerViewReadsTheSuppliedPlayerSessionWithoutLeakingOtherPlayers() {
-      var first = new io.github.fastformer.client.session.ClientPlayerSession(java.util.UUID.randomUUID());
-      var second = new io.github.fastformer.client.session.ClientPlayerSession(java.util.UUID.randomUUID());
+      var first = ClientScopes.create(java.util.UUID.randomUUID());
+      var second = ClientScopes.create(java.util.UUID.randomUUID());
       var firstDrag = face(first.selectionSession(), 1);
       var secondDrag = face(second.selectionSession(), 2);
       first.selectionSession().gestures().begin(firstDrag);

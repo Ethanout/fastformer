@@ -1,6 +1,8 @@
 package io.github.fastformer.client.session;
 
 import com.mojang.logging.LogUtils;
+import io.github.fastformer.client.session.scope.ClientScope;
+import io.github.fastformer.client.session.scope.ClientScopeId;
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
@@ -34,27 +36,26 @@ public final class ClientSessionManager {
    private static final String DRAFT_DIRECTORY = "fastformer/session-drafts";
    private static final String RECEIPT_DIRECTORY = "fastformer/session-receipts";
 
-   private final Map<SessionKey, ClientPlayerSession> playerSessions = new HashMap<>();
+   private final Map<ClientScopeId, ClientScope> playerSessions = new HashMap<>();
    private final io.github.fastformer.client.operation.selection.ClientSelectionSession unboundSelection =
       new io.github.fastformer.client.operation.selection.ClientSelectionSession();
    private final io.github.fastformer.client.input.ClientInputSession unboundInput =
       new io.github.fastformer.client.input.ClientInputSession(unboundSelection.gestures());
    /** Explicit read result for each scope draft file. Absent means NOT_LOADED. */
-   private final Map<SessionKey, ClientDraftLoadState> draftLoadStates = new HashMap<>();
+   private final Map<ClientScopeId, ClientDraftLoadState> draftLoadStates = new HashMap<>();
    /** Submission receipts of each scope, read from disk at the first use. */
-   private final Map<SessionKey, OperationSubmissionReceiptStore> receiptStores = new HashMap<>();
-   private final Map<SessionKey, ClientDraftLoadState> receiptLoadStates = new HashMap<>();
+   private final Map<ClientScopeId, OperationSubmissionReceiptStore> receiptStores = new HashMap<>();
+   private final Map<ClientScopeId, ClientDraftLoadState> receiptLoadStates = new HashMap<>();
    /** Receipt files of one scope. The read path uses this, and a test supplies its own path. */
-   private final Map<SessionKey, Path> receiptFiles = new HashMap<>();
+   private final Map<ClientScopeId, Path> receiptFiles = new HashMap<>();
    /** Draft files of one scope. The read, save and delete paths use this, and a test supplies its own path. */
-   private final Map<SessionKey, Path> draftFiles = new HashMap<>();
+   private final Map<ClientScopeId, Path> draftFiles = new HashMap<>();
    /** Identity of the staged draft whose exact contents were loaded or saved successfully. */
-   private final Map<SessionKey, ClientOperationDraft> durableDrafts = new HashMap<>();
+   private final Map<ClientScopeId, ClientOperationDraft> durableDrafts = new HashMap<>();
    private boolean reclaimScopesPending;
    /** Scopes whose applied-draft cleanup already ran in this process. */
-   private final java.util.Set<SessionKey> cleanupReplayed = new java.util.HashSet<>();
-   private ClientPlayerSession current;
-   private SessionKey currentKey;
+   private final java.util.Set<ClientScopeId> cleanupReplayed = new java.util.HashSet<>();
+   private ClientScope current;
    private Object callbackConnection;
    private UUID callbackSessionId;
    private final ClientStorageQueue storage = new ClientStorageQueue();
@@ -79,8 +80,12 @@ public final class ClientSessionManager {
    }
 
    /** Returns the most recently active player session, including across disconnects. */
-   public ClientPlayerSession currentSession() {
+   public ClientScope currentSession() {
       return current;
+   }
+
+   private ClientScopeId currentScopeId() {
+      return current == null ? null : current.id();
    }
 
    /** Input and selection share one gesture owner even before any world has been attached. */
@@ -97,20 +102,21 @@ public final class ClientSessionManager {
       unboundSelection.clearLiveInteraction();
    }
 
-   public ClientPlayerSession forCurrent(Minecraft minecraft) {
+   public ClientScope forCurrent(Minecraft minecraft) {
       observePlayer(minecraft);
       return current;
    }
 
    /** Returns the session isolated to one connection, player, and dimension. */
-   public ClientPlayerSession forScope(UUID playerId, String connection, String dimension) {
+   public ClientScope forScope(UUID playerId, String connection, String dimension) {
       if (playerId == null) throw new IllegalArgumentException("playerId must not be null");
-      SessionKey key = new SessionKey(connection, dimension, playerId);
-      return playerSessions.computeIfAbsent(key, ignored -> new ClientPlayerSession(playerId));
+      ClientScopeId key = new ClientScopeId(connection, dimension, playerId);
+      return playerSessions.computeIfAbsent(key, ClientScope::new);
    }
 
-   ClientPlayerSession activateScope(UUID playerId, String connection, String dimension) {
-      SessionKey nextKey = new SessionKey(connection, dimension, playerId);
+   ClientScope activateScope(UUID playerId, String connection, String dimension) {
+      ClientScopeId nextKey = new ClientScopeId(connection, dimension, playerId);
+      ClientScopeId currentKey = currentScopeId();
       boolean firstActivation = currentKey == null;
       boolean scopeChanged = currentKey != null && !currentKey.equals(nextKey);
       if (scopeChanged
@@ -141,13 +147,12 @@ public final class ClientSessionManager {
          // version mismatch stays recorded, because only a newer client can read it.
          this.recordReceiptLoadStateCleared(nextKey);
       }
-      currentKey = nextKey;
       if (scopeChanged || firstActivation) {
          // Every entry into an environment is a cleanup boundary. The applied drafts of
          // this scope are cleared once more before the draft file is read.
          this.cleanupReplayed.remove(nextKey);
       }
-      ClientPlayerSession next = playerSessions.computeIfAbsent(nextKey, ignored -> new ClientPlayerSession(playerId));
+      ClientScope next = playerSessions.computeIfAbsent(nextKey, ClientScope::new);
       if (scopeChanged || firstActivation) next.resetInput();
       current = next;
       if (scopeChanged) {
@@ -164,8 +169,8 @@ public final class ClientSessionManager {
       var entries = playerSessions.entrySet().iterator();
       while (entries.hasNext()) {
          var entry = entries.next();
-         SessionKey key = entry.getKey();
-         ClientPlayerSession session = entry.getValue();
+         ClientScopeId key = entry.getKey();
+         ClientScope session = entry.getValue();
          if (session == current || liveWorkBlocksDraftRead(session)) continue;
          var draft = session.suspendedOperationDraftData();
          if (draft != null && durableDrafts.get(key) != draft) continue;
@@ -194,13 +199,13 @@ public final class ClientSessionManager {
       }
       String connection = connectionIdentity(minecraft);
       String dimension = minecraft.level == null ? "" : minecraft.level.dimension().location().toString();
-      ClientPlayerSession session = activateScope(minecraft.player.getUUID(), connection, dimension);
+      ClientScope session = activateScope(minecraft.player.getUUID(), connection, dimension);
       // The cleanup runs first. An applied draft must never return to the editor, because
       // the world already holds its result. The read below would stage that draft.
-      if (this.currentKey != null && this.cleanupReplayed.add(this.currentKey)) {
+      if (currentScopeId() != null && this.cleanupReplayed.add(currentScopeId())) {
          this.replayPendingCleanups();
       }
-      this.loadDraftOnce(minecraft, this.currentKey, session);
+      this.loadDraftOnce(minecraft, session);
    }
 
    /**
@@ -224,11 +229,11 @@ public final class ClientSessionManager {
    public void suspendCurrentDraft(
       OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID submissionId
    ) {
-      if (this.current == null || this.currentKey == null) return;
+      if (this.current == null || currentScopeId() == null) return;
       this.current.suspendOperationDraft(identity, originWhenNoIdentity, submissionId);
       ClientOperationDraft draft = this.current.suspendedOperationDraftData();
       if (draft == null) return;
-      SessionKey key = currentKey;
+      ClientScopeId key = currentScopeId();
       Path file = draftFileFor(key);
       boolean queued = storage.submitPrepared(() -> {
          Object ticket = OperationClipboardStore.reserve(file);
@@ -263,16 +268,16 @@ public final class ClientSessionManager {
       if (restored) {
          // The draft returned to the editor, so its durable copy is spent.
          this.deleteCurrentDraftFile();
-         if (this.currentKey != null) {
-            this.draftLoadStates.put(this.currentKey, ClientDraftLoadState.READY);
+         if (currentScopeId() != null) {
+            this.draftLoadStates.put(currentScopeId(), ClientDraftLoadState.READY);
          }
          return true;
       }
       // The server selection changed, so the draft cannot return now. Keep the file and
       // record a retryable state: entering this environment again reads the file once
       // more. Deleting it here destroyed the only remaining copy.
-      if (this.currentKey != null) {
-         this.draftLoadStates.put(this.currentKey, ClientDraftLoadState.RETRYABLE_FAILURE);
+      if (currentScopeId() != null) {
+         this.draftLoadStates.put(currentScopeId(), ClientDraftLoadState.RETRYABLE_FAILURE);
       }
       showDraftMessage("fastformer.message.operation_draft_restore_kept");
       return false;
@@ -293,11 +298,11 @@ public final class ClientSessionManager {
       io.github.fastformer.workspace.submission.OperationWorkspacePlan plan, java.util.function.BooleanSupplier owned,
       java.util.function.Consumer<io.github.fastformer.client.placement.ClientPlacementRouter.WorkspaceSubmission> complete
    ) {
-      if (this.current == null || this.currentKey == null || transferId == null) return false;
+      if (this.current == null || currentScopeId() == null || transferId == null) return false;
       ClientOperationDraft draft =
          this.current.buildSubmittedDraft(identity, originWhenNoIdentity, transferId);
       if (draft == null) return false;
-      SessionKey key = currentKey;
+      ClientScopeId key = currentScopeId();
       var session = current;
       var store = receiptStore(key);
       var receipt = new OperationSubmissionReceipt(transferId, originWhenNoIdentity, identity,
@@ -318,7 +323,7 @@ public final class ClientSessionManager {
             boolean durable = error == null && OperationClipboardStore.current(receiptFile, receiptTicket)
                && OperationClipboardStore.current(draftFile, draftTicket);
             if (durable) { store.confirmSaved(receipts); draftLoadStates.put(key, ClientDraftLoadState.READY); }
-            if (current != session || !java.util.Objects.equals(currentKey, key) || !owned.getAsBoolean()) {
+            if (current != session || !java.util.Objects.equals(currentScopeId(), key) || !owned.getAsBoolean()) {
                recordUnsentSubmission(store, receipt, receiptFile);
                return;
             }
@@ -346,8 +351,8 @@ public final class ClientSessionManager {
    public void discardCurrentDraft() {
       if (this.current != null) this.current.discardSuspendedOperationDraft();
       this.deleteCurrentDraftFile();
-      if (this.currentKey != null) {
-         this.draftLoadStates.put(this.currentKey, ClientDraftLoadState.READY);
+      if (currentScopeId() != null) {
+         this.draftLoadStates.put(currentScopeId(), ClientDraftLoadState.READY);
       }
    }
 
@@ -366,9 +371,9 @@ public final class ClientSessionManager {
     * that cannot be read is unknown, and the client must not delete it.</p>
     */
    public OperationDraftSettlement.DurableProbe probeDurableDraft() {
-      if (this.currentKey == null) return OperationDraftSettlement.DurableProbe.absent();
+      if (currentScopeId() == null) return OperationDraftSettlement.DurableProbe.absent();
       try {
-         Optional<CompoundTag> root = OperationClipboardStore.loadStrict(draftFileFor(this.currentKey));
+         Optional<CompoundTag> root = OperationClipboardStore.loadStrict(draftFileFor(currentScopeId()));
          if (root.isEmpty()) return OperationDraftSettlement.DurableProbe.absent();
          if (ClientOperationDraftCodec.readSubmissionId(root.get()) == null && root.get().getBoolean("Unsubmitted")) {
             return OperationDraftSettlement.DurableProbe.absent();
@@ -405,12 +410,12 @@ public final class ClientSessionManager {
       OperationDraftSettlement.Ownership durable = OperationDraftSettlement.resolveDurable(
          transferId,
          this.probeDurableDraft(),
-         () -> this.currentKey != null && settleDraftFile(this.currentKey, transferId)
+         () -> currentScopeId() != null && settleDraftFile(currentScopeId(), transferId)
       );
       return OperationDraftSettlement.combine(staged, durable);
    }
 
-   private boolean settleDraftFile(SessionKey key, UUID transferId) {
+   private boolean settleDraftFile(ClientScopeId key, UUID transferId) {
       try {
          var root = OperationClipboardStore.loadStrict(draftFileFor(key)).orElse(null);
          if (root == null || !transferId.equals(ClientOperationDraftCodec.readSubmissionId(root))) return true;
@@ -437,7 +442,7 @@ public final class ClientSessionManager {
     *         is false when a copy could not be cleared or the record could not be saved.
     */
    public OperationDraftSettlement.Applied settleAppliedSubmission(UUID transferId) {
-      if (this.currentKey == null || transferId == null) {
+      if (currentScopeId() == null || transferId == null) {
          return new OperationDraftSettlement.Applied(
             OperationDraftSettlement.combine(
                OperationDraftSettlement.Ownership.UNCONFIRMED,
@@ -446,7 +451,7 @@ public final class ClientSessionManager {
             false
          );
       }
-      OperationSubmissionReceiptStore store = receiptStore(this.currentKey);
+      OperationSubmissionReceiptStore store = receiptStore(currentScopeId());
       OperationSubmissionReceipt existing = store.find(transferId).orElse(null);
       if (existing != null && existing.outcome() != OperationSubmissionOutcome.APPLIED) {
          // The applied result is durable before the copies leave. Its cleanup flag is
@@ -481,10 +486,10 @@ public final class ClientSessionManager {
     * @return true when memory and disk agree
     */
    private boolean persistIfDirty(OperationSubmissionReceiptStore store) {
-      if (this.currentKey == null || !store.dirty()) {
+      if (currentScopeId() == null || !store.dirty()) {
          return !store.dirty();
       }
-      saveReceiptStore(this.currentKey, store, "fastformer.message.operation_receipt_save_failed");
+      saveReceiptStore(currentScopeId(), store, "fastformer.message.operation_receipt_save_failed");
       return !store.dirty();
    }
 
@@ -496,8 +501,8 @@ public final class ClientSessionManager {
     * number of submissions whose cleanup this pass confirmed.</p>
     */
    public int replayPendingCleanups() {
-      if (this.currentKey == null) return 0;
-      OperationSubmissionReceiptStore store = receiptStore(this.currentKey);
+      if (currentScopeId() == null) return 0;
+      OperationSubmissionReceiptStore store = receiptStore(currentScopeId());
       int cleared = 0;
       for (OperationSubmissionReceipt receipt : store.needingCleanup()) {
          OperationDraftSettlement.Result drafts = this.clearDraftCopies(receipt.transferId());
@@ -533,7 +538,7 @@ public final class ClientSessionManager {
     * @param receiptStoreOverride the store to consult, or null to use the store of the key
     */
    ReceiptVerdict receiptVerdict(
-      SessionKey key, UUID transferId, OperationSubmissionReceiptStore receiptStoreOverride
+      ClientScopeId key, UUID transferId, OperationSubmissionReceiptStore receiptStoreOverride
    ) {
       if (transferId == null) {
          // A draft that names no submission has no receipt to answer for it.
@@ -563,17 +568,17 @@ public final class ClientSessionManager {
     * never deletes the file.
     */
    public boolean retryCurrentDraftLoad() {
-      if (this.currentKey == null) return false;
-      if (!this.draftLoadState(this.currentKey).mayRetry()) return false;
-      this.draftLoadStates.remove(this.currentKey);
+      if (currentScopeId() == null) return false;
+      if (!this.draftLoadState(currentScopeId()).mayRetry()) return false;
+      this.draftLoadStates.remove(currentScopeId());
       return true;
    }
 
    public ClientDraftLoadState currentDraftLoadState() {
-      return this.currentKey == null ? ClientDraftLoadState.NOT_LOADED : this.draftLoadState(this.currentKey);
+      return currentScopeId() == null ? ClientDraftLoadState.NOT_LOADED : this.draftLoadState(currentScopeId());
    }
 
-   ClientDraftLoadState draftLoadState(SessionKey key) {
+   ClientDraftLoadState draftLoadState(ClientScopeId key) {
       return key == null
          ? ClientDraftLoadState.NOT_LOADED
          : this.draftLoadStates.getOrDefault(key, ClientDraftLoadState.NOT_LOADED);
@@ -674,8 +679,8 @@ public final class ClientSessionManager {
     *         cannot promise a later recovery, so the caller must not send.
     */
    public boolean recordSubmissionReceipt(OperationSubmissionReceipt receipt) {
-      if (this.currentKey == null || receipt == null) return false;
-      OperationSubmissionReceiptStore store = receiptStore(this.currentKey);
+      if (currentScopeId() == null || receipt == null) return false;
+      OperationSubmissionReceiptStore store = receiptStore(currentScopeId());
       if (!store.canAccept(receipt.transferId())) {
          // Every recorded submission still has work to do: a result to wait for, or a
          // cleanup that keeps an applied draft out of the editor. A new receipt would drop
@@ -711,8 +716,8 @@ public final class ClientSessionManager {
     * @return true when the store holds the change and matches the disk.
     */
    public boolean updateSubmissionReceipt(UUID transferId, OperationSubmissionOutcome outcome, long nowMillis) {
-      if (this.currentKey == null || transferId == null || outcome == null) return false;
-      OperationSubmissionReceiptStore store = receiptStore(this.currentKey);
+      if (currentScopeId() == null || transferId == null || outcome == null) return false;
+      OperationSubmissionReceiptStore store = receiptStore(currentScopeId());
       OperationSubmissionReceipt existing = store.find(transferId).orElse(null);
       boolean changed = existing != null
          && store.record(existing.withOutcome(outcome, nowMillis));
@@ -728,8 +733,8 @@ public final class ClientSessionManager {
     * @return true when the store holds no such receipt and matches the disk
     */
    public boolean forgetSubmissionReceipt(UUID transferId) {
-      if (this.currentKey == null || transferId == null) return false;
-      OperationSubmissionReceiptStore store = receiptStore(this.currentKey);
+      if (currentScopeId() == null || transferId == null) return false;
+      OperationSubmissionReceiptStore store = receiptStore(currentScopeId());
       boolean removed = store.remove(transferId);
       // An earlier call may have removed the receipt and then failed to write. This call
       // must retry that write, or the store stays dirty with no owner to flush it.
@@ -739,17 +744,17 @@ public final class ClientSessionManager {
 
    /** Returns the recorded receipt of one submission for the current scope. */
    public Optional<OperationSubmissionReceipt> submissionReceipt(UUID transferId) {
-      if (this.currentKey == null || transferId == null) return Optional.empty();
-      return receiptStore(this.currentKey).find(transferId);
+      if (currentScopeId() == null || transferId == null) return Optional.empty();
+      return receiptStore(currentScopeId()).find(transferId);
    }
 
    /** Returns every receipt of the current scope that still waits for a result. */
    public List<OperationSubmissionReceipt> openSubmissionReceipts() {
-      return this.currentKey == null ? List.of() : receiptStore(this.currentKey).open();
+      return currentScopeId() == null ? List.of() : receiptStore(currentScopeId()).open();
    }
 
    /** Reports the receipt store of one scope and records a failed read. */
-   OperationSubmissionReceiptStore receiptStore(SessionKey key) {
+   OperationSubmissionReceiptStore receiptStore(ClientScopeId key) {
       OperationSubmissionReceiptStore cached = this.receiptStores.get(key);
       if (cached != null) return cached;
       OperationSubmissionReceiptStore store;
@@ -778,7 +783,7 @@ public final class ClientSessionManager {
       return store;
    }
 
-   private boolean saveReceiptStore(SessionKey key, OperationSubmissionReceiptStore store, String failureKey) {
+   private boolean saveReceiptStore(ClientScopeId key, OperationSubmissionReceiptStore store, String failureKey) {
       try {
          store.save(receiptFileFor(key));
          this.recordReceiptLoadState(key, ClientDraftLoadState.READY);
@@ -792,14 +797,14 @@ public final class ClientSessionManager {
    }
 
    /** The recorded read result of one scope receipt file. */
-   ClientDraftLoadState receiptLoadState(SessionKey key) {
+   ClientDraftLoadState receiptLoadState(ClientScopeId key) {
       return key == null
          ? ClientDraftLoadState.NOT_LOADED
          : this.receiptLoadStates.getOrDefault(key, ClientDraftLoadState.NOT_LOADED);
    }
 
    /** Records the read result of one scope receipt file. */
-   void recordReceiptLoadState(SessionKey key, ClientDraftLoadState state) {
+   void recordReceiptLoadState(ClientScopeId key, ClientDraftLoadState state) {
       if (key != null && state != null) {
          this.receiptLoadStates.put(key, state);
       }
@@ -807,7 +812,7 @@ public final class ClientSessionManager {
 
    /** The recorded read result of one scope receipt file. */
    public ClientDraftLoadState currentReceiptLoadState() {
-      return this.receiptLoadState(this.currentKey);
+      return this.receiptLoadState(currentScopeId());
    }
 
    /**
@@ -818,13 +823,13 @@ public final class ClientSessionManager {
     * until an explicit boundary, so a damaged file is read once and not on every tick.</p>
     */
    public boolean retryCurrentReceiptLoad() {
-      if (this.currentKey == null) return false;
-      if (!this.receiptLoadState(this.currentKey).mayRetry()) return false;
-      this.recordReceiptLoadStateCleared(this.currentKey);
+      if (currentScopeId() == null) return false;
+      if (!this.receiptLoadState(currentScopeId()).mayRetry()) return false;
+      this.recordReceiptLoadStateCleared(currentScopeId());
       return true;
    }
 
-   private void recordReceiptLoadStateCleared(SessionKey key) {
+   private void recordReceiptLoadStateCleared(ClientScopeId key) {
       this.receiptLoadStates.remove(key);
       // The cached store came from the failed read. Drop it, so the next use reads again.
       OperationSubmissionReceiptStore cached = this.receiptStores.get(key);
@@ -843,14 +848,14 @@ public final class ClientSessionManager {
     * recorded failure and a state the player ended by discarding the draft all stay, so this
     * call never returns a draft that the player already dismissed or replaced.</p>
     */
-   private void rearmDraftReadAfterReceipt(SessionKey key) {
+   private void rearmDraftReadAfterReceipt(ClientScopeId key) {
       if (key != null && this.draftLoadState(key) == ClientDraftLoadState.AWAITING_RECEIPT) {
          this.draftLoadStates.remove(key);
       }
    }
 
    /** Uses an explicit receipt file for one scope. The read path uses this. */
-   void installReceiptFile(SessionKey key, Path file) {
+   void installReceiptFile(ClientScopeId key, Path file) {
       if (key != null && file != null) {
          this.receiptFiles.put(key, file);
       }
@@ -862,26 +867,26 @@ public final class ClientSessionManager {
     * <p>The read, save and delete paths all use this, so a caller without a game directory
     * can drive the real draft flow instead of a copy of it.</p>
     */
-   void installDraftFile(SessionKey key, Path file) {
+   void installDraftFile(ClientScopeId key, Path file) {
       if (key != null && file != null) {
          this.draftFiles.put(key, file);
       }
    }
 
-   private Path draftFileFor(SessionKey key) {
+   private Path draftFileFor(ClientScopeId key) {
       Path override = key == null ? null : this.draftFiles.get(key);
       return override != null ? override : draftFile(key);
    }
 
-   private Path receiptFileFor(SessionKey key) {
+   private Path receiptFileFor(ClientScopeId key) {
       Path override = key == null ? null : this.receiptFiles.get(key);
       return override != null ? override : receiptFile(key);
    }
 
-   private void loadDraftOnce(Minecraft minecraft, SessionKey key, ClientPlayerSession session) {
-      if (minecraft.level == null || key == null || session.suspendedOperationDraft()) return;
+   private void loadDraftOnce(Minecraft minecraft, ClientScope session) {
+      if (minecraft.level == null || session == null || session.suspendedOperationDraft()) return;
+      ClientScopeId key = session.id();
       this.attemptDraftLoad(
-         key,
          session,
          minecraft.level.registryAccess().lookupOrThrow(Registries.BLOCK),
          draftFileFor(key)
@@ -899,9 +904,9 @@ public final class ClientSessionManager {
     * unreadable. This check is the boundary that keeps applied work out of the editor.</p>
     */
    ClientDraftLoadState attemptDraftLoad(
-      SessionKey key, ClientPlayerSession session, HolderGetter<Block> blocks, Path file
+      ClientScope session, HolderGetter<Block> blocks, Path file
    ) {
-      return this.attemptDraftLoad(key, session, blocks, file, null);
+      return this.attemptDraftLoad(session, blocks, file, null);
    }
 
    /**
@@ -910,9 +915,10 @@ public final class ClientSessionManager {
     * @param receiptStoreOverride the store to consult, or null to use the store of the scope
     */
    ClientDraftLoadState attemptDraftLoad(
-      SessionKey key, ClientPlayerSession session, HolderGetter<Block> blocks, Path file,
+      ClientScope session, HolderGetter<Block> blocks, Path file,
       OperationSubmissionReceiptStore receiptStoreOverride
    ) {
+      ClientScopeId key = session.id();
       ClientDraftLoadState recorded = this.draftLoadState(key);
       if (recorded.blocksRead()) {
          return recorded;
@@ -976,14 +982,14 @@ public final class ClientSessionManager {
     * is using. The copy therefore waits for a later boundary instead of overwriting live
     * work. The scope guard keeps the read out of the per-tick path.</p>
     */
-   static boolean liveWorkBlocksDraftRead(ClientPlayerSession session) {
+   static boolean liveWorkBlocksDraftRead(ClientScope session) {
       return session != null
-         && (!session.operationWorkspace().isEmpty() || session.selectionSession().hasDraft()
+         && (!session.workspace().isEmpty() || session.selectionSession().hasDraft()
             || session.inputSession().blocksDraftLoad());
    }
 
    private ClientDraftLoadState recordDraftLoadFailure(
-      SessionKey key, ClientDraftLoadState state, Exception cause
+      ClientScopeId key, ClientDraftLoadState state, Exception cause
    ) {
       this.draftLoadStates.put(key, state);
       LOGGER.warn("Unable to read the FastFormer client operation draft: {}", state, cause);
@@ -996,7 +1002,7 @@ public final class ClientSessionManager {
    }
 
    private void deleteCurrentDraftFile() {
-      if (this.currentKey != null && !deleteDraftFile(this.currentKey)) {
+      if (currentScopeId() != null && !deleteDraftFile(currentScopeId())) {
          showDraftMessage("fastformer.message.operation_draft_delete_failed");
       }
    }
@@ -1011,7 +1017,7 @@ public final class ClientSessionManager {
       }
    }
 
-   private boolean deleteDraftFile(SessionKey key) {
+   private boolean deleteDraftFile(ClientScopeId key) {
       boolean deleted = deleteDraftFileAt(draftFileFor(key));
       if (deleted) {
          durableDrafts.remove(key);
@@ -1028,12 +1034,12 @@ public final class ClientSessionManager {
       minecraft.player.displayClientMessage(Component.translatable(translationKey), false);
    }
 
-   private static Path draftFile(SessionKey key) {
+   private static Path draftFile(ClientScopeId key) {
       String scope = key.connection() + "\n" + key.dimension() + "\n" + key.playerId();
       return FMLPaths.CONFIGDIR.get().resolve(DRAFT_DIRECTORY).resolve(sha256(scope) + ".nbt.gz");
    }
 
-   private static Path receiptFile(SessionKey key) {
+   private static Path receiptFile(ClientScopeId key) {
       String scope = key.connection() + "\n" + key.dimension() + "\n" + key.playerId();
       return FMLPaths.CONFIGDIR.get().resolve(RECEIPT_DIRECTORY).resolve(sha256(scope) + ".nbt.gz");
    }
@@ -1059,10 +1065,4 @@ public final class ClientSessionManager {
       return "connection:" + System.identityHashCode(minecraft.getConnection());
    }
 
-   record SessionKey(String connection, String dimension, UUID playerId) {
-      SessionKey {
-         connection = connection == null ? "" : connection;
-         dimension = dimension == null ? "" : dimension;
-      }
-   }
 }

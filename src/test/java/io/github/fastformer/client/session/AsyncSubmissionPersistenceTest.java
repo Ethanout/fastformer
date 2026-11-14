@@ -1,5 +1,7 @@
 package io.github.fastformer.client.session;
 
+import io.github.fastformer.client.session.scope.ClientScopeId;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
@@ -33,21 +35,21 @@ class AsyncSubmissionPersistenceTest {
       var manager = ClientSessionManager.instance();
       var published = new AtomicBoolean();
       OperationWorkspacePlan plan = null;
-      ClientSessionManager.SessionKey key = null;
-      var keys = new ArrayList<ClientSessionManager.SessionKey>();
+      ClientScopeId key = null;
+      var keys = new ArrayList<ClientScopeId>();
       UUID accepted = null;
       for (int index = 0; index < 3; index++) {
          UUID player = UUID.randomUUID();
          accepted = UUID.randomUUID();
          String connection = "saturation-" + player;
-         key = new ClientSessionManager.SessionKey(connection, "minecraft:overworld", player);
+         key = new ClientScopeId(connection, "minecraft:overworld", player);
          keys.add(key);
          var session = manager.activateScope(player, connection, "minecraft:overworld");
          manager.installDraftFile(key, directory.resolve("draft-" + index));
          manager.installReceiptFile(key, directory.resolve("receipts-" + index));
          Map<BlockPos, ClientBlockSnapshot> blocks = Map.of();
          var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);
-         assertTrue(session.operationWorkspace().addParts(List.of(part)));
+         assertTrue(session.workspace().addParts(List.of(part)));
          plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));
          assertTrue(manager.persistSubmittedDraft(null, OperationSubmissionOrigin.LOCAL_ONLY, accepted, plan, () -> true, submission -> {
             assertNotNull(submission);
@@ -74,14 +76,14 @@ class AsyncSubmissionPersistenceTest {
       var manager = ClientSessionManager.instance();
       UUID player = UUID.randomUUID(), transfer = UUID.randomUUID();
       String connection = "async-test-" + player;
-      var key = new ClientSessionManager.SessionKey(connection, "minecraft:overworld", player);
+      var key = new ClientScopeId(connection, "minecraft:overworld", player);
       var session = manager.activateScope(player, connection, "minecraft:overworld");
       Path draft = directory.resolve("draft.nbt.gz"), receipt = directory.resolve("receipt.nbt.gz");
       manager.installDraftFile(key, draft);
       manager.installReceiptFile(key, receipt);
       Map<BlockPos, ClientBlockSnapshot> blocks = Map.of();
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);
-      assertTrue(session.operationWorkspace().addParts(List.of(part)));
+      assertTrue(session.workspace().addParts(List.of(part)));
       var plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));
       var published = new AtomicBoolean();
       assertTrue(manager.persistSubmittedDraft(null, OperationSubmissionOrigin.LOCAL_ONLY, transfer, plan, () -> !cancelled, submission -> {

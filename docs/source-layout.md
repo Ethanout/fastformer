@@ -11,6 +11,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
 | `client.session` | 客户端会话、受限磁盘任务与草稿／提交回执存储 |
+| `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、选区、工作区和暂存草稿 |
 | `client.session.reconnect` | 有界快照等待；不持有草稿、不决定恢复行为 |
 | `client.session.lifecycle` | 客户端世界离开事件、按顺序通知清理能力并汇总失败 |
 | `client.network.inbound` | 客户端载荷类型注册、连接校验与 tick 投递 |
@@ -88,7 +89,9 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 
 `FastPlaceClientPreviewCore` 将初始方块预览、快速替换和建筑外壳绘制委托给独立渲染类。`BuildingPreviewCache` 持有快速起形的生成任务、降级结果与渲染帧缓存，通过参数接收预览状态、修饰键读取与错误记录。外壳绘制显式接收透明度和动画相位。
 
-`WorldSessionEvents` 统一接收客户端登出／世界卸载，`WorldSessionLifecycle` 复用 `Scope.detach` 按既有顺序清理输入、源遮罩、预览连接、编辑器、交互缓存、反馈和渲染资源。一次运行时清理失败仍通知后续能力，结束后汇总异常；重复边界仍可再次清理。渲染核心只提供自身的重置能力，不订阅世界离开事件、不调用编辑器断线清理。完整 ClientScope 和客户端编辑器实例化仍未完成。
+`WorldSessionEvents` 统一接收客户端登出／世界卸载，`WorldSessionLifecycle` 复用 `Scope.detach` 按既有顺序清理输入、源遮罩、预览连接、编辑器、交互缓存、反馈和渲染资源。一次运行时清理失败仍通知后续能力，结束后汇总异常；重复边界仍可再次清理。渲染核心只提供自身的重置能力，不订阅世界离开事件、不调用编辑器断线清理。
+
+`ClientScope` 持有完整的 `ClientScopeId`，管理器从当前对象派生身份，不另存可能错配的当前键。草稿读取直接接收所属作用域，按其身份记录读取结果。持久化文件仍用原有三字段摘要，不新增迁移路径。Draft／Receipt 仓库拆分与编辑器实例化仍未完成。
 
 `ServerInputDispatcher` 从所属玩家作用域获取 `ServerInputState`。请求水位和手势是单个玩家的字段，不再使用全局 UUID 表。双击快照和扳手 token 使用同一生命周期；退出和玩家实体替换丢弃瞬时状态，换维统一重置。活动工作流、停放会话和世界任务仍由各自的仓库持有，完整服务器实例化尚未完成。
 

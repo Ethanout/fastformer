@@ -1,5 +1,9 @@
 package io.github.fastformer.client.session;
 
+import io.github.fastformer.client.session.scope.ClientScopeId;
+
+import io.github.fastformer.testkit.ClientScopes;
+
 import io.github.fastformer.client.operation.clipboard.OperationClipboardStore;
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
@@ -26,7 +30,7 @@ class PartialDeletionPersistenceTest {
       UUID player = UUID.randomUUID(), transfer = UUID.randomUUID();
       String connection = "partial-delete-" + player;
       manager.activateScope(player, connection, "minecraft:overworld");
-      var key = new ClientSessionManager.SessionKey(connection, "minecraft:overworld", player);
+      var key = new ClientScopeId(connection, "minecraft:overworld", player);
       Path file = directory.resolve("draft.nbt.gz");
       manager.installDraftFile(key, file);
       var original = draft(transfer);
@@ -45,7 +49,7 @@ class PartialDeletionPersistenceTest {
    }
 
    @Test void disconnectRetainsSubmissionRemainder() {
-      var session = new ClientPlayerSession(UUID.randomUUID());
+      var session = ClientScopes.create(UUID.randomUUID());
       var draft = draft(UUID.randomUUID());
       session.selectionSession().restoreDraftState(draft.selection());
       session.setSubmissionRemainder(draft.remainder());

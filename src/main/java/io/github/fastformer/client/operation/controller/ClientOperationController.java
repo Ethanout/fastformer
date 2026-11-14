@@ -19,7 +19,7 @@ import io.github.fastformer.client.operation.workspace.ClientOperationEventStack
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.operation.workspace.WorkspaceContentPreparer;
 import io.github.fastformer.client.placement.ClientPlacementRouter;
-import io.github.fastformer.client.session.ClientPlayerSession;
+import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.ClientSessionManager;
 import io.github.fastformer.client.session.OperationDraftIdentity;
 import io.github.fastformer.client.session.OperationDraftSettlement;
@@ -1481,7 +1481,7 @@ public final class ClientOperationController {
    /** Ends editable client state when the connection closes. */
    public static void onDisconnected() {
       clearFailedWorkspaceTargets();
-      ClientPlayerSession session = ClientSessionManager.instance().currentSession();
+      ClientScope session = ClientSessionManager.instance().currentSession();
       if (session != null) {
          // The server preview is already inactive when the task was queued, and the
          // server may have cancelled the selection. Use the identity that the send

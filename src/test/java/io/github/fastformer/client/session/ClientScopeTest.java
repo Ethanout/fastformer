@@ -1,5 +1,10 @@
 package io.github.fastformer.client.session;
 
+import io.github.fastformer.client.session.scope.ClientScope;
+import io.github.fastformer.client.session.scope.ClientScopeId;
+
+import io.github.fastformer.testkit.ClientScopes;
+
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -12,13 +17,46 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
-class ClientPlayerSessionTest {
+class ClientScopeTest {
+   @Test
+   void scopeKeepsItsCompleteIdentityAcrossInputResetAndEnvironmentDetach() {
+      var id = new ClientScopeId("server-a", "minecraft:the_nether", UUID.randomUUID());
+      var scope = new ClientScope(id);
+      scope.selectionSession().addDraftPoint(BlockPos.ZERO);
+      scope.resetInput();
+      scope.detachEnvironment();
+      assertSame(id, scope.id());
+      assertSame(scope.selectionSession().gestures(), scope.inputSession().selectionGestures());
+   }
+
+   @Test
+   void scopeRequiresAnIdentityAndPlayer() {
+      org.junit.jupiter.api.Assertions.assertThrows(NullPointerException.class, () -> new ClientScope(null));
+      org.junit.jupiter.api.Assertions.assertThrows(NullPointerException.class,
+         () -> new ClientScopeId("server-a", "minecraft:overworld", null));
+   }
+
+   @Test
+   void managerCreatesStateWithTheRequestedIdentity() {
+      var manager = new ClientSessionManager();
+      UUID player = UUID.randomUUID();
+      var a = manager.forScope(player, "server-a", "minecraft:overworld");
+      var b = manager.activateScope(player, "server-b", "minecraft:the_nether");
+      org.junit.jupiter.api.Assertions.assertEquals(
+         new ClientScopeId("server-a", "minecraft:overworld", player), a.id());
+      org.junit.jupiter.api.Assertions.assertEquals(
+         new ClientScopeId("server-b", "minecraft:the_nether", player), b.id());
+      assertSame(b, manager.currentSession());
+      org.junit.jupiter.api.Assertions.assertNotSame(a.inputSession(), b.inputSession());
+      org.junit.jupiter.api.Assertions.assertNotSame(a.workspace(), b.workspace());
+   }
+
    @Test void clientSelectionOwnershipSurvivesInputResetAndReturnToOrigin() {
-      var session = new ClientPlayerSession(UUID.randomUUID());
+      var session = ClientScopes.create(UUID.randomUUID());
       session.selectionSession().retain();
       var original = ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD);
       var returned = original.withTranslation(new BlockPos(1, 0, 0)).withTranslation(BlockPos.ZERO);
-      session.operationWorkspace().addParts(java.util.List.of(returned));
+      session.workspace().addParts(java.util.List.of(returned));
       session.resetInput();
       org.junit.jupiter.api.Assertions.assertTrue(session.selectionSession().clientOwned());
       var draft = session.buildSubmittedDraft(null, OperationSubmissionOrigin.CLIENT_SELECTION, UUID.randomUUID());
@@ -29,8 +67,8 @@ class ClientPlayerSessionTest {
    }
    @Test
    void clientWorldSelectionCanSubmitAndRestoreWithoutServerIdentity() {
-      var session = new ClientPlayerSession(UUID.randomUUID());
-      session.operationWorkspace().addParts(java.util.List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
+      var session = ClientScopes.create(UUID.randomUUID());
+      session.workspace().addParts(java.util.List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
       var transfer = UUID.randomUUID();
       var draft = session.buildSubmittedDraft(null, OperationSubmissionOrigin.CLIENT_SELECTION, transfer);
       org.junit.jupiter.api.Assertions.assertNotNull(draft);
@@ -40,15 +78,15 @@ class ClientPlayerSessionTest {
       org.junit.jupiter.api.Assertions.assertTrue(session.restoreSuspendedOperationDraft(null));
       org.junit.jupiter.api.Assertions.assertTrue(session.selectionSession().retained());
       org.junit.jupiter.api.Assertions.assertEquals(ClientSelectionPart.Source.WORLD,
-         session.operationWorkspace().parts().getFirst().source());
+         session.workspace().parts().getFirst().source());
    }
    @Test
-   void compatibilityWorkspaceAccessUsesTheSelectionOwner() {
-      var first = new ClientPlayerSession(UUID.randomUUID());
-      var second = new ClientPlayerSession(UUID.randomUUID());
-      assertSame(first.selectionSession().workspace(), first.operationWorkspace());
-      org.junit.jupiter.api.Assertions.assertNotSame(first.operationWorkspace(), second.operationWorkspace());
-      first.operationWorkspace().addParts(java.util.List.of(
+   void workspaceAndSelectionShareOneOwner() {
+      var first = ClientScopes.create(UUID.randomUUID());
+      var second = ClientScopes.create(UUID.randomUUID());
+      assertSame(first.selectionSession().workspace(), first.workspace());
+      org.junit.jupiter.api.Assertions.assertNotSame(first.workspace(), second.workspace());
+      first.workspace().addParts(java.util.List.of(
          ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
       org.junit.jupiter.api.Assertions.assertEquals(1, first.selectionSession().workspace().size());
       org.junit.jupiter.api.Assertions.assertTrue(second.selectionSession().workspace().isEmpty());
@@ -56,8 +94,8 @@ class ClientPlayerSessionTest {
 
    @Test
    void localSubmissionIgnoresAnUnrelatedServerSelection() {
-      var session = new ClientPlayerSession(UUID.randomUUID());
-      session.operationWorkspace().addParts(java.util.List.of(
+      var session = ClientScopes.create(UUID.randomUUID());
+      session.workspace().addParts(java.util.List.of(
          ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
       UUID transferId = UUID.randomUUID();
 
@@ -72,8 +110,8 @@ class ClientPlayerSessionTest {
 
    @Test
    void detachingAnEnvironmentClearsDraftFocusWorkspaceAndLock() {
-      var session = new ClientPlayerSession(UUID.randomUUID());
-      var workspace = session.operationWorkspace();
+      var session = ClientScopes.create(UUID.randomUUID());
+      var workspace = session.workspace();
       var selection = session.selectionSession();
       workspace.addParts(java.util.List.of(
          io.github.fastformer.workspace.model.ClientSelectionPart.empty(
@@ -97,8 +135,8 @@ class ClientPlayerSessionTest {
 
    @Test
    void detachingAnEnvironmentKeepsTheDraftStagedForThatEnvironment() {
-      ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
-      var workspace = session.operationWorkspace();
+      ClientScope session = ClientScopes.create(UUID.randomUUID());
+      var workspace = session.workspace();
       var selection = session.selectionSession();
       OperationDraftIdentity identity = identity(BlockPos.ZERO);
       workspace.addParts(java.util.List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
@@ -124,23 +162,23 @@ class ClientPlayerSessionTest {
    void switchingDimensionKeepsTheDraftStagedForTheLeftScope() {
       UUID playerId = UUID.randomUUID();
       ClientSessionManager manager = new ClientSessionManager();
-      ClientPlayerSession overworld = manager.activateScope(playerId, "server-scope", "minecraft:overworld");
-      overworld.operationWorkspace().addParts(java.util.List.of(
+      ClientScope overworld = manager.activateScope(playerId, "server-scope", "minecraft:overworld");
+      overworld.workspace().addParts(java.util.List.of(
          ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
       overworld.selectionSession().addDraftPoint(new BlockPos(3, 4, 5));
       OperationDraftIdentity identity = identity(BlockPos.ZERO);
       overworld.suspendOperationDraft(identity);
 
-      ClientPlayerSession nether = manager.activateScope(playerId, "server-scope", "minecraft:the_nether");
+      ClientScope nether = manager.activateScope(playerId, "server-scope", "minecraft:the_nether");
 
       org.junit.jupiter.api.Assertions.assertNotSame(overworld, nether);
       org.junit.jupiter.api.Assertions.assertSame(nether, manager.currentSession());
       org.junit.jupiter.api.Assertions.assertFalse(manager.currentDraftPending());
       org.junit.jupiter.api.Assertions.assertTrue(overworld.suspendedOperationDraft());
       org.junit.jupiter.api.Assertions.assertFalse(overworld.selectionSession().hasDraft());
-      org.junit.jupiter.api.Assertions.assertTrue(overworld.operationWorkspace().isEmpty());
+      org.junit.jupiter.api.Assertions.assertTrue(overworld.workspace().isEmpty());
       org.junit.jupiter.api.Assertions.assertTrue(overworld.restoreSuspendedOperationDraft(identity));
-      org.junit.jupiter.api.Assertions.assertEquals(1, overworld.operationWorkspace().size());
+      org.junit.jupiter.api.Assertions.assertEquals(1, overworld.workspace().size());
    }
 
    @Test
@@ -164,8 +202,8 @@ class ClientPlayerSessionTest {
       UUID playerId = UUID.randomUUID();
       ClientSessionManager manager = new ClientSessionManager();
 
-      ClientPlayerSession first = manager.forScope(playerId, "session-reuse", "minecraft:overworld");
-      ClientPlayerSession second = manager.forScope(playerId, "session-reuse", "minecraft:overworld");
+      ClientScope first = manager.forScope(playerId, "session-reuse", "minecraft:overworld");
+      ClientScope second = manager.forScope(playerId, "session-reuse", "minecraft:overworld");
 
       assertSame(first, second);
    }
@@ -177,9 +215,9 @@ class ClientPlayerSessionTest {
       ClientSessionManager manager = new ClientSessionManager();
       manager.activateScope(playerId, "server-a", "minecraft:overworld").selectionSession()
          .addDraftPoint(new net.minecraft.core.BlockPos(1, 2, 3));
-      ClientPlayerSession overworld = manager.forScope(playerId, "server-a", "minecraft:overworld");
-      ClientPlayerSession nether = manager.activateScope(playerId, "server-a", "minecraft:the_nether");
-      ClientPlayerSession otherServer = manager.forScope(playerId, "server-b", "minecraft:overworld");
+      ClientScope overworld = manager.forScope(playerId, "server-a", "minecraft:overworld");
+      ClientScope nether = manager.activateScope(playerId, "server-a", "minecraft:the_nether");
+      ClientScope otherServer = manager.forScope(playerId, "server-b", "minecraft:overworld");
 
       org.junit.jupiter.api.Assertions.assertFalse(overworld.selectionSession().hasDraft());
       org.junit.jupiter.api.Assertions.assertNotSame(overworld, nether);
@@ -215,18 +253,18 @@ class ClientPlayerSessionTest {
 
    @Test
    void playerSessionOwnsStableWorkspaceAndSelectionFields() {
-      ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
-      var workspace = session.operationWorkspace();
+      ClientScope session = ClientScopes.create(UUID.randomUUID());
+      var workspace = session.workspace();
       var selection = session.selectionSession();
 
-      assertSame(workspace, session.operationWorkspace());
+      assertSame(workspace, session.workspace());
       assertSame(selection, session.selectionSession());
    }
 
    @Test
    void reconnectRestoresOnlyDurableDraftDataForTheSameServerSelection() {
-      ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
-      var workspace = session.operationWorkspace();
+      ClientScope session = ClientScopes.create(UUID.randomUUID());
+      var workspace = session.workspace();
       var selection = session.selectionSession();
       workspace.addParts(java.util.List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
       workspace.beginEdit();
@@ -265,8 +303,8 @@ class ClientPlayerSessionTest {
 
    @Test
    void mismatchedServerSelectionDiscardsTheSuspendedDraft() {
-      ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
-      session.operationWorkspace().addParts(java.util.List.of(
+      ClientScope session = ClientScopes.create(UUID.randomUUID());
+      session.workspace().addParts(java.util.List.of(
          ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
       OperationDraftIdentity original = identity(BlockPos.ZERO);
 
@@ -275,13 +313,13 @@ class ClientPlayerSessionTest {
       org.junit.jupiter.api.Assertions.assertFalse(
          session.restoreSuspendedOperationDraft(identity(new BlockPos(9, 0, 0))));
       org.junit.jupiter.api.Assertions.assertFalse(session.suspendedOperationDraft());
-      org.junit.jupiter.api.Assertions.assertTrue(session.operationWorkspace().isEmpty());
+      org.junit.jupiter.api.Assertions.assertTrue(session.workspace().isEmpty());
    }
 
    @Test
    void disconnectDuringAnEditKeepsTheLastCompletedTransform() {
-      ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
-      var workspace = session.operationWorkspace();
+      ClientScope session = ClientScopes.create(UUID.randomUUID());
+      var workspace = session.workspace();
       workspace.addParts(java.util.List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
       ClientSelectionPart baseline = workspace.part(1).orElseThrow();
       workspace.beginEdit();
@@ -296,8 +334,8 @@ class ClientPlayerSessionTest {
 
    @Test
    void repeatedWorldEndDoesNotDiscardTheFirstSuspendedDraft() {
-      ClientPlayerSession session = new ClientPlayerSession(UUID.randomUUID());
-      session.operationWorkspace().addParts(java.util.List.of(
+      ClientScope session = ClientScopes.create(UUID.randomUUID());
+      session.workspace().addParts(java.util.List.of(
          ClientSelectionPart.empty(ClientSelectionPart.Source.WORLD)));
       OperationDraftIdentity identity = identity(BlockPos.ZERO);
 
@@ -306,7 +344,7 @@ class ClientPlayerSessionTest {
 
       org.junit.jupiter.api.Assertions.assertTrue(session.suspendedOperationDraft());
       org.junit.jupiter.api.Assertions.assertTrue(session.restoreSuspendedOperationDraft(identity));
-      org.junit.jupiter.api.Assertions.assertEquals(1, session.operationWorkspace().size());
+      org.junit.jupiter.api.Assertions.assertEquals(1, session.workspace().size());
    }
 
    private static OperationDraftIdentity identity(BlockPos firstPoint) {

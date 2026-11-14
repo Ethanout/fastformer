@@ -400,3 +400,10 @@
 - `WorldSessionLifecycle` 复用 `Scope.detach`，保持输入 → 源遮罩 → 预览 → 选区断线 → 交互缓存 → 反馈 → 渲染资源的顺序。一项清理失败仍继续其余参与者，最后汇总；重复离开事件不丢失资源。聚焦状态仅清反馈的逻辑仍归预览 tick。
 - 测试迁至实际生命周期包，验证顺序、多处故障后的完整清理和重复边界。架构检查禁止渲染重新订阅世界离开事件或调用选区断线清理；首次检查捕获 CRLF 导致的未命中残留，修正后通过。
 - `.temp/architecture-world-session-events-final-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过，正常停服。完整 ClientScope、编辑器实例化、Mode、PreviewFrame、PointerResolver 和长按实机验收仍未完成。实际试玩存档未清除。
+
+## 客户端作用域身份（2026-11-14）
+
+- 用 `client.session.scope.ClientScope` 和不可变的 `ClientScopeId` 替换仅保存 UUID 的 ClientPlayerSession 及管理器内部 SessionKey。作用域持有服务器、维度、玩家身份，共享所属输入／选区手势、工作区和暂存草稿；删除旧类型和旧工作区访问名称，不保留别名或转发。
+- 当前身份由当前作用域派生，删除独立的 currentKey 字段。草稿读取只接收所属作用域，不能把另一身份和状态对象组合传入；保留原文件摘要、跨维度清理、失败重试和安全驱逐条件。
+- 测试夹具使用完整身份；补充身份不变、必填玩家、同玩家跨环境隔离和非当前环境读取结果隔离测试。`.temp/architecture-client-scope-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过。
+- Draft／Receipt 仓库拆分、OperationContext 实例化、Mode、PreviewFrame、PointerResolver 和实机验收仍未完成。实际试玩存档未清除。

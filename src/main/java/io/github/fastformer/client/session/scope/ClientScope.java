@@ -1,4 +1,8 @@
-package io.github.fastformer.client.session;
+package io.github.fastformer.client.session.scope;
+
+import io.github.fastformer.client.session.ClientOperationDraft;
+import io.github.fastformer.client.session.OperationDraftIdentity;
+import io.github.fastformer.client.session.OperationSubmissionOrigin;
 
 import io.github.fastformer.workspace.model.ClientSelectionPart;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
@@ -7,9 +11,9 @@ import io.github.fastformer.client.input.ClientInputSession;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Player-owned client state that survives LocalPlayer replacement. */
-public final class ClientPlayerSession {
-   private final UUID playerId;
+/** State of one server, dimension, and player; independent of LocalPlayer replacement. */
+public final class ClientScope {
+   private final ClientScopeId id;
    private final ClientSelectionSession selectionSession = new ClientSelectionSession();
    private final ClientInputSession inputSession;
    private ClientOperationDraft suspendedOperationDraft;
@@ -19,13 +23,13 @@ public final class ClientPlayerSession {
       this.submissionRemainder = remainder;
    }
 
-   public ClientPlayerSession(UUID playerId) {
-      this.playerId = Objects.requireNonNull(playerId, "playerId");
+   public ClientScope(ClientScopeId id) {
+      this.id = Objects.requireNonNull(id, "id");
       this.inputSession = new ClientInputSession(selectionSession.gestures());
    }
 
-   public UUID playerId() {
-      return playerId;
+   public ClientScopeId id() {
+      return id;
    }
 
    /**
@@ -59,14 +63,14 @@ public final class ClientPlayerSession {
          || originWhenNoIdentity == OperationSubmissionOrigin.CLIENT_SELECTION) {
          identity = null;
       }
-      if (operationWorkspace().isEmpty() && !this.selectionSession.hasDraft()) {
+      if (workspace().isEmpty() && !this.selectionSession.hasDraft()) {
          return null;
       }
       if (identity != null) {
          return new ClientOperationDraft(
             ClientOperationDraft.CURRENT_VERSION,
             identity,
-            operationWorkspace().draftState(),
+            workspace().draftState(),
             this.selectionSession.draftState(),
             OperationSubmissionOrigin.SERVER_SELECTION,
             transferId, this.submissionRemainder
@@ -77,7 +81,7 @@ public final class ClientPlayerSession {
          return new ClientOperationDraft(
             ClientOperationDraft.CURRENT_VERSION,
             null,
-            operationWorkspace().draftState(),
+            workspace().draftState(),
             this.selectionSession.draftState(),
             originWhenNoIdentity,
             transferId, this.submissionRemainder
@@ -121,8 +125,8 @@ public final class ClientPlayerSession {
       OperationDraftIdentity identity, OperationSubmissionOrigin originWhenNoIdentity, UUID submissionId
    ) {
       if (originWhenNoIdentity == OperationSubmissionOrigin.CLIENT_SELECTION) identity = null;
-      operationWorkspace().cancelEdit();
-      boolean liveDraft = !operationWorkspace().isEmpty() || this.selectionSession.hasDraft();
+      workspace().cancelEdit();
+      boolean liveDraft = !workspace().isEmpty() || this.selectionSession.hasDraft();
       if (!liveDraft) {
          this.clearLiveInteraction();
          return;
@@ -131,7 +135,7 @@ public final class ClientPlayerSession {
          this.suspendedOperationDraft = new ClientOperationDraft(
             ClientOperationDraft.CURRENT_VERSION,
             identity,
-            operationWorkspace().draftState(),
+            workspace().draftState(),
             this.selectionSession.draftState(),
             submissionId == null ? null : OperationSubmissionOrigin.SERVER_SELECTION,
             submissionId
@@ -141,7 +145,7 @@ public final class ClientPlayerSession {
          this.suspendedOperationDraft = new ClientOperationDraft(
             ClientOperationDraft.CURRENT_VERSION,
             null,
-            operationWorkspace().draftState(),
+            workspace().draftState(),
             this.selectionSession.draftState(),
             originWhenNoIdentity,
             submissionId
@@ -180,7 +184,7 @@ public final class ClientPlayerSession {
          // world blocks. Such a draft needs a server identity that it does not have.
          return false;
       }
-      operationWorkspace().restoreDraftState(suspended.workspace());
+      workspace().restoreDraftState(suspended.workspace());
       this.selectionSession.restoreDraftState(suspended.selection());
       if (suspended.origin() == OperationSubmissionOrigin.CLIENT_SELECTION) this.selectionSession.retain();
       return true;
@@ -229,12 +233,12 @@ public final class ClientPlayerSession {
       this.selectionSession.clearTransientInteraction();
    }
 
-   /** Compatibility access to the selection session's part container. */
-   public ClientOperationWorkspace operationWorkspace() {
+   /** Workspace and selection gestures share the same scope lifetime. */
+   public ClientOperationWorkspace workspace() {
       return selectionSession.workspace();
    }
 
-   /** Player-owned selection gesture and focus state. */
+   /** Selection gesture and focus state of this scope. */
    public ClientSelectionSession selectionSession() {
       return selectionSession;
    }

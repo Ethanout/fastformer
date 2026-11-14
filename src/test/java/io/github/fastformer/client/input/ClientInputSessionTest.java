@@ -1,11 +1,13 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.testkit.ClientScopes;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.input.state.PointerGestureState;
-import io.github.fastformer.client.session.ClientPlayerSession;
+import io.github.fastformer.client.session.scope.ClientScope;
 import io.github.fastformer.client.session.ClientSessionManager;
 import io.github.fastformer.client.session.OperationSubmissionOrigin;
 import io.github.fastformer.workspace.model.ClientSelectionPart;
@@ -86,7 +88,7 @@ class ClientInputSessionTest {
 
    @Test
    void playerInputResetKeepsDurableDataAndInvalidatesSelectionObjects() {
-      var player = new ClientPlayerSession(UUID.randomUUID());
+      var player = ClientScopes.create(UUID.randomUUID());
       var selection = player.selectionSession();
       selection.addDraftPoint(BlockPos.ZERO);
       selection.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
@@ -200,8 +202,8 @@ class ClientInputSessionTest {
 
    @Test
    void suspendedDraftNeverRestoresInputOrSubmissionWait() {
-      var player = new ClientPlayerSession(UUID.randomUUID());
-      player.operationWorkspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
+      var player = ClientScopes.create(UUID.randomUUID());
+      player.workspace().addParts(List.of(ClientSelectionPart.empty(ClientSelectionPart.Source.CLIPBOARD)));
       player.inputSession().routing.observe(ClientInputStateMachine.State.ADJUSTING);
       UUID request = UUID.randomUUID();
       assertTrue(player.inputSession().routing.submit(request));
@@ -211,7 +213,7 @@ class ClientInputSessionTest {
       assertEquals(ClientInputStateMachine.State.IDLE, player.inputSession().routing.state());
       assertFalse(player.inputSession().modifier.held());
       assertTrue(player.restoreSuspendedOperationDraft(null));
-      assertEquals(1, player.operationWorkspace().size());
+      assertEquals(1, player.workspace().size());
       assertEquals(ClientInputStateMachine.State.IDLE, player.inputSession().routing.state());
       assertFalse(player.inputSession().routing.completeSubmission(request,
          ClientInputStateMachine.SubmissionEvent.SUCCEEDED, ClientInputStateMachine.State.ADJUSTING));
@@ -219,8 +221,8 @@ class ClientInputSessionTest {
 
    @Test
    void draftLoadWaitsForSubmissionAndPointerEvenWithoutSelectionData() throws Exception {
-      var player = new ClientPlayerSession(UUID.randomUUID());
-      var gate = ClientSessionManager.class.getDeclaredMethod("liveWorkBlocksDraftRead", ClientPlayerSession.class);
+      var player = ClientScopes.create(UUID.randomUUID());
+      var gate = ClientSessionManager.class.getDeclaredMethod("liveWorkBlocksDraftRead", ClientScope.class);
       gate.setAccessible(true);
       assertEquals(false, gate.invoke(null, player));
       player.inputSession().routing.observe(ClientInputStateMachine.State.SELECTING);
@@ -237,11 +239,11 @@ class ClientInputSessionTest {
       assertEquals(false, gate.invoke(null, player));
    }
 
-   private static ClientPlayerSession activate(ClientSessionManager manager, UUID player, String server, String dimension)
+   private static ClientScope activate(ClientSessionManager manager, UUID player, String server, String dimension)
       throws Exception {
       var method = ClientSessionManager.class.getDeclaredMethod("activateScope", UUID.class, String.class, String.class);
       method.setAccessible(true);
-      return (ClientPlayerSession)method.invoke(manager, player, server, dimension);
+      return (ClientScope)method.invoke(manager, player, server, dimension);
    }
 
    @Test
