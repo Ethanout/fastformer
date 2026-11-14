@@ -13,8 +13,9 @@ import io.github.fastformer.client.session.ClientSessionSystem;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.protocol.c2s.geometry.ScrollCandidatePayload;
 import net.minecraft.client.Minecraft;
-import io.github.fastformer.client.mode.input.ScrollInput;
-import io.github.fastformer.client.mode.input.ScrollView;
+import io.github.fastformer.client.interaction.binding.action.BindingCommands;
+import io.github.fastformer.client.interaction.binding.action.ScrollCommand;
+import io.github.fastformer.client.interaction.binding.context.ScrollBindingContext;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import java.util.Comparator;
 
@@ -70,43 +71,50 @@ final class ScrollInputDispatcher {
       boolean sessionReady = minecraft.player != null && minecraft.screen == null;
       boolean candidateChannelAvailable = minecraft.getConnection() != null
          && ServerGateway.supports(minecraft, ScrollCandidatePayload.TYPE);
-      var scroll = ClientModes.registry().onScroll(inputOwner.routing.state(),
-         new ScrollInput(event.getScrollDeltaY()),
-         new ScrollView(
+      var context = new ScrollBindingContext(
+         ClientModes.registry().id(inputOwner.routing.state()).value().toString(),
+         inputOwner.routing.dispatch(ClientInputStateMachine.InputKind.SCROLL).name().toLowerCase(java.util.Locale.ROOT),
          sessionReady && ClientSessionSystem.instance().operations().active(),
          sessionReady && candidateChannelAvailable && ClientSessionSystem.instance().usesScrollContext(),
          ModifierCommandDispatcher.modifierInputRoute(ModifierCommandDispatcher.ModifierInput.SCROLL) == ModifierCommandDispatcher.ModifierInputRoute.VANILLA,
-         sessionReady && InteractionContext.vanillaOwnsPointer(minecraft))
-      );
-      switch (scroll.command()) {
-         case BLOCK -> event.setCanceled(true);
-         case WORKSPACE_TRANSFORM -> {
-            BlockPos offset = OperationGeometry.viewAxisStep(minecraft.player.getViewVector(1.0F), scroll.direction());
+         sessionReady && InteractionContext.vanillaOwnsPointer(minecraft), event.getScrollDeltaY() != 0).freeze();
+      var result = inputOwner.bindings.onShapeSignal(minecraft, inputOwner, "scroll",
+         event.getScrollDeltaY() < 0 ? "scroll_down" : "scroll_up", context, new BindingCommands() {
+            public boolean scroll(ScrollCommand command) { return execute(minecraft, inputOwner, command); }
+            public void replayPress(long time) { throw new IllegalStateException("Wheel input cannot replay a pointer press"); }
+         });
+      if (result.consumesVanilla()) event.setCanceled(true);
+   }
+
+   private static boolean execute(Minecraft minecraft, ClientInputSession inputOwner, ScrollCommand command) {
+      switch (command) {
+         case WORKSPACE_UP, WORKSPACE_DOWN -> {
+            int direction = command == ScrollCommand.WORKSPACE_UP ? 1 : -1;
+            BlockPos offset = OperationGeometry.viewAxisStep(minecraft.player.getViewVector(1.0F), direction);
             var workspace = ClientSessionSystem.instance().operations().workspace();
             var reference = workspace.selectedParts().stream()
                .min(Comparator.comparingInt(ClientSelectionPart::id)).orElse(null);
             SelectionScrollAction.Gesture gesture = ModifierCommandDispatcher.physicalCtrlDown(minecraft, false) && reference != null
-               ? SelectionScrollAction.stackAlongView(reference.transform(), minecraft.player.getViewVector(1.0F), scroll.direction())
+               ? SelectionScrollAction.stackAlongView(reference.transform(), minecraft.player.getViewVector(1.0F), direction)
                : new SelectionScrollAction.Move(offset);
             var action = SelectionScrollAction.capture(ClientSessionSystem.instance().operations().interactionScene().owner(),
                ClientSessionSystem.instance().operations().workspace(), gesture);
             if (action.isPresent() && !ClientSessionSystem.instance().operations().workspaceSubmissionPending()) {
-               inputOwner.postScroll(new ScrollInputSnapshot(scroll.direction(), action.orElseThrow()));
-               event.setCanceled(true);
+               inputOwner.postScroll(new ScrollInputSnapshot(direction, action.orElseThrow()));
+               return true;
             }
+            return false;
          }
-         case CANDIDATE_SCROLL -> {
-            inputOwner.postScroll(new ScrollInputSnapshot(scroll.direction()));
+         case CANDIDATE_UP, CANDIDATE_DOWN -> {
+            inputOwner.postScroll(new ScrollInputSnapshot(command == ScrollCommand.CANDIDATE_UP ? 1 : -1));
             if (inputOwner.modifier.held()) {
                inputOwner.modifier.consume();
             }
-            event.setCanceled(true);
          }
          case YIELD_TO_VANILLA -> {
             inputOwner.modifier.consume();
          }
-         case NONE -> {
-         }
       }
+      return true;
    }
 }

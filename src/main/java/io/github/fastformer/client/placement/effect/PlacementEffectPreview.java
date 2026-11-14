@@ -1,14 +1,14 @@
 package io.github.fastformer.client.placement.effect;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.placement.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
-import io.github.fastformer.fastplace.geometry.generation.GenerationLimitExceeded;
-import io.github.fastformer.fastplace.geometry.generation.GeneratedBlockSets;
-import io.github.fastformer.fastplace.placement.effect.PlacementEffectContext;
-import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
-import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
+import io.github.fastformer.common.geometry.generation.source.GenerationFailed;
+import io.github.fastformer.common.geometry.generation.source.GenerationLimitExceeded;
+import io.github.fastformer.common.geometry.generation.source.GeneratedBlockSets;
+import io.github.fastformer.common.placement.effect.PlacementEffectContext;
+import io.github.fastformer.common.placement.effect.PlacementEffectRegistry;
+import io.github.fastformer.common.placement.effect.ResolvedPlacementEffect;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.HashMap;
 import java.util.List;

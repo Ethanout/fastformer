@@ -5,10 +5,6 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
 import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.common.mode.ModeId;
-import io.github.fastformer.client.mode.input.CandidateScrollRules;
-import io.github.fastformer.client.mode.input.ScrollDecision;
-import io.github.fastformer.client.mode.input.ScrollInput;
-import io.github.fastformer.client.mode.input.ScrollView;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
 import io.github.fastformer.client.mode.input.pointer.*;
@@ -57,10 +53,6 @@ public final class SelectionMode implements ClientMode {
       return view.closePathTarget() ? PointerDecision.Right.CLOSE_PATH : PointerDecision.Right.NONE;
    }
    @Override public int priority() { return 300; }
-   @Override public ScrollDecision onScroll(ScrollInput input, ScrollView view) {
-      if (input.direction() != 0 && view.workspaceActive()) return ScrollDecision.workspace(input.direction());
-      return CandidateScrollRules.decide(input, view);
-   }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }
    @Override public Optional<State> observe(ModeObservation observation) {
       return !observation.operationSession() ? Optional.empty()

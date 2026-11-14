@@ -18,13 +18,13 @@ import io.github.fastformer.server.history.vanilla.WorldHistoryEvents;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.core.gate.Gate;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTask;
 import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.recovery.RecoverySystem;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.history.rollback.RollbackRequest;
 import io.github.fastformer.server.history.rollback.RollbackQueue;
 import io.github.fastformer.server.recovery.JournalPreparation;
@@ -229,6 +229,8 @@ public final class HistoryService implements AutoCloseable {
       }
       owner.publishNew(context, batch, repository);
       WorldHistoryEvents.send(context, batch, io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload.Kind.RECORD, true);
+      io.github.fastformer.server.api.HistoryNotifications.recorded(context, batch,
+         io.github.fastformer.common.api.HistoryRecorded.Persistence.QUEUED);
    }
 
    public boolean requestUndo(ServerPlayer player, int count) {

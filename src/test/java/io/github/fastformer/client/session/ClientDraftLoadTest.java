@@ -249,7 +249,7 @@ class ClientDraftLoadTest {
       receipts.record(new OperationSubmissionReceipt(
          transferId, OperationSubmissionOrigin.LOCAL_ONLY, null,
          net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"),
-         io.github.fastformer.workspace.submission.OperationSubmissionOutcome.APPLIED, 1L
+         io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome.APPLIED, 1L
       ));
 
       session.drafts().useFile(file);
@@ -282,7 +282,7 @@ class ClientDraftLoadTest {
       receipts.record(new OperationSubmissionReceipt(
          transferId, OperationSubmissionOrigin.LOCAL_ONLY, null,
          net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"),
-         io.github.fastformer.workspace.submission.OperationSubmissionOutcome.IN_PROGRESS, 1L
+         io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome.IN_PROGRESS, 1L
       ));
 
       session.drafts().useFile(file);
@@ -311,7 +311,7 @@ class ClientDraftLoadTest {
       receipts.record(new OperationSubmissionReceipt(
          UUID.randomUUID(), OperationSubmissionOrigin.LOCAL_ONLY, null,
          net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"),
-         io.github.fastformer.workspace.submission.OperationSubmissionOutcome.APPLIED, 1L
+         io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome.APPLIED, 1L
       ));
 
       session.drafts().useFile(file);

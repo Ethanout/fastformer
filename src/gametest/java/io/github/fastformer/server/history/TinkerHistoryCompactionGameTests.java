@@ -11,9 +11,9 @@ import io.github.fastformer.server.history.entry.BlockEditHistoryMetadata;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.interaction.BlockTinker;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.world.BlockEditTransaction;
+import io.github.fastformer.server.interaction.BlockTinker;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
+import io.github.fastformer.server.worldwrite.transaction.BlockEditTransaction;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -47,9 +47,9 @@ public final class TinkerHistoryCompactionGameTests {
       level.setBlock(pos, Blocks.COMPOSTER.defaultBlockState(), flags);
       level.setBlock(recent, Blocks.AIR.defaultBlockState(), flags);
       for (int index = 1; index <= 4; index++) {
-         var before = io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+         var before = io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
          level.setBlock(pos, Blocks.COMPOSTER.defaultBlockState().setValue(BlockStateProperties.LEVEL_COMPOSTER, index), flags);
-         var after = io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
+         var after = io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot.capture(level, pos).orElseThrow();
          helper.assertTrue(HistorySystem.of(player).recordTinker(player, level, new java.util.ArrayDeque<>(java.util.List.of(before)),
             Map.of(pos, after), new BlockEditHistoryMetadata("same", 8, 1)), "old group record failed");
       }
@@ -101,7 +101,7 @@ public final class TinkerHistoryCompactionGameTests {
       var player = helper.makeMockServerPlayerInLevel();
       HistoryTestAccess.awaitInitialHistoryLoad(HistorySystem.of(player), player, 10_000L);
       player.setGameMode(GameType.CREATIVE);
-      var settings = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player);
+      var settings = io.github.fastformer.server.settings.FastPlaceSettings.load(player);
       settings.setTinkerHistoryMergeLimit(player, CompressionSetting.RECENT_GROUP, 2);
       settings.setTinkerHistoryMergeLimit(player, CompressionSetting.RECENT_AFTER, 4);
       var level = helper.getLevel();

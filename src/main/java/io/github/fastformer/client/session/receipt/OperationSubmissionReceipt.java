@@ -2,7 +2,7 @@ package io.github.fastformer.client.session.receipt;
 
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;

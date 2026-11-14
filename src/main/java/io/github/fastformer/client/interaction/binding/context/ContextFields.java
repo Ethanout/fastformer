@@ -26,16 +26,24 @@ public final class ContextFields {
    public static ContextFields defaults() {
       ContextFields result = new ContextFields();
       for (String field : List.of("session", "stage", "mode", "profile", "sneaking", "screen",
-         "aiming", "tinker_consumes", "range", "in_fluid", "through_fluids", "near_first_point",
+         "aiming", "tinker_consumes", "double_second_press", "range", "in_fluid", "through_fluids", "near_first_point",
          "key_action", "input_phase", "player_present", "idle_actions_allowed", "fill_ready", "can_start_fill",
          "can_replace", "creative", "feature_enabled", "window_active", "interaction_allowed", "use_held", "standard_mouse_button",
          "key_route", "paste_allowed", "workspace_active", "workspace_editing", "workspace_submission_pending", "workspace_undo_available",
          "vanilla_pointer", "candidate_overlaps", "pointer_channel", "middle_enabled", "middle_ignored", "pointer_captured",
-         "undo_captured", "scroll_context", "modifier_yields",
-         "submission_allowed", "connected", "restore_pending", "can_confirm")) {
+         "undo_captured", "scroll_context", "modifier_yields", "scroll_route", "scroll_nonzero",
+         "submission_allowed", "connected", "restore_pending", "can_confirm", "history_prompt",
+         "cancellable", "quit_available", "binding_active", "captured_cancel", "operation_restore_pending", "preview_restore_pending")) {
          result.register(field, JsonElement::equals);
       }
       for (String field : List.of("items", "aiming_tag", "modifiers")) result.register(field, ContextFields::contains);
+      for (var field : GeometryBindingContext.Fact.values())
+         result.register("geometry_" + field.name().toLowerCase(java.util.Locale.ROOT), JsonElement::equals);
+      for (var field : IdleBindingContext.Fact.values())
+         result.register("idle_" + field.name().toLowerCase(java.util.Locale.ROOT), JsonElement::equals);
+      result.register("selection_tool", JsonElement::equals);
+      for (var field : SelectionBindingContext.Fact.values())
+         result.register("selection_" + field.name().toLowerCase(java.util.Locale.ROOT), JsonElement::equals);
       return result;
    }
 

@@ -19,6 +19,13 @@ final class OperationPointCommandDispatcher {
    static void dispatch(Minecraft minecraft, ClientInputSession session, OperationPointCommandEvent event) {
       if (!(event instanceof OperationPointCommandEvent.Press press)) return;
       var value = press.snapshot();
+      var operations = ClientSessionSystem.instance().operations();
+      if (session.routing.dispatch(io.github.fastformer.client.input.state.ClientInputStateMachine.InputKind.POINTER)
+         != io.github.fastformer.client.input.state.ClientInputStateMachine.Dispatch.OPERATION
+         || !value.owner().equals(operations.interactionScene().owner())
+         || !value.selection().equals(operations.remoteSelectionIdentity())
+         || value.revision() != operations.remoteSelectionRevision()
+         || !value.callbackScope().equals(operations.remoteSelectionCallbackScope())) return;
       long requestId = value.occurredAtNanos() & Long.MAX_VALUE;
       if (requestId == 0L) requestId = 1L;
       if (value.insertEdge()) {

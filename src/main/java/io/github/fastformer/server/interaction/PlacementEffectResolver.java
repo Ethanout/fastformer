@@ -1,0 +1,59 @@
+package io.github.fastformer.server.interaction;
+
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.server.settings.FastPlaceSettings;
+import io.github.fastformer.common.placement.PlacementContextSnapshot;
+import io.github.fastformer.common.quickshape.QuickShapeDraft;
+import io.github.fastformer.common.placement.effect.PlacementEffectContext;
+import io.github.fastformer.common.placement.effect.PlacementEffectRegistry;
+import io.github.fastformer.common.placement.effect.ResolvedPlacementEffect;
+import java.util.Optional;
+import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.state.BlockState;
+
+/** Builds the one authoritative effect context used by placement and preview sync. */
+public final class PlacementEffectResolver {
+   private PlacementEffectResolver() {
+   }
+
+   public static Optional<ResolvedPlacementEffect> resolve(
+      Player player,
+      FastPlaceSettings settings,
+      QuickShapeDraft session,
+      BlockState prototype,
+      FastPlaceGeometry.Modes modes
+   ) {
+      return resolve(player, settings, session, prototype, modes, session.points());
+   }
+
+   public static Optional<ResolvedPlacementEffect> resolve(
+      Player player,
+      FastPlaceSettings settings,
+      QuickShapeDraft session,
+      BlockState prototype,
+      FastPlaceGeometry.Modes modes,
+      List<BlockPos> points
+   ) {
+      PlacementContextSnapshot placementContext = session.placementContext();
+      Direction.Axis baseAxis = placementContext == null
+         ? Direction.Axis.Y
+         : placementContext.clickedFace().getAxis();
+      return PlacementEffectRegistry.resolve(
+         settings::isPlacementEffectEnabled,
+         new PlacementEffectContext(
+            player,
+            player.getMainHandItem(),
+            prototype,
+            baseAxis,
+            points,
+            modes,
+            session.polygonHeightConfirmed(),
+            session.polygonVolumeShape(),
+            placementContext
+         )
+      );
+   }
+}

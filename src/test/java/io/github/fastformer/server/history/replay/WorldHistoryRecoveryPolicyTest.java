@@ -4,7 +4,7 @@ import io.github.fastformer.server.history.HistoryService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import org.junit.jupiter.api.Test;
 
 class WorldHistoryRecoveryPolicyTest {

@@ -6,16 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.common.geometry.GeometryHit;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.geometry.ControlPointRole;
 import io.github.fastformer.common.geometry.PolyhedronSizeMode;
-import io.github.fastformer.fastplace.workflow.ConvexPolyhedronWorkflow;
-import io.github.fastformer.fastplace.world.*;
 import java.util.List;
 import java.util.UUID;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -108,25 +103,6 @@ class GeometryShapeStateTest {
       assertFalse(session.closed());
       assertEquals(List.of(center), session.pointLocations());
       assertEquals(List.of(ControlPointRole.CENTER), session.pointRoles());
-   }
-
-   @Test
-   void clearingPointSelectionLeavesTheNextPointInputAvailable() {
-      GeometrySession session = new GeometrySession();
-      session.setMode(GeometryMode.CONVEX_POLYHEDRON);
-      session.addPoint(point(0.5, 0.5, 0.5));
-      session.addPoint(point(4.5, 0.5, 0.5));
-      session.addPoint(point(0.5, 0.5, 4.5));
-      session.convex().selectControlPoint(1);
-
-      session.convex().clearSelectedControlPoint();
-      assertEquals(-1, session.convex().selectedControlPoint());
-
-      ConvexPolyhedronWorkflow workflow = new ConvexPolyhedronWorkflow();
-      workflow.onAddPoint(session, new GeometryActionContext(null, false), GeometryHit.point(new BlockPos(0, 4, 0)));
-
-      assertEquals(4, session.points().size());
-      assertEquals(-1, session.convex().selectedControlPoint());
    }
 
    private static Vec3 point(double x, double y, double z) {

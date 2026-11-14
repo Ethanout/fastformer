@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.common.workspace.preview.WorkspaceSelectionBounds;
+import io.github.fastformer.common.workspace.composition.WorkspaceSelectionBounds;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.common.selection.OperationStackRegion;

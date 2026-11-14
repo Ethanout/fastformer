@@ -30,7 +30,7 @@ class ClientOperationDraftCodecTest {
          new ClientOperationWorkspace.DraftState(List.of(), Set.of(), 0), selection);
       var encoded = ClientOperationDraftCodec.encode(original);
       assertEquals(selection, ClientOperationDraftCodec.decode(encoded, null).selection());
-      encoded.getCompound("Selection").remove("SecondPointOnly");
+      encoded.getCompound("Selection").remove("second_only");
       assertThrows(IOException.class, () -> ClientOperationDraftCodec.decode(encoded, null));
    }
 

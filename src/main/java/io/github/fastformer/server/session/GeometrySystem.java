@@ -11,25 +11,24 @@ import net.minecraft.world.level.Level;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.common.geometry.model.FillMode;
 import io.github.fastformer.common.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryActionContext;
-import io.github.fastformer.fastplace.geometry.GeometryBuildResult;
+import io.github.fastformer.server.geometry.workflow.GeometryActionContext;
+import io.github.fastformer.common.geometry.raster.GeometryBuildResult;
 import io.github.fastformer.common.geometry.GeometryHit;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.geometry.ConePlaneMode;
-import io.github.fastformer.common.geometry.ConePrismStage;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionHit;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
 import io.github.fastformer.common.geometry.interaction.PointerGesture;
 import io.github.fastformer.common.geometry.PolyhedronSizeMode;
 import io.github.fastformer.common.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.fastplace.workflow.*;
-import io.github.fastformer.fastplace.world.*;
+import io.github.fastformer.server.geometry.workflow.GeometryWorkflowEditor;
+import io.github.fastformer.server.geometry.workflow.GeometryWorkflowEditors;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,12 +38,14 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-public final class GeometrySystem implements io.github.fastformer.core.lifecycle.Scoped, io.github.fastformer.server.mode.ServerEditor {
-   final PlayerSessions<GeometrySession> sessions = new PlayerSessions<>();
+public final class GeometrySystem implements io.github.fastformer.server.mode.ServerEditor<GeometrySession> {
+   final PlayerSessions<GeometrySession> sessions;
    private final SessionSystem runtime;
 
    GeometrySystem(SessionSystem runtime) {
       this.runtime = runtime;
+      sessions = new PlayerSessions<>(net.minecraft.resources.ResourceLocation.parse("fastformer:geometry"),
+         session -> io.github.fastformer.common.mode.BuiltinModes.geometry(session.mode()), runtime.eventStream()::publish);
    }
 
    public static GeometrySystem of(ServerPlayer player) { return of(player.getServer()); }
@@ -58,14 +59,22 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       return Optional.ofNullable(sessions.active(player.getUUID()));
    }
 
+   @Override public void activate(ServerPlayer player, GeometrySession session) {
+      sessions.activate(player.getUUID(), session);
+   }
+
+   public void initialize(ServerPlayer player, GeometrySession session) {
+      GeometryWorkflowEditors.get(session.mode()).onOpen(session, context(player));
+   }
+
    public boolean allows(ServerPlayer player, GeometryAction action) {
       GeometrySession session = sessions.active(player.getUUID());
-      return session != null && GeometryWorkflows.get(session.mode()).allows(session, action);
+      return session != null && GeometryWorkflowEditors.get(session.mode()).allows(session, action);
    }
 
    public boolean confirmsOnRightClick(ServerPlayer player) {
       GeometrySession session = sessions.active(player.getUUID());
-      return session != null && GeometryWorkflows.get(session.mode()).allows(session, GeometryAction.CONFIRM);
+      return session != null && GeometryWorkflowEditors.get(session.mode()).confirmsOnRightClick(session);
    }
 
    public boolean awaitingFirstPoint(ServerPlayer player) {
@@ -79,8 +88,8 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
 
    public void start(ServerPlayer player, GeometryHit hit) {
       GeometrySession session = new GeometrySession();
-      sessions.activate(player.getUUID(), session);
-      GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
+      runtime.modes().geometry(session.mode()).open(player, session);
+      GeometryWorkflowEditor<?> workflow = GeometryWorkflowEditors.get(session.mode());
       if (hit == null || !workflow.allows(session, GeometryAction.POINT_INPUT)) {
          session.addPoint(hit == null ? BlockPos.ZERO : hit.point());
       } else {
@@ -90,11 +99,9 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
    }
 
    public void selectMode(ServerPlayer player, GeometryMode mode) {
-      GeometrySession session = sessions.getOrCreate(player.getUUID(), GeometrySession::new);
+      GeometrySession session = session(player).orElseGet(GeometrySession::new);
       session.setMode(mode);
-      if (mode == GeometryMode.CONE_PRISM) {
-         session.cone().setConePlaneMode(FastPlaceSettings.load(player).conePlaneMode());
-      }
+      runtime.modes().geometry(session.mode()).open(player, session);
       PreviewSync.syncGeometry(player, session);
    }
 
@@ -107,13 +114,13 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
    }
 
    public void addPoint(ServerPlayer player, GeometryHit hit, Vec3 eye, Vec3 view) {
-      addPoint(player, hit, new GeometryActionContext(player, runtime.modifierHeld(player), hit, eye, view));
+      addPoint(player, hit, context(player, hit, eye, view));
    }
 
    private void addPoint(ServerPlayer player, GeometryHit hit, GeometryActionContext context) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session != null) {
-         GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
+         GeometryWorkflowEditor<?> workflow = GeometryWorkflowEditors.get(session.mode());
          if (!workflow.allows(session, GeometryAction.POINT_INPUT)) {
             Component message = workflow.pointBlockedMessage(session);
             if (!message.getString().isEmpty()) {
@@ -140,7 +147,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (session == null) {
          return false;
       }
-      GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
+      GeometryWorkflowEditor<?> workflow = GeometryWorkflowEditors.get(session.mode());
       if (!workflow.onClosePath(session, context(player))) {
          return false;
       }
@@ -160,7 +167,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
    public void scroll(ServerPlayer player, int steps) {
       GeometrySession session = sessions.active(player.getUUID());
       if (session != null && steps != 0) {
-         GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
+         GeometryWorkflowEditor<?> workflow = GeometryWorkflowEditors.get(session.mode());
          if (!workflow.allows(session, GeometryAction.SCALAR_ADJUST)) {
             return;
          }
@@ -176,10 +183,10 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (session == null) {
          return false;
       }
-      if (!GeometryWorkflows.get(session.mode()).allows(session, GeometryAction.GIZMO_DRAG)) {
+      if (!GeometryWorkflowEditors.get(session.mode()).allows(session, GeometryAction.GIZMO_DRAG)) {
          return false;
       }
-      if (!finish && steps != 0 && !GeometryWorkflows.get(session.mode()).onGizmoDrag(session, context(player), operation, axis, steps)) {
+      if (!finish && steps != 0 && !GeometryWorkflowEditors.get(session.mode()).onGizmoDrag(session, context(player), operation, axis, steps)) {
          return false;
       }
       PreviewSync.syncGeometry(player, session);
@@ -201,18 +208,15 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
          return false;
       }
       if (action == GeometryInteractionAction.CLEAR_SELECTION) {
-         if (!isClick(gesture)
-            || targetType != GeometryInteractionTarget.TargetType.CONTROL_POINT
-            || session.mode() != GeometryMode.CONVEX_POLYHEDRON
-            || session.convex().selectedControlPoint() < 0) {
+         if (targetType != GeometryInteractionTarget.TargetType.CONTROL_POINT
+            || !GeometryWorkflowEditors.get(session.mode()).clearSelection(session, gesture)) {
             return false;
          }
-         session.convex().clearSelectedControlPoint();
          PreviewSync.syncGeometry(player, session);
          return true;
       }
-      GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
-      GeometryInteractionTarget target = workflow.interactionTargets(GeometryWorkflowView.from(session)).stream()
+      GeometryWorkflowEditor<?> workflow = GeometryWorkflowEditors.get(session.mode());
+      GeometryInteractionTarget target = workflow.interactionTargets(session).stream()
          .filter(candidate -> candidate.type() == targetType && candidate.index() == index)
          .findFirst()
          .orElse(null);
@@ -222,22 +226,18 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       GeometryInteractionHit hit = GeometryInteractionHit.nearest(
          eye,
          view,
-         ServerInputDispatcher.visibleExtendedReach(player, eye, view),
+         ServerInputActions.visibleExtendedReach(player, eye, view),
          List.of(target)
       );
       if (hit == null) {
          return false;
       }
-      if (!workflow.onInteraction(session, new GeometryActionContext(player, runtime.modifierHeld(player), null, eye, view),
+      if (!workflow.onInteraction(session, context(player, null, eye, view),
          targetType, index, action, gesture)) {
          return false;
       }
       PreviewSync.syncGeometry(player, session);
       return true;
-   }
-
-   private boolean isClick(PointerGesture gesture) {
-      return gesture == PointerGesture.LEFT_CLICK || gesture == PointerGesture.RIGHT_CLICK;
    }
 
    public boolean rotateEuler(ServerPlayer player, double xDegrees, double yDegrees, double zDegrees) {
@@ -326,12 +326,9 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (session == null) {
          return false;
       }
-      GeometryWorkflow workflow = GeometryWorkflows.get(session.mode());
+      GeometryWorkflowEditor<?> workflow = GeometryWorkflowEditors.get(session.mode());
       if (!workflow.allows(session, GeometryAction.MODE_CYCLE) || !workflow.onCycleMode(session, context(player))) {
          return false;
-      }
-      if (session.mode() == GeometryMode.CONE_PRISM && session.cone().coneStage() == ConePrismStage.FACE) {
-         FastPlaceSettings.load(player).setConePlaneMode(player, session.cone().conePlaneMode());
       }
       PreviewSync.syncGeometry(player, session);
       return true;
@@ -354,7 +351,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
 
    public boolean fill(ServerPlayer player) {
       GeometrySession session = sessions.active(player.getUUID());
-      GeometryWorkflow workflow = session == null ? null : GeometryWorkflows.get(session.mode());
+      GeometryWorkflowEditor<?> workflow = session == null ? null : GeometryWorkflowEditors.get(session.mode());
       if (session == null
          || !workflow.allows(session, GeometryAction.CONFIRM)
          || !workflow.canFill(session)
@@ -365,7 +362,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       BlockState placeState = PlaceableItems.defaultBlockState(player.getMainHandItem()).orElseThrow();
       int max = FastPlaceSettings.load(player).maxPlacement();
       FillMode fillMode = FastPlaceSettings.load(player).fillMode();
-      GeometryBuildResult build = workflow.build(session, context(player), fillMode, max + 1);
+      GeometryBuildResult build = workflow.build(session, fillMode, max + 1);
       if (!build.ready()) {
          PlayerMessages.actionBar(player, build.blockedReason());
          return false;
@@ -418,7 +415,7 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
       if (session == null) {
          return Component.translatable("fastformer.geometry.message.fill_blocked_no_session");
       }
-      return GeometryWorkflows.get(session.mode()).blockedMessage(session);
+      return GeometryWorkflowEditors.get(session.mode()).blockedMessage(session);
    }
 
    private String axisName(int axis) {
@@ -430,10 +427,16 @@ public final class GeometrySystem implements io.github.fastformer.core.lifecycle
    }
 
    private GeometryActionContext context(ServerPlayer player) {
-      return new GeometryActionContext(player, runtime.modifierHeld(player));
+      return context(player, null);
    }
 
    private GeometryActionContext context(ServerPlayer player, GeometryHit hit) {
-      return new GeometryActionContext(player, runtime.modifierHeld(player), hit);
+      return context(player, hit, player.getEyePosition(), player.getViewVector(1.0F));
+   }
+
+   private GeometryActionContext context(ServerPlayer player, GeometryHit hit, Vec3 eye, Vec3 view) {
+      var preferences = new GeometryActionContext.Preferences(FastPlaceSettings.load(player).conePlaneMode(),
+         mode -> FastPlaceSettings.load(player).setConePlaneMode(player, mode));
+      return new GeometryActionContext(player, runtime.modifierHeld(player), hit, eye, view, preferences);
    }
 }

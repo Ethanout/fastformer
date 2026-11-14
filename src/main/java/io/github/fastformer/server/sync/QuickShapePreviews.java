@@ -1,12 +1,12 @@
 package io.github.fastformer.server.sync;
 
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.geometry.LineTieBias;
 import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;

@@ -1,7 +1,7 @@
 package io.github.fastformer.server.history.entry;
 
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;

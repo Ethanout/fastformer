@@ -1,0 +1,262 @@
+{
+  "bindings": [
+    {
+      "id": "fastformer:scroll/busy_up",
+      "priority": 100,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "blocked"
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_up"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:scroll/workspace_up",
+      "priority": 80,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "operation",
+        "workspace_active": true,
+        "scroll_nonzero": true
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_up"
+      },
+      "action": "fastformer:scroll/workspace_up"
+    },
+    {
+      "id": "fastformer:scroll/yield_operation_up",
+      "priority": 40,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "operation",
+        "workspace_active": false,
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": true
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_up"
+      },
+      "action": "fastformer:scroll/yield"
+    },
+    {
+      "id": "fastformer:scroll/candidate_operation_up",
+      "priority": 20,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "operation",
+        "workspace_active": false,
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": false,
+        "vanilla_pointer": false
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_up"
+      },
+      "action": "fastformer:scroll/candidate_up"
+    },
+    {
+      "id": "fastformer:scroll/yield_building_up",
+      "priority": 40,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "building",
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": true
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_up"
+      },
+      "action": "fastformer:scroll/yield"
+    },
+    {
+      "id": "fastformer:scroll/candidate_building_up",
+      "priority": 20,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "building",
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": false,
+        "vanilla_pointer": false
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_up"
+      },
+      "action": "fastformer:scroll/candidate_up"
+    },
+    {
+      "id": "fastformer:scroll/yield_geometry_up",
+      "priority": 40,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "geometry",
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": true
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_up"
+      },
+      "action": "fastformer:scroll/yield"
+    },
+    {
+      "id": "fastformer:scroll/candidate_geometry_up",
+      "priority": 20,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "geometry",
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": false,
+        "vanilla_pointer": false
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_up"
+      },
+      "action": "fastformer:scroll/candidate_up"
+    },
+    {
+      "id": "fastformer:scroll/busy_down",
+      "priority": 100,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "blocked"
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_down"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:scroll/workspace_down",
+      "priority": 80,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "operation",
+        "workspace_active": true,
+        "scroll_nonzero": true
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_down"
+      },
+      "action": "fastformer:scroll/workspace_down"
+    },
+    {
+      "id": "fastformer:scroll/yield_operation_down",
+      "priority": 40,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "operation",
+        "workspace_active": false,
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": true
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_down"
+      },
+      "action": "fastformer:scroll/yield"
+    },
+    {
+      "id": "fastformer:scroll/candidate_operation_down",
+      "priority": 20,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "operation",
+        "workspace_active": false,
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": false,
+        "vanilla_pointer": false
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_down"
+      },
+      "action": "fastformer:scroll/candidate_down"
+    },
+    {
+      "id": "fastformer:scroll/yield_building_down",
+      "priority": 40,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "building",
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": true
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_down"
+      },
+      "action": "fastformer:scroll/yield"
+    },
+    {
+      "id": "fastformer:scroll/candidate_building_down",
+      "priority": 20,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "building",
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": false,
+        "vanilla_pointer": false
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_down"
+      },
+      "action": "fastformer:scroll/candidate_down"
+    },
+    {
+      "id": "fastformer:scroll/yield_geometry_down",
+      "priority": 40,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "geometry",
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": true
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_down"
+      },
+      "action": "fastformer:scroll/yield"
+    },
+    {
+      "id": "fastformer:scroll/candidate_geometry_down",
+      "priority": 20,
+      "context": {
+        "input_phase": "wheel",
+        "scroll_route": "geometry",
+        "scroll_context": true,
+        "scroll_nonzero": true,
+        "modifier_yields": false,
+        "vanilla_pointer": false
+      },
+      "input": {
+        "button": "scroll",
+        "gesture": "scroll_down"
+      },
+      "action": "fastformer:scroll/candidate_down"
+    }
+  ]
+}

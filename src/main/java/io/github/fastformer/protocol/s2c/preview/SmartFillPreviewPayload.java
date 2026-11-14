@@ -1,6 +1,6 @@
 package io.github.fastformer.protocol.s2c.preview;
 
-import io.github.fastformer.fastplace.fill.SmartFillSearch;
+import io.github.fastformer.common.placement.plan.SmartFillSearch;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import java.util.ArrayList;
 import java.util.List;

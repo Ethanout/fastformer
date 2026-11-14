@@ -1,6 +1,6 @@
 package io.github.fastformer.protocol.s2c.workspace;
 
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;

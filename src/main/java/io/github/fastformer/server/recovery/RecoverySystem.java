@@ -3,7 +3,7 @@ package io.github.fastformer.server.recovery;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.core.async.AsyncTasks;
 import io.github.fastformer.core.persist.StoragePaths;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.lifecycle.ServerBackgroundTasks;
 import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
 import io.github.fastformer.server.recovery.spi.HistoryReconciler;

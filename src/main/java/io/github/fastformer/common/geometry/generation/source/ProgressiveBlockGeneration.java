@@ -1,0 +1,207 @@
+package io.github.fastformer.common.geometry.generation.source;
+import io.github.fastformer.common.geometry.raster.face.policy.FacePolicyObserver;
+import io.github.fastformer.common.geometry.raster.face.policy.FaceRasterPolicySet;
+import java.util.Objects;
+
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import java.util.AbstractList;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicLong;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
+
+/** Thread-safe progress bridge from a background generator to a client/server tick thread. */
+public final class ProgressiveBlockGeneration implements FacePolicyObserver {
+   private static final int PUBLISH_BLOCKS = 4096;
+   private static final int MAX_PUBLISHED_BATCHES = 64;
+   private final FaceRasterPolicySet facePolicies;
+   private final long estimatedScan;
+   private final boolean publishBatches;
+   private final AtomicLong scanned = new AtomicLong();
+   private final AtomicLong generated = new AtomicLong();
+   private final ArrayDeque<SectionBatch> published = new ArrayDeque<>();
+   private final Map<Long, LongArrayList> pendingBySection = new HashMap<>();
+   private int pendingCount;
+   private volatile boolean complete;
+   private volatile boolean cancelled;
+
+   public ProgressiveBlockGeneration(long estimatedScan) {
+      this(estimatedScan, true);
+   }
+
+   /**
+    * Creates a progress bridge. Server-side placement generation has no
+    * preview consumer, so it can disable batch retention and avoid both a
+    * second position working set and producer backpressure deadlock.
+    */
+   public ProgressiveBlockGeneration(long estimatedScan, boolean publishBatches) {
+      this(estimatedScan, publishBatches, FaceRasterPolicySet.DEFAULT);
+   }
+
+   public ProgressiveBlockGeneration(long estimatedScan, boolean publishBatches, FaceRasterPolicySet facePolicies) {
+      this.facePolicies = Objects.requireNonNull(facePolicies, "facePolicies");
+      this.estimatedScan = Math.max(0L, estimatedScan);
+      this.publishBatches = publishBatches;
+   }
+
+   @Override public FaceRasterPolicySet facePolicies() { return facePolicies; }
+
+   @Override
+   public void onScanned(long amount) {
+      if (amount > 0L) {
+         this.scanned.getAndAccumulate(amount, ProgressiveBlockGeneration::saturatedAdd);
+      }
+   }
+
+   @Override
+   public synchronized void onGenerated(BlockPos position) {
+      this.checkCancelled();
+      this.generated.incrementAndGet();
+      if (!this.publishBatches) {
+         return;
+      }
+      long section = SectionPos.asLong(
+         SectionPos.blockToSectionCoord(position.getX()),
+         SectionPos.blockToSectionCoord(position.getY()),
+         SectionPos.blockToSectionCoord(position.getZ())
+      );
+      this.pendingBySection.computeIfAbsent(section, ignored -> new LongArrayList()).add(position.asLong());
+      this.pendingCount++;
+      if (this.pendingCount >= PUBLISH_BLOCKS) {
+         this.publishPending();
+      }
+   }
+
+   @Override
+   public void checkCancelled() {
+      if (this.cancelled || Thread.currentThread().isInterrupted()) {
+         throw new CancellationException("FastFormer block generation cancelled");
+      }
+   }
+
+   public synchronized void complete() {
+      if (!this.cancelled) {
+         if (this.publishBatches) {
+            this.publishPending();
+         }
+         this.complete = true;
+      }
+   }
+
+   public synchronized void cancel() {
+      this.cancelled = true;
+      this.published.clear();
+      this.pendingBySection.clear();
+      this.pendingCount = 0;
+      this.notifyAll();
+   }
+
+   public List<SectionBatch> drainPublished() {
+      return this.drainPublished(Long.MAX_VALUE);
+   }
+
+   /** Drains whole sections up to the budget, allowing one section to ensure progress. */
+   public synchronized List<SectionBatch> drainPublished(long maxBlocks) {
+      if (maxBlocks <= 0L) {
+         throw new IllegalArgumentException("Preview drain budget must be positive");
+      }
+      ArrayList<SectionBatch> result = new ArrayList<>();
+      long drained = 0L;
+      for (SectionBatch batch; drained < maxBlocks && (batch = this.published.peek()) != null;) {
+         if (!result.isEmpty() && batch.packedBlockCount() > maxBlocks - drained) {
+            break;
+         }
+         batch = this.published.poll();
+         if (batch == null) {
+            break;
+         }
+         result.add(batch);
+         drained += batch.packedBlockCount();
+      }
+      if (!result.isEmpty()) {
+         this.notifyAll();
+      }
+      return List.copyOf(result);
+   }
+
+   /** Releases queued progress batches once the placement owns the final targets. */
+   public synchronized void releasePublished() {
+      this.published.clear();
+      this.pendingBySection.clear();
+      this.pendingCount = 0;
+      this.notifyAll();
+   }
+
+   public Snapshot snapshot() {
+      return new Snapshot(this.scanned.get(), this.estimatedScan, this.generated.get(), this.complete);
+   }
+
+   private void publishPending() {
+      while (!this.pendingBySection.isEmpty()) {
+         while (this.published.size() >= MAX_PUBLISHED_BATCHES) {
+            this.checkCancelled();
+            try {
+               this.wait(50L);
+            } catch (InterruptedException exception) {
+               Thread.currentThread().interrupt();
+               throw new CancellationException("FastFormer block generation interrupted while waiting for consumers");
+            }
+         }
+
+         this.checkCancelled();
+         if (this.pendingBySection.isEmpty()) {
+            return;
+         }
+         Map.Entry<Long, LongArrayList> entry = this.pendingBySection.entrySet().iterator().next();
+         LongArrayList packedBlocks = entry.getValue();
+         this.pendingBySection.remove(entry.getKey());
+         this.pendingCount -= packedBlocks.size();
+         this.published.add(new SectionBatch(entry.getKey(), packedBlocks.toLongArray()));
+      }
+   }
+
+   private static long saturatedAdd(long left, long right) {
+      return left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right;
+   }
+
+   public record Snapshot(long scanned, long estimatedScan, long generated, boolean complete) {
+   }
+
+   public record SectionBatch(long section, long[] packedBlocks) {
+      public SectionBatch {
+         packedBlocks = packedBlocks.clone();
+      }
+
+      /**
+       * Keeps the existing preview API while avoiding a second boxed position
+       * collection in the bounded publication queue.
+       */
+      public List<BlockPos> blocks() {
+         return new AbstractList<>() {
+            @Override
+            public BlockPos get(int index) {
+               return BlockPos.of(SectionBatch.this.packedBlocks[index]);
+            }
+
+            @Override
+            public int size() {
+               return SectionBatch.this.packedBlocks.length;
+            }
+         };
+      }
+
+      @Override
+      public long[] packedBlocks() {
+         return this.packedBlocks.clone();
+      }
+
+      public long packedBlockCount() {
+         return this.packedBlocks.length;
+      }
+   }
+}

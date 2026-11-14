@@ -1,7 +1,9 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.network.outbound.ServerGateway;
-import io.github.fastformer.client.input.policy.CancelInputSemantics;
+import io.github.fastformer.client.interaction.binding.action.CancellationCommand;
+import io.github.fastformer.client.interaction.binding.context.key.CancellationKeyContext;
+import io.github.fastformer.client.interaction.binding.input.CancellationCapture;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.placement.ClientForcedPlacement;
@@ -15,10 +17,11 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine.InputKind
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.interaction.binding.context.BindingContext;
 import io.github.fastformer.client.interaction.binding.action.BindingAction;
-import io.github.fastformer.client.interaction.binding.context.ConfirmationKeyContext;
+import io.github.fastformer.client.interaction.binding.context.key.ConfirmationKeyContext;
+import io.github.fastformer.client.interaction.binding.context.key.HistoryKeyContext;
 import io.github.fastformer.client.interaction.binding.context.ReplacementContext;
-import io.github.fastformer.client.interaction.binding.context.ToolKeyContext;
-import io.github.fastformer.client.interaction.binding.context.WorkspaceKeyContext;
+import io.github.fastformer.client.interaction.binding.context.key.ToolKeyContext;
+import io.github.fastformer.client.interaction.binding.context.key.WorkspaceKeyContext;
 import io.github.fastformer.client.interaction.binding.tool.ToolBindingCommand;
 import io.github.fastformer.client.mode.ClientModes;
 import io.github.fastformer.client.placement.QuickReplaceMode;
@@ -36,10 +39,24 @@ final class ClientModeKeyInput {
 
    /** The preview query treats repeats as presses only to release a captured movement mapping. */
    static boolean workspaceOwnsKey(Minecraft minecraft, ClientInputSession owner, KeyboardInputSnapshot input) {
+      input = input.forOwnershipQuery();
+      var cancellation = captureCancel(minecraft, owner, input);
+      if (cancellation.command() == CancellationCommand.CANCEL_BINDING) return cancellation.result().consumesVanilla();
+      var history = history(minecraft, owner, input, true);
+      if (history.handled()) return history.consumesVanilla();
+      if (cancellation.result().handled()) return cancellation.result().consumesVanilla();
       var restore = confirmation(minecraft, owner, input, "restore", true);
       if (restore.handled()) return restore.consumesVanilla();
       var confirm = confirmation(minecraft, owner, input, "confirmation", true);
       return confirm.handled() ? confirm.consumesVanilla() : workspace(minecraft, owner, input, true);
+   }
+
+   private static BindingAction.Result history(Minecraft minecraft, ClientInputSession owner, KeyboardInputSnapshot input, boolean probe) {
+      var context = new HistoryKeyContext(ClientModes.registry().id(owner.routing.state()).value().toString(),
+         minecraft.screen == null, minecraft.player != null, HistoryConflictConfirmation.pending() != null,
+         input.action(), input.controlDown(), input.altDown(), input.shiftDown()).freeze();
+      return owner.bindings.onHistoryKey(minecraft, owner,
+         Set.of(InputConstants.getKey(input.key(), input.scanCode()).getName()), context, input, probe);
    }
 
    private static BindingAction.Result confirmation(Minecraft minecraft, ClientInputSession owner, KeyboardInputSnapshot input,
@@ -56,7 +73,7 @@ final class ClientModeKeyInput {
                minecraft.getConnection() != null, operations.reconnectRestorePending()
                   || ClientSessionSystem.instance().previews().reconnectRestorePending(),
                canConfirm, canConfirm && InteractionContext.vanillaOwnsPointer(minecraft),
-               probe && input.action() == 2 ? 1 : input.action(), input.controlDown(), input.altDown(), input.shiftDown()).freeze(phase);
+               input.action(), input.controlDown(), input.altDown(), input.shiftDown()).freeze(phase);
          }, input, probe);
    }
 
@@ -71,7 +88,7 @@ final class ClientModeKeyInput {
          route.name().toLowerCase(Locale.ROOT), owner.routing.dispatch(InputKind.PASTE_WORKSPACE) != Dispatch.BLOCKED,
          operations.active() || operations.selectionEdits().selectionDraftActive() || operations.selectionEdits().remoteSelectionPointing(),
          operations.workspaceEditInProgress(), operations.workspaceSubmissionPending(), minecraft.screen == null, minecraft.player != null,
-         probe && input.action() == 2 ? 1 : input.action(), input.controlDown(), input.altDown(), input.shiftDown(),
+         input.action(), input.controlDown(), input.altDown(), input.shiftDown(),
          operations.workspaceUndoDepth()).freeze();
       return owner.bindings.onWorkspaceKey(minecraft, owner,
          Set.of(InputConstants.getKey(input.key(), input.scanCode()).getName()), context, input.occurredAtNanos(), probe);
@@ -133,7 +150,7 @@ final class ClientModeKeyInput {
          ClientForcedPlacement.input(minecraft.player, event.getAction());
       }
       // Escape is captured before the pause screen opens.
-      if (event.getKey() == CancelInputSemantics.ESCAPE_KEY) return;
+      if (event.getKey() == 256) return;
       long window = minecraft.getWindow().getWindow();
       KeyboardInputSnapshot input = KeyboardInputSnapshot.capture(
          event.getKey(), event.getScanCode(), event.getAction(), event.getModifiers(), System.nanoTime(),
@@ -160,83 +177,71 @@ final class ClientModeKeyInput {
       if (input.action() == 1) {
          input = input.withQuickShapeSubmission(ClientSessionSystem.instance().previews().buildingSubmission().orElse(null));
       }
-      if (input.key() == CancelInputSemantics.CANCEL_KEY && input.action() == CancelInputSemantics.PRESS) {
-         if (inputOwner.bindings.onKey(minecraft, inputOwner, input.key(), input.action(), System.nanoTime())) {
-            if (cancelKeyCarriesVanillaDrop(minecraft, input.key())) minecraft.options.keyDrop.consumeClick();
-            return;
-         }
-         inputOwner.idleEntry.clear();
-         inputOwner.entryPressGuard.clear();
-         inputOwner.cuboidPointPressGuard.clear();
-         if (HistoryConflictConfirmation.pending() != null) {
-            if (cancelKeyCarriesVanillaDrop(minecraft, input.key())) minecraft.options.keyDrop.consumeClick();
-            inputOwner.postKeyboard(input);
-            return;
-         }
-         var cancellation = captureCancel(minecraft, input);
-         if (cancellation == null) return;
-         input = input.withCancellation(cancellation);
-         if (CancelInputSemantics.capturesVanillaDrop(cancellation,
-            cancelKeyCarriesVanillaDrop(minecraft, input.key()))) minecraft.options.keyDrop.consumeClick();
+      var cancellation = captureCancel(minecraft, inputOwner, input);
+      if (cancellation.command() == CancellationCommand.CANCEL_BINDING && cancellation.result().handled()) {
+         if (cancellation.capturesVanillaDrop(cancelKeyCarriesVanillaDrop(minecraft, input.key()))) minecraft.options.keyDrop.consumeClick();
+         inputOwner.postKeyboard(input.withCancellation(cancellation.intent().orElseThrow()));
+         return;
+      }
+      var history = history(minecraft, inputOwner, input, true);
+      if (history.handled()) {
+         if (history.consumesVanilla() && cancelKeyCarriesVanillaDrop(minecraft, input.key())) minecraft.options.keyDrop.consumeClick();
+         inputOwner.postKeyboard(input);
+         return;
+      }
+      if (cancellation.result().handled()) {
+         if (cancellation.command() != null) inputOwner.clearEntryInput();
+         if (cancellation.capturesVanillaDrop(cancelKeyCarriesVanillaDrop(minecraft, input.key()))) minecraft.options.keyDrop.consumeClick();
+         if (cancellation.intent().isPresent()) inputOwner.postKeyboard(input.withCancellation(cancellation.intent().orElseThrow()));
+         return;
       }
       inputOwner.postKeyboard(input);
    }
 
-   static CancelInputSemantics.Decision captureCancel(Minecraft minecraft, KeyboardInputSnapshot input) {
-      var inputOwner = ClientSessionSystem.instance().inputSession();
-      if (minecraft == null || minecraft.player == null || minecraft.screen != null || minecraft.getConnection() == null) return null;
-      InputWorldCleanup.synchronizeInputState();
-      ClientInputStateMachine.Dispatch route = inputOwner.routing.dispatch(ClientInputStateMachine.InputKind.CANCEL);
+   private static CancellationKeyContext cancellationFacts(Minecraft minecraft, ClientInputSession inputOwner, KeyboardInputSnapshot input) {
       boolean operationRestore = ClientSessionSystem.instance().operations().reconnectRestorePending();
       boolean previewRestore = ClientSessionSystem.instance().previews().reconnectRestorePending();
-      boolean owned = route == ClientInputStateMachine.Dispatch.CANCEL || inputOwner.canCancelPendingSessionStart()
+      boolean owned = inputOwner.routing.dispatch(InputKind.CANCEL) == Dispatch.CANCEL || inputOwner.canCancelPendingSessionStart()
          || operationRestore || previewRestore;
-      var decision = CancelInputSemantics.decide(input.action(), input.key(), true,
-         ServerGateway.supports(minecraft, QuitFastPlacePayload.TYPE), owned,
-         ClientSessionSystem.instance().operations().workspaceSubmissionPending(), operationRestore, previewRestore);
-      return decision.command() == CancelInputSemantics.Command.IGNORE ? null : decision;
+      return new CancellationKeyContext(ClientModes.registry().id(inputOwner.routing.state()).value().toString(),
+         inputOwner.routing.dispatch(InputKind.KEY).name().toLowerCase(Locale.ROOT), owned,
+         minecraft.getConnection() != null && ServerGateway.supports(minecraft, QuitFastPlacePayload.TYPE), inputOwner.bindings.active(),
+         ClientSessionSystem.instance().operations().workspaceSubmissionPending(), operationRestore, previewRestore, input.cancellation() != null,
+         minecraft.screen == null, minecraft.player != null, minecraft.getConnection() != null, input.action(),
+         input.controlDown(), input.altDown(), input.shiftDown());
+   }
+
+   private static CancellationCapture captureCancel(Minecraft minecraft, ClientInputSession inputOwner, KeyboardInputSnapshot input) {
+      return inputOwner.bindings.captureCancellation(minecraft, inputOwner,
+         Set.of(InputConstants.getKey(input.key(), input.scanCode()).getName()), cancellationFacts(minecraft, inputOwner, input));
    }
 
    static void handleKey(Minecraft minecraft, KeyboardInputSnapshot event) {
       var inputOwner = ClientSessionSystem.instance().inputSession();
-      if (inputOwner.bindings.onKey(minecraft, inputOwner, event.key(), event.action(), System.nanoTime())) {
-         if (cancelKeyCarriesVanillaDrop(minecraft, event.key())) minecraft.options.keyDrop.consumeClick();
+      if (event.cancellation() != null && event.cancellation().command() == CancellationCommand.CANCEL_BINDING) {
+         inputOwner.bindings.cancel(minecraft, inputOwner);
          return;
       }
-      if (HistoryConflictConfirmation.handleKey(minecraft, event)) return;
+      if (history(minecraft, inputOwner, event, false).handled()) return;
       InputWorldCleanup.synchronizeInputState();
       if (ClientModeKeyInput.handle(minecraft, inputOwner, event)) {
          InputWorldCleanup.synchronizeInputState();
          return;
       }
       ClientInputStateMachine.Dispatch inputRoute = inputOwner.routing.dispatch(ClientInputStateMachine.InputKind.KEY);
-      boolean operationSession = inputRoute == ClientInputStateMachine.Dispatch.OPERATION;
       boolean altKey = event.altKey();
       boolean ctrlKey = event.controlKey();
       boolean controlDown = event.controlDown();
       if (event.action() == 1 && event.altDown() && !altKey && !ctrlKey) {
          inputOwner.modifier.consume();
       }
+      if (event.cancellation() != null) {
+         inputOwner.bindings.dispatchCancellation(minecraft, inputOwner,
+            Set.of(InputConstants.getKey(event.key(), event.scanCode()).getName()),
+            cancellationFacts(minecraft, inputOwner, event).freeze("cancel_dispatch"), event);
+         return;
+      }
       if (confirmation(minecraft, inputOwner, event, "restore", false).handled()) return;
-      CancelInputSemantics.Decision cancel = event.cancellation();
-      if (cancel != null && ClientSessionSystem.instance().operations().workspaceSubmissionPending()) {
-         ClientInteractionFeedback.show(minecraft, "fastformer.message.operation_submit_pending");
-         return;
-      }
-      if (cancel != null && operationSession && event.key() == 81) {
-         InputWorldCleanup.cancelOperationGesture(minecraft);
-         ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection();
-         if (ServerGateway.supports(minecraft, QuitFastPlacePayload.TYPE)) {
-            ServerGateway.send(QuitFastPlacePayload.INSTANCE);
-         }
-         return;
-      }
-      if (cancel != null) {
-         cancelActiveSession(
-            minecraft, cancel.dismissOperationRestore(), cancel.dismissPreviewRestore()
-         );
-         return;
-      }
       if (inputRoute == ClientInputStateMachine.Dispatch.BLOCKED) {
          return;
       }

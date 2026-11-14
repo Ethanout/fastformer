@@ -3,7 +3,7 @@ package io.github.fastformer.common.workspace.transform;
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
-import io.github.fastformer.common.workspace.preview.WorkspaceSelectionBounds;
+import io.github.fastformer.common.workspace.composition.WorkspaceSelectionBounds;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import java.util.List;
 import net.minecraft.world.phys.AABB;

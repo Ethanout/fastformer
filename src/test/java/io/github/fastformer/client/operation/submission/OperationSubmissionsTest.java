@@ -9,8 +9,8 @@ import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceResultPaylo
 import io.github.fastformer.testkit.SubmissionFixture;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;

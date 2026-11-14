@@ -13,7 +13,7 @@ class GeometryPaletteRevisionTest {
          long initial = GeometryPalette.revision();
          GeometryPalette.selectTheme(original);
          assertEquals(initial, GeometryPalette.revision());
-         var other = original == GeometryPalette.Theme.CLASSIC ? GeometryPalette.Theme.HUMANIST : GeometryPalette.Theme.CLASSIC;
+         var other = original.equals(BuiltinThemes.CLASSIC) ? BuiltinThemes.HUMANIST : BuiltinThemes.CLASSIC;
          GeometryPalette.selectTheme(other);
          long switched = GeometryPalette.revision();
          assertTrue(switched > initial);

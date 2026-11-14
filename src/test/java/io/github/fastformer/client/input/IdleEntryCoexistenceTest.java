@@ -1,7 +1,18 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.state.EntryPressGuard;
+
 import io.github.fastformer.common.raycast.InteractionShapeSnapshot;
 import io.github.fastformer.client.interaction.binding.input.*;
+import io.github.fastformer.client.interaction.binding.action.BindingAction;
+import io.github.fastformer.client.interaction.binding.action.BindingCommands;
+import io.github.fastformer.client.interaction.binding.action.entry.IdleCommand;
+import io.github.fastformer.client.interaction.binding.action.entry.IdleEntryParameters;
+import io.github.fastformer.client.interaction.binding.context.IdleBindingContext;
+import io.github.fastformer.client.interaction.binding.context.IdleBindingContext.Fact;
+import io.github.fastformer.testkit.BindingFixtures;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.*;
@@ -14,13 +25,12 @@ class IdleEntryCoexistenceTest {
    private static final InteractionShapeSnapshot SHAPE = new InteractionShapeSnapshot(BlockPos.ZERO, List.of(new AABB(0, 0, 0, 1, 1, 1)));
    private static final InputPattern HOLD = new InputPattern("right", "hold", 200, "deferred");
 
-   @Test void nearSecondPressPrecedesHoldAndTinker() {
+   @Test void nearSecondPressPrecedesHoldAndTinker() throws Exception {
       var gesture = new IdleEntryGesture();
       Vec3 eye = new Vec3(0.5, 0.5, -3);
       gesture.remember(1, PRESS, SHAPE, eye, VIEW, this, null);
       assertNotNull(gesture.secondPress(PRESS + 190_000_000L, eye, VIEW));
-      assertEquals(IdleEntryRules.Owner.DOUBLE_ENTRY, IdleEntryRules.owner(
-         new IdleEntryRules.Context(false, false, false, false, false, true, true, IdleEntryRules.Aim.ORDINARY_BLOCK)));
+      assertEquals(IdleCommand.ENTER_ANCHOR, choose(Fact.ANCHOR, Fact.TINKER));
    }
 
    @Test void fifteenToTwentyBlockSecondPressKeepsThreeHundredMillisecondsAndEdgeMargin() {
@@ -35,12 +45,10 @@ class IdleEntryCoexistenceTest {
       }
    }
 
-   @Test void distantSingleAndAltPreserveTheirEntryGuard() {
-      assertEquals(IdleEntryRules.Owner.DISTANT_ENTRY, IdleEntryRules.owner(
-         new IdleEntryRules.Context(false, false, false, false, true, true, true, IdleEntryRules.Aim.ORDINARY_BLOCK)));
-      assertEquals(IdleEntryRules.Owner.ALT_ENTRY, IdleEntryRules.owner(
-         new IdleEntryRules.Context(false, false, false, true, true, true, true, IdleEntryRules.Aim.ORDINARY_BLOCK)));
-      var guard = new RightClickInertiaGuard();
+   @Test void distantSingleAndAltPreserveTheirEntryGuard() throws Exception {
+      assertEquals(IdleCommand.ENTER_SURFACE, choose(Fact.DISTANT, Fact.ANCHOR, Fact.TINKER));
+      assertEquals(IdleCommand.ENTER_EMBEDDED, choose(Fact.ALT, Fact.DISTANT, Fact.ANCHOR, Fact.TINKER));
+      var guard = new EntryPressGuard();
       guard.arm(PRESS);
       assertTrue(guard.capture(1, 1, PRESS + 100_000_000L));
       assertTrue(guard.capture(0, 1, PRESS + 400_000_000L));
@@ -48,28 +56,40 @@ class IdleEntryCoexistenceTest {
 
    @Test void holdReleaseHasNoEntryGuardToSwallowIt() {
       var arbiter = new ButtonArbiter<String>();
-      var guard = new RightClickInertiaGuard();
+      var guard = new EntryPressGuard();
       arbiter.press(1, PRESS, HOLD, "frozen press");
       assertEquals(ButtonArbiter.Kind.START, arbiter.tick(PRESS + 200_000_000L).getFirst().kind());
       assertFalse(guard.capture(0, 1, PRESS + 250_000_000L));
       assertEquals(ButtonArbiter.Kind.RELEASE, arbiter.release(1, PRESS + 250_000_000L).getFirst().kind());
    }
 
-   @Test void endingHoldClearsThePairingAndNextClickStartsFresh() {
+   @Test void endingHoldClearsThePairingAndNextClickStartsFresh() throws Exception {
       var gesture = new IdleEntryGesture();
       Vec3 eye = new Vec3(0.5, 0.5, -3);
       gesture.remember(1, PRESS, SHAPE, eye, VIEW, this, null);
       gesture.clear();
       assertNull(gesture.secondPress(PRESS + 50_000_000L, eye, VIEW));
-      assertEquals(IdleEntryRules.Owner.HOLD_CANDIDATE, IdleEntryRules.owner(
-         new IdleEntryRules.Context(false, false, false, false, false, false, false, IdleEntryRules.Aim.ORDINARY_BLOCK)));
+      assertEquals(IdleCommand.HOLD, choose());
    }
 
-   @Test void externalActiveGuardAndVanillaTargetsKeepTheirPriority() {
-      assertEquals(IdleEntryRules.Owner.EXTERNAL, IdleEntryRules.owner(new IdleEntryRules.Context(true, true, true, true, true, true, true, IdleEntryRules.Aim.ENTITY)));
-      assertEquals(IdleEntryRules.Owner.ACTIVE_SESSION, IdleEntryRules.owner(new IdleEntryRules.Context(false, true, true, true, true, true, true, IdleEntryRules.Aim.ENTITY)));
-      assertEquals(IdleEntryRules.Owner.ENTRY_GUARD, IdleEntryRules.owner(new IdleEntryRules.Context(false, false, true, true, true, true, true, IdleEntryRules.Aim.ENTITY)));
-      for (var aim : List.of(IdleEntryRules.Aim.AIR, IdleEntryRules.Aim.ENTITY, IdleEntryRules.Aim.PASSTHROUGH_BLOCK))
-         assertEquals(IdleEntryRules.Owner.VANILLA, IdleEntryRules.owner(new IdleEntryRules.Context(false, false, false, false, false, false, false, aim)));
+   @Test void passthroughAndEntityDoNotStartADeferredHold() throws Exception {
+      assertEquals(IdleCommand.REMEMBER, choose(Fact.PASSTHROUGH));
+      assertEquals(IdleCommand.CLEAR, choose(Fact.ENTITY));
+   }
+
+   private static IdleCommand choose(Fact... values) throws Exception {
+      var facts = EnumSet.of(Fact.OUTLINE, Fact.PLACEABLE);
+      facts.addAll(List.of(values));
+      var selected = new IdleCommand[1];
+      BindingFixtures.system(BindingFixtures.defaults("idle")).onSignalsResult("right", Set.of("press", "double"),
+         new IdleBindingContext(facts).freeze(), new BindingCommands() {
+            public BindingAction.Result idle(IdleCommand command, IdleEntryParameters parameters) {
+               selected[0] = command;
+               return command == IdleCommand.CLEAR || command == IdleCommand.REMEMBER
+                  ? BindingAction.Result.HANDLED_PASS_VANILLA : BindingAction.Result.HANDLED;
+            }
+            public void replayPress(long time) { fail("Idle resource must not replay a press"); }
+         });
+      return selected[0];
    }
 }

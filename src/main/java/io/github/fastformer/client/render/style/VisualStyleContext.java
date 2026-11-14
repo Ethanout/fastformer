@@ -12,8 +12,7 @@ public record VisualStyleContext(ResourceLocation theme, Pass pass, boolean dyna
 
    public static VisualStyleContext capture(Pass pass, boolean dynamic) {
       var window = Minecraft.getInstance().getWindow();
-      return new VisualStyleContext(ResourceLocation.fromNamespaceAndPath("fastformer",
-         GeometryPalette.theme().name().toLowerCase(java.util.Locale.ROOT)), pass, dynamic,
+      return new VisualStyleContext(GeometryPalette.renderSnapshot().selected().id(), pass, dynamic,
          io.github.fastformer.client.preview.frame.PreviewAnimation.current().elapsedSeconds(),
          guiScaleFactor(), window.getWidth(), window.getHeight());
    }

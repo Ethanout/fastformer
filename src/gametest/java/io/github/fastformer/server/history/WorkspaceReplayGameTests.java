@@ -6,15 +6,15 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.server.task.WorldTaskSchedulerTestAccess;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import io.github.fastformer.workspace.submission.WorkspaceAdmission;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.common.workspace.submission.WorkspaceAdmission;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -219,7 +219,7 @@ public final class WorkspaceReplayGameTests {
          // The dispatcher must examine the ledger before the gates. A gate refuses new work,
          // and a replay is not new work: it reports a result that already exists.
          WorkspaceAdmission admission =
-            ServerInputDispatcher.applyWorkspace(player, transferId, plan(helper, 7, 7));
+            ServerInputActions.applyWorkspace(player, transferId, plan(helper, 7, 7));
 
          helper.assertTrue(
             admission.kind() == WorkspaceAdmission.Kind.REPLAYED,

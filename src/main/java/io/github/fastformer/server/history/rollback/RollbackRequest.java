@@ -1,7 +1,7 @@
 package io.github.fastformer.server.history.rollback;
 
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import java.util.ArrayDeque;

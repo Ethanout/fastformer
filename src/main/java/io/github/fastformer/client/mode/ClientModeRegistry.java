@@ -1,9 +1,6 @@
 package io.github.fastformer.client.mode;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
-import io.github.fastformer.client.mode.input.ScrollDecision;
-import io.github.fastformer.client.mode.input.ScrollInput;
-import io.github.fastformer.client.mode.input.ScrollView;
 import io.github.fastformer.client.mode.input.pointer.PointerDecision;
 import io.github.fastformer.client.mode.input.pointer.PointerInput;
 import io.github.fastformer.client.mode.input.pointer.PointerView;
@@ -68,19 +65,6 @@ public final class ClientModeRegistry {
    public ModeInputPolicy policy(State state) {
       ordered();
       return Objects.requireNonNull(policies.get(Objects.requireNonNull(state, "state")), "phase policy");
-   }
-
-   public ScrollDecision onScroll(State state, ScrollInput input, ScrollView view) {
-      ordered();
-      if (policy(state).dataDrivenInputs().contains(io.github.fastformer.client.input.state.ClientInputStateMachine.InputKind.SCROLL))
-         return ScrollDecision.pass();
-      Definition owner = owners.get(Objects.requireNonNull(state, "state"));
-      ScrollDecision result = Objects.requireNonNull(owner.mode().onScroll(
-         Objects.requireNonNull(input, "input"), Objects.requireNonNull(view, "view")), "scroll decision");
-      if (result.command() == ScrollDecision.Command.NONE && owner != owners.get(State.IDLE)) {
-         return Objects.requireNonNull(owners.get(State.IDLE).mode().onScroll(input, view), "idle scroll decision");
-      }
-      return result;
    }
 
    public ModeId id(State state) {

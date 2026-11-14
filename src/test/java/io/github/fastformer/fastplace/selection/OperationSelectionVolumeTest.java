@@ -4,10 +4,10 @@ import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
 
 
-import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.common.geometry.workflow.*;
+import io.github.fastformer.common.geometry.workflow.plan.*;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 

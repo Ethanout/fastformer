@@ -2,7 +2,7 @@ package io.github.fastformer.server.history;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.core.gate.Gate;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.history.entry.HistoryEntry;
 import io.github.fastformer.server.history.entry.HistoryEntryFormat;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;

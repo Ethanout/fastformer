@@ -70,7 +70,7 @@ import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
 import io.github.fastformer.protocol.c2s.world.WorldRedoPayload;
 import io.github.fastformer.protocol.c2s.world.WorldUndoPayload;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
@@ -89,7 +89,7 @@ public final class ServerNetworkSystem {
    }
 
    private static void registerPayloads(RegisterPayloadHandlersEvent event) {
-      PayloadRegistrar registrar = event.registrar("86").optional();
+      PayloadRegistrar registrar = event.registrar("87").optional();
       var channels = new ServerChannels(registrar);
       channels.receive(ForwardDashPayload.TYPE, ForwardDashPayload.STREAM_CODEC)
          .handle((payload, player) -> {
@@ -131,11 +131,11 @@ public final class ServerNetworkSystem {
          ServerNetworkSystem::receiveClientbound);
       channels.receive(TinkerInteractionPayload.TYPE, TinkerInteractionPayload.STREAM_CODEC)
          .handle((payload, player) -> {
-         ServerInputDispatcher.tinker(player, payload);
+         ServerInputActions.tinker(player, payload);
       });
       channels.receive(IdleSelectionEntryPayload.TYPE, IdleSelectionEntryPayload.STREAM_CODEC)
          .handle((payload, player) -> {
-         var point = ServerInputDispatcher.idleSelectionEntry(player, payload);
+         var point = ServerInputActions.idleSelectionEntry(player, payload);
          SessionSystem.of(player).syncCurrentPreview(player);
           PreviewSync.syncActivity(player);
          PacketDistributor.sendToPlayer(player, new IdleSelectionEntryResultPayload(payload.requestId(),
@@ -146,17 +146,17 @@ public final class ServerNetworkSystem {
       channels.receive(SettingPayload.TYPE, SettingPayload.STREAM_CODEC)
          .toIntent(SettingPayload::request);
       channels.receive(OperationPointPayload.TYPE, OperationPointPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.operationPoint(player, payload.role()));
+         .handle((payload, player) -> ServerInputActions.operationPoint(player, payload.role()));
       channels.receive(OperationExtendPayload.TYPE, OperationExtendPayload.STREAM_CODEC)
          .handle(ServerNetworkSystem::handleOperationExtend);
       channels.receive(OperationSelectPointPayload.TYPE, OperationSelectPointPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.operationSelectPoint(player, payload));
+         .handle((payload, player) -> ServerInputActions.operationSelectPoint(player, payload));
       channels.receive(OperationPointDragPayload.TYPE, OperationPointDragPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.operationPointDrag(player, payload));
+         .handle((payload, player) -> ServerInputActions.operationPointDrag(player, payload));
       channels.receive(OperationPointClickPayload.TYPE, OperationPointClickPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.operationPointClick(player, payload));
+         .handle((payload, player) -> ServerInputActions.operationPointClick(player, payload));
       channels.receive(OperationInsertPointPayload.TYPE, OperationInsertPointPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.operationInsertPoint(player, payload));
+         .handle((payload, player) -> ServerInputActions.operationInsertPoint(player, payload));
       channels.receive(OperationApplyPayload.TYPE, OperationApplyPayload.STREAM_CODEC)
          .handle(ServerNetworkSystem::handleOperationApply);
       channels.receive(OperationWorkspaceApplyPayload.TYPE, OperationWorkspaceApplyPayload.STREAM_CODEC)
@@ -178,15 +178,15 @@ public final class ServerNetworkSystem {
       channels.receive(GeometrySelectModePayload.TYPE, GeometrySelectModePayload.STREAM_CODEC)
          .toIntent(payload -> new GeometryIntents.SelectMode(payload.mode()));
       channels.receive(GeometryGizmoDragPayload.TYPE, GeometryGizmoDragPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.geometryGizmoDrag(player, payload));
+         .handle((payload, player) -> ServerInputActions.geometryGizmoDrag(player, payload));
       channels.receive(GeometryInteractionPayload.TYPE, GeometryInteractionPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.geometryInteraction(player, payload));
+         .handle((payload, player) -> ServerInputActions.geometryInteraction(player, payload));
       channels.receive(GeometryPointPayload.TYPE, GeometryPointPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.geometryPoint(player, payload));
+         .handle((payload, player) -> ServerInputActions.geometryPoint(player, payload));
       channels.receive(GeometryUndoPayload.TYPE, GeometryUndoPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.geometryUndo(player, payload));
+         .handle((payload, player) -> ServerInputActions.geometryUndo(player, payload));
       channels.receive(ClosePathPayload.TYPE, ClosePathPayload.STREAM_CODEC)
-         .handle((payload, player) -> ServerInputDispatcher.closeActivePath(player, payload));
+         .handle((payload, player) -> ServerInputActions.closeActivePath(player, payload));
       channels.receive(CycleStageModePayload.TYPE, CycleStageModePayload.STREAM_CODEC)
          .toIntent(payload -> new SessionIntents.CycleMode(payload.hasCandidate() ? payload.candidate() : null));
       channels.receive(ScrollCandidatePayload.TYPE, ScrollCandidatePayload.STREAM_CODEC)
@@ -240,13 +240,13 @@ public final class ServerNetworkSystem {
 
    private static void handleOperationExtend(OperationExtendPayload payload, ServerPlayer player) {
       if (OperationExtendPayload.validAxis(payload.axis())) {
-         ServerInputDispatcher.extend(player, payload);
+         ServerInputActions.extend(player, payload);
       }
    }
 
    private static void handleOperationApply(OperationApplyPayload payload, ServerPlayer player) {
       try {
-         ServerInputDispatcher.applyOperation(player, payload.copy(), payload.requestId());
+         ServerInputActions.applyOperation(player, payload.copy(), payload.requestId());
       } finally {
          acknowledgePlacement(player, payload.requestId());
       }
@@ -254,7 +254,7 @@ public final class ServerNetworkSystem {
 
    private static void handleOperationTransform(OperationTransformPayload payload, ServerPlayer player) {
       if (payload.valid()) {
-         ServerInputDispatcher.operationTransform(
+         ServerInputActions.operationTransform(
             player, payload
          );
       }
@@ -262,7 +262,7 @@ public final class ServerNetworkSystem {
 
    private static void handlePlacementAction(PlacementActionPayload payload, ServerPlayer player) {
       try {
-         ServerInputDispatcher.placementAction(player, payload);
+         ServerInputActions.placementAction(player, payload);
       } finally {
          acknowledgePlacement(player, payload.requestId());
       }
@@ -270,7 +270,7 @@ public final class ServerNetworkSystem {
 
    private static void handleStartPlacement(StartPlacementPayload payload, ServerPlayer player) {
       try {
-         ServerInputDispatcher.startPlacement(player, payload);
+         ServerInputActions.startPlacement(player, payload);
       } finally {
          acknowledgePlacement(player, payload.requestId());
       }
@@ -278,7 +278,7 @@ public final class ServerNetworkSystem {
 
    private static void handleQuickShapeConfirm(QuickShapeConfirmPayload payload, ServerPlayer player) {
       try {
-         ServerInputDispatcher.confirmQuickShape(player, payload);
+         ServerInputActions.confirmQuickShape(player, payload);
       } finally {
          acknowledgePlacement(player, payload.requestId());
       }
@@ -286,7 +286,7 @@ public final class ServerNetworkSystem {
 
    private static void handleQuickShapePointer(QuickShapePointerPayload payload, ServerPlayer player) {
       try {
-         ServerInputDispatcher.quickShapePointer(player, payload);
+         ServerInputActions.quickShapePointer(player, payload);
       } finally {
          if (payload.action() == QuickShapePointerPayload.Action.MIDDLE
             || payload.action() == QuickShapePointerPayload.Action.SUBMIT_CURRENT) acknowledgePlacement(player, payload.requestId());

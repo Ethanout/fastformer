@@ -38,6 +38,11 @@ public record OperationDrag(
       );
    }
 
+   public OperationDrag withCapture(long token) {
+      return new OperationDrag(axis, positive, frame, normal, sentSteps, mouseButton, faceHit,
+         gizmoKey, gizmoBaseValue, deferredClick, token, revision, callbackScope, requestId);
+   }
+
    public OperationDrag withSentSteps(int value) {
       return new OperationDrag(
          axis, positive, frame, normal, value, mouseButton, faceHit, gizmoKey, gizmoBaseValue, deferredClick, captureToken, revision, callbackScope, requestId

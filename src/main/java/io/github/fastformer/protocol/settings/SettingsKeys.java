@@ -1,7 +1,7 @@
 package io.github.fastformer.protocol.settings;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;

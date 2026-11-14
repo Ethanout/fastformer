@@ -6,8 +6,8 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.core.gate.Gate;
 import io.github.fastformer.server.recovery.RecoverySystem;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.world.BlockEditTransaction;
+import io.github.fastformer.server.settings.FastPlaceSettings;
+import io.github.fastformer.server.worldwrite.transaction.BlockEditTransaction;
 import io.github.fastformer.common.mode.BuiltinModes;
 import net.minecraft.server.level.ServerPlayer;
 

@@ -1,0 +1,112 @@
+{
+  "bindings": [
+    {
+      "id": "fastformer:cancellation/binding",
+      "priority": 50,
+      "context": {
+        "input_phase": "cancel_capture",
+        "key_action": "press",
+        "binding_active": true
+      },
+      "input": {
+        "button": "key.keyboard.q",
+        "gesture": "key"
+      },
+      "action": "fastformer:cancellation/binding"
+    },
+    {
+      "id": "fastformer:cancellation/pending",
+      "priority": 30,
+      "context": {
+        "input_phase": "cancel_capture",
+        "key_action": "press",
+        "screen": false,
+        "player_present": true,
+        "connected": true,
+        "quit_available": true,
+        "cancellable": true,
+        "workspace_submission_pending": true
+      },
+      "input": {
+        "button": "key.keyboard.q",
+        "gesture": "key"
+      },
+      "action": "fastformer:cancellation/pending"
+    },
+    {
+      "id": "fastformer:cancellation/request",
+      "priority": 10,
+      "context": {
+        "input_phase": "cancel_capture",
+        "key_action": "press",
+        "screen": false,
+        "player_present": true,
+        "connected": true,
+        "quit_available": true,
+        "cancellable": true
+      },
+      "input": {
+        "button": "key.keyboard.q",
+        "gesture": "key"
+      },
+      "action": "fastformer:cancellation/request"
+    },
+    {
+      "id": "fastformer:cancellation/clear_entry",
+      "priority": 0,
+      "context": {
+        "input_phase": "cancel_capture",
+        "key_action": "press"
+      },
+      "input": {
+        "button": "key.keyboard.q",
+        "gesture": "key"
+      },
+      "action": "fastformer:cancellation/clear_entry"
+    },
+    {
+      "id": "fastformer:cancellation/dispatch_pending",
+      "priority": 30,
+      "context": {
+        "input_phase": "cancel_dispatch",
+        "key_action": "press",
+        "captured_cancel": true,
+        "workspace_submission_pending": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "key"
+      },
+      "action": "fastformer:cancellation/pending"
+    },
+    {
+      "id": "fastformer:cancellation/dispatch_selection",
+      "priority": 20,
+      "context": {
+        "input_phase": "cancel_dispatch",
+        "key_action": "press",
+        "captured_cancel": true,
+        "key_route": "operation"
+      },
+      "input": {
+        "button": "*",
+        "gesture": "key"
+      },
+      "action": "fastformer:cancellation/selection"
+    },
+    {
+      "id": "fastformer:cancellation/dispatch_session",
+      "priority": 0,
+      "context": {
+        "input_phase": "cancel_dispatch",
+        "key_action": "press",
+        "captured_cancel": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "key"
+      },
+      "action": "fastformer:cancellation/request"
+    }
+  ]
+}

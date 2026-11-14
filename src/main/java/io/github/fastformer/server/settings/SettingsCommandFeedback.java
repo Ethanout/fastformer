@@ -1,7 +1,7 @@
 package io.github.fastformer.server.settings;
 
 import io.github.fastformer.core.command.IntentResult;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.protocol.settings.SettingKey;
 import io.github.fastformer.protocol.settings.SettingsKeys;

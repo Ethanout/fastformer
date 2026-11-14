@@ -4,21 +4,29 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.Set;
+import io.github.fastformer.common.interaction.binding.DoubleClickPolicy;
 
 /** Physical trigger description; duration values come from binding data. */
-public record InputPattern(String button, String gesture, int durationMillis, String holdStart) {
+public record InputPattern(String button, String gesture, int durationMillis, String holdStart, DoubleClickPolicy doubleClick, int windowMillis) {
    private static final Set<String> GESTURES = Set.of("press", "release", "hold", "double", "scroll_up", "scroll_down", "key", "tick", "interaction");
    public static final Codec<InputPattern> CODEC = RecordCodecBuilder.<InputPattern>create(instance -> instance.group(
       Codec.STRING.fieldOf("button").forGetter(InputPattern::button),
       Codec.STRING.fieldOf("gesture").forGetter(InputPattern::gesture),
       Codec.intRange(1, 60_000).optionalFieldOf("duration_ms", 200).forGetter(InputPattern::durationMillis),
-      Codec.STRING.optionalFieldOf("hold_start", "after_vanilla_press").forGetter(InputPattern::holdStart)
+      Codec.STRING.optionalFieldOf("hold_start", "after_vanilla_press").forGetter(InputPattern::holdStart),
+      DoubleClickPolicy.CODEC.optionalFieldOf("double_click", DoubleClickPolicy.DEFAULT).forGetter(InputPattern::doubleClick),
+      Codec.intRange(1, 60_000).optionalFieldOf("window_ms", 200).forGetter(InputPattern::windowMillis)
    ).apply(instance, InputPattern::new)).validate(InputPattern::validate);
 
    public InputPattern {
       java.util.Objects.requireNonNull(button);
       java.util.Objects.requireNonNull(gesture);
       java.util.Objects.requireNonNull(holdStart);
+      java.util.Objects.requireNonNull(doubleClick);
+   }
+
+   public InputPattern(String button, String gesture, int durationMillis, String holdStart) {
+      this(button, gesture, durationMillis, holdStart, DoubleClickPolicy.DEFAULT, 200);
    }
 
    private static DataResult<InputPattern> validate(InputPattern pattern) {

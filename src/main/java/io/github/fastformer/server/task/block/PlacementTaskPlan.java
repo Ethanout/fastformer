@@ -1,7 +1,7 @@
 package io.github.fastformer.server.task.block;
 
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;

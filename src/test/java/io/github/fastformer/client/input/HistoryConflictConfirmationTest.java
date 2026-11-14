@@ -2,7 +2,6 @@ package io.github.fastformer.client.input;
 
 import static org.junit.jupiter.api.Assertions.*;
 import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
-import io.github.fastformer.protocol.c2s.world.HistoryConflictResponsePayload.Choice;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -12,15 +11,6 @@ import org.junit.jupiter.api.Test;
 
 class HistoryConflictConfirmationTest {
    @AfterEach void clear() { HistoryConflictConfirmation.clear(); }
-
-   @Test void enterAndControlEnterSelectDifferentConflictPolicies() {
-      for (int key : List.of(257, 335)) {
-         assertEquals(Choice.OVERWRITE, HistoryConflictConfirmation.choice(key, false));
-         assertEquals(Choice.SKIP, HistoryConflictConfirmation.choice(key, true));
-      }
-      assertEquals(Choice.CANCEL, HistoryConflictConfirmation.choice(81, false));
-      assertNull(HistoryConflictConfirmation.choice(90, true));
-   }
 
    @Test void lateClearCannotDismissANewerPrompt() {
       UUID old = UUID.randomUUID(); UUID current = UUID.randomUUID();

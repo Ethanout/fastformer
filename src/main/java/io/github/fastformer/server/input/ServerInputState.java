@@ -1,8 +1,8 @@
 package io.github.fastformer.server.input;
 
-import io.github.fastformer.fastplace.session.OperationSession;
-import io.github.fastformer.fastplace.geometry.GeometryPointerSequence;
-import io.github.fastformer.fastplace.quickshape.QuickShapePointerSequence;
+import io.github.fastformer.common.selection.session.OperationSession;
+import io.github.fastformer.server.geometry.workflow.GeometryPointerSequence;
+import io.github.fastformer.server.input.QuickShapePointerSequence;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;

@@ -3,7 +3,7 @@ package io.github.fastformer.client.operation.submission;
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.client.session.submission.OperationDraftSettlement;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;

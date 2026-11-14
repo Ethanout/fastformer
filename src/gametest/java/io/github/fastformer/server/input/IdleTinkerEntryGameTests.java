@@ -7,7 +7,7 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.protocol.c2s.placement.IdleSelectionEntryPayload;
 import io.github.fastformer.protocol.c2s.placement.TinkerInteractionPayload;
 import net.minecraft.core.BlockPos;
@@ -38,11 +38,11 @@ public final class IdleTinkerEntryGameTests {
       var position = helper.absolutePos(new BlockPos(2, 2, 2));
       helper.getLevel().setBlock(position, Blocks.GRASS_BLOCK.defaultBlockState(), 2);
       lookDown(player, position, 2);
-      var previousWrite = io.github.fastformer.fastplace.world.BlockEditTransaction.apply(player, helper.getLevel(),
+      var previousWrite = io.github.fastformer.server.worldwrite.transaction.BlockEditTransaction.apply(player, helper.getLevel(),
          java.util.Map.of(position.east(2), Blocks.STONE.defaultBlockState()),
-         io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags(),
-         io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY.flags());
-      helper.assertTrue(previousWrite == io.github.fastformer.fastplace.world.BlockEditTransaction.Outcome.APPLIED,
+         io.github.fastformer.common.placement.PlacementUpdateMode.CLIENT_ONLY.flags(),
+         io.github.fastformer.common.placement.PlacementUpdateMode.CLIENT_ONLY.flags());
+      helper.assertTrue(previousWrite == io.github.fastformer.server.worldwrite.transaction.BlockEditTransaction.Outcome.APPLIED,
          "prior world edit was not recorded");
       var prior = HistorySystem.of(player).latestOperationId(player);
       click(player, 501);
@@ -50,7 +50,7 @@ public final class IdleTinkerEntryGameTests {
       var operation = HistorySystem.of(player).latestOperationId(player);
       helper.assertTrue(operation != null && !operation.equals(prior), "single wrench click was not recorded");
       var sideEye = position.getCenter().add(0, 0.49, -3);
-      var restored = ServerInputDispatcher.idleSelectionEntry(player,
+      var restored = ServerInputActions.idleSelectionEntry(player,
          new IdleSelectionEntryPayload(502, 501, sideEye, new Vec3(0, 0, 1)));
       helper.assertTrue(position.equals(restored), "double click did not restore the source before selection entry");
       helper.assertTrue(helper.getLevel().getBlockState(position).is(Blocks.GRASS_BLOCK), "original grass state was not restored");
@@ -68,7 +68,7 @@ public final class IdleTinkerEntryGameTests {
       lookDown(player, position, 2);
       click(player, 511);
       helper.getLevel().setBlock(position, Blocks.DIAMOND_BLOCK.defaultBlockState(), 2);
-      var result = ServerInputDispatcher.idleSelectionEntry(player,
+      var result = ServerInputActions.idleSelectionEntry(player,
          new IdleSelectionEntryPayload(512, 511, player.getEyePosition(), player.getViewVector(1)));
       helper.assertTrue(result == null, "stale wrench state started a selection");
       helper.assertTrue(helper.getLevel().getBlockState(position).is(Blocks.DIAMOND_BLOCK), "restoration overwrote a newer world change");
@@ -133,9 +133,9 @@ public final class IdleTinkerEntryGameTests {
       helper.assertTrue(outline.getBlockPos().equals(position), "black outline did not target the underwater block");
       helper.assertTrue(fluidHit.getBlockPos().equals(position.above(2)), "water did not occlude FF's ordinary entry ray");
 
-      ServerInputDispatcher.tinker(player, new TinkerInteractionPayload(551, outline, eye, view));
+      ServerInputActions.tinker(player, new TinkerInteractionPayload(551, outline, eye, view));
       helper.assertTrue(level.getBlockState(position).is(Blocks.DIRT_PATH), "server rejected the underwater black-outline tinker hit");
-      var selected = ServerInputDispatcher.idleSelectionEntry(player, new IdleSelectionEntryPayload(552, 551, eye, view));
+      var selected = ServerInputActions.idleSelectionEntry(player, new IdleSelectionEntryPayload(552, 551, eye, view));
       helper.assertTrue(position.equals(selected), "double click did not enter selection at the underwater block");
       helper.assertTrue(level.getBlockState(position).is(Blocks.GRASS_BLOCK), "selection entry did not restore the original block");
       helper.assertTrue(level.getBlockState(position.above()).is(Blocks.WATER), "selection entry changed the intervening water");
@@ -151,7 +151,7 @@ public final class IdleTinkerEntryGameTests {
       click(player, 541);
       helper.assertTrue(helper.getLevel().getBlockState(position).is(Blocks.GRASS_BLOCK), "distant wrench changed a block outside player reach");
       var hit = LongRangeBlockRaycast.clipForSelection(player.level(), player, player.getEyePosition(), player.getViewVector(1), false).hit();
-      helper.assertTrue(!io.github.fastformer.fastplace.interaction.BlockTinker.consumes(player, hit), "distant wrench still consumed the session entry");
+      helper.assertTrue(!io.github.fastformer.common.tinker.TinkerPrediction.consumes(player, hit), "distant wrench still consumed the session entry");
       player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE).setBaseValue(48);
       click(player, 542);
       helper.assertTrue(helper.getLevel().getBlockState(position).is(Blocks.DIRT_PATH), "wrench ignored the player's extended interaction range");
@@ -177,6 +177,6 @@ public final class IdleTinkerEntryGameTests {
       var eye = player.getEyePosition();
       var view = player.getViewVector(1);
       var hit = LongRangeBlockRaycast.clipForSelection(player.level(), player, eye, view, false).hit();
-      ServerInputDispatcher.tinker(player, new TinkerInteractionPayload(token, hit, eye, view));
+      ServerInputActions.tinker(player, new TinkerInteractionPayload(token, hit, eye, view));
    }
 }

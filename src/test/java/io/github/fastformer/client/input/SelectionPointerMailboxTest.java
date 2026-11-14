@@ -84,24 +84,6 @@ class SelectionPointerMailboxTest {
    }
 
    @Test
-   void selectionControlsKeepTheirClicksWhileNewLocationsStartDrafts() {
-      var part = ClientSessionSystem.instance().operations().workspace().part(1).orElseThrow();
-      var face = new OperationInteractionIntent.Face(1, part.selection().bounds(), null, true);
-      var gizmo = new OperationInteractionIntent.Gizmo(1, false, null, null);
-      var label = new OperationInteractionIntent.Part(1, 1);
-      var location = new OperationInteractionIntent.CreateSelection(new BlockPos(8, 0, 0));
-      for (int button : List.of(0, 1)) {
-         assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(face, button));
-         assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(gizmo, button));
-         assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(label, button));
-         assertTrue(FastPlaceClientInput.acceptsSelectionDraftTarget(location, button));
-      }
-      assertFalse(FastPlaceClientInput.acceptsSelectionDraftTarget(location, 2));
-      assertTrue(ClientSessionSystem.instance().operations().selectionEdits().fixActiveSelection());
-      assertTrue(FastPlaceClientInput.acceptsSelectionDraftTarget(location, 2));
-   }
-
-   @Test
    void retainedSessionStillExpandsItsRemainingUnmovedSelectionWithMiddle() {
       assertTrue(ClientSessionSystem.instance().operations().selectionEdits().cancelLastSelection());
       assertTrue(ClientSessionSystem.instance().operations().selectionSessionActive());
@@ -306,6 +288,119 @@ class SelectionPointerMailboxTest {
       assertPointerSettled();
    }
 
+   @Test void resourceReloadDiscardsQueuedPointerCommandsAndCancelsAnAlreadyActiveEdit() {
+      postGizmoPress(5, 10);
+      drain();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var original = workspace.part(1).orElseThrow();
+      postGizmoPress(4, 20);
+      workspace.updatePart(original.withTranslation(new BlockPos(6, 0, 0)));
+      this.input.selectionInput.capture(4);
+      long generation = this.input.selectionInput.generation();
+      this.input.cancelBoundPointerInput();
+      assertFalse(this.input.selectionInput.accepts(generation));
+      this.input.drainPhysicalEvents(() -> true, key -> fail(), scroll -> fail(), event -> fail());
+      assertEquals(original, workspace.part(1).orElseThrow());
+      assertFalse(this.input.selectionInput.active());
+      assertPointerSettled();
+   }
+
+   @Test void extraMouseButtonOwnsTheGizmoUntilItsMatchingRelease() {
+      postGizmoPress(5, 10);
+      drain();
+      assertTrue(ClientSessionSystem.instance().operations().selectionGestures().active());
+      assertNull(this.input.selectionPointer.release(0, 20));
+      postRelease(5, 30);
+      drain();
+      assertPointerSettled();
+   }
+
+   @Test void disabledReleaseCancelsTheCapturedEditAndAlwaysClearsPhysicalOwnership() {
+      postGizmoPress(5, 10);
+      this.input.selectionInput.capture(5);
+      drain();
+      var workspace = ClientSessionSystem.instance().operations().workspace();
+      var original = workspace.part(1).orElseThrow();
+      workspace.updatePart(original.withTranslation(new BlockPos(6, 0, 0)));
+      OperationDragController.finishSelectionPhysicalRelease(this.input, 5, 30, false, Vec3.ZERO, Vec3.ZERO);
+      drain();
+      assertEquals(original, workspace.part(1).orElseThrow());
+      assertFalse(this.input.selectionInput.active());
+      assertPointerSettled();
+   }
+
+   @Test void aRejectedPressCannotAssociateItsReleaseWithAnAlreadyActiveExternalCapture() {
+      var press = postGizmoPress(0, 10);
+      drain();
+      var active = this.input.selectionGestures().capture();
+      long routing = this.input.clickGestureToken;
+      dispatch(new SelectionPointerEvent.Press(999L, press.snapshot(), false));
+      dispatch(new SelectionPointerEvent.Release(999L, 0, 20));
+      assertSame(active, this.input.selectionGestures().capture());
+      assertEquals(routing, this.input.clickGestureToken);
+      assertTrue(ClientSessionSystem.instance().operations().workspace().editing());
+      postRelease(0, 30);
+      drain();
+      assertPointerSettled();
+   }
+
+   @Test void acceptedGizmoPressCancelsAnOwnedRemotePointDragBeforeStartingTheWorkspaceEdit() {
+      var captured = this.input.operationPointPointer.capture(pointPress(5));
+      this.input.clickGestureToken = this.input.routing.beginGesture(5);
+      long oldToken = this.input.pointerGesture.begin(PointerGestureState.Kind.OPERATION_POINT);
+      this.input.operationPointDrag = new io.github.fastformer.client.input.drag.OperationPointDrag(0, 5, BlockPos.ZERO, BlockPos.ZERO,
+         null, Vec3.ZERO, null, 0, Vec3.ZERO, io.github.fastformer.common.selection.OperationPointDragConstraint.FREE, 10, oldToken);
+      this.input.operationPointPointer.dispatched(captured.identity(), this.input.clickGestureToken, oldToken);
+      this.input.supersedeSelectionCaptures();
+      postGizmoPress(4, 20);
+      drainIncludingPointEvents(event -> OperationPointInputController.dispatch(null, this.input, event));
+      assertNull(this.input.operationPointDrag);
+      assertTrue(this.input.selectionGestures().active());
+      long currentToken = this.input.pointerGesture.activeToken();
+      var oldRelease = this.input.operationPointPointer.release(5, 30, Vec3.ZERO, Vec3.ZERO);
+      OperationPointInputController.dispatch(null, this.input, oldRelease);
+      assertEquals(currentToken, this.input.pointerGesture.activeToken());
+      postRelease(4, 40);
+      drain();
+      assertPointerSettled();
+   }
+
+   @Test void acceptedRemotePointPressCancelsTheWorkspaceGizmoBeforeThePointCommandIsDispatched() {
+      var old = postGizmoPress(5, 10);
+      drain();
+      this.input.selectionUndo.press(10);
+      this.input.selectionUndoButton = 5;
+      this.input.supersedeSelectionCaptures();
+      this.input.captureOperationPointDrag(pointPress(4));
+      var order = new ArrayList<String>();
+      this.input.drainPhysicalEvents(() -> true, key -> fail(), scroll -> fail(), event -> {
+         dispatch(event); order.add("cancel");
+      }, remote -> fail(), release -> fail(), quick -> fail(), undo -> fail(), start -> fail(), gizmo -> fail(), geometry -> fail(), event -> {
+         assertInstanceOf(io.github.fastformer.client.operation.input.OperationPointDragEvent.Press.class, event);
+         assertFalse(ClientSessionSystem.instance().operations().workspace().editing());
+         assertFalse(this.input.selectionGestures().active());
+         order.add("point");
+      });
+      assertEquals(List.of("cancel", "point"), order);
+      assertEquals(-1, this.input.selectionUndoButton);
+      dispatch(new SelectionPointerEvent.Release(old.identity(), 5, 30));
+      assertFalse(this.input.selectionGestures().active());
+   }
+
+   private void drainIncludingPointEvents(java.util.function.Consumer<io.github.fastformer.client.operation.input.OperationPointDragEvent> points) {
+      this.input.drainPhysicalEvents(() -> true, key -> fail(), scroll -> fail(), SelectionPointerMailboxTest::dispatch,
+         remote -> fail(), release -> fail(), quick -> fail(), undo -> fail(), start -> fail(), gizmo -> fail(), geometry -> fail(), points);
+   }
+
+   private static io.github.fastformer.client.operation.input.OperationPointDragPress pointPress(int button) {
+      return new io.github.fastformer.client.operation.input.OperationPointDragPress(1L, button, 10L,
+         new io.github.fastformer.client.session.draft.OperationDraftIdentity(io.github.fastformer.common.selection.OperationSelectionMode.PRISM,
+            List.of(), 0, BlockPos.ZERO, BlockPos.ZERO, 0, null, null), 1L,
+         io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped(), 0, BlockPos.ZERO,
+         null, Vec3.ZERO, null, 0, Vec3.ZERO, io.github.fastformer.common.selection.OperationPointDragConstraint.FREE,
+         Vec3.ZERO, new Vec3(0, 0, 1), 1);
+   }
+
    private SelectionPointerEvent.Press postGizmoPress(int button, long time) {
       return postGizmoPress(button, time, false);
    }
@@ -504,6 +599,6 @@ class SelectionPointerMailboxTest {
    }
 
    private static void dispatch(SelectionPointerEvent event) {
-      SelectionInputDispatcher.dispatch(null, FastPlaceClientInput.inputSession(), event);
+      OperationDragController.dispatchSelection(null, FastPlaceClientInput.inputSession(), event);
    }
 }

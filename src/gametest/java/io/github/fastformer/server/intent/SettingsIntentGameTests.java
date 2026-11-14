@@ -2,7 +2,7 @@ package io.github.fastformer.server.intent;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.core.command.IntentSource;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.protocol.settings.PlacementEffectValue;
 import io.github.fastformer.protocol.settings.SettingsKeys;
 import io.github.fastformer.server.history.HistorySystem;

@@ -10,6 +10,8 @@
     "FastFlightSpeedMixin",
     "BlockUsePredictionMixin",
     "BlockBreakPredictionMixin",
+    "BlockInteractionPredictionMixin",
+    "ConnectedBlockBreakPredictionMixin",
     "LightBlockOutlineMixin",
     "BlockEntityRenderDispatcherMixin",
     "access.LevelRendererAccessor",

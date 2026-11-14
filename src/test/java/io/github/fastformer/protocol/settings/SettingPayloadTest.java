@@ -5,8 +5,8 @@ import io.github.fastformer.protocol.c2s.settings.SettingPayload;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.DecoderException;
 import java.util.List;

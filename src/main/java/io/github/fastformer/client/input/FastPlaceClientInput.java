@@ -1,5 +1,13 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.input.state.ClientInputStateMachine;
+import io.github.fastformer.client.interaction.binding.action.BindingCommands;
+import io.github.fastformer.client.interaction.binding.context.SelectionBindingContext;
+import io.github.fastformer.client.operation.input.SelectionDraftPress;
+import io.github.fastformer.client.operation.input.SelectionPointerEvent;
+import io.github.fastformer.client.operation.selection.SelectionToolPreference;
+import io.github.fastformer.client.operation.selection.tool.SelectionTools;
+
 import io.github.fastformer.client.operation.controller.OperationContext;
 import io.github.fastformer.client.interaction.selectiongesture.SelectionGesturePress;
 import io.github.fastformer.client.preview.frame.ModifierReticleMode;
@@ -66,26 +74,12 @@ public final class FastPlaceClientInput {
    @SubscribeEvent
    public static void onMouseButton(Pre event) { ClientPhysicalInputDispatcher.onMouseButton(event); }
 
-   static boolean captureInitialSelection(int button, BlockPos point, boolean alt, boolean control, long occurredAtNanos) { return SelectionInputDispatcher.captureInitialSelection(button, point, alt, control, occurredAtNanos); }
-
-   static boolean captureSelectionEntry(BlockPos point, boolean control, long occurredAtNanos) { return SelectionInputDispatcher.captureSelectionEntry(point, control, occurredAtNanos); }
-
    public static void receiveIdleInteraction(IdleInteractionSnapshotPayload payload) { InputWorldCleanup.receiveIdleInteraction(payload); }
 
    public static void receiveIdleSelectionEntry(IdleSelectionEntryResultPayload payload) { InputWorldCleanup.receiveIdleSelectionEntry(payload); }
 
    @SubscribeEvent
    public static void onVanillaMouseButton(net.neoforged.neoforge.client.event.InputEvent.MouseButton.Post event) { ClientPhysicalInputDispatcher.onVanillaMouseButton(event); }
-
-   public static boolean canCreateSelection() { return SelectionInputDispatcher.canCreateSelection(); }
-
-   static boolean queueSelectionDraft( Minecraft minecraft, OperationInteractionIntent target, int button, boolean alt, long occurredAtNanos ) { return SelectionInputDispatcher.queueSelectionDraft(minecraft, target, button, alt, occurredAtNanos); }
-
-   static boolean acceptsSelectionDraftTarget(OperationInteractionIntent target, int button) { return SelectionInputDispatcher.acceptsSelectionDraftTarget(target, button); }
-
-   static void queueRemoteSelectionPoint(OperationPointPayload.Role role) { SelectionInputDispatcher.queueRemoteSelectionPoint(role); }
-
-   static void handleRemoteSelectionPoint(RemoteSelectionPointRequest request, Consumer<OperationPointPayload> send) { SelectionInputDispatcher.handleRemoteSelectionPoint(request, send); }
 
    public static void prepareTick(Minecraft minecraft) { InputWorldCleanup.prepareTick(minecraft); }
 
@@ -112,7 +106,25 @@ public final class FastPlaceClientInput {
 
    static void finishPointerGesture(long token) { InputWorldCleanup.finishPointerGesture(token); }
 
-   static void dispatchSelectionGesture(ClientInputSession input, OperationContext operations, SelectionPointerPress press) { SelectionInputDispatcher.dispatchSelectionGesture(input, operations, press); }
+   static void dispatchSelectionGesture(ClientInputSession input, OperationContext operations, SelectionPointerPress press) { OperationDragController.dispatchSelectionGesture(input, operations, press); }
 
-   static SelectionGesturePress.Gizmo selectionGizmoPress(OperationInteractionIntent.Gizmo target, int button, boolean control) { return SelectionInputDispatcher.selectionGizmoPress(target, button, control); }
+   static SelectionGesturePress.Gizmo selectionGizmoPress(OperationInteractionIntent.Gizmo target, int button, boolean control) { return OperationDragController.selectionGizmoPress(target, button, control); }
+   static boolean captureInitialSelection(int button, BlockPos point, boolean alt, boolean control, long time) {
+      var session = ClientSessionSystem.instance().inputSession(); var operations = ClientSessionSystem.instance().operations();
+      if (button < 0 || button > 2 || session.routing.state() != ClientInputStateMachine.State.IDLE
+         || operations.active() || operations.selectionEdits().selectionDraftActive()) return false;
+      if (button == 0 && SelectionTools.require(SelectionToolPreference.id()).worldSampling()) return true;
+      if (point == null) return false;
+      operations.selectionEdits().enterLocalSelectionSession(); session.routing.observe(ClientInputStateMachine.State.SELECTING);
+      var tool = ClientSessionSystem.instance().selectionSession().selectionTool();
+      session.captureSelectionPress(new SelectionDraftPress(operations.interactionScene().owner(), tool.geometry(), button, point, alt, control, time, tool.id()));
+      return true;
+   }
+
+   static boolean captureSelectionEntry(BlockPos point, boolean control, long time) { return captureInitialSelection(1, point, false, control, time); }
+   public static boolean canCreateSelection() { return ClientSessionSystem.instance().inputSession().canCreateSelection(); }
+   static void queueRemoteSelectionPoint(OperationPointPayload.Role role) { ClientSessionSystem.instance().inputSession().postRemoteSelectionPoint(RemoteSelectionPointDispatcher.capture(role)); }
+   static void handleRemoteSelectionPoint(RemoteSelectionPointRequest request, Consumer<OperationPointPayload> send) { RemoteSelectionPointDispatcher.dispatch(request, ClientSessionSystem.instance().inputSession().routing, send); }
+
+
 }

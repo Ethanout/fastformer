@@ -2,7 +2,7 @@
 
 Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试使用与被测代码一致的包路径。
 
-模组包顶层只保留 `FastFormer` 入口。`fastplace` 顶层不直接存放 Java 类。
+模组包顶层只保留 `FastFormer` 入口。生产代码已清空旧 `fastplace`、`network` 和 `workspace` 顶层包，按 core、common、protocol、server、client 的实际职责归属。
 
 | 包 | 职责 |
 | --- | --- |
@@ -15,6 +15,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.submission` | 绑定编辑器的提交准备、等待、超时、在线结果与回执查询；存储、连接及输入通过接口注入 |
 | `client.operation.edit` | 绑定选区会话的选点、智能采样、草稿补全、局部撤回和删除捕获 |
 | `client.operation.pointer` | 绑定选区的手柄／面／部件命中、创建候选与变换方块缓存；RemoteSelectionPointer 拥有所属远端预览的选点、棱柱约束和手柄查询，输入与绘制复用，不依赖渲染入口 |
+| `client.operation.selection.tool` | 冻结的 ResourceLocation 工具注册、不可变工具草稿和动态 codec；策略拥有按压、就绪、预览／捕获体积，工具 ID 与体积几何类别分离 |
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
 | `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回；共享射线用途优先级及有距离上限的点格命中 |
@@ -22,12 +23,17 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.geometry.transform` | 几何拖动与 HUD 共用的变换基线和局部轴数值；按连续性版本重置 |
 | `client.quickshape.pointer` | 起形候选、放置上下文、路径数据及有效模式／滚轮规则；输入和绘制复用，不依赖渲染入口 |
 | `client.interaction.path` | 冻结路径闭合命中：保留选区／几何／起形优先级、悬停与双击不同最少点数及世界遮挡 |
-| `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、统一模式视图、阶段策略和各模式滚轮／指针决策；快速工具按键已迁入数据绑定 |
+| `client.mode` / `builtin` | 冻结的模式注册表、工作流观察、统一模式视图和阶段准入；滚轮与几何鼠标由资源绑定决定 |
+| `client.interaction.binding.context.key` | 取消、确认、冲突提示、工具和工作区的冻结键盘事实；依赖通用 BindingContext，不依赖输入会话 |
+| `client.interaction.binding.input` | 物理长按仲裁、普通鼠标双击识别、取消意图与输入参数；双击使用首次按下时间，重载和取消清空配对 |
+| `client.interaction.binding.tool` | 数据化工具／形状子树的事件适配与物理按下策略；SelectionInputController 通过窄 Host 匹配冻结事实和命令，不访问输入会话；所有权和是否吞原版分别返回 |
 | `client.feedback` | 所属输入环境的调整反馈、计时／悬停衰减、自由滚轮快照过渡与数值显示数据；不依赖绘制或全局会话 |
 | `client.mode.input.pointer` | 不可变鼠标事实、左右键动作与共享捕获优先级；模式只决策，不查询实时客户端 |
 | `client.preview` / `frame` | ClientPreviewSystem 拥有预览能力与异步结果推进；注册模式选择完整 PreviewFrame，模型／绘制契约、显式世界绘制帧和统一动画相位 |
 | `client.preview.quickshape` | 起形模型构建、生成任务与降级、方块层与控制点绘制，以及自有外壳／网格缓存和取消 |
 | `client.preview.geometry` | 从共享几何计划构建方块绘制层，绘制控制点／导引线／手柄，并拥有幽灵网格与 GPU 缓存；不重新生成交互计划 |
+| `client.preview.style` | 按 ResourceLocation 注册的不可变主题定义、内置色板与单调 revision；保留配置选择意图，渲染帧固定同一快照 |
+| `client.render.theme` | 扫描任意命名空间的 visual/themes JSON、逐项诊断并整批发布；绘制查询共用主题注册快照 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
 | `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、编辑上下文、选区、工作区和暂存草稿 |
 | `client.session.receipt` | 作用域回执仓库：缓存、严格读取、文件保护、明确重试和驱逐条件 |
@@ -42,6 +48,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `core.registry` | 无游戏依赖的注册表；拒绝重复键，装配结束后冻结 |
 | `core.command` | 类型明确且冻结的 IntentBus；先校验 Gate，再执行处理器 |
 | `core.math` | 不依赖游戏的数学轴、向量数值操作及按单位区分的容差 |
+| `core.graph` | 无游戏依赖的计数组件、外部连通并查集和可取消残量流图 |
 | `common.math` | Minecraft 向量构造适配；不持有输入或渲染状态 |
 | `core.async` | 有界执行器、可取消任务、最新结果计算与 tick 邮箱 |
 | `core.gate` | 带拒绝原因的组合准入规则 |
@@ -65,7 +72,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `server.intent.quickshape` / `selection` | 起形参数与阶段模式、选区提交与模式意图；处理器各自执行准入 |
 | `server.command` / `edit` | 两个命令根的装配、设置／历史和按编辑能力划分的命令语法 |
 | `server.command.syntax` | 类型明确的参数声明、参数链装配与模式词汇映射；不使用反射 |
-| `server.settings` | 设置的类型化处理器、修改与查询、权限校验及反馈 |
+| `server.settings` | 服务端玩家设置、持久化、类型化处理器、修改与查询、权限校验及反馈 |
+| `server.specialitem` | 按物品资源 ID 注册的特殊物品处理器，构造期间扩展、common setup 冻结，拒绝重复和迟到注册；服务端特殊物品模式复用同一查询／执行入口 |
 | `server.network` | 服务端通道注册；统一线程投递和网络到 Intent 的转换 |
 | `server.network.upload` | 单服务器上传准入、分块／解码资源、请求作用域、回执与取消 |
 | `server.sync` | 服务端预览装配与发布；玩家作用域持有 revision、提交参数和回调身份 |
@@ -74,7 +82,13 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `server.task` | 统一任务契约、上下文、预算、恢复优先调度与队列所有权 |
 | `server.task.block` | 普通放置、选区操作与工作区提交的方块写入算法及计划 |
 | `server.task.runtime` | 写任务的租约、日志分段、事务、提交与资源释放 |
+| `server.task.metrics` | 世界操作阶段、耗时统计及节流的批次反馈 |
 | `server.worldwrite` | 单运行实例的维度写入租约、令牌身份与未使用资源清理重试 |
+| `server.worldwrite.snapshot` | 服务端可逆快照、捕获接口、紧凑快照映射及保留量估算 |
+| `server.worldwrite.transaction` | 方块事务、变更捕获、提交及恢复交接 |
+| `server.worldwrite.effect` | 自然活动规则、调度屏障及写入副作用抑制 |
+| `common.world.memory` | 双端共用的工作集估算、内存准入和可释放预留；不依赖服务端快照 |
+| `common.workspace.composition` | 无缓存的预算内组合、叠层、场景与几何包络；输入参数完全决定结果，不持有客户端静态状态 |
 | `server.feedback` | 单服务器的离线任务提示；保留最新进度与最多四条结果 |
 | `server.submission` | 服务端提交账本、去重记录与任务结算接口 |
 | `server.history` | 每个服务器的历史服务装配、玩家资源所有权与存储接口 |
@@ -89,23 +103,25 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `server.recovery` | 单服务器恢复系统、日志保留与清理、当前分段格式、启动扫描和重放 |
 | `server.recovery.gate` | 无游戏依赖的实例写入闸门、恢复版本标记和永久关闭 |
 | `server.recovery.spi` | 注入历史协调接口；恢复实现不依赖历史实现 |
-| `fastplace.world` | 世界写入、事务、写入锁与批次反馈 |
-| `fastplace.world.memory` / `fastplace.world.snapshot` | 内存准入与预留；可逆方块快照 |
-| `fastplace.session` | 会话数据、活动类型和交互状态 |
-| `fastplace.settings` | 放置与交互设置 |
-| `fastplace.text` | 翻译文本契约与玩家消息 |
-| `fastplace.interaction` | 空手方块操作和特殊物品交互 |
-| `fastplace.geometry.raycast` | 远距离方块射线查询 |
-| `fastplace.placement.context` | 放置上下文和可放置物品判断 |
-| `fastplace.placement.effect.woodframe` | 木框朝向与放置效果 |
-| `fastplace.geometry` | 几何数据与算法；锥体、多面体和生成规则放在各自子包 |
-| `fastplace.geometry.generation` | 方块离散生成与原算法适配；四边面、多边面和严格体积面从观察者读取冻结策略，默认各自保留原形状；策略 hash 随预览参数同步 |
-| `fastplace.geometry.controlpoint` / `interaction` / `text` | 控制点、指针交互模型和几何文本契约 |
-| `workspace.geometry` | 工作区几何预算与成本 |
-| `workspace.submission` | 工作区提交计划、校验与冲突语义 |
-| `workspace.transform` | 共享选区变换与重复步长算法 |
-| `network.codec` | 网络数据编码与解码 |
-| `network.transport` | 公共侧客户端投递入口；不引用客户端实现 |
+| `common.quickshape` / `common.selection.session` | 共享起形草稿、候选事实、纯工作流与选区会话模型；服务器执行及协议指针序列由服务端持有 |
+| `common.text` / `server.feedback` | 翻译文本契约与服务端玩家消息 |
+| `server.interaction` | 强制放置、扳手事务、编辑历史分类、效果装配和权威交互更新策略；共享预测位于 `common.tinker`，更新作用域位于 `common.placement` |
+| `common.raycast` | 远距离方块射线查询 |
+| `common.placement.context` | 放置上下文和可放置物品判断 |
+| `common.placement.effect` / `woodframe` | 双端共用的效果注册、上下文、惰性结果、木框朝向与几何；启用判断由调用方传入 |
+| `common.geometry.generation` | `FastPlaceGeometry` 生成 API；source 管理有界与渐进方块源，face／face.entry 管理面求解及入口，volume 管理体积，shape 管理其他形状 |
+| `common.geometry.generation.volume.column` | 紧凑体积列、有限空气连通性、惰性实体和边界集合；仅 ColumnVolume 向体积生成入口开放 |
+| `common.interaction.binding.DoubleClickPolicy` | 冻结双击距离分档、时间窗口、边缘余量与视角／命中点验收条件；客户端和服务端使用同一默认参数模型 |
+| `common.movement` | 双端共用的飞行参数、冲刺路径、遍历与碰撞安全规则 |
+| `common.geometry.controlpoint` / `interaction` | 控制点与纯指针交互模型；几何文本属于对应客户端／服务端反馈能力 |
+| `common.workspace.geometry` | 工作区几何预算与成本 |
+| `common.workspace.submission` | 工作区提交计划、校验、源清除、准入与结算语义 |
+| `common.workspace.transform` | 共享选区变换与重复步长算法 |
+| `protocol.codec` | 共享 wire 编解码器和有界工作区压缩计划编码 |
+| `common.mixin.world` | 双端世界查询、交互写入、邻居抑制与 tick 标记的注入适配 |
+| `server.mixin.history` / `workspace` / `placement` / `sideeffect` | 按历史、工作区、放置与写入副作用分组的服务端注入适配；配置保留同 Level 目标注册次序 |
+| `common.net` | 公共侧客户端投递接口；不引用客户端实现 |
+| `common.placement.plan` | 纯放置几何、方块上界估算与只读表面目标搜索 |
 | `protocol.c2s.<feature>` / `protocol.s2c.<feature>` | 按方向与功能划分的当前消息和 wire Codec；不持有运行时处理器 |
 | `protocol.callback` | 收发两端共用的玩家、维度与连接身份 |
 | `protocol.settings` | 当前设置键、值类型和查询／修改请求 Codec；消息位于 `protocol.c2s.settings` |
@@ -113,15 +129,25 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 
 `FastPlaceClientPreviewCore` 已删除。`ClientPreviewSystem` 持有起形、几何、选区、空闲、填充和替换预览能力，注册模式选择冻结的 `PreviewFrame`。各能力拥有自己的模型、绘制和资源；世界离开及主题变化明确清理。起形的执行器、预览状态、修饰键读取与错误记录在装配时传入，外壳及控制点接收同帧透明度和动画相位。客户端实测仍待完成。
 
+主题资源位于 `assets/<namespace>/visual/themes/<path>.json`，对应 ID `<namespace>:<path>`。配置与设置按钮使用已注册主题 ID，新增主题无需修改枚举。一次渲染帧固定主题值和 revision，下一帧统一失效几何计划、预览与 GPU 资源。主题扩展示例与验证边界见[主题注册收口](reviews/progress/theme-registry-finalization.md)。
+
+`common.api` 定义不可取消的 ShapeCommitted、HistoryRecorded 和 ModeChanged，只携带不可变值；`server.api` 隔离回调异常并桥接 NeoForge 总线。`SessionSystem.events()` 提供服务器 Scope 内的只读订阅源。形状完成等历史持久提交成功，历史接纳区分 QUEUED／DURABLE，模式变化来自现有仓库的实际生命周期。发布点、示例与验证边界见[对外只读事件](reviews/progress/public-event-finalization.md)。
+
+`server.task.block` 按生成、目标计划、快照捕获、日志预测和单格写入划分职责，PlacementTask／SelectionOperationTask 均低于 800 行；事务生命周期仍统一由 LeasedJournaledTask 持有。快照读取和任务内存策略通过构造注入，内存争用及恢复测试驱动真实阶段，不再反射设置私有 future／phase／故障字段。职责与验证见[大型写入任务与测试注入收口](reviews/progress/task-writer-finalization.md)。
+
 `FastPlaceClientInput` 是 119 行事件／外部接口适配器。`ClientModeKeyInput`、`ClientPhysicalInputDispatcher`、`SelectionInputDispatcher`、`ModifierCommandDispatcher`、`ScrollInputDispatcher` 和 `InputWorldCleanup` 拥有相应的路由、状态推进或清理实现；部分旧控制器的体积与职责仍待进一步收口。
 
-工作区快捷键、删除、本地／世界撤销重做以及恢复／选区／起形／几何确认由默认绑定资源选择原子动作。`WorkspaceKeyContext` 与 `ConfirmationKeyContext` 冻结准入事实，物理按下事件保留起形提交快照；输入适配器只执行绑定选中的能力。Q、历史冲突提示以及剩余鼠标子树仍在迁移。
+工作区快捷键、删除、本地／世界撤销重做、确认、Q 取消与历史冲突提示均由默认绑定资源选择原子动作。键盘事实位于 `binding.context.key`；按下事件保留起形提交快照与取消意图，队列执行使用当前路由。Q 放行时清理入口保护但保留更早入队事件。
+
+`scroll.json` 接管选区变换、几何／起形候选滚轮、Alt 放行和任务忙碌阻断；模式类不再拥有另一份 onScroll 规则。`geometry.json` 接管几何指针的手柄、目标动作、清选、撤点、路径、捕获及松开。原版回调复用物理按下结果；禁用或放行后，该子树终止，不回落旧按钮路径。资源重载使旧几何队列失效，物理松开仍清理残留捕获。选区、空闲和特殊物品鼠标子树仍待完成。
 
 `GeometryPreviewMode` 接收冻结的几何快照、版本、修饰键、视线和候选点；模型缓存不查询客户端或会话装配。模型同时包含计划与方块层，Gizmo 高亮仅更新该帧呈现。计划失败退回控制点，锥体体阶段仍保留底面边界降级。幽灵网格、后台任务和 GPU 缓存归该能力，世界／主题清理不再依赖总入口的共享字段。WorldPreviewFrame 携带同帧动画、透明度、调色板版本与复制后的模型视图／投影矩阵。
 
 `WorldSessionEvents` 统一接收客户端登出／世界卸载，`WorldSessionLifecycle` 复用 `Scope.detach` 按既有顺序清理输入、源遮罩、预览连接、编辑器、交互缓存、反馈和渲染资源。一次运行时清理失败仍通知后续能力，结束后汇总异常；重复边界仍可再次清理。渲染核心只提供自身的重置能力，不订阅世界离开事件、不调用编辑器断线清理。
 
 `ClientSessionSystem` 持有 `ClientPreviewState`，输入与绘制读取同一份服务端快照。`modeView()` 从真实工作流所有者捕获事实，注册模式决定观察阶段；当前输入路由和待发送起形请求决定是否允许空闲操作。删除输入总入口中的 `vanillaSession()`、`activeSession()` 和重复观察链。任务遮盖仍保留底下的活动交互标志，取消／提交期间仍由路由状态持有输入。视觉层的既有绘制优先级本阶段不改。
+
+选区工具通过 `SelectionTools.register` 扩展，按 ID 进入会话、工具轮换和 HUD；现有 OperationSelectionMode 只描述体积几何类别。草稿状态、撤回逆操作与持久化保留工具 ID 和参数。客户端草稿格式现为版本 2，未知工具和旧版本通过现有读取失败／版本不匹配边界保留文件。接口、示例与验证见[选区工具和特殊物品扩展](reviews/progress/selection-tool-special-item-finalization.md)。完整输入树迁移仍由输入层阶段负责。
 
 `ClientPreviewUpdates` 接收网络更新并持有应用顺序：先过重连确认或编辑器同步，再发布快照，活动 revision 被接收后才通知提交能力。恢复确认复用同一入口。网络注册不再引用渲染。起形缓存按 buildingVersion 清理，几何计划按 geometryVersion 重建；独立的 geometryTransformVersion 记录每次有效连续性中断，帧间连续收包也不会遗漏 HUD 基线重置。纯快照查询直接访问会话状态，不再经渲染总入口转发。
 
@@ -165,11 +191,11 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 
 ShapeShellRenderer 与 BuildingShellFaceBuffer 直接使用 PencilStroke／PreviewQuads，不反向调用 FastPlaceClientPreviewCore。SelectionVolumeRenderer 独立绘制权威选区体轮廓，输入为几何体和显式 alpha；原总入口中的体轮廓、线和写面转发及无调用的虚线盒／旧轮廓已删除。
 
-`ClientModeRegistry` 冻结模式优先级、所属阶段与输入策略；拒绝重复 ID／阶段、缺少阶段、冻结后注册和观察其他模式的阶段。`ModeObservation` 仅携带工作流事实；空闲、起形、几何、选区、替换、填充和任务分别声明规则，不持有客户端全局状态。ClientInputStateMachine 继续独占提交请求、取消和手势代次；分派及提交准入查询注册策略。旧 ObservedInputState 已删除，空闲／活动判断和草稿读取门禁复用同一注册表。滚轮由模式 onScroll 决策，专用工具键由 onKey 决策，PASS 才回落空闲；输入边界捕获事实并执行返回命令。其余通用按键、指针事件与预览注册尚待迁移。
+`ClientModeRegistry` 冻结模式优先级、所属阶段与输入策略；拒绝重复 ID／阶段、缺少阶段、冻结后注册和观察其他模式的阶段。`ModeObservation` 仅携带工作流事实；空闲、起形、几何、选区、替换、填充和任务分别声明规则，不持有客户端全局状态。ClientInputStateMachine 继续独占提交请求、取消和手势代次；分派及提交准入查询注册策略。旧 ObservedInputState 已删除，空闲／活动判断和草稿读取门禁复用同一注册表。滚轮与工具键由默认绑定资源选择动作；输入边界冻结事实并调用所属能力。几何鼠标已进入资源树；选区、空闲和特殊物品鼠标仍待迁移。完整 PreviewFrame 已注册，真实客户端实测仍待完成。
 
 旧 `ClientSessionManager` 已删除，由 `ClientSessionSystem` 提供当前作用域及协调入口，查询命名为 `currentScope`。草稿模型和 Codec 位于 draft，回执模型、Codec、缓存及重试保存位于 receipt，队列和 NBT 辅助位于 storage，来源和结算规则位于 submission；相关纯单元测试跟随被测能力迁包。整个 client.session 树执行包容量和职责说明检查，不保留旧路径别名。
 
-`ServerInputDispatcher` 从所属玩家作用域获取 `ServerInputState`。请求水位和手势是单个玩家的字段，不再使用全局 UUID 表。双击快照和扳手 token 使用同一生命周期；退出和玩家实体替换丢弃瞬时状态，换维统一重置。活动工作流、停放会话和世界任务仍由各自的仓库持有，完整服务器实例化尚未完成。
+`ServerInputActions` 从所属玩家作用域获取 `ServerInputState`。请求水位和手势是单个玩家的字段，不再使用全局 UUID 表。双击快照和扳手 token 使用同一生命周期；退出和玩家实体替换丢弃瞬时状态，换维统一重置。活动工作流、停放会话和世界任务仍由各自的仓库持有，完整服务器实例化尚未完成。
 
 `PlayerIntentSystem` 装配共享的 `IntentBus`。会话、历史和设置处理器分别持有自己的门禁和动作；命令与网络构造同类意图。具有请求 ID 的原入口继续先校验序列和作用域，再把 ID 传入意图上下文；不含 ID 的请求使用 0，不能据此绕过功能自身的去重规则。拖动、上传和部分业务动作尚未迁入 Intent。
 
@@ -185,7 +211,7 @@ ShapeShellRenderer 与 BuildingShellFaceBuffer 直接使用 PencilStroke／Previ
 
 `ServerChannels` 为 37 个服务端通道统一执行服务端线程投递与玩家类型检查。注册处选择 `handle` 或 `toIntent`；业务处理器仍负责请求身份、手势、回执和上传校验。客户端连接校验继续由原入站队列持有。
 
-原 `network.payload` 已移空，不提供旧包路径的转发类。收发方向不能互相导入；共享作用域、设置声明和上传分块契约各自独立。协议检查禁止引用客户端、服务端、旧网络实现及玩家设置对象，且每包最多 12 个类型。协议还引用部分尚未搬迁的 `fastplace`／`workspace` 共享领域类型，完整四层迁移仍未完成。
+原 `network.payload` 已移空，不提供旧包路径的转发类。收发方向不能互相导入；共享作用域、设置声明和上传分块契约各自独立。协议检查禁止引用客户端、服务端、旧网络实现及玩家设置对象，且每包最多 12 个类型。原 `fastplace`／`workspace` 共享领域类型已归入 common，协议不再引用旧业务包；完整行为与客户端实测仍须验收。
 
 `BuildingPreviewSnapshot` 是共享预览值，不是消息。删除未注册的旧合并预览 Codec，仅发送当前会话、参数和效果三个分包；接收方验证 revision 后再组合。服务端 `QuickShapePreviews` 负责从草稿和设置装配快照；`PreviewSync` 负责发布。压缩设置改用 `HistoryCompressionLimits`、`CompressionTier` 和 `CompressionSetting`，客户端不再为显示配置而依赖服务端历史实现。
 
@@ -233,7 +259,7 @@ ShapeShellRenderer 与 BuildingShellFaceBuffer 直接使用 PencilStroke／Previ
 
 设置修改只使用 `SettingPayload`。`SettingCatalog` 按注册键选择值 Codec，拒绝未知键和其他注册表创建的同名键；`SettingBindings` 将同一键的值类型与服务端处理器绑定。缺失值明确表示查询，不能被当作默认值写入。界面发送目标值而不是翻转命令，重复写入不会反向切换。落沙规则仍检查操作员权限；压缩参数和历史容量继续使用原有边界约束。旧的五种独立设置包及其注册已删除。当前协议版本为 84，不保留旧通道或旧预览字段。
 
-四边形由 `QuadFaceRasterizer` 建立离散投影域，`NormalPlaneFaceRasterizer` 在固定边缘约束内选择高度。相对边保持首两条边的整数平移；冲突边缘保留完整高度区间，空心体保留这些面样本及实体外表面。生成结果仍支持取消、限额和退化回退。退役的算法枚举、点扫／交叉插值求解器及其设置、Modes、预览字段已删除；通用多边形生成与失败时的有界回退继续保留。
+面与体积生成的纯算法已移入 `common.geometry.generation`。四边面、多边面和严格体积面继续从观察者读取冻结策略，分别保留原默认形状及有界回退；`TranslatedScan` 继续存在。其入口、微瓦片、连通性、拓扑和投影模型按原方法块分成五个包私有文件，取消检查、遍历顺序及输出构造不变。`NormalPlaneFaceRasterizer`、`QuadFaceRasterizer` 和空心体规则继续沿用现有算法。迁移范围与验收记录见[几何生成迁移](reviews/progress/geometry-generation-finalization.md)。
 
 `HistorySystem` 按服务器身份装配和关闭 `HistoryService`；查询只返回已启动实例，不能隐式重建。服务显式接收准入 Gate 和 `HistoryRepository`，拥有自己的玩家表；`OwnerHistory` 持有单玩家状态，`HistoryReplayTask` 执行单次写入、回滚和恢复。`DiskHistoryRepository` 拥有存储和 `HistoryWriteQueue`，队列预算及同玩家写入顺序不跨服务器共享。关闭后拒绝新请求，已接收写入继续完成；服务器后台执行器负责最终关闭。
 
@@ -245,7 +271,7 @@ ShapeShellRenderer 与 BuildingShellFaceBuffer 直接使用 PencilStroke／Previ
 
 扳手使用不可变的 `TinkerContext` 和 `TinkerAction`，预览和实际编辑共用有序规则。规则读取世界但不写世界；服务端入口单独负责准入和事务。未匹配才继续下一规则，明确返回 PASS 会终止并允许原版交互。
 
-工作区模型不依赖网络层。提交结果语义位于 `workspace.submission`，网络载荷引用该模型。`JournalStartupRecovery` 扫描分段日志并调用注入的 `HistoryReconciler`，`JournalReplayer` 用同一遍历框架执行提交重放或逆向回滚；历史协调失败时保留已封存日志并阻止新写入。Alpha 阶段只支持当前格式与当前 Minecraft DataVersion，不保留旧格式迁移；已知版本不兼容的数据隔离到 quarantine，未知损坏仍保留恢复保护。确认的试玩旧数据允许手动清除，生产读取器不自动删除未知文件。
+工作区模型不依赖网络层。提交结果语义位于 `common.workspace.submission`，网络载荷引用该模型。`JournalStartupRecovery` 扫描分段日志并调用注入的 `HistoryReconciler`，`JournalReplayer` 用同一遍历框架执行提交重放或逆向回滚；历史协调失败时保留已封存日志并阻止新写入。Alpha 阶段只支持当前格式与当前 Minecraft DataVersion，不保留旧格式迁移；已知版本不兼容的数据隔离到 quarantine，未知损坏仍保留恢复保护。确认的试玩旧数据允许手动清除，生产读取器不自动删除未知文件。
 
 客户端网络结果由公共侧 `ClientboundTransport` 交给 `client.network.inbound`。`ClientInboundSystem` 只负责装配类型明确的处理器与校验规则；`InboundPayloadQueue` 持有注册表和 tick 邮箱，消费时检查连接与会话作用域。设置页面使用同一路径。客户端退出世界时使待处理批次失效；处理期间产生的新事件留到下一 tick。公共网络层不使用字符串反射，也不加载客户端实现。
 

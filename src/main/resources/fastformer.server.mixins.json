@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "io.github.fastformer.server.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "placement.IdlePlacementSnapshotMixin",
+    "placement.BlockInteractionMixin",
+    "workspace.WorkspaceWriteMixin",
+    "sideeffect.PistonHeadWriteMixin",
+    "placement.ConnectedBlockBreakMixin",
+    "workspace.WorkspaceRandomTickMixin",
+    "workspace.InteractionScheduledTicksMixin",
+    "sideeffect.FallingBlockMixin",
+    "sideeffect.BrushableFallingMixin",
+    "sideeffect.DripstoneFallingMixin"
+  ]
+}

@@ -6,7 +6,7 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonPrimitive;
 import com.mojang.serialization.JsonOps;
 import io.github.fastformer.common.geometry.raster.BlockGenerationObserver;
-import io.github.fastformer.fastplace.geometry.generation.FaceRasterAdapters;
+import io.github.fastformer.common.geometry.generation.face.FaceRasterAdapters;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;

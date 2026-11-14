@@ -15,7 +15,14 @@
 - 恢复规则先于忙碌路由检查；普通确认仍受所属 KEY／SUBMIT 路由、界面、玩家、连接、确认通道和原版指针占用事实约束。选区确认保持原有独立准入，不额外要求放置确认通道。
 - 起形提交数据在按下事件入队前捕获，重绑后的键也会携带同一快照。`QuickShapeSubmissionController` 不再校验物理 Enter 键码，只执行已获准的提交。
 - 绑定系统按需构建键上下文，一次匹配过程中只冻结一次。未绑定或已完全禁用的物理键不会构建确认指针事实。
-- 删除 `SubmissionKeyboardSemantics` 和输入入口中的 Enter 后备分支；禁用起形或选区确认后，不得落入通用放置确认。Q、历史冲突提示和其余操作树仍待迁移。
+- 删除 `SubmissionKeyboardSemantics` 和输入入口中的 Enter 后备分支；禁用起形或选区确认后，不得落入通用放置确认。
+
+## 取消与冲突提示
+
+- `cancellation.json` 接管 Q 的物理捕获与排队后分派：活动长按绑定优先取消；提交等待只提示；选区取消栈末内容；其他会话走所属取消能力。只有请求取消时才冻结恢复提示的 dismiss 范围。
+- 清理入口保护的规则只放行原版，不伪造取消意图。禁用／重绑后不恢复硬编码 Q；完整重绑需同时覆盖四条 capture 分支。已消费的重绑键若对应丢弃映射，会清除原版 click。
+- `history-conflict.json` 接管 Enter／数字键盘 Enter 覆盖、Ctrl+Enter 跳过、Q 取消及提示期间 Ctrl+Z/Y 阻断。发送仍按 token 原子防重；活动长按绑定的取消优先于冲突提示。
+- `CancelInputSemantics` 已删除。新默认资源与排队清理测试已通过 2026-11-15 的 k 轮整批回归；下述此前阶段数字仅对应其原提交。
 
 ## 按键生命周期
 
@@ -30,3 +37,4 @@
 - `BindingFixtures` 和 `RecordingBindingCommands` 提供共享测试装配与无副作用命令记录。`MovementKeyInputTest`、入队事件和起形提交测试保留。
 - 2026-11-15 完整 `check --no-build-cache --offline` 通过：483 个套件、2648 项单测，0 失败、0 错误、1 跳过。架构检查新增债务 0，现存债务 912。`verifyArchitectureStrict` 仍因这些旧债务失败；整份手册尚未验收。
 - 新世界 `build/gametest-keyboard-bindings-20261115` 的 323 项必需 GameTest 全部通过，日志为 `.temp/keyboard-bindings-gametest-20261115.log`。该服务端回归不替代真实客户端键盘与渲染实测。
+- 最新 k 轮完整 `check` 通过：503 个套件、2736 项单测，0 失败、0 错误、1 跳过；`build/gametest-refactor-20261115-k` 的 326 项必需 GameTest 全部通过。日志 `.temp/refactor-final-20261115k.log`；架构新增债务 0，现存债务 368，单独执行的严格检查仍失败。此结果包含取消、冲突、几何、空闲、滚轮及选区绑定，仍不替代真实客户端实测。

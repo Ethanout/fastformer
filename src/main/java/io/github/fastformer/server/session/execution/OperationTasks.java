@@ -1,6 +1,8 @@
 package io.github.fastformer.server.session.execution;
 
 import com.mojang.logging.LogUtils;
+import io.github.fastformer.common.api.ShapeCommitted;
+import io.github.fastformer.server.api.HistoryNotifications;
 import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistorySystem;
@@ -70,6 +72,7 @@ public final class OperationTasks extends TaskExecution<WorldTask> {
       boolean retryableWorkspaceFailure = !task.hasWrites();
       boolean failureTransferred = step.recoveryRequired();
       boolean recoveryCreated = false;
+      Optional<ShapeCommitted> committed = Optional.empty();
       if (failureTransferred) {
          TaskCancellationResult handover = queue.transfer(context, task, history::acceptTransferredTask);
          if (!handoverAccepted(handover)) return;
@@ -88,6 +91,7 @@ public final class OperationTasks extends TaskExecution<WorldTask> {
             recoveryCreated = handover.recoveryCreated();
          } else {
             task.markComplete();
+            committed = HistoryNotifications.captureShape(context, task, ShapeCommitted.Kind.OPERATION);
             task.releaseCommittedTransactionState();
             task.releaseLease(context);
          }
@@ -104,6 +108,7 @@ public final class OperationTasks extends TaskExecution<WorldTask> {
       LOGGER.info("FastFormer operation {} finished with result {}: {}", task.operationId(), step, task.metricsSummary());
       if (!failureTransferred) task.releaseMemoryReservation();
       queue.remove(context.owner(), task);
+      committed.ifPresent(context.events()::publish);
       context.actionBar(completionStatus(task, step, recoveryCreated));
    }
 

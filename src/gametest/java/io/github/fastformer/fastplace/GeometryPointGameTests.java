@@ -16,7 +16,7 @@ import io.github.fastformer.protocol.c2s.geometry.GeometryInteractionPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryPointPayload;
 import io.github.fastformer.protocol.c2s.geometry.GeometryUndoPayload;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.session.GeometrySystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -52,11 +52,11 @@ public final class GeometryPointGameTests {
       player.setYRot(90);
 
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "geometry point input is blocked: fastPlaceTask="
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), "geometry point input is blocked: fastPlaceTask="
             + SessionSystem.of(player).placementTasks().active(player) + " operationTask=" + SessionSystem.of(player).operationTasks().active(player)
             + " worldHistoryBusy=" + HistorySystem.of(player).busy(player));
-         ServerInputDispatcher.geometryPoint(player, request);
+         ServerInputActions.geometryPoint(player, request);
          helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(target.above())),
             "geometry point used the current view instead of the captured ray");
          GeometrySystem.of(player).cancel(player);
@@ -87,8 +87,8 @@ public final class GeometryPointGameTests {
       player.setYRot(90);
 
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-         helper.assertTrue(ServerInputDispatcher.geometryInteraction(player, request),
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+         helper.assertTrue(ServerInputActions.geometryInteraction(player, request),
             "captured geometry interaction used the current view instead of the captured ray");
          helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().closed(), "captured close did not close the path");
          GeometrySystem.of(player).cancel(player);
@@ -115,12 +115,12 @@ public final class GeometryPointGameTests {
       var finish = new GeometryGizmoDragPayload(3L, revision, scope, draft.draftId(), 0, 0, 0, true);
 
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for player history");
-         helper.assertTrue(ServerInputDispatcher.geometryGizmoDrag(player, move), "first drag delta was rejected");
-         helper.assertFalse(ServerInputDispatcher.geometryGizmoDrag(player, move), "replayed drag delta was accepted");
-         helper.assertTrue(ServerInputDispatcher.geometryGizmoDrag(player, next), "next delta lost the captured revision");
-         helper.assertTrue(ServerInputDispatcher.geometryGizmoDrag(player, finish), "drag finish lost the captured revision");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for player history");
+         helper.assertTrue(ServerInputActions.geometryGizmoDrag(player, move), "first drag delta was rejected");
+         helper.assertFalse(ServerInputActions.geometryGizmoDrag(player, move), "replayed drag delta was accepted");
+         helper.assertTrue(ServerInputActions.geometryGizmoDrag(player, next), "next delta lost the captured revision");
+         helper.assertTrue(ServerInputActions.geometryGizmoDrag(player, finish), "drag finish lost the captured revision");
          helper.assertTrue(draft.pointLocations().equals(before.stream().map(point -> point.add(2, 0, 0)).toList()),
             "drag deltas did not move the original draft exactly twice");
          GeometrySystem.of(player).selectMode(player, GeometryMode.POLYHEDRON);
@@ -128,7 +128,7 @@ public final class GeometryPointGameTests {
          var replacementPoints = replacement.pointLocations();
          var stale = new GeometryGizmoDragPayload(4L, PreviewSync.geometryRevision(player), scope,
             move.draftId(), 0, 0, 2, false);
-         helper.assertFalse(ServerInputDispatcher.geometryGizmoDrag(player, stale), "old drag mutated the replacement draft");
+         helper.assertFalse(ServerInputActions.geometryGizmoDrag(player, stale), "old drag mutated the replacement draft");
          helper.assertTrue(replacement.pointLocations().equals(replacementPoints), "replacement draft changed");
          GeometrySystem.of(player).cancel(player);
       });
@@ -153,13 +153,13 @@ public final class GeometryPointGameTests {
       var drag = new GeometryGizmoDragPayload(2L, revision, scope, draft.draftId(), 0, 0, 1, false);
 
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for player history");
-         helper.assertTrue(ServerInputDispatcher.geometryGizmoDrag(player, drag), "drag delta was rejected");
-         helper.assertTrue(ServerInputDispatcher.geometryInteraction(player, click), "drag dispatch invalidated the captured click");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for player history");
+         helper.assertTrue(ServerInputActions.geometryGizmoDrag(player, drag), "drag delta was rejected");
+         helper.assertTrue(ServerInputActions.geometryInteraction(player, click), "drag dispatch invalidated the captured click");
          helper.assertTrue(draft.convex().selectedControlPoint() == -1, "captured click did not clear the selected point");
-         helper.assertFalse(ServerInputDispatcher.geometryInteraction(player, click), "replayed click was accepted");
-         helper.assertFalse(ServerInputDispatcher.geometryGizmoDrag(player, drag), "replayed drag was accepted");
+         helper.assertFalse(ServerInputActions.geometryInteraction(player, click), "replayed click was accepted");
+         helper.assertFalse(ServerInputActions.geometryGizmoDrag(player, drag), "replayed drag was accepted");
          GeometrySystem.of(player).cancel(player);
       });
    }
@@ -192,17 +192,17 @@ public final class GeometryPointGameTests {
       );
 
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-         helper.assertTrue(ServerInputDispatcher.geometryPoint(player, point), "captured point was not applied");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+         helper.assertTrue(ServerInputActions.geometryPoint(player, point), "captured point was not applied");
          helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().points().size() == 3,
             "captured point did not create the third wall point");
-         helper.assertTrue(ServerInputDispatcher.geometryInteraction(player, close),
+         helper.assertTrue(ServerInputActions.geometryInteraction(player, close),
             "double-click close did not accept the point revision");
          helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().closed(), "double-click close did not close the wall path");
-         helper.assertFalse(ServerInputDispatcher.geometryPoint(player, point), "replayed point changed the closed path");
-         helper.assertFalse(ServerInputDispatcher.geometryInteraction(player, close), "replayed close changed the closed path");
+         helper.assertFalse(ServerInputActions.geometryPoint(player, point), "replayed point changed the closed path");
+         helper.assertFalse(ServerInputActions.geometryInteraction(player, close), "replayed close changed the closed path");
          GeometrySystem.of(player).sync(player);
-         helper.assertFalse(ServerInputDispatcher.geometryInteraction(player, stale),
+         helper.assertFalse(ServerInputActions.geometryInteraction(player, stale),
             "an external preview revision accepted the old pointer sequence");
          GeometrySystem.of(player).cancel(player);
       });
@@ -229,12 +229,12 @@ public final class GeometryPointGameTests {
       var undo = new GeometryUndoPayload(2L, revision, scope, draft.draftId(), eye, view);
 
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-         helper.assertTrue(ServerInputDispatcher.geometryPoint(player, point), "captured point was not applied");
-         helper.assertTrue(ServerInputDispatcher.geometryUndo(player, undo), "captured undo was not applied");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+         helper.assertTrue(ServerInputActions.geometryPoint(player, point), "captured point was not applied");
+         helper.assertTrue(ServerInputActions.geometryUndo(player, undo), "captured undo was not applied");
          helper.assertTrue(GeometrySystem.of(player).session(player).orElseThrow().points().size() == 2,
             "captured undo did not remove the captured point");
-         helper.assertFalse(ServerInputDispatcher.geometryUndo(player, undo), "replayed undo was accepted");
+         helper.assertFalse(ServerInputActions.geometryUndo(player, undo), "replayed undo was accepted");
          GeometrySystem.of(player).cancel(player);
       });
    }

@@ -1,7 +1,7 @@
 package io.github.fastformer.client.quickshape.pointer;
 
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.geometry.LineTieBias;
 import io.github.fastformer.common.quickshape.mode.FaceMode;
 import io.github.fastformer.common.quickshape.mode.LineMode;

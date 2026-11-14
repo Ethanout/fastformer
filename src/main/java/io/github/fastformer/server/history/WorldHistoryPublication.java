@@ -3,7 +3,7 @@ package io.github.fastformer.server.history;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
 
 import io.github.fastformer.server.recovery.JournalPreparation;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;

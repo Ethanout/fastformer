@@ -6,7 +6,7 @@ import io.github.fastformer.common.geometry.session.WallGeometryState;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.common.geometry.GeometryMode;
-import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.common.geometry.workflow.*;
 import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
@@ -56,9 +56,4 @@ class TypedGeometrySessionTest {
       assertThrows(UnsupportedOperationException.class, () -> view.pointLocations().clear());
    }
 
-   @Test
-   void wrongWorkflowViewIsRejectedBeforeGeneratingAnotherShapesPreview() {
-      var wall = GeometryWorkflowView.from(new GeometrySession());
-      assertThrows(ClassCastException.class, () -> new ConePrismWorkflow().stage(wall));
-   }
 }

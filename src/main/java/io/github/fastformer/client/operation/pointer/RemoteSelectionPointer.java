@@ -8,7 +8,7 @@ import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.pointer.PointRaycast;
 import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
-import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
+import io.github.fastformer.common.geometry.interaction.GeometryRayVisibility;
 import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.common.selection.geometry.SelectionPrism;
 import io.github.fastformer.common.geometry.model.TransformFrame;

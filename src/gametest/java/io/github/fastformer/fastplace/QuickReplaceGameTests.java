@@ -47,6 +47,8 @@ public final class QuickReplaceGameTests {
       var player = player(helper, target, 2);
       var modes = SessionSystem.of(player).modes();
       helper.assertTrue(QuickReplaceSystem.requestActive(player, 10, true), "tool request did not activate");
+      helper.assertTrue(modes.quickReplace().session(player).orElseThrow() == QuickReplaceSystem.session(player).orElseThrow(),
+         "mode did not bind the actual scoped replacement state");
       helper.assertTrue(modes.active(player).orElseThrow().id().equals(BuiltinModes.QUICK_REPLACE), "tool is outside the mode registry");
       helper.assertFalse(modes.hasEditing(player), "temporary tool became a durable editing session");
       helper.assertTrue(ServerOperationGates.NO_SESSION.test(player).allowed(), "tool locked its own world history admission");
@@ -83,6 +85,8 @@ public final class QuickReplaceGameTests {
       helper.assertFalse(QuickReplaceSystem.requestActive(player, 2, true), "old request crossed the dimension boundary");
       helper.assertTrue(QuickReplaceSystem.requestActive(player, 4, true), "fresh request after dimension failed");
       helper.assertFalse(QuickReplaceSystem.sample(player, 21, false), "old press crossed the dimension boundary");
+      SessionSystem.detachPlayer(player);
+      helper.assertFalse(SessionSystem.of(player).modes().quickReplace().active(player), "mode detach retained scoped tool ownership");
       SessionSystem.of(player).discardPlayer(player);
       PlayerStateRegistry.detach(player);
       helper.succeed();
@@ -163,7 +167,7 @@ public final class QuickReplaceGameTests {
          helper.assertTrue(!attack.isCanceled(), "Quick replace consumed vanilla attack");
          helper.assertTrue(!QuickShapeSystem.of(player).active(player) && !OperationSystem.of(player).active(player), "Attack started an FF session");
       }
-      io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).toggleEnabled(player);
+      io.github.fastformer.server.settings.FastPlaceSettings.load(player).toggleEnabled(player);
       helper.assertTrue(!QuickReplaceSystem.setActive(player, true) && !QuickReplaceSystem.active(player),
          "Rejected activation retained server ownership");
       helper.succeed();

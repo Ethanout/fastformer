@@ -7,7 +7,7 @@ import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
 import io.github.fastformer.common.selection.OperationStackRegion;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -221,7 +221,7 @@ public final class VoxelRotationSnapshotGameTests {
          Vec3 rotation = axis == Axis.X ? new Vec3(QUARTER, 0, 0) : new Vec3(0, 0, QUARTER);
          BlockState source = Blocks.PISTON_HEAD.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.UP);
          var transform = new WorkspaceTransform(Vec3.ZERO, rotation, OperationStackRegion.origin());
-         var composed = WorkspacePreviewComposer.resolveSnapshots(Map.of(BlockPos.ZERO, snapshot(source)), transform);
+         var composed = WorkspaceComposer.resolveSnapshots(Map.of(BlockPos.ZERO, snapshot(source)), transform);
          helper.assertTrue(composed.get(BlockPos.ZERO).state().getValue(BlockStateProperties.FACING)
             == expectedFacing(Direction.UP, axis, 1), "composer must rotate piston heads on " + axis);
       }
@@ -283,7 +283,7 @@ public final class VoxelRotationSnapshotGameTests {
          Vec3.ZERO, new Vec3(0.0, QUARTER, 0.0), OperationStackRegion.origin()
       );
 
-      Map<BlockPos, BlockSnapshot> typed = WorkspacePreviewComposer.resolveSnapshots(
+      Map<BlockPos, BlockSnapshot> typed = WorkspaceComposer.resolveSnapshots(
          northSouthLine(), transform
       );
       helper.assertTrue(

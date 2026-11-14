@@ -1,7 +1,11 @@
 package io.github.fastformer.client.input;
 
+import io.github.fastformer.client.interaction.binding.input.PhysicalButtons;
+import io.github.fastformer.client.input.state.EntryPressGuard;
+
 import io.github.fastformer.client.input.mouse.PointerButtonCapture;
 import io.github.fastformer.client.interaction.binding.tool.QuickShapeBindingInputState;
+import io.github.fastformer.client.interaction.binding.tool.GeometryBindingInputState;
 
 import io.github.fastformer.client.interaction.drag.GeometryGizmoDrag;
 import io.github.fastformer.client.input.drag.OperationDrag;
@@ -23,6 +27,8 @@ import io.github.fastformer.client.operation.input.SelectionDraftPress;
 import io.github.fastformer.client.operation.input.SelectionPointPress;
 import io.github.fastformer.client.operation.input.SelectionPointerCapture;
 import io.github.fastformer.client.operation.input.SelectionPointerEvent;
+import io.github.fastformer.client.operation.input.SelectionPointerEvent.RemoteSnapshot;
+import io.github.fastformer.client.interaction.binding.tool.SelectionBindingInputState;
 import io.github.fastformer.client.operation.input.SelectionPointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapePointerPress;
 import io.github.fastformer.client.quickshape.input.QuickShapeUndoGesture;
@@ -100,8 +106,8 @@ public final class ClientInputSession {
       io.github.fastformer.client.interaction.binding.context.BindingContext context, long now) {
       return bindings.onToolSignalResult(minecraft, this, name, gesture, context, now);
    }
-   final RightClickInertiaGuard entryPressGuard = new RightClickInertiaGuard();
-   final RightClickInertiaGuard cuboidPointPressGuard = new RightClickInertiaGuard();
+   final EntryPressGuard entryPressGuard = new EntryPressGuard();
+   final EntryPressGuard cuboidPointPressGuard = new EntryPressGuard();
    int idleEntryButton = -1;
    int idleEntrySelectionButton = -1;
    boolean entryConsumedAlt;
@@ -114,11 +120,19 @@ public final class ClientInputSession {
    final ShortPressTracker undoPress = new ShortPressTracker();
    final QuickShapeUndoGesture quickShapeUndo = new QuickShapeUndoGesture();
    final QuickShapeBindingInputState shapeInput = new QuickShapeBindingInputState();
+   final GeometryBindingInputState geometryInput = new GeometryBindingInputState();
+   final SelectionBindingInputState selectionInput = new SelectionBindingInputState();
+   final ShortPressTracker selectionUndo = new ShortPressTracker();
+   int selectionUndoButton = -1;
+   RemoteSnapshot selectionUndoPress;
+   final ShortPressTracker geometryFallbackUndo = new ShortPressTracker();
+   int geometryUndoButton = -1;
    final SelectionPointerCapture selectionPointer = new SelectionPointerCapture();
    final OperationPointDragCapture operationPointPointer = new OperationPointDragCapture();
    final GeometryGizmoCapture geometryGizmoCapture = new GeometryGizmoCapture();
-   private final boolean[] quickShapeButtons = new boolean[3];
-   private final boolean[] geometryPointerButtons = new boolean[2];
+   final PhysicalButtons idleButtons = new PhysicalButtons();
+   private final java.util.Set<Integer> quickShapeButtons = new java.util.HashSet<>();
+   private final java.util.Set<Integer> geometryPointerButtons = new java.util.HashSet<>();
 
    final PointerGestureState pointerGesture = new PointerGestureState();
    final ClientInputStateMachine routing;
@@ -146,30 +160,26 @@ public final class ClientInputSession {
    boolean suppressedPausePausedSound;
 
    boolean captureQuickShapeButton(int button) {
-      if (button < 0 || button >= this.quickShapeButtons.length || this.quickShapeButtons[button]) return false;
-      this.quickShapeButtons[button] = true;
-      return true;
+      return button >= 0 && this.quickShapeButtons.add(button);
    }
 
    boolean releaseQuickShapeButton(int button) {
-      if (button < 0 || button >= this.quickShapeButtons.length || !this.quickShapeButtons[button]) return false;
-      this.quickShapeButtons[button] = false;
-      return true;
+      return this.quickShapeButtons.remove(button);
    }
 
    boolean quickShapeButtonCaptured(int button) {
-      return button >= 0 && button < this.quickShapeButtons.length && this.quickShapeButtons[button];
+      return this.quickShapeButtons.contains(button);
    }
 
    boolean hasQuickShapeButtons() {
-      return this.quickShapeButtons[0] || this.quickShapeButtons[1] || this.quickShapeButtons[2];
+      return !this.quickShapeButtons.isEmpty();
    }
 
    public boolean blocksDraftLoad() {
       boolean activeOperation = io.github.fastformer.client.mode.ClientModes.registry().policy(routing.state()).blocksDraftLoad();
       return activeOperation
          || this.physicalEvents.hasUnfinishedEvents() || this.submissionEvents.hasUnfinishedEvents()
-         || this.selectionPointer.active()
+         || this.selectionPointer.active() || this.selectionInput.active()
          || this.pointerGesture.kind() != PointerGestureState.Kind.NONE
          || this.clickGestureToken != 0L || this.undoPressCaptured || this.quickShapeUndo.captured()
          || hasQuickShapeButtons() || this.geometryGizmoCapture.captured() || hasGeometryPointerButtons() || this.modifier.held();
@@ -222,11 +232,16 @@ public final class ClientInputSession {
       this.undoPressCaptured = false;
    }
 
-   private void clearIdleEntry() {
-      bindings.reset();
+   void clearEntryInput() {
+      idleButtons.clear();
       idleEntry.clear();
       entryPressGuard.clear();
       cuboidPointPressGuard.clear();
+   }
+
+   private void clearIdleEntry() {
+      bindings.reset();
+      clearEntryInput();
       idleSelectionEntry = null;
       idleEntryButton = -1;
       idleEntrySelectionButton = -1;
@@ -235,16 +250,53 @@ public final class ClientInputSession {
    private void clearPointerCaptures() {
       cancelQueuedGeometryInput();
       this.shapeInput.clear();
-      java.util.Arrays.fill(this.quickShapeButtons, false);
+      this.quickShapeButtons.clear();
       this.quickShapeUndo.cancel();
       this.selectionPointer.clear();
       this.operationPointPointer.clear();
+      this.selectionInput.clear();
+      this.selectionUndo.cancel();
+      this.selectionUndoButton = -1;
+      this.selectionUndoPress = null;
    }
 
-   void cancelShapeBindingInput() {
+   void cancelBoundPointerInput() {
       this.shapeInput.clear();
-      java.util.Arrays.fill(this.quickShapeButtons, false);
+      this.quickShapeButtons.clear();
       this.quickShapeUndo.cancel();
+      cancelQueuedGeometryInput();
+      cancelQueuedSelectionInput();
+   }
+
+   private void cancelQueuedSelectionInput() {
+      this.selectionInput.clear();
+      this.selectionUndo.cancel();
+      this.selectionUndoButton = -1;
+      this.selectionUndoPress = null;
+      this.selectionPointer.clear();
+      this.operationPointPointer.clear();
+      if (this.selectionGestures != null) this.selectionGestures.cancel();
+      if (this.operationDrag != null) this.pointerGesture.finish(this.operationDrag.captureToken());
+      if (this.operationPointDrag != null) this.pointerGesture.finish(this.operationPointDrag.captureToken());
+      if (this.operationTransformCapture != null && this.geometryGizmoDrag != null) {
+         this.pointerGesture.finish(this.geometryGizmoDrag.captureToken());
+         this.geometryGizmoDrag = null;
+      }
+      this.operationDrag = null;
+      this.operationPointDrag = null;
+      this.operationTransformCapture = null;
+      this.operationClick.clear();
+      this.clickGestureToken = 0L;
+   }
+
+   /** A physical release always cleans up, even if its resource action was disabled. */
+   void finishGeometryPhysicalRelease(int button) {
+      releaseGeometryPointerButton(button);
+      if (this.geometryGizmoCapture.ownsPhysicalButton(button)) cancelQueuedGeometryInput();
+      if (this.geometryUndoButton == button) {
+         this.geometryUndoButton = -1;
+         this.geometryFallbackUndo.cancel();
+      }
    }
 
    void finishShapePhysicalRelease(int button) {
@@ -300,11 +352,13 @@ public final class ClientInputSession {
    }
 
    void postSelectionPointer(SelectionPointerEvent event) {
-      this.physicalEvents.postSelectionPointer(event);
+      long generation = this.selectionInput.generation();
+      this.physicalEvents.postSelectionPointer(event, () -> this.selectionInput.accepts(generation));
    }
 
    void postRemoteSelectionPoint(RemoteSelectionPointRequest request) {
-      this.physicalEvents.postRemoteSelectionPoint(request);
+      long generation = this.selectionInput.generation();
+      this.physicalEvents.postRemoteSelectionPoint(request, () -> this.selectionInput.accepts(generation));
    }
 
    SelectionPointerEvent.Press captureSelectionPress(SelectionPointerPress snapshot) {
@@ -319,31 +373,56 @@ public final class ClientInputSession {
    }
 
    SelectionPointerEvent.CreatePress captureSelectionPress(SelectionDraftPress snapshot) {
+      return captureSelectionPress(snapshot, snapshot.button(), 200);
+   }
+
+   SelectionPointerEvent.CreatePress captureSelectionPress(SelectionDraftPress snapshot, int physicalButton, int durationMillis) {
       if (snapshot.mode() == OperationSelectionMode.CUBOID
-         && !acceptCuboidPointPress(snapshot.button(), snapshot.point(), snapshot.occurredAtNanos())) return null;
+         && !acceptCuboidPointPress(snapshot.button(), physicalButton, snapshot.point(), snapshot.occurredAtNanos(), durationMillis)) return null;
       cancelSupersededSelectionPress();
-      var press = this.selectionPointer.press(snapshot);
+      var press = this.selectionPointer.press(snapshot, physicalButton);
       postSelectionPointer(press);
       return press;
    }
 
    boolean acceptCuboidPointPress(int button, BlockPos point, long now) {
-      if (button != MouseButtonInputSemantics.RIGHT_BUTTON || point == null) return true;
-      if (cuboidPointPressGuard.capture(MouseButtonInputSemantics.PRESS, button, now)) return false;
-      cuboidPointPressGuard.arm(now);
+      return acceptCuboidPointPress(button, button, point, now, 200);
+   }
+   boolean acceptCuboidPointPress(int logicalButton, int physicalButton, BlockPos point, long now, int durationMillis) {
+      if (logicalButton != MouseButtonInputSemantics.RIGHT_BUTTON || point == null) return true;
+      if (cuboidPointPressGuard.capture(MouseButtonInputSemantics.PRESS, physicalButton, now)) return false;
+      cuboidPointPressGuard.arm(now, physicalButton, durationMillis);
       return true;
    }
 
    SelectionPointerEvent.PointPress captureSelectionPress(SelectionPointPress snapshot) {
+      return captureSelectionPress(snapshot, snapshot.button());
+   }
+   SelectionPointerEvent.PointPress captureSelectionPress(SelectionPointPress snapshot, int physicalButton) {
       cancelSupersededSelectionPress();
-      var press = this.selectionPointer.press(snapshot);
+      var press = this.selectionPointer.press(snapshot, physicalButton);
       postSelectionPointer(press);
       return press;
+   }
+
+   void captureSelectionPress(RemoteSnapshot snapshot) {
+      cancelSupersededSelectionPress();
+      postSelectionPointer(this.selectionPointer.press(snapshot));
    }
 
    private void cancelSupersededSelectionPress() {
       var superseded = this.selectionPointer.supersededPress();
       if (superseded != null) postSelectionPointer(superseded);
+   }
+
+   /** Called only after a resource action has accepted a replacement press. */
+   void supersedeSelectionCaptures() {
+      cancelSupersededSelectionPress();
+      var point = this.operationPointPointer.superseded();
+      if (point != null) postOperationPointDrag(point);
+      this.selectionUndo.cancel();
+      this.selectionUndoButton = -1;
+      this.selectionUndoPress = null;
    }
 
    void drainPhysicalEvents(BooleanSupplier contextActive,
@@ -378,11 +457,15 @@ public final class ClientInputSession {
    }
 
    void postGeometryGizmo(GeometryGizmoCapture.Event event) {
-      this.physicalEvents.postGeometryGizmo(event);
+      long generation = this.geometryInput.generation();
+      this.physicalEvents.postGeometryGizmo(event, () -> this.geometryInput.accepts(generation));
    }
 
    private void cancelQueuedGeometryInput() {
-      java.util.Arrays.fill(this.geometryPointerButtons, false);
+      this.geometryInput.clear();
+      this.geometryPointerButtons.clear();
+      this.geometryFallbackUndo.cancel();
+      this.geometryUndoButton = -1;
       if (this.geometryGizmoDrag != null && this.geometryGizmoCapture.owns(this.geometryGizmoDrag.captureToken())) {
          long token = this.geometryGizmoDrag.captureToken();
          this.pointerGesture.finish(token);
@@ -449,15 +532,18 @@ public final class ClientInputSession {
    }
 
    void postGeometryPointer(GeometryInputController.PointerPress event) {
-      this.physicalEvents.postGeometryPointer(event);
+      long generation = this.geometryInput.generation();
+      this.physicalEvents.postGeometryPointer(event, () -> this.geometryInput.accepts(generation));
    }
 
    void postOperationPointDrag(OperationPointDragEvent event) {
-      this.physicalEvents.postOperationPointDrag(event);
+      long generation = this.selectionInput.generation();
+      this.physicalEvents.postOperationPointDrag(event, () -> this.selectionInput.accepts(generation));
    }
 
    void postOperationPointCommand(OperationPointCommandEvent event) {
-      this.physicalEvents.postOperationPointCommand(event);
+      long generation = this.selectionInput.generation();
+      this.physicalEvents.postOperationPointCommand(event, () -> this.selectionInput.accepts(generation));
    }
 
    void captureOperationPointCommand(OperationPointCommandPress press) {
@@ -471,21 +557,19 @@ public final class ClientInputSession {
    }
 
    void captureGeometryPointerButton(int button) {
-      this.geometryPointerButtons[button] = true;
+      if (button >= 0) this.geometryPointerButtons.add(button);
    }
 
    boolean ownsGeometryPointerButton(int button) {
-      return button >= 0 && button < this.geometryPointerButtons.length && this.geometryPointerButtons[button];
+      return this.geometryPointerButtons.contains(button);
    }
 
    boolean hasGeometryPointerButtons() {
-      return this.geometryPointerButtons[0] || this.geometryPointerButtons[1];
+      return !this.geometryPointerButtons.isEmpty();
    }
 
    boolean releaseGeometryPointerButton(int button) {
-      if (!ownsGeometryPointerButton(button)) return false;
-      this.geometryPointerButtons[button] = false;
-      return true;
+      return this.geometryPointerButtons.remove(button);
    }
 
    void drainPhysicalEvents(BooleanSupplier contextActive,

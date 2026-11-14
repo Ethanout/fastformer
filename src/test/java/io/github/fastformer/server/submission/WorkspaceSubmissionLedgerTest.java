@@ -3,7 +3,7 @@ package io.github.fastformer.server.submission;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.Test;

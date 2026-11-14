@@ -3,6 +3,7 @@ package io.github.fastformer.client.session.draft;
 import io.github.fastformer.common.workspace.model.WorkspaceSymmetry;
 
 import io.github.fastformer.client.operation.selection.ClientSelectionSession;
+import io.github.fastformer.client.operation.selection.tool.SelectionTools;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.client.session.storage.ClientStorageNbt;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
@@ -30,6 +31,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
@@ -270,25 +272,15 @@ public final class ClientOperationDraftCodec {
    }
 
    private static CompoundTag encodeSelectionDraft(ClientSelectionSession.DraftState selection) {
-      CompoundTag tag = new CompoundTag();
-      tag.putString("Mode", selection.selectionMode().name());
-      putBlockPositions(tag, "Points", selection.points());
-      tag.putInt("PrismBasePointCount", selection.prismBaseCount());
-      tag.putBoolean("SecondPointOnly", selection.secondPointOnly());
-      putOptionalBlockPos(tag, "Min", selection.minPoint());
-      putOptionalBlockPos(tag, "Max", selection.maxPoint());
-      return tag;
+      return (CompoundTag) SelectionTools.codec().encodeStart(NbtOps.INSTANCE, selection.toolState()).getOrThrow();
    }
 
    private static ClientSelectionSession.DraftState decodeSelectionDraft(CompoundTag tag) throws IOException {
-      return new ClientSelectionSession.DraftState(
-         enumValue(OperationSelectionMode.class, tag.getString("Mode"), "selection mode"),
-         readBlockPositions(tag, "Points"),
-         tag.getInt("PrismBasePointCount"),
-         readOptionalBlockPos(tag, "Min"),
-         readOptionalBlockPos(tag, "Max"),
-         requiredBoolean(tag, "SecondPointOnly")
-      );
+      try {
+         return new ClientSelectionSession.DraftState(SelectionTools.codec().parse(NbtOps.INSTANCE, tag).getOrThrow());
+      } catch (RuntimeException failure) {
+         throw new IOException("Invalid selection tool draft", failure);
+      }
    }
 
    private static CompoundTag encodeSelection(OperationSelectionVolume selection) {

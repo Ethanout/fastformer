@@ -64,3 +64,13 @@
 - 资源测试穷举准入事实，并验证全部真实模式 KEY／SUBMIT 路由、覆盖和惰性事实冻结；公共装配进入 testkit。
 - 完整 check：483 个套件、2648 项单测，0 失败、0 错误、1 跳过；布局、打包及能力边界检查通过，新增架构债务 0，旧债务 912。完整严格验收仍失败；Q、冲突提示和其他操作树继续迁移。
 - 新世界 `build/gametest-keyboard-bindings-20261115` 的 323 项必需 GameTest 全通过；日志为 `.temp/keyboard-bindings-gametest-20261115.log`。尚未进行本阶段真实客户端实测。
+
+## 数据化绑定与全项目职责迁移最终回归（2026-11-15）
+
+- 生产 `fastplace`／`workspace`／`network` 顶层包已迁空，Mixin、ServiceLoader 描述和发布必需类路径同步到真实职责包。`verifyModJar` 现在检查声明的 Mixin 配置、注入类及服务接口／实现是否打包，并拒绝旧顶层包中的生产类。
+- 选区鼠标由 73 条默认 JSON 规则决定。支持额外鼠标键、重绑／禁用与原版放行；按下冻结事实和命令，旧事件按身份隔离，资源重载与跨类型替换按 FIFO 取消所属捕获。绑定编排通过窄 Host 接口工作，输入会话不公开可变字段；冻结或执行失败的 release 仍结算。详见[选区绑定与服务端工作流](progress/server-geometry-finalization.md)。
+- 世界写入拆为 snapshot（5 类）、transaction（5 类）、effect（3 类）；邻居刷新归事务，快照不反向引用事务。两个历史快照例外保持完整类型名限定，未扩大基线。详见[世界写入职责](progress/world-layout-finalization.md)。
+- 大型写入任务已拆至 800 行以内，生成／捕获／内存准入通过真实依赖测试，见[任务拆分与注入](progress/task-writer-finalization.md)。球体生成直接调用 SphereGenerator，删除 PolyhedronGenerator 转发壳；PlayerMessagesTest 通过公开文本结果断言，删除私有方法反射。
+- 执行命令：`gradlew.bat --offline check runGameTestServer --continue -PgameTestDirectory=build/gametest-refactor-20261115-k`。日志 `.temp/refactor-final-20261115k.log`；503 个套件、2736 项单测，0 失败、0 错误、1 跳过；新世界 326 项必需 GameTest 全部通过，发布 JAR 与测试钩子检查通过。
+- 单独执行 `gradlew.bat --offline verifyArchitectureStrict`，日志 `.temp/refactor-strict-20261115k.log`。实际失败于 368 项现存债务：154 项客户端环边、134 项超限包条目、42 项包说明、11 项旧后缀、27 项单类型包；新增债务和严格边界违规均为 0。没有修改架构债务基线。
+- 整份手册仍未完成。后续客户端闭包顺序及 9 类反射／Unsafe 测试的替代方向见[最新审计](progress/client-architecture-closure-audit-20261115.md)。真实客户端交互、视觉、联机及资源回收尚未验收；保留两条面入口原有形状及 TranslatedScan。

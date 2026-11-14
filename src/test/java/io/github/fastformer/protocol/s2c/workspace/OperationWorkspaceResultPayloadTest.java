@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 class OperationWorkspaceResultPayloadTest {
    @Test void failureCategoriesSurviveCodecAndScopeChanges() {
-      for (var reason : io.github.fastformer.workspace.submission.WorkspaceFailure.values()) {
+      for (var reason : io.github.fastformer.common.workspace.submission.WorkspaceFailure.values()) {
          var payload = new OperationWorkspaceResultPayload(UUID.randomUUID(), false, List.of()).withFailure(reason);
          payload = payload.withCallbackScope(payload.callbackScope());
          FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());

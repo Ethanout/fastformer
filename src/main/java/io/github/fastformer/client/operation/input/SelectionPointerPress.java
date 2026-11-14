@@ -23,7 +23,7 @@ public record SelectionPointerPress(
    public SelectionPointerPress {
       Objects.requireNonNull(owner, "owner");
       targets = Map.copyOf(targets);
-      if (!supportedTarget(target) || button < 0 || button > 2) {
+      if (!supportedTarget(target) || button < 0) {
          throw new IllegalArgumentException("Selection press requires a target and a supported mouse button");
       }
       Objects.requireNonNull(object, "object");
@@ -48,7 +48,7 @@ public record SelectionPointerPress(
       OperationInteractionIntent target, int button, boolean control, int shortPressSteps,
       SelectionInteractionScene scene, ClientOperationWorkspace workspace, long pressedAtNanos
    ) {
-      if (!supportedTarget(target) || button < 0 || button > 2) return Optional.empty();
+      if (!supportedTarget(target) || button < 0) return Optional.empty();
       var object = scene.targetObject(target);
       if (object == null || object.component(InteractionComponents.PRESS_BINDING)
          .flatMap(binding -> binding.resolve(target)).isEmpty()) return Optional.empty();

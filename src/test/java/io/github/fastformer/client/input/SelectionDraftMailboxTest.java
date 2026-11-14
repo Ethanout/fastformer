@@ -314,6 +314,6 @@ class SelectionDraftMailboxTest {
    }
 
    private static void dispatch(SelectionPointerEvent event) {
-      SelectionInputDispatcher.dispatch(null, FastPlaceClientInput.inputSession(), event);
+      OperationDragController.dispatchSelection(null, FastPlaceClientInput.inputSession(), event);
    }
 }

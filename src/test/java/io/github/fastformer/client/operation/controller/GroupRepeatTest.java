@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.common.selection.OperationStackRegion;
@@ -316,7 +316,7 @@ class GroupRepeatTest {
    }
 
    private static Set<BlockPos> resolved(ClientSelectionPart part) {
-      return WorkspacePreviewComposer.resolve(part).keySet();
+      return WorkspaceComposer.resolve(part).keySet();
    }
 
    private static Set<BlockPos> xRange(int from, int to) {

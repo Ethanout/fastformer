@@ -2,7 +2,7 @@ package io.github.fastformer.server.task.runtime;
 
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
+import io.github.fastformer.common.world.memory.MemoryReservation;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.server.task.CancelReason;
 import io.github.fastformer.server.task.TaskStep;

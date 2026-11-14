@@ -39,9 +39,7 @@ public final class ClientSelectionStack {
          entries.remove(PENDING_ID);
       } else {
          fixSmartParts();
-         if (emptyDraft.selectionMode() != draft.selectionMode()) {
-            emptyDraft = new DraftState(draft.selectionMode(), List.of(), 0, null, null);
-         }
+         emptyDraft = new DraftState(draft.toolState().withPoints(List.of(), 0, false));
          entries.putLast(PENDING_ID, new Pending(draft));
       }
    }

@@ -16,16 +16,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.common.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.server.geometry.workflow.GeometryActionContext;
+import io.github.fastformer.server.geometry.workflow.ConvexPolyhedronWorkflowEditor;
 import io.github.fastformer.common.geometry.GeometryHit;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
 import io.github.fastformer.common.geometry.gizmo.HoverFeedback;
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
-import io.github.fastformer.fastplace.world.*;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.common.geometry.workflow.*;
+import io.github.fastformer.common.geometry.workflow.plan.*;
+import io.github.fastformer.common.geometry.workflow.*;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -38,7 +40,7 @@ class ConvexPolyhedronPointInteractionTest {
       session.convex().selectControlPoint(1);
 
       GeometryWorkflowView view = GeometryWorkflowView.from(session);
-      assertEquals(1, ((io.github.fastformer.fastplace.workflow.ConvexWorkflowView) view).selectedPointIndex());
+      assertEquals(1, ((io.github.fastformer.common.geometry.workflow.ConvexWorkflowView) view).selectedPointIndex());
       assertTrue(GeometryWorkflows.get(GeometryMode.CONVEX_POLYHEDRON).stage(view).allows(GeometryAction.GIZMO_DRAG));
       GeometryPreviewPlan plan = new ConvexPolyhedronWorkflow().previewPlan(
          view,
@@ -86,7 +88,7 @@ class ConvexPolyhedronPointInteractionTest {
    void selectedPointMovesByHalfBlockStepsOnly() {
       GeometrySession session = convexSession();
       session.convex().selectControlPoint(1);
-      ConvexPolyhedronWorkflow workflow = new ConvexPolyhedronWorkflow();
+      ConvexPolyhedronWorkflowEditor workflow = new ConvexPolyhedronWorkflowEditor();
 
       assertTrue(workflow.onGizmoDrag(session, new GeometryActionContext(null, false), AxisGizmo.Operation.MOVE, Axis.X, 2));
 

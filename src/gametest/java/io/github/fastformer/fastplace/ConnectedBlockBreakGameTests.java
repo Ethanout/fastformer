@@ -1,9 +1,9 @@
 package io.github.fastformer.fastplace;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.interaction.InteractionUpdateScope;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.common.placement.InteractionUpdateScope;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

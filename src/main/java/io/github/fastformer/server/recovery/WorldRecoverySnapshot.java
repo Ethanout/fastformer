@@ -1,6 +1,6 @@
 package io.github.fastformer.server.recovery;
 
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.Objects;

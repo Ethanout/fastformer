@@ -12,21 +12,29 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
-final class QuickShapeServerMode extends ServerMode {
+final class QuickShapeServerMode extends ServerMode<QuickShapeDraft> {
    private final QuickShapeSystem shapes;
    private final java.util.function.Consumer<ServerPlayer> quit;
 
    QuickShapeServerMode(QuickShapeSystem shapes, java.util.function.Consumer<ServerPlayer> quit) {
-      super(BuiltinModes.QUICK_SHAPE, InteractionState.BUILDING);
+      super(BuiltinModes.QUICK_SHAPE, InteractionState.BUILDING, shapes);
       this.shapes = shapes;
       this.quit = quit;
    }
 
-   @Override public boolean active(ServerPlayer player) { return shapes.active(player); }
    @Override public boolean acceptsHeldItem(ServerPlayer player) { return shapes.acceptsHeldItem(player); }
-   @Override public void sync(ServerPlayer player) { shapes.sync(player); }
+   @Override protected void onOpen(ServerPlayer player, QuickShapeDraft draft) {
+      shapes.initialize(player, draft);
+   }
+   @Override protected void onPreview(ServerPlayer player, QuickShapeDraft draft) {
+      io.github.fastformer.server.sync.PreviewSync.syncPreview(player, draft);
+   }
 
-   @Override public boolean rightClickBlock(ServerPlayer player, BlockHitResult hit) {
+   @Override protected boolean onRightClickBlock(ServerPlayer player, QuickShapeDraft draft, BlockHitResult hit) {
+      return onIdleRightClickBlock(player, hit);
+   }
+
+   @Override protected boolean onIdleRightClickBlock(ServerPlayer player, BlockHitResult hit) {
       if (!acceptsHeldItem(player)) {
          quit.accept(player);
          return false;
@@ -35,11 +43,9 @@ final class QuickShapeServerMode extends ServerMode {
       return true;
    }
 
-   @Override public boolean rightClickItem(ServerPlayer player, BlockHitResult hit) {
+   @Override protected boolean onRightClickItem(ServerPlayer player, QuickShapeDraft draft, BlockHitResult hit) {
       if (hit.getType() == HitResult.Type.BLOCK) shapes.addPoint(player, hit);
       else {
-         QuickShapeDraft draft = shapes.session(player).orElse(null);
-         if (draft == null) return false;
          BlockPos first = draft.points().isEmpty() ? BlockPos.ZERO : draft.points().getFirst();
          BlockPos anchor = first.offset(draft.freeScrollOffset());
          shapes.addPoint(player, anchor, anchor);
@@ -47,14 +53,23 @@ final class QuickShapeServerMode extends ServerMode {
       return true;
    }
 
-   @Override public IntentResult cycle(ServerPlayer player, BlockPos lineCandidate) {
+   @Override protected boolean onIdleRightClickItem(ServerPlayer player, BlockHitResult hit) {
+      if (hit.getType() != HitResult.Type.BLOCK) return false;
+      shapes.addPoint(player, hit);
+      return true;
+   }
+
+   @Override protected IntentResult onCycle(ServerPlayer player, QuickShapeDraft draft, BlockPos lineCandidate) {
+      return onIdleCycle(player, lineCandidate);
+   }
+   @Override protected IntentResult onIdleCycle(ServerPlayer player, BlockPos lineCandidate) {
       shapes.cycleStageMode(player, lineCandidate);
       return IntentResult.success();
    }
 
-   @Override public void adjust(ServerPlayer player, int steps) { shapes.scrollContext(player, steps); }
-   @Override public IntentResult confirm(ServerPlayer player) {
-      if (!active(player)) return IntentResult.pass();
+   @Override protected void onAdjust(ServerPlayer player, QuickShapeDraft draft, int steps) { shapes.scrollContext(player, steps); }
+   @Override protected void onIdleAdjust(ServerPlayer player, int steps) { shapes.scrollContext(player, steps); }
+   @Override protected IntentResult onConfirm(ServerPlayer player, QuickShapeDraft draft) {
       shapes.fill(player);
       return IntentResult.success();
    }

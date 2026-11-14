@@ -12,23 +12,22 @@ import io.github.fastformer.server.gate.ServerOperationGates;
 import io.github.fastformer.server.selection.ClientPointValidator;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.common.selection.geometry.OperationGeometry;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.common.selection.OperationPointDragConstraint;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.server.session.slot.PlayerSessions;
-import io.github.fastformer.fastplace.session.OperationSession;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.common.selection.session.OperationSession;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.task.block.SubmittedWorkspaceTask;
 import io.github.fastformer.server.task.block.SelectionOperationTask;
 import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.input.ServerInputDispatcher;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.server.input.ServerInputActions;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -40,12 +39,14 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.slf4j.Logger;
 
-public final class OperationSystem implements io.github.fastformer.core.lifecycle.Scoped, io.github.fastformer.server.mode.ServerEditor {
+public final class OperationSystem implements io.github.fastformer.server.mode.ServerEditor<OperationSession> {
    private static final Logger LOGGER = LogUtils.getLogger();
-   final PlayerSessions<OperationSession> sessions = new PlayerSessions<>();
+   final PlayerSessions<OperationSession> sessions;
    private final SessionSystem runtime;
    OperationSystem(SessionSystem runtime) {
       this.runtime = runtime;
+      sessions = new PlayerSessions<>(net.minecraft.resources.ResourceLocation.parse("fastformer:selection"),
+         session -> io.github.fastformer.common.mode.BuiltinModes.SELECTION, runtime.eventStream()::publish);
    }
 
    public static OperationSystem of(ServerPlayer player) { return of(player.getServer()); }
@@ -54,6 +55,14 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    private OperationSession createSession(ServerPlayer player) {
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       return new OperationSession(settings.operationSelectionMode(), settings.sessionUndoHistoryLimit());
+   }
+
+   private OperationSession getOrOpen(ServerPlayer player) {
+      return session(player).orElseGet(() -> runtime.modes().selection().open(player, createSession(player)));
+   }
+
+   @Override public void activate(ServerPlayer player, OperationSession session) {
+      sessions.activate(player.getUUID(), session);
    }
 
    public void updateSessionHistoryLimit(ServerPlayer player, int historyLimit) {
@@ -106,7 +115,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    }
 
    public OperationSession startFirst(ServerPlayer player, BlockPos point) {
-      OperationSession session = sessions.getOrCreate(player.getUUID(), () -> createSession(player));
+      OperationSession session = getOrOpen(player);
       recordEdit(session, () -> {
          session.setFirst(point);
          return true;
@@ -117,7 +126,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    }
 
    public OperationSession startSecond(ServerPlayer player, BlockPos point) {
-      OperationSession session = sessions.getOrCreate(player.getUUID(), () -> createSession(player));
+      OperationSession session = getOrOpen(player);
       recordEdit(session, () -> {
          session.setSecond(point);
          return true;
@@ -427,11 +436,11 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
     *
     * @return the recorded state, or {@code UNKNOWN} when the ledger holds none
     */
-   public io.github.fastformer.workspace.submission.OperationSubmissionOutcome recordedOutcome(
+   public io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome recordedOutcome(
       ServerPlayer player, UUID transferId
    ) {
       if (player == null || transferId == null) {
-         return io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN;
+         return io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome.UNKNOWN;
       }
       return runtime.submissions().outcomeFor(
          player.getUUID(), player.serverLevel().dimension().location(), transferId
@@ -446,34 +455,34 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
     *
     * @return what happened to this admission
     */
-   public io.github.fastformer.workspace.submission.WorkspaceAdmission applyWorkspace(
+   public io.github.fastformer.common.workspace.submission.WorkspaceAdmission applyWorkspace(
       ServerPlayer player, UUID transferId, OperationWorkspacePlan plan
    ) {
       if (transferId == null || plan == null || plan.parts().isEmpty()) {
-         return io.github.fastformer.workspace.submission.WorkspaceAdmission.rejected();
+         return io.github.fastformer.common.workspace.submission.WorkspaceAdmission.rejected();
       }
       net.minecraft.resources.ResourceLocation dimension = player.serverLevel().dimension().location();
       var recorded = runtime.submissions().outcomeFor(
          player.getUUID(), dimension, transferId
       );
-      if (recorded != io.github.fastformer.workspace.submission.OperationSubmissionOutcome.UNKNOWN) {
+      if (recorded != io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome.UNKNOWN) {
          // This transfer already reached the server. A replay can arrive when a client
          // retries an upload that the server already accepted. Running the work again
          // would write the same blocks a second time, so the server starts no new task and
          // reports the state that it already holds.
-         return io.github.fastformer.workspace.submission.WorkspaceAdmission.replayed(recorded);
+         return io.github.fastformer.common.workspace.submission.WorkspaceAdmission.replayed(recorded);
       }
       if (!RecoverySystem.of(player.getServer()).writeGate().writesAllowed()) {
          // The write gate is closed for this server session, because a disk
          // journal could not be recovered safely. Refuse before the ledger begin so no
          // record claims this transfer was accepted. A later retry uses a new transfer.
          PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.recovery_journal_blocked"));
-         return io.github.fastformer.workspace.submission.WorkspaceAdmission.rejected();
+         return io.github.fastformer.common.workspace.submission.WorkspaceAdmission.rejected();
       }
       int maxPlacement = FastPlaceSettings.load(player).maxPlacement();
       if (operationBusy(player)) {
          PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.operation_task_running"));
-         return io.github.fastformer.workspace.submission.WorkspaceAdmission.rejected();
+         return io.github.fastformer.common.workspace.submission.WorkspaceAdmission.rejected();
       }
       SubmittedWorkspaceTask workspaceTask = new SubmittedWorkspaceTask(
          transferId,
@@ -489,7 +498,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
       recordAdmission(player.getUUID(), dimension, transferId);
       runtime.operationTasks().scheduleResume(player, workspaceTask);
       reportAdmissionFeedback(player);
-      return io.github.fastformer.workspace.submission.WorkspaceAdmission.newQueued();
+      return io.github.fastformer.common.workspace.submission.WorkspaceAdmission.newQueued();
    }
 
    /**
@@ -537,7 +546,7 @@ public final class OperationSystem implements io.github.fastformer.core.lifecycl
    }
 
    public void cancel(ServerPlayer player) {
-      ServerInputDispatcher.endOperationGestures(player);
+      ServerInputActions.endOperationGestures(player);
       OperationSession removed = sessions.end(player.getUUID());
       if (removed != null) {
          rememberSelectionMode(player, removed);

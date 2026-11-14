@@ -2,9 +2,9 @@ package io.github.fastformer.common.workspace.selection;
 
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.common.workspace.preview.Composition;
-import io.github.fastformer.common.workspace.preview.CompositionBudget;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.composition.Composition;
+import io.github.fastformer.common.workspace.composition.CompositionBudget;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.common.world.BlockPositionMaps;
 import java.util.Map;
@@ -26,9 +26,9 @@ public record SelectionBaseline(OperationSelectionVolume selection, WorkspaceTra
       if (!sameBounds(this.selection, currentSelection)) return false;
       if (this.transform.equals(candidate) && this.sourceSnapshot.equals(blocks)) return true;
       if (this.sourceSnapshot.isEmpty() || blocks.isEmpty()) return false;
-      Composition<BlockSnapshot> original = WorkspacePreviewComposer.composeSnapshots(
+      Composition<BlockSnapshot> original = WorkspaceComposer.composeSnapshots(
          this.sourceSnapshot, this.transform, CompositionBudget.INTERACTION);
-      Composition<BlockSnapshot> current = WorkspacePreviewComposer.composeSnapshots(
+      Composition<BlockSnapshot> current = WorkspaceComposer.composeSnapshots(
          blocks, candidate, CompositionBudget.INTERACTION);
       if (!(original instanceof Composition.Composed<BlockSnapshot> before)
          || !(current instanceof Composition.Composed<BlockSnapshot> after)) return false;

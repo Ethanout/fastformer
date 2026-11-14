@@ -1,18 +1,18 @@
 package io.github.fastformer.server.session;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.geometry.session.GeometrySession;
 import io.github.fastformer.common.interaction.InteractionState;
-import io.github.fastformer.fastplace.session.OperationSession;
+import io.github.fastformer.common.selection.session.OperationSession;
 import io.github.fastformer.server.player.PlayerStateRegistry;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -41,7 +41,7 @@ public final class SessionBoundaryGameTests {
          for (GeometryMode mode : GeometryMode.values()) {
             var draft = new GeometrySession();
             draft.setMode(mode);
-            system.geometry.sessions.activate(player.getUUID(), draft);
+            helper.assertTrue(system.modes().geometry(mode).open(player, draft) == draft, "open replaced typed draft");
             var registered = system.modes().active(player).orElseThrow();
             helper.assertTrue(registered.id().equals(BuiltinModes.geometry(mode)),
                "wrong geometry registration for " + mode);
@@ -68,9 +68,9 @@ public final class SessionBoundaryGameTests {
       var geometry = new GeometrySession();
       var shape = new QuickShapeDraft();
       shape.addPoint(helper.absolutePos(new BlockPos(2, 2, 2)), Vec3.ZERO, new Vec3(0, 0, 1));
-      system.quickShape.sessions.activate(player.getUUID(), shape);
-      system.operation.sessions.activate(player.getUUID(), selection);
-      system.geometry.sessions.activate(player.getUUID(), geometry);
+      system.modes().quickShape().open(player, shape);
+      system.modes().selection().open(player, selection);
+      system.modes().geometry(geometry.mode()).open(player, geometry);
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Blocks.STONE));
       try {
          var previousMode = selection.selectionMode();
@@ -127,9 +127,9 @@ public final class SessionBoundaryGameTests {
       var shape = new QuickShapeDraft();
       var selection = new OperationSession(OperationSelectionMode.CUBOID, 10);
       var geometry = new GeometrySession();
-      system.quickShape.sessions.activate(owner, shape);
-      system.operation.sessions.activate(owner, selection);
-      system.geometry.sessions.activate(owner, geometry);
+      system.modes().quickShape().open(player, shape);
+      system.modes().selection().open(player, selection);
+      system.modes().geometry(geometry.mode()).open(player, geometry);
       system.setModifierHeld(player, true);
       try {
          system.handleDimensionChange(player, source, Level.NETHER);
@@ -142,6 +142,38 @@ public final class SessionBoundaryGameTests {
          helper.assertTrue(system.quickShape.sessions.active(owner) == shape, "source shape was not restored");
          helper.assertTrue(system.operation.sessions.active(owner) == selection, "source selection was not restored");
          helper.assertTrue(system.geometry.sessions.active(owner) == geometry, "source geometry was not restored");
+      } finally {
+         system.discardPlayer(player);
+         PlayerStateRegistry.detach(player);
+      }
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty")
+   public static void detachRetainsEveryTypedDraftAndItsParkedDimension(GameTestHelper helper) {
+      var player = helper.makeMockServerPlayerInLevel();
+      var system = SessionSystem.of(player);
+      var owner = player.getUUID();
+      var shape = new QuickShapeDraft();
+      var selection = new OperationSession(OperationSelectionMode.CUBOID, 10);
+      var geometry = new GeometrySession();
+      PlayerStateRegistry.attach(player);
+      try {
+         system.modes().quickShape().open(player, shape);
+         system.modes().selection().open(player, selection);
+         system.modes().geometry(geometry.mode()).open(player, geometry);
+         system.handleDimensionChange(player, player.level().dimension(), Level.NETHER);
+         var parkedShape = new QuickShapeDraft();
+         system.modes().quickShape().open(player, parkedShape);
+         SessionSystem.detachPlayer(player);
+         helper.assertTrue(system.modes().quickShape().session(player).orElseThrow() == parkedShape, "detach removed current draft");
+         helper.assertTrue(system.quickShape.sessions.parked(owner, player.level().dimension()) == shape, "detach removed parked quick shape");
+         helper.assertTrue(system.operation.sessions.parked(owner, player.level().dimension()) == selection, "detach removed parked selection");
+         helper.assertTrue(system.geometry.sessions.parked(owner, player.level().dimension()) == geometry, "detach removed parked geometry");
+         system.handleDimensionChange(player, Level.NETHER, player.level().dimension());
+         helper.assertTrue(system.modes().quickShape().session(player).orElseThrow() == shape, "rebind replaced quick shape");
+         helper.assertTrue(system.modes().selection().session(player).orElseThrow() == selection, "rebind replaced selection");
+         helper.assertTrue(system.modes().geometry(geometry.mode()).session(player).orElseThrow() == geometry, "rebind replaced geometry");
       } finally {
          system.discardPlayer(player);
          PlayerStateRegistry.detach(player);

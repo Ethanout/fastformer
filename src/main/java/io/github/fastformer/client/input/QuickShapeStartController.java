@@ -25,6 +25,13 @@ final class QuickShapeStartController {
    static boolean capture(Minecraft minecraft, ClientInputSession session, BlockHitResult hit, long anchorToken,
       int button, boolean embedded, boolean throughFluids, net.minecraft.world.phys.Vec3 eye, net.minecraft.world.phys.Vec3 view,
       net.minecraft.resources.ResourceLocation profile) {
+      return capture(minecraft, session, hit, anchorToken, button, embedded, throughFluids, eye, view, profile,
+         button == MouseButtonInputSemantics.MIDDLE_BUTTON);
+   }
+
+   static boolean capture(Minecraft minecraft, ClientInputSession session, BlockHitResult hit, long anchorToken,
+      int button, boolean embedded, boolean throughFluids, net.minecraft.world.phys.Vec3 eye, net.minecraft.world.phys.Vec3 view,
+      net.minecraft.resources.ResourceLocation profile, boolean middleEntry) {
       if (hit == null
          || session.routing.state() != ClientInputStateMachine.State.IDLE || ClientSessionSystem.instance().operations().active()
          || !ServerGateway.supports(minecraft, StartPlacementPayload.TYPE)
@@ -35,7 +42,7 @@ final class QuickShapeStartController {
       session.postStartPlacement(new StartPlacementPayload.Target(idle.revision(), idle.callbackScope(),
          hit,
          eye, view, anchorToken, embedded,
-         button == MouseButtonInputSemantics.MIDDLE_BUTTON, throughFluids, profile));
+         middleEntry, throughFluids, profile));
       return true;
    }
 

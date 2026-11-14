@@ -2,14 +2,14 @@ package io.github.fastformer.server.network.upload;
 
 import io.github.fastformer.server.session.SessionSystem;
 
-import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
+import io.github.fastformer.protocol.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.protocol.upload.UploadChunk;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
-import io.github.fastformer.workspace.submission.WorkspaceAdmission;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.WorkspaceAdmission;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.Executor;
@@ -84,7 +84,7 @@ public final class WorkspaceUploads implements AutoCloseable {
          receipts.admission(player, transfer, WorkspaceAdmission.replayed(recorded));
          return false;
       }
-      if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player)
+      if (!ServerInputActions.canOperate(player) || ServerInputActions.interactionBlocked(player)
          || decodes.busy(player.getUUID())) {
          incoming.forget(player.getUUID());
          receipts.failAdmission(player, transfer);
@@ -109,7 +109,7 @@ public final class WorkspaceUploads implements AutoCloseable {
             }
             if (error != null) { receipts.failAdmission(player, transfer); return; }
             try {
-               var admission = ServerInputDispatcher.applyWorkspace(player, transfer, plan);
+               var admission = ServerInputActions.applyWorkspace(player, transfer, plan);
                if (kind == UploadKind.SHAPE && admission.isQueued()) SessionSystem.of(player).cancelEditing(player);
                receipts.admission(player, transfer, admission);
             } catch (RuntimeException failure) {

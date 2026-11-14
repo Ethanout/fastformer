@@ -36,7 +36,7 @@ public class ReachCommandGameTests {
       var reach = player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE);
       var entity = player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.ENTITY_INTERACTION_RANGE);
       double originalEntity = entity.getBaseValue();
-      io.github.fastformer.fastplace.settings.PlayerBlockReach.initialize(player);
+      io.github.fastformer.server.player.PlayerBlockReach.initialize(player);
       helper.assertTrue(reach.getBaseValue() == 20, "default block range was not 20");
       var dispatcher = new CommandDispatcher<CommandSourceStack>();
       dispatcher.register(ReachCommand.create());
@@ -45,14 +45,14 @@ public class ReachCommandGameTests {
       helper.assertTrue(reach.getBaseValue() == 7, "reach command did not write the vanilla base attribute");
       dispatcher.execute("reach", source);
       helper.assertTrue(reach.getBaseValue() == 7, "query changed the range");
-      io.github.fastformer.fastplace.settings.PlayerBlockReach.initialize(player);
+      io.github.fastformer.server.player.PlayerBlockReach.initialize(player);
       helper.assertTrue(reach.getBaseValue() == 7, "login initialization overwrote a configured range");
       reach.setBaseValue(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE.value().getDefaultValue());
-      io.github.fastformer.fastplace.settings.PlayerBlockReach.initialize(player);
+      io.github.fastformer.server.player.PlayerBlockReach.initialize(player);
       helper.assertTrue(reach.getBaseValue() != 20, "login initialization overwrote an intentional vanilla attribute value");
       dispatcher.execute("reach 9", source);
       var replacement = helper.makeMockServerPlayerInLevel();
-      io.github.fastformer.fastplace.settings.PlayerBlockReach.copy(player, replacement);
+      io.github.fastformer.server.player.PlayerBlockReach.copy(player, replacement);
       helper.assertTrue(replacement.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE).getBaseValue() == 9,
          "player replacement lost the configured range");
       helper.assertTrue(entity.getBaseValue() == originalEntity, "block reach changed entity reach");

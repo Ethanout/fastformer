@@ -12,18 +12,29 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 class RemoteSelectionPointRequestTest {
+   @Test void newerRevisionAndDifferentCallbackScopeRejectTheSameSelectionIdentity() {
+      UUID owner = UUID.randomUUID();
+      var scope = new io.github.fastformer.protocol.callback.OperationCallbackScope(owner,
+         net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID());
+      var request = new RemoteSelectionPointRequest(owner, OperationSelectionMode.CUBOID, identity(BlockPos.ZERO),
+         OperationPointPayload.Role.SECOND, 12L, scope);
+      assertTrue(request.matches(owner, OperationSelectionMode.CUBOID, identity(BlockPos.ZERO), 12L, scope));
+      assertFalse(request.matches(owner, OperationSelectionMode.CUBOID, identity(BlockPos.ZERO), 13L, scope));
+      assertFalse(request.matches(owner, OperationSelectionMode.CUBOID, identity(BlockPos.ZERO), 12L,
+         io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
+   }
    @Test
    void changedOrRemovedServerSelectionRejectsQueuedPoint() {
       UUID owner = UUID.randomUUID();
       var original = identity(BlockPos.ZERO);
       var request = new RemoteSelectionPointRequest(owner, OperationSelectionMode.CUBOID, original,
-         OperationPointPayload.Role.SECOND);
-      assertTrue(request.matches(owner, OperationSelectionMode.CUBOID, identity(BlockPos.ZERO)));
-      assertFalse(request.matches(owner, OperationSelectionMode.CUBOID, identity(new BlockPos(1, 0, 0))));
-      assertFalse(request.matches(owner, OperationSelectionMode.CUBOID, null));
+         OperationPointPayload.Role.SECOND, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped());
+      assertTrue(request.matches(owner, OperationSelectionMode.CUBOID, identity(BlockPos.ZERO), 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
+      assertFalse(request.matches(owner, OperationSelectionMode.CUBOID, identity(new BlockPos(1, 0, 0)), 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
+      assertFalse(request.matches(owner, OperationSelectionMode.CUBOID, null, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
       var initial = new RemoteSelectionPointRequest(owner, OperationSelectionMode.CUBOID, null,
-         OperationPointPayload.Role.FIRST);
-      assertFalse(initial.matches(owner, OperationSelectionMode.CUBOID, original));
+         OperationPointPayload.Role.FIRST, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped());
+      assertFalse(initial.matches(owner, OperationSelectionMode.CUBOID, original, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
    }
 
    private static OperationDraftIdentity identity(BlockPos point) {
@@ -35,9 +46,9 @@ class RemoteSelectionPointRequestTest {
    void modeChangeRejectsAnOtherwiseMatchingRequest() {
       UUID owner = UUID.randomUUID();
       var request = new RemoteSelectionPointRequest(owner, OperationSelectionMode.CUBOID, null,
-         OperationPointPayload.Role.FIRST);
-      assertTrue(request.matches(owner, OperationSelectionMode.CUBOID, null));
-      assertFalse(request.matches(owner, OperationSelectionMode.PRISM, null));
-      assertFalse(request.matches(UUID.randomUUID(), OperationSelectionMode.CUBOID, null));
+         OperationPointPayload.Role.FIRST, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped());
+      assertTrue(request.matches(owner, OperationSelectionMode.CUBOID, null, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
+      assertFalse(request.matches(owner, OperationSelectionMode.PRISM, null, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
+      assertFalse(request.matches(UUID.randomUUID(), OperationSelectionMode.CUBOID, null, 0L, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
    }
 }

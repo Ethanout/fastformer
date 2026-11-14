@@ -4,7 +4,7 @@ import io.github.fastformer.client.session.draft.ClientOperationDraftCodec;
 import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import io.github.fastformer.client.session.storage.ClientStorageNbt;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;

@@ -133,6 +133,43 @@ class BindingSystemTest {
       assertTrue(calls.isEmpty());
    }
 
+   @Test void deferredReplayCanCompleteADoubleOnlyWithinTheOriginalPressWindow() {
+      BindingSystem system = doubleAndHoldSystem();
+      assertTrue(system.onButton(1, "right", true, PRESS, IDLE, commands));
+      assertTrue(system.onButton(1, "right", false, PRESS + 80_000_000L, IDLE, commands));
+      assertTrue(system.onButton(1, "right", true, PRESS + 190_000_000L, IDLE, commands));
+      assertEquals(List.of("replay:" + PRESS, "cancel"), calls);
+
+      calls.clear();
+      system.reset();
+      system.onButton(1, "right", true, PRESS, IDLE, commands);
+      system.onButton(1, "right", false, PRESS + 80_000_000L, IDLE, commands);
+      system.onButton(1, "right", true, PRESS + 250_000_000L, IDLE, commands);
+      assertEquals(List.of("replay:" + PRESS), calls);
+      assertTrue(system.active(), "an expired second click is a fresh deferred hold");
+   }
+
+   @Test void aStartedHoldCannotBecomeTheFirstPressOfADouble() {
+      BindingSystem system = doubleAndHoldSystem();
+      system.onButton(1, "right", true, PRESS, IDLE, commands);
+      system.tick(PRESS + 200_000_000L);
+      system.onButton(1, "right", false, PRESS + 210_000_000L, IDLE, commands);
+      system.onButton(1, "right", true, PRESS + 220_000_000L, IDLE, commands);
+      assertEquals(List.of("start"), calls);
+   }
+
+   private BindingSystem doubleAndHoldSystem() {
+      BindingFile file = BindingFile.parse(JsonParser.parseString("""
+         {"bindings":[
+          {"id":"fastformer:double","context":{"session":"fastformer:idle"},
+           "input":{"button":"right","gesture":"double","window_ms":200},"action":"fastformer:session/cancel"},
+          {"id":"fastformer:hold","context":{"session":"fastformer:idle"},
+           "input":{"button":"right","gesture":"hold","duration_ms":200,"hold_start":"deferred"},
+           "action":"fastformer:quick_shape/start"}]}
+         """));
+      return io.github.fastformer.testkit.BindingFixtures.system(file);
+   }
+
    private BindingSystem system(boolean enabled) {
       BindingFile file = BindingFile.parse(JsonParser.parseString("""
          {"option":"fastformer:hold_line","bindings":[

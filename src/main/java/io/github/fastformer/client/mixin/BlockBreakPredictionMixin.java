@@ -2,7 +2,7 @@ package io.github.fastformer.client.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import io.github.fastformer.fastplace.interaction.InteractionUpdateScope;
+import io.github.fastformer.client.interaction.ClientInteractionUpdates;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.core.BlockPos;
@@ -17,6 +17,6 @@ public abstract class BlockBreakPredictionMixin {
    @WrapMethod(method = "destroyBlock")
    private boolean fastformer$predictWithUpdatePolicy(BlockPos pos, Operation<Boolean> original) {
       if (minecraft.level == null) return original.call(pos);
-      return InteractionUpdateScope.interact(minecraft.level, minecraft.player, () -> original.call(pos));
+      return ClientInteractionUpdates.interact(minecraft.level, minecraft.player, () -> original.call(pos));
    }
 }

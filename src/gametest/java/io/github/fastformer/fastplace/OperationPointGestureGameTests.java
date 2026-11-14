@@ -12,7 +12,7 @@ import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.c2s.operation.OperationPointClickPayload;
 import io.github.fastformer.protocol.c2s.operation.OperationPointDragPayload;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -41,12 +41,12 @@ public final class OperationPointGestureGameTests {
 
       helper.succeedWhen(() -> {
          ready(helper, player);
-         ServerInputDispatcher.operationPointDrag(player, start);
-         ServerInputDispatcher.operationPointDrag(player, finish);
-         ServerInputDispatcher.operationPointClick(player, remove);
+         ServerInputActions.operationPointDrag(player, start);
+         ServerInputActions.operationPointDrag(player, finish);
+         ServerInputActions.operationPointClick(player, remove);
          helper.assertTrue(points(player) == 2, "the completed drag did not remove its point");
-         ServerInputDispatcher.operationPointDrag(player, finish);
-         ServerInputDispatcher.operationPointClick(player, remove);
+         ServerInputActions.operationPointDrag(player, finish);
+         ServerInputActions.operationPointClick(player, remove);
          helper.assertTrue(points(player) == 2, "a replayed finish authorized another removal");
          OperationSystem.of(player).cancel(player);
       });
@@ -67,14 +67,14 @@ public final class OperationPointGestureGameTests {
 
       helper.succeedWhen(() -> {
          ready(helper, player);
-         ServerInputDispatcher.operationPointDrag(player, start);
-         ServerInputDispatcher.operationPointDrag(player, changedPoint);
-         ServerInputDispatcher.operationPointDrag(player, changedRevision);
-         ServerInputDispatcher.operationPointDrag(player, finish);
-         ServerInputDispatcher.operationPointClick(player, wrongPoint);
-         ServerInputDispatcher.operationPointClick(player, wrongRevision);
+         ServerInputActions.operationPointDrag(player, start);
+         ServerInputActions.operationPointDrag(player, changedPoint);
+         ServerInputActions.operationPointDrag(player, changedRevision);
+         ServerInputActions.operationPointDrag(player, finish);
+         ServerInputActions.operationPointClick(player, wrongPoint);
+         ServerInputActions.operationPointClick(player, wrongRevision);
          helper.assertTrue(points(player) == 3, "a changed gesture removed a point");
-         ServerInputDispatcher.operationPointClick(player, valid);
+         ServerInputActions.operationPointClick(player, valid);
          helper.assertTrue(points(player) == 2, "a rejected gesture consumed the valid completion");
          OperationSystem.of(player).cancel(player);
       });
@@ -90,18 +90,18 @@ public final class OperationPointGestureGameTests {
 
       helper.succeedWhen(() -> {
          ready(helper, player);
-         ServerInputDispatcher.operationPointDrag(player, oldFinish);
+         ServerInputActions.operationPointDrag(player, oldFinish);
          OperationSystem.of(player).cancel(player);
          preparePrism(player, helper.absolutePos(new BlockPos(8, 5, 1)));
-         ServerInputDispatcher.operationPointClick(player, oldRemove);
+         ServerInputActions.operationPointClick(player, oldRemove);
          helper.assertTrue(points(player) == 3, "a replaced prism accepted the old completion");
 
          long revision = PreviewSync.operationRevision(player);
          OperationPointDragPayload finish = finish(2L, revision, scope, 1, point(player, 1));
          OperationPointClickPayload remove = remove(2L, revision, scope, 1);
-         ServerInputDispatcher.operationPointDrag(player, finish);
+         ServerInputActions.operationPointDrag(player, finish);
          OperationSystem.of(player).addSelectionPoint(player, helper.absolutePos(new BlockPos(12, 5, 5)));
-         ServerInputDispatcher.operationPointClick(player, remove);
+         ServerInputActions.operationPointClick(player, remove);
          helper.assertTrue(points(player) == 4, "a later operation accepted an old completion");
          OperationSystem.of(player).cancel(player);
       });
@@ -119,8 +119,8 @@ public final class OperationPointGestureGameTests {
 
       helper.succeedWhen(() -> {
          ready(helper, player);
-         ServerInputDispatcher.operationPointDrag(player, finish);
-         ServerInputDispatcher.operationPointClick(player, close);
+         ServerInputActions.operationPointDrag(player, finish);
+         ServerInputActions.operationPointClick(player, close);
          helper.assertTrue(
             OperationSystem.of(player).session(player).orElseThrow().prismBaseClosed(),
             "a nonzero control point did not close the prism base"
@@ -189,7 +189,7 @@ public final class OperationPointGestureGameTests {
    }
 
    private static void ready(GameTestHelper helper, ServerPlayer player) {
-      helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for the write gate");
-      helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for the operation input gate");
+      helper.assertTrue(ServerInputActions.canOperate(player), "waiting for the write gate");
+      helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for the operation input gate");
    }
 }

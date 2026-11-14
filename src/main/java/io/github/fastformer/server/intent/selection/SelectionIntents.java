@@ -4,7 +4,7 @@ import io.github.fastformer.core.command.Intent;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.selection.OperationPointDragConstraint;
 import net.minecraft.core.BlockPos;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import java.util.Objects;
 
 /** Selection actions shared by command and input entry points. */

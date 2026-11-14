@@ -27,9 +27,11 @@ import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.client.render.theme.VisualThemes;
+import io.github.fastformer.client.preview.style.GeometryPalette;
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.minecraft.world.phys.HitResult;
@@ -39,8 +41,9 @@ import net.minecraft.world.phys.HitResult;
 public final class ClientPreviewFrameSystem {
    private ClientPreviewFrameSystem() {}
 
-   @SubscribeEvent
+   @SubscribeEvent(priority = EventPriority.HIGHEST)
    public static void beginFrame(RenderFrameEvent.Pre event) {
+      GeometryPalette.beginFrame();
       PreviewAnimation.advance(System.nanoTime(), VisualThemes.value("boil_fps", 8),
          (int)VisualThemes.value("boil_sheets", 3));
       Minecraft minecraft = Minecraft.getInstance();
@@ -77,14 +80,13 @@ public final class ClientPreviewFrameSystem {
          : null;
    }
 
-   private static long renderedThemeRevision = -1;
+   @SubscribeEvent(priority = EventPriority.LOWEST)
+   public static void endFrame(RenderFrameEvent.Post event) { GeometryPalette.endFrame(); }
+
+   private static final ThemeResourceInvalidation THEME_RESOURCES = new ThemeResourceInvalidation();
    private static void updateTheme(ClientSessionSystem sessions) {
-      long revision = VisualThemes.revision();
-      if (renderedThemeRevision == revision) return;
-      sessions.inputSession().invalidateGeometryPlan();
-      ClientPreviewSystem.instance().invalidateResources();
-      SmoothReticlePostEffect.reloadResources();
-      renderedThemeRevision = revision;
+      THEME_RESOURCES.update(VisualThemes.revision(), sessions.inputSession()::invalidateGeometryPlan,
+         ClientPreviewSystem.instance()::invalidateResources, SmoothReticlePostEffect::reloadResources);
    }
 
    public static void captureVisualFrame(Minecraft minecraft, long now) {

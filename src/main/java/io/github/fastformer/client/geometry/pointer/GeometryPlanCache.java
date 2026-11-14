@@ -1,7 +1,7 @@
 package io.github.fastformer.client.geometry.pointer;
 
 import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.workflow.GeometryWorkflows;
+import io.github.fastformer.common.geometry.workflow.GeometryWorkflows;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;

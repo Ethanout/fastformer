@@ -19,7 +19,7 @@ import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
@@ -294,7 +294,7 @@ public final class WorkspacePointerResolver {
          resolvedCacheRevision = revision;
          resolvedCacheOwner = selection.interactionOwnerId();
       }
-      return resolvedCache.computeIfAbsent(part, WorkspacePreviewComposer::resolveForRendering);
+      return resolvedCache.computeIfAbsent(part, WorkspaceComposer::resolveForRendering);
    }
 
    /** Resolves the portion still visible after a rejected workspace submission. */

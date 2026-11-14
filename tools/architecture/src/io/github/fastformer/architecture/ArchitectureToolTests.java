@@ -25,11 +25,46 @@ public final class ArchitectureToolTests {
         hudBoundaryReadsSemanticReferences();
         gestureBoundariesReadSemanticReferences();
         clientTransportBoundaryReadsSemanticReferences();
+        worldWriteBoundariesKeepOnlySnapshotReplayPrimitives();
         exemptsOnlyTheExplicitFaceRasterEntryName();
         requiresDocumentedReasonForSingletonApiPackages();
         baselineNeverAcceptsUnlistedEdges();
         exercisesCommandFailureAndReport();
-        System.out.println("Architecture tool: 12 test groups passed");
+        System.out.println("Architecture tool: 13 test groups passed");
+    }
+
+    private static void worldWriteBoundariesKeepOnlySnapshotReplayPrimitives() throws Exception {
+        String root = "io.github.fastformer.";
+        String entry = root + "server.history.entry.Fixture";
+        String leases = root + "server.worldwrite.Fixture";
+        String block = root + "server.worldwrite.transaction.Fixture";
+        Path sources = Files.createTempDirectory("fastformer-world-write-boundary-");
+        try {
+            for (String snapshot : Set.of("ReversibleBlockSnapshot", "BlockEntitySnapshot")) {
+                String target = root + "server.worldwrite.snapshot." + snapshot;
+                require(!ArchitectureRules.strictBoundary(entry, target), "Replay entry must accept its snapshot primitive");
+            }
+            for (String capability : Set.of("transaction.WorldChangeTransaction", "transaction.WorldOperationCommit",
+                    "transaction.BlockEditTransaction", "WorldWriteLeases", "snapshot.ReversibleBlockSnapshotExtra")) {
+                String target = root + "server.worldwrite." + capability;
+                Map<String, Set<String>> references = new TreeMap<>();
+                BytecodeDependencies.read(fixture(entry.replace('.', '/'), target.replace('.', '/')), references);
+                require(ArchitectureRules.inspect(references, sources).strict().contains("boundary|" + entry + " -> " + target),
+                        "History entry must not acquire transaction, lease, commit, or similarly named capabilities");
+            }
+            for (String target : Set.of(root + "server.worldwrite.snapshot.ReversibleBlockSnapshot",
+                    root + "server.recovery.JournalPreparation", root + "server.history.HistoryService")) {
+                require(ArchitectureRules.strictBoundary(leases, target), "Lease capability must remain independent of block and journal orchestration");
+            }
+            require(!ArchitectureRules.strictBoundary(block, root + "server.recovery.JournalPreparation"),
+                    "Transactional block writers own their journal boundary");
+            require(ArchitectureRules.strictBoundary(block, root + "server.session.SessionSystem"),
+                    "Transactional block writers must not call feature assembly");
+            for (String part : Set.of("snapshot", "transaction", "effect")) {
+                require(ArchitectureRules.strictBoundary(root + "server.worldwrite." + part + ".Fixture",
+                        root + "server.session.SessionSystem"), "Every world-write primitive must reject feature assembly");
+            }
+        } finally { deleteFixture(sources); }
     }
 
     private static void readsSemanticReferences() {

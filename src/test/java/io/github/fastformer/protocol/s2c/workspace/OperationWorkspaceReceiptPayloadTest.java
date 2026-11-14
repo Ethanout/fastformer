@@ -2,7 +2,7 @@ package io.github.fastformer.protocol.s2c.workspace;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import io.netty.buffer.Unpooled;
 import java.util.List;
 import java.util.UUID;

@@ -16,7 +16,7 @@ import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import io.github.fastformer.client.operation.render.SourceBlockRenderMask;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
 import io.github.fastformer.client.operation.selection.ClientSelectionState;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.common.selection.OperationStackRegion;
@@ -452,7 +452,7 @@ class OperationContextTest {
       assertEquals(2, updated.transform().repeatStride().getX());
       // One step adds one original cell.
       assertEquals(2, updated.transform().repeats().max().getX());
-      Set<BlockPos> preview = WorkspacePreviewComposer.resolve(updated).keySet();
+      Set<BlockPos> preview = WorkspaceComposer.resolve(updated).keySet();
       assertEquals(6, preview.size());
       for (int x = 0; x <= 5; x++) {
          assertTrue(preview.contains(new BlockPos(x, 0, 0)), "missing x=" + x);
@@ -554,7 +554,7 @@ class OperationContextTest {
 
    private static void beginSubmission(OperationContext operations) {
       var part = operations.workspace().parts().getFirst();
-      var plan = new io.github.fastformer.workspace.submission.OperationWorkspacePlan.Part(
+      var plan = new io.github.fastformer.common.workspace.submission.OperationWorkspacePlan.Part(
          part.id(), part.source(), part.blocks(), part.transform(), false);
       assertTrue(operations.submissions().submit(List.of(plan),
          new io.github.fastformer.client.operation.submission.SubmissionScope.WholeWorkspace()).accepted());

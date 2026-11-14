@@ -10,7 +10,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
-import io.github.fastformer.workspace.submission.WorkspaceFailure;
+import io.github.fastformer.common.workspace.submission.WorkspaceFailure;
 
 public record OperationWorkspaceResultPayload(
    UUID transferId,

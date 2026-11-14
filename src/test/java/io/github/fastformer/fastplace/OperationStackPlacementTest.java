@@ -2,16 +2,16 @@ package io.github.fastformer.fastplace;
 
 import io.github.fastformer.core.math.Axis;
 
-import io.github.fastformer.workspace.submission.OperationExecutionSemantics;
+import io.github.fastformer.common.workspace.submission.SourceClearingRules;
 
 import io.github.fastformer.common.selection.OperationStackRegion;
 
 import io.github.fastformer.common.selection.OperationMode;
 
-import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.common.geometry.workflow.*;
+import io.github.fastformer.common.geometry.workflow.plan.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -57,19 +57,19 @@ class OperationStackPlacementTest {
    void moveThenStackStillMovesTheOriginalSourceWhenNotCopying() {
       assertEquals(
          true,
-         OperationExecutionSemantics.clearsSource(
+         SourceClearingRules.clearsSource(
             OperationMode.STACK, new BlockPos(5, 0, 0), false
          )
       );
       assertEquals(
          false,
-         OperationExecutionSemantics.clearsSource(
+         SourceClearingRules.clearsSource(
             OperationMode.STACK, BlockPos.ZERO, false
          )
       );
       assertEquals(
          false,
-         OperationExecutionSemantics.clearsSource(
+         SourceClearingRules.clearsSource(
             OperationMode.MOVE, new BlockPos(5, 0, 0), true
          )
       );

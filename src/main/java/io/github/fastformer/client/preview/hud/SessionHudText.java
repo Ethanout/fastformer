@@ -1,6 +1,7 @@
 package io.github.fastformer.client.preview.hud;
 
 import io.github.fastformer.client.preview.style.GeometryPalette;
+import java.util.List;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.common.quickshape.mode.LineMode;
 import io.github.fastformer.common.quickshape.mode.PolygonVolumeShape;
@@ -38,10 +39,20 @@ public final class SessionHudText {
 
    public static MutableComponent idle(boolean emptyHand, boolean placeable, LineMode lineMode, OperationSelectionMode selectionMode) {
       if (emptyHand || !placeable) return selectionModes(label("fastformer.hud.selection_label"), selectionMode);
+      return quickShapeLineStatus(lineMode);
+   }
+
+   private static MutableComponent quickShapeLineStatus(LineMode lineMode) {
       var status = label("fastformer.hud.quick_shape_label");
       separator(status);
       appendModes(status, LineMode.values(), lineMode);
       return status;
+   }
+
+   public static MutableComponent idle(boolean emptyHand, boolean placeable, LineMode lineMode,
+      List<SelectionToolDisplay> tools, SelectionToolDisplay selected) {
+      return emptyHand || !placeable ? selectionTools(label("fastformer.hud.selection_label"), tools, selected)
+         : quickShapeLineStatus(lineMode);
    }
 
    public static MutableComponent selection(boolean localWorkspace, boolean localDraft, boolean ready,
@@ -52,6 +63,31 @@ public final class SessionHudText {
       if (!confirmed) return selectionModes(status, selectionMode);
       separator(status);
       appendModes(status, OperationStageMode.values(), stageMode);
+      return status;
+   }
+
+   public static MutableComponent selection(boolean localWorkspace, boolean localDraft, boolean ready,
+      List<SelectionToolDisplay> tools, SelectionToolDisplay selected, OperationStageMode stageMode) {
+      boolean confirmed = !localWorkspace && !localDraft && ready;
+      if (confirmed) {
+         var status = label("fastformer.hud.operation_label");
+         separator(status);
+         appendModes(status, OperationStageMode.values(), stageMode);
+         return status;
+      }
+      return selectionTools(label(localWorkspace && !localDraft ? "fastformer.hud.operation_label" : "fastformer.hud.selection_label"), tools, selected);
+   }
+
+   private static MutableComponent selectionTools(MutableComponent status, List<SelectionToolDisplay> tools, SelectionToolDisplay selected) {
+      separator(status);
+      var shown = new java.util.ArrayList<>(tools);
+      if (!shown.contains(selected)) shown.add(selected);
+      for (int index = 0; index < shown.size(); index++) {
+         if (index > 0) status.append(Component.literal(" / ").withStyle(ChatFormatting.DARK_GRAY));
+         var tool = shown.get(index);
+         status.append(Component.translatableWithFallback(tool.translationKey(), tool.id().toString()).withStyle(
+            tool.id().equals(selected.id()) ? GeometryPalette.accent().style() : GeometryPalette.muted().style()));
+      }
       return status;
    }
 

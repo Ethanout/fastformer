@@ -6,8 +6,8 @@ import io.github.fastformer.common.quickshape.QuickShapeDraft;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.session.QuickShapeSystem;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.settings.FastPlaceSettings;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.common.quickshape.mode.FaceMode;
 import io.github.fastformer.common.quickshape.mode.LineMode;
 import net.minecraft.core.BlockPos;
@@ -67,9 +67,9 @@ public final class QuickShapeSubmissionGameTests {
       session.addPoint(first.offset(3, 0, 0), player.getEyePosition(), player.getViewVector(1.0F));
       var confirmed = java.util.List.copyOf(session.points());
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for the write gate");
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "unexpected input gate");
-         ServerInputDispatcher.quickShape(player);
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for the write gate");
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), "unexpected input gate");
+         ServerInputActions.quickShape(player);
          helper.assertTrue(QuickShapeSystem.of(player).active(player), "middle ended the polygon draft");
          helper.assertTrue(confirmed.equals(session.points()), "middle changed polygon points");
          helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "middle submitted the polygon");
@@ -122,15 +122,15 @@ public final class QuickShapeSubmissionGameTests {
       session.setFreeScrollOffset(new BlockPos(2, 0, 0));
       io.github.fastformer.server.sync.PreviewSync.syncPreview(player, session);
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for the write gate");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for the write gate");
          if (QuickShapeSystem.of(player).active(player)) {
-            ServerInputDispatcher.confirmQuickShape(player,
+            ServerInputActions.confirmQuickShape(player,
                new io.github.fastformer.protocol.c2s.placement.QuickShapeConfirmPayload(40, oldRevision, scope));
             helper.assertTrue(QuickShapeSystem.of(player).active(player), "stale request ended the newer draft");
             helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "stale request created a world task");
             helper.assertTrue(helper.getLevel().getBlockState(first).isAir(), "stale request wrote the world");
             long revision = io.github.fastformer.server.sync.PreviewSync.buildingRevision(player);
-            ServerInputDispatcher.confirmQuickShape(player,
+            ServerInputActions.confirmQuickShape(player,
                new io.github.fastformer.protocol.c2s.placement.QuickShapeConfirmPayload(41, revision, scope));
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "current request was not admitted");
          }

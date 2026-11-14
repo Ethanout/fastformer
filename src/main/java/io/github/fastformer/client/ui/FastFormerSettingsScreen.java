@@ -2,8 +2,8 @@ package io.github.fastformer.client.ui;
 
 import io.github.fastformer.common.history.CompressionSetting;
 
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.client.network.outbound.ServerGateway;
 import io.github.fastformer.protocol.settings.SettingKey;
 import io.github.fastformer.protocol.c2s.settings.SettingPayload;
@@ -12,8 +12,8 @@ import io.github.fastformer.protocol.settings.SettingsKeys;
 import io.github.fastformer.protocol.settings.PlacementEffectValue;
 import io.github.fastformer.common.history.HistoryCompressionLimits;
 import net.minecraft.client.gui.components.Tooltip;
-import io.github.fastformer.fastplace.placement.effect.PlacementEffect;
-import io.github.fastformer.fastplace.placement.effect.PlacementEffectRegistry;
+import io.github.fastformer.common.placement.effect.PlacementEffect;
+import io.github.fastformer.common.placement.effect.PlacementEffectRegistry;
 import io.github.fastformer.client.FastFormerClientConfig;
 import io.github.fastformer.client.preview.style.GeometryPalette;
 import java.util.HashMap;
@@ -387,11 +387,12 @@ public final class FastFormerSettingsScreen extends Screen {
    }
 
    private Component themeLabel() {
-      return Component.translatable(GeometryPalette.theme().translationKey());
+      var theme = GeometryPalette.snapshot().selected();
+      return Component.translatableWithFallback(theme.translationKey(), theme.id().toString());
    }
 
    private void cycleTheme() {
-      FastFormerClientConfig.setTheme(GeometryPalette.theme().next());
+      FastFormerClientConfig.setTheme(GeometryPalette.snapshot().next());
       this.themeButton.setMessage(this.themeLabel());
    }
 

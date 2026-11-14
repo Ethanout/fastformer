@@ -7,13 +7,10 @@ import io.github.fastformer.core.command.IntentResult;
 import io.github.fastformer.server.fill.SmartFillSystem;
 import net.minecraft.server.level.ServerPlayer;
 
-public final class SmartFillServerMode extends TemporaryServerMode {
-   public SmartFillServerMode() { super(BuiltinModes.SMART_FILL); }
-   @Override public boolean active(ServerPlayer player) { return SmartFillSystem.active(player); }
-   @Override public void sync(ServerPlayer player) { SmartFillSystem.sync(player); }
-   @Override public void cancel(ServerPlayer player) { SmartFillSystem.cancel(player); }
-   @Override public void remove(ServerPlayer player) { SmartFillSystem.forget(player); }
-   @Override public IntentResult quit(ServerPlayer player) { cancel(player); return IntentResult.success(); }
-   @Override public IntentResult confirm(ServerPlayer player) { return IntentResult.handled(SmartFillSystem.confirmCurrent(player)); }
-   @Override public ModeInputResult input(ServerPlayer player, ModeInput input) { return ModeInputResult.CONSUMED; }
+public final class SmartFillServerMode extends TemporaryServerMode<SmartFillSystem.Session> {
+   public SmartFillServerMode() { super(BuiltinModes.SMART_FILL, SmartFillSystem.repository()); }
+   @Override protected void onPreview(ServerPlayer player, SmartFillSystem.Session session) { SmartFillSystem.sync(player); }
+   @Override protected IntentResult onQuit(ServerPlayer player, SmartFillSystem.Session session) { cancel(player); return IntentResult.success(); }
+   @Override protected IntentResult onConfirm(ServerPlayer player, SmartFillSystem.Session session) { return IntentResult.handled(SmartFillSystem.confirmCurrent(player)); }
+   @Override protected ModeInputResult onInput(ServerPlayer player, SmartFillSystem.Session session, ModeInput input) { return ModeInputResult.CONSUMED; }
 }

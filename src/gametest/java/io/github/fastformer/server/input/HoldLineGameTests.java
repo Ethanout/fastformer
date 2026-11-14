@@ -14,7 +14,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.common.raycast.*;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload;
 import io.github.fastformer.server.sync.PreviewSync;
@@ -47,7 +47,7 @@ public final class HoldLineGameTests {
          settings.setMiddleConfirmEnabled(player, false);
          PreviewSync.syncSettings(player);
          BlockHitResult hit = hit(player);
-         ServerInputDispatcher.startPlacement(player, request(player, 1, hit, PROFILE));
+         ServerInputActions.startPlacement(player, request(player, 1, hit, PROFILE));
          var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          helper.assertTrue(draft.profileId().equals(PROFILE), "server did not resolve the synchronized profile");
          helper.assertTrue(draft.points().equals(List.of(hit.getBlockPos())), "hold start was not embedded in the frozen hit");
@@ -76,7 +76,7 @@ public final class HoldLineGameTests {
             settings.setMode(player, LineMode.RAYCAST);
             PreviewSync.syncSettings(player);
             var start = hit(player);
-            ServerInputDispatcher.startPlacement(player, request(player, 11, start, PROFILE));
+            ServerInputActions.startPlacement(player, request(player, 11, start, PROFILE));
             var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
             first[0] = draft.points().getFirst();
             player.setPos(player.position().add(3, 0, 0));
@@ -85,7 +85,7 @@ public final class HoldLineGameTests {
             var candidate = QuickShapeSystem.of(player).candidateContext(player).resolve(
                LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit(), eye, view);
             helper.assertTrue(candidate.distManhattan(first[0]) > 0, "fixture did not produce a line");
-            ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
+            ServerInputActions.quickShapePointer(player, new QuickShapePointerPayload(
                PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
                QuickShapePointerPayload.Action.MIDDLE, candidate, eye, view, false, 12));
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "middle setting prevented hold release submission");
@@ -104,11 +104,11 @@ public final class HoldLineGameTests {
       ServerPlayer player = player(helper);
       helper.succeedWhen(() -> {
          ready(helper, player);
-         ServerInputDispatcher.startPlacement(player, request(player, 21, hit(player), ResourceLocation.parse("fastformer:missing")));
+         ServerInputActions.startPlacement(player, request(player, 21, hit(player), ResourceLocation.parse("fastformer:missing")));
          helper.assertFalse(QuickShapeSystem.of(player).active(player), "unknown profile created a draft");
          player.setPos(player.position().add(0, 20, 0));
          PreviewSync.syncSettings(player);
-         ServerInputDispatcher.startPlacement(player, request(player, 22, hit(player), PROFILE));
+         ServerInputActions.startPlacement(player, request(player, 22, hit(player), PROFILE));
          helper.assertFalse(QuickShapeSystem.of(player).active(player), "hold line started beyond player interaction range");
       });
    }
@@ -122,7 +122,7 @@ public final class HoldLineGameTests {
          helper.getLevel().setBlock(target.above(), Blocks.WATER.defaultBlockState(), 2);
          var frozen = hit(player);
          helper.assertTrue(frozen.getBlockPos().equals(target), "frozen outline did not ignore fluid");
-         ServerInputDispatcher.startPlacement(player, request(player, 31, frozen, PROFILE));
+         ServerInputActions.startPlacement(player, request(player, 31, frozen, PROFILE));
          var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          helper.assertTrue(draft.points().equals(List.of(target)), "hold anchor was recast against the water surface");
          SessionSystem.of(player).cancelEditing(player);
@@ -152,8 +152,8 @@ public final class HoldLineGameTests {
    }
 
    private static void ready(GameTestHelper helper, ServerPlayer player) {
-      helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for world gate");
-      helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for initial history");
+      helper.assertTrue(ServerInputActions.canOperate(player), "waiting for world gate");
+      helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for initial history");
       helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world writer");
    }
 }

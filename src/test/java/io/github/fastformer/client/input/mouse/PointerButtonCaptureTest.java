@@ -4,6 +4,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class PointerButtonCaptureTest {
+   @Test void extraPhysicalMouseButtonOwnsItsCaptureWithoutBecomingALogicalLeftClick() {
+      var capture = new PointerButtonCapture(); capture.capture(5);
+      assertTrue(capture.owns(5)); assertFalse(capture.owns(0)); assertEquals(5, capture.buttonId());
+      capture.clear(); assertEquals(-1, capture.buttonId());
+   }
    @Test void absenceIsDistinctFromALeftPressAndClearReleasesOwnership() {
       var capture = new PointerButtonCapture();
       assertFalse(capture.active());

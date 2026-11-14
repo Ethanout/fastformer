@@ -4,9 +4,12 @@ import io.github.fastformer.server.feedback.PlayerMessages;
 
 
 
-import java.util.HashMap;
-import java.util.Map;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,26 +21,39 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 
+@EventBusSubscriber(modid = "fastformer")
 public final class SpecialItemHandlers {
-   private static final Map<Item, UseOnBlock> HANDLERS = new HashMap<>();
+   private static final SpecialItemRegistry HANDLERS = new SpecialItemRegistry();
 
    static {
-      register(Items.DEBUG_STICK, SpecialItemHandlers::pickBlock);
+      register(ResourceLocation.withDefaultNamespace("debug_stick"), SpecialItemHandlers::pickBlock);
    }
 
    private SpecialItemHandlers() {
    }
 
+   /** Add-ons register during mod construction; duplicate items and late registration are errors. */
    public static void register(Item item, UseOnBlock handler) {
-      HANDLERS.put(item, handler);
+      ResourceLocation id = BuiltInRegistries.ITEM.getKey(java.util.Objects.requireNonNull(item, "item"));
+      if (BuiltInRegistries.ITEM.get(id) != item) throw new IllegalArgumentException("Special item is not registered: " + item);
+      register(id, handler);
+   }
+
+   public static void register(ResourceLocation item, UseOnBlock handler) {
+      HANDLERS.register(item, handler);
+   }
+
+   @SubscribeEvent
+   public static void freeze(FMLCommonSetupEvent event) {
+      HANDLERS.freeze();
    }
 
    public static boolean isSpecial(ItemStack stack) {
-      return HANDLERS.containsKey(stack.getItem());
+      return !stack.isEmpty() && HANDLERS.handler(BuiltInRegistries.ITEM.getKey(stack.getItem())).isPresent();
    }
 
    public static boolean useOnBlock(ServerPlayer player, BlockPos pos) {
-      UseOnBlock handler = HANDLERS.get(player.getMainHandItem().getItem());
+      UseOnBlock handler = HANDLERS.handler(BuiltInRegistries.ITEM.getKey(player.getMainHandItem().getItem())).orElse(null);
       return handler != null && handler.use(player, pos);
    }
 

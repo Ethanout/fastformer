@@ -1,7 +1,7 @@
 package io.github.fastformer.server.task.block;
 
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import java.util.Collection;
 import java.util.List;
@@ -63,7 +63,7 @@ final class SelectionJournalPrediction {
    Collection<ReversibleBlockSnapshot> snapshots(
       Collection<ReversibleBlockSnapshot> originals
    ) {
-      return PlacementTask.lazyMappedCollection(originals, this::predictedSnapshot);
+      return PlacementJournalPrediction.lazyMap(originals, this::predictedSnapshot);
    }
 
    private BlockState currentState(

@@ -1,7 +1,7 @@
 package io.github.fastformer.server.movement;
 
-import io.github.fastformer.fastplace.geometry.movement.ForwardDashTraversal;
-import io.github.fastformer.fastplace.settings.FlightSettings;
+import io.github.fastformer.common.movement.ForwardDashTraversal;
+import io.github.fastformer.common.movement.FlightSettings;
 import io.github.fastformer.protocol.s2c.movement.ForwardDashStartPayload;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;

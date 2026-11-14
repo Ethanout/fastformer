@@ -7,14 +7,20 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
+import io.github.fastformer.common.interaction.binding.DoubleClickPolicy;
+import io.github.fastformer.protocol.codec.GestureCodecs;
 
 public record IdleInteractionCapturePayload(long token, BlockHitResult hit, Vec3 eye, Vec3 view,
-   InteractionRaycastRules rules) implements CustomPacketPayload {
+   InteractionRaycastRules rules, DoubleClickPolicy doubleClick) implements CustomPacketPayload {
    public IdleInteractionCapturePayload(long token, BlockHitResult hit, Vec3 eye, Vec3 view) {
-      this(token, hit, eye, view, InteractionRaycastRules.DEFAULT);
+      this(token, hit, eye, view, InteractionRaycastRules.DEFAULT, DoubleClickPolicy.DEFAULT);
+   }
+   public IdleInteractionCapturePayload(long token, BlockHitResult hit, Vec3 eye, Vec3 view, InteractionRaycastRules rules) {
+      this(token, hit, eye, view, rules, DoubleClickPolicy.DEFAULT);
    }
    public IdleInteractionCapturePayload {
       java.util.Objects.requireNonNull(rules);
+      java.util.Objects.requireNonNull(doubleClick);
       if (token <= 0 || hit == null || hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK
          || !io.github.fastformer.common.raycast.RaySnapshotValidation.valid(eye, view)) throw new IllegalArgumentException("Invalid idle interaction capture");
       hit = new BlockHitResult(hit.getLocation(), hit.getDirection(), hit.getBlockPos().immutable(), hit.isInside());
@@ -24,9 +30,10 @@ public record IdleInteractionCapturePayload(long token, BlockHitResult hit, Vec3
       (buffer, value) -> {
          buffer.writeVarLong(value.token); buffer.writeBlockHitResult(value.hit); buffer.writeVec3(value.eye); buffer.writeVec3(value.view);
          buffer.writeBoolean(value.rules.embedded()); buffer.writeBoolean(value.rules.throughFluids());
+         GestureCodecs.DOUBLE_CLICK.encode(buffer, value.doubleClick);
       },
       buffer -> new IdleInteractionCapturePayload(buffer.readVarLong(), buffer.readBlockHitResult(), buffer.readVec3(), buffer.readVec3(),
-         new InteractionRaycastRules(buffer.readBoolean(), buffer.readBoolean())));
+         new InteractionRaycastRules(buffer.readBoolean(), buffer.readBoolean()), GestureCodecs.DOUBLE_CLICK.decode(buffer)));
 
    @Override public Type<IdleInteractionCapturePayload> type() { return TYPE; }
 }

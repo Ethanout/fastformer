@@ -2,7 +2,7 @@ package io.github.fastformer.client.preview.selection;
 
 import io.github.fastformer.common.selection.geometry.OperationGeometry;
 import io.github.fastformer.common.selection.geometry.SelectionPrism;
-import io.github.fastformer.common.workspace.preview.WorkspaceScene;
+import io.github.fastformer.common.workspace.composition.WorkspaceScene;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.client.render.PreviewStyle;
@@ -21,8 +21,16 @@ import io.github.fastformer.client.interaction.intent.OperationInteractionIntent
 import io.github.fastformer.client.interaction.intent.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspacePreviewRenderer;
 import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
-import io.github.fastformer.fastplace.geometry.*;
-import io.github.fastformer.fastplace.geometry.generation.*;
+import io.github.fastformer.common.geometry.GeometryStage;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewGuides;
+import io.github.fastformer.common.geometry.interaction.GeometryRayVisibility;
+import io.github.fastformer.common.geometry.raster.GeometryBuildResult;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.source.*;
+import io.github.fastformer.common.geometry.generation.shape.*;
+import io.github.fastformer.common.geometry.generation.volume.*;
+import io.github.fastformer.common.geometry.generation.face.*;
+import io.github.fastformer.common.geometry.generation.face.entry.*;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;

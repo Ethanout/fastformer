@@ -18,7 +18,7 @@ public final class SettingsPermissionGameTests {
    public static void fallingRuleRequiresOperatorAndUsesExplicitTarget(GameTestHelper helper) throws Exception {
       ServerPlayer player = io.github.fastformer.testkit.ServerPlayers.connect(helper, "setting-test");
       var server = player.getServer();
-      var rules = io.github.fastformer.fastplace.world.BlockActivityRules.get(server);
+      var rules = io.github.fastformer.server.worldwrite.effect.BlockActivityRules.get(server);
       boolean original = rules.fallingDisabled();
       boolean originallyFrozen = server.tickRateManager().isFrozen();
       boolean operator = server.getPlayerList().isOp(player.getGameProfile());

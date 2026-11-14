@@ -1,7 +1,5 @@
 package io.github.fastformer.common.workspace.geometry;
 
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
-
 import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
@@ -99,7 +97,7 @@ public final class WorkspaceGeometryCost {
       if (!Double.isFinite(scale) || scale <= 0.0) {
          return Long.MAX_VALUE;
       }
-      // WorkspacePreviewComposer.scaleValues rounds half up, so this must use Math.round.
+      // WorkspaceComposer.scaleValues rounds half up, so this must use Math.round.
       double value = Math.max(1.0, Math.round(width * scale));
       return value >= (double)Long.MAX_VALUE ? Long.MAX_VALUE : (long)value;
    }

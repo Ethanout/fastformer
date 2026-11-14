@@ -5,7 +5,7 @@ import io.github.fastformer.server.history.HistoryRecoveryReconciler;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.common.persistence.MinecraftDataVersion;
 import io.github.fastformer.common.persistence.NbtEnvelopeFile;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;

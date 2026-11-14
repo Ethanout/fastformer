@@ -4,8 +4,8 @@ import io.github.fastformer.client.network.outbound.ServerGateway;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
 import io.github.fastformer.protocol.c2s.placement.QuickShapeConfirmPayload;
 
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.protocol.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.protocol.c2s.operation.OperationApplyPayload;
 import io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceApplyPayload;
 import io.github.fastformer.protocol.c2s.placement.QuickReplacePayload;

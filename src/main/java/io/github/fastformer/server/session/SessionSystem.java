@@ -2,6 +2,8 @@ package io.github.fastformer.server.session;
 
 import io.github.fastformer.core.lifecycle.Scope;
 import io.github.fastformer.core.lifecycle.ScopedKey;
+import io.github.fastformer.common.api.EventSource;
+import io.github.fastformer.server.api.ServerEventStream;
 import io.github.fastformer.common.interaction.InteractionState;
 import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.server.feedback.TaskFeedback;
@@ -10,7 +12,7 @@ import io.github.fastformer.server.session.execution.PlacementTasks;
 import io.github.fastformer.server.session.execution.OperationTasks;
 import io.github.fastformer.server.network.upload.UploadSystem;
 import io.github.fastformer.server.history.HistorySystem;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.player.PlayerStateRegistry;
 import io.github.fastformer.server.submission.WorkspaceSubmissionLedger;
 import io.github.fastformer.server.sync.PreviewSync;
@@ -31,13 +33,14 @@ public final class SessionSystem implements AutoCloseable {
    private static final Logger LOGGER = LoggerFactory.getLogger(SessionSystem.class);
    private static final Map<MinecraftServer, SessionSystem> SERVERS = Collections.synchronizedMap(new IdentityHashMap<>());
    private final Scope states = new Scope();
+   private final ServerEventStream events = states.get(ScopedKey.create("api_events", ServerEventStream::new));
    private final PlacementTasks placements = states.get(ScopedKey.create("placement_tasks", () -> new PlacementTasks(() -> this.closed)));
    private final OperationTasks operationTasks = states.get(ScopedKey.create("operation_tasks", () -> new OperationTasks(
       () -> this.closed, placements::active,
       context -> (result, player) -> UploadSystem.of(context.server()).receipts().finish(result, player))));
-   final QuickShapeSystem quickShape = states.get(ScopedKey.create("quick_shape", () -> new QuickShapeSystem(this)));
-   final OperationSystem operation = states.get(ScopedKey.create("operation", () -> new OperationSystem(this)));
-   final GeometrySystem geometry = states.get(ScopedKey.create("geometry", () -> new GeometrySystem(this)));
+   final QuickShapeSystem quickShape = new QuickShapeSystem(this);
+   final OperationSystem operation = new OperationSystem(this);
+   final GeometrySystem geometry = new GeometrySystem(this);
    private final ServerModes modes = new ServerModes(quickShape, operation, geometry, this::quit);
    private final TaskFeedback feedback = states.get(ScopedKey.create("task_feedback", TaskFeedback::new));
    private final WorkspaceSubmissionLedger submissions = states.get(ScopedKey.create("workspace_submissions", WorkspaceSubmissionLedger::new));
@@ -67,7 +70,10 @@ public final class SessionSystem implements AutoCloseable {
       if (player == null) return;
       find(player.getServer()).ifPresent(runtime -> {
          // A replaced entity must not clear the new entity's retained UUID workflow.
-         if (PlayerStateRegistry.find(player).isPresent()) runtime.resetModifier(player);
+         if (PlayerStateRegistry.find(player).isPresent()) {
+            runtime.resetModifier(player);
+            runtime.modes.detach(player);
+         }
          PreviewSync.forgetActivity(player);
          UploadSystem.forget(player);
       });
@@ -120,7 +126,7 @@ public final class SessionSystem implements AutoCloseable {
       InteractionModifierState.reset(player);
       modes.discardPlayer(player);
       HistorySystem.of(player).remove(player);
-      ServerInputDispatcher.clearPlacementActions(player);
+      ServerInputActions.clearPlacementActions(player);
       PreviewSync.forgetActivity(player);
       UploadSystem.forget(player);
    }
@@ -130,8 +136,9 @@ public final class SessionSystem implements AutoCloseable {
       if (player == null) return;
       UUID owner = player.getUUID();
       resetModifier(player);
+      modes.dimensionChanged(player);
       modes.parkDimension(owner, from);
-      ServerInputDispatcher.clearPlacementActions(player);
+      ServerInputActions.clearPlacementActions(player);
       modes.restoreDimension(owner, to);
       PreviewSync.forgetActivity(player);
       UploadSystem.forget(player);
@@ -164,6 +171,8 @@ public final class SessionSystem implements AutoCloseable {
    boolean closed() { return closed; }
 
    public TaskFeedback feedback() { return feedback; }
+   public EventSource events() { return events.source(); }
+   public ServerEventStream eventStream() { return events; }
    public PlacementTasks placementTasks() { return placements; }
    public OperationTasks operationTasks() { return operationTasks; }
 
@@ -171,8 +180,10 @@ public final class SessionSystem implements AutoCloseable {
    public ServerModes modes() { return modes; }
 
    @Override public void close() {
+      if (closed) return;
       closed = true;
-      states.close();
+      try { modes.close(); }
+      finally { states.close(); }
    }
 
    private static void requireThread(MinecraftServer server) {

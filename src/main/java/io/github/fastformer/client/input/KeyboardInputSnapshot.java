@@ -1,6 +1,6 @@
 package io.github.fastformer.client.input;
 
-import io.github.fastformer.client.input.policy.CancelInputSemantics;
+import io.github.fastformer.client.interaction.binding.input.CancellationIntent;
 import io.github.fastformer.client.quickshape.QuickShapeSubmissionSnapshot;
 import org.lwjgl.glfw.GLFW;
 
@@ -14,7 +14,7 @@ record KeyboardInputSnapshot(
    boolean altDown,
    boolean controlDown,
    QuickShapeSubmissionSnapshot quickShapeSubmission,
-   CancelInputSemantics.Decision cancellation
+   CancellationIntent cancellation
 ) {
    KeyboardInputSnapshot(int key, int scanCode, int action, int modifiers, long occurredAtNanos,
       boolean altDown, boolean controlDown) {
@@ -28,9 +28,15 @@ record KeyboardInputSnapshot(
          altDown, controlDown, snapshot, cancellation);
    }
 
-   KeyboardInputSnapshot withCancellation(CancelInputSemantics.Decision decision) {
+   KeyboardInputSnapshot withCancellation(CancellationIntent decision) {
       return new KeyboardInputSnapshot(key, scanCode, action, modifiers, occurredAtNanos,
          altDown, controlDown, quickShapeSubmission, decision);
+   }
+
+   /** Repeats own movement mappings without becoming another executable key press. */
+   KeyboardInputSnapshot forOwnershipQuery() {
+      return action != 2 ? this : new KeyboardInputSnapshot(key, scanCode, 1, modifiers, occurredAtNanos,
+         altDown, controlDown, quickShapeSubmission, cancellation);
    }
 
    static KeyboardInputSnapshot capture(

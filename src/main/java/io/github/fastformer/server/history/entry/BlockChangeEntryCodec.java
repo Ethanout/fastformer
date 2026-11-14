@@ -3,7 +3,7 @@ package io.github.fastformer.server.history.entry;
 import io.github.fastformer.common.persistence.BlockStatePaletteCodec;
 import io.github.fastformer.common.persistence.IncompatibleWorldDataException;
 import io.github.fastformer.common.persistence.MinecraftDataVersion;
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;

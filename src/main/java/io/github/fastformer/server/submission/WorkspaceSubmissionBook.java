@@ -1,6 +1,6 @@
 package io.github.fastformer.server.submission;
 
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;

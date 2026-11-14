@@ -4,6 +4,8 @@ import io.github.fastformer.client.interaction.binding.action.*;
 import io.github.fastformer.client.interaction.binding.context.*;
 import io.github.fastformer.client.interaction.binding.data.InteractionBinding;
 import io.github.fastformer.client.interaction.binding.input.ButtonArbiter;
+import io.github.fastformer.client.interaction.binding.input.DoubleClickRecognizer;
+import io.github.fastformer.client.interaction.binding.input.InputPattern;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.function.LongSupplier;
@@ -12,9 +14,10 @@ import net.minecraft.resources.ResourceLocation;
 /** One input owner's data dispatch and deferred hold. Context loss never replays an input. */
 public final class BindingSystem {
    public record Rule(InteractionBinding binding, BindingAction action) {}
-   private record Press(Rule rule, BindingContext context, BindingCommands commands) {}
+   private record Press(int button, Rule rule, BindingContext context, BindingCommands commands, DoubleClickRecognizer.Sample sample) {}
    private final ContextMatcher matcher;
    private final ButtonArbiter<Press> button = new ButtonArbiter<>();
+   private final DoubleClickRecognizer doubles = new DoubleClickRecognizer();
    private final java.util.function.Supplier<List<Rule>> rules;
    private final Predicate<ResourceLocation> optionEnabled;
    private final LongSupplier revisions;
@@ -42,20 +45,59 @@ public final class BindingSystem {
 
    public boolean onButton(int physicalButton, String name, boolean pressed, long occurredAt,
       java.util.function.Supplier<BindingContext> contexts, BindingCommands commands) {
+      return onButton(physicalButton, name, pressed, occurredAt, contexts, commands, null);
+   }
+
+   /** Pointer samples enable distance and shape tolerances; other buttons use the data's time window. */
+   public boolean onButton(int physicalButton, String name, boolean pressed, long occurredAt,
+      java.util.function.Supplier<BindingContext> contexts, BindingCommands commands, DoubleClickRecognizer.Sample sample) {
       boolean owned = button.owns(physicalButton);
       if (synchronizeDefinitions() && owned) return true;
+      boolean firstPhysicalPress = pressed && doubles.press(physicalButton);
+      if (!pressed) doubles.release(physicalButton);
       if (button.owns(physicalButton)) {
          if (!pressed) for (var signal : button.release(physicalButton, occurredAt)) dispatch(signal, contexts.get(), commands);
          return true;
       }
+      if (pressed && !firstPhysicalPress) return false;
       BindingContext context = contexts.get();
-      if (dispatch(name, pressed ? "press" : "release", context, commands)) return true;
+      if (pressed && dispatchDouble(physicalButton, name, occurredAt, context, commands, sample)) return true;
+      if (dispatch(name, pressed ? "press" : "release", context, commands)) {
+         if (pressed) rememberDouble(physicalButton, name, occurredAt, context, sample);
+         return true;
+      }
       if (!pressed || button.active()) return false;
       for (Rule rule : rules.get()) {
          if (!matches(rule, name, "hold", context)) continue;
-         return button.press(physicalButton, occurredAt, rule.binding.input(), new Press(rule, context, commands));
+         boolean deferred = button.press(physicalButton, occurredAt, rule.binding.input(),
+            new Press(physicalButton, rule, context, commands, sample));
+         if (!deferred) rememberDouble(physicalButton, name, occurredAt, context, sample);
+         return deferred;
+      }
+      rememberDouble(physicalButton, name, occurredAt, context, sample);
+      return false;
+   }
+
+   private boolean dispatchDouble(int physicalButton, String name, long now, BindingContext context,
+      BindingCommands commands, DoubleClickRecognizer.Sample sample) {
+      for (Rule rule : rules.get()) {
+         if (!matches(rule, name, "double", context)) continue;
+         if (!doubles.matches(physicalButton, rule.binding.id(), now, sample, rule.binding.input().windowMillis())) continue;
+         if (rule.action.execute(context, commands).handled()) {
+            doubles.consume(physicalButton);
+            return true;
+         }
       }
       return false;
+   }
+
+   private void rememberDouble(int physicalButton, String name, long now, BindingContext context,
+      DoubleClickRecognizer.Sample sample) {
+      for (Rule rule : rules.get()) {
+         if (matches(rule, name, "double", context)) {
+            doubles.remember(physicalButton, rule.binding.id(), now, sample, rule.binding.input().doubleClick());
+         }
+      }
    }
 
    public boolean onScroll(boolean up, BindingContext context, BindingCommands commands) {
@@ -95,6 +137,17 @@ public final class BindingSystem {
       return dispatchResult(candidate -> candidate.equals("*") || candidate.equals(name), gesture, context, commands);
    }
 
+   /** A recognized double and an ordinary press share the same data priority order. */
+   public BindingAction.Result onSignalsResult(String name, Set<String> gestures, BindingContext context, BindingCommands commands) {
+      return dispatchResult(candidate -> candidate.equals("*") || candidate.equals(name), gestures::contains, null, () -> context, commands);
+   }
+
+   public Optional<InputPattern> pattern(
+      String name, String gesture, BindingContext context) {
+      synchronizeDefinitions();
+      return rules.get().stream().filter(rule -> matches(rule, name, gesture, context)).map(rule -> rule.binding.input()).findFirst();
+   }
+
    public void tick(long now) {
       synchronizeDefinitions();
       for (var signal : button.tick(now)) dispatch(signal, signal.snapshot().context(), signal.snapshot().commands());
@@ -106,24 +159,30 @@ public final class BindingSystem {
       if (next == revision) return false;
       revision = next;
       try { definitionsChanged.run(); }
-      finally { button.cancel(); }
+      finally { button.cancel(); doubles.reset(); }
       return true;
    }
 
    public boolean active() { return button.active(); }
-   public void reset() { button.cancel(); }
+   public void reset() { button.cancel(); doubles.reset(); }
 
    private void dispatch(ButtonArbiter.Signal<Press> signal, BindingContext releaseContext, BindingCommands releaseCommands) {
       Press press = signal.snapshot();
       switch (signal.kind()) {
-         case START -> press.rule.action.execute(press.context, press.commands);
-         case REPLAY_PRESS -> press.commands.replayPress(signal.pressedAtNanos());
+         case START -> {
+            doubles.consume(press.button);
+            press.rule.action.execute(press.context, press.commands);
+         }
+         case REPLAY_PRESS -> {
+            rememberDouble(press.button, press.rule.binding.input().button(), signal.pressedAtNanos(), press.context, press.sample);
+            press.commands.replayPress(signal.pressedAtNanos());
+         }
          case RELEASE -> dispatch(press.rule.binding.input().button(), "release", releaseContext, releaseCommands);
       }
    }
 
    private boolean dispatch(String name, String gesture, BindingContext context, BindingCommands commands) {
-      return dispatch(name::equals, gesture, context, commands);
+      return dispatch(candidate -> candidate.equals("*") || candidate.equals(name), gesture, context, commands);
    }
 
    private boolean dispatch(Predicate<String> names, String gesture, BindingContext context, BindingCommands commands) {
@@ -141,10 +200,16 @@ public final class BindingSystem {
 
    private BindingAction.Result dispatchResult(Predicate<String> names, String gesture, BindingContext knownContext,
       java.util.function.Supplier<BindingContext> contexts, BindingCommands commands) {
+      return dispatchResult(names, gesture::equals, knownContext, contexts, commands);
+   }
+
+   private BindingAction.Result dispatchResult(Predicate<String> names, Predicate<String> gestures, BindingContext knownContext,
+      java.util.function.Supplier<BindingContext> contexts, BindingCommands commands) {
       synchronizeDefinitions();
       BindingContext context = null;
       for (Rule rule : rules.get()) {
-         if (!names.test(rule.binding.input().button()) || !enabled(rule.binding, gesture)) continue;
+         if (!names.test(rule.binding.input().button()) || !gestures.test(rule.binding.input().gesture())
+            || !enabled(rule.binding, rule.binding.input().gesture())) continue;
          if (knownContext != null && !matcher.mayMatch(rule.binding.context(), knownContext)) continue;
          if (context == null) context = Objects.requireNonNull(contexts.get());
          if (!matcher.matches(rule.binding.context(), context)) continue;
@@ -155,7 +220,7 @@ public final class BindingSystem {
    }
 
    private boolean matches(Rule rule, String name, String gesture, BindingContext context) {
-      return rule.binding.input().button().equals(name) && matchesContext(rule, gesture, context);
+      return (rule.binding.input().button().equals("*") || rule.binding.input().button().equals(name)) && matchesContext(rule, gesture, context);
    }
 
    private boolean matchesContext(Rule rule, String gesture, BindingContext context) {

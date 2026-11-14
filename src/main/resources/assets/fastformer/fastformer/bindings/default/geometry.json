@@ -1,0 +1,490 @@
+{
+  "bindings": [
+    {
+      "id": "fastformer:geometry/held_undo",
+      "priority": 198,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_fallback_undo_captured": true
+      },
+      "input": {"button": "*", "gesture": "press"},
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:geometry/gizmo_repress_left",
+      "priority": 205,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_ready": true,
+        "geometry_gesture_busy": true,
+        "geometry_gizmo_captured": true
+      },
+      "input": {"button": "left", "gesture": "press"},
+      "action": "fastformer:geometry/gizmo"
+    },
+    {
+      "id": "fastformer:geometry/gizmo_repress_right",
+      "priority": 205,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_ready": true,
+        "geometry_gesture_busy": true,
+        "geometry_gizmo_captured": true
+      },
+      "input": {"button": "right", "gesture": "press"},
+      "action": "fastformer:geometry/gizmo"
+    },
+    {
+      "id": "fastformer:geometry/release_gizmo",
+      "priority": 300,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_gizmo_owned": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "release"
+      },
+      "action": "fastformer:geometry/release_gizmo"
+    },
+    {
+      "id": "fastformer:geometry/release_pointer",
+      "priority": 290,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_pointer_captured": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "release"
+      },
+      "action": "fastformer:geometry/release_pointer"
+    },
+    {
+      "id": "fastformer:geometry/release_undo",
+      "priority": 280,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_fallback_undo_captured": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "release"
+      },
+      "action": {
+        "id": "fastformer:geometry/end_undo",
+        "duration_ms": 250
+      }
+    },
+    {
+      "id": "fastformer:geometry/held_gizmo",
+      "priority": 250,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_gizmo_physical": true,
+        "geometry_gizmo_owned": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "press"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:geometry/other_gizmo_button",
+      "priority": 195,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_gizmo_physical": true,
+        "geometry_gizmo_owned": false
+      },
+      "input": {
+        "button": "*",
+        "gesture": "press"
+      },
+      "action": "fastformer:vanilla"
+    },
+    {
+      "id": "fastformer:geometry/gizmo_left",
+      "priority": 210,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_ready": true,
+        "geometry_gesture_busy": false
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/gizmo"
+    },
+    {
+      "id": "fastformer:geometry/captured_left",
+      "priority": 200,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_pointer_captured": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:geometry/left_target_interaction_channel",
+      "priority": 150,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_interaction_channel": true,
+        "geometry_left_target": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/target_left"
+    },
+    {
+      "id": "fastformer:geometry/undo_interaction_channel",
+      "priority": 140,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_interaction_channel": true,
+        "geometry_left_target": false,
+        "geometry_point_selected": false,
+        "geometry_undo_channel": true,
+        "geometry_draft_present": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/undo_point"
+    },
+    {
+      "id": "fastformer:geometry/left_clear_interaction_channel",
+      "priority": 130,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_interaction_channel": true,
+        "geometry_left_target": false,
+        "geometry_point_selected": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/clear_left"
+    },
+    {
+      "id": "fastformer:geometry/left_capture_interaction_channel",
+      "priority": 120,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_interaction_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/capture"
+    },
+    {
+      "id": "fastformer:geometry/left_target_undo_channel",
+      "priority": 150,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_undo_channel": true,
+        "geometry_left_target": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/target_left"
+    },
+    {
+      "id": "fastformer:geometry/undo_undo_channel",
+      "priority": 140,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_undo_channel": true,
+        "geometry_left_target": false,
+        "geometry_point_selected": false,
+        "geometry_draft_present": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/undo_point"
+    },
+    {
+      "id": "fastformer:geometry/left_clear_undo_channel",
+      "priority": 130,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_undo_channel": true,
+        "geometry_left_target": false,
+        "geometry_point_selected": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/clear_left"
+    },
+    {
+      "id": "fastformer:geometry/left_capture_undo_channel",
+      "priority": 120,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_undo_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/capture"
+    },
+    {
+      "id": "fastformer:geometry/gizmo_right",
+      "priority": 210,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_ready": true,
+        "geometry_gesture_busy": false
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/gizmo"
+    },
+    {
+      "id": "fastformer:geometry/captured_right",
+      "priority": 200,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_pointer_captured": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:geometry/right_target_interaction_channel",
+      "priority": 150,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_interaction_channel": true,
+        "geometry_right_target": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/target_right"
+    },
+    {
+      "id": "fastformer:geometry/right_clear_interaction_channel",
+      "priority": 130,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_interaction_channel": true,
+        "geometry_right_target": false,
+        "geometry_point_selected": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/clear_right"
+    },
+    {
+      "id": "fastformer:geometry/right_capture_interaction_channel",
+      "priority": 120,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_interaction_channel": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/capture"
+    },
+    {
+      "id": "fastformer:geometry/right_target_undo_channel",
+      "priority": 150,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_undo_channel": true,
+        "geometry_right_target": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/target_right"
+    },
+    {
+      "id": "fastformer:geometry/right_clear_undo_channel",
+      "priority": 130,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_undo_channel": true,
+        "geometry_right_target": false,
+        "geometry_point_selected": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/clear_right"
+    },
+    {
+      "id": "fastformer:geometry/right_capture_undo_channel",
+      "priority": 120,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_undo_channel": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/capture"
+    },
+    {
+      "id": "fastformer:geometry/path",
+      "priority": 100,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_gesture_busy": false,
+        "geometry_interaction_channel": false,
+        "geometry_undo_channel": false,
+        "geometry_path_available": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/path"
+    },
+    {
+      "id": "fastformer:geometry/fallback_undo",
+      "priority": -100,
+      "context": {
+        "session": "fastformer:geometry",
+        "input_phase": "geometry_pointer",
+        "geometry_vanilla_pointer": false,
+        "geometry_gizmo_physical": false,
+        "geometry_gizmo_captured": false,
+        "geometry_fallback_undo_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:geometry/begin_undo"
+    }
+  ]
+}

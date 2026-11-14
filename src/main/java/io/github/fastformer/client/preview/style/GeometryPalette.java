@@ -3,56 +3,20 @@ package io.github.fastformer.client.preview.style;
 import io.github.fastformer.core.math.Axis;
 
 import java.util.Map;
+import java.util.function.Function;
+import net.minecraft.resources.ResourceLocation;
 
 /**
- * Colors for the overlay, chosen by the client {@link Theme}.
+ * Colors for the overlay, chosen from one published theme definition.
  *
  * <p>World marks use {@link #ink()} over a faint {@link #halo()}, so they read on any background.
  * Color carries meaning only: {@link #ochre()} is hover or draggable, {@link #brick()} is conflict,
  * {@link #sage()} is valid.
  */
 public final class GeometryPalette {
-   private static volatile Theme selectedTheme = Theme.CLASSIC;
-   private static volatile Map<Theme, VisualTheme> resources = Map.of();
-   private static final java.util.concurrent.atomic.AtomicLong REVISION = new java.util.concurrent.atomic.AtomicLong();
+   private static final ThemeRegistry THEMES = new ThemeRegistry();
+   private static final ThreadLocal<ThemeRegistry.Snapshot> FRAME_THEME = new ThreadLocal<>();
    private GeometryPalette() { }
-
-   public enum Theme {
-      /** White lines, saturated accents with high separation. */
-      CLASSIC(new Swatches(
-         0xFFFFFF, 0x000000, 0.35F, 0xFFC71F, 0xFF5A5A, 0x55FF55,
-         0xFFFFFF, 0xAAAAAA, 0xFFD166, 0x55FF55, 0xFF5555,
-         0x203038, 0xFFFFFF, 0xB9D7E8,
-         0xFF8A94, 0x8FEB9E, 0x8AB3FF,
-         0xFF382E, 0x40FF59, 0x408CFF, 0xFFFFFF,
-         0xFFFFFF, 0xE0E7ED
-      )),
-      /** Warm white pencil over a graphite halo, muted colored pencils. */
-      HUMANIST(new Swatches(
-         0xF4F1EA, 0x2E2A26, 0.30F, 0xD9B36A, 0xD0735F, 0x9FB87C,
-         0xF2F1EC, 0xB5B3AD, 0xD9B36A, 0x9FB87C, 0xD0735F,
-         0xF4F2EC, 0x2E2A26, 0x6E6D6A,
-         0xD0806C, 0x9AB87A, 0x88A2C4,
-         0xD0806C, 0x9AB87A, 0x88A2C4, 0xD9B36A,
-         0xF2F1EC, 0xB5B3AD
-      ));
-
-      private final Swatches swatches;
-
-      Theme(Swatches swatches) {
-         this.swatches = swatches;
-      }
-
-      public Swatches swatches() { return this.swatches; }
-
-      public String translationKey() {
-         return "fastformer.settings.theme." + name().toLowerCase(java.util.Locale.ROOT);
-      }
-
-      public Theme next() {
-         return values()[(ordinal() + 1) % values().length];
-      }
-   }
 
    /** One theme's colors. World marks come first, then screen text, labels, and axes. */
    public record Swatches(
@@ -80,67 +44,69 @@ public final class GeometryPalette {
       }
    }
 
-   public static Theme theme() { return selectedTheme; }
-   public static long revision() { return REVISION.get(); }
-
-   public static synchronized void selectTheme(Theme theme) {
-      java.util.Objects.requireNonNull(theme, "theme");
-      if (selectedTheme == theme) return;
-      selectedTheme = theme;
-      REVISION.incrementAndGet();
+   public static ThemeRegistry.Snapshot snapshot() { return THEMES.snapshot(); }
+   /** Pins draw values until the render-frame post event, even if a subscriber reloads a theme. */
+   public static void beginFrame() { FRAME_THEME.set(snapshot()); }
+   public static void endFrame() { FRAME_THEME.remove(); }
+   public static ThemeRegistry.Snapshot renderSnapshot() {
+      var frame = FRAME_THEME.get();
+      return frame == null ? snapshot() : frame;
    }
-
-   public static synchronized void installThemes(Map<Theme, VisualTheme> themes) {
-      resources = Map.copyOf(themes);
-      REVISION.incrementAndGet();
-   }
+   public static ResourceLocation theme() { return snapshot().selected().id(); }
+   public static long revision() { return renderSnapshot().revision(); }
+   public static void selectTheme(ResourceLocation theme) { THEMES.select(theme); }
+   public static void installThemes(Map<ResourceLocation, ThemeDefinition> themes) { THEMES.install(themes); }
+   public static void invalidateGeometry() { THEMES.invalidateGeometry(); }
    public static Color color(String key, Color fallback) {
-      return new Color(resources.getOrDefault(theme(), VisualTheme.EMPTY).colors().getOrDefault(key, fallback.rgb()));
+      return renderSnapshot().selected().color(key, fallback);
    }
    public static float value(String key, float fallback) {
-      return resources.getOrDefault(theme(), VisualTheme.EMPTY).values().getOrDefault(key, fallback);
+      return renderSnapshot().selected().value(key, fallback);
    }
-   public static boolean humanist() { return theme() == Theme.HUMANIST; }
-   private static Swatches s() { return theme().swatches(); }
+   public static boolean humanist() { return renderSnapshot().selected().humanist(); }
+   private static Color color(String key, Function<Swatches, Color> fallback) {
+      return renderSnapshot().selected().color(key, fallback);
+   }
 
-   public static Color ink() { return io.github.fastformer.client.preview.style.GeometryPalette.color("ink", s().ink()); }
-   public static Color confirmedOutline() { return color("confirmedOutline", s().ink()); }
-   public static Color pendingOutline() { return color("pendingOutline", s().ink()); }
-   public static Color halo() { return io.github.fastformer.client.preview.style.GeometryPalette.color("halo", s().halo()); }
-   public static float haloAlpha() { return io.github.fastformer.client.preview.style.GeometryPalette.value("halo_alpha", s().haloAlpha()); }
-   public static Color ochre() { return io.github.fastformer.client.preview.style.GeometryPalette.color("ochre", s().ochre()); }
-   public static Color brick() { return io.github.fastformer.client.preview.style.GeometryPalette.color("brick", s().brick()); }
-   public static Color sage() { return io.github.fastformer.client.preview.style.GeometryPalette.color("sage", s().sage()); }
-   public static Color text() { return io.github.fastformer.client.preview.style.GeometryPalette.color("text", s().text()); }
-   public static Color muted() { return io.github.fastformer.client.preview.style.GeometryPalette.color("muted", s().muted()); }
-   public static Color accent() { return io.github.fastformer.client.preview.style.GeometryPalette.color("accent", s().accent()); }
-   public static Color valid() { return io.github.fastformer.client.preview.style.GeometryPalette.color("valid", s().valid()); }
-   public static Color danger() { return io.github.fastformer.client.preview.style.GeometryPalette.color("danger", s().danger()); }
+   public static Color ink() { return color("ink", Swatches::ink); }
+   public static Color confirmedOutline() { return color("confirmedOutline", Swatches::ink); }
+   public static Color pendingOutline() { return color("pendingOutline", Swatches::ink); }
+   public static Color halo() { return color("halo", Swatches::halo); }
+   public static float haloAlpha() {
+      ThemeDefinition theme = renderSnapshot().selected();
+      return theme.value("halo_alpha", theme.swatches().haloAlpha());
+   }
+   public static Color ochre() { return color("ochre", Swatches::ochre); }
+   public static Color brick() { return color("brick", Swatches::brick); }
+   public static Color sage() { return color("sage", Swatches::sage); }
+   public static Color text() { return color("text", Swatches::text); }
+   public static Color muted() { return color("muted", Swatches::muted); }
+   public static Color accent() { return color("accent", Swatches::accent); }
+   public static Color valid() { return color("valid", Swatches::valid); }
+   public static Color danger() { return color("danger", Swatches::danger); }
    /** Paper behind world labels, with {@link #paperInk()} text. */
-   public static Color paper() { return io.github.fastformer.client.preview.style.GeometryPalette.color("paper", s().paper()); }
-   public static Color paperInk() { return io.github.fastformer.client.preview.style.GeometryPalette.color("paperInk", s().paperInk()); }
-   public static Color paperMuted() { return io.github.fastformer.client.preview.style.GeometryPalette.color("paperMuted", s().paperMuted()); }
-   public static Color gizmoHover() { return io.github.fastformer.client.preview.style.GeometryPalette.color("gizmoHover", s().gizmoHover()); }
-   public static Color screenTitle() { return io.github.fastformer.client.preview.style.GeometryPalette.color("screenTitle", s().screenTitle()); }
-   public static Color screenLabel() { return io.github.fastformer.client.preview.style.GeometryPalette.color("screenLabel", s().screenLabel()); }
+   public static Color paper() { return color("paper", Swatches::paper); }
+   public static Color paperInk() { return color("paperInk", Swatches::paperInk); }
+   public static Color paperMuted() { return color("paperMuted", Swatches::paperMuted); }
+   public static Color gizmoHover() { return color("gizmoHover", Swatches::gizmoHover); }
+   public static Color screenTitle() { return color("screenTitle", Swatches::screenTitle); }
+   public static Color screenLabel() { return color("screenLabel", Swatches::screenLabel); }
 
    /** Axis color for soft in-world axis hints. */
    public static Color softAxis(Axis axis) {
-      Swatches swatches = s();
       return switch (axis) {
-         case X -> io.github.fastformer.client.preview.style.GeometryPalette.color("softX", swatches.softX());
-         case Y -> io.github.fastformer.client.preview.style.GeometryPalette.color("softY", swatches.softY());
-         case Z -> io.github.fastformer.client.preview.style.GeometryPalette.color("softZ", swatches.softZ());
+         case X -> color("softX", Swatches::softX);
+         case Y -> color("softY", Swatches::softY);
+         case Z -> color("softZ", Swatches::softZ);
       };
    }
 
    /** Axis color for gizmo handles. */
    public static Color gizmoAxis(Axis axis) {
-      Swatches swatches = s();
       return switch (axis) {
-         case X -> io.github.fastformer.client.preview.style.GeometryPalette.color("gizmoX", swatches.gizmoX());
-         case Y -> io.github.fastformer.client.preview.style.GeometryPalette.color("gizmoY", swatches.gizmoY());
-         case Z -> io.github.fastformer.client.preview.style.GeometryPalette.color("gizmoZ", swatches.gizmoZ());
+         case X -> color("gizmoX", Swatches::gizmoX);
+         case Y -> color("gizmoY", Swatches::gizmoY);
+         case Z -> color("gizmoZ", Swatches::gizmoZ);
       };
    }
 

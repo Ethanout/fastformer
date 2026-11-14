@@ -4,14 +4,14 @@ import io.github.fastformer.server.session.SessionSystem;
 
 import io.github.fastformer.common.mode.SessionActivity;
 import io.github.fastformer.server.session.QuickShapeSystem;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.session.GeometrySystem;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.common.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
+import io.github.fastformer.server.interaction.PlacementEffectResolver;
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.geometry.session.GeometrySession;
-import io.github.fastformer.fastplace.session.OperationSession;
+import io.github.fastformer.common.selection.session.OperationSession;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
@@ -66,7 +66,7 @@ public final class PreviewSync {
       var activeEffect = PlaceableItems.placementState(
          player.getMainHandItem(), player, session.placementContext()
       ).flatMap(state -> PlacementEffectResolver.resolve(player, settings, session, state, modes))
-         .map(io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect::id)
+         .map(io.github.fastformer.common.placement.effect.ResolvedPlacementEffect::id)
          .orElse(null);
       BuildingPreviewSnapshot payload = QuickShapePreviews.active(session, settings, modes, activeEffect);
       sendPreview(player, payload);

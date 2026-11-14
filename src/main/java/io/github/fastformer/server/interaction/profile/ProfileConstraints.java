@@ -2,7 +2,7 @@ package io.github.fastformer.server.interaction.profile;
 
 import io.github.fastformer.common.quickshape.mode.LineMode;
 import io.github.fastformer.common.quickshape.QuickShapeDraft;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import java.util.Locale;
 
 /** Reads a draft's immutable constraints without changing the player's saved settings. */

@@ -9,13 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.geometry.GeometryPoints;
-import io.github.fastformer.fastplace.geometry.GeometryPreviewGuides;
+import io.github.fastformer.common.geometry.preview.GeometryPreviewGuides;
 import io.github.fastformer.common.geometry.controlpoint.ControlPoint;
 import io.github.fastformer.common.geometry.ControlPointRole;
 import io.github.fastformer.common.geometry.controlpoint.ControlPointState;
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
-import io.github.fastformer.fastplace.world.*;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.common.geometry.workflow.*;
+import io.github.fastformer.common.geometry.workflow.plan.*;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;

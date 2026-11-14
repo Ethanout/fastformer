@@ -5,7 +5,7 @@ import io.github.fastformer.client.network.outbound.ServerGateway;
 import io.github.fastformer.client.input.state.ForwardDashMotion;
 import io.github.fastformer.client.input.state.ForwardDashRequests;
 import io.github.fastformer.client.FastFormerClientConfig;
-import io.github.fastformer.fastplace.geometry.movement.ForwardDashTraversal;
+import io.github.fastformer.common.movement.ForwardDashTraversal;
 import io.github.fastformer.protocol.c2s.movement.ForwardDashPayload;
 import io.github.fastformer.protocol.s2c.movement.ForwardDashStartPayload;
 import net.minecraft.client.Minecraft;

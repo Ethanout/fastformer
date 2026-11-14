@@ -177,4 +177,50 @@ class GeometryGizmoCaptureTest {
       assertFalse(session.geometryGizmoCapture.captured());
       assertFalse(session.hasQueuedPhysicalInput());
    }
+
+   @Test
+   void bindingReloadInvalidatesGeometryCommandsWithoutDroppingEarlierKeyboardInput() {
+      var session = new ClientInputSession();
+      var firstKey = new KeyboardInputSnapshot(65, 0, 1, 0, 1, false, false);
+      var secondKey = new KeyboardInputSnapshot(66, 0, 1, 0, 2, false, false);
+      session.postKeyboard(firstKey);
+      var captured = press(session.geometryGizmoCapture, 4);
+      session.postGeometryGizmo(captured);
+      session.postGeometryPointer(new GeometryInputController.FallbackUndoPress(GeometryMode.WALL, 1, OperationCallbackScope.unscoped()));
+      session.cancelBoundPointerInput();
+      session.postKeyboard(secondKey);
+      var received = new ArrayList<KeyboardInputSnapshot>();
+      drain(session, received::add, event -> fail("Reloaded geometry command must not execute"));
+      assertEquals(List.of(firstKey, secondKey), received);
+      assertFalse(session.geometryGizmoCapture.accepts(captured));
+      assertFalse(session.geometryGizmoCapture.captured());
+   }
+
+   @Test
+   void disablingTheReleaseActionStillCancelsTheCapturedDragAndItsQueuedPress() {
+      var session = new ClientInputSession();
+      var captured = press(session.geometryGizmoCapture, 4);
+      long token = session.pointerGesture.begin(io.github.fastformer.client.input.state.PointerGestureState.Kind.BUILDING_GEOMETRY);
+      session.geometryGizmoDrag = captured.drag().withCapture(token);
+      session.geometryGizmoCapture.activate(captured, token);
+      session.postGeometryGizmo(captured);
+      session.finishGeometryPhysicalRelease(4);
+      assertFalse(session.geometryGizmoCapture.captured());
+      assertNull(session.geometryGizmoDrag);
+      assertEquals(io.github.fastformer.client.input.state.PointerGestureState.Kind.NONE, session.pointerGesture.kind());
+      drain(session, event -> fail(), event -> fail("Cancelled physical press must not execute"));
+   }
+
+   @Test
+   void extraMouseButtonsCanOwnAndReleasePointerCommandsWithoutArrayLimits() {
+      var session = new ClientInputSession();
+      session.captureGeometryPointerButton(4);
+      session.captureGeometryPointerButton(7);
+      assertTrue(session.hasGeometryPointerButtons());
+      session.finishGeometryPhysicalRelease(4);
+      assertFalse(session.ownsGeometryPointerButton(4));
+      assertTrue(session.ownsGeometryPointerButton(7));
+      session.finishGeometryPhysicalRelease(7);
+      assertFalse(session.hasGeometryPointerButtons());
+   }
 }

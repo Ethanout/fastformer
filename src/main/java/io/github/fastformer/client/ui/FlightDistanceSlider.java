@@ -1,7 +1,7 @@
 package io.github.fastformer.client.ui;
 
 import io.github.fastformer.client.FastFormerClientConfig;
-import io.github.fastformer.fastplace.settings.FlightSettings;
+import io.github.fastformer.common.movement.FlightSettings;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;

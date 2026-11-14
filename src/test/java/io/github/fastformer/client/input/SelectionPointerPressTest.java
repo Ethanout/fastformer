@@ -52,7 +52,9 @@ class SelectionPointerPressTest {
          0, false, -1).isEmpty());
       var target = new OperationInteractionIntent.Part(1, 1);
       assertTrue(capture(target, -1, false, 0).isEmpty());
-      assertTrue(capture(target, 3, false, 0).isEmpty());
+      var rebound = capture(target, 5, false, -1).orElseThrow();
+      assertEquals(5, rebound.button());
+      assertEquals(-1, rebound.shortPressSteps());
       assertThrows(IllegalArgumentException.class, () -> new SelectionPointerPress(null, 0, false, 0, UUID.randomUUID(), Map.of(), null, 0L));
    }
 

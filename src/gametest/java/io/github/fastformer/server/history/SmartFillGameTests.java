@@ -41,6 +41,8 @@ public final class SmartFillGameTests {
       UUID id = UUID.randomUUID();
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
       var modes = SessionSystem.of(player).modes();
+      helper.assertTrue(modes.smartFill().session(player).orElseThrow() == SmartFillSystem.session(player).orElseThrow(),
+         "mode did not bind the discovered fill plan");
       helper.assertTrue(modes.active(player).orElseThrow().id().equals(BuiltinModes.SMART_FILL), "preview is outside the mode registry");
       helper.assertFalse(modes.hasEditing(player), "temporary preview became a persistent editor");
       helper.assertTrue(modes.input(player, ModeInput.SWAP_HANDS) == ModeInputResult.CONSUMED, "pending fill did not own F");
@@ -76,6 +78,11 @@ public final class SmartFillGameTests {
       command(player, second, SmartFillCommandPayload.Action.CONFIRM);
       helper.assertFalse(SmartFillSystem.active(player), "unavailable boundary retained preview");
       helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "unavailable preview accepted a late write");
+      UUID third = UUID.randomUUID();
+      command(player, third, SmartFillCommandPayload.Action.DISCOVER);
+      helper.assertTrue(SmartFillSystem.active(player), "preview before detach did not start");
+      SessionSystem.detachPlayer(player);
+      helper.assertFalse(SessionSystem.of(player).modes().smartFill().active(player), "mode detach retained pending fill");
       PlayerStateRegistry.detach(player);
       command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.CANCEL);
       command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.CONFIRM);
@@ -188,14 +195,14 @@ public final class SmartFillGameTests {
       helper.getLevel().setBlock(mouth.offset(2, -3, 0), Blocks.AIR.defaultBlockState(), 2);
       helper.getLevel().setBlock(mouth.offset(3, -3, 0), Blocks.AIR.defaultBlockState(), 2);
       var player = player(helper, mouth);
-      var settings = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player);
+      var settings = io.github.fastformer.server.settings.FastPlaceSettings.load(player);
       var before = settings.fillMode();
       UUID id = UUID.randomUUID();
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
-      var after = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode();
+      var after = io.github.fastformer.server.settings.FastPlaceSettings.load(player).fillMode();
       helper.assertTrue(after == before, "unbounded planes changed the fill mode");
       command(player, id, SmartFillCommandPayload.Action.DISCOVER);
-      helper.assertTrue(io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode() == after,
+      helper.assertTrue(io.github.fastformer.server.settings.FastPlaceSettings.load(player).fillMode() == after,
          "duplicate rejected request changed the fill mode");
       helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "open hit plane fell back to another plane");
       helper.assertFalse(SmartFillSystem.active(player), "open hit plane created a fallback preview");
@@ -218,10 +225,10 @@ public final class SmartFillGameTests {
       player.setYRot((float) Math.toDegrees(Math.atan2(-ray.x, ray.z)));
       player.setYHeadRot(player.getYRot());
       player.setXRot((float) -Math.toDegrees(Math.asin(ray.y)));
-      var before = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode();
+      var before = io.github.fastformer.server.settings.FastPlaceSettings.load(player).fillMode();
       command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.DISCOVER);
       helper.assertTrue(SessionSystem.of(player).placementTasks().active(player), "bounded YZ plane was not found from an upward face hit");
-      helper.assertTrue(io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode() == before,
+      helper.assertTrue(io.github.fastformer.server.settings.FastPlaceSettings.load(player).fillMode() == before,
          "successful fill also cycled the mode");
       helper.succeedWhen(() -> {
          helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "fill task is pending");
@@ -237,10 +244,10 @@ public final class SmartFillGameTests {
    public static void rayMissKeepsModeWithoutStartingAWorldTask(GameTestHelper helper) {
       var player = player(helper, helper.absolutePos(new BlockPos(3, 6, 3)));
       player.setXRot(-90);
-      var settings = io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player);
+      var settings = io.github.fastformer.server.settings.FastPlaceSettings.load(player);
       var before = settings.fillMode();
       command(player, UUID.randomUUID(), SmartFillCommandPayload.Action.DISCOVER);
-      helper.assertTrue(io.github.fastformer.fastplace.settings.FastPlaceSettings.load(player).fillMode() == before,
+      helper.assertTrue(io.github.fastformer.server.settings.FastPlaceSettings.load(player).fillMode() == before,
          "ray miss changed the fill mode");
       helper.assertFalse(SessionSystem.of(player).placementTasks().active(player), "ray miss started a world task");
       helper.assertFalse(SmartFillSystem.active(player), "ray miss created a fill preview");

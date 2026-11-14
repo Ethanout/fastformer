@@ -1,5 +1,8 @@
 package io.github.fastformer.client.interaction.binding.action;
 
+import io.github.fastformer.client.interaction.binding.action.entry.IdleCommand;
+import io.github.fastformer.client.interaction.binding.action.entry.IdleEntryParameters;
+
 import com.mojang.serialization.Codec;
 import io.github.fastformer.common.interaction.binding.SessionProfiles;
 import java.util.function.Predicate;
@@ -43,6 +46,14 @@ public final class BuiltinBindingActions {
       register(actions, "confirmation/selection", commands -> commands.confirmation(ConfirmationCommand.CONFIRM_SELECTION));
       register(actions, "confirmation/quick_shape", commands -> commands.confirmation(ConfirmationCommand.SUBMIT_QUICK_SHAPE));
       register(actions, "confirmation/placement", commands -> commands.confirmation(ConfirmationCommand.CONFIRM_PLACEMENT));
+      register(actions, "history_conflict/overwrite", commands -> commands.historyConflict(HistoryConflictCommand.OVERWRITE));
+      register(actions, "history_conflict/skip", commands -> commands.historyConflict(HistoryConflictCommand.SKIP));
+      register(actions, "history_conflict/cancel", commands -> commands.historyConflict(HistoryConflictCommand.CANCEL));
+      register(actions, "cancellation/request", commands -> commands.cancellation(CancellationCommand.REQUEST_CANCEL));
+      register(actions, "cancellation/pending", commands -> commands.cancellation(CancellationCommand.REPORT_SUBMISSION_PENDING));
+      register(actions, "cancellation/binding", commands -> commands.cancellation(CancellationCommand.CANCEL_BINDING));
+      register(actions, "cancellation/selection", commands -> commands.cancellation(CancellationCommand.CANCEL_SELECTION));
+      registerPassVanilla(actions, "cancellation/clear_entry", commands -> commands.cancellation(CancellationCommand.CLEAR_ENTRY));
       register(actions, "quick_shape/input/point", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.POINT));
       register(actions, "quick_shape/input/middle", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.MIDDLE));
       register(actions, "quick_shape/input/capture_pointer", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.CAPTURE_POINTER));
@@ -52,6 +63,26 @@ public final class BuiltinBindingActions {
       register(actions, "quick_shape/input/scroll_up", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.SCROLL_UP));
       register(actions, "quick_shape/input/scroll_down", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.SCROLL_DOWN));
       registerPassVanilla(actions, "quick_shape/input/yield_scroll", commands -> commands.quickShapeBinding(QuickShapeBindingCommand.YIELD_SCROLL));
+      register(actions, "scroll/workspace_up", commands -> commands.scroll(ScrollCommand.WORKSPACE_UP));
+      register(actions, "scroll/workspace_down", commands -> commands.scroll(ScrollCommand.WORKSPACE_DOWN));
+      register(actions, "scroll/candidate_up", commands -> commands.scroll(ScrollCommand.CANDIDATE_UP));
+      register(actions, "scroll/candidate_down", commands -> commands.scroll(ScrollCommand.CANDIDATE_DOWN));
+      registerPassVanilla(actions, "scroll/yield", commands -> commands.scroll(ScrollCommand.YIELD_TO_VANILLA));
+      for (GeometryBindingCommand command : GeometryBindingCommand.values()) {
+         actions.register(id("geometry/" + command.name().toLowerCase(java.util.Locale.ROOT)),
+            Codec.intRange(1, 60_000).optionalFieldOf("duration_ms", 250).codec(),
+            duration -> (context, commands) -> result(commands.geometry(command, duration)));
+      }
+      for (var command : io.github.fastformer.client.interaction.binding.action.BindingCommands.SelectionBindingCommand.values()) {
+         actions.register(id("selection/" + command.name().toLowerCase(java.util.Locale.ROOT)),
+            Codec.intRange(1, 60_000).optionalFieldOf("duration_ms", 250).codec(),
+            duration -> (context, commands) -> result(commands.selection(command, duration)));
+      }
+      for (var command : IdleCommand.values()) {
+         actions.register(id("idle/" + command.name().toLowerCase(java.util.Locale.ROOT)),
+            IdleEntryParameters.CODEC,
+            parameters -> (context, commands) -> commands.idle(command, parameters));
+      }
       actions.register(id("pass"), Codec.unit(true), ignored -> (context, commands) -> BindingAction.Result.PASS);
       actions.register(id("vanilla"), Codec.unit(true), ignored -> (context, commands) -> BindingAction.Result.HANDLED_PASS_VANILLA);
       actions.register(id("block"), Codec.unit(true), ignored -> (context, commands) -> BindingAction.Result.HANDLED);

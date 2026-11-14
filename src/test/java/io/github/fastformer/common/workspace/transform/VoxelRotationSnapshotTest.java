@@ -3,7 +3,7 @@ package io.github.fastformer.common.workspace.transform;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
 import io.github.fastformer.common.selection.OperationStackRegion;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,7 +44,7 @@ class VoxelRotationSnapshotTest {
       WorkspaceTransform transform = new WorkspaceTransform(
          Vec3.ZERO, new Vec3(0.0, QUARTER, 0.0), OperationStackRegion.origin()
       );
-      Map<BlockPos, String> flat = WorkspacePreviewComposer.resolveValues(northSouthLine(), transform);
+      Map<BlockPos, String> flat = WorkspaceComposer.resolveValues(northSouthLine(), transform);
 
       assertEquals(TWO_CELLS_AFTER_POSITIVE_Y_QUARTER, flat.keySet());
       assertEquals(2, flat.size(), "a +Y90 turn of two cells must stay two cells");

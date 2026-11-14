@@ -1,9 +1,9 @@
 package io.github.fastformer.client.quickshape;
 
 import static org.junit.jupiter.api.Assertions.*;
-import io.github.fastformer.fastplace.geometry.generation.GenerationFailed;
-import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
-import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
+import io.github.fastformer.common.geometry.generation.source.GenerationFailed;
+import io.github.fastformer.common.placement.effect.ResolvedPlacementEffect;
+import io.github.fastformer.common.placement.plan.PlacementGeometryPlan;
 import io.github.fastformer.common.quickshape.mode.LineMode;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;

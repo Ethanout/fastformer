@@ -1,6 +1,6 @@
 package io.github.fastformer.client.geometry.pointer;
 
-import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.common.geometry.workflow.*;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import net.minecraft.world.phys.Vec3;
 

@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.geometry.LineTieBias;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import java.util.List;

@@ -1,7 +1,7 @@
 package io.github.fastformer.server.submission;
 
 import io.github.fastformer.core.lifecycle.Scoped;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;
 

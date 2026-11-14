@@ -4,6 +4,7 @@ package io.github.fastformer.client.geometry.presentation;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.client.preview.style.GeometryPalette;
+import io.github.fastformer.client.preview.style.BuiltinThemes;
 import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
 import io.github.fastformer.common.geometry.preview.GeometryStageDisplay;
 import io.github.fastformer.common.geometry.preview.GeometryTextBlock;
@@ -28,8 +29,8 @@ class GeometryTextPresentationTest {
       assertEquals(GeometryTextBlock.ContentSource.STAGE_BAR, status.source());
       assertTrue(colors(status.content()).stream().allMatch(color -> color == -1));
       try {
-         for (var theme : GeometryPalette.Theme.values()) {
-            GeometryPalette.selectTheme(theme);
+         for (var theme : GeometryPalette.snapshot().definitions()) {
+            GeometryPalette.selectTheme(theme.id());
             var presented = presentation.present(plan);
             var text = presented.textBlock(GeometryTextBlock.STATUS_ID).content();
             assertEquals("stage：selected / other value", text.getString());
@@ -84,10 +85,10 @@ class GeometryTextPresentationTest {
       var presentation = new GeometryTextPresentation();
       var plan = GeometryPreviewPlan.builder(List.of(), null).stage(Component.literal("stage")).build();
       try {
-         GeometryPalette.selectTheme(GeometryPalette.Theme.CLASSIC);
+         GeometryPalette.selectTheme(BuiltinThemes.CLASSIC);
          var classic = presentation.present(plan);
          assertSame(classic, presentation.present(plan));
-         GeometryPalette.selectTheme(GeometryPalette.Theme.HUMANIST);
+         GeometryPalette.selectTheme(BuiltinThemes.HUMANIST);
          var humanist = presentation.present(plan);
          assertNotSame(classic, humanist);
          assertEquals(List.of(GeometryPalette.text().rgb()), colors(humanist.textBlock(GeometryTextBlock.STATUS_ID).content()));

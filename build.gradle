@@ -266,23 +266,23 @@ tasks.register('verifyModJar') {
                 'io/github/fastformer/server/session/OperationSystem.class',
                 'io/github/fastformer/server/session/GeometrySystem.class',
                 'io/github/fastformer/server/session/SessionSystem.class',
-                'io/github/fastformer/fastplace/geometry/generation/FastPlaceGeometry.class',
-                'io/github/fastformer/fastplace/workflow/ConvexPolyhedronWorkflow.class',
+                'io/github/fastformer/common/geometry/generation/FastPlaceGeometry.class',
+                'io/github/fastformer/common/geometry/workflow/plan/ConvexPolyhedronWorkflow.class',
                 'io/github/fastformer/common/mode/SessionActivity.class',
-                'io/github/fastformer/fastplace/world/snapshot/ReversibleBlockSnapshot.class',
+                'io/github/fastformer/server/worldwrite/snapshot/ReversibleBlockSnapshot.class',
                 'io/github/fastformer/server/history/HistoryService.class',
                 'io/github/fastformer/server/history/entry/WorldChangeBatch.class',
                  'io/github/fastformer/server/recovery/PersistentRecoveryJournal.class',
                  'io/github/fastformer/server/task/TaskCancellationResult.class',
                  'io/github/fastformer/server/worldwrite/WorldWriteLeases.class',
-                 'io/github/fastformer/fastplace/world/WorldOperationCommit.class',
-                 'io/github/fastformer/fastplace/world/memory/WorldOperationMemory.class',
+                 'io/github/fastformer/server/worldwrite/transaction/WorldOperationCommit.class',
+                 'io/github/fastformer/common/world/memory/WorldOperationMemory.class',
                  'io/github/fastformer/server/task/WorldTaskContext.class',
                  'io/github/fastformer/server/task/WorldTaskScheduler.class',
                  'io/github/fastformer/server/feedback/TaskFeedback.class',
                 'io/github/fastformer/common/geometry/GeometryAction.class',
-                'io/github/fastformer/fastplace/geometry/generation/PlanarFaceRasterizer.class',
-                'io/github/fastformer/fastplace/geometry/generation/ArbitraryConvexPolyhedronGenerator.class'
+                'io/github/fastformer/common/geometry/generation/face/PlanarFaceRasterizer.class',
+                'io/github/fastformer/common/geometry/generation/volume/ArbitraryConvexPolyhedronGenerator.class'
         ]
         def jarFile = inputs.files.singleFile
         new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
@@ -292,6 +292,44 @@ tasks.register('verifyModJar') {
             requiredEntries.each { entry ->
                 if (zip.getEntry(entry) == null) {
                     throw new GradleException("Mod jar is missing required class: ${entry}")
+                }
+            }
+            def requireClass = { String className ->
+                if (zip.getEntry(className.replace('.', '/') + '.class') == null) {
+                    throw new GradleException("Mod jar resource references missing class: ${className}")
+                }
+            }
+            def metadata = zip.getEntry('META-INF/neoforge.mods.toml')
+            if (metadata == null) {
+                throw new GradleException('Mod jar is missing NeoForge metadata')
+            }
+            zip.getInputStream(metadata).withCloseable { stream ->
+                def configs = stream.getText('UTF-8') =~ /(?m)^config\s*=\s*"([^"]+)"/
+                configs.each { match ->
+                    def entry = zip.getEntry(match[1])
+                    if (entry == null) {
+                        throw new GradleException("Mod jar is missing mixin configuration: ${match[1]}")
+                    }
+                    zip.getInputStream(entry).withCloseable { configStream ->
+                        def config = new groovy.json.JsonSlurper().parse(configStream, 'UTF-8')
+                        ['mixins', 'client', 'server'].each { side ->
+                            (config[side] ?: []).each { name -> requireClass("${config.package}.${name}") }
+                        }
+                    }
+                }
+            }
+            zip.entries().each { entry ->
+                if (entry.name ==~ /io\/github\/fastformer\/(fastplace|workspace|network|mixin)\/.*\.class/) {
+                    throw new GradleException("Mod jar contains retired package: ${entry.name}")
+                }
+                if (!entry.directory && entry.name.startsWith('META-INF/services/')) {
+                    requireClass(entry.name.substring('META-INF/services/'.length()))
+                    zip.getInputStream(entry).withCloseable { stream ->
+                        stream.getText('UTF-8').eachLine { line ->
+                            def provider = line.split('#', 2)[0].trim()
+                            if (provider) requireClass(provider)
+                        }
+                    }
                 }
             }
         }

@@ -8,6 +8,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
+import io.github.fastformer.common.interaction.binding.DoubleClickPolicy;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import io.github.fastformer.common.raycast.SessionEntryRaycast;
 import io.github.fastformer.protocol.c2s.placement.IdleInteractionCapturePayload;
@@ -34,10 +35,10 @@ public final class IdleEntryGameTests {
    public static void ordinaryClicksDoNotCreateAPointDraft(GameTestHelper helper) {
       var player = player(helper);
       var hit = hit(player);
-      helper.assertFalse(ServerInputDispatcher.rightClickBlock(player, hit), "ordinary use started a building draft");
-      helper.assertFalse(ServerInputDispatcher.rightClickItem(player), "ordinary item use started a building draft");
-      helper.assertFalse(ServerInputDispatcher.leftClickBlock(player, hit.getBlockPos()), "ordinary attack started a selection");
-      ServerInputDispatcher.middleClick(player, hit.getBlockPos());
+      helper.assertFalse(ServerInputActions.rightClickBlock(player, hit), "ordinary use started a building draft");
+      helper.assertFalse(ServerInputActions.rightClickItem(player), "ordinary item use started a building draft");
+      helper.assertFalse(ServerInputActions.leftClickBlock(player, hit.getBlockPos()), "ordinary attack started a selection");
+      ServerInputActions.middleClick(player, hit.getBlockPos());
       helper.assertTrue(IdleInteractionSnapshots.idle(player), "ordinary click changed the idle session");
       helper.succeed();
    }
@@ -50,7 +51,7 @@ public final class IdleEntryGameTests {
       helper.getLevel().setBlock(hit.getBlockPos(), Blocks.AIR.defaultBlockState(), 2);
       helper.getLevel().setBlock(hit.getBlockPos().above(), Blocks.STONE.defaultBlockState(), 2);
       helper.assertTrue(!hit(player).getBlockPos().equals(hit.getBlockPos()), "occluder did not block the ordinary ray");
-      ServerInputDispatcher.startPlacement(player, request(player, 101, hit));
+      ServerInputActions.startPlacement(player, request(player, 101, hit));
       var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       helper.assertTrue(draft.points().equals(java.util.List.of(hit.getBlockPos().above())), "entry lost the first press's surface placement rule");
       SessionSystem.of(player).cancelEditing(player);
@@ -62,7 +63,7 @@ public final class IdleEntryGameTests {
       var player = player(helper);
       helper.succeedWhen(() -> {
       helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world writer");
-      helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+      helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for history");
       player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter().add(0, 2, 0));
       player.setXRot(90);
       var first = hit(player);
@@ -75,7 +76,7 @@ public final class IdleEntryGameTests {
          + "; allowed=" + player.level().mayInteract(player, placed) + "; reach=" + player.canInteractWithBlock(placed, 0));
       var second = hit(player);
       helper.assertTrue(second.getBlockPos().equals(placed), "second ray did not hit the placed shape");
-      ServerInputDispatcher.startPlacement(player, request(player, 102, second));
+      ServerInputActions.startPlacement(player, request(player, 102, second));
       helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(placed)),
          "double-click lost the captured placement anchor");
       helper.assertTrue(helper.getLevel().getBlockState(placed.above()).isAir(), "entry placed a second log");
@@ -89,7 +90,7 @@ public final class IdleEntryGameTests {
       player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.OAK_STAIRS));
       helper.succeedWhen(() -> {
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for history");
          helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world writer");
          player.setPos(helper.absolutePos(new BlockPos(2, 2, 2)).getCenter().add(0, 2, 0));
          player.setXRot(90);
@@ -106,7 +107,7 @@ public final class IdleEntryGameTests {
          player.setYRot(180);
          player.setXRot(88);
          helper.getLevel().setBlock(placed, Blocks.STONE.defaultBlockState(), 2);
-         ServerInputDispatcher.startPlacement(player, request(player, 105, second));
+         ServerInputActions.startPlacement(player, request(player, 105, second));
          var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
          var placement = draft.placementContext();
          helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click lost the captured placement anchor");
@@ -135,7 +136,7 @@ public final class IdleEntryGameTests {
       var hit = hit(player);
       IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(103, hit, player.getEyePosition(), player.getViewVector(1)));
       player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.STONE));
-      ServerInputDispatcher.startPlacement(player, request(player, 103, hit));
+      ServerInputActions.startPlacement(player, request(player, 103, hit));
       helper.assertFalse(QuickShapeSystem.of(player).active(player), "old snapshot survived a held-item change");
       helper.succeed();
    }
@@ -163,6 +164,40 @@ public final class IdleEntryGameTests {
       helper.assertTrue(entry.rules().equals(InteractionRaycastRules.VANILLA_OUTLINE), "entry changed fluid rules");
       helper.assertTrue(IdleInteractionSnapshots.consumeEntry(player, 104,
          player.getEyePosition(), player.getViewVector(1)) == null, "snapshot was consumed twice");
+      helper.succeed();
+   }
+
+   @GameTest(template = "fastformergametests.empty", batch = "idle_entry", timeoutTicks = 600)
+   public static void configuredFirstPressToleranceIsSharedWithTheServer(GameTestHelper helper) {
+      var player = player(helper);
+      var floor = hit(player).getBlockPos();
+      var originalPosition = floor.getCenter().add(0.49, 16, 0);
+      player.setPos(originalPosition);
+      var first = hit(player);
+      var defaults = DoubleClickPolicy.DEFAULT;
+      var exact = new DoubleClickPolicy(java.util.List.of(
+         new DoubleClickPolicy.Band(0, Double.MAX_VALUE, 450, true, 0, 0)), defaults.acceptIfAny());
+      IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(201, first, player.getEyePosition(), player.getViewVector(1),
+         InteractionRaycastRules.VANILLA_OUTLINE, exact));
+      player.setPos(originalPosition.add(0.1, 0, 0));
+      helper.assertTrue(IdleInteractionSnapshots.consumeEntry(player, 201, player.getEyePosition(), player.getViewVector(1)) == null,
+         "server used its default edge padding instead of the first press's configured exact band");
+
+      player.setPos(originalPosition);
+      IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(202, first, player.getEyePosition(), player.getViewVector(1),
+         InteractionRaycastRules.VANILLA_OUTLINE, defaults));
+      player.setPos(originalPosition.add(0.2, 0, 0));
+      helper.assertTrue(IdleInteractionSnapshots.consumeEntry(player, 202, player.getEyePosition(), player.getViewVector(1)) == null,
+         "control ray did not miss the default edge tolerance");
+
+      player.setPos(originalPosition);
+      var extended = new DoubleClickPolicy(java.util.List.of(
+         new DoubleClickPolicy.Band(0, Double.MAX_VALUE, 450, false, 1, 0.25)), defaults.acceptIfAny());
+      IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(203, first, player.getEyePosition(), player.getViewVector(1),
+         InteractionRaycastRules.VANILLA_OUTLINE, extended));
+      player.setPos(originalPosition.add(0.2, 0, 0));
+      helper.assertTrue(IdleInteractionSnapshots.consumeEntry(player, 203, player.getEyePosition(), player.getViewVector(1)) != null,
+         "server did not freeze the configured wider edge tolerance");
       helper.succeed();
    }
 
@@ -198,7 +233,7 @@ public final class IdleEntryGameTests {
       IdleInteractionSnapshots.placed(player, placed);
       var second = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, eye, view, false);
       helper.assertTrue(second.getBlockPos().equals(placed.above()), "second ray should hit the water above the placed block");
-      ServerInputDispatcher.startPlacement(player, request(player, 120, second));
+      ServerInputActions.startPlacement(player, request(player, 120, second));
       var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
       helper.assertTrue(draft.points().equals(java.util.List.of(placed)), "double-click moved the first point onto the water surface");
       helper.assertTrue(draft.placementContext().capturedState().state().is(Blocks.OAK_LOG), "first placed state was lost");
@@ -214,7 +249,7 @@ public final class IdleEntryGameTests {
          var rules = new io.github.fastformer.common.raycast.InteractionRaycastRules(embedded, true);
          long token = embedded ? 122 : 121;
          IdleInteractionSnapshots.capture(player, new IdleInteractionCapturePayload(token, first, player.getEyePosition(), player.getViewVector(1), rules));
-         ServerInputDispatcher.startPlacement(player, request(player, token, first));
+         ServerInputActions.startPlacement(player, request(player, token, first));
          var expected = embedded ? first.getBlockPos() : first.getBlockPos().above();
          helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(expected)),
             "second click changed embedded=" + embedded);
@@ -283,11 +318,11 @@ public final class IdleEntryGameTests {
       helper.succeedWhen(() -> {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          if (!submitted[0]) {
-            helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+            helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for history");
             helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.level().dimension()), "waiting for world writer");
             var target = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
                PreviewSync.callbackScope(player), hit, player.getEyePosition(), player.getViewVector(1), 0, true, true);
-            ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(104, target));
+            ServerInputActions.startPlacement(player, new StartPlacementPayload(104, target));
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "middle entry left a line draft instead of submitting");
             submitted[0] = true;
          }
@@ -402,7 +437,7 @@ public final class IdleEntryGameTests {
       var targetHit = io.github.fastformer.common.raycast.SessionEntryRaycast.clip(player, eye, view, true);
       var target = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
          PreviewSync.callbackScope(player), targetHit, eye, view, 0, false, false, true);
-      ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(110, target));
+      ServerInputActions.startPlacement(player, new StartPlacementPayload(110, target));
       helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(fluid)),
          "server rejected the Alt surface ray through water");
       SessionSystem.of(player).cancelEditing(player);

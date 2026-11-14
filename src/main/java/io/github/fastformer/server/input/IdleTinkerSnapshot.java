@@ -1,7 +1,7 @@
 package io.github.fastformer.server.input;
 
-import io.github.fastformer.fastplace.world.BlockEditTransaction;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.transaction.BlockEditTransaction;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;

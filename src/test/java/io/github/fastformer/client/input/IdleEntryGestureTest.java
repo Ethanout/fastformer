@@ -14,6 +14,15 @@ class IdleEntryGestureTest {
    private static final Vec3 VIEW = new Vec3(0, 0, 1);
    private static final InteractionShapeSnapshot FULL = new InteractionShapeSnapshot(BlockPos.ZERO, List.of(new AABB(0, 0, 0, 1, 1, 1)));
 
+   @Test void reboundPhysicalButtonsCannotCompleteAnotherButtonsFirstPress() {
+      var gesture = new IdleEntryGesture();
+      gesture.remember(1, 100, FULL, EYE, VIEW, this, null,
+         io.github.fastformer.common.raycast.InteractionRaycastRules.DEFAULT,
+         io.github.fastformer.common.interaction.binding.DoubleClickPolicy.DEFAULT, 4);
+      assertNull(gesture.secondPress(1, 200, EYE, VIEW));
+      assertNotNull(gesture.secondPress(4, 200, EYE, VIEW));
+   }
+
    @Test void matchedEntryRetainsBothFirstPressRulesThroughShapeUpdatesAndClear() {
       for (boolean embedded : new boolean[]{false, true}) {
          for (boolean throughFluids : new boolean[]{false, true}) {

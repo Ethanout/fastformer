@@ -1,10 +1,10 @@
 package io.github.fastformer.client.quickshape;
 
 import io.github.fastformer.core.async.TickMailbox;
-import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
-import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
-import io.github.fastformer.fastplace.placement.plan.PlacementGeometryPlan;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
+import io.github.fastformer.common.geometry.generation.source.BlockGenerationResult;
+import io.github.fastformer.common.geometry.generation.source.ProgressiveBlockGeneration;
+import io.github.fastformer.common.placement.plan.PlacementGeometryPlan;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;

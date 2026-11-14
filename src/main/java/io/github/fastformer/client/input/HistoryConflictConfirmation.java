@@ -1,6 +1,7 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.client.network.outbound.ServerGateway;
+import io.github.fastformer.client.interaction.binding.action.HistoryConflictCommand;
 
 import io.github.fastformer.protocol.s2c.world.HistoryConflictPayload;
 import io.github.fastformer.protocol.c2s.world.HistoryConflictResponsePayload;
@@ -25,20 +26,17 @@ public final class HistoryConflictConfirmation {
          if (positions.size() + payload.positions().size() <= pending.total()) positions.addAll(payload.positions());
       }
    }
-   public static boolean handleKey(Minecraft minecraft, KeyboardInputSnapshot key) {
-      if (pending == null || minecraft.player == null || minecraft.screen != null || key.action() != 1) return false;
-      var choice = choice(key.key(), key.controlDown());
-      if (choice == null) return key.controlDown() && (key.key() == 90 || key.key() == 89);
+   static boolean respond(Minecraft minecraft, HistoryConflictCommand command) {
+      if (pending == null || minecraft.player == null || minecraft.screen != null) return false;
       if (!sent && minecraft.getConnection() != null) {
+         var choice = switch (command) {
+            case OVERWRITE -> HistoryConflictResponsePayload.Choice.OVERWRITE;
+            case SKIP -> HistoryConflictResponsePayload.Choice.SKIP;
+            case CANCEL -> HistoryConflictResponsePayload.Choice.CANCEL;
+         };
          ServerGateway.send(new HistoryConflictResponsePayload(pending.token(), choice));
          sent = true;
       }
       return true;
-   }
-
-   static HistoryConflictResponsePayload.Choice choice(int key, boolean control) {
-      return key == 81 ? HistoryConflictResponsePayload.Choice.CANCEL
-         : key == 257 || key == 335 ? control
-            ? HistoryConflictResponsePayload.Choice.SKIP : HistoryConflictResponsePayload.Choice.OVERWRITE : null;
    }
 }

@@ -1,6 +1,6 @@
 package io.github.fastformer.server.history.replay;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 
 /** Defines the non-mutating decisions used while a history task recovers world state. */
 public final class HistoryRecoveryPolicy {

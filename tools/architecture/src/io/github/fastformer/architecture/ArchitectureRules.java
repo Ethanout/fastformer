@@ -65,6 +65,21 @@ final class ArchitectureRules {
     }
 
     static boolean strictBoundary(String owner, String target) {
+        if (owner.startsWith(ROOT + "server.history.entry.") && target.startsWith(ROOT + "server.")) {
+            return !target.startsWith(ROOT + "server.history.entry.")
+                    && !Set.of(ROOT + "server.worldwrite.snapshot.ReversibleBlockSnapshot",
+                        ROOT + "server.worldwrite.snapshot.BlockEntitySnapshot").contains(target);
+        }
+        if (PackageGraph.packageName(owner).equals(ROOT + "server.worldwrite") && target.startsWith(ROOT)) {
+            return !target.startsWith(ROOT + "core.") && !target.startsWith(ROOT + "common.")
+                    && !PackageGraph.packageName(target).equals(ROOT + "server.worldwrite");
+        }
+        if (Set.of("snapshot", "transaction", "effect").stream()
+                .anyMatch(part -> owner.startsWith(ROOT + "server.worldwrite." + part + "."))) {
+            return target.startsWith(ROOT + "client.") || target.startsWith(ROOT + "network.")
+                    || Set.of("session", "intent", "command", "settings").stream()
+                        .anyMatch(feature -> target.startsWith(ROOT + "server." + feature + "."));
+        }
         if (owner.startsWith(ROOT + "client.")
                 && !owner.equals(ROOT + "client.network.outbound.ServerGateway")
                 && (target.equals("net.neoforged.neoforge.network.PacketDistributor")

@@ -3,7 +3,7 @@ package io.github.fastformer.fastplace;
 import io.github.fastformer.common.placement.context.PlacementContexts;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import io.github.fastformer.common.placement.context.PlacementSupportQuery;

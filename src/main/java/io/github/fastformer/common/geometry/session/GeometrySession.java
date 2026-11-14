@@ -37,23 +37,13 @@ public final class GeometrySession {
       draftId = UUID.randomUUID();
    }
 
-   public void addOrClose(BlockPos point) {
-      state.beforePointChange();
-      BlockPos value = point.immutable();
-      if (state.points().size() >= 3 && state.points().getFirst().block().equals(value)) close();
-      else addPoint(value);
-   }
+   public void addOrClose(BlockPos point) { state.addOrClose(point); }
 
    public void addPoint(BlockPos point) { addPoint(Vec3.atCenterOf(point)); }
-   public void addPoint(Vec3 point) { state.beforePointChange(); state.addPoint(point); }
-   public void addPoint(Vec3 point, ControlPointRole role) { state.beforePointChange(); state.addPoint(point, role); }
+   public void addPoint(Vec3 point) { state.addPoint(point); }
+   public void addPoint(Vec3 point, ControlPointRole role) { state.addPoint(point, role); }
 
-   public boolean close() {
-      if (state.closed()) return false;
-      state.setClosed(true);
-      state.beforePointChange();
-      return true;
-   }
+   public boolean close() { return state.close(); }
 
    public boolean removeOrUndo(BlockPos point) { return removeOrUndo(point, true); }
    public boolean undoStep() { return removeOrUndo(null, false); }

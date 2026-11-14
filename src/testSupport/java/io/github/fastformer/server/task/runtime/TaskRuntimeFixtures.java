@@ -1,14 +1,14 @@
 package io.github.fastformer.server.task.runtime;
 
-import io.github.fastformer.fastplace.world.WorldOperationCommit;
+import io.github.fastformer.server.worldwrite.transaction.WorldOperationCommit;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.task.WorldTask;
 import net.minecraft.server.level.ServerLevel;
-import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
-import io.github.fastformer.fastplace.world.memory.MemoryAdmissionStatus;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
+import io.github.fastformer.common.world.memory.MemoryAdmission;
+import io.github.fastformer.common.world.memory.MemoryAdmissionStatus;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
 import java.util.Objects;
 
 /** Seeds resources before registering a writer; never replaces a running publication. */

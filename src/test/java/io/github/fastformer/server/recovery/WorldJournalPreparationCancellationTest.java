@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
+import io.github.fastformer.common.world.memory.MemoryReservation;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
 import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -6,7 +6,7 @@ import io.github.fastformer.server.history.memory.HistoryMemoryCache;
 import io.github.fastformer.server.history.replay.HistoryReplayTask;
 
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;

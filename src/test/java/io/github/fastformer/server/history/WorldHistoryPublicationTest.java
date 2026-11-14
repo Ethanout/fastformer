@@ -3,8 +3,8 @@ package io.github.fastformer.server.history;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.util.AbstractCollection;
 import java.util.Iterator;
 import java.util.List;

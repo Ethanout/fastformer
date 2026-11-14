@@ -1,6 +1,6 @@
 package io.github.fastformer.server.network.upload;
 
-import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
+import io.github.fastformer.protocol.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.protocol.upload.UploadChunk;
 import java.io.IOException;
 import java.util.ArrayList;

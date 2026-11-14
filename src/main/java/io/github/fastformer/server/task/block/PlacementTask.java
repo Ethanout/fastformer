@@ -1,30 +1,27 @@
 package io.github.fastformer.server.task.block;
 
+import io.github.fastformer.server.worldwrite.snapshot.SnapshotMemoryRules;
+import io.github.fastformer.server.worldwrite.snapshot.BlockSnapshotReader;
+
 import io.github.fastformer.server.task.MemoryReservationAttempt;
 
-import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
-import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
-import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.geometry.generation.source.BlockGenerationResult;
+import io.github.fastformer.common.geometry.generation.source.BlockPositionSource;
+import io.github.fastformer.common.geometry.generation.source.ProgressiveBlockGeneration;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
-import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.fastplace.world.WorldChangeTransaction;
-import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.WorldOperationPhase;
+import io.github.fastformer.server.worldwrite.transaction.WorldOperationCommit;
+import io.github.fastformer.server.task.metrics.WorldOperationPhase;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.world.WorldWriteSideEffectGuard;
-import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import java.util.AbstractCollection;
+import io.github.fastformer.common.world.memory.MemoryAdmission;
+import io.github.fastformer.common.world.memory.MemoryReservation;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
@@ -34,15 +31,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -50,11 +44,10 @@ import net.minecraft.world.level.block.state.BlockState;
  * validated world writes and durable history commit.
  */
 public final class PlacementTask extends LeasedJournaledTask {
-   private CompletableFuture<BlockGenerationResult> future;
-   private DeferredGeneration deferredGeneration;
-   private MemoryReservation generationReservation;
-   private final ProgressiveBlockGeneration generationProgress;
+   private final PlacementGeneration generation;
    private final PlacementTaskPlan plan;
+   private final BlockSnapshotReader snapshots;
+   private final BlockTaskMemoryPolicy memoryPolicy;
    private Set<BlockPos> targets;
    private BlockPositionSource generatedPositions;
    private Map<BlockPos, BlockState> resolvedStates = Map.of();
@@ -104,15 +97,22 @@ public final class PlacementTask extends LeasedJournaledTask {
       Set<BlockPos> targets, PlacementTaskPlan plan, MemoryReservation generationReservation,
       WorldJournalPreparation journalPreparation
    ) {
+      this(future, generationProgress, targets, plan, generationReservation, journalPreparation,
+         BlockSnapshotReader.live(), BlockTaskMemoryPolicy.standard());
+   }
+
+   PlacementTask(CompletableFuture<BlockGenerationResult> future, ProgressiveBlockGeneration generationProgress,
+      Set<BlockPos> targets, PlacementTaskPlan plan, MemoryReservation generationReservation,
+      WorldJournalPreparation journalPreparation, BlockSnapshotReader snapshots, BlockTaskMemoryPolicy memoryPolicy) {
       super(journalPreparation);
-      this.future = future;
-      this.generationProgress = generationProgress;
+      this.snapshots = java.util.Objects.requireNonNull(snapshots);
+      this.memoryPolicy = java.util.Objects.requireNonNull(memoryPolicy);
+      this.generation = new PlacementGeneration(future, generationProgress, generationReservation);
       this.targets = targets;
       this.remaining = targets == null ? 0 : targets.size();
       this.total = this.remaining;
       this.validationRemaining = this.remaining;
       this.plan = plan;
-      this.generationReservation = generationReservation;
       this.metrics.phase(WorldOperationPhase.GENERATION);
       this.metrics.targetCount(this.total);
       this.metrics.queued();
@@ -179,55 +179,17 @@ public final class PlacementTask extends LeasedJournaledTask {
       long estimatedBlocks, long additionalBlockSets
    ) {
       PlacementTask task = new PlacementTask(null, progress, null, plan, null);
-      task.deferredGeneration = new DeferredGeneration(
-         java.util.Objects.requireNonNull(generator), estimatedBlocks, additionalBlockSets);
+      task.generation.defer(generator, estimatedBlocks, additionalBlockSets);
       return task;
    }
 
    public boolean waitingForGenerationMemory() {
-      return this.deferredGeneration != null;
+      return this.generation.waitingForMemory();
    }
-
-   private boolean startDeferredGeneration() {
-      DeferredGeneration pending = this.deferredGeneration;
-      MemoryAdmission admission = WorldOperationMemory.generationAdmission(pending.estimatedBlocks(), pending.additionalBlockSets());
-      this.metrics.phase(WorldOperationPhase.MEMORY_ADMISSION);
-      this.memoryThrottled = admission.throttled();
-      if (!admission.allowed()) {
-         this.memoryUnsafe = true;
-         this.targets = Set.of();
-         this.deferredGeneration = null;
-         return true;
-      }
-      this.generationReservation = WorldOperationMemory.reserve(admission).orElse(null);
-      if (this.generationReservation == null) {
-         return false;
-      }
-      this.deferredGeneration = null;
-      this.metrics.phase(WorldOperationPhase.GENERATION);
-      try {
-         this.future = CompletableFuture.supplyAsync(pending.generator());
-      } catch (RuntimeException | OutOfMemoryError exception) {
-         releaseGenerationReservation();
-         this.targets = Set.of();
-         fail(WorldOperationPhase.GENERATION, "generation scheduling: " + exception.getClass().getSimpleName());
-      }
-      return true;
-   }
-
-   private record DeferredGeneration(Supplier<BlockGenerationResult> generator, long estimatedBlocks, long additionalBlockSets) {}
 
    public boolean prepare() {
       if (this.failed || this.memoryUnsafe) {
          return true;
-      }
-      if (this.deferredGeneration != null) {
-         if (!startDeferredGeneration()) {
-            return false;
-         }
-         if (this.targets != null) {
-            return true;
-         }
       }
       if (this.targets != null) {
          this.metrics.phase(WorldOperationPhase.MEMORY_ADMISSION);
@@ -237,28 +199,24 @@ public final class PlacementTask extends LeasedJournaledTask {
          }
          return true;
       }
-      if (!this.future.isDone()) {
-         return false;
-      }
-      BlockGenerationResult generatedResult;
-      try {
-         generatedResult = this.future.join();
-      } catch (RuntimeException | OutOfMemoryError exception) {
-         this.future = null;
-         releaseGenerationReservation();
-         if (this.generationProgress != null) {
-            this.generationProgress.releasePublished();
-         }
-         fail(WorldOperationPhase.GENERATION, "generation future: " + exception.getClass().getSimpleName());
+      this.metrics.phase(generation.waitingForMemory() ? WorldOperationPhase.MEMORY_ADMISSION : WorldOperationPhase.GENERATION);
+      PlacementGeneration.Outcome outcome = generation.poll();
+      this.memoryThrottled = generation.throttled();
+      if (outcome == PlacementGeneration.Outcome.PENDING) return false;
+      if (outcome == PlacementGeneration.Outcome.MEMORY_REJECTED) {
+         this.memoryUnsafe = true;
          this.targets = Set.of();
          return true;
       }
-      this.future = null;
-      transferGenerationReservation();
-      this.metrics.generationReady();
-      if (this.generationProgress != null) {
-         this.generationProgress.releasePublished();
+      if (outcome == PlacementGeneration.Outcome.FAILED) {
+         fail(WorldOperationPhase.GENERATION, generation.failure());
+         this.targets = Set.of();
+         return true;
       }
+      BlockGenerationResult generatedResult = generation.takeResult();
+      MemoryReservation generatedReservation = generation.takeReservation();
+      if (generatedReservation != null) this.memoryReservation = generatedReservation;
+      this.metrics.generationReady();
       if (generatedResult.status() == BlockGenerationResult.Status.CONSTRAINTS_FAILED) {
          this.generationConstraintsFailed = true;
          releaseMemoryReservation();
@@ -338,7 +296,7 @@ public final class PlacementTask extends LeasedJournaledTask {
          return;
       }
       this.memoryChecked = true;
-      var admission = WorldOperationMemory.snapshotAdmission(this.targets.size(), this.blockEntityReserve);
+      var admission = memoryPolicy.admit(WorldOperationMemory.snapshotAdmission(this.targets.size(), this.blockEntityReserve));
       this.memoryThrottled = admission.throttled();
       this.memoryUnsafe = !admission.allowed();
       if (this.memoryUnsafe) {
@@ -374,7 +332,7 @@ public final class PlacementTask extends LeasedJournaledTask {
          }
          BlockPos pos = this.validationIterator.next();
          this.validationRemaining--;
-         Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
+         Optional<ReversibleBlockSnapshot> snapshot = snapshots.capture(level, pos);
          if (snapshot.isEmpty()) {
             fail(WorldOperationPhase.SNAPSHOT, "snapshot validation at " + pos.toShortString());
             return true;
@@ -388,7 +346,7 @@ public final class PlacementTask extends LeasedJournaledTask {
          }
          this.blockEntityReserve = WorldOperationMemory.saturatingAdd(
             this.blockEntityReserve,
-            WorldOperationMemory.snapshotNbtReserve(captured)
+            SnapshotMemoryRules.nbtReserve(captured)
          );
          this.transaction.recordExpected(pos, captured);
          MemoryReservationAttempt capturedReservation = reserveSnapshotMemory();
@@ -487,7 +445,7 @@ public final class PlacementTask extends LeasedJournaledTask {
       RegistryAccess registryAccess,
       Collection<ReversibleBlockSnapshot> journalBefore
    ) {
-      Collection<ReversibleBlockSnapshot> journalAfter = predictedPlacementAfter(
+      Collection<ReversibleBlockSnapshot> journalAfter = PlacementJournalPrediction.after(
          registryAccess, journalBefore, this::stateAt, this.plan.conflictMode()
       );
       return context.recovery().begin(
@@ -507,7 +465,7 @@ public final class PlacementTask extends LeasedJournaledTask {
       if (journal == null) {
          return false;
       }
-      Collection<ReversibleBlockSnapshot> journalAfter = predictedPlacementAfter(
+      Collection<ReversibleBlockSnapshot> journalAfter = PlacementJournalPrediction.after(
          registryAccess, journalBefore, this::stateAt, this.plan.conflictMode()
       );
       return journal.appendSegment(journalBefore, journalAfter);
@@ -523,6 +481,7 @@ public final class PlacementTask extends LeasedJournaledTask {
    }
 
    private MemoryReservationAttempt reserveMemory(MemoryAdmission admission) {
+      admission = memoryPolicy.admit(admission);
       this.memoryThrottled = admission.throttled();
       if (!admission.allowed()) {
          return MemoryReservationAttempt.REJECTED;
@@ -557,7 +516,7 @@ public final class PlacementTask extends LeasedJournaledTask {
       }
       while (this.finalizationIterator.hasNext() && budget.tryConsume()) {
          BlockPos position = this.finalizationIterator.next();
-         Optional<ReversibleBlockSnapshot> actual = ReversibleBlockSnapshot.capture(level, position);
+         Optional<ReversibleBlockSnapshot> actual = snapshots.capture(level, position);
          if (actual.isEmpty()) {
             fail(WorldOperationPhase.FINALIZE, "final snapshot at " + position.toShortString());
             return true;
@@ -617,17 +576,8 @@ public final class PlacementTask extends LeasedJournaledTask {
 
    @Override
    protected void stopTaskActivity() {
-      if (this.deferredGeneration != null) {
-         this.deferredGeneration = null;
-         this.targets = Set.of();
-      }
-      if (this.generationProgress != null) {
-         this.generationProgress.cancel();
-         this.generationProgress.releasePublished();
-      }
-      CompletableFuture<BlockGenerationResult> pendingGeneration = this.future;
-      this.future = null;
-      releaseGenerationReservation(pendingGeneration);
+      if (generation.waitingForMemory()) this.targets = Set.of();
+      generation.cancel();
    }
 
    /** Reacquires the current phase budget after an unloaded dimension releases it. */
@@ -648,6 +598,7 @@ public final class PlacementTask extends LeasedJournaledTask {
       } else {
          admission = transactionAdmission();
       }
+      admission = memoryPolicy.admit(admission);
       this.memoryThrottled = admission.throttled();
       if (!admission.allowed()) {
          this.memoryUnsafe = true;
@@ -661,30 +612,6 @@ public final class PlacementTask extends LeasedJournaledTask {
          return false;
       }
       return true;
-   }
-
-   private void releaseGenerationReservation() {
-      releaseGenerationReservation(this.future);
-   }
-
-   /** Transfers late generation completion cleanup out of the task. */
-   private void releaseGenerationReservation(CompletableFuture<?> generationCompletion) {
-      if (this.generationReservation != null) {
-         MemoryReservation reservation = this.generationReservation;
-         this.generationReservation = null;
-         if (generationCompletion == null || generationCompletion.isDone()) {
-            reservation.close();
-         } else {
-            generationCompletion.whenComplete((ignored, exception) -> reservation.close());
-         }
-      }
-   }
-
-   private void transferGenerationReservation() {
-      if (this.generationReservation != null) {
-         this.memoryReservation = this.generationReservation;
-         this.generationReservation = null;
-      }
    }
 
    /**
@@ -751,7 +678,7 @@ public final class PlacementTask extends LeasedJournaledTask {
    }
 
    public ProgressiveBlockGeneration.Snapshot generationProgress() {
-      return this.generationProgress == null ? null : this.generationProgress.snapshot();
+      return generation.snapshot();
    }
 
    public void place(WorldTaskContext context, ServerLevel level, BlockPos pos) {
@@ -760,19 +687,20 @@ public final class PlacementTask extends LeasedJournaledTask {
          this.metrics.writeAttempt(false);
          return;
       }
-      BlockWriteResult result = setBlockWithUndo(
+      PlacementBlockWriter.Result result = PlacementBlockWriter.write(
          context,
          level,
          pos,
          stateAt(pos),
          this.plan.conflictMode(),
          this.plan.updateMode(),
-         this.transaction
+         this.transaction,
+         this.snapshots
       );
-      if (result == BlockWriteResult.PLACED) {
+      if (result == PlacementBlockWriter.Result.PLACED) {
          this.placed++;
          this.metrics.writeAttempt(true);
-      } else if (result == BlockWriteResult.FAILED) {
+      } else if (result == PlacementBlockWriter.Result.FAILED) {
          this.metrics.writeAttempt(false);
          fail(WorldOperationPhase.WRITE, "world write at " + pos.toShortString());
       } else {
@@ -831,161 +759,4 @@ public final class PlacementTask extends LeasedJournaledTask {
       this.metrics.phase(phase);
    }
 
-   private static BlockWriteResult setBlockWithUndo(
-      WorldTaskContext context,
-      ServerLevel level,
-      BlockPos pos,
-      BlockState state,
-      OperationConflictMode conflictMode,
-      PlacementUpdateMode updateMode,
-      WorldChangeTransaction transaction
-   ) {
-      BlockState previous = level.getBlockState(pos);
-      ReversibleBlockSnapshot expectedSnapshot = transaction.expectedAt(pos);
-      if (expectedSnapshot != null && !expectedSnapshot.matches(level, pos)) {
-         return conflictMode == OperationConflictMode.KEEP_EXISTING && !previous.canBeReplaced()
-            ? BlockWriteResult.SKIPPED
-            : BlockWriteResult.FAILED;
-      }
-      if (conflictMode == OperationConflictMode.KEEP_EXISTING && !previous.canBeReplaced()) {
-         return BlockWriteResult.SKIPPED;
-      }
-      if (previous.equals(state)) {
-         return BlockWriteResult.SKIPPED;
-      }
-      ReversibleBlockSnapshot before = expectedSnapshot;
-      if (before == null) {
-         Optional<ReversibleBlockSnapshot> snapshot = ReversibleBlockSnapshot.capture(level, pos);
-         if (snapshot.isEmpty()) {
-            context.actionBar(PlayerMessages.text("fastformer.message.block_snapshot_failed", pos.toShortString()));
-            return BlockWriteResult.FAILED;
-         }
-         before = snapshot.orElseThrow();
-      }
-      // Record recovery state before callbacks in setBlock can mutate the world.
-      transaction.recordBefore(before);
-      if (WorldWriteSideEffectGuard.setBlock(level, pos, state, updateMode.flags())) {
-         return captureWrittenState(level, pos, updateMode, transaction);
-      }
-      // A failed callback can still leave a partial world mutation.
-      captureFailedWriteState(level, pos, updateMode, transaction);
-      return BlockWriteResult.FAILED;
-   }
-
-   private static BlockWriteResult captureWrittenState(
-      ServerLevel level,
-      BlockPos pos,
-      PlacementUpdateMode updateMode,
-      WorldChangeTransaction transaction
-   ) {
-      Optional<ReversibleBlockSnapshot> written = ReversibleBlockSnapshot.capture(level, pos);
-      if (written.isEmpty()) {
-         transaction.recordAfter(
-            pos.immutable(),
-            new ReversibleBlockSnapshot(pos, level.getBlockState(pos), level.getFluidState(pos), null)
-         );
-         return BlockWriteResult.FAILED;
-      }
-      transaction.recordAfter(pos, written.orElseThrow());
-      if (updateMode == PlacementUpdateMode.NORMAL
-         && !ReversibleBlockSnapshot.refreshTaskOwnedNeighbors(level, pos, transaction)) {
-         // The primary write already succeeded. A busy block entity or a
-         // transient neighbor update must not turn it into an immediate
-         // rollback; final snapshots still validate the durable result.
-      }
-      return BlockWriteResult.PLACED;
-   }
-
-   private static void captureFailedWriteState(
-      ServerLevel level,
-      BlockPos pos,
-      PlacementUpdateMode updateMode,
-      WorldChangeTransaction transaction
-   ) {
-      Optional<ReversibleBlockSnapshot> written = ReversibleBlockSnapshot.capture(level, pos);
-      transaction.recordAfter(
-         pos.immutable(),
-         written.orElseGet(() -> new ReversibleBlockSnapshot(
-            pos, level.getBlockState(pos), level.getFluidState(pos), null
-         ))
-      );
-      if (updateMode == PlacementUpdateMode.NORMAL) {
-         ReversibleBlockSnapshot.refreshTaskOwnedNeighbors(level, pos, transaction);
-      }
-   }
-
-   private static Collection<ReversibleBlockSnapshot> predictedPlacementAfter(
-      RegistryAccess registryAccess,
-      Collection<ReversibleBlockSnapshot> before,
-      Function<BlockPos, BlockState> placedStateAt,
-      OperationConflictMode conflictMode
-   ) {
-      return lazyMappedCollection(before, snapshot -> predictedSnapshot(
-         registryAccess, snapshot, placedStateAt.apply(snapshot.pos()), conflictMode
-      ));
-   }
-
-   static <T, R> Collection<R> lazyMappedCollection(Collection<T> source, Function<T, R> mapper) {
-      return new AbstractCollection<>() {
-         @Override
-         public Iterator<R> iterator() {
-            Iterator<T> sourceIterator = source.iterator();
-            return new Iterator<>() {
-               @Override
-               public boolean hasNext() {
-                  return sourceIterator.hasNext();
-               }
-
-               @Override
-               public R next() {
-                  return mapper.apply(sourceIterator.next());
-               }
-            };
-         }
-
-         @Override
-         public int size() {
-            return source.size();
-         }
-      };
-   }
-
-   private static ReversibleBlockSnapshot predictedSnapshot(
-      RegistryAccess registryAccess,
-      ReversibleBlockSnapshot snapshot,
-      BlockState placedState,
-      OperationConflictMode conflictMode
-   ) {
-      if (snapshot.state().equals(placedState)
-         || conflictMode == OperationConflictMode.KEEP_EXISTING && !snapshot.state().canBeReplaced()) {
-         return snapshot;
-      }
-      BlockEntitySnapshot blockEntityData = predictedBlockEntity(registryAccess, snapshot, placedState);
-      return new ReversibleBlockSnapshot(
-         snapshot.pos(), placedState, placedState.getFluidState(), blockEntityData
-      );
-   }
-
-   private static BlockEntitySnapshot predictedBlockEntity(
-      RegistryAccess registryAccess,
-      ReversibleBlockSnapshot snapshot,
-      BlockState placedState
-   ) {
-      if (!(placedState.getBlock() instanceof EntityBlock entityBlock)) {
-         return null;
-      }
-      if (snapshot.state().getBlock() == placedState.getBlock() && snapshot.blockEntity() != null) {
-         return snapshot.blockEntity();
-      }
-      BlockEntity blockEntity = entityBlock.newBlockEntity(snapshot.pos(), placedState);
-      return blockEntity == null
-         ? null
-         : new BlockEntitySnapshot(blockEntity.saveWithFullMetadata(registryAccess));
-   }
-
-   private enum BlockWriteResult {
-      PLACED,
-      SKIPPED,
-      FAILED
-   }
 }

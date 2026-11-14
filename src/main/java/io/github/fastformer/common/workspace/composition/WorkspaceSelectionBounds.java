@@ -1,0 +1,268 @@
+package io.github.fastformer.common.workspace.composition;
+
+import io.github.fastformer.common.workspace.model.WorkspaceSymmetry;
+
+import io.github.fastformer.core.math.Axis;
+
+import io.github.fastformer.common.world.BlockSnapshot;
+import io.github.fastformer.common.workspace.model.ClientSelectionPart;
+import io.github.fastformer.common.workspace.model.WorkspaceTransform;
+import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
+import io.github.fastformer.common.workspace.transform.VoxelRotation;
+import io.github.fastformer.common.selection.OperationSelectionMode;
+import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+
+/** Computes the transformed selection range independently of occupied blocks. */
+public final class WorkspaceSelectionBounds {
+   private WorkspaceSelectionBounds() {
+   }
+
+   public static AABB resolve(ClientSelectionPart part) {
+      return resolve(part, true);
+   }
+
+   /**
+    * Union of the transformed selection boxes of every part. Placed copies and the air
+    * inside a selection envelope are part of this box.
+    */
+   public static AABB wholeBox(List<ClientSelectionPart> parts) {
+      return unionBoxes(parts, true);
+   }
+
+   /** Keeps sub-cell offsets for composed shortcuts instead of feeding voxel rounding back into the pivot. */
+   public static AABB continuousWholeBox(List<ClientSelectionPart> parts) {
+      AABB union = null;
+      for (ClientSelectionPart part : parts) {
+         WorkspaceTransform transform = part.transform();
+         var symmetry = transform.symmetry();
+         // Resolve the same scale/repeat/rotation envelope with a zero final offset,
+         // then apply the exact offset once. Rendered bounds still use voxel snapping.
+         var orientation = new io.github.fastformer.common.workspace.model.WorkspaceSymmetry(
+            symmetry.x(), symmetry.y(), symmetry.z(), Vec3.ZERO);
+         AABB box = resolve(part, transform.withTranslation(Vec3.ZERO).withSymmetry(orientation));
+         if (box != null) {
+            union = union(union, box.move(symmetry.offset().add(transform.translation())));
+         }
+      }
+      return union;
+   }
+
+   /** Union of the base selection boxes. Copies placed by an earlier stack stay outside it. */
+   public static AABB baseBox(List<ClientSelectionPart> parts) {
+      return unionBoxes(parts, false);
+   }
+
+   private static AABB unionBoxes(List<ClientSelectionPart> parts, boolean includeRepeats) {
+      if (parts == null) {
+         return null;
+      }
+      AABB union = null;
+      for (ClientSelectionPart part : parts) {
+         AABB box = includeRepeats ? resolve(part) : resolveBase(part);
+         if (box != null) {
+            union = union(union, box);
+         }
+      }
+      return union;
+   }
+
+   /**
+    * Transformed selection box without repetition envelopes.
+    *
+    * <p>Stack strides must use this box. The repeat count grows the resolved envelope, so
+    * deriving the next stride from {@link #resolve(ClientSelectionPart)} would move the
+    * copies already placed.
+    */
+   public static AABB resolveBase(ClientSelectionPart part) {
+      return resolve(part, false);
+   }
+
+   private static AABB resolve(ClientSelectionPart part, boolean includeRepeats) {
+      if (part == null) {
+         return null;
+      }
+      WorkspaceTransform transform = includeRepeats
+         ? part.transform()
+         : part.transform().withoutRepeats();
+      return resolve(part, transform);
+   }
+
+   /** Repeat distances are measured along local handles before rotation and reflection. */
+   public static AABB resolveLocal(ClientSelectionPart part, boolean includeRepeats) {
+      if (part == null) return null;
+      WorkspaceTransform transform = (includeRepeats ? part.transform() : part.transform().withoutRepeats())
+         .withRotation(Vec3.ZERO).withSymmetry(io.github.fastformer.common.workspace.model.WorkspaceSymmetry.IDENTITY)
+         .withTranslation(Vec3.ZERO);
+      return resolve(part, transform);
+   }
+
+   private static AABB resolve(ClientSelectionPart part, WorkspaceTransform transform) {
+      if (part.selection() != null && part.axisAlignedCuboid()
+         && transform.rotation().equals(Vec3.ZERO)
+         && transform.symmetry().equals(io.github.fastformer.common.workspace.model.WorkspaceSymmetry.IDENTITY)) {
+         return axisAligned(part.selection().bounds(), transform, geometryFrame(part, transform));
+      }
+      if (part.selection() != null && part.selection().mode() == OperationSelectionMode.CUBOID) {
+         return rotatedCuboid(part.selection().bounds(), transform, geometryFrame(part, transform));
+      }
+      // Non-cuboid selections can be too large or non-orthogonal to resolve
+      // into renderable blocks. Keep a conservative transformed envelope for
+      // the outline and Gizmo instead of dropping the interaction surface.
+      if (part.selection() != null && transform.hasEffect()) {
+         return rotatedCuboid(part.selection().bounds(), transform, geometryFrame(part, transform));
+      }
+      if (part.selection() == null
+         && !transform.symmetry().equals(io.github.fastformer.common.workspace.model.WorkspaceSymmetry.IDENTITY)) {
+         OccupiedBlockBounds source = OccupiedBlockBounds.from(part.blocks().keySet()).orElse(null);
+         if (source != null) return rotatedCuboid(source.aabb(), transform, geometryFrame(part, transform));
+      }
+      Composition<BlockSnapshot> composition = WorkspaceComposer.composeSnapshots(
+         part.blocks(), transform, CompositionBudget.INTERACTION
+      );
+      if (!(composition instanceof Composition.Composed<BlockSnapshot> composed)) {
+         return null;
+      }
+      OccupiedBlockBounds occupied = OccupiedBlockBounds.from(composed.values().keySet()).orElse(null);
+      return occupied == null ? null : occupied.aabb();
+   }
+
+   /**
+    * The frame the voxel pipeline uses for this part, or null when the part is outside the
+    * render budget. Without a frame the caller keeps the conservative single-pivot envelope.
+    */
+   private static WorkspaceComposer.GeometryFrame geometryFrame(
+      ClientSelectionPart part, WorkspaceTransform transform
+   ) {
+      if (!WorkspaceComposer.frameChangesGeometry(transform)) {
+         return null;
+      }
+      return WorkspaceComposer.geometryFrame(part.blocks(), transform);
+   }
+
+   /**
+    * Envelope of one raw selection box under a transform frame.
+    *
+    * <p>Kept package-private so the frame contract can be tested without a full part.
+    */
+   static AABB transformedBox(
+      AABB source, WorkspaceTransform transform, WorkspaceComposer.GeometryFrame frame
+   ) {
+      return transform.rotation().equals(Vec3.ZERO)
+         && transform.symmetry().equals(io.github.fastformer.common.workspace.model.WorkspaceSymmetry.IDENTITY)
+         ? axisAligned(source, transform, frame)
+         : rotatedCuboid(source, transform, frame);
+   }
+
+   public static AABB union(AABB first, AABB second) {
+      if (first == null) return second;
+      if (second == null) return first;
+      return new AABB(
+         Math.min(first.minX, second.minX), Math.min(first.minY, second.minY), Math.min(first.minZ, second.minZ),
+         Math.max(first.maxX, second.maxX), Math.max(first.maxY, second.maxY), Math.max(first.maxZ, second.maxZ)
+      );
+   }
+
+   public static int extent(AABB bounds, Axis axis) {
+      if (bounds == null) return 0;
+      double size = switch (axis) {
+         case X -> bounds.getXsize();
+         case Y -> bounds.getYsize();
+         case Z -> bounds.getZsize();
+      };
+      return Math.max(1, (int)Math.ceil(size - 1.0E-7));
+   }
+
+   /**
+    * The pre-rotation envelope of the selection box.
+    *
+    * <p>With a frame, the box takes the scale anchor and the repeat cell stride the voxel
+    * pipeline used, so a scaled or repeated envelope cannot drift off its blocks. Without a
+    * frame it keeps the selection centre and the selection-based stride.
+    */
+   private static AABB axisAligned(
+      AABB source, WorkspaceTransform transform, WorkspaceComposer.GeometryFrame frame
+   ) {
+      double width = scaledExtent(source.getXsize(), transform.scale().x);
+      double height = scaledExtent(source.getYsize(), transform.scale().y);
+      double depth = scaledExtent(source.getZsize(), transform.scale().z);
+      Vec3 center = frame != null && frame.scaleAnchor() != null ? frame.scaleAnchor() : source.getCenter();
+      double minX = center.x - width * 0.5;
+      double minY = center.y - height * 0.5;
+      double minZ = center.z - depth * 0.5;
+      double maxX = center.x + width * 0.5;
+      double maxY = center.y + height * 0.5;
+      double maxZ = center.z + depth * 0.5;
+      var repeats = transform.repeats();
+      BlockPos stride = frame != null && frame.repeatStrideCells() != null
+         ? frame.repeatStrideCells()
+         : transform.repeatStride();
+      double strideX = stride.getX() == 0 ? width : Math.abs((double)stride.getX());
+      double strideY = stride.getY() == 0 ? height : Math.abs((double)stride.getY());
+      double strideZ = stride.getZ() == 0 ? depth : Math.abs((double)stride.getZ());
+      minX += Math.min(0.0, repeats.min().getX() * strideX);
+      maxX += Math.max(0.0, repeats.max().getX() * strideX);
+      minY += Math.min(0.0, repeats.min().getY() * strideY);
+      maxY += Math.max(0.0, repeats.max().getY() * strideY);
+      minZ += Math.min(0.0, repeats.min().getZ() * strideZ);
+      maxZ += Math.max(0.0, repeats.max().getZ() * strideZ);
+      Vec3 translation = transform.translation();
+      return new AABB(minX + translation.x, minY + translation.y, minZ + translation.z,
+         maxX + translation.x, maxY + translation.y, maxZ + translation.z);
+   }
+
+   private static double scaledExtent(double extent, double scale) {
+      if (!Double.isFinite(scale) || scale <= 0.0) return extent;
+      return Math.max(1.0, Math.round(extent * scale));
+   }
+
+   /**
+    * Transforms the eight selection-box corners.
+    *
+    * <p>With a frame, every corner replays the exact rotation steps the voxel pipeline used,
+    * including the per-axis pivot. That is what keeps the outer frame and the Gizmo on the
+    * rotated blocks when the selection holds air or the rotation uses more than one axis.
+    * Without a frame, all axes rotate about the single box centre.
+    */
+   private static AABB rotatedCuboid(
+      AABB source, WorkspaceTransform transform, WorkspaceComposer.GeometryFrame frame
+   ) {
+      AABB base = axisAligned(source, transform.withRotation(Vec3.ZERO).withTranslation(Vec3.ZERO), frame);
+      List<VoxelRotation.RotationStep> steps = frame == null ? List.of() : frame.rotationSteps();
+      if (steps.isEmpty()) {
+         Vec3 pivot = base.getCenter();
+         List<VoxelRotation.RotationStep> fallback = new java.util.ArrayList<>(3);
+         for (Axis axis : Axis.values()) {
+            double radians = axisComponent(transform.rotation(), axis);
+            if (Math.abs(radians) > VoxelRotation.POSITION_EPSILON) {
+               fallback.add(new VoxelRotation.RotationStep(axis, radians, pivot));
+            }
+         }
+         steps = fallback;
+      }
+      AABB result = null;
+      for (int x = 0; x < 2; x++) for (int y = 0; y < 2; y++) for (int z = 0; z < 2; z++) {
+         Vec3 point = new Vec3(
+            x == 0 ? base.minX : base.maxX,
+            y == 0 ? base.minY : base.maxY,
+            z == 0 ? base.minZ : base.maxZ
+         );
+         for (VoxelRotation.RotationStep step : steps) {
+            point = VoxelRotation.rotatePoint(point, step.pivot(), step.axis(), step.radians());
+         }
+         point = transform.voxelPoint(point);
+         result = union(result, new AABB(point, point));
+      }
+      return result;
+   }
+
+   private static double axisComponent(Vec3 value, Axis axis) {
+      return switch (axis) {
+         case X -> value.x;
+         case Y -> value.y;
+         case Z -> value.z;
+      };
+   }
+}

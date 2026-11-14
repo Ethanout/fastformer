@@ -7,7 +7,7 @@ import io.github.fastformer.client.session.submission.OperationDraftSettlement;
 import io.github.fastformer.client.session.submission.OperationSubmissionOrigin;
 import io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayload;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

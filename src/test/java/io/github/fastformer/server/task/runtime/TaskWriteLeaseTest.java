@@ -2,7 +2,7 @@ package io.github.fastformer.server.task.runtime;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.world.WorldOperationMetrics;
+import io.github.fastformer.server.task.metrics.WorldOperationMetrics;
 import io.github.fastformer.server.worldwrite.WorldWriteLeases;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import java.util.UUID;

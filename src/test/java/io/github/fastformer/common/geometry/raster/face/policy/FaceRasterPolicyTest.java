@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.mojang.serialization.JsonOps;
-import io.github.fastformer.fastplace.geometry.generation.FaceRasterAdapters;
+import io.github.fastformer.common.geometry.generation.face.FaceRasterAdapters;
 import io.github.fastformer.common.geometry.raster.face.algorithm.FaceRasterAlgorithms;
 import io.github.fastformer.common.geometry.raster.face.classify.FaceClass;
 import java.io.StringReader;

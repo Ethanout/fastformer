@@ -1,8 +1,8 @@
 package io.github.fastformer.server.network.upload;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.protocol.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;

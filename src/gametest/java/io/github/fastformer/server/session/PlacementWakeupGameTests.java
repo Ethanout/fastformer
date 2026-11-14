@@ -5,14 +5,14 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.WorldTaskFixtures;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import java.util.ArrayDeque;
 import java.util.LinkedHashSet;
 import java.util.Set;

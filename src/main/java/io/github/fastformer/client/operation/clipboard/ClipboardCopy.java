@@ -1,6 +1,6 @@
 package io.github.fastformer.client.operation.clipboard;
 
-import io.github.fastformer.common.workspace.preview.Composition;
+import io.github.fastformer.common.workspace.composition.Composition;
 
 /** Whole-copy result. A refusal leaves the stored clipboard unchanged. */
 public sealed interface ClipboardCopy {

@@ -145,14 +145,14 @@ class WorldTaskQueueTest {
    private static final class Writer implements WorldTask {
       private Runnable onCancel = () -> {};
       private int ticks;
-      private final io.github.fastformer.fastplace.world.WorldChangeTransaction transaction =
-         new io.github.fastformer.fastplace.world.WorldChangeTransaction();
+      private final io.github.fastformer.server.worldwrite.transaction.WorldChangeTransaction transaction =
+         new io.github.fastformer.server.worldwrite.transaction.WorldChangeTransaction();
       @Override public TaskStep tick(WorldTaskContext context) { ticks++; return TaskStep.ACTIVE; }
       @Override public void cancel(CancelReason reason) { assertEquals(CancelReason.SHUTDOWN, reason); onCancel.run(); }
       @Override public String phaseName() { return "TEST"; }
       @Override public UUID operationId() { return new UUID(0, 0); }
       @Override public String metricsSummary() { return "test"; }
-      @Override public io.github.fastformer.fastplace.world.WorldChangeTransaction transaction() { return transaction; }
+      @Override public io.github.fastformer.server.worldwrite.transaction.WorldChangeTransaction transaction() { return transaction; }
       @Override public java.util.Optional<io.github.fastformer.server.history.entry.WorldChangeBatch> preparedBatch() { return java.util.Optional.empty(); }
       @Override public boolean acquireLease(WorldTaskContext context) { return true; }
       @Override public void releaseLease(WorldTaskContext context) {}

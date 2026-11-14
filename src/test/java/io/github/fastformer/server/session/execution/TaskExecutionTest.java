@@ -3,14 +3,14 @@ package io.github.fastformer.server.session.execution;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.core.gate.Gate;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.NoDiskHistoryRepository;
 import io.github.fastformer.server.task.TaskCancellationResult;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;

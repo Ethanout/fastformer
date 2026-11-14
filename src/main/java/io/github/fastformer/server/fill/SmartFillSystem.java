@@ -2,21 +2,23 @@ package io.github.fastformer.server.fill;
 
 import io.github.fastformer.common.placement.context.PlacementContexts;
 
-import io.github.fastformer.fastplace.fill.SmartFillSearch;
+import io.github.fastformer.common.placement.plan.SmartFillSearch;
 import io.github.fastformer.common.raycast.LongRangeBlockRaycast;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.common.placement.PlacementContextSnapshot;
 import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.server.session.SessionSystem;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.feedback.PlayerMessages;
 import io.github.fastformer.protocol.c2s.placement.SmartFillCommandPayload;
 import io.github.fastformer.protocol.s2c.preview.SmartFillPreviewPayload;
 import io.github.fastformer.server.sync.PreviewSync;
 import io.github.fastformer.server.input.IdleInteractionSnapshots;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.player.PlayerStateRegistry;
+import io.github.fastformer.server.mode.ServerEditor;
+import io.github.fastformer.server.mode.tool.ConnectionModeRepository;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;
 import java.util.LinkedHashMap;
@@ -40,7 +42,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 /** Server-thread fill sessions own the plan until confirmation or cancellation. */
 public final class SmartFillSystem {
    private static final ScopedKey<State> STATE = PlayerStateRegistry.key(ResourceLocation.parse("fastformer:smart_fill"), State::new);
-   private record Pending(UUID id, ResourceKey<Level> dimension, SmartFillSearch.Plan plan,
+   public record Session(UUID id, ResourceKey<Level> dimension, SmartFillSearch.Plan plan,
                           BlockState material, Map<BlockPos, BlockState> evidence) { }
    private SmartFillSystem() { }
 
@@ -53,6 +55,25 @@ public final class SmartFillSystem {
       return PlayerStateRegistry.find(player).flatMap(scope -> scope.find(STATE));
    }
 
+   public static java.util.Optional<Session> session(ServerPlayer player) {
+      return findState(player).map(state -> state.pending);
+   }
+
+   public static ServerEditor<Session> repository() {
+      return new ConnectionModeRepository<>() {
+         @Override public java.util.Optional<Session> session(ServerPlayer player) { return SmartFillSystem.session(player); }
+         @Override public void activate(ServerPlayer player, Session session) {
+            State state = state(player);
+            boolean wasActive = state.pending != null;
+            state.pending = session;
+            if (!wasActive) io.github.fastformer.server.api.ModeNotifications.opened(player, BuiltinModes.SMART_FILL);
+         }
+         @Override public void cancel(ServerPlayer player) { SmartFillSystem.cancel(player); }
+         @Override public void remove(ServerPlayer player) { forget(player); }
+         @Override public void sync(ServerPlayer player) { SmartFillSystem.sync(player); }
+      };
+   }
+
    public static void handle(ServerPlayer player, SmartFillCommandPayload command) {
       if (!PlayerStateRegistry.accepts(player)) return;
       if (!player.level().dimension().location().equals(command.dimension())) return;
@@ -61,7 +82,7 @@ public final class SmartFillSystem {
          case CONFIRM -> confirm(player, command.id());
          case CANCEL -> {
             remember(player, command.id());
-            Pending pending = state(player).pending;
+            Session pending = state(player).pending;
             if (pending != null && pending.id().equals(command.id())) cancel(player);
          }
       }
@@ -76,7 +97,7 @@ public final class SmartFillSystem {
 
    private static void discover(ServerPlayer player, SmartFillCommandPayload command) {
       if (!remember(player, command.id())) return;
-      if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player)
+      if (!ServerInputActions.canOperate(player) || ServerInputActions.interactionBlocked(player)
          || !IdleInteractionSnapshots.idle(player) || SessionSystem.of(player).modes().active(player, BuiltinModes.QUICK_REPLACE)
          || !PlaceableItems.isPlaceable(player.getMainHandItem())
          || !IdleInteractionSnapshots.validRay(player, command.eye(), command.view())) {
@@ -98,10 +119,10 @@ public final class SmartFillSystem {
          .anchoredAt(plan.targets().iterator().next());
       var state = PlaceableItems.placementState(player.getMainHandItem(), player, snapshot).orElse(null);
       if (state == null || state.isAir()) { reject(player, command.id(), "fastformer.fill.not_found"); return; }
-      Pending pending = new Pending(command.id(), level.dimension(), plan, state, Map.copyOf(evidence));
+      Session pending = new Session(command.id(), level.dimension(), plan, state, Map.copyOf(evidence));
       boolean touchesPlayer = plan.targets().stream().anyMatch(position -> player.getBoundingBox().intersects(new AABB(position)));
       if (touchesPlayer) {
-         state(player).pending = pending;
+         SessionSystem.of(player).modes().smartFill().open(player, pending);
          publish(player, pending);
       } else {
          submit(player, pending);
@@ -126,10 +147,11 @@ public final class SmartFillSystem {
    public static void confirm(ServerPlayer player, UUID id) {
       State state = findState(player).orElse(null);
       if (state == null) return;
-      Pending pending = state.pending;
+      Session pending = state.pending;
       if (pending == null || !pending.id().equals(id)) return;
       state.pending = null;
-      if (!ServerInputDispatcher.canOperate(player) || !player.level().dimension().equals(pending.dimension())) {
+      io.github.fastformer.server.api.ModeNotifications.ended(player, BuiltinModes.SMART_FILL);
+      if (!ServerInputActions.canOperate(player) || !player.level().dimension().equals(pending.dimension())) {
          finish(player, id); return;
       }
       boolean unchanged = pending.evidence().entrySet().stream().allMatch(entry ->
@@ -138,7 +160,7 @@ public final class SmartFillSystem {
       else { submit(player, pending); finish(player, id); }
    }
 
-   private static void submit(ServerPlayer player, Pending pending) {
+   private static void submit(ServerPlayer player, Session pending) {
       if (!QuickShapeSystem.of(player).queueAirFill(player, pending.plan().targets(), pending.material())) {
          PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.message.placement_confirm_failed"));
       } else {
@@ -150,13 +172,14 @@ public final class SmartFillSystem {
    public static void cancel(ServerPlayer player) {
       State state = findState(player).orElse(null);
       if (state == null) return;
-      Pending pending = state.pending;
+      Session pending = state.pending;
       state.pending = null;
+      if (pending != null) io.github.fastformer.server.api.ModeNotifications.ended(player, BuiltinModes.SMART_FILL);
       if (pending != null) finish(player, pending.id());
    }
 
    public static boolean confirmCurrent(ServerPlayer player) {
-      Pending pending = findState(player).map(state -> state.pending).orElse(null);
+      Session pending = findState(player).map(state -> state.pending).orElse(null);
       if (pending == null) return false;
       confirm(player, pending.id());
       return true;
@@ -172,7 +195,7 @@ public final class SmartFillSystem {
       PlayerMessages.actionBar(player, PlayerMessages.text(message));
       finish(player, id);
    }
-   private static void publish(ServerPlayer player, Pending pending) {
+   private static void publish(ServerPlayer player, Session pending) {
       if (!player.connection.hasChannel(SmartFillPreviewPayload.TYPE)) return;
       PacketDistributor.sendToPlayer(player, new SmartFillPreviewPayload(pending.id(), pending.material(),
          List.copyOf(pending.plan().targets()), PreviewSync.callbackScope(player)));
@@ -183,11 +206,15 @@ public final class SmartFillSystem {
          List.of(), PreviewSync.callbackScope(player)));
    }
    public static void forget(ServerPlayer player) {
-      PlayerStateRegistry.find(player).flatMap(scope -> scope.find(STATE)).ifPresent(State::clear);
+      PlayerStateRegistry.find(player).flatMap(scope -> scope.find(STATE)).ifPresent(state -> {
+         boolean wasActive = state.pending != null;
+         state.clear();
+         if (wasActive) io.github.fastformer.server.api.ModeNotifications.ended(player, BuiltinModes.SMART_FILL);
+      });
    }
 
    private static final class State implements Scoped {
-      private Pending pending;
+      private Session pending;
       private final LinkedHashSet<UUID> recent = new LinkedHashSet<>();
       private void clear() { pending = null; recent.clear(); }
       @Override public void onDetach() { clear(); }

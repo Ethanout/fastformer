@@ -11,11 +11,11 @@ import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload;
 import io.github.fastformer.protocol.c2s.placement.StartPlacementPayload;
 import io.github.fastformer.server.sync.PreviewSync;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.session.QuickShapeSystem;
 import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.core.BlockPos;
@@ -45,9 +45,9 @@ public final class QuickShapePointerGameTests {
       var view = player.getViewVector(1);
       var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       helper.succeedWhen(() -> {
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for history");
          helper.assertTrue(eye.distanceTo(hit.getLocation()) < 3, "test target was outside close range");
-         ServerInputDispatcher.startPlacement(player, startRequest(player, 90L, hit, eye, view));
+         ServerInputActions.startPlacement(player, startRequest(player, 90L, hit, eye, view));
          helper.assertTrue(QuickShapeSystem.of(player).active(player), "explicit entry did not own the near click");
          SessionSystem.of(player).cancelEditing(player);
       });
@@ -80,11 +80,11 @@ public final class QuickShapePointerGameTests {
       helper.succeedWhen(() -> {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          if (!submitted[0]) {
-            helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-            helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history");
+            helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+            helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for history");
             helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension()), "waiting for world write");
             if (pointer) {
-               ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
+               ServerInputActions.quickShapePointer(player, new QuickShapePointerPayload(
                   PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
                   QuickShapePointerPayload.Action.SUBMIT_CURRENT, first, player.getEyePosition(), player.getViewVector(1), false, 71));
             } else QuickShapeSystem.of(player).fillConfirmed(player);
@@ -116,10 +116,10 @@ public final class QuickShapePointerGameTests {
       helper.succeedWhen(() -> {
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          if (!submitted[0]) {
-            helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-            helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history initialization");
+            helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+            helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for history initialization");
             helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension()), "waiting for world write");
-            ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(51L,
+            ServerInputActions.startPlacement(player, new StartPlacementPayload(51L,
                new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
                   PreviewSync.callbackScope(player), hit, eye, view)));
             var draft = QuickShapeSystem.of(player).session(player).orElseThrow();
@@ -134,7 +134,7 @@ public final class QuickShapePointerGameTests {
             var nearHit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(
                player.level(), player, nearEye, nearView).hit();
             var candidate = QuickShapeSystem.of(player).candidateContext(player).resolve(nearHit, nearEye, nearView);
-            ServerInputDispatcher.quickShapePointer(player, new QuickShapePointerPayload(
+            ServerInputActions.quickShapePointer(player, new QuickShapePointerPayload(
                PreviewSync.buildingRevision(player), PreviewSync.callbackScope(player),
                QuickShapePointerPayload.Action.MIDDLE, candidate, nearEye, nearView, false, 52));
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "middle did not finish a surface-started draft near a block");
@@ -181,10 +181,10 @@ public final class QuickShapePointerGameTests {
          // GameTest ticks run without the normal delay; allow asynchronous history writes to finish.
          java.util.concurrent.locks.LockSupport.parkNanos(5_000_000L);
          if (!submitted[0]) {
-            helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-            helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), "waiting for history initialization");
+            helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+            helper.assertFalse(ServerInputActions.interactionBlocked(player), "waiting for history initialization");
             helper.assertFalse(io.github.fastformer.server.recovery.RecoverySystem.of(player.getServer()).writeLeases().busy(player.serverLevel().dimension()), "waiting for the other test's world write");
-            ServerInputDispatcher.quickShapePointer(player, request);
+            ServerInputActions.quickShapePointer(player, request);
             helper.assertFalse(QuickShapeSystem.of(player).active(player), "Alt-middle did not finish the draft: points=" + draft.points()
                + ", candidate=" + candidate + ", modifier=" + draft.modifierHeld()
                + ", faceMode=" + FastPlaceSettings.load(player).faceMode()
@@ -216,24 +216,24 @@ public final class QuickShapePointerGameTests {
       player.setXRot(0);
       player.setYRot(90);
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
          helper.assertTrue(QuickShapeSystem.of(player).session(player).orElse(null) == draft, "test draft was replaced before dispatch");
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), blockedMessage(player, "pointer input is blocked by a world task"));
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), blockedMessage(player, "pointer input is blocked by a world task"));
          helper.assertFalse(io.github.fastformer.server.session.GeometrySystem.of(player).active(player), "geometry owns input");
          helper.assertFalse(io.github.fastformer.server.session.OperationSystem.of(player).active(player), "selection owns input");
-         ServerInputDispatcher.quickShapePointer(player, request);
+         ServerInputActions.quickShapePointer(player, request);
          helper.assertTrue(draft.points().equals(java.util.List.of(first, first.offset(3, 0, 0))),
             "press target changed with current view: points=" + draft.points() + " revision=" + PreviewSync.buildingRevision(player) + " captured=" + request.revision());
-         ServerInputDispatcher.quickShapePointer(player, request);
+         ServerInputActions.quickShapePointer(player, request);
          helper.assertTrue(draft.points().size() == 2, "replayed pointer changed newer draft");
          var undo = new QuickShapePointerPayload(request.revision(), request.scope(), QuickShapePointerPayload.Action.UNDO,
             request.candidate(), request.eye(), request.view(), false, 2);
-         ServerInputDispatcher.quickShapePointer(player, undo);
+         ServerInputActions.quickShapePointer(player, undo);
          helper.assertTrue(draft.points().equals(java.util.List.of(first)), "ordered undo lost its captured revision");
          PreviewSync.syncPreview(player, draft);
          var stale = new QuickShapePointerPayload(request.revision(), request.scope(), QuickShapePointerPayload.Action.POINT,
             request.candidate(), request.eye(), request.view(), false, 3);
-         ServerInputDispatcher.quickShapePointer(player, stale);
+         ServerInputActions.quickShapePointer(player, stale);
          helper.assertTrue(draft.points().equals(java.util.List.of(first)), "external revision change accepted old pointer chain");
          draft.setFreeScrollOffset(new BlockPos(2, 3, 4));
          helper.assertTrue(io.github.fastformer.server.intent.PlayerIntentSystem.dispatch(player, io.github.fastformer.core.command.IntentSource.COMMAND, new io.github.fastformer.server.intent.HistoryIntents.Back()).handled(), "command back rejected the active draft");
@@ -265,12 +265,12 @@ public final class QuickShapePointerGameTests {
       var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       var candidate = QuickShapeSystem.of(player).candidateContext(player).resolve(hit, eye, view);
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
          helper.assertTrue(QuickShapeSystem.of(player).session(player).orElse(null) == draft, "polygon test draft was replaced before dispatch");
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), blockedMessage(player, "polygon input is blocked by a world task"));
-         ServerInputDispatcher.quickShapePointer(player,
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), blockedMessage(player, "polygon input is blocked by a world task"));
+         ServerInputActions.quickShapePointer(player,
             new QuickShapePointerPayload(revision, scope, QuickShapePointerPayload.Action.POINT, candidate, eye, view, false, 1));
-         ServerInputDispatcher.quickShapePointer(player,
+         ServerInputActions.quickShapePointer(player,
             new QuickShapePointerPayload(revision, scope, QuickShapePointerPayload.Action.CLOSE, candidate, eye, view, false, 2));
          helper.assertTrue(draft.polygonClosed(), "point consumed the queued close revision");
          SessionSystem.of(player).cancelEditing(player);
@@ -300,20 +300,20 @@ public final class QuickShapePointerGameTests {
       var view = player.getViewVector(1);
       var hit = io.github.fastformer.common.raycast.LongRangeBlockRaycast.clipForPlacement(player.level(), player, eye, view).hit();
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), blockedMessage(player, "idle start is blocked by a world task"));
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), blockedMessage(player, "idle start is blocked by a world task"));
          helper.assertTrue(hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK, "idle start capture missed the test world");
          var request = startRequest(player, 41L, hit, eye, view);
          player.setXRot(0);
          player.setYRot(90);
-         ServerInputDispatcher.startPlacement(player, request);
+         ServerInputActions.startPlacement(player, request);
          helper.assertTrue(QuickShapeSystem.of(player).active(player), "server reread the rotated view instead of the frozen start ray");
          helper.assertTrue(QuickShapeSystem.of(player).session(player).orElseThrow().points().equals(java.util.List.of(
             hit.getBlockPos().relative(hit.getDirection())
          )), "idle surface start did not use the captured placement position");
          SessionSystem.of(player).cancelEditing(player);
          var replayWithCurrentIdentity = startRequest(player, 41L, hit, eye, view);
-         ServerInputDispatcher.startPlacement(player, replayWithCurrentIdentity);
+         ServerInputActions.startPlacement(player, replayWithCurrentIdentity);
          helper.assertFalse(QuickShapeSystem.of(player).active(player), "replayed idle start recreated a draft");
       });
    }
@@ -328,17 +328,17 @@ public final class QuickShapePointerGameTests {
       var stale = startRequest(player, 42L, hit, eye, view);
       PreviewSync.syncSettings(player);
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for write gate");
-         helper.assertFalse(ServerInputDispatcher.interactionBlocked(player), blockedMessage(player, "idle start is blocked by a world task"));
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for write gate");
+         helper.assertFalse(ServerInputActions.interactionBlocked(player), blockedMessage(player, "idle start is blocked by a world task"));
          helper.assertTrue(hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK, "idle start capture missed the test world");
-         ServerInputDispatcher.startPlacement(player, stale);
+         ServerInputActions.startPlacement(player, stale);
          helper.assertFalse(QuickShapeSystem.of(player).active(player), "stale inactive preview revision started a draft");
          var wrongScope = new StartPlacementPayload.Target(PreviewSync.buildingRevision(player),
             new io.github.fastformer.protocol.callback.OperationCallbackScope(player.getUUID(), player.level().dimension().location(), java.util.UUID.randomUUID()),
             hit, eye, view);
-         ServerInputDispatcher.startPlacement(player, new StartPlacementPayload(43L, wrongScope));
+         ServerInputActions.startPlacement(player, new StartPlacementPayload(43L, wrongScope));
          helper.assertFalse(QuickShapeSystem.of(player).active(player), "stale callback scope started a draft");
-         ServerInputDispatcher.startPlacement(player, startRequest(player, 44L, hit, eye, view));
+         ServerInputActions.startPlacement(player, startRequest(player, 44L, hit, eye, view));
          helper.assertTrue(QuickShapeSystem.of(player).active(player), "a current idle start was blocked after stale requests");
          SessionSystem.of(player).cancelEditing(player);
       });

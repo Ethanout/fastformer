@@ -1,8 +1,8 @@
 package io.github.fastformer.server.task.runtime;
 
 import io.github.fastformer.server.recovery.PersistentRecoveryJournal;
-import io.github.fastformer.fastplace.world.WorldChangeTransaction;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.transaction.WorldChangeTransaction;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.util.List;
 
 /** Keeps one immutable in-flight journal slice until its durable append is acknowledged. */

@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.history.HistoryTestAccess;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
 import io.github.fastformer.common.selection.OperationMode;
@@ -27,13 +27,13 @@ import io.github.fastformer.server.task.block.WorldTaskFixtures;
 import io.github.fastformer.server.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
-import io.github.fastformer.fastplace.world.WorldChangeTransaction;
-import io.github.fastformer.fastplace.world.WorldOperationCommit;
+import io.github.fastformer.server.worldwrite.transaction.WorldChangeTransaction;
+import io.github.fastformer.server.worldwrite.transaction.WorldOperationCommit;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Iterator;
@@ -100,7 +100,7 @@ class TaskRecoveryHandoffTest {
    private static PlacementTask deferredGeneration(AtomicInteger starts) {
       return PlacementTask.waitingForGeneration(() -> {
          starts.incrementAndGet();
-         return io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult.fromLegacy(Set.of(BlockPos.ZERO));
+         return io.github.fastformer.common.geometry.generation.source.BlockGenerationResult.fromLegacy(Set.of(BlockPos.ZERO));
       }, null, new PlacementTaskPlan(null, null, OperationConflictMode.REPLACE,
          PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD), 1L, 0L);
    }
@@ -178,30 +178,35 @@ class TaskRecoveryHandoffTest {
 
    @Test
    void placementSnapshotFailureAfterAnEarlierBatchStartsRecovery() throws Exception {
-      assertPlacementFailureStartsRecovery("failed");
+      assertPlacementFailureStartsRecovery(false);
    }
 
    @Test
    void placementMemoryRejectionAfterAnEarlierBatchStartsRecovery() throws Exception {
-      assertPlacementFailureStartsRecovery("memoryUnsafe");
+      assertPlacementFailureStartsRecovery(true);
    }
 
-   private void assertPlacementFailureStartsRecovery(String failureField) throws Exception {
+   private void assertPlacementFailureStartsRecovery(boolean rejectMemory) throws Exception {
       UUID owner = UUID.randomUUID();
       BlockPos pos = new BlockPos(3, 4, 5);
-      PlacementTask task = PlacementTask.ready(
+      var reject = new java.util.concurrent.atomic.AtomicBoolean();
+      PlacementTask task = WorldTaskFixtures.placement(
          Set.of(pos),
          new PlacementTaskPlan(
             null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
-         )
+         ), new WorldJournalPreparation(), (level, position) -> Optional.empty(),
+         estimate -> reject.get() ? new io.github.fastformer.common.world.memory.MemoryAdmission(
+            io.github.fastformer.common.world.memory.MemoryAdmissionStatus.HARD_REJECTED,
+            estimate.requestedBytes(), estimate.usableBytes()) : estimate
       );
       assertTrue(task.prepare());
       WorldChangeTransaction transaction = task.transaction();
       transaction.recordBefore(snapshot(pos, "before"));
       transaction.recordAfter(pos, snapshot(pos, "after"));
-      var terminalField = PlacementTask.class.getDeclaredField(failureField);
-      terminalField.setAccessible(true);
-      terminalField.setBoolean(task, true);
+      reject.set(rejectMemory);
+      assertTrue(task.validateSnapshots(null, io.github.fastformer.server.task.WorldTaskBudget.forServerTick()));
+      if (rejectMemory) assertTrue(task.memoryUnsafe());
+      else assertTrue(task.failed());
       runtime.placementTasks().admit(owner, task);
 
       runtime.placementTasks().tickWorld(null, history);
@@ -291,7 +296,7 @@ class TaskRecoveryHandoffTest {
       task.transaction().recordBefore(snapshot(pos, "before"));
       task.transaction().recordAfter(pos, snapshot(pos, "after"));
 
-      var reported = new java.util.ArrayList<io.github.fastformer.workspace.submission.WorkspaceCompletion>();
+      var reported = new java.util.ArrayList<io.github.fastformer.common.workspace.submission.WorkspaceCompletion>();
       io.github.fastformer.server.submission.WorkspaceResultSink results = (result, online) -> {
          assertNull(online);
          reported.add(result);

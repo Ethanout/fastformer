@@ -27,16 +27,17 @@ class VisualThemeTest {
 
    @Test
    void paletteCanLoadWithoutClientRuntime() {
-      GeometryPalette.selectTheme(GeometryPalette.Theme.CLASSIC);
-      GeometryPalette.installThemes(java.util.Map.of(GeometryPalette.Theme.CLASSIC,
-         parse("{\"version\":1,\"colors\":{\"ink\":\"#123456\"}}")));
+      GeometryPalette.selectTheme(BuiltinThemes.CLASSIC);
+      GeometryPalette.installThemes(java.util.Map.of(BuiltinThemes.CLASSIC,
+         ThemeDefinition.parse(BuiltinThemes.CLASSIC,
+            JsonParser.parseString("{\"version\":1,\"colors\":{\"ink\":\"#123456\"}}").getAsJsonObject())));
       try {
          assertEquals(0x123456, GeometryPalette.ink().rgb());
          assertEquals(0.85F, GeometryPalette.value("confirmed_alpha", 0.85F));
-         GeometryPalette.selectTheme(GeometryPalette.Theme.HUMANIST);
+         GeometryPalette.selectTheme(BuiltinThemes.HUMANIST);
          assertEquals(0xF4F1EA, GeometryPalette.ink().rgb());
       } finally {
-         GeometryPalette.selectTheme(GeometryPalette.Theme.CLASSIC);
+         GeometryPalette.selectTheme(BuiltinThemes.CLASSIC);
          GeometryPalette.installThemes(java.util.Map.of());
       }
    }

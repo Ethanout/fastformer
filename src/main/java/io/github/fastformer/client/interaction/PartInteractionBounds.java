@@ -2,10 +2,10 @@ package io.github.fastformer.client.interaction;
 
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
-import io.github.fastformer.common.workspace.preview.Composition;
-import io.github.fastformer.common.workspace.preview.CompositionBudget;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.common.workspace.preview.WorkspaceSelectionBounds;
+import io.github.fastformer.common.workspace.composition.Composition;
+import io.github.fastformer.common.workspace.composition.CompositionBudget;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
+import io.github.fastformer.common.workspace.composition.WorkspaceSelectionBounds;
 import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
 import net.minecraft.world.phys.AABB;
 
@@ -23,7 +23,7 @@ public final class PartInteractionBounds {
             : part.selection().bounds();
       }
       // Clipboard frames retain the existing base-part envelope, excluding copies.
-      var composition = WorkspacePreviewComposer.composeSnapshots(
+      var composition = WorkspaceComposer.composeSnapshots(
          part.blocks(), part.transform().withoutRepeats(), CompositionBudget.RENDER
       );
       if (composition instanceof Composition.Composed<BlockSnapshot> composed) {

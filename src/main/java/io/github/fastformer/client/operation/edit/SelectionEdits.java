@@ -6,6 +6,7 @@ import io.github.fastformer.client.operation.selection.SelectionDraftEvent;
 import io.github.fastformer.client.operation.selection.SelectionDraftPreview;
 import io.github.fastformer.client.operation.selection.SelectionDraftResult;
 import io.github.fastformer.client.operation.selection.SelectionToolPreference;
+import io.github.fastformer.client.operation.selection.tool.SelectionTools;
 import io.github.fastformer.client.operation.selection.SmartSelectionCapture;
 import io.github.fastformer.client.operation.selection.SmartSelectionEdits;
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
@@ -151,9 +152,9 @@ public final class SelectionEdits {
 
    public void cycleIdleSelectionTool() {
       if (active() || selectionDraftActive() || selectionSessionActive()) return;
-      var next = SelectionToolPreference.get().next();
-      SelectionToolPreference.set(next);
-      selectionSession().setSelectionMode(next);
+      var next = SelectionTools.next(SelectionToolPreference.id());
+      SelectionToolPreference.select(next);
+      selectionSession().setSelectionTool(next);
    }
 
    public boolean cycleDraftMode() {
@@ -163,17 +164,17 @@ public final class SelectionEdits {
       selectionSession().retain();
       var session = selectionSession();
       var before = session.draftState();
-      var next = draftSelectionMode().next();
+      var next = SelectionTools.next(session.selectionToolId());
       session.clearDraft();
-      session.setSelectionMode(next);
-      SelectionToolPreference.set(next);
+      session.setSelectionTool(next);
+      SelectionToolPreference.select(next);
       workspace().pushEvent(() -> session.restoreDraftEdit(before), ClientOperationEventStack.Retention.of(before.points().size() + 1));
       settleSelectionRemoval();
       return true;
    }
 
    private boolean handleDraftClick(int mouseButton, BlockPos point, boolean alt) {
-      if (mouseButton == 0 && draftSelectionMode() == OperationSelectionMode.CUBOID) {
+      if (mouseButton == 0 && selectionSession().selectionTool().undoPreviousPoint()) {
          if (submissionPending.getAsBoolean() || workspace().locked() || workspace().editing()) return false;
          adoptRemoteDraft();
          draftCapture.cancel();
@@ -192,7 +193,7 @@ public final class SelectionEdits {
          return false;
       }
       boolean handled = result != SelectionDraftResult.READY
-         || finishDraft(selectionSession().prismBaseCount());
+         || finishDraft();
       if (mouseButton == 0 && handled) settleSelectionRemoval();
       return handled;
    }
@@ -233,7 +234,7 @@ public final class SelectionEdits {
       return changed;
    }
 
-   public boolean smartTool() { return draftSelectionMode() == OperationSelectionMode.SMART; }
+   public boolean smartTool() { return selectionSession().selectionTool().worldSampling(); }
    public boolean smartEditing() {
       return smartCapture.pending() || SmartSelectionEdits.editing(workspace());
    }
@@ -264,21 +265,11 @@ public final class SelectionEdits {
          }, failed);
    }
 
-   private boolean finishDraft(int prismBaseCount) {
-      OperationSelectionVolume selection = OperationSelectionVolume.create(
-         selectionSession().selectionMode(),
-         selectionSession().draftPoints(),
-         prismBaseCount,
-         BlockPos.ZERO,
-         BlockPos.ZERO,
-         0
-      );
+   private boolean finishDraft() {
+      if (!selectionSession().selectionReady()) return false;
+      OperationSelectionVolume selection = SelectionDraftPreview.volume(selectionSession().draftState(), null);
       if (selection == null) {
          return false;
-      }
-      if (selection.mode() == OperationSelectionMode.CUBOID) {
-         selection = selection.expandCuboidTo(selectionSession().draftMinPoint())
-            .expandCuboidTo(selectionSession().draftMaxPoint());
       }
       return captureDraft(selection, false, null);
    }
@@ -303,12 +294,7 @@ public final class SelectionEdits {
 
    private DraftSnapshot draftSnapshot() {
       return new DraftSnapshot(
-         selectionSession().selectionMode(),
-         selectionSession().draftPoints(),
-         selectionSession().prismBaseCount(),
-         selectionSession().draftMinPoint(),
-         selectionSession().draftMaxPoint(),
-         selectionSession().draftState().secondPointOnly(),
+         selectionSession().draftState(),
          List.copyOf(workspace().parts()),
          workspace().interactionIdentities(),
          workspace().selectionState()
@@ -323,12 +309,10 @@ public final class SelectionEdits {
       }
       workspace().pushEvent(() -> {
          workspace().restorePartStatesWithoutHistory(before.parts(), before.interactionIdentities());
-         selectionSession().restoreDraftEdit(new ClientSelectionSession.DraftState(
-            before.mode(), before.points(), before.prismBaseCount(), before.minPoint(), before.maxPoint(), before.secondPointOnly()
-         ));
+         selectionSession().restoreDraftEdit(before.draft());
          workspace().restoreSelectionStateWithoutHistory(before.selection());
       }, ClientOperationEventStack.Retention.of(
-         1 + before.points().size() + before.parts().size() + before.interactionIdentities().size() + before.selection().ids().size(),
+         1 + before.draft().points().size() + before.parts().size() + before.interactionIdentities().size() + before.selection().ids().size(),
          before.parts().stream().flatMap(part -> java.util.stream.Stream.of(part.blocks(), part.sourceSnapshot()))
             .map(blocks -> ClientOperationEventStack.SharedPayload.of(blocks, blocks.size())).toList()
       ));
@@ -336,12 +320,7 @@ public final class SelectionEdits {
 
 
    private record DraftSnapshot(
-      OperationSelectionMode mode,
-      List<BlockPos> points,
-      int prismBaseCount,
-      BlockPos minPoint,
-      BlockPos maxPoint,
-      boolean secondPointOnly,
+      ClientSelectionSession.DraftState draft,
       List<ClientSelectionPart> parts,
       java.util.Map<Integer, Long> interactionIdentities,
       ClientOperationWorkspace.SelectionState selection

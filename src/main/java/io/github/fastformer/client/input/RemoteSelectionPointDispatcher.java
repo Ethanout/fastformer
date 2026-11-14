@@ -12,7 +12,8 @@ final class RemoteSelectionPointDispatcher {
 
    static RemoteSelectionPointRequest capture(OperationPointPayload.Role role) {
       return new RemoteSelectionPointRequest(ClientSessionSystem.instance().operations().interactionScene().owner(),
-         ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode(), ClientSessionSystem.instance().operations().remoteSelectionIdentity(), role);
+         ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode(), ClientSessionSystem.instance().operations().remoteSelectionIdentity(), role,
+         ClientSessionSystem.instance().operations().remoteSelectionRevision(), ClientSessionSystem.instance().operations().remoteSelectionCallbackScope());
    }
 
    static void dispatch(RemoteSelectionPointRequest request, ClientInputStateMachine routing,
@@ -22,7 +23,8 @@ final class RemoteSelectionPointDispatcher {
       if (ClientSessionSystem.instance().operations().workspaceSubmissionPending() || ClientSessionSystem.instance().operations().workspace().locked()
          || ClientSessionSystem.instance().operations().active() || ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive()
          || !request.matches(ClientSessionSystem.instance().operations().interactionScene().owner(), ClientSessionSystem.instance().operations().selectionEdits().draftSelectionMode(),
-            ClientSessionSystem.instance().operations().remoteSelectionIdentity())) return;
+            ClientSessionSystem.instance().operations().remoteSelectionIdentity(), ClientSessionSystem.instance().operations().remoteSelectionRevision(),
+            ClientSessionSystem.instance().operations().remoteSelectionCallbackScope())) return;
       send.accept(new OperationPointPayload(request.role()));
    }
 }

@@ -1,6 +1,6 @@
 package io.github.fastformer.server.history.replay;
 
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.history.entry.WorldChangeBatch;
 import java.util.Optional;
 import java.util.function.Predicate;

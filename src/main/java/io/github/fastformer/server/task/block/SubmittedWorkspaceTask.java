@@ -1,28 +1,30 @@
 package io.github.fastformer.server.task.block;
 
+import io.github.fastformer.server.worldwrite.snapshot.BlockSnapshotReader;
+
 import io.github.fastformer.server.task.MemoryReservationAttempt;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
-import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.WorldOperationPhase;
+import io.github.fastformer.server.worldwrite.transaction.WorldOperationCommit;
+import io.github.fastformer.server.task.metrics.WorldOperationPhase;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.server.task.TaskStep;
-import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.common.world.memory.MemoryAdmission;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.common.world.BlockSnapshot;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import io.github.fastformer.workspace.submission.OperationWorkspaceValidator;
-import io.github.fastformer.workspace.submission.WorkspaceFailure;
-import io.github.fastformer.workspace.submission.WorkspaceCompletion;
-import io.github.fastformer.common.workspace.preview.WorkspaceScene;
-import io.github.fastformer.fastplace.world.WorkspaceWriteScope;
-import io.github.fastformer.fastplace.world.WorkspaceTickBarrier;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.common.workspace.submission.OperationWorkspaceValidator;
+import io.github.fastformer.common.workspace.submission.WorkspaceFailure;
+import io.github.fastformer.common.workspace.submission.WorkspaceCompletion;
+import io.github.fastformer.common.workspace.composition.WorkspaceScene;
+import io.github.fastformer.server.worldwrite.transaction.WorkspaceWriteScope;
+import io.github.fastformer.server.worldwrite.effect.WorkspaceTickBarrier;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
@@ -53,10 +55,9 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
    private final int maxPlacement;
    private final ResourceKey<Level> dimension;
    private WorkspaceTickBarrier tickBarrier;
-   private long blockEntityReserve;
-   private Map<BlockPos, BlockSnapshot> desired = Map.of();
-   private Iterator<Map.Entry<BlockPos, BlockSnapshot>> captureIterator;
-   private boolean captureComplete;
+   private WorkspaceSnapshotCapture capture;
+   private final BlockSnapshotReader snapshots;
+   private final BlockTaskMemoryPolicy memoryPolicy;
    private final ArrayDeque<Map.Entry<BlockPos, BlockSnapshot>> writable = new ArrayDeque<>();
    private Iterator<BlockPos> finalizationIterator;
    private List<Integer> invalidPartIds = List.of();
@@ -77,7 +78,17 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       UUID transferId, OperationWorkspacePlan plan, PlacementUpdateMode updateMode, int maxPlacement,
       ResourceKey<Level> dimension, WorldJournalPreparation journalPreparation
    ) {
+      this(transferId, plan, updateMode, maxPlacement, dimension, journalPreparation,
+         new WorkspaceSnapshotCapture(Map.of()), BlockSnapshotReader.live(), BlockTaskMemoryPolicy.standard());
+   }
+
+   SubmittedWorkspaceTask(UUID transferId, OperationWorkspacePlan plan, PlacementUpdateMode updateMode,
+      int maxPlacement, ResourceKey<Level> dimension, WorldJournalPreparation journalPreparation,
+      WorkspaceSnapshotCapture capture, BlockSnapshotReader snapshots, BlockTaskMemoryPolicy memoryPolicy) {
       super(journalPreparation);
+      this.capture = java.util.Objects.requireNonNull(capture);
+      this.snapshots = java.util.Objects.requireNonNull(snapshots);
+      this.memoryPolicy = java.util.Objects.requireNonNull(memoryPolicy);
       this.transferId = transferId;
       this.plan = plan;
       this.updateMode = updateMode;
@@ -105,7 +116,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
 
    @Override
    protected TaskStep tickBody(WorldTaskContext context, ServerLevel level, WorldTaskBudget budget) {
-      if (tickBarrier == null && !desired.isEmpty()) tickBarrier = new WorkspaceTickBarrier(level, desired.keySet());
+      if (tickBarrier == null && !capture.desired().isEmpty()) tickBarrier = new WorkspaceTickBarrier(level, capture.desired().keySet());
       this.metrics.phase(phaseMetric());
       while (budget.tryConsume()
          || (phase == Phase.WRITE && !writable.isEmpty() && !hasWrites() && budget.tryConsumeFirstWrite())) {
@@ -114,23 +125,23 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
          }
          switch (phase) {
             case VALIDATE -> {
-               CaptureStep capture = captureNext(level);
-               if (capture == CaptureStep.RETRY) {
+               CaptureStep captured = captureNext(level);
+               if (captured == CaptureStep.RETRY) {
                   return TaskStep.ACTIVE;
                }
-               if (capture != CaptureStep.ADVANCED) {
-                  return switch (capture) {
+               if (captured != CaptureStep.ADVANCED) {
+                  return switch (captured) {
                      case EMPTY -> TaskStep.EMPTY;
                      case EXCEEDED -> TaskStep.EXCEEDED;
                      case REJECTED -> TaskStep.MEMORY_UNSAFE;
                      case FAILED -> TaskStep.FAILED;
-                     default -> throw new IllegalStateException("Unexpected workspace capture state " + capture);
+                     default -> throw new IllegalStateException("Unexpected workspace capture state " + captured);
                   };
                }
                int unjournaled = transaction.expectedCount() - journalSegments.count() - journalSegments.pending().size();
-               if (unjournaled > 0 && captureComplete) {
+               if (unjournaled > 0 && capture.complete()) {
                   phase = Phase.JOURNAL;
-               } else if (captureComplete && writable.isEmpty() && journalSegments.pending().isEmpty()) {
+               } else if (capture.complete() && writable.isEmpty() && journalSegments.pending().isEmpty()) {
                   phase = Phase.FINALIZE;
                }
             }
@@ -146,7 +157,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
             }
             case WRITE -> {
                if (writable.isEmpty()) {
-                  if (!captureComplete) {
+                  if (!capture.complete()) {
                      phase = Phase.VALIDATE;
                      continue;
                   }
@@ -189,8 +200,8 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       return TaskStep.ACTIVE;
    }
 
-   private CaptureStep captureNext(ServerLevel level) {
-      if (desired.isEmpty() && !captureComplete) {
+   CaptureStep captureNext(ServerLevel level) {
+      if (capture.desired().isEmpty() && !capture.complete()) {
          TaskStep composed = composeDesired(level);
          if (composed != TaskStep.ACTIVE) {
             return switch (composed) {
@@ -200,39 +211,19 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
             };
          }
       }
-      MemoryReservationAttempt currentReservation = reserveSnapshotMemory();
-      if (currentReservation == MemoryReservationAttempt.REJECTED) {
-         return CaptureStep.REJECTED;
-      }
-      if (currentReservation == MemoryReservationAttempt.RETRY) {
-         return CaptureStep.RETRY;
-      }
-      if (captureIterator != null && captureIterator.hasNext()) {
-         Map.Entry<BlockPos, BlockSnapshot> entry = captureIterator.next();
-         if (!captureExpected(level, entry)) {
-            return CaptureStep.FAILED;
+      WorkspaceSnapshotCapture.Step result = capture.next(level, transaction, snapshots,
+         (position, target) -> validSnapshot(level, position, target), this::reserveMemory, metrics::snapshotCaptured);
+      return switch (result) {
+         case ADVANCED -> CaptureStep.ADVANCED;
+         case RETRY -> CaptureStep.RETRY;
+         case REJECTED -> CaptureStep.REJECTED;
+         case INVALID_TARGET, SNAPSHOT_UNAVAILABLE -> {
+            reportFailure(result == WorkspaceSnapshotCapture.Step.INVALID_TARGET
+               ? WorkspaceFailure.INVALID_BLOCK_ENTITY : WorkspaceFailure.SNAPSHOT_UNAVAILABLE, capture.failedPosition());
+            failedTargetPositions.add(capture.failedPosition().immutable());
+            yield CaptureStep.FAILED;
          }
-         MemoryReservationAttempt capturedReservation = reserveSnapshotMemory();
-         if (capturedReservation == MemoryReservationAttempt.REJECTED) {
-            return CaptureStep.REJECTED;
-         }
-         if (capturedReservation == MemoryReservationAttempt.RETRY) {
-            return CaptureStep.RETRY;
-         }
-      }
-      if (captureIterator == null || !captureIterator.hasNext()) {
-         captureComplete = true;
-         captureIterator = null;
-         var journalAdmission = WorldOperationMemory.journalAdmission(desired.size(), blockEntityReserve);
-         MemoryReservationAttempt journalReservation = reserveMemory(journalAdmission);
-         if (journalReservation == MemoryReservationAttempt.REJECTED) {
-            return CaptureStep.REJECTED;
-         }
-         if (journalReservation == MemoryReservationAttempt.RETRY) {
-            return CaptureStep.RETRY;
-         }
-      }
-      return CaptureStep.ADVANCED;
+      };
    }
 
    private TaskStep composeDesired(ServerLevel level) {
@@ -247,16 +238,15 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       }
       LinkedHashMap<BlockPos, BlockSnapshot> composed = composeDesiredSnapshots(validated);
       if (composed.isEmpty()) {
-         captureComplete = true;
+         capture = new WorkspaceSnapshotCapture(Map.of());
          return TaskStep.EMPTY;
       }
       if (composed.size() > maxPlacement) {
          return TaskStep.EXCEEDED;
       }
       metrics.targetCount(composed.size());
-      desired = Collections.unmodifiableMap(composed);
-      tickBarrier = new WorkspaceTickBarrier(level, desired.keySet());
-      captureIterator = desired.entrySet().iterator();
+      capture = new WorkspaceSnapshotCapture(composed);
+      tickBarrier = new WorkspaceTickBarrier(level, capture.desired().keySet());
       return TaskStep.ACTIVE;
    }
 
@@ -279,27 +269,6 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
          .thenComparingInt(BlockPos::getX)
          .thenComparingInt(BlockPos::getZ));
       return ordered;
-   }
-
-   private boolean captureExpected(ServerLevel level, Map.Entry<BlockPos, BlockSnapshot> entry) {
-      if (!validSnapshot(level, entry.getKey(), entry.getValue())) {
-         reportFailure(WorkspaceFailure.INVALID_BLOCK_ENTITY, entry.getKey());
-         failedTargetPositions.add(entry.getKey().immutable());
-         return false;
-      }
-      Optional<ReversibleBlockSnapshot> captured = ReversibleBlockSnapshot.capture(level, entry.getKey());
-      if (captured.isEmpty()) {
-         reportFailure(WorkspaceFailure.SNAPSHOT_UNAVAILABLE, entry.getKey());
-         failedTargetPositions.add(entry.getKey().immutable());
-         return false;
-      }
-      ReversibleBlockSnapshot snapshot = captured.orElseThrow();
-      metrics.snapshotCaptured();
-      transaction.recordExpected(entry.getKey(), snapshot);
-      blockEntityReserve = WorldOperationMemory.saturatingAdd(
-         blockEntityReserve, WorldOperationMemory.snapshotNbtReserve(snapshot)
-      );
-      return true;
    }
 
    private static boolean validSnapshot(ServerLevel level, BlockPos pos, BlockSnapshot snapshot) {
@@ -383,7 +352,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       if (preparation == JournalPreparation.READY && !slice.isEmpty()) {
          metrics.journalReady();
          for (ReversibleBlockSnapshot snapshot : slice) {
-            BlockSnapshot target = desired.get(snapshot.pos());
+            BlockSnapshot target = capture.desired().get(snapshot.pos());
             if (target == null) {
                return JournalPreparation.FAILED;
             }
@@ -397,8 +366,8 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
    private Collection<ReversibleBlockSnapshot> predictedFinalSnapshots(
       Collection<ReversibleBlockSnapshot> before
    ) {
-      return PlacementTask.lazyMappedCollection(before, original -> {
-         BlockSnapshot target = desired.get(original.pos());
+      return PlacementJournalPrediction.lazyMap(before, original -> {
+         BlockSnapshot target = capture.desired().get(original.pos());
          if (target == null) {
             throw new IllegalStateException("Workspace journal target is missing");
          }
@@ -411,7 +380,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       });
    }
 
-   private TaskStep prepareCommit() {
+   TaskStep prepareCommit() {
       if (operationCommit == null) {
          MemoryReservationAttempt commitReservation = reserveCommitMemory();
          if (commitReservation == MemoryReservationAttempt.RETRY) {
@@ -431,12 +400,11 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
          : TaskStep.FAILED;
    }
 
-   private void releaseWriteStagingForCommit() {
+   void releaseWriteStagingForCommit() {
       transaction.clearExpected();
-      desired = Map.of();
+      capture.release();
       writable.clear();
       journalSegments.clearPending();
-      captureIterator = null;
    }
 
    private MemoryReservationAttempt reserveCommitMemory() {
@@ -447,10 +415,11 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
    }
 
    private MemoryReservationAttempt reserveSnapshotMemory() {
-      return reserveMemory(WorldOperationMemory.snapshotAdmission(desired.size(), blockEntityReserve));
+      return reserveMemory(WorldOperationMemory.snapshotAdmission(capture.desired().size(), capture.nbtReserve()));
    }
 
-   private MemoryReservationAttempt reserveMemory(MemoryAdmission admission) {
+   MemoryReservationAttempt reserveMemory(MemoryAdmission admission) {
+      admission = memoryPolicy.admit(admission);
       memoryThrottled = admission.throttled();
       if (!admission.allowed()) {
          return MemoryReservationAttempt.REJECTED;
@@ -514,7 +483,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       if (memoryReservation != null) {
          return MemoryReservationAttempt.ACQUIRED;
       }
-      if (phase != Phase.FINAL_JOURNAL && desired.isEmpty()) {
+      if (phase != Phase.FINAL_JOURNAL && capture.desired().isEmpty()) {
          return MemoryReservationAttempt.ACQUIRED;
       }
       var admission = phase == Phase.FINAL_JOURNAL
@@ -522,16 +491,15 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
             transaction.snapshotCount(), transaction.largestSideCount(), transaction.commitBlockEntityReserve()
          )
          : phase == Phase.JOURNAL
-            ? WorldOperationMemory.journalAdmission(desired.size(), blockEntityReserve)
-            : WorldOperationMemory.snapshotAdmission(desired.size(), blockEntityReserve);
+            ? WorldOperationMemory.journalAdmission(capture.desired().size(), capture.nbtReserve())
+            : WorldOperationMemory.snapshotAdmission(capture.desired().size(), capture.nbtReserve());
       return reserveMemory(admission);
    }
 
    @Override
    protected void clearCommittedStaging() {
-      desired = Map.of();
+      capture.release();
       writable.clear();
-      captureIterator = null;
       finalizationIterator = null;
    }
 
@@ -560,7 +528,7 @@ public final class SubmittedWorkspaceTask extends LeasedJournaledTask {
       FINAL_JOURNAL
    }
 
-   private enum CaptureStep {
+   enum CaptureStep {
       ADVANCED,
       RETRY,
       EMPTY,

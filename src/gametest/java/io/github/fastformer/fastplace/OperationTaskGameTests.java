@@ -6,7 +6,7 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.common.selection.OperationMode;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
@@ -15,7 +15,7 @@ import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.task.block.SelectionOperationTask;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;

@@ -12,16 +12,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.fastformer.common.geometry.GeometryAction;
-import io.github.fastformer.fastplace.geometry.GeometryActionContext;
+import io.github.fastformer.server.geometry.workflow.GeometryActionContext;
+import io.github.fastformer.server.geometry.workflow.PolyhedronWorkflowEditor;
+import io.github.fastformer.server.geometry.workflow.WallWorkflowEditor;
 import io.github.fastformer.common.geometry.GeometryHit;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.geometry.preview.GeometryPreviewPlan;
-import io.github.fastformer.fastplace.geometry.GeometryStage;
+import io.github.fastformer.common.geometry.GeometryStage;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionAction;
 import io.github.fastformer.common.geometry.interaction.GeometryInteractionTarget;
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
-import io.github.fastformer.fastplace.world.*;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.common.geometry.workflow.*;
+import io.github.fastformer.common.geometry.workflow.plan.*;
+import io.github.fastformer.common.geometry.workflow.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
@@ -42,7 +45,7 @@ class GeometryStageActionTest {
 
       GeometrySession session = new GeometrySession();
       session.setMode(GeometryMode.WALL);
-      assertTrue(new WallWorkflow().stage(session).allows(GeometryAction.SUBMODE));
+      assertTrue(new WallWorkflow().stage(GeometryWorkflowView.from(session)).allows(GeometryAction.SUBMODE));
    }
 
    @Test
@@ -67,7 +70,7 @@ class GeometryStageActionTest {
       session.addPoint(new Vec3(0.5, 0.5, 0.5));
       session.polyhedron().enterPolyhedronAdjust(new Vec3(3.5, 0.5, 0.5));
 
-      GeometryStage stage = new PolyhedronWorkflow().stage(session);
+      GeometryStage stage = new PolyhedronWorkflow().stage(GeometryWorkflowView.from(session));
 
       assertTrue(stage.allows(GeometryAction.CONFIRM));
       assertTrue(stage.allows(GeometryAction.MODE_CYCLE));
@@ -82,7 +85,7 @@ class GeometryStageActionTest {
       session.addPoint(new Vec3(0.5, 0.5, 0.5));
       session.polyhedron().enterPolyhedronAdjust(new Vec3(4.5, 0.5, 0.5));
 
-      assertFalse(new PolyhedronWorkflow().onGizmoDrag(
+      assertFalse(new PolyhedronWorkflowEditor().onGizmoDrag(
          session,
          new GeometryActionContext(null, false),
          io.github.fastformer.common.geometry.gizmo.AxisGizmo.Operation.ROTATE,
@@ -100,7 +103,7 @@ class GeometryStageActionTest {
       session.addPoint(new net.minecraft.core.BlockPos(4, 0, 4));
       session.close();
 
-      assertTrue(new WallWorkflow().confirmsOnRightClick(session));
+      assertTrue(new WallWorkflowEditor().confirmsOnRightClick(session));
    }
 
    @Test
@@ -113,11 +116,11 @@ class GeometryStageActionTest {
       session.addPoint(new Vec3(0.5, 0.5, 4.5));
       session.addPoint(new Vec3(4.5, 0.5, 4.5));
 
-      assertFalse(workflow.stage(session).allows(GeometryAction.CONFIRM));
+      assertFalse(workflow.stage(GeometryWorkflowView.from(session)).allows(GeometryAction.CONFIRM));
 
       session.addPoint(new Vec3(0.5, 4.5, 0.5));
 
-      assertTrue(workflow.stage(session).allows(GeometryAction.CONFIRM));
+      assertTrue(workflow.stage(GeometryWorkflowView.from(session)).allows(GeometryAction.CONFIRM));
    }
 
    @Test

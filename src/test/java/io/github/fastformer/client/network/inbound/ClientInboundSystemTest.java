@@ -31,8 +31,8 @@ class ClientInboundSystemTest {
          new ActivityStatePayload(SessionActivity.NONE),
          new OperationWorkspaceResultPayload(UUID.randomUUID(), false, List.of()),
          new OperationWorkspaceReceiptPayload(ResourceLocation.withDefaultNamespace("overworld"), List.of()),
-         new OpenSettingsPayload(true, io.github.fastformer.workspace.submission.OperationConflictMode.REPLACE,
-            io.github.fastformer.fastplace.placement.PlacementUpdateMode.CLIENT_ONLY, List.of(), true, false, 200, 100,
+         new OpenSettingsPayload(true, io.github.fastformer.common.workspace.model.OperationConflictMode.REPLACE,
+            io.github.fastformer.common.placement.PlacementUpdateMode.CLIENT_ONLY, List.of(), true, false, 200, 100,
             io.github.fastformer.common.history.HistoryCompressionLimits.DEFAULTS, true, false),
          new FallingStatePayload(true, true));
       for (var payload : payloads) queue.post(payload, connection);

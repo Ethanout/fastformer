@@ -11,7 +11,7 @@ import io.github.fastformer.server.player.PlayerStateRegistry;
 import io.github.fastformer.server.session.OperationSystem;
 import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.testkit.ServerPlayers;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;

@@ -2,10 +2,10 @@ package io.github.fastformer.common.geometry;
 
 import io.github.fastformer.common.geometry.GeometryHit;
 
-import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.common.geometry.workflow.*;
+import io.github.fastformer.common.geometry.workflow.plan.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

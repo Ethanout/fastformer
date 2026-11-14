@@ -7,7 +7,7 @@ import static io.github.fastformer.server.recovery.RecoveryJournalCodec.decode;
 import static io.github.fastformer.server.recovery.RecoveryJournalCodec.decodeCorrections;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.server.recovery.RecoveryJournalCodec.DecodedCorrections;
 import io.github.fastformer.server.recovery.RecoveryJournalCodec.DecodedJournal;
 import io.github.fastformer.server.recovery.RecoveryJournalCodec.JournalPair;

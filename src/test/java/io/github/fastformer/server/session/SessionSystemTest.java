@@ -11,13 +11,13 @@ import io.github.fastformer.common.quickshape.QuickShapeDraft;
 import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.common.geometry.session.GeometrySession;
-import io.github.fastformer.fastplace.session.OperationSession;
+import io.github.fastformer.common.selection.session.OperationSession;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -34,7 +34,10 @@ class SessionSystemTest {
          assertEquals(modes.size(), modes.stream().map(mode -> mode.id()).distinct().count());
          for (GeometryMode shape : GeometryMode.values()) {
             assertTrue(modes.stream().anyMatch(mode -> mode.id().equals(BuiltinModes.geometry(shape))));
+            assertSame(runtime.geometry, runtime.modes().geometry(shape).repository());
          }
+         assertSame(runtime.quickShape, runtime.modes().quickShape().repository());
+         assertSame(runtime.operation, runtime.modes().selection().repository());
          assertTrue(runtime.modes().find(BuiltinModes.QUICK_REPLACE).isPresent());
          assertTrue(runtime.modes().find(BuiltinModes.SMART_FILL).isPresent());
          assertThrows(UnsupportedOperationException.class, () -> modes.clear());
@@ -110,6 +113,9 @@ class SessionSystemTest {
          first.quickShape.sessions.activate(owner, draft(BlockPos.ZERO));
          first.operation.sessions.activate(owner, new OperationSession(OperationSelectionMode.CUBOID, 10));
          first.geometry.sessions.activate(owner, new GeometrySession());
+         first.quickShape.sessions.park(owner, Level.NETHER);
+         first.operation.sessions.park(owner, Level.NETHER);
+         first.geometry.sessions.park(owner, Level.NETHER);
          second.quickShape.sessions.activate(owner, draft);
          second.placementTasks().admit(owner, task);
          first.close();
@@ -117,6 +123,16 @@ class SessionSystemTest {
          assertFalse(first.quickShape.sessions.hasActive(owner));
          assertFalse(first.operation.sessions.hasActive(owner));
          assertFalse(first.geometry.sessions.hasActive(owner));
+         assertNull(first.quickShape.sessions.parked(owner, Level.NETHER));
+         assertNull(first.operation.sessions.parked(owner, Level.NETHER));
+         assertNull(first.geometry.sessions.parked(owner, Level.NETHER));
+         assertThrows(IllegalStateException.class, () -> first.modes().quickShape().open(null, new QuickShapeDraft()));
+         assertThrows(IllegalStateException.class, () -> first.modes().selection().open(null, new OperationSession()));
+         for (GeometryMode mode : GeometryMode.values()) {
+            var geometry = new GeometrySession();
+            geometry.setMode(mode);
+            assertThrows(IllegalStateException.class, () -> first.modes().geometry(mode).open(null, geometry));
+         }
          assertSame(draft, second.quickShape.sessions.active(owner));
          assertTrue(second.placementTasks().active(owner));
       }

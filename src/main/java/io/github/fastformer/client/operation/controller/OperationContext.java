@@ -45,8 +45,7 @@ import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import java.util.List;
 import java.util.UUID;
 import java.util.LinkedHashSet;
@@ -447,7 +446,6 @@ public final class OperationContext {
       submissions.cancel();
       clearTransientOperationState();
       selectionSession().clearLiveInteraction();
-      WorkspacePreviewComposer.invalidatePartGeometry();
       clearFailedWorkspaceTargets();
       sourceMask.clear();
    }
@@ -482,7 +480,6 @@ public final class OperationContext {
       }
       leaveEnvironment();
       if (ownsCurrentInteraction()) ClientSessionSystem.instance().clearUnboundInteraction();
-      WorkspacePreviewComposer.invalidatePartGeometry();
    }
 
    /** Cancels world-bound work while leaving the scope's retained draft to its owner. */
@@ -514,7 +511,6 @@ public final class OperationContext {
       long captureDeadline = System.nanoTime() + SelectionBlockCapture.NANOS_PER_TICK;
       selectionEdits.tick(captureDeadline); transforms.tick(captureDeadline); deletions.tick(captureDeadline);
       selectionSession().publishInteractionScene();
-      WorkspacePreviewComposer.prunePartGeometry();
       submissions.tick();
       if (preview.tick()) {
          // The environment returned a snapshot, so the connection is live and the scope

@@ -57,18 +57,38 @@ public abstract sealed class GeometryShapeState permits WallGeometryState, Polyh
       this.closed = false;
    }
 
-   final void addPoint(Vec3 point) {
+   public final void addOrClose(BlockPos point) {
+      beforePointChange();
+      BlockPos value = point.immutable();
+      if (this.points.size() >= 3 && this.points.getFirst().block().equals(value)) close();
+      else addPoint(value);
+   }
+
+   public final void addPoint(BlockPos point) {
+      addPoint(Vec3.atCenterOf(point));
+   }
+
+   public final void addPoint(Vec3 point) {
+      beforePointChange();
       GeometryPoint value = new GeometryPoint(point, this.nextRole());
       if (!this.closed && (this.points.isEmpty() || !this.points.getLast().location().equals(value.location()))) {
          this.points.add(value);
       }
    }
 
-   final void addPoint(Vec3 point, ControlPointRole role) {
+   public final void addPoint(Vec3 point, ControlPointRole role) {
+      beforePointChange();
       GeometryPoint value = new GeometryPoint(point, role);
       if (!this.closed && (this.points.isEmpty() || !this.points.getLast().location().equals(value.location()))) {
          this.points.add(value);
       }
+   }
+
+   public final boolean close() {
+      if (this.closed) return false;
+      this.closed = true;
+      beforePointChange();
+      return true;
    }
 
    ControlPointRole nextRole() {

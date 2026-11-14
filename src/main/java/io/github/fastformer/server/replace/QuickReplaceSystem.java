@@ -1,5 +1,7 @@
 package io.github.fastformer.server.replace;
 
+import io.github.fastformer.server.worldwrite.transaction.BlockEditTransaction;
+
 import io.github.fastformer.common.placement.context.QuickReplaceTargets;
 
 import io.github.fastformer.server.session.SessionSystem;
@@ -7,15 +9,16 @@ import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.common.replace.QuickReplaceSweep;
 
-import io.github.fastformer.fastplace.interaction.BlockTinker;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.server.interaction.BlockTinker;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
 import io.github.fastformer.common.placement.context.PlaceableItems;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.settings.FastPlaceSettings;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.core.lifecycle.Scoped;
 import io.github.fastformer.core.lifecycle.ScopedKey;
 import io.github.fastformer.server.player.PlayerStateRegistry;
+import io.github.fastformer.server.mode.ServerEditor;
+import io.github.fastformer.server.mode.tool.ConnectionModeRepository;
 import io.github.fastformer.protocol.s2c.placement.QuickReplaceStatePayload;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.resources.ResourceLocation;
@@ -31,7 +34,11 @@ public final class QuickReplaceSystem {
    }
 
    public static void forget(ServerPlayer player) {
-      PlayerStateRegistry.find(player).flatMap(scope -> scope.find(STATE)).ifPresent(State::clear);
+      PlayerStateRegistry.find(player).flatMap(scope -> scope.find(STATE)).ifPresent(state -> {
+         boolean wasActive = state.active;
+         state.clear();
+         if (wasActive) io.github.fastformer.server.api.ModeNotifications.ended(player, io.github.fastformer.common.mode.BuiltinModes.QUICK_REPLACE);
+      });
    }
 
    private static State state(ServerPlayer player) { return PlayerStateRegistry.of(player).get(STATE); }
@@ -45,11 +52,30 @@ public final class QuickReplaceSystem {
       if (player == null) return false;
       forget(player);
       if (!active) return false;
-      if (!ServerInputDispatcher.canOperate(player) || ServerInputDispatcher.interactionBlocked(player) || HistorySystem.of(player).busy(player)
+      if (!ServerInputActions.canOperate(player) || ServerInputActions.interactionBlocked(player) || HistorySystem.of(player).busy(player)
          || SessionSystem.of(player).modes().hasEditing(player)
          || SessionSystem.of(player).placementTasks().active(player) || SessionSystem.of(player).operationTasks().active(player)) return false;
-      state(player).active = true;
+      SessionSystem.of(player).modes().quickReplace().open(player, state(player));
       return true;
+   }
+
+   public static java.util.Optional<State> session(ServerPlayer player) {
+      return PlayerStateRegistry.find(player).flatMap(scope -> scope.find(STATE)).filter(state -> state.active);
+   }
+
+   public static ServerEditor<State> repository() {
+      return new ConnectionModeRepository<>() {
+         @Override public java.util.Optional<State> session(ServerPlayer player) { return QuickReplaceSystem.session(player); }
+         @Override public void activate(ServerPlayer player, State session) {
+            if (state(player) != session) throw new IllegalArgumentException("Quick replace must use the player's scoped state");
+            boolean wasActive = session.active;
+            session.active = true;
+            if (!wasActive) io.github.fastformer.server.api.ModeNotifications.opened(player, io.github.fastformer.common.mode.BuiltinModes.QUICK_REPLACE);
+         }
+         @Override public void cancel(ServerPlayer player) { forget(player); }
+         @Override public void remove(ServerPlayer player) { forget(player); }
+         @Override public void sync(ServerPlayer player) { QuickReplaceSystem.sync(player); }
+      };
    }
 
    /** The connection's monotonically increasing request id fences delayed toggles. */
@@ -131,15 +157,16 @@ public final class QuickReplaceSystem {
       return player != null
          && active(player)
          && !HistorySystem.of(player).busy(player)
-         && ServerInputDispatcher.canOperate(player)
-         && !ServerInputDispatcher.interactionBlocked(player)
+         && ServerInputActions.canOperate(player)
+         && !ServerInputActions.interactionBlocked(player)
          && !SessionSystem.of(player).modes().hasEditing(player)
          && !SessionSystem.of(player).placementTasks().active(player)
          && !SessionSystem.of(player).operationTasks().active(player)
          && PlaceableItems.isPlaceable(player.getMainHandItem());
    }
 
-   private static final class State implements Scoped {
+   public static final class State implements Scoped {
+      private State() {}
       private boolean active;
       private QuickReplaceStroke stroke;
       private long lastStroke;

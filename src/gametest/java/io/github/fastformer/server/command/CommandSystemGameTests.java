@@ -4,7 +4,7 @@ import com.mojang.brigadier.tree.CommandNode;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.common.quickshape.mode.FaceMode;
 import io.github.fastformer.core.command.IntentSource;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.player.PlayerStateRegistry;

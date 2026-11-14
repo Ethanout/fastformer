@@ -51,6 +51,8 @@ import io.github.fastformer.client.gizmo.GizmoColors;
 import io.github.fastformer.client.interaction.SmartSelectionEditView;
 import io.github.fastformer.client.operation.pointer.RemoteSelectionPointer;
 import io.github.fastformer.client.operation.selection.SelectionToolPreference;
+import io.github.fastformer.client.operation.selection.tool.SelectionTools;
+import io.github.fastformer.client.preview.hud.SelectionToolDisplay;
 import io.github.fastformer.common.geometry.preview.GeometryTextBlock;
 
 /** Samples live session facts once; the resulting HUD model is drawn without querying them. */
@@ -503,11 +505,19 @@ public final class ClientHudCapture {
 
    public static MutableComponent idleBottomStatus(boolean emptyHand, boolean placeable) {
       return SessionHudText.idle(emptyHand, placeable, previews().building().lineMode(),
-         SelectionToolPreference.get());
+         selectionToolDisplays(), selectionToolDisplay(SelectionToolPreference.id()));
    }
    private static MutableComponent operationBottomStatus() {
       var operations = ClientSessionSystem.instance().operations();
       return SessionHudText.selection(operations.active(), operations.selectionEdits().selectionDraftActive(),
-         operations.operationSelectionReady(), operations.selectionEdits().draftSelectionMode(), previews().operation().operationStageMode());
+         operations.operationSelectionReady(), selectionToolDisplays(),
+         selectionToolDisplay(operations.selectionEdits().selectionDraft().toolId()), previews().operation().operationStageMode());
+   }
+   private static java.util.List<SelectionToolDisplay> selectionToolDisplays() {
+      return SelectionTools.choices().stream().map(tool -> new SelectionToolDisplay(tool.id(), tool.translationKey())).toList();
+   }
+   private static SelectionToolDisplay selectionToolDisplay(net.minecraft.resources.ResourceLocation id) {
+      var tool = SelectionTools.require(id);
+      return new SelectionToolDisplay(tool.id(), tool.translationKey());
    }
 }

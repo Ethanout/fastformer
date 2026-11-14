@@ -1,9 +1,11 @@
 package io.github.fastformer.server.session.execution;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.fastplace.geometry.generation.ProgressiveBlockGeneration;
+import io.github.fastformer.common.api.ShapeCommitted;
+import io.github.fastformer.server.api.HistoryNotifications;
+import io.github.fastformer.common.geometry.generation.source.ProgressiveBlockGeneration;
 import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.fastplace.world.WorldOperationPhase;
+import io.github.fastformer.server.task.metrics.WorldOperationPhase;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.task.TaskCancellationResult;
@@ -31,6 +33,7 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
          Optional<TaskStep> advanced = queue.tick(context.withResume(() -> resume(context, task, history)), task);
          if (advanced.isEmpty()) return;
          TaskStep step = advanced.orElseThrow();
+         Optional<ShapeCommitted> committed = Optional.empty();
          if (!step.terminal()) {
             reportTaskProgress(context, task, step);
             return;
@@ -52,6 +55,7 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
                context.actionBar(failureStatus(task, owner));
                return;
             }
+            committed = HistoryNotifications.captureShape(context, task, ShapeCommitted.Kind.PLACEMENT);
             task.releaseLease(context);
          } else {
             task.releaseAfterCancelledJournal(context);
@@ -59,6 +63,7 @@ public final class PlacementTasks extends TaskExecution<PlacementTask> {
          queue.remove(owner, task);
          task.releaseMemoryReservation();
          task.releaseCommittedTransactionState();
+         committed.ifPresent(context.events()::publish);
          if (step == TaskStep.COMPLETE) {
             task.markComplete();
             LOGGER.info("FastFormer placement operation {} finished: {}", task.operationId(), task.metricsSummary());

@@ -1,6 +1,7 @@
 package io.github.fastformer.server.task;
 
 import io.github.fastformer.server.feedback.PlayerMessages;
+import io.github.fastformer.server.api.ServerEventStream;
 import io.github.fastformer.server.session.SessionSystem;
 import io.github.fastformer.server.recovery.RecoverySystem;
 import io.github.fastformer.server.recovery.gate.RecoveryWriteGate;
@@ -22,10 +23,18 @@ import net.minecraft.world.level.Level;
  * UUID and dimension; a ServerPlayer is looked up opportunistically for UI.
  */
 public record WorldTaskContext(MinecraftServer server, UUID owner, Runnable resume,
-   RecoveryWriteGate writeGate, WorldWriteLeases writeLeases) {
+   RecoveryWriteGate writeGate, WorldWriteLeases writeLeases, ServerEventStream events) {
    public WorldTaskContext {
       java.util.Objects.requireNonNull(writeGate, "writeGate");
       java.util.Objects.requireNonNull(writeLeases, "writeLeases");
+      java.util.Objects.requireNonNull(events, "events");
+   }
+
+   public WorldTaskContext(MinecraftServer server, UUID owner, Runnable resume,
+      RecoveryWriteGate writeGate, WorldWriteLeases writeLeases) {
+      this(server, owner, resume, writeGate, writeLeases, server == null
+         ? new ServerEventStream(event -> {})
+         : SessionSystem.find(server).map(SessionSystem::eventStream).orElseGet(() -> new ServerEventStream(event -> {})));
    }
 
    public WorldTaskContext(MinecraftServer server, UUID owner, Runnable resume) {
@@ -39,7 +48,7 @@ public record WorldTaskContext(MinecraftServer server, UUID owner, Runnable resu
    }
 
    public WorldTaskContext withResume(Runnable resume) {
-      return new WorldTaskContext(server, owner, resume, writeGate, writeLeases);
+      return new WorldTaskContext(server, owner, resume, writeGate, writeLeases, events);
    }
 
    public boolean writesAllowed() { return writeGate.writesAllowed(); }

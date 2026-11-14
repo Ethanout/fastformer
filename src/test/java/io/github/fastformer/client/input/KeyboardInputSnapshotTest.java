@@ -64,4 +64,20 @@ class KeyboardInputSnapshotTest {
       assertFalse(release.controlDown());
       assertTrue(press.controlDown());
    }
+
+   @Test
+   void ownershipQueryTreatsOnlyRepeatsAsPressesAndPreservesTheExecutableEvent() {
+      var repeat = KeyboardInputSnapshot.capture(87, 7, 2, 3, 123L, true, false, true, false);
+      var query = repeat.forOwnershipQuery();
+      assertEquals(1, query.action());
+      assertEquals(2, repeat.action());
+      assertEquals(repeat.key(), query.key());
+      assertEquals(repeat.scanCode(), query.scanCode());
+      assertEquals(repeat.modifiers(), query.modifiers());
+      assertEquals(repeat.occurredAtNanos(), query.occurredAtNanos());
+      assertEquals(repeat.altDown(), query.altDown());
+      assertEquals(repeat.controlDown(), query.controlDown());
+      var release = KeyboardInputSnapshot.capture(87, 7, 0, 0, 124L, false, false, false, false);
+      assertEquals(release, release.forOwnershipQuery());
+   }
 }

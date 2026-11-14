@@ -10,7 +10,7 @@ import io.github.fastformer.common.geometry.session.ConvexPolyhedronGeometryStat
 import io.github.fastformer.common.geometry.model.FillMode;
 import io.github.fastformer.common.geometry.ConePlaneMode;
 import io.github.fastformer.common.geometry.PolyhedronSizeMode;
-import io.github.fastformer.fastplace.session.*;
+import io.github.fastformer.common.selection.session.*;
 import io.github.fastformer.protocol.callback.OperationCallbackScope;
 import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import net.minecraft.core.BlockPos;

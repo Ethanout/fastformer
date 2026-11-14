@@ -219,7 +219,7 @@ class QuickShapeUndoMailboxTest {
       var draft = snapshot();
       input.postShapeUndo(input.quickShapeUndo.press(draft, 100, Vec3.ZERO, new Vec3(1, 0, 0)));
       input.postShapeUndo(input.quickShapeUndo.release(0, 110));
-      input.cancelShapeBindingInput();
+      input.cancelBoundPointerInput();
       assertEquals(0, drain(input, draft));
       assertFalse(input.quickShapeUndo.captured());
    }

@@ -23,7 +23,7 @@ public record ClientOperationDraft(
    UUID submissionId,
    Remainder remainder
 ) {
-   public static final int CURRENT_VERSION = 1;
+   public static final int CURRENT_VERSION = 2;
 
    public record Remainder(ClientOperationWorkspace.DraftState workspace, ClientSelectionSession.DraftState selection) {
       public ClientOperationDraft asDraft() {

@@ -1,14 +1,16 @@
 package io.github.fastformer.client;
 
 import io.github.fastformer.client.preview.style.GeometryPalette;
-import io.github.fastformer.fastplace.settings.FlightSettings;
+import io.github.fastformer.client.preview.style.BuiltinThemes;
+import net.minecraft.resources.ResourceLocation;
+import io.github.fastformer.common.movement.FlightSettings;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /** Client presentation and local input preferences. */
 @net.neoforged.fml.common.EventBusSubscriber(modid = "fastformer", value = net.neoforged.api.distmarker.Dist.CLIENT)
 public final class FastFormerClientConfig {
    public static final ModConfigSpec SPEC;
-   private static final ModConfigSpec.EnumValue<GeometryPalette.Theme> THEME;
+   private static final ModConfigSpec.ConfigValue<String> THEME;
    private static final int DEFAULT_SCROLL_HISTORY_MERGE_MILLIS = 250;
    private static final ModConfigSpec.IntValue SCROLL_HISTORY_MERGE_MILLIS;
    private static final ModConfigSpec.IntValue DASH_DISTANCE;
@@ -17,8 +19,9 @@ public final class FastFormerClientConfig {
    static {
       ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
       builder.push("visual");
-      THEME = builder.comment("Overlay theme: CLASSIC (white lines, vivid accents) or HUMANIST (hand-drawn pencil).")
-         .defineEnum("theme", GeometryPalette.Theme.CLASSIC);
+      THEME = builder.comment("Overlay theme resource ID, such as fastformer:classic or fastformer:humanist.")
+         .define("theme", BuiltinThemes.CLASSIC.toString(), value ->
+            value instanceof String id && ResourceLocation.tryParse(id) != null);
       builder.pop();
       builder.push("selection");
       SCROLL_HISTORY_MERGE_MILLIS = builder.comment("Merge consecutive scroll moves of the same selection and direction within this interval. Zero disables merging.")
@@ -44,22 +47,22 @@ public final class FastFormerClientConfig {
    }
 
    /** Falls back to the default before the config file loads, and on a dedicated server. */
-   public static GeometryPalette.Theme theme() {
+   public static ResourceLocation theme() {
       if (!SPEC.isLoaded()) {
-         return GeometryPalette.Theme.CLASSIC;
+         return BuiltinThemes.CLASSIC;
       }
       try {
-         return THEME.get();
+         return ResourceLocation.parse(THEME.get());
       } catch (IllegalStateException exception) {
-         return GeometryPalette.Theme.CLASSIC;
+         return BuiltinThemes.CLASSIC;
       }
    }
 
-   public static void setTheme(GeometryPalette.Theme theme) {
+   public static void setTheme(ResourceLocation theme) {
       if (!SPEC.isLoaded()) {
          return;
       }
-      THEME.set(theme);
+      THEME.set(theme.toString());
       GeometryPalette.selectTheme(theme);
       THEME.save();
    }

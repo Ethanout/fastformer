@@ -1,6 +1,6 @@
 package io.github.fastformer.protocol.c2s.movement;
 
-import io.github.fastformer.fastplace.settings.FlightSettings;
+import io.github.fastformer.common.movement.FlightSettings;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

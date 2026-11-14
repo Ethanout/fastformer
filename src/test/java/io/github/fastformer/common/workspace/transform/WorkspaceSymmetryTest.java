@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.fastformer.common.workspace.model.WorkspaceSymmetry;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -44,9 +44,9 @@ class WorkspaceSymmetryTest {
       var transform = WorkspaceTransform.IDENTITY.withSymmetry(
          WorkspaceSymmetry.IDENTITY.then(WorkspaceSymmetry.reflection(Axis.X), new Vec3(1.5, 0.5, 0.5)));
       assertEquals(Map.of(BlockPos.ZERO, "last", new BlockPos(2, 0, 0), "first"),
-         WorkspacePreviewComposer.resolveValues(source, transform));
+         WorkspaceComposer.resolveValues(source, transform));
       assertEquals(Map.of(new BlockPos(10, 0, 0), "last", new BlockPos(12, 0, 0), "first"),
-         WorkspacePreviewComposer.resolveValues(source, transform.withTranslation(new Vec3(10, 0, 0))));
+         WorkspaceComposer.resolveValues(source, transform.withTranslation(new Vec3(10, 0, 0))));
       assertEquals(transform.symmetry(), transform.withRotation(new Vec3(0, Math.PI / 2, 0)).symmetry());
       assertTrue(transform.hasBaseEffect());
    }

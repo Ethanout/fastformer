@@ -1,7 +1,7 @@
 package io.github.fastformer.server.history.vanilla;
 
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.fastplace.world.BlockEditTransaction;
+import io.github.fastformer.server.settings.FastPlaceSettings;
+import io.github.fastformer.server.worldwrite.transaction.BlockEditTransaction;
 import java.util.function.Supplier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;

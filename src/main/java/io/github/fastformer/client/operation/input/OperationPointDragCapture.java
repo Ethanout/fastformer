@@ -17,7 +17,7 @@ public final class OperationPointDragCapture {
       button = press.button();
       return new OperationPointDragPress(captured, press.button(), press.occurredAtNanos(), press.selection(), press.revision(),
          press.callbackScope(), press.pointIndex(), press.initialPoint(), press.plane(), press.planeGrabOffset(), press.line(),
-         press.lineGrabBaseline(), press.axisBaselines(), press.constraint(), press.eye(), press.view());
+         press.lineGrabBaseline(), press.axisBaselines(), press.constraint(), press.eye(), press.view(), press.logicalButton());
    }
 
    public OperationPointDragEvent.Release release(int releasedButton, long occurredAtNanos,

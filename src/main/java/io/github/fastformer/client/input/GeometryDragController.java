@@ -21,41 +21,34 @@ final class GeometryDragController {
 
    private GeometryDragController() { }
 
-   static boolean beginConfirmedOperation(
-      Minecraft minecraft, ClientInputSession session, AxisGizmo gizmo, AxisGizmo.Hit hit, int mouseButton
+   static GeometryGizmoDrag captureConfirmedOperation(
+      Minecraft minecraft, AxisGizmo gizmo, AxisGizmo.Hit hit, int mouseButton
    ) {
       if (!ServerGateway.supports(minecraft, OperationTransformPayload.TYPE)) {
-         return false;
+         return null;
       }
       AxisGizmo.Handle handle = hit.handle();
       double baseValue = ClientSessionSystem.instance().operations().remotePointer().operationGizmoValue(handle.axis(), handle.operation());
       if (handle.drawsRing()) {
          Vec3 radial = hit.point().subtract(gizmo.center());
          if (radial.lengthSqr() < 1.0E-7) {
-            return false;
+            return null;
          }
-           session.geometryGizmoDrag = new GeometryGizmoDrag(
+           return new GeometryGizmoDrag(
              handle.operation(), handle.axis(), hit.point(), gizmo.axisVector(handle.axis()), 0, baseValue,
             gizmo.center(), radial.normalize(), GizmoDragCalculator.rotationTangent(gizmo.axisVector(handle.axis()), radial.normalize()),
              handle.direction(), mouseButton
           );
-          session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       } else {
          Vec3 axis = gizmo.axisVector(handle.axis());
          if (handle.direction() == AxisGizmo.Direction.NEGATIVE) {
             axis = axis.scale(-1.0);
          }
-          session.geometryGizmoDrag = new GeometryGizmoDrag(
+          return new GeometryGizmoDrag(
              handle.operation(), handle.axis(), hit.point(), axis, 0, baseValue,
              Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, handle.direction(), mouseButton
           );
-          session.pointerGesture.begin(PointerGestureState.Kind.OPERATION_GIZMO);
       }
-      session.geometryGizmoDrag = session.geometryGizmoDrag.withCapture(session.pointerGesture.activeToken());
-      session.operationTransformCapture = new ClientInputSession.OperationTransformCapture(GeometryInputController.nextRequestId(),
-         ClientSessionSystem.instance().operations().remoteSelectionRevision(), ClientSessionSystem.instance().operations().remoteSelectionCallbackScope());
-      session.feedback().noteGizmo(handle.axis(), handle.operation(), 0, baseValue);
-      return true;
    }
 
    static void update(Minecraft minecraft, ClientInputSession session, boolean controlDown) {

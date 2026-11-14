@@ -3,7 +3,7 @@ package io.github.fastformer.server.recovery;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.core.async.AsyncTasks;
 import io.github.fastformer.server.worldwrite.WorldWriteLeases;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
+import io.github.fastformer.common.world.memory.MemoryReservation;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;

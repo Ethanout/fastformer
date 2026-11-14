@@ -21,8 +21,16 @@ public record OperationPointDrag(
    long pressedAt,
    long captureToken,
    long revision,
-   OperationCallbackScope callbackScope
+   OperationCallbackScope callbackScope,
+   int logicalButton
 ) {
+   public OperationPointDrag(int pointIndex, int mouseButton, BlockPos initialPoint, BlockPos sentTarget,
+      SelectionPrism.GridPlane plane, Vec3 planeGrabOffset, SelectionPrism.GridLine line, double lineGrabBaseline,
+      Vec3 axisBaselines, OperationPointDragConstraint constraint, long pressedAt, long captureToken,
+      long revision, OperationCallbackScope callbackScope) {
+      this(pointIndex, mouseButton, initialPoint, sentTarget, plane, planeGrabOffset, line, lineGrabBaseline,
+         axisBaselines, constraint, pressedAt, captureToken, revision, callbackScope, mouseButton);
+   }
    public OperationPointDrag(
       int pointIndex, int mouseButton, BlockPos initialPoint, BlockPos sentTarget,
       SelectionPrism.GridPlane plane, Vec3 planeGrabOffset, SelectionPrism.GridLine line,
@@ -37,14 +45,14 @@ public record OperationPointDrag(
    public OperationPointDrag withSentTarget(BlockPos target) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, target, plane, planeGrabOffset, line,
-         lineGrabBaseline, axisBaselines, constraint, pressedAt, captureToken, revision, callbackScope
+         lineGrabBaseline, axisBaselines, constraint, pressedAt, captureToken, revision, callbackScope, logicalButton
       );
    }
 
    public OperationPointDrag withConstraint(OperationPointDragConstraint value) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, plane, planeGrabOffset, line,
-         lineGrabBaseline, axisBaselines, value, pressedAt, captureToken, revision, callbackScope
+         lineGrabBaseline, axisBaselines, value, pressedAt, captureToken, revision, callbackScope, logicalButton
       );
    }
 
@@ -56,7 +64,7 @@ public record OperationPointDrag(
    ) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, value, grabOffset, line,
-         lineGrabBaseline, baselines, valueConstraint, pressedAt, captureToken, revision, callbackScope
+         lineGrabBaseline, baselines, valueConstraint, pressedAt, captureToken, revision, callbackScope, logicalButton
       );
    }
 
@@ -67,7 +75,7 @@ public record OperationPointDrag(
    ) {
       return new OperationPointDrag(
          pointIndex, mouseButton, initialPoint, sentTarget, plane, planeGrabOffset, value,
-         grabBaseline, axisBaselines, valueConstraint, pressedAt, captureToken, revision, callbackScope
+         grabBaseline, axisBaselines, valueConstraint, pressedAt, captureToken, revision, callbackScope, logicalButton
       );
    }
 }

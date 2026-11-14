@@ -1,12 +1,10 @@
 package io.github.fastformer.client.render.theme;
 
-import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.client.preview.style.GeometryPalette;
-import io.github.fastformer.client.preview.style.VisualTheme;
-import java.io.IOException;
-import java.util.EnumMap;
-import java.util.Locale;
+import io.github.fastformer.client.preview.style.DistanceCurve;
+import io.github.fastformer.client.preview.style.ThemeDefinition;
+import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -20,29 +18,23 @@ import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 /** Publishes complete theme snapshots after a resource reload. */
 @EventBusSubscriber(modid = "fastformer", value = Dist.CLIENT)
 public final class VisualThemes {
-   private static volatile Map<GeometryPalette.Theme, VisualTheme> themes = Map.of();
-   private static final java.util.concurrent.atomic.AtomicLong geometryRevision = new java.util.concurrent.atomic.AtomicLong();
 
    private VisualThemes() { }
 
-   public static long revision() { return GeometryPalette.revision() + geometryRevision.get(); }
+   public static long revision() { return GeometryPalette.revision(); }
 
-   public static void invalidateGeometry() { geometryRevision.incrementAndGet(); }
+   public static void invalidateGeometry() { GeometryPalette.invalidateGeometry(); }
 
    public static GeometryPalette.Color color(String name, GeometryPalette.Color fallback) {
-      return new GeometryPalette.Color(current().colors().getOrDefault(name, fallback.rgb()));
+      return GeometryPalette.color(name, fallback);
    }
 
    public static float value(String name, float fallback) {
-      return current().values().getOrDefault(name, fallback);
+      return GeometryPalette.value(name, fallback);
    }
 
-   public static io.github.fastformer.client.preview.style.DistanceCurve curve(String name) {
-      return current().curves().getOrDefault(name, io.github.fastformer.client.preview.style.DistanceCurve.CONSTANT);
-   }
-
-   private static VisualTheme current() {
-      return themes.getOrDefault(GeometryPalette.theme(), VisualTheme.EMPTY);
+   public static DistanceCurve curve(String name) {
+      return GeometryPalette.renderSnapshot().selected().curve(name);
    }
 
    @SubscribeEvent
@@ -50,24 +42,23 @@ public final class VisualThemes {
       event.registerReloadListener(new Loader());
    }
 
-   private static final class Loader extends SimplePreparableReloadListener<Map<GeometryPalette.Theme, VisualTheme>> {
+   private static final class Loader extends SimplePreparableReloadListener<Map<ResourceLocation, ThemeDefinition>> {
+      private static final String DIRECTORY = "visual/themes/";
       @Override
-      protected Map<GeometryPalette.Theme, VisualTheme> prepare(ResourceManager resources, ProfilerFiller profiler) {
-         var loaded = new EnumMap<GeometryPalette.Theme, VisualTheme>(GeometryPalette.Theme.class);
-         for (var theme : GeometryPalette.Theme.values()) {
-            var id = ResourceLocation.fromNamespaceAndPath("fastformer", "visual/themes/" + theme.name().toLowerCase(Locale.ROOT) + ".json");
-            try (var reader = resources.openAsReader(id)) {
-               loaded.put(theme, VisualTheme.parse(JsonParser.parseReader(reader).getAsJsonObject()));
-            } catch (IOException | RuntimeException failure) {
-               LogUtils.getLogger().warn("Cannot load visual theme {}; using built-in defaults", id, failure);
-            }
-         }
-         return Map.copyOf(loaded);
+      protected Map<ResourceLocation, ThemeDefinition> prepare(ResourceManager resources, ProfilerFiller profiler) {
+         Map<ResourceLocation, ThemeResources.Source> sources = new HashMap<>();
+         resources.listResources("visual/themes", id -> id.getPath().endsWith(".json")).forEach((file, resource) -> {
+            String path = file.getPath();
+            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(file.getNamespace(),
+               path.substring(DIRECTORY.length(), path.length() - ".json".length()));
+            sources.put(id, resource::openAsReader);
+         });
+         return ThemeResources.load(sources, (id, failure) ->
+            LogUtils.getLogger().warn("Cannot load visual theme {}; using built-in defaults when available", id, failure));
       }
 
       @Override
-      protected void apply(Map<GeometryPalette.Theme, VisualTheme> loaded, ResourceManager resources, ProfilerFiller profiler) {
-         themes = loaded;
+      protected void apply(Map<ResourceLocation, ThemeDefinition> loaded, ResourceManager resources, ProfilerFiller profiler) {
          GeometryPalette.installThemes(loaded);
       }
    }

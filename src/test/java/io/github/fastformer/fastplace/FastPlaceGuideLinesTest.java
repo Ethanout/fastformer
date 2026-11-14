@@ -1,7 +1,7 @@
 package io.github.fastformer.fastplace;
 
 import io.github.fastformer.common.geometry.model.FillMode;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
 
 import io.github.fastformer.common.quickshape.mode.PointMode;
 import io.github.fastformer.common.quickshape.mode.LineMode;
@@ -9,10 +9,10 @@ import io.github.fastformer.common.quickshape.mode.FaceMode;
 import io.github.fastformer.common.quickshape.mode.VolumeMode;
 import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 
-import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.common.geometry.workflow.*;
+import io.github.fastformer.common.geometry.workflow.plan.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

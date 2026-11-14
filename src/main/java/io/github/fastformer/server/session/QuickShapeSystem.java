@@ -10,15 +10,15 @@ import io.github.fastformer.server.session.slot.PlayerSessions;
 
 import com.mojang.logging.LogUtils;
 import io.github.fastformer.common.geometry.GeometryNumbers;
-import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.source.BlockGenerationResult;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.geometry.LineTieBias;
 import io.github.fastformer.common.placement.context.PlaceableItems;
 import io.github.fastformer.common.placement.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.placement.effect.PlacementEffectResolver;
-import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
-import io.github.fastformer.fastplace.placement.plan.PlacementBlockEstimate;
-import io.github.fastformer.fastplace.placement.plan.PlacementGenerationPlan;
+import io.github.fastformer.server.interaction.PlacementEffectResolver;
+import io.github.fastformer.common.placement.effect.ResolvedPlacementEffect;
+import io.github.fastformer.common.placement.plan.PlacementBlockEstimate;
+import io.github.fastformer.server.session.execution.PlacementGenerationPlan;
 import io.github.fastformer.common.quickshape.mode.FaceMode;
 import io.github.fastformer.common.quickshape.mode.LineMode;
 import io.github.fastformer.common.quickshape.mode.PointMode;
@@ -31,14 +31,13 @@ import io.github.fastformer.common.quickshape.QuickShapeTransitionExecutor;
 import io.github.fastformer.common.quickshape.QuickShapeWorkflow;
 import io.github.fastformer.common.quickshape.mode.RaycastPlacement;
 import io.github.fastformer.common.quickshape.mode.VolumeMode;
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.task.block.PlacementTask;
 import io.github.fastformer.server.task.block.PlacementTaskPlan;
 import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.fastplace.world.*;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
+import io.github.fastformer.common.world.memory.MemoryReservation;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
 import io.github.fastformer.server.sync.PreviewSync;
 import java.util.List;
 import java.util.Map;
@@ -57,15 +56,17 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
-public final class QuickShapeSystem implements io.github.fastformer.core.lifecycle.Scoped, io.github.fastformer.server.mode.ServerEditor {
+public final class QuickShapeSystem implements io.github.fastformer.server.mode.ServerEditor<QuickShapeDraft> {
    private static final Logger LOGGER = LogUtils.getLogger();
    /** Generate ordinary placements on the server thread up to this size. */
    private static final long SYNCHRONOUS_PLACEMENT_LIMIT = 262_144L;
    private static final int MAX_LINE_CANDIDATE_OFFSET = 128;
-   final PlayerSessions<QuickShapeDraft> sessions = new PlayerSessions<>();
+   final PlayerSessions<QuickShapeDraft> sessions;
    private final SessionSystem runtime;
    QuickShapeSystem(SessionSystem runtime) {
       this.runtime = runtime;
+      sessions = new PlayerSessions<>(net.minecraft.resources.ResourceLocation.parse("fastformer:quick_shape"),
+         session -> io.github.fastformer.common.mode.BuiltinModes.QUICK_SHAPE, runtime.eventStream()::publish);
    }
 
    public static QuickShapeSystem of(ServerPlayer player) { return of(player.getServer()); }
@@ -73,6 +74,14 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
 
    public Optional<QuickShapeDraft> session(ServerPlayer player) {
       return Optional.ofNullable(sessions.active(player.getUUID()));
+   }
+
+   @Override public void activate(ServerPlayer player, QuickShapeDraft draft) {
+      sessions.activate(player.getUUID(), draft);
+   }
+
+   public void initialize(ServerPlayer player, QuickShapeDraft draft) {
+      draft.setModifierHeld(runtime.modifierHeld(player));
    }
 
    public boolean active(ServerPlayer player) {
@@ -150,8 +159,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       net.minecraft.resources.ResourceLocation profileId, io.github.fastformer.common.interaction.binding.SessionProfile profile) {
       if (active(player)) return;
       QuickShapeDraft draft = new QuickShapeDraft(profileId, profile);
-      sessions.activate(player.getUUID(), draft);
-      draft.setModifierHeld(runtime.modifierHeld(player));
+      runtime.modes().quickShape().open(player, draft);
       draft.capturePlacementContext(placement);
       dispatchQuickShape(player, draft, FastPlaceSettings.load(player).faceMode(),
          new QuickShapeWorkflow.Event.ConfirmPoint(placement.placementPosition(), eye, view, draft.modifierHeld()));
@@ -161,7 +169,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       ServerPlayer player, BlockPos hitBlock, BlockPos surfaceBlock, BlockHitResult hit, boolean modifierHeld,
       Vec3 eye, Vec3 view, RaycastPlacement initialPlacement
    ) {
-      QuickShapeDraft session = sessions.getOrCreate(player.getUUID(), QuickShapeDraft::new);
+      QuickShapeDraft session = session(player).orElseGet(() -> runtime.modes().quickShape().open(player, new QuickShapeDraft()));
       session.setModifierHeld(modifierHeld);
       FastPlaceSettings settings = FastPlaceSettings.load(player);
       int previousPointCount = session.points().size();
@@ -234,17 +242,17 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
       });
    }
 
-   public io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext candidateContext(ServerPlayer player) {
+   public io.github.fastformer.common.quickshape.QuickShapeCandidateContext candidateContext(ServerPlayer player) {
       QuickShapeDraft draft = sessions.active(player.getUUID());
       if (draft == null) return null;
-      return new io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext(draft.points(), draft.polygonClosed(),
+      return new io.github.fastformer.common.quickshape.QuickShapeCandidateContext(draft.points(), draft.polygonClosed(),
          draft.faceBaseOffset(), draft.volumeBaseOffset(), draft.perpendicularAnchor(), draft.freeScrollOffset(),
          effectiveModes(FastPlaceSettings.load(player), draft), draft.modifierHeld());
    }
 
    public boolean confirmCapturedPoint(ServerPlayer player,
       io.github.fastformer.protocol.c2s.placement.QuickShapePointerPayload input, BlockHitResult hit,
-      io.github.fastformer.fastplace.quickshape.QuickShapeCandidateContext context) {
+      io.github.fastformer.common.quickshape.QuickShapeCandidateContext context) {
       QuickShapeDraft draft = sessions.active(player.getUUID());
       if (draft == null || context.modifierHeld() != input.modifierHeld()) return false;
       FastPlaceSettings settings = FastPlaceSettings.load(player);
@@ -619,7 +627,7 @@ public final class QuickShapeSystem implements io.github.fastformer.core.lifecyc
    public boolean queueAirFill(ServerPlayer player, Set<BlockPos> blocks, BlockState state) {
       var settings = FastPlaceSettings.load(player);
       if (blocks.isEmpty() || blocks.size() > settings.maxPlacement() || placementBusy(player)) return false;
-      var plan = new PlacementTaskPlan(state, null, io.github.fastformer.workspace.submission.OperationConflictMode.KEEP_EXISTING,
+      var plan = new PlacementTaskPlan(state, null, io.github.fastformer.common.workspace.model.OperationConflictMode.KEEP_EXISTING,
          settings.placementUpdateMode(), settings.maxPlacement(), player.level().dimension(), true);
       runtime.placementTasks().enqueue(player, PlacementTask.ready(blocks, plan));
       PlayerMessages.actionBar(player, PlayerMessages.text("fastformer.fill.queued", blocks.size()));

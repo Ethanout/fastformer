@@ -6,8 +6,8 @@ import io.github.fastformer.core.math.Axis;
 
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.WorkspaceSymmetry;
-import io.github.fastformer.common.workspace.preview.Composition;
-import io.github.fastformer.common.workspace.preview.CompositionCounter;
+import io.github.fastformer.common.workspace.composition.Composition;
+import io.github.fastformer.common.workspace.composition.CompositionCounter;
 import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
 import java.util.ArrayList;
 import java.util.Comparator;

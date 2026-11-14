@@ -28,6 +28,12 @@ final class OperationPointInputController {
    static java.util.Optional<OperationPointDragPress> capturePress(
       Minecraft minecraft, ClientInputSession session, int mouseButton, long occurredAtNanos
    ) {
+      return capturePress(minecraft, session, mouseButton, mouseButton, occurredAtNanos);
+   }
+
+   static java.util.Optional<OperationPointDragPress> capturePress(
+      Minecraft minecraft, ClientInputSession session, int physicalButton, int logicalButton, long occurredAtNanos
+   ) {
       if (!ClientSessionSystem.instance().operations().operationPrism()
          || session.operationDrag != null || session.operationPointDrag != null
          || !ServerGateway.supports(minecraft, OperationPointDragPayload.TYPE)) {
@@ -48,13 +54,13 @@ final class OperationPointInputController {
       SelectionPrism.GridLine line = ClientSessionSystem.instance().operations().remotePointer().operationPointGridLine(pointIndex);
       Vec3 planeHit = plane == null ? null : plane.rayIntersection(eye, view);
       return java.util.Optional.of(new OperationPointDragPress(
-         1L, mouseButton, occurredAtNanos, ClientSessionSystem.instance().operations().remoteSelectionIdentity(),
+         1L, physicalButton, occurredAtNanos, ClientSessionSystem.instance().operations().remoteSelectionIdentity(),
          ClientSessionSystem.instance().operations().remoteSelectionRevision(), ClientSessionSystem.instance().operations().remoteSelectionCallbackScope(),
          pointIndex, initialPoint, plane, planeHit == null ? Vec3.ZERO : center.subtract(planeHit), line,
          line == null ? 0.0 : line.rayOffset(eye, view) - line.offset(initialPoint), axisBaselines,
          line != null && plane == null ? OperationPointDragConstraint.LINE
             : plane != null ? OperationPointDragConstraint.PLANE : OperationPointDragConstraint.FREE,
-         eye, view
+         eye, view, logicalButton
       ));
    }
 
@@ -111,7 +117,7 @@ final class OperationPointInputController {
       session.operationPointDrag = new OperationPointDrag(
          press.pointIndex(), press.button(), press.initialPoint(), press.initialPoint(), press.plane(), press.planeGrabOffset(),
          press.line(), press.lineGrabBaseline(), press.axisBaselines(), press.constraint(), press.occurredAtNanos(),
-         session.pointerGesture.activeToken(), press.revision(), press.callbackScope()
+         session.pointerGesture.activeToken(), press.revision(), press.callbackScope(), press.logicalButton()
       );
       ServerGateway.send(
          new OperationPointDragPayload(session.pointerGesture.activeToken(), press.revision(), press.callbackScope(),
@@ -221,7 +227,7 @@ final class OperationPointInputController {
          session.pathClose.reset();
          return;
       }
-      if (finished.mouseButton() == 1) {
+      if (finished.logicalButton() == 1) {
          boolean doubleClick = finished.pointIndex() == session.lastOperationPointRightClickIndex
             && now - session.lastOperationPointRightClickAt <= OPERATION_POINT_DOUBLE_CLICK_NANOS;
          if (doubleClick

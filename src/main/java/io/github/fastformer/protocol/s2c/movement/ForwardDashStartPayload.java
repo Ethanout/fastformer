@@ -1,7 +1,7 @@
 package io.github.fastformer.protocol.s2c.movement;
 
 import java.util.Objects;
-import io.github.fastformer.fastplace.settings.FlightSettings;
+import io.github.fastformer.common.movement.FlightSettings;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

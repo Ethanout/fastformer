@@ -9,6 +9,24 @@ import io.github.fastformer.client.session.draft.OperationDraftIdentity;
 import org.junit.jupiter.api.Test;
 
 class OperationPointDragCaptureTest {
+   @Test void extraPhysicalButtonPreservesTheLogicalRightClickThroughCaptureAndDragRebasing() {
+      var original = snapshot(1);
+      var press = new OperationPointDragPress(original.identity(), 5, original.occurredAtNanos(), original.selection(),
+         original.revision(), original.callbackScope(), original.pointIndex(), original.initialPoint(), original.plane(),
+         original.planeGrabOffset(), original.line(), original.lineGrabBaseline(), original.axisBaselines(),
+         original.constraint(), original.eye(), original.view(), 1);
+      var capture = new OperationPointDragCapture();
+      var captured = capture.capture(press);
+      assertEquals(5, captured.button()); assertEquals(1, captured.logicalButton());
+      assertNull(capture.release(1, 20, captured.eye(), captured.view()));
+      assertNotNull(capture.release(5, 20, captured.eye(), captured.view()));
+      var drag = new io.github.fastformer.client.input.drag.OperationPointDrag(0, captured.button(), captured.initialPoint(),
+         captured.initialPoint(), captured.plane(), captured.planeGrabOffset(), captured.line(), captured.lineGrabBaseline(),
+         captured.axisBaselines(), captured.constraint(), captured.occurredAtNanos(), 7L, captured.revision(), captured.callbackScope(), captured.logicalButton());
+      assertEquals(1, drag.withConstraint(OperationPointDragConstraint.FREE).withSentTarget(net.minecraft.core.BlockPos.ZERO)
+         .withPlaneFrame(null, captured.planeGrabOffset(), captured.axisBaselines(), captured.constraint())
+         .withLineFrame(null, 0, captured.constraint()).logicalButton());
+   }
    @Test
    void twoClicksCapturedBeforeDispatchKeepTheirOwnReleaseAndView() {
       var capture = new OperationPointDragCapture();

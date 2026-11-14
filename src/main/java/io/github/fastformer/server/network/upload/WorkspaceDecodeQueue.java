@@ -1,7 +1,7 @@
 package io.github.fastformer.server.network.upload;
 
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;

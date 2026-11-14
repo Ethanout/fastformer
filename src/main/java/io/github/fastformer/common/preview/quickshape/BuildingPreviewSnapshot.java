@@ -1,7 +1,7 @@
 package io.github.fastformer.common.preview.quickshape;
 
 import io.github.fastformer.common.quickshape.mode.FaceMode;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
 import io.github.fastformer.common.geometry.model.FillMode;
 import io.github.fastformer.common.geometry.GeometryNumbers;
 import io.github.fastformer.common.geometry.LineTieBias;

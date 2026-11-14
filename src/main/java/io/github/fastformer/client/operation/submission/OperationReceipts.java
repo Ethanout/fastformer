@@ -2,7 +2,7 @@ package io.github.fastformer.client.operation.submission;
 
 import io.github.fastformer.protocol.c2s.workspace.OperationWorkspaceReceiptQueryPayload;
 import io.github.fastformer.protocol.s2c.workspace.OperationWorkspaceReceiptPayload;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;

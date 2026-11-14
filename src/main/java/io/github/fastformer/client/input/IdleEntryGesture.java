@@ -1,20 +1,18 @@
 package io.github.fastformer.client.input;
 
 import io.github.fastformer.common.raycast.InteractionShapeSnapshot;
-import io.github.fastformer.fastplace.interaction.EntryDoubleClickTolerance;
+import io.github.fastformer.common.interaction.binding.DoubleClickPolicy;
 import io.github.fastformer.common.raycast.InteractionRaycastRules;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /** One physical right press can pair with one later press, never with a held-key repeat. */
 final class IdleEntryGesture {
-   static final double MAX_VIEW_CHANGE_DEGREES = 2.0;
-   static final double MAX_HIT_DISTANCE = 0.5;
-   private static final double MIN_VIEW_DOT = Math.cos(Math.toRadians(MAX_VIEW_CHANGE_DEGREES));
    private long token;
    private long pressedAt;
+   private int physicalButton;
    private InteractionShapeSnapshot snapshot;
-   private EntryDoubleClickTolerance tolerance;
+   private DoubleClickPolicy.Captured tolerance;
    private Vec3 firstEye;
    private Vec3 firstView;
    private boolean tinker;
@@ -31,12 +29,23 @@ final class IdleEntryGesture {
 
    void remember(long token, long pressedAt, InteractionShapeSnapshot snapshot, Vec3 eye, Vec3 view, Object environment,
       net.minecraft.world.item.ItemStack item, InteractionRaycastRules rules) {
+      remember(token, pressedAt, snapshot, eye, view, environment, item, rules, DoubleClickPolicy.DEFAULT);
+   }
+
+   void remember(long token, long pressedAt, InteractionShapeSnapshot snapshot, Vec3 eye, Vec3 view, Object environment,
+      net.minecraft.world.item.ItemStack item, InteractionRaycastRules rules, DoubleClickPolicy doubleClick) {
+      remember(token, pressedAt, snapshot, eye, view, environment, item, rules, doubleClick, 1);
+   }
+
+   void remember(long token, long pressedAt, InteractionShapeSnapshot snapshot, Vec3 eye, Vec3 view, Object environment,
+      net.minecraft.world.item.ItemStack item, InteractionRaycastRules rules, DoubleClickPolicy doubleClick, int physicalButton) {
       this.token = token;
       this.pressedAt = pressedAt;
+      this.physicalButton = physicalButton;
       this.snapshot = snapshot;
       this.firstEye = eye;
       this.firstView = view.normalize();
-      this.tolerance = EntryDoubleClickTolerance.capture(snapshot, eye, this.firstView);
+      this.tolerance = doubleClick.capture(snapshot, eye, this.firstView);
       tinker = false;
       this.environment = environment;
       this.item = item == null ? null : item.copy();
@@ -54,7 +63,17 @@ final class IdleEntryGesture {
 
    void rememberTinker(long token, long pressedAt, InteractionShapeSnapshot original,
       Vec3 eye, Vec3 view, Object environment, net.minecraft.world.item.ItemStack item) {
-      remember(token, pressedAt, original, eye, view, environment, item, InteractionRaycastRules.VANILLA_OUTLINE);
+      rememberTinker(token, pressedAt, original, eye, view, environment, item, DoubleClickPolicy.DEFAULT);
+   }
+
+   void rememberTinker(long token, long pressedAt, InteractionShapeSnapshot original,
+      Vec3 eye, Vec3 view, Object environment, net.minecraft.world.item.ItemStack item, DoubleClickPolicy policy) {
+      rememberTinker(token, pressedAt, original, eye, view, environment, item, policy, 1);
+   }
+
+   void rememberTinker(long token, long pressedAt, InteractionShapeSnapshot original,
+      Vec3 eye, Vec3 view, Object environment, net.minecraft.world.item.ItemStack item, DoubleClickPolicy policy, int physicalButton) {
+      remember(token, pressedAt, original, eye, view, environment, item, InteractionRaycastRules.VANILLA_OUTLINE, policy, physicalButton);
       tinker = true;
    }
 
@@ -63,19 +82,20 @@ final class IdleEntryGesture {
    }
 
    Match secondPress(long now, Vec3 eye, Vec3 view) {
-      if (snapshot == null || now < pressedAt || now - pressedAt > tolerance.intervalNanos()) return null;
+      return secondPress(1, now, eye, view);
+   }
+
+   Match secondPress(int physicalButton, long now, Vec3 eye, Vec3 view) {
+      if (this.physicalButton != physicalButton || snapshot == null || now < pressedAt || now - pressedAt > tolerance.windowNanos()) return null;
       // Clip only the frozen shape: intervening world blocks do not occlude it.
-      var secondHit = tolerance.clip(snapshot, eye, view);
-      if (secondHit == null) return null;
-      if (firstView.dot(view.normalize()) >= MIN_VIEW_DOT) return new Match(token, secondHit, rules, tinker);
-      var firstHit = snapshot.clip(firstEye, firstView);
-      return firstHit != null && firstHit.getLocation().distanceToSqr(secondHit.getLocation())
-         <= MAX_HIT_DISTANCE * MAX_HIT_DISTANCE ? new Match(token, secondHit, rules, tinker) : null;
+      var secondHit = tolerance.match(snapshot, firstEye, firstView, eye, view);
+      return secondHit == null ? null : new Match(token, secondHit, rules, tinker);
    }
 
    void clear() {
       token = 0;
       pressedAt = 0;
+      physicalButton = -1;
       snapshot = null;
       tolerance = null;
       firstEye = null;

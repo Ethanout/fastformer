@@ -1,0 +1,205 @@
+package io.github.fastformer.server.worldwrite.transaction;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.github.fastformer.server.history.entry.WorldChangeBatch;
+import io.github.fastformer.server.recovery.JournalPreparation;
+import io.github.fastformer.server.recovery.WorldRecoverySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.Level;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.ThrowingSupplier;
+
+class WorldChangeTransactionTest {
+   @Test
+   void ownsRecoveryOrderAndFinalSnapshots() {
+      WorldChangeTransaction transaction = new WorldChangeTransaction();
+      ReversibleBlockSnapshot first = snapshot(BlockPos.ZERO, "first");
+      ReversibleBlockSnapshot second = snapshot(BlockPos.ZERO.above(), "second");
+
+      transaction.recordExpected(first.pos(), first);
+      assertEquals(first, transaction.recordExpectedIfAbsent(first.pos(), snapshot(first.pos(), "replacement")));
+      assertEquals(first, transaction.expectedAt(new BlockPos(0, 0, 0)));
+      assertTrue(transaction.expects(new BlockPos(0, 0, 0)));
+      transaction.recordBefore(first);
+      transaction.recordBefore(second);
+      transaction.recordAfter(first.pos(), snapshot(first.pos(), "final-first"));
+      transaction.recordAfter(second.pos(), snapshot(second.pos(), "final-second"));
+
+      assertTrue(transaction.hasWrites());
+      assertEquals(1, transaction.expectedCount());
+      assertEquals(2, transaction.beforeCount());
+      assertEquals(2, transaction.afterCount());
+      assertEquals("final-first", marker(transaction.afterAt(first.pos())));
+      WorldRecoverySnapshot recovery = transaction.transferRecoverySnapshot(null);
+      assertEquals(second, recovery.before().getFirst());
+      assertEquals(
+         List.of(first.pos(), second.pos()),
+         recovery.after().keySet().stream().toList()
+      );
+      assertEquals(
+         List.of("final-first", "final-second"),
+         recovery.after().values().stream().map(WorldChangeTransactionTest::marker).toList()
+      );
+      assertFalse(transaction.hasWrites());
+      assertEquals(0, transaction.afterCount());
+      WorldRecoverySnapshot secondTransfer = transaction.transferRecoverySnapshot(null);
+      assertFalse(secondTransfer.hasWrites());
+      assertTrue(secondTransfer.after().isEmpty());
+   }
+
+   @Test
+   void expectedRangeCopiesInsertionOrderWithoutExposingLiveMutation() {
+      WorldChangeTransaction transaction = new WorldChangeTransaction();
+      ReversibleBlockSnapshot first = snapshot(new BlockPos(1, 2, 3), "first");
+      ReversibleBlockSnapshot second = snapshot(new BlockPos(4, 5, 6), "second");
+      ReversibleBlockSnapshot third = snapshot(new BlockPos(7, 8, 9), "third");
+      transaction.recordExpected(first.pos(), first);
+      transaction.recordExpected(second.pos(), second);
+      transaction.recordExpected(third.pos(), third);
+
+      List<ReversibleBlockSnapshot> range = transaction.expectedRange(1, 3);
+      transaction.recordExpected(new BlockPos(10, 11, 12), snapshot(new BlockPos(10, 11, 12), "fourth"));
+
+      assertEquals(List.of(second, third), range);
+      assertEquals(4, transaction.expectedCount());
+   }
+
+   @Test
+   void expectedPositionsReuseInsertionOrderWithoutASecondPositionArray() {
+      WorldChangeTransaction transaction = new WorldChangeTransaction();
+      ReversibleBlockSnapshot first = snapshot(new BlockPos(4, 5, 6), "first");
+      ReversibleBlockSnapshot second = snapshot(new BlockPos(-2, 3, 8), "second");
+
+      transaction.recordExpected(first.pos(), first);
+      transaction.recordExpected(second.pos(), second);
+
+      var positions = transaction.expectedPositions();
+      java.util.ArrayList<BlockPos> ordered = new java.util.ArrayList<>();
+      while (positions.hasNext()) {
+         ordered.add(positions.next());
+      }
+      assertEquals(List.of(first.pos(), second.pos()), ordered);
+   }
+
+   @Test
+   void finalSnapshotDoesNotReplaceTheConflictSnapshot() {
+      WorldChangeTransaction transaction = new WorldChangeTransaction();
+      BlockPos position = new BlockPos(7, 8, 9);
+      ReversibleBlockSnapshot before = snapshot(position, "before");
+      ReversibleBlockSnapshot after = snapshot(position, "after");
+
+      transaction.recordExpected(position, before);
+      transaction.recordBefore(before);
+      transaction.recordAfter(position, after);
+
+      assertEquals("before", marker(transaction.expectedAt(position)));
+      assertEquals("after", marker(transaction.afterAt(position)));
+   }
+
+   @Test
+   void rejectsAnAfterSnapshotForAnotherPosition() {
+      WorldChangeTransaction transaction = new WorldChangeTransaction();
+
+      assertThrows(IllegalArgumentException.class, () -> transaction.recordAfter(
+         BlockPos.ZERO,
+         snapshot(BlockPos.ZERO.above(), "wrong")
+      ));
+   }
+
+   @Test
+   void finalSnapshotsCanReplaceValuesWhilePositionsAreIterated() {
+      WorldChangeTransaction transaction = changedTransaction();
+      BlockPos second = BlockPos.ZERO.above();
+      transaction.recordAfter(second, snapshot(second, "before-finalization"));
+
+      var positions = transaction.afterPositions();
+      int finalized = 0;
+      while (positions.hasNext()) {
+         BlockPos position = positions.next();
+         transaction.recordAfter(position, snapshot(position, "finalized"));
+         finalized++;
+      }
+
+      assertEquals(2, finalized);
+      assertTrue(transaction.transferRecoverySnapshot(null).after().values().stream()
+         .allMatch(value -> marker(value).equals("finalized")));
+   }
+
+   @Test
+   void commitIsReturnedToTheCallerAndWriteStateCanBeReleasedSeparately() {
+      WorldChangeTransaction transaction = changedTransaction();
+      UUID operationId = UUID.randomUUID();
+      WorldOperationCommit commit = WorldOperationCommit.begin(Level.OVERWORLD, transaction.beforeView(), transaction.afterView(), null, Runnable::run);
+
+      JournalPreparation result = await(commit::poll);
+
+      assertEquals(JournalPreparation.READY, result);
+      WorldChangeBatch batch = commit.batch().map(value -> value.withOperationId(operationId)).orElseThrow();
+      assertEquals(operationId, batch.operationId());
+      assertEquals(1, batch.size());
+
+      transaction.releaseWriteState();
+      assertFalse(transaction.hasWrites());
+      assertEquals(0, transaction.expectedCount());
+      assertEquals(0, transaction.afterCount());
+   }
+
+   @Test
+   void recoveryTransferIsImmediatelyReadyWithoutCommitWork() {
+      WorldRecoverySnapshot recovery = changedTransaction().transferRecoverySnapshot(null);
+
+      assertTrue(recovery.ready());
+      assertTrue(recovery.hasWrites());
+   }
+
+   @Test
+   void recoveryTransferUsesThePublicationCompletionSignalWithoutOwningPublication() {
+      WorldChangeTransaction transaction = changedTransaction();
+      CompletableFuture<Void> publicationStopped = new CompletableFuture<>();
+
+      WorldRecoverySnapshot recovery = transaction.transferRecoverySnapshot(publicationStopped);
+
+      assertFalse(recovery.ready());
+      publicationStopped.complete(null);
+      assertTrue(recovery.ready());
+   }
+
+   private static WorldChangeTransaction changedTransaction() {
+      WorldChangeTransaction transaction = new WorldChangeTransaction();
+      transaction.recordBefore(snapshot(BlockPos.ZERO, "before"));
+      transaction.recordAfter(BlockPos.ZERO, snapshot(BlockPos.ZERO, "after"));
+      return transaction;
+   }
+
+   private static JournalPreparation await(ThrowingSupplier<JournalPreparation> poll) {
+      return org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+         JournalPreparation result;
+         do {
+            result = poll.get();
+            Thread.onSpinWait();
+         } while (result == JournalPreparation.PENDING);
+         return result;
+      });
+   }
+
+   private static ReversibleBlockSnapshot snapshot(BlockPos position, String marker) {
+      CompoundTag data = new CompoundTag();
+      data.putString("marker", marker);
+      return new ReversibleBlockSnapshot(position, null, null, new BlockEntitySnapshot(data));
+   }
+
+   private static String marker(ReversibleBlockSnapshot snapshot) {
+      return snapshot.blockEntity().data().getString("marker");
+   }
+}

@@ -3,8 +3,8 @@ package io.github.fastformer.server.recovery;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.github.fastformer.common.persistence.NbtEnvelopeFile;
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

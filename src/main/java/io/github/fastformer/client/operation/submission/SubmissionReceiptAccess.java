@@ -2,7 +2,7 @@ package io.github.fastformer.client.operation.submission;
 
 import io.github.fastformer.client.session.receipt.OperationSubmissionReceipt;
 import io.github.fastformer.client.session.submission.OperationDraftSettlement;
-import io.github.fastformer.workspace.submission.OperationSubmissionOutcome;
+import io.github.fastformer.common.workspace.submission.OperationSubmissionOutcome;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

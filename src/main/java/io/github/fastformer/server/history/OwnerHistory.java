@@ -15,7 +15,7 @@ import static io.github.fastformer.server.history.HistoryService.DEFAULT_LIMIT;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.feedback.PlayerMessages;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import net.minecraft.server.level.ServerPlayer;
 import io.github.fastformer.server.history.replay.HistoryRecoveryPolicy;
 import io.github.fastformer.server.recovery.JournalPreparation;
@@ -98,6 +98,8 @@ final class OwnerHistory {
       WorldHistoryEvents.send(context, batch, io.github.fastformer.protocol.s2c.world.WorldHistoryEventPayload.Kind.RECORD, true);
       if (journal != null) journal.historyPublished();
       durableCommit = null;
+      io.github.fastformer.server.api.HistoryNotifications.recorded(context, batch,
+         io.github.fastformer.common.api.HistoryRecorded.Persistence.DURABLE);
       return JournalPreparation.READY;
    }
 

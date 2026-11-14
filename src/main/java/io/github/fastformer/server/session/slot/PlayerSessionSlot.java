@@ -1,5 +1,6 @@
 package io.github.fastformer.server.session.slot;
 
+import io.github.fastformer.common.mode.ModeId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -9,6 +10,7 @@ import net.minecraft.world.level.Level;
 /** Owns one player's active editing session and dimension-bound parked sessions. */
 public final class PlayerSessionSlot<S> {
    private S active;
+   ModeId publishedMode;
    private final Map<ResourceKey<Level>, S> parked = new HashMap<>();
 
    public S active() { return active; }

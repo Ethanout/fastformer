@@ -13,7 +13,7 @@ import io.github.fastformer.client.render.shell.ShapeShellRenderer;
 import io.github.fastformer.client.session.preview.ClientPreviewState;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import io.github.fastformer.common.geometry.model.GuideLine;
-import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
+import io.github.fastformer.common.geometry.generation.FastPlaceGeometry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;

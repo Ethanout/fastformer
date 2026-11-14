@@ -5,10 +5,10 @@ import io.github.fastformer.common.selection.OperationStackRegion;
 import io.github.fastformer.core.math.Axis;
 
 
-import io.github.fastformer.fastplace.world.*;
 
-import io.github.fastformer.fastplace.session.*;
-import io.github.fastformer.fastplace.workflow.*;
+import io.github.fastformer.common.selection.session.*;
+import io.github.fastformer.common.geometry.workflow.*;
+import io.github.fastformer.common.geometry.workflow.plan.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;

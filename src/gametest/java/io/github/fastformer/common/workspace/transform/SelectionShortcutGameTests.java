@@ -1,6 +1,6 @@
 package io.github.fastformer.common.workspace.transform;
 
-import io.github.fastformer.common.workspace.preview.WorkspaceSelectionBounds;
+import io.github.fastformer.common.workspace.composition.WorkspaceSelectionBounds;
 import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
 import io.github.fastformer.common.workspace.transform.BlockStateRotation;
 import io.github.fastformer.common.workspace.transform.RepeatStrideRules;
@@ -18,13 +18,13 @@ import io.github.fastformer.core.math.Axis;
 import io.github.fastformer.common.geometry.gizmo.AxisGizmo;
 import io.github.fastformer.common.selection.OperationSelectionMode;
 import io.github.fastformer.common.selection.OperationSelectionVolume;
-import io.github.fastformer.network.codec.OperationWorkspacePlanCodec;
+import io.github.fastformer.protocol.codec.OperationWorkspacePlanCodec;
 import io.github.fastformer.common.world.BlockSnapshot;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceSymmetry;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
@@ -135,7 +135,7 @@ public final class SelectionShortcutGameTests {
       helper.assertTrue(plan.equals(decoded), "submission codec lost symmetry or source data");
       for (int index = 0; index < plan.parts().size(); index++) {
          var submitted = decoded.parts().get(index);
-         helper.assertTrue(resolved(workspace.parts().get(index)).equals(WorkspacePreviewComposer.resolveSnapshots(submitted.blocks(), submitted.transform())),
+         helper.assertTrue(resolved(workspace.parts().get(index)).equals(WorkspaceComposer.resolveSnapshots(submitted.blocks(), submitted.transform())),
             "submission and preview differ");
       }
       var draft = new ClientOperationDraft(null, workspace.draftState(),
@@ -222,14 +222,14 @@ public final class SelectionShortcutGameTests {
             var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume, blocks,
                WorkspaceTransform.IDENTITY.withRotation(rotation).withSymmetry(symmetry), false).fixed();
             var before = resolved(part);
-            var beforeBox = io.github.fastformer.common.workspace.preview.WorkspaceSelectionBounds.resolve(part);
+            var beforeBox = io.github.fastformer.common.workspace.composition.WorkspaceSelectionBounds.resolve(part);
             for (Axis axis : Axis.values()) for (int direction : new int[]{-1, 1}) {
                var result = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.SCALE, axis, direction, 1, 0);
                helper.assertTrue(result.failureKey() == null, "scale failed");
                var expanded = result.parts().getFirst();
                var after = resolved(expanded);
                helper.assertTrue(after.keySet().containsAll(before.keySet()), "scale moved existing cells after rotation");
-               var afterBox = io.github.fastformer.common.workspace.preview.WorkspaceSelectionBounds.resolve(expanded);
+               var afterBox = io.github.fastformer.common.workspace.composition.WorkspaceSelectionBounds.resolve(expanded);
                double stride = RepeatStrideRules.stride(AxisGizmo.Operation.SCALE, false, part.id(), List.of(part), axis);
                Vec3 expectedShift = WorkspaceRotation.localAxis(part.transform(), axis).scale(stride * direction * 0.5);
                helper.assertTrue(afterBox.getCenter().subtract(beforeBox.getCenter()).distanceTo(expectedShift) < 1.0E-7,
@@ -254,7 +254,7 @@ public final class SelectionShortcutGameTests {
       var volume = OperationSelectionVolume.cuboid(BlockPos.ZERO, new BlockPos(4, 0, 0), null, null);
       var part = new ClientSelectionPart(1, ClientSelectionPart.Source.WORLD, volume, blocks, WorkspaceTransform.IDENTITY, false).fixed();
       part = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.SCALE, Axis.X, 1, 1, 0).parts().getFirst();
-      Vec3 center = io.github.fastformer.common.workspace.preview.WorkspaceSelectionBounds.resolve(part).getCenter();
+      Vec3 center = io.github.fastformer.common.workspace.composition.WorkspaceSelectionBounds.resolve(part).getCenter();
       var rotated = SelectionTransformCalculator.calculate(List.of(part), false, AxisGizmo.Operation.ROTATE, Axis.Y,
          1, 256, Math.PI / 2, WorkspaceRotation.unitAxis(Axis.Y), center);
       var after = resolved(rotated.parts().getFirst());
@@ -273,7 +273,7 @@ public final class SelectionShortcutGameTests {
    }
 
    private static Map<BlockPos, BlockSnapshot> resolved(ClientSelectionPart part) {
-      return WorkspacePreviewComposer.resolveSnapshots(part.blocks(), part.transform());
+      return WorkspaceComposer.resolveSnapshots(part.blocks(), part.transform());
    }
 
    private static void apply(GameTestHelper helper, ClientOperationWorkspace workspace, WorkspaceSymmetry operation) {

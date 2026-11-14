@@ -8,7 +8,7 @@ import io.github.fastformer.client.operation.submission.SubmissionScope;
 import io.github.fastformer.client.operation.workspace.SelectionDeletionPlan;
 import io.github.fastformer.common.workspace.model.ClientSelectionPart;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

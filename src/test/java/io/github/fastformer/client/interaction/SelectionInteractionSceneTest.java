@@ -136,6 +136,28 @@ class SelectionInteractionSceneTest {
    }
 
    @Test
+   void transformedSceneCanReopenWithReusedSlotsWithoutAGlobalCacheReset() {
+      var session = new ClientSelectionSession();
+      var rotation = WorkspaceTransform.IDENTITY.withRotation(new net.minecraft.world.phys.Vec3(0, Math.PI / 2, 0));
+      session.workspace().addParts(List.of(cuboid(0).withTransform(rotation)));
+      session.publishInteractionScene();
+      var closed = session.interactionScene();
+      var oldBounds = closed.bounds(1);
+
+      session.clearLiveInteraction();
+      session.workspace().addParts(List.of(cuboid(20).withTransform(rotation)));
+      session.publishInteractionScene();
+      var reopened = session.interactionScene();
+
+      assertNotEquals(closed.owner(), reopened.owner());
+      assertNotEquals(oldBounds, reopened.bounds(1));
+      assertEquals(PartInteractionBounds.resolve(session.workspace().part(1).orElseThrow()), reopened.bounds(1));
+      assertEquals(oldBounds, closed.bounds(1));
+      session.publishInteractionScene();
+      assertSame(reopened, session.interactionScene());
+   }
+
+   @Test
    void emptyNonCuboidKeepsItsFullSelectionEnvelopeAndLabel() {
       var selection = OperationSelectionVolume.create(OperationSelectionMode.CONVEX_HULL,
          List.of(BlockPos.ZERO, new BlockPos(8, 0, 0), new BlockPos(0, 0, 5)),

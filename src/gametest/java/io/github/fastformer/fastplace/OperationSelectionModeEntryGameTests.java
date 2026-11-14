@@ -10,8 +10,8 @@ import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.FastFormer;
 import io.github.fastformer.server.history.HistoryService;
 import io.github.fastformer.common.selection.OperationSelectionMode;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
-import io.github.fastformer.server.input.ServerInputDispatcher;
+import io.github.fastformer.server.settings.FastPlaceSettings;
+import io.github.fastformer.server.input.ServerInputActions;
 import io.github.fastformer.server.session.OperationSystem;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -35,7 +35,7 @@ public final class OperationSelectionModeEntryGameTests {
       var point = net.minecraft.core.BlockPos.containing(player.getEyePosition().add(32, 0, 0));
       var hit = new net.minecraft.world.phys.BlockHitResult(point.getCenter(), net.minecraft.core.Direction.UP, point, false);
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for the operation input gate");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for the operation input gate");
          try {
             for (var mode : new OperationSelectionMode[]{OperationSelectionMode.CUBOID, OperationSelectionMode.SMART}) {
                FastPlaceSettings.load(player).setOperationSelectionMode(player, mode);
@@ -44,16 +44,16 @@ public final class OperationSelectionModeEntryGameTests {
                   net.minecraft.world.item.Items.FLINT_AND_STEEL, net.minecraft.world.item.Items.BONE_MEAL,
                   net.minecraft.world.item.Items.AIR)) {
                   player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(item));
-                  helper.assertFalse(ServerInputDispatcher.rightClickBlock(player, hit), "vanilla block callback must not create a selection");
-                  helper.assertFalse(ServerInputDispatcher.rightClickItem(player), "vanilla item callback must not create a selection");
+                  helper.assertFalse(ServerInputActions.rightClickBlock(player, hit), "vanilla block callback must not create a selection");
+                  helper.assertFalse(ServerInputActions.rightClickItem(player), "vanilla item callback must not create a selection");
                   helper.assertFalse(OperationSystem.of(player).active(player), "ordinary item use must leave the selection session idle");
                }
             }
             FastPlaceSettings.load(player).setOperationSelectionMode(player, OperationSelectionMode.CUBOID);
             OperationSystem.of(player).startFirst(player, point);
             var before = OperationSystem.of(player).session(player).orElseThrow().points();
-            helper.assertFalse(ServerInputDispatcher.rightClickBlock(player, hit), "vanilla callbacks must not append remote selection points");
-            helper.assertFalse(ServerInputDispatcher.rightClickItem(player), "vanilla callbacks must not complete remote selections");
+            helper.assertFalse(ServerInputActions.rightClickBlock(player, hit), "vanilla callbacks must not append remote selection points");
+            helper.assertFalse(ServerInputActions.rightClickItem(player), "vanilla callbacks must not complete remote selections");
             helper.assertTrue(OperationSystem.of(player).session(player).orElseThrow().points().equals(before), "remote points must retain their explicit command owner");
          } finally {
             OperationSystem.of(player).cancel(player);
@@ -68,7 +68,7 @@ public final class OperationSelectionModeEntryGameTests {
       player.setGameMode(GameType.CREATIVE);
 
       helper.succeedWhen(() -> {
-         helper.assertTrue(ServerInputDispatcher.canOperate(player), "waiting for the operation input gate");
+         helper.assertTrue(ServerInputActions.canOperate(player), "waiting for the operation input gate");
          helper.assertFalse(OperationSystem.of(player).active(player), "selection session must start empty");
          helper.assertTrue(
             FastPlaceSettings.load(player).operationSelectionMode() == OperationSelectionMode.CUBOID,

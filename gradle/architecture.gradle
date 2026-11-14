@@ -44,6 +44,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.common.raycast') ||
                     packageName.startsWith('io.github.fastformer.common.preview') ||
                     packageName.startsWith('io.github.fastformer.common.math') ||
+                    packageName.startsWith('io.github.fastformer.common.world.memory') ||
                     packageName.startsWith('io.github.fastformer.core.math')) && source.name != 'package-info.java') {
                 boundedPackages[packageName].add(source)
             }
@@ -213,7 +214,8 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (packageName.startsWith('io.github.fastformer.common.history') ||
                     packageName.startsWith('io.github.fastformer.common.raycast') ||
                     packageName.startsWith('io.github.fastformer.common.preview') ||
-                    packageName.startsWith('io.github.fastformer.common.math')) &&
+                    packageName.startsWith('io.github.fastformer.common.math') ||
+                    packageName.startsWith('io.github.fastformer.common.world.memory')) &&
                     (dependencies =~ /(?:io\.github\.fastformer\.(?:client|server|network|protocol)\.|net\.minecraft\.(?:client|server)\.|\bFastPlaceSettings\b)/).find()) {
                 violations.add("Shared data model depends on a runtime or wire implementation: ${path}")
             }
@@ -252,7 +254,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                 violations.add("History service exposes a test-only hook: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.intent') &&
-                    (dependencies =~ /io\.github\.fastformer\.(?:network\.|server\.input\.ServerInputDispatcher)/).find()) {
+                    (dependencies =~ /io\.github\.fastformer\.(?:network\.|server\.input\.ServerInputActions)/).find()) {
                 violations.add("Player intent handling depends on a transport or input facade: ${path}")
             }
             if (main && source.name == 'ServerNetworkSystem.java' && (text =~ /instanceof ServerPlayer/).find()) {
@@ -263,7 +265,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                 violations.add("Geometry commands bypass the player intent handlers: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.command') &&
-                    (dependencies =~ /(?:\b(?:QuickShapeSystem|OperationSystem|ServerInputDispatcher)\b|FastPlaceSettings\.load\s*\()/).find()) {
+                    (dependencies =~ /(?:\b(?:QuickShapeSystem|OperationSystem|ServerInputActions)\b|FastPlaceSettings\.load\s*\()/).find()) {
                 violations.add("Command syntax owns workflow or settings behavior instead of constructing intents: ${path}")
             }
             if (main && (dependencies =~ /\bFastPlaceCommandRegistry\b|io\.github\.fastformer\.fastplace\.command\./).find()) {
@@ -284,7 +286,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /\b(?:receiptStores|receiptLoadStates|receiptFiles|draftLoadStates|draftFiles|durableDrafts|playerSessions|cleanupReplayed|unboundInput|unboundSelection)\b/).find()) {
                 violations.add("Persistent client state belongs to the scope repositories: ${path}")
             }
-            if (main && source.name == 'ServerInputDispatcher.java' &&
+            if (main && source.name == 'ServerInputActions.java' &&
                     (text =~ /\bselectGeometryMode\s*\(/).find()) {
                 violations.add("Input facade owns geometry mode admission instead of the intent: ${path}")
             }
@@ -342,9 +344,14 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (text =~ /\bWorldWriteCoordinator\b/).find()) {
                 violations.add("Retired global world-write coordinator: ${path}")
             }
-            if (main && packageName.startsWith('io.github.fastformer.server.worldwrite') &&
+            if (main && packageName == 'io.github.fastformer.server.worldwrite' &&
                     (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|fastplace|server\.(?!worldwrite))\.|\bMinecraftServer\b|\bstatic\s+final\s+Map\s*<|\b\w+ForTest\b)/).find()) {
                 violations.add("World-write leases bypass their instance or depend on journal/orchestration state: ${path}")
+            }
+            if (main && packageName in ['io.github.fastformer.server.worldwrite.snapshot',
+                    'io.github.fastformer.server.worldwrite.transaction', 'io.github.fastformer.server.worldwrite.effect'] &&
+                    (dependencies =~ /io\.github\.fastformer\.(?:client|network|server\.(?:session|intent|command|settings))\./).find()) {
+                violations.add("Block write primitives depend on input or feature orchestration: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.feedback') &&
                     (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!feedback))\.|\bstatic\s+final\s+Map\s*<|\b\w+ForTest\b)/).find()) {
@@ -373,7 +380,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                 violations.add("Upload protocol depends on a runtime owner: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.history.entry') &&
-                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!history\.entry\.))|net\.neoforged\.)/).find()) {
+                    (dependencies =~ /(?:io\.github\.fastformer\.(?:client|network|server\.(?!history\.entry\.|worldwrite\.snapshot\.(?:ReversibleBlockSnapshot|BlockEntitySnapshot)\b))|net\.neoforged\.)/).find()) {
                 violations.add("History entry depends on orchestration, transport, or live configuration: ${path}")
             }
             if (main && packageName.startsWith('io.github.fastformer.server.history.compaction') &&
@@ -492,7 +499,7 @@ tasks.register('compareFaceRasters', JavaExec) {
     dependsOn tasks.named('prepareAsciiTestRuntime')
     def testRuntime = tasks.named('test', Test)
     classpath = testRuntime.get().classpath
-    mainClass = 'io.github.fastformer.fastplace.geometry.generation.FaceRasterComparison'
+    mainClass = 'io.github.fastformer.common.geometry.generation.face.FaceRasterComparison'
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     maxHeapSize = '2g'
     args = [file('docs/reviews/progress/face-raster-comparison.md').absolutePath,

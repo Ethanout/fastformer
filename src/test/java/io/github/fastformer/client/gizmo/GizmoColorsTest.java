@@ -15,8 +15,8 @@ class GizmoColorsTest {
       var axis = new AxisGizmo.Handle(AxisGizmo.Operation.MOVE, Axis.X, AxisGizmo.Direction.POSITIVE, null);
       var point = axis.withHoverFeedback(HoverFeedback.pointGizmo(axis.hoverFeedback()));
       try {
-         for (var theme : GeometryPalette.Theme.values()) {
-            GeometryPalette.selectTheme(theme);
+         for (var theme : GeometryPalette.snapshot().definitions()) {
+            GeometryPalette.selectTheme(theme.id());
             int base = GeometryPalette.gizmoAxis(Axis.X).rgb();
             assertEquals(base, GizmoColors.handle(axis));
             assertEquals(brighter(base), GizmoColors.handle(axis.withState(true, false)));

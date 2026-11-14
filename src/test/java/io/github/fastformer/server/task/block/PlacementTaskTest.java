@@ -2,16 +2,14 @@ package io.github.fastformer.server.task.block;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
-import io.github.fastformer.fastplace.world.WorldOperationPhase;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import java.lang.reflect.Field;
+import io.github.fastformer.common.geometry.generation.source.BlockGenerationResult;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
+import io.github.fastformer.server.task.metrics.WorldOperationPhase;
+import io.github.fastformer.common.world.memory.MemoryReservation;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -116,7 +114,8 @@ class PlacementTaskTest {
          task.cancel(io.github.fastformer.server.task.CancelReason.SHUTDOWN);
 
          assertFalse(worker.isCancelled());
-         assertNull(generationFuture(task));
+         assertEquals(io.github.fastformer.server.task.TaskStep.CANCELLED,
+            task.tick(new io.github.fastformer.server.task.WorldTaskContext(null, java.util.UUID.randomUUID())));
          assertEquals(reserved, MemoryReservation.reservedBytes());
          finish.countDown();
          worker.join();
@@ -148,7 +147,8 @@ class PlacementTaskTest {
       try {
          task.cancel(io.github.fastformer.server.task.CancelReason.RECOVERY);
 
-         assertNull(generationFuture(task));
+         assertEquals(io.github.fastformer.server.task.TaskStep.CANCELLED,
+            task.tick(new io.github.fastformer.server.task.WorldTaskContext(null, java.util.UUID.randomUUID())));
          assertFalse(task.failed());
          assertTrue(MemoryReservation.reservedBytes() > baseline);
 
@@ -252,7 +252,7 @@ class PlacementTaskTest {
    @Test
    void journalAfterViewMapsSnapshotsOnlyAsTheEncoderConsumesThem() {
       AtomicInteger mapped = new AtomicInteger();
-      var view = PlacementTask.lazyMappedCollection(List.of(1, 2, 3), value -> {
+      var view = PlacementJournalPrediction.lazyMap(List.of(1, 2, 3), value -> {
          mapped.incrementAndGet();
          return value * 2;
       });
@@ -326,12 +326,6 @@ class PlacementTaskTest {
       assertTrue(task.failed());
       assertEquals("state resolution: OutOfMemoryError", task.failureReason());
       assertEquals(baseline, MemoryReservation.reservedBytes());
-   }
-
-   private static Object generationFuture(PlacementTask task) throws ReflectiveOperationException {
-      Field field = PlacementTask.class.getDeclaredField("future");
-      field.setAccessible(true);
-      return field.get(task);
    }
 
    private static void awaitReservationRelease(long expected) throws InterruptedException {

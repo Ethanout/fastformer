@@ -1,338 +1,242 @@
 package io.github.fastformer.server.task.block;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.placement.PlacementUpdateMode;
+import io.github.fastformer.common.placement.PlacementUpdateMode;
+import io.github.fastformer.common.selection.OperationMode;
+import io.github.fastformer.common.selection.OperationSelectionVolume;
+import io.github.fastformer.common.selection.OperationStackRegion;
+import io.github.fastformer.common.world.memory.MemoryAdmission;
+import io.github.fastformer.common.world.memory.MemoryAdmissionStatus;
+import io.github.fastformer.common.world.memory.MemoryReservation;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
+import io.github.fastformer.common.workspace.model.OperationConflictMode;
+import io.github.fastformer.common.workspace.submission.OperationWorkspacePlan;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;
 import io.github.fastformer.server.task.MemoryReservationAttempt;
-import io.github.fastformer.server.task.runtime.LeasedJournaledTask;
 import io.github.fastformer.server.task.TaskStep;
 import io.github.fastformer.server.task.runtime.TaskRuntimeFixtures;
-import io.github.fastformer.common.selection.OperationMode;
-import io.github.fastformer.common.selection.OperationSelectionMode;
-import io.github.fastformer.common.selection.OperationSelectionVolume;
-import io.github.fastformer.common.selection.OperationStackRegion;
-import io.github.fastformer.fastplace.world.WorldChangeTransaction;
-import io.github.fastformer.fastplace.world.WorldOperationCommit;
-import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
-import io.github.fastformer.fastplace.world.memory.MemoryAdmissionStatus;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
-import io.github.fastformer.workspace.submission.OperationConflictMode;
-import io.github.fastformer.workspace.submission.OperationWorkspacePlan;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.BlockSnapshotReader;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.SnapshotMemoryRules;
+import io.github.fastformer.server.worldwrite.transaction.WorldChangeTransaction;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
 import org.junit.jupiter.api.Test;
 
 class IncrementalMemoryContentionTest {
-   private static final long CAPTURED_NBT_BYTES = 1_048_576L;
-
-   @Test
-   void workspaceRetriesCapturedSnapshotGrowthWithoutCountingItTwice() throws Exception {
+   @Test void workspaceRetriesCapturedSnapshotGrowthWithoutCountingItTwice() {
       long baseline = MemoryReservation.reservedBytes();
-      SubmittedWorkspaceTask task = workspaceTask();
-      BlockPos position = BlockPos.ZERO;
-      setField(task, "desired", Collections.singletonMap(position, null));
-      setField(task, "captureIterator", Collections.emptyIterator());
+      var capture = new WorkspaceSnapshotCapture(Collections.singletonMap(BlockPos.ZERO, null));
+      var task = workspaceTask(capture, BlockTaskMemoryPolicy.standard());
+      var captured = largeSnapshot();
+      long nbt = SnapshotMemoryRules.nbtReserve(captured);
+      AtomicInteger reads = new AtomicInteger();
+      MemoryReservation[] blocker = new MemoryReservation[1];
+      BlockSnapshotReader reader = (level, pos) -> {
+         reads.incrementAndGet();
+         blocker[0] = fillReservationLimit(WorldOperationMemory.snapshotAdmission(1L, nbt));
+         return Optional.of(captured);
+      };
       assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
-
-      WorldChangeTransaction transaction = task.transaction();
-      transaction.recordExpected(position, snapshot(position));
-      setField(task, "blockEntityReserve", CAPTURED_NBT_BYTES);
-      MemoryReservation blocker = fillReservationLimit(
-         WorldOperationMemory.snapshotAdmission(1L, CAPTURED_NBT_BYTES)
-      );
       try {
-         assertEquals("RETRY", invoke(task, "captureNext", new Class<?>[]{serverLevelClass()}, new Object[]{null}).toString());
-         assertEquals(1, transaction.expectedCount());
-         assertEquals(CAPTURED_NBT_BYTES, longField(task, "blockEntityReserve"));
-
-         blocker.close();
-         assertEquals("ADVANCED", invoke(task, "captureNext", new Class<?>[]{serverLevelClass()}, new Object[]{null}).toString());
-         assertEquals(1, transaction.expectedCount());
-         assertEquals(CAPTURED_NBT_BYTES, longField(task, "blockEntityReserve"));
+         assertEquals(WorkspaceSnapshotCapture.Step.RETRY, capture.next(null, task.transaction(), reader,
+            (position, target) -> true, task::reserveMemory, () -> {}));
+         assertEquals(1, task.transaction().expectedCount());
+         assertEquals(nbt, capture.nbtReserve());
+         blocker[0].close();
+         assertEquals(WorkspaceSnapshotCapture.Step.ADVANCED, capture.next(null, task.transaction(), reader,
+            (position, target) -> true, task::reserveMemory, () -> {}));
+         assertEquals(1, reads.get());
+         assertEquals(1, task.transaction().expectedCount());
+         assertEquals(nbt, capture.nbtReserve());
+         assertTrue(capture.complete());
       } finally {
-         blocker.close();
+         if (blocker[0] != null) blocker[0].close();
          task.releaseMemoryReservation();
       }
       assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 
-   @Test
-   void selectionRetriesCompletedScanWithoutRepeatingSnapshotState() throws Exception {
+   @Test void selectionRetriesCompletedScanWithoutRepeatingSnapshotState() {
       long baseline = MemoryReservation.reservedBytes();
-      SelectionOperationTask task = selectionTask();
-      BlockPos position = BlockPos.ZERO;
-      snapshotList(task).add(snapshot(position));
-      task.transaction().recordExpected(position, snapshot(position));
-      assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
-      setField(task, "blockEntityReserve", CAPTURED_NBT_BYTES);
-      setEnumField(task, "phase", "SCAN_COMPLETE");
-      MemoryReservation blocker = fillReservationLimit(
-         WorldOperationMemory.snapshotAdmission(1L, CAPTURED_NBT_BYTES)
-      );
+      var captured = largeSnapshot();
+      AtomicInteger reads = new AtomicInteger();
+      MemoryReservation[] blocker = new MemoryReservation[1];
+      BlockSnapshotReader reader = nonAirReader((level, pos) -> {
+         reads.incrementAndGet();
+         blocker[0] = fillReservationLimit(WorldOperationMemory.snapshotAdmission(1L, SnapshotMemoryRules.nbtReserve(captured)));
+         return Optional.of(captured);
+      });
+      SelectionOperationTask task = selectionTask(reader, BlockTaskMemoryPolicy.standard());
       try {
-         assertEquals(TaskStep.ACTIVE, operationResult(invoke(task, "finishScan")));
-         assertEquals("SCAN_COMPLETE", field(task, "phase").toString());
-         assertEquals(1, snapshotList(task).size());
+         assertEquals(TaskStep.ACTIVE, task.scanNext(null).orElseThrow());
+         assertEquals("扫描", task.phaseName());
          assertEquals(1, task.transaction().expectedCount());
-         assertEquals(CAPTURED_NBT_BYTES, longField(task, "blockEntityReserve"));
-
-         blocker.close();
-         assertTrue(((Optional<?>)invoke(task, "finishScan")).isEmpty());
-         assertEquals("JOURNAL", field(task, "phase").toString());
-         assertEquals(1, snapshotList(task).size());
+         blocker[0].close();
+         assertTrue(task.finishScan().isEmpty());
+         assertEquals("写入安全日志", task.phaseName());
+         assertEquals(1, reads.get());
          assertEquals(1, task.transaction().expectedCount());
-         assertEquals(CAPTURED_NBT_BYTES, longField(task, "blockEntityReserve"));
       } finally {
-         blocker.close();
+         if (blocker[0] != null) blocker[0].close();
          task.releaseMemoryReservation();
       }
       assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 
-   @Test
-   void hardAdmissionRejectsWorkspaceAndSelectionProgress() throws Exception {
-      SubmittedWorkspaceTask workspace = workspaceTask();
-      setField(workspace, "desired", Collections.singletonMap(BlockPos.ZERO, null));
-      setField(workspace, "captureIterator", Collections.emptyIterator());
-      setField(workspace, "blockEntityReserve", Long.MAX_VALUE);
-      assertEquals(
-         "REJECTED",
-         invoke(workspace, "captureNext", new Class<?>[]{serverLevelClass()}, new Object[]{null}).toString()
-      );
-
-      SelectionOperationTask selection = selectionTask();
-      snapshotList(selection).add(snapshot(BlockPos.ZERO));
-      setField(selection, "blockEntityReserve", Long.MAX_VALUE);
-      setEnumField(selection, "phase", "SCAN_COMPLETE");
-      assertEquals(TaskStep.MEMORY_UNSAFE, operationResult(invoke(selection, "finishScan")));
+   @Test void hardAdmissionRejectsWorkspaceAndSelectionProgress() {
+      var capture = new WorkspaceSnapshotCapture(Collections.singletonMap(BlockPos.ZERO, null));
+      var workspace = workspaceTask(capture, rejected());
+      assertEquals(WorkspaceSnapshotCapture.Step.REJECTED, capture.next(null, workspace.transaction(),
+         BlockSnapshotReader.live(), (position, target) -> true, workspace::reserveMemory, () -> {}));
+      var selection = selectionTask(nonAirReader((level, pos) -> Optional.empty()), rejected());
+      assertEquals(TaskStep.MEMORY_UNSAFE, selection.scanNext(null).orElseThrow());
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(workspace));
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(selection));
    }
 
-   @Test
-   void placementCommitRetriesThenAdvancesAndReleasesReservation() throws Exception {
+   @Test void placementCommitRetriesThenAdvancesAndReleasesReservation() {
       long baseline = MemoryReservation.reservedBytes();
-      PlacementTask task = placementTask();
+      PlacementTask task = placementTask(BlockTaskMemoryPolicy.standard());
       assertTrue(task.prepare());
-      assertTrue(task.ensureMemoryReservation());
-      WorldChangeTransaction transaction = task.transaction();
-      prepareChangedTransaction(transaction);
+      prepareChangedTransaction(task.transaction());
       task.releaseGenerationState();
       task.resizeMemoryReservationForTransaction();
-      assertEquals(Set.of(), field(task, "targets"));
-      assertNull(field(task, "generatedPositions"));
-      assertEquals(0, transaction.expectedCount());
-
-      MemoryReservation blocker = fillReservationLimit(commitAdmission(transaction));
+      assertFalse(task.blocks().hasNext());
+      assertEquals(0, task.transaction().expectedCount());
+      MemoryReservation blocker = fillReservationLimit(commitAdmission(task.transaction()));
       try {
          assertEquals(JournalPreparation.PENDING, task.prepareCommit());
          assertNull(task.operationCommit());
-
          blocker.close();
-         assertEquals(JournalPreparation.READY, awaitPlacementCommit(task));
-         WorldOperationCommit commit = task.operationCommit();
-         assertNotNull(commit);
+         task.prepareCommit();
+         task.operationCommit().completion().join();
+         assertEquals(JournalPreparation.READY, task.prepareCommit());
          task.releaseMemoryReservation();
-         commit.completion().join();
          task.releaseCommittedTransactionState();
-      } finally {
-         blocker.close();
-         task.releaseMemoryReservation();
-      }
-      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
-      assertTransactionReleased(transaction);
-      assertNull(task.operationCommit());
-      assertEquals(baseline, MemoryReservation.reservedBytes());
+      } finally { blocker.close(); task.releaseMemoryReservation(); }
+      assertReleased(task, baseline);
    }
 
-   @Test
-   void workspaceCommitRetriesThenAdvancesAndReleasesReservation() throws Exception {
+   @Test void workspaceCommitRetriesThenAdvancesAndReleasesReservation() {
       long baseline = MemoryReservation.reservedBytes();
-      SubmittedWorkspaceTask task = workspaceTask();
-      setField(task, "desired", Collections.singletonMap(BlockPos.ZERO, null));
+      var capture = new WorkspaceSnapshotCapture(Collections.singletonMap(BlockPos.ZERO, null));
+      var task = workspaceTask(capture, BlockTaskMemoryPolicy.standard());
       assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
       prepareChangedTransaction(task.transaction());
-      invoke(task, "releaseWriteStagingForCommit");
-      assertEquals(Map.of(), field(task, "desired"));
+      task.releaseWriteStagingForCommit();
+      assertTrue(capture.desired().isEmpty());
       assertEquals(0, task.transaction().expectedCount());
-
       MemoryReservation blocker = fillReservationLimit(commitAdmission(task.transaction()));
       try {
-         assertEquals(TaskStep.ACTIVE, invoke(task, "prepareCommit"));
+         assertEquals(TaskStep.ACTIVE, task.prepareCommit());
          assertNull(task.operationCommit());
-
          blocker.close();
-         assertEquals(TaskStep.COMPLETE, awaitOperationCommit(task, "prepareCommit"));
-         assertNotNull(task.operationCommit());
-         task.releaseMemoryReservation();
+         task.prepareCommit();
          task.operationCommit().completion().join();
-         task.releaseCommittedTransactionState();
-      } finally {
-         blocker.close();
+         assertEquals(TaskStep.COMPLETE, task.prepareCommit());
          task.releaseMemoryReservation();
-      }
-      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
-      assertTransactionReleased(task.transaction());
-      assertNull(task.operationCommit());
-      assertEquals(baseline, MemoryReservation.reservedBytes());
+         task.releaseCommittedTransactionState();
+      } finally { blocker.close(); task.releaseMemoryReservation(); }
+      assertReleased(task, baseline);
    }
 
-   @Test
-   void selectionCommitRetriesThenAdvancesAndReleasesReservation() throws Exception {
+   @Test void selectionCommitRetriesThenAdvancesAndReleasesReservation() {
       long baseline = MemoryReservation.reservedBytes();
-      SelectionOperationTask task = selectionTask();
-      snapshotList(task).add(snapshot(BlockPos.ZERO));
-      assertEquals(MemoryReservationAttempt.ACQUIRED, task.reserveWorkingSet());
+      var task = selectionTask(nonAirReader((level, pos) -> Optional.of(snapshot(BlockPos.ZERO, "source"))), BlockTaskMemoryPolicy.standard());
+      assertTrue(task.scanNext(null).isEmpty());
       prepareChangedTransaction(task.transaction());
-      invoke(task, "releaseWriteStagingForCommit");
-      assertTrue(snapshotList(task).isEmpty());
+      task.releaseWriteStagingForCommit();
       assertEquals(0, task.transaction().expectedCount());
-
       MemoryReservation blocker = fillReservationLimit(commitAdmission(task.transaction()));
       try {
-         assertEquals(JournalPreparation.PENDING, invoke(task, "prepareCommit"));
+         assertEquals(JournalPreparation.PENDING, task.prepareCommit());
          assertNull(task.operationCommit());
-
          blocker.close();
-         assertEquals(JournalPreparation.READY, awaitJournalCommit(task, "prepareCommit"));
-         assertNotNull(task.operationCommit());
-         task.releaseMemoryReservation();
+         task.prepareCommit();
          task.operationCommit().completion().join();
-         task.releaseCommittedTransactionState();
-      } finally {
-         blocker.close();
+         assertEquals(JournalPreparation.READY, task.prepareCommit());
          task.releaseMemoryReservation();
-      }
-      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
-      assertTransactionReleased(task.transaction());
-      assertNull(task.operationCommit());
-      assertEquals(baseline, MemoryReservation.reservedBytes());
+         task.releaseCommittedTransactionState();
+      } finally { blocker.close(); task.releaseMemoryReservation(); }
+      assertReleased(task, baseline);
    }
 
-   @Test
-   void placementCommitHardAdmissionRejectsWithoutStartingCommit() throws Exception {
-      PlacementTask task = placementTask();
-      prepareHardRejectedTransaction(task.transaction());
-
+   @Test void placementCommitHardAdmissionRejectsWithoutStartingCommit() {
+      var task = placementTask(rejected());
+      prepareChangedTransaction(task.transaction());
       assertEquals(JournalPreparation.FAILED, task.prepareCommit());
       assertNull(task.operationCommit());
       assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
    }
 
-   @Test
-   void workspaceCommitHardAdmissionRejectsWithoutStartingCommit() throws Exception {
-      SubmittedWorkspaceTask task = workspaceTask();
-      prepareHardRejectedTransaction(task.transaction());
-
-      assertEquals(TaskStep.MEMORY_UNSAFE, invoke(task, "prepareCommit"));
+   @Test void workspaceCommitHardAdmissionRejectsWithoutStartingCommit() {
+      var task = workspaceTask(new WorkspaceSnapshotCapture(Map.of()), rejected());
+      prepareChangedTransaction(task.transaction());
+      assertEquals(TaskStep.MEMORY_UNSAFE, task.prepareCommit());
       assertNull(task.operationCommit());
       assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
    }
 
-   @Test
-   void selectionCommitHardAdmissionRejectsWithoutStartingCommit() throws Exception {
-      SelectionOperationTask task = selectionTask();
-      prepareHardRejectedTransaction(task.transaction());
-
-      assertEquals(JournalPreparation.FAILED, invoke(task, "prepareCommit"));
+   @Test void selectionCommitHardAdmissionRejectsWithoutStartingCommit() {
+      var task = selectionTask(BlockSnapshotReader.live(), rejected());
+      prepareChangedTransaction(task.transaction());
+      assertEquals(JournalPreparation.FAILED, task.prepareCommit());
       assertNull(task.operationCommit());
       assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
+   }
+
+   private static SubmittedWorkspaceTask workspaceTask(WorkspaceSnapshotCapture capture, BlockTaskMemoryPolicy policy) {
+      return new SubmittedWorkspaceTask(UUID.randomUUID(), new OperationWorkspacePlan(List.of()),
+         PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, new WorldJournalPreparation(Runnable::run),
+         capture, BlockSnapshotReader.live(), policy);
+   }
+
+   private static PlacementTask placementTask(BlockTaskMemoryPolicy policy) {
+      return WorldTaskFixtures.placement(Set.of(BlockPos.ZERO), new PlacementTaskPlan(null, null,
+         OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD),
+         new WorldJournalPreparation(Runnable::run), BlockSnapshotReader.live(), policy);
+   }
+
+   private static SelectionOperationTask selectionTask(BlockSnapshotReader snapshots, BlockTaskMemoryPolicy policy) {
+      return new SelectionOperationTask(OperationSelectionVolume.cuboid(BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO, BlockPos.ZERO),
+         OperationMode.MOVE, OperationConflictMode.REPLACE, false, BlockPos.ZERO.east(), OperationStackRegion.origin(),
+         PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, new WorldJournalPreparation(Runnable::run), snapshots, policy);
+   }
+
+   private static BlockSnapshotReader nonAirReader(BlockSnapshotReader capture) {
+      return new BlockSnapshotReader() {
+         public Optional<ReversibleBlockSnapshot> capture(ServerLevel level, BlockPos position) { return capture.capture(level, position); }
+         public boolean isAir(ServerLevel level, BlockPos position) { return false; }
+      };
+   }
+
+   private static BlockTaskMemoryPolicy rejected() {
+      return estimate -> new MemoryAdmission(MemoryAdmissionStatus.HARD_REJECTED, estimate.requestedBytes(), estimate.usableBytes());
    }
 
    private static MemoryReservation fillReservationLimit(MemoryAdmission target) {
       assertTrue(target.allowed());
-      long remaining = target.usableBytes() - MemoryReservation.reservedBytes();
-      return WorldOperationMemory.reserve(new MemoryAdmission(
-         MemoryAdmissionStatus.ALLOWED, remaining, target.usableBytes()
-      )).orElseThrow();
+      return WorldOperationMemory.reserve(new MemoryAdmission(MemoryAdmissionStatus.ALLOWED,
+         target.usableBytes() - MemoryReservation.reservedBytes(), target.usableBytes())).orElseThrow();
    }
 
-   private static SubmittedWorkspaceTask workspaceTask() {
-      return new SubmittedWorkspaceTask(
-         java.util.UUID.randomUUID(), new OperationWorkspacePlan(List.of()),
-         PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD, new WorldJournalPreparation(Runnable::run)
-      );
-   }
-
-   private static PlacementTask placementTask() {
-      return WorldTaskFixtures.placement(Set.of(BlockPos.ZERO), new PlacementTaskPlan(
-         null, null, OperationConflictMode.REPLACE, PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD
-      ), new WorldJournalPreparation(Runnable::run));
-   }
-
-   private static void prepareChangedTransaction(WorldChangeTransaction transaction) {
-      ReversibleBlockSnapshot before = snapshot(BlockPos.ZERO, "before");
-      ReversibleBlockSnapshot after = snapshot(BlockPos.ZERO, "after");
-      transaction.recordBefore(before);
-      transaction.recordAfter(BlockPos.ZERO, after);
-   }
-
-   private static void prepareHardRejectedTransaction(WorldChangeTransaction transaction) throws Exception {
-      prepareChangedTransaction(transaction);
-      setField(transaction, "commitBlockEntityReserve", Long.MAX_VALUE);
-   }
-
-   private static void assertTransactionReleased(WorldChangeTransaction transaction) {
-      assertEquals(0L, transaction.snapshotCount());
-      assertEquals(0, transaction.expectedCount());
-   }
-
-   private static MemoryAdmission commitAdmission(WorldChangeTransaction transaction) {
-      return WorldOperationMemory.commitAdmission(
-         transaction.snapshotCount(), transaction.largestSideCount(), transaction.commitBlockEntityReserve()
-      );
-   }
-
-   private static JournalPreparation awaitPlacementCommit(PlacementTask task) {
-      task.prepareCommit();
-      task.operationCommit().completion().join();
-      return task.prepareCommit();
-   }
-
-   private static TaskStep awaitOperationCommit(LeasedJournaledTask task, String method) throws Exception {
-      invoke(task, method);
-      task.operationCommit().completion().join();
-      return (TaskStep)invoke(task, method);
-   }
-
-   private static JournalPreparation awaitJournalCommit(LeasedJournaledTask task, String method) throws Exception {
-      invoke(task, method);
-      task.operationCommit().completion().join();
-      return (JournalPreparation)invoke(task, method);
-   }
-
-   private static SelectionOperationTask selectionTask() {
-      return new SelectionOperationTask(
-         new OperationSelectionVolume(
-            OperationSelectionMode.CUBOID, new AABB(0, 0, 0, 1, 1, 1),
-            null, List.of(), 0, BlockPos.ZERO, BlockPos.ZERO
-         ),
-         OperationMode.MOVE, OperationConflictMode.REPLACE, false, new BlockPos(1, 0, 0),
-         OperationStackRegion.origin(), PlacementUpdateMode.CLIENT_ONLY, 10, Level.OVERWORLD,
-         new WorldJournalPreparation(Runnable::run)
-      );
-   }
-
-   private static ReversibleBlockSnapshot snapshot(BlockPos position) {
-      return new ReversibleBlockSnapshot(
-         position, null, null, null
-      );
+   private static ReversibleBlockSnapshot largeSnapshot() {
+      CompoundTag tag = new CompoundTag();
+      tag.putByteArray("payload", new byte[350_000]);
+      return new ReversibleBlockSnapshot(BlockPos.ZERO, null, null, new BlockEntitySnapshot(tag));
    }
 
    private static ReversibleBlockSnapshot snapshot(BlockPos position, String marker) {
@@ -341,50 +245,20 @@ class IncrementalMemoryContentionTest {
       return new ReversibleBlockSnapshot(position, null, null, new BlockEntitySnapshot(tag));
    }
 
-   @SuppressWarnings("unchecked")
-   private static List<ReversibleBlockSnapshot> snapshotList(SelectionOperationTask task) throws Exception {
-      return (List<ReversibleBlockSnapshot>)field(task, "source");
+   private static void prepareChangedTransaction(WorldChangeTransaction transaction) {
+      transaction.recordBefore(snapshot(BlockPos.ZERO, "before"));
+      transaction.recordAfter(BlockPos.ZERO, snapshot(BlockPos.ZERO, "after"));
    }
 
-   private static TaskStep operationResult(Object optional) {
-      return (TaskStep)((Optional<?>)optional).orElseThrow();
+   private static MemoryAdmission commitAdmission(WorldChangeTransaction transaction) {
+      return WorldOperationMemory.commitAdmission(transaction.snapshotCount(), transaction.largestSideCount(), transaction.commitBlockEntityReserve());
    }
 
-   private static Class<?> serverLevelClass() throws ClassNotFoundException {
-      return net.minecraft.server.level.ServerLevel.class;
-   }
-
-   private static Object invoke(Object target, String name) throws Exception {
-      return invoke(target, name, new Class<?>[0], new Object[0]);
-   }
-
-   private static Object invoke(Object target, String name, Class<?>[] parameterTypes, Object[] arguments)
-      throws Exception {
-      Method method = target.getClass().getDeclaredMethod(name, parameterTypes);
-      method.setAccessible(true);
-      return method.invoke(target, arguments);
-   }
-
-   private static Object field(Object target, String name) throws Exception {
-      Field field = target.getClass().getDeclaredField(name);
-      field.setAccessible(true);
-      return field.get(target);
-   }
-
-   private static long longField(Object target, String name) throws Exception {
-      return (long)field(target, name);
-   }
-
-   private static void setField(Object target, String name, Object value) throws Exception {
-      Field field = target.getClass().getDeclaredField(name);
-      field.setAccessible(true);
-      field.set(target, value);
-   }
-
-   @SuppressWarnings({"unchecked", "rawtypes"})
-   private static void setEnumField(Object target, String name, String constant) throws Exception {
-      Field field = target.getClass().getDeclaredField(name);
-      field.setAccessible(true);
-      field.set(target, Enum.valueOf((Class<? extends Enum>)field.getType(), constant));
+   private static void assertReleased(io.github.fastformer.server.task.runtime.LeasedJournaledTask task, long baseline) {
+      assertFalse(TaskRuntimeFixtures.hasWorkingSet(task));
+      assertEquals(0L, task.transaction().snapshotCount());
+      assertEquals(0, task.transaction().expectedCount());
+      assertNull(task.operationCommit());
+      assertEquals(baseline, MemoryReservation.reservedBytes());
    }
 }

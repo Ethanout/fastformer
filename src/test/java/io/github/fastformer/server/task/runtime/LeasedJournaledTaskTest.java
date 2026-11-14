@@ -2,16 +2,16 @@ package io.github.fastformer.server.task.runtime;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.fastformer.fastplace.world.WorldOperationCommit;
+import io.github.fastformer.server.worldwrite.transaction.WorldOperationCommit;
 import io.github.fastformer.server.task.WorldTaskContext;
 import io.github.fastformer.server.task.WorldTaskBudget;
 import io.github.fastformer.server.task.TaskStep;
 import net.minecraft.server.level.ServerLevel;
-import io.github.fastformer.fastplace.world.memory.MemoryAdmission;
-import io.github.fastformer.fastplace.world.memory.MemoryAdmissionStatus;
-import io.github.fastformer.fastplace.world.memory.MemoryReservation;
-import io.github.fastformer.fastplace.world.memory.WorldOperationMemory;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.common.world.memory.MemoryAdmission;
+import io.github.fastformer.common.world.memory.MemoryAdmissionStatus;
+import io.github.fastformer.common.world.memory.MemoryReservation;
+import io.github.fastformer.common.world.memory.WorldOperationMemory;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import io.github.fastformer.server.recovery.JournalPreparation;
 import io.github.fastformer.server.recovery.RecoveryJournalTestAccess;
 import io.github.fastformer.server.recovery.WorldJournalPreparation;

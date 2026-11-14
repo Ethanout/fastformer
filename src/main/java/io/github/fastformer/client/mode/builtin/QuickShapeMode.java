@@ -5,10 +5,6 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
 import io.github.fastformer.common.mode.BuiltinModes;
 import io.github.fastformer.common.mode.ModeId;
-import io.github.fastformer.client.mode.input.CandidateScrollRules;
-import io.github.fastformer.client.mode.input.ScrollDecision;
-import io.github.fastformer.client.mode.input.ScrollInput;
-import io.github.fastformer.client.mode.input.ScrollView;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
 import io.github.fastformer.client.mode.input.pointer.*;
@@ -30,9 +26,6 @@ public final class QuickShapeMode implements ClientMode {
          : left.undoAvailable() ? PointerDecision.Left.UNDO : PointerDecision.Left.NONE;
    }
    @Override public int priority() { return 100; }
-   @Override public ScrollDecision onScroll(ScrollInput input, ScrollView view) {
-      return CandidateScrollRules.decide(input, view);
-   }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }
    @Override public Optional<State> observe(ModeObservation observation) {
       return observation.buildingSession() ? Optional.of(State.BUILDING) : Optional.empty();

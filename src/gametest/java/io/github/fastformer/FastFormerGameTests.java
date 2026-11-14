@@ -5,14 +5,14 @@ import io.github.fastformer.server.history.HistorySystem;
 
 import io.github.fastformer.server.history.rollback.RollbackRequest;
 
-import io.github.fastformer.fastplace.geometry.generation.BlockGenerationResult;
-import io.github.fastformer.fastplace.geometry.generation.BlockPositionSource;
-import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
+import io.github.fastformer.common.geometry.generation.source.BlockGenerationResult;
+import io.github.fastformer.common.geometry.generation.source.BlockPositionSource;
+import io.github.fastformer.common.geometry.generation.source.LineGenerator;
 import io.github.fastformer.server.history.HistoryService;
-import io.github.fastformer.fastplace.world.WorldChangeTransaction;
+import io.github.fastformer.server.worldwrite.transaction.WorldChangeTransaction;
 import io.github.fastformer.server.task.WorldTaskContext;
-import io.github.fastformer.fastplace.world.snapshot.BlockEntitySnapshot;
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.BlockEntitySnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +102,7 @@ public final class FastFormerGameTests {
 
    @GameTest(template = "empty", timeoutTicks = 20)
    public static void woodFrameEffectAppliesLogStatesDuringLineAndFaceStages(GameTestHelper helper) {
-      var modes = new io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.Modes(
+      var modes = new io.github.fastformer.common.geometry.generation.FastPlaceGeometry.Modes(
          io.github.fastformer.common.quickshape.mode.PointMode.RAYCAST,
          io.github.fastformer.common.quickshape.mode.RaycastPlacement.EMBEDDED,
          io.github.fastformer.common.quickshape.mode.LineMode.AXIS,
@@ -110,18 +110,18 @@ public final class FastFormerGameTests {
          io.github.fastformer.common.quickshape.mode.VolumeMode.FREE,
          io.github.fastformer.common.geometry.model.FillMode.OUTLINE, 0.0, false
       );
-      var effect = new io.github.fastformer.fastplace.placement.effect.woodframe.WoodFramePlacementEffect();
+      var effect = new io.github.fastformer.common.placement.effect.woodframe.WoodFramePlacementEffect();
       for (var points : List.of(
          List.of(BlockPos.ZERO, new BlockPos(6, 0, 0)),
          List.of(BlockPos.ZERO, new BlockPos(6, 0, 0), new BlockPos(0, 0, 4))
       )) {
-         var context = new io.github.fastformer.fastplace.placement.effect.PlacementEffectContext(
+         var context = new io.github.fastformer.common.placement.effect.PlacementEffectContext(
             null, net.minecraft.world.item.ItemStack.EMPTY, Blocks.OAK_LOG.defaultBlockState(),
             net.minecraft.core.Direction.Axis.Y, points, modes, false,
             io.github.fastformer.common.quickshape.mode.PolygonVolumeShape.EXTRUDE, null
          );
          helper.assertTrue(effect.matches(context), "wood effect rejected line or face stage");
-         var targets = io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry.blocks(
+         var targets = io.github.fastformer.common.geometry.generation.FastPlaceGeometry.blocks(
             points, modes, false, io.github.fastformer.common.quickshape.mode.PolygonVolumeShape.EXTRUDE, 1000
          );
          var states = effect.resolve(context).stateOverrides().apply(targets);

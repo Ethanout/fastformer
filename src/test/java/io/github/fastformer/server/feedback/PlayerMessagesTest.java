@@ -24,12 +24,8 @@ class PlayerMessagesTest {
       assertEquals(1.0, values[2]);
    }
    private static Object[] clean(Object... args) {
-      try {
-         var method = PlayerMessages.class.getDeclaredMethod("cleanArgs", Object[].class);
-         method.setAccessible(true);
-         return (Object[]) method.invoke(null, (Object) args);
-      } catch (ReflectiveOperationException exception) {
-         throw new AssertionError(exception);
-      }
+      var message = PlayerMessages.text("fastformer.test.arguments", args);
+      var contents = assertInstanceOf(net.minecraft.network.chat.contents.TranslatableContents.class, message.getContents());
+      return contents.getArgs();
    }
 }

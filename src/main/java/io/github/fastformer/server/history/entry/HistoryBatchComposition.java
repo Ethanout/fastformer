@@ -1,6 +1,6 @@
 package io.github.fastformer.server.history.entry;
 
-import io.github.fastformer.fastplace.world.snapshot.ReversibleBlockSnapshot;
+import io.github.fastformer.server.worldwrite.snapshot.ReversibleBlockSnapshot;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

@@ -1,0 +1,127 @@
+{
+  "bindings": [
+    {
+      "id": "fastformer:history_conflict/overwrite",
+      "context": {
+        "input_phase": "history_prompt",
+        "screen": false,
+        "player_present": true,
+        "history_prompt": true,
+        "key_action": "press",
+        "!modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:history_conflict/overwrite"
+    },
+    {
+      "id": "fastformer:history_conflict/overwrite_keypad",
+      "context": {
+        "input_phase": "history_prompt",
+        "screen": false,
+        "player_present": true,
+        "history_prompt": true,
+        "key_action": "press",
+        "!modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.keypad.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:history_conflict/overwrite"
+    },
+    {
+      "id": "fastformer:history_conflict/skip",
+      "context": {
+        "input_phase": "history_prompt",
+        "screen": false,
+        "player_present": true,
+        "history_prompt": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:history_conflict/skip"
+    },
+    {
+      "id": "fastformer:history_conflict/skip_keypad",
+      "context": {
+        "input_phase": "history_prompt",
+        "screen": false,
+        "player_present": true,
+        "history_prompt": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.keypad.enter",
+        "gesture": "key"
+      },
+      "action": "fastformer:history_conflict/skip"
+    },
+    {
+      "id": "fastformer:history_conflict/cancel",
+      "context": {
+        "input_phase": "history_prompt",
+        "screen": false,
+        "player_present": true,
+        "history_prompt": true,
+        "key_action": "press"
+      },
+      "input": {
+        "button": "key.keyboard.q",
+        "gesture": "key"
+      },
+      "action": "fastformer:history_conflict/cancel"
+    },
+    {
+      "id": "fastformer:history_conflict/block_undo",
+      "context": {
+        "input_phase": "history_prompt",
+        "screen": false,
+        "player_present": true,
+        "history_prompt": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.z",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:history_conflict/block_redo",
+      "context": {
+        "input_phase": "history_prompt",
+        "screen": false,
+        "player_present": true,
+        "history_prompt": true,
+        "key_action": "press",
+        "modifiers": [
+          "control"
+        ]
+      },
+      "input": {
+        "button": "key.keyboard.y",
+        "gesture": "key"
+      },
+      "action": "fastformer:block"
+    }
+  ]
+}

@@ -38,8 +38,7 @@ class RemoteSelectionPointMailboxTest {
       var second = new BlockPos(5, 6, 7);
       receiveFirstPoint(first);
 
-      assertTrue(FastPlaceClientInput.queueSelectionDraft(null,
-         new OperationInteractionIntent.CreateSelection(second), 1, false, 100));
+      FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.SECOND);
       drain(true);
 
       assertEquals(List.of(OperationPointPayload.Role.FIRST, OperationPointPayload.Role.SECOND), sent);
@@ -54,8 +53,7 @@ class RemoteSelectionPointMailboxTest {
 
    @Test void middleAfterRemoteFirstPointStaysWithTheSameOwner() {
       receiveFirstPoint(BlockPos.ZERO);
-      assertTrue(FastPlaceClientInput.queueSelectionDraft(null,
-         new OperationInteractionIntent.CreateSelection(new BlockPos(4, 5, 6)), 2, false, 100));
+      FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.EXTRA);
       drain(true);
       assertEquals(List.of(OperationPointPayload.Role.EXTRA), sent);
       assertFalse(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
@@ -63,12 +61,14 @@ class RemoteSelectionPointMailboxTest {
 
    @Test void remoteCuboidContinuationAlsoIgnoresTheSecondPhysicalRightPress() {
       receiveFirstPoint(BlockPos.ZERO);
-      var target = new OperationInteractionIntent.CreateSelection(new BlockPos(4, 5, 6));
-      assertTrue(FastPlaceClientInput.queueSelectionDraft(null, target, 1, false, 1_000_000_000L));
-      assertTrue(FastPlaceClientInput.queueSelectionDraft(null, target, 1, false, 1_100_000_000L));
+      var target = new BlockPos(4, 5, 6);
+      if (input.acceptCuboidPointPress(1, 4, target, 1_000_000_000L, 200))
+         FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.SECOND);
+      if (input.acceptCuboidPointPress(1, 4, target, 1_100_000_000L, 200))
+         FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.SECOND);
       drain(true);
       assertEquals(List.of(OperationPointPayload.Role.SECOND), sent);
-      assertTrue(input.cuboidPointPressGuard.capture(0, 1, 1_400_000_000L));
+      assertTrue(input.cuboidPointPressGuard.capture(0, 4, 1_400_000_000L));
    }
 
    @Test void cancelledRemoteFirstPointDoesNotStealTheNextLocalDraft() {
@@ -172,6 +172,22 @@ class RemoteSelectionPointMailboxTest {
       assertTrue(ClientSessionSystem.instance().operations().selectionEdits().selectionDraftActive());
       drain(true);
       assertTrue(sent.isEmpty());
+   }
+
+   @Test void newerRemoteRevisionRejectsTheQueuedPointBeforeItCanReachTheServer() {
+      receiveFirstPoint(BlockPos.ZERO);
+      FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.SECOND);
+      assertTrue(ClientSessionSystem.instance().operations().synchronize(preview(3, List.of(BlockPos.ZERO))));
+      drain(true);
+      assertTrue(sent.isEmpty());
+   }
+
+   @Test void resourceReloadDiscardsRemoteCommandsAndTheirPendingEntryOwnership() {
+      FastPlaceClientInput.queueRemoteSelectionPoint(OperationPointPayload.Role.FIRST);
+      this.input.cancelBoundPointerInput();
+      drain(true);
+      assertTrue(sent.isEmpty());
+      assertFalse(this.input.canCancelPendingSessionStart());
    }
 
    private void send(RemoteSelectionPointRequest request) {

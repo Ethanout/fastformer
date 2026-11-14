@@ -8,6 +8,10 @@ import io.github.fastformer.client.interaction.intent.OperationInteractionIntent
 import io.github.fastformer.client.operation.workspace.ClientOperationWorkspace;
 import io.github.fastformer.core.async.TickMailbox;
 import io.github.fastformer.common.selection.OperationSelectionMode;
+import io.github.fastformer.client.operation.selection.tool.SelectionTool;
+import io.github.fastformer.client.operation.selection.tool.SelectionToolState;
+import io.github.fastformer.client.operation.selection.tool.SelectionTools;
+import net.minecraft.resources.ResourceLocation;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -51,7 +55,7 @@ public final class ClientSelectionSession {
       workspace.closeUndoably(() -> { restoreDraftState(before); retain(); }, before.points().size());
       clearDraft();
       clearTransientInteraction();
-      this.draft.setMode(SelectionToolPreference.get());
+      this.draft.setTool(SelectionToolPreference.id());
    }
 
    public SelectionSessionLifecycle.Phase lifecyclePhase() {
@@ -128,7 +132,7 @@ public final class ClientSelectionSession {
       this.workspace.clear();
       clearDraft();
       clearTransientInteraction();
-      this.draft.setMode(SelectionToolPreference.get());
+      this.draft.setTool(SelectionToolPreference.id());
    }
 
    public void clearTransientInteraction() {
@@ -151,8 +155,13 @@ public final class ClientSelectionSession {
       this.draft.setMode(mode);
    }
 
+   public ResourceLocation selectionToolId() { return draft.snapshot().toolId(); }
+   public SelectionTool selectionTool() { return SelectionTools.require(selectionToolId()); }
+   public void setSelectionTool(ResourceLocation id) { draft.setTool(id); }
+   public boolean selectionReady() { return selectionTool().ready(draft.snapshot().toolState()); }
+
    public void startNewSession() {
-      if (workspace.isEmpty() && !hasDraft()) this.draft.setMode(SelectionToolPreference.get());
+      if (workspace.isEmpty() && !hasDraft()) this.draft.setTool(SelectionToolPreference.id());
       retain();
    }
 
@@ -207,7 +216,7 @@ public final class ClientSelectionSession {
 
    public List<BlockPos> selectionDraftPoints() {
       DraftState snapshot = this.draft.snapshot();
-      return snapshot.selectionMode() == OperationSelectionMode.CUBOID && snapshot.points().size() >= 2
+      return selectionTool().undoPreviousPoint() && snapshot.points().size() >= 2
          ? List.of(snapshot.minPoint(), snapshot.maxPoint()) : snapshot.points();
    }
 
@@ -234,7 +243,7 @@ public final class ClientSelectionSession {
    }
 
    public boolean undoCuboidPoint() {
-      if (selectionMode() != OperationSelectionMode.CUBOID || workspace.locked() || workspace.editing()) return false;
+      if (!selectionTool().undoPreviousPoint() || workspace.locked() || workspace.editing()) return false;
       if (hasDraft()) {
          removeLastDraftPoint();
          return true;
@@ -274,36 +283,26 @@ public final class ClientSelectionSession {
       this.draft.restore(draft);
    }
 
-   public record DraftState(
-      OperationSelectionMode selectionMode,
-      List<BlockPos> points,
-      int prismBaseCount,
-      BlockPos minPoint,
-      BlockPos maxPoint,
-      boolean secondPointOnly
-   ) {
+   public record DraftState(SelectionToolState toolState) {
       public DraftState(OperationSelectionMode selectionMode, List<BlockPos> points, int prismBaseCount,
          BlockPos minPoint, BlockPos maxPoint) {
          this(selectionMode, points, prismBaseCount, minPoint, maxPoint, false);
       }
 
-      public DraftState {
-         if (selectionMode == null) {
-            throw new IllegalArgumentException("A selection draft requires a mode");
-         }
-         points = points == null ? List.of() : points.stream()
-            .filter(java.util.Objects::nonNull)
-            .map(BlockPos::immutable)
-            .toList();
-         minPoint = minPoint == null ? null : minPoint.immutable();
-         maxPoint = maxPoint == null ? null : maxPoint.immutable();
-         prismBaseCount = Math.max(0, prismBaseCount);
-         if (secondPointOnly && (selectionMode != OperationSelectionMode.CUBOID || points.size() != 1)) {
-            throw new IllegalArgumentException("A second-only draft requires one cuboid point");
-         }
+      public DraftState(OperationSelectionMode selectionMode, List<BlockPos> points, int prismBaseCount,
+         BlockPos minPoint, BlockPos maxPoint, boolean secondPointOnly) {
+         this(new SelectionToolState(SelectionTools.builtinId(selectionMode), selectionMode, points, prismBaseCount,
+            minPoint, maxPoint, secondPointOnly, java.util.Map.of()));
       }
-
-      public BlockPos firstPoint() { return points.isEmpty() || secondPointOnly ? null : points.getFirst(); }
-      public BlockPos secondPoint() { return secondPointOnly ? points.getFirst() : points.size() < 2 ? null : points.get(1); }
+      public DraftState { java.util.Objects.requireNonNull(toolState, "toolState"); }
+      public ResourceLocation toolId() { return toolState.toolId(); }
+      public OperationSelectionMode selectionMode() { return toolState.geometry(); }
+      public List<BlockPos> points() { return toolState.points(); }
+      public int prismBaseCount() { return toolState.prismBaseCount(); }
+      public BlockPos minPoint() { return toolState.minPoint(); }
+      public BlockPos maxPoint() { return toolState.maxPoint(); }
+      public boolean secondPointOnly() { return toolState.secondPointOnly(); }
+      public BlockPos firstPoint() { return toolState.firstPoint(); }
+      public BlockPos secondPoint() { return toolState.secondPoint(); }
    }
 }

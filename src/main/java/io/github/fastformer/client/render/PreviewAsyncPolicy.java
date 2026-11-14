@@ -1,7 +1,7 @@
 package io.github.fastformer.client.render;
 
-import io.github.fastformer.fastplace.geometry.generation.LineGenerator;
-import io.github.fastformer.fastplace.geometry.generation.WallGenerator;
+import io.github.fastformer.common.geometry.generation.source.LineGenerator;
+import io.github.fastformer.common.geometry.generation.shape.WallGenerator;
 import java.util.Arrays;
 import java.util.List;
 import net.minecraft.core.BlockPos;

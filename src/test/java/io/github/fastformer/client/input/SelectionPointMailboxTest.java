@@ -23,6 +23,18 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class SelectionPointMailboxTest {
+   @Test void queuedRemotePressRequiresItsRevisionWhileAnActiveGestureKeepsItsScopeLease() {
+      var owner = UUID.randomUUID();
+      var scope = new io.github.fastformer.protocol.callback.OperationCallbackScope(owner,
+         net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"), UUID.randomUUID());
+      var snapshot = new io.github.fastformer.client.operation.input.SelectionPointerEvent.RemoteSnapshot(owner,
+         null, 7L, scope, 5, null, null, null, false);
+      assertTrue(snapshot.matches(owner, null, 7L, scope));
+      assertFalse(snapshot.matches(owner, null, 8L, scope));
+      assertTrue(snapshot.ownsActive(owner, scope));
+      assertFalse(snapshot.ownsActive(UUID.randomUUID(), scope));
+      assertFalse(snapshot.ownsActive(owner, io.github.fastformer.protocol.callback.OperationCallbackScope.unscoped()));
+   }
    private ClientInputSession input;
    private ClientOperationWorkspace workspace;
 
@@ -50,12 +62,6 @@ class SelectionPointMailboxTest {
       assertEquals(new BlockPos(1, 2, 3), press.point());
       assertEquals(1234, press.occurredAtNanos());
       assertTrue(press.control());
-   }
-
-   @Test
-   void middleOwnsThePointRouteWithoutAWorldHit() {
-      assertEquals(SelectionInputDispatcher.SelectionPressRoute.POINT,
-         SelectionInputDispatcher.selectionPressRoute(null, null, MouseButtonInputSemantics.MIDDLE_BUTTON));
    }
 
    @Test
@@ -135,7 +141,7 @@ class SelectionPointMailboxTest {
 
    private void drain() {
       input.drainPhysicalEvents(() -> true, key -> fail(), scroll -> fail(),
-         event -> SelectionInputDispatcher.dispatch(null, input, event));
+         event -> OperationDragController.dispatchSelection(null, input, event));
    }
 
    private static ClientSelectionPart part() {

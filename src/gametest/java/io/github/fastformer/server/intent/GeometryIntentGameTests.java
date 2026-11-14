@@ -7,7 +7,7 @@ import io.github.fastformer.common.geometry.GeometryMode;
 import io.github.fastformer.common.geometry.ConePlaneMode;
 import io.github.fastformer.common.geometry.PolyhedronSizeMode;
 import io.github.fastformer.common.geometry.session.GeometrySession;
-import io.github.fastformer.fastplace.settings.FastPlaceSettings;
+import io.github.fastformer.server.settings.FastPlaceSettings;
 import io.github.fastformer.server.history.HistorySystem;
 import io.github.fastformer.server.history.HistoryTestAccess;
 import io.github.fastformer.server.player.PlayerStateRegistry;

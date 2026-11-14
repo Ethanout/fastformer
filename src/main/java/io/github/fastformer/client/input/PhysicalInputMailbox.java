@@ -15,16 +15,16 @@ final class PhysicalInputMailbox {
    private sealed interface PhysicalEvent {
       record Key(KeyboardInputSnapshot value) implements PhysicalEvent { }
       record Scroll(ScrollInputSnapshot value, BooleanSupplier valid) implements PhysicalEvent { }
-      record SelectionPointer(SelectionPointerEvent value) implements PhysicalEvent { }
-      record RemotePoint(RemoteSelectionPointRequest value) implements PhysicalEvent { }
+      record SelectionPointer(SelectionPointerEvent value, BooleanSupplier valid) implements PhysicalEvent { }
+      record RemotePoint(RemoteSelectionPointRequest value, BooleanSupplier valid) implements PhysicalEvent { }
       record PointerRelease(PointerReleaseSnapshot value) implements PhysicalEvent { }
       record QuickShapeUndo(QuickShapeUndoGesture.Event value, BooleanSupplier valid) implements PhysicalEvent { }
       record QuickShapePointer(QuickShapePointerPress value, BooleanSupplier valid) implements PhysicalEvent { }
       record StartPlacement(StartPlacementPayload.Target value) implements PhysicalEvent { }
-      record GeometryGizmo(GeometryGizmoCapture.Event value) implements PhysicalEvent { }
-      record GeometryPointer(GeometryInputController.PointerPress value) implements PhysicalEvent { }
-      record OperationPointDrag(OperationPointDragEvent value) implements PhysicalEvent { }
-      record OperationPointCommand(OperationPointCommandEvent value) implements PhysicalEvent { }
+      record GeometryGizmo(GeometryGizmoCapture.Event value, BooleanSupplier valid) implements PhysicalEvent { }
+      record GeometryPointer(GeometryInputController.PointerPress value, BooleanSupplier valid) implements PhysicalEvent { }
+      record OperationPointDrag(OperationPointDragEvent value, BooleanSupplier valid) implements PhysicalEvent { }
+      record OperationPointCommand(OperationPointCommandEvent value, BooleanSupplier valid) implements PhysicalEvent { }
    }
    private final TickMailbox<PhysicalEvent> events =
       new TickMailbox<>(this::releaseQueuedEvent);
@@ -65,11 +65,17 @@ final class PhysicalInputMailbox {
    }
 
    void postSelectionPointer(SelectionPointerEvent event) {
-      this.events.post(new PhysicalEvent.SelectionPointer(java.util.Objects.requireNonNull(event)));
+      postSelectionPointer(event, () -> true);
+   }
+   void postSelectionPointer(SelectionPointerEvent event, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.SelectionPointer(java.util.Objects.requireNonNull(event), valid));
    }
 
    void postRemoteSelectionPoint(RemoteSelectionPointRequest request) {
-      this.events.post(new PhysicalEvent.RemotePoint(java.util.Objects.requireNonNull(request)));
+      postRemoteSelectionPoint(request, () -> true);
+   }
+   void postRemoteSelectionPoint(RemoteSelectionPointRequest request, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.RemotePoint(java.util.Objects.requireNonNull(request), valid));
       this.pendingRemotePoints++;
    }
 
@@ -99,19 +105,33 @@ final class PhysicalInputMailbox {
    }
 
    void postGeometryGizmo(GeometryGizmoCapture.Event event) {
-      this.events.post(new PhysicalEvent.GeometryGizmo(java.util.Objects.requireNonNull(event)));
+      postGeometryGizmo(event, () -> true);
+   }
+
+   void postGeometryGizmo(GeometryGizmoCapture.Event event, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.GeometryGizmo(java.util.Objects.requireNonNull(event), valid));
    }
 
    void postGeometryPointer(GeometryInputController.PointerPress event) {
-      this.events.post(new PhysicalEvent.GeometryPointer(java.util.Objects.requireNonNull(event)));
+      postGeometryPointer(event, () -> true);
+   }
+
+   void postGeometryPointer(GeometryInputController.PointerPress event, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.GeometryPointer(java.util.Objects.requireNonNull(event), valid));
    }
 
    void postOperationPointDrag(OperationPointDragEvent event) {
-      this.events.post(new PhysicalEvent.OperationPointDrag(java.util.Objects.requireNonNull(event)));
+      postOperationPointDrag(event, () -> true);
+   }
+   void postOperationPointDrag(OperationPointDragEvent event, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.OperationPointDrag(java.util.Objects.requireNonNull(event), valid));
    }
 
    void postOperationPointCommand(OperationPointCommandEvent event) {
-      this.events.post(new PhysicalEvent.OperationPointCommand(java.util.Objects.requireNonNull(event)));
+      postOperationPointCommand(event, () -> true);
+   }
+   void postOperationPointCommand(OperationPointCommandEvent event, BooleanSupplier valid) {
+      this.events.post(new PhysicalEvent.OperationPointCommand(java.util.Objects.requireNonNull(event), valid));
    }
 
    void drain(BooleanSupplier contextActive, Runnable contextLost, PhysicalInputSink sink) {
@@ -124,16 +144,16 @@ final class PhysicalInputMailbox {
          switch (event) {
             case PhysicalEvent.Key value -> sink.accept(value.value());
             case PhysicalEvent.Scroll value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
-            case PhysicalEvent.SelectionPointer value -> sink.accept(value.value());
-            case PhysicalEvent.RemotePoint value -> sink.accept(value.value());
+            case PhysicalEvent.SelectionPointer value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
+            case PhysicalEvent.RemotePoint value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
             case PhysicalEvent.PointerRelease value -> sink.accept(value.value());
             case PhysicalEvent.QuickShapeUndo value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
             case PhysicalEvent.QuickShapePointer value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
             case PhysicalEvent.StartPlacement value -> sink.accept(value.value());
-            case PhysicalEvent.GeometryGizmo value -> sink.accept(value.value());
-            case PhysicalEvent.GeometryPointer value -> sink.accept(value.value());
-            case PhysicalEvent.OperationPointDrag value -> sink.accept(value.value());
-            case PhysicalEvent.OperationPointCommand value -> sink.accept(value.value());
+            case PhysicalEvent.GeometryGizmo value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
+            case PhysicalEvent.GeometryPointer value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
+            case PhysicalEvent.OperationPointDrag value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
+            case PhysicalEvent.OperationPointCommand value -> { if (value.valid().getAsBoolean()) sink.accept(value.value()); }
          }
       });
    }

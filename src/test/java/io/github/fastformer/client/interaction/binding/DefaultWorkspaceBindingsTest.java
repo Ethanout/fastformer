@@ -1,5 +1,7 @@
 package io.github.fastformer.client.interaction.binding;
 
+import io.github.fastformer.client.interaction.binding.context.key.WorkspaceKeyContext;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.JsonParser;

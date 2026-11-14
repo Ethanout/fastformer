@@ -1,0 +1,44 @@
+{
+  "tree": {
+    "session:fastformer:idle": {
+      "right/press": [
+        {"id":"fastformer:idle/entity", "priority":1000,
+         "if":{"input_phase":"idle_pointer","idle_entity":true,"idle_alt":false,"idle_replay":false},
+         "action":"fastformer:idle/clear"},
+        {"id":"fastformer:idle/embedded", "priority":900,
+         "if":{"input_phase":"idle_pointer","idle_alt":true},
+         "action":{"id":"fastformer:idle/enter_embedded","guard_ms":200}},
+        {"id":"fastformer:idle/distant", "priority":800,
+         "if":{"input_phase":"idle_pointer","idle_distant":true,"idle_alt":false},
+         "action":{"id":"fastformer:idle/enter_surface","guard_ms":200}},
+        {"id":"fastformer:idle/tinker", "priority":600,
+         "if":{"input_phase":"idle_pointer","idle_tinker":true},
+         "action":"fastformer:idle/tinker"},
+        {"id":"fastformer:idle/hold_candidate", "priority":500,
+         "if":{"input_phase":"idle_pointer","idle_outline":true,"idle_replay":false,"idle_placeable":true,
+               "idle_alt":false,"idle_distant":false,"idle_anchor":false,"idle_tinker":false,"idle_passthrough":false},
+         "action":"fastformer:idle/hold"},
+        {"id":"fastformer:idle/remember", "priority":100,
+         "if":{"input_phase":"idle_pointer","idle_outline":true},
+         "action":"fastformer:idle/remember"},
+        {"id":"fastformer:idle/air", "priority":0,
+         "if":{"input_phase":"idle_pointer"}, "action":"fastformer:idle/clear"}
+      ],
+      "right/double": {
+        "id":"fastformer:idle/double", "priority":700,
+        "if":{"input_phase":"idle_pointer","idle_anchor":true,"idle_alt":false,"idle_distant":false},
+        "input":{"double_click":{
+          "tolerance":[{"below":15,"window_ms":200,"exact":true},
+                       {"from":15,"window_ms":300,"edge_deg":0.5,"edge_max_blocks":0.5}],
+          "accept_if_any":[{"view_change_deg":2},{"hit_distance_blocks":0.5}]
+        }},
+        "action":"fastformer:idle/enter_anchor"
+      },
+      "middle/press": {
+        "id":"fastformer:idle/middle_embedded", "priority":900,
+        "if":{"input_phase":"idle_pointer","idle_alt":true,"idle_placeable":true},
+        "action":{"id":"fastformer:idle/enter_embedded","middle_entry":true}
+      }
+    }
+  }
+}

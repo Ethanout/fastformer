@@ -1,0 +1,1214 @@
+{
+  "bindings": [
+    {
+      "id": "fastformer:selection/release_undo",
+      "priority": 3000,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_undo_captured": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "release"
+      },
+      "action": {
+        "id": "fastformer:selection/end_undo",
+        "duration_ms": 250
+      }
+    },
+    {
+      "id": "fastformer:selection/release_pointer",
+      "priority": 2900,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_pointer_captured": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "release"
+      },
+      "action": "fastformer:selection/release"
+    },
+    {
+      "id": "fastformer:selection/held_undo",
+      "priority": 2000,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_undo_captured": true
+      },
+      "input": {
+        "button": "*",
+        "gesture": "press"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:selection/alt_gizmo_left",
+      "priority": 1400,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": true,
+        "selection_gizmo_target": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/gizmo"
+    },
+    {
+      "id": "fastformer:selection/alt_gizmo_right",
+      "priority": 1400,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": true,
+        "selection_gizmo_target": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/gizmo"
+    },
+    {
+      "id": "fastformer:selection/sample_left",
+      "priority": 1302,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_world_sampling": true,
+        "selection_gizmo_target": false,
+        "selection_sampling_editing": true,
+        "selection_remove_hit": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/sample_miss_left",
+      "priority": 1300,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_world_sampling": true,
+        "selection_gizmo_target": false,
+        "selection_sampling_editing": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:selection/sample_add",
+      "priority": 1302,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_world_sampling": true,
+        "selection_gizmo_target": false,
+        "selection_alt": true,
+        "selection_add_hit": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_right"
+    },
+    {
+      "id": "fastformer:selection/sample_world",
+      "priority": 1302,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_world_sampling": true,
+        "selection_gizmo_target": false,
+        "selection_alt": false,
+        "selection_world_hit": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_right"
+    },
+    {
+      "id": "fastformer:selection/sample_miss_right",
+      "priority": 1300,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_world_sampling": true,
+        "selection_gizmo_target": false
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:selection/sample_middle",
+      "priority": 1302,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_world_sampling": true,
+        "selection_gizmo_target": false,
+        "selection_sampling_editing": true,
+        "selection_world_hit": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_middle"
+    },
+    {
+      "id": "fastformer:selection/sample_miss_middle",
+      "priority": 1300,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_world_sampling": true,
+        "selection_gizmo_target": false,
+        "selection_sampling_editing": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:selection/middle_adjust",
+      "priority": 1200,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_can_create": false
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/point_middle"
+    },
+    {
+      "id": "fastformer:selection/middle_new_at_world",
+      "priority": 1152,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_can_create": true,
+        "selection_create_target": false,
+        "selection_world_hit": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_middle"
+    },
+    {
+      "id": "fastformer:selection/middle_new_miss",
+      "priority": 1150,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_can_create": true,
+        "selection_create_target": false,
+        "selection_world_hit": false
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:vanilla"
+    },
+    {
+      "id": "fastformer:selection/undo_previous_draft_active",
+      "priority": 1100,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_undo_previous_point": true,
+        "selection_gizmo_target": false,
+        "selection_draft_active": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/undo_previous_no_target",
+      "priority": 1100,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_undo_previous_point": true,
+        "selection_gizmo_target": false,
+        "selection_no_target": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/undo_previous_create_target",
+      "priority": 1100,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_undo_previous_point": true,
+        "selection_gizmo_target": false,
+        "selection_create_target": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/remote_continuation",
+      "priority": 1050,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": true,
+        "selection_remote_cuboid": true,
+        "selection_create_target": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": {
+        "id": "fastformer:selection/remote_next",
+        "duration_ms": 200
+      }
+    },
+    {
+      "id": "fastformer:selection/remote_continuation_extra",
+      "priority": 1050,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": true,
+        "selection_remote_cuboid": true,
+        "selection_create_target": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_extra"
+    },
+    {
+      "id": "fastformer:selection/alt_create_left",
+      "priority": 1000,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": true,
+        "selection_create_allowed": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/create_left_local_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_local_active": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/create_left_draft_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_draft_active": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/create_left_session_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_session_active": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/alt_create_right",
+      "priority": 1000,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": true,
+        "selection_create_allowed": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": {
+        "id": "fastformer:selection/draft_right",
+        "duration_ms": 200
+      }
+    },
+    {
+      "id": "fastformer:selection/create_right_local_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_local_active": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": {
+        "id": "fastformer:selection/draft_right",
+        "duration_ms": 200
+      }
+    },
+    {
+      "id": "fastformer:selection/create_right_draft_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_draft_active": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": {
+        "id": "fastformer:selection/draft_right",
+        "duration_ms": 200
+      }
+    },
+    {
+      "id": "fastformer:selection/create_right_session_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_session_active": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": {
+        "id": "fastformer:selection/draft_right",
+        "duration_ms": 200
+      }
+    },
+    {
+      "id": "fastformer:selection/alt_create_middle",
+      "priority": 1000,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": true,
+        "selection_create_allowed": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_middle"
+    },
+    {
+      "id": "fastformer:selection/create_middle_local_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_local_active": true,
+        "selection_can_create": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_middle"
+    },
+    {
+      "id": "fastformer:selection/create_middle_draft_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_draft_active": true,
+        "selection_can_create": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_middle"
+    },
+    {
+      "id": "fastformer:selection/create_middle_session_active",
+      "priority": 950,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_alt": false,
+        "selection_remote_pointing": false,
+        "selection_create_target": true,
+        "selection_session_active": true,
+        "selection_can_create": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_middle"
+    },
+    {
+      "id": "fastformer:selection/local_left_gizmo_target",
+      "priority": 900,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false,
+        "selection_gizmo_target": true,
+        "selection_left_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/pointer_shrink"
+    },
+    {
+      "id": "fastformer:selection/local_left_face_target",
+      "priority": 900,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false,
+        "selection_face_target": true,
+        "selection_left_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/pointer_shrink"
+    },
+    {
+      "id": "fastformer:selection/local_left_part_target",
+      "priority": 900,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false,
+        "selection_part_target": true,
+        "selection_left_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/pointer_shrink"
+    },
+    {
+      "id": "fastformer:selection/local_point_left",
+      "priority": 850,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false,
+        "selection_left_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/point_left"
+    },
+    {
+      "id": "fastformer:selection/local_right_gizmo_target",
+      "priority": 900,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false,
+        "selection_gizmo_target": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/pointer_expand"
+    },
+    {
+      "id": "fastformer:selection/local_right_face_target",
+      "priority": 900,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false,
+        "selection_face_target": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/pointer_expand"
+    },
+    {
+      "id": "fastformer:selection/local_right_part_target",
+      "priority": 900,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false,
+        "selection_part_target": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/pointer_expand"
+    },
+    {
+      "id": "fastformer:selection/local_point_right",
+      "priority": 850,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/point_right"
+    },
+    {
+      "id": "fastformer:selection/left_vanilla",
+      "priority": 700,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_vanilla_pointer": true,
+        "selection_alt": false,
+        "selection_adjust": false,
+        "selection_gizmo_target": false,
+        "selection_face_target": false,
+        "selection_part_target": false,
+        "selection_remote_gizmo_target": false
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:vanilla"
+    },
+    {
+      "id": "fastformer:selection/left_remote_gizmo",
+      "priority": 690,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_selection_ready": true,
+        "selection_remote_gizmo_target": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_gizmo"
+    },
+    {
+      "id": "fastformer:selection/left_remote_point",
+      "priority": 680,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_point_target": true,
+        "selection_point_drag_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_point_left"
+    },
+    {
+      "id": "fastformer:selection/left_adjustment_undo",
+      "priority": 670,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_adjustment_started": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/begin_undo"
+    },
+    {
+      "id": "fastformer:selection/left_prism_undo",
+      "priority": 665,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_remote_prism": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/begin_undo"
+    },
+    {
+      "id": "fastformer:selection/left_alt",
+      "priority": 660,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_alt": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_gizmo"
+    },
+    {
+      "id": "fastformer:selection/left_adjust_gizmo",
+      "priority": 650,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_adjust": true,
+        "selection_remote_gizmo_ready": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_gizmo"
+    },
+    {
+      "id": "fastformer:selection/left_adjust_point",
+      "priority": 645,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_adjust": true,
+        "selection_remote_prism": true,
+        "selection_point_target": true,
+        "selection_select_channel": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_select"
+    },
+    {
+      "id": "fastformer:selection/left_adjust_face",
+      "priority": 640,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_adjust": true,
+        "selection_remote_prism": true,
+        "selection_face_drag_ready": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_face_shrink"
+    },
+    {
+      "id": "fastformer:selection/left_adjust_capture",
+      "priority": 630,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_adjust": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/capture"
+    },
+    {
+      "id": "fastformer:selection/left_cuboid_world",
+      "priority": 620,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_remote_cuboid": true,
+        "selection_world_target": true,
+        "selection_vanilla_pointer": false
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/draft_left"
+    },
+    {
+      "id": "fastformer:selection/left_cuboid_face",
+      "priority": 610,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_remote_cuboid": true,
+        "selection_remote_face_target": true,
+        "selection_vanilla_pointer": false
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_face_shrink"
+    },
+    {
+      "id": "fastformer:selection/left_click_captured",
+      "priority": 600,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_click_captured": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/capture"
+    },
+    {
+      "id": "fastformer:selection/left_drag_captured",
+      "priority": 600,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true,
+        "selection_drag_captured": true
+      },
+      "input": {
+        "button": "left",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/capture"
+    },
+    {
+      "id": "fastformer:selection/right_confirmed_vanilla",
+      "priority": 700,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_confirmed": true,
+        "selection_vanilla_pointer": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:vanilla"
+    },
+    {
+      "id": "fastformer:selection/right_confirmed",
+      "priority": 700,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_confirmed": true,
+        "selection_vanilla_pointer": false
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_gizmo"
+    },
+    {
+      "id": "fastformer:selection/right_vanilla",
+      "priority": 690,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_vanilla_pointer": true,
+        "selection_adjust": false,
+        "selection_alt": false,
+        "selection_point_drag_ready": false
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:vanilla"
+    },
+    {
+      "id": "fastformer:selection/right_alt",
+      "priority": 680,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_alt": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_gizmo"
+    },
+    {
+      "id": "fastformer:selection/right_adjust_gizmo",
+      "priority": 670,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_adjust": true,
+        "selection_remote_gizmo_ready": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_gizmo"
+    },
+    {
+      "id": "fastformer:selection/right_adjust_point",
+      "priority": 665,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_adjust": true,
+        "selection_remote_prism": true,
+        "selection_point_target": true,
+        "selection_select_channel": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_select"
+    },
+    {
+      "id": "fastformer:selection/right_adjust_face",
+      "priority": 660,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_adjust": true,
+        "selection_face_drag_ready": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_face_expand"
+    },
+    {
+      "id": "fastformer:selection/right_adjust_capture",
+      "priority": 650,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_adjust": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/capture"
+    },
+    {
+      "id": "fastformer:selection/right_remote_point",
+      "priority": 640,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_point_target": true,
+        "selection_point_drag_channel": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_point_right"
+    },
+    {
+      "id": "fastformer:selection/right_edge",
+      "priority": 630,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_vanilla_pointer": false,
+        "selection_edge_target": true,
+        "selection_edge_channel": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_edge"
+    },
+    {
+      "id": "fastformer:selection/right_prism_point",
+      "priority": 620,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_vanilla_pointer": false,
+        "selection_remote_prism": true,
+        "selection_candidate": true,
+        "selection_point_channel": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": {
+        "id": "fastformer:selection/remote_next",
+        "duration_ms": 200
+      }
+    },
+    {
+      "id": "fastformer:selection/right_cuboid_point",
+      "priority": 610,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_remote_cuboid": true,
+        "selection_world_target": true,
+        "selection_point_channel": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": {
+        "id": "fastformer:selection/remote_next",
+        "duration_ms": 200
+      }
+    },
+    {
+      "id": "fastformer:selection/right_cuboid_face",
+      "priority": 600,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_remote_cuboid": true,
+        "selection_remote_face_target": true,
+        "selection_face_drag_ready": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_face_expand"
+    },
+    {
+      "id": "fastformer:selection/right_cuboid_face_unavailable",
+      "priority": 600,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_remote_cuboid": true,
+        "selection_remote_face_target": true,
+        "selection_face_drag_ready": false
+      },
+      "input": { "button": "right", "gesture": "press" },
+      "action": "fastformer:vanilla"
+    },
+    {
+      "id": "fastformer:selection/right_close_path",
+      "priority": 590,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_remote_prism": false,
+        "selection_prism_base_open": true,
+        "selection_path_channel": true
+      },
+      "input": {
+        "button": "right",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_close"
+    },
+    {
+      "id": "fastformer:selection/local_point_middle",
+      "priority": 850,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": false
+      },
+      "input": { "button": "middle", "gesture": "press" },
+      "action": "fastformer:selection/point_middle"
+    },
+    {
+      "id": "fastformer:selection/left_empty_capture",
+      "priority": 580,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_left_channel": true
+      },
+      "input": { "button": "left", "gesture": "press" },
+      "action": "fastformer:selection/capture"
+    },
+    {
+      "id": "fastformer:selection/local_alt_capture",
+      "priority": 800,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": true,
+        "selection_alt": true
+      },
+      "input": { "button": "*", "gesture": "press" },
+      "action": "fastformer:block"
+    },
+    {
+      "id": "fastformer:selection/middle_remote_extra",
+      "priority": 580,
+      "context": {
+        "session": "fastformer:selection",
+        "input_phase": "selection_pointer",
+        "selection_local_active": false,
+        "selection_candidate": true,
+        "selection_point_channel": true
+      },
+      "input": {
+        "button": "middle",
+        "gesture": "press"
+      },
+      "action": "fastformer:selection/remote_extra"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.interaction.binding.action.BindingAction;
 import io.github.fastformer.client.interaction.binding.action.ConfirmationCommand;
 import io.github.fastformer.client.interaction.binding.context.BindingContext;
-import io.github.fastformer.client.interaction.binding.context.ConfirmationKeyContext;
+import io.github.fastformer.client.interaction.binding.context.key.ConfirmationKeyContext;
 import io.github.fastformer.client.interaction.binding.data.UserOverrides;
 import io.github.fastformer.testkit.RecordingBindingCommands;
 import java.util.List;

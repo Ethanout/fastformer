@@ -1,6 +1,6 @@
 package io.github.fastformer.common.workspace.geometry;
 
-import io.github.fastformer.common.workspace.preview.WorkspacePreviewComposer;
+import io.github.fastformer.common.workspace.composition.WorkspaceComposer;
 
 import io.github.fastformer.core.math.Axis;
 
@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.fastformer.common.selection.OperationStackRegion;
 import io.github.fastformer.common.workspace.model.WorkspaceTransform;
 import io.github.fastformer.common.workspace.selection.OccupiedBlockBounds;
-import io.github.fastformer.workspace.submission.OperationWorkspaceValidator;
+import io.github.fastformer.common.workspace.submission.OperationWorkspaceValidator;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Budget-gate tests. {@code OperationWorkspaceValidator} and
- * {@code WorkspacePreviewComposer} both call this module, so these tests cover the
+ * {@code WorkspaceComposer} both call this module, so these tests cover the
  * production cap rule itself.
  */
 class WorkspaceGeometryBudgetTest {

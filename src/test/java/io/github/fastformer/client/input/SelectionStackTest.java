@@ -381,6 +381,6 @@ class SelectionStackTest {
    private static void drain() {
       var input = FastPlaceClientInput.inputSession();
       input.drainPhysicalEvents(() -> true, key -> fail(), scroll -> fail(),
-         event -> SelectionInputDispatcher.dispatch(null, input, event));
+         event -> OperationDragController.dispatchSelection(null, input, event));
    }
 }
