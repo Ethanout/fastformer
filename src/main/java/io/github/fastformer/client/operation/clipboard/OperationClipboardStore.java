@@ -1,13 +1,10 @@
 package io.github.fastformer.client.operation.clipboard;
 
+import io.github.fastformer.core.persist.AtomicFiles;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Optional;
-import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
@@ -41,25 +38,11 @@ public final class OperationClipboardStore {
 
    public static void save(Path file, CompoundTag root, Object ticket) throws IOException {
       if (!current(file, ticket)) throw new IOException("Stale file write");
-      Path parent = file.toAbsolutePath().getParent();
-      if (parent != null) {
-         Files.createDirectories(parent);
-      }
-      Path temporary = file.resolveSibling(file.getFileName() + ".tmp-" + UUID.randomUUID());
-      try {
-         try (OutputStream output = Files.newOutputStream(temporary)) {
-            NbtIo.writeCompressed(root, output);
-         }
+      try (var prepared = AtomicFiles.prepare(file, output -> NbtIo.writeCompressed(root, output))) {
          synchronized (OperationClipboardStore.class) {
             if (!current(file, ticket)) throw new IOException("Stale file write");
-            try {
-               Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException exception) {
-               Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
-            }
+            prepared.commit();
          }
-      } finally {
-         Files.deleteIfExists(temporary);
       }
    }
 

@@ -63,6 +63,10 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:session|input|operation\.controller)\./).find()) {
                 violations.add("Clipboard capability depends on its assembly or input caller: ${path}")
             }
+            if (main && source.name == 'OperationClipboardStore.java' &&
+                    (text =~ /(?:Files\.(?:move|createTempFile)|\b(?:AtomicMoveNotSupportedException|StandardCopyOption)\b)/).find()) {
+                violations.add("Client NBT storage must publish through AtomicFiles: ${path}")
+            }
             if (main && packageName.startsWith('io.github.fastformer.client.operation.transform') &&
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:session|input|operation\.controller)\./).find()) {
                 violations.add("Transform capability depends on its assembly or input caller: ${path}")

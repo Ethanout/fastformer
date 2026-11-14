@@ -34,6 +34,17 @@ public final class AtomicFiles {
     * still forced before the atomic rename, and that platform limitation is reported.
     */
    public static void write(Path target, Writer writer) throws IOException {
+      try (PreparedWrite prepared = prepare(target, writer)) {
+         prepared.commit();
+      }
+   }
+
+   /**
+    * Forces a complete temporary file before returning it to the caller. The caller may
+    * validate a generation under its own lock, then commit without holding that lock
+    * during serialization. Closing without a commit discards only the temporary file.
+    */
+   public static PreparedWrite prepare(Path target, Writer writer) throws IOException {
       Objects.requireNonNull(writer, "writer");
       Path absolute = Objects.requireNonNull(target, "target").toAbsolutePath().normalize();
       Files.createDirectories(absolute.getParent());
@@ -50,11 +61,36 @@ public final class AtomicFiles {
             output.flush();
             channel.force(true);
          }
-         move(temporary, absolute);
+         return new PreparedWrite(temporary, absolute);
       } catch (IOException | RuntimeException | Error failure) {
          try { Files.deleteIfExists(temporary); }
          catch (IOException cleanup) { failure.addSuppressed(cleanup); }
          throw failure;
+      }
+   }
+
+   /** A single-owner replacement; commit and close must not run concurrently. */
+   public static final class PreparedWrite implements AutoCloseable {
+      private final Path temporary;
+      private final Path target;
+      private boolean closed;
+
+      private PreparedWrite(Path temporary, Path target) {
+         this.temporary = temporary;
+         this.target = target;
+      }
+
+      /** Publishes once using the same atomic rename and directory sync as write(). */
+      public void commit() throws IOException {
+         if (closed) throw new IllegalStateException("Prepared file is already closed");
+         move(temporary, target);
+         closed = true;
+      }
+
+      @Override public void close() throws IOException {
+         if (closed) return;
+         Files.deleteIfExists(temporary);
+         closed = true;
       }
    }
 
