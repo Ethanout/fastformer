@@ -18,7 +18,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.operation.input` / `client.quickshape.input` | 选区操作与快速起形各自的输入规则、事件和捕获状态 |
 | `client.interaction.intent` | 交互上下文与意图解析 |
 | `client.interaction.pointer` | 所属输入环境的方块射线采样；按用途缓存，命中与距离共同返回 |
-| `client.mode` / `builtin` | 冻结的模式注册表、工作流观察、阶段输入策略和内置模式声明 |
+| `client.mode` / `builtin` / `input` | 冻结的模式注册表、工作流观察、阶段策略、各模式滚轮处理及不可变输入事实／命令 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
 | `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、编辑上下文、选区、工作区和暂存草稿 |
 | `client.session.receipt` | 作用域回执仓库：缓存、严格读取、文件保护、明确重试和驱逐条件 |

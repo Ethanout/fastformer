@@ -4,6 +4,10 @@ import static io.github.fastformer.client.input.state.ClientInputStateMachine.Di
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
 import io.github.fastformer.client.mode.ClientMode;
+import io.github.fastformer.client.mode.input.CandidateScrollRules;
+import io.github.fastformer.client.mode.input.ScrollDecision;
+import io.github.fastformer.client.mode.input.ScrollInput;
+import io.github.fastformer.client.mode.input.ScrollView;
 import io.github.fastformer.client.mode.ModeInputPolicy;
 import io.github.fastformer.client.mode.ModeObservation;
 import java.util.Map;
@@ -15,6 +19,9 @@ public final class QuickShapeMode implements ClientMode {
 
    @Override public String id() { return "fastformer:quick_shape"; }
    @Override public int priority() { return 100; }
+   @Override public ScrollDecision onScroll(ScrollInput input, ScrollView view) {
+      return CandidateScrollRules.decide(input, view);
+   }
    @Override public Map<State, ModeInputPolicy> phases() { return PHASES; }
    @Override public Optional<State> observe(ModeObservation observation) {
       return observation.buildingSession() ? Optional.of(State.BUILDING) : Optional.empty();

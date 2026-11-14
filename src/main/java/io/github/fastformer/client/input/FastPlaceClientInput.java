@@ -7,7 +7,6 @@ import io.github.fastformer.client.input.mouse.MouseButtonInputSemantics;
 import io.github.fastformer.client.input.mouse.MouseDragReleaseSemantics;
 import io.github.fastformer.client.input.mouse.MousePressRoutingSemantics;
 import io.github.fastformer.client.input.policy.CancelInputSemantics;
-import io.github.fastformer.client.input.policy.ScrollInputSemantics;
 import io.github.fastformer.client.input.state.ClientInputStateMachine;
 import io.github.fastformer.client.input.state.ClientSemanticEvent;
 import io.github.fastformer.client.input.state.InputContextBoundary;
@@ -1600,18 +1599,17 @@ public final class FastPlaceClientInput {
    public static void onMouseScroll(MouseScrollingEvent event) {
       if (QuickReplaceMode.active()) return;
       synchronizeInputState();
-      ClientInputStateMachine.Dispatch inputRoute = inputSession().routing.dispatch(ClientInputStateMachine.InputKind.SCROLL);
       Minecraft minecraft = Minecraft.getInstance();
       boolean sessionReady = minecraft.player != null && minecraft.screen == null;
       boolean candidateChannelAvailable = minecraft.getConnection() != null
          && NetworkRegistry.hasChannel(minecraft.getConnection(), ScrollCandidatePayload.TYPE.id());
-      ScrollInputSemantics.Decision scroll = ScrollInputSemantics.decide(
-         event.getScrollDeltaY(),
-         inputRoute,
+      var scroll = ClientModes.registry().onScroll(inputSession().routing.state(),
+         new io.github.fastformer.client.mode.input.ScrollInput(event.getScrollDeltaY()),
+         new io.github.fastformer.client.mode.input.ScrollView(
          sessionReady && ClientSessionSystem.instance().operations().active(),
          sessionReady && candidateChannelAvailable && FastPlaceClientPreviewCore.usesScrollContext(),
          modifierInputRoute(ModifierInput.SCROLL) == ModifierInputRoute.VANILLA,
-         sessionReady && InteractionContext.vanillaOwnsPointer(minecraft)
+         sessionReady && InteractionContext.vanillaOwnsPointer(minecraft))
       );
       switch (scroll.command()) {
          case BLOCK -> event.setCanceled(true);

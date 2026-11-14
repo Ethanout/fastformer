@@ -1,6 +1,9 @@
 package io.github.fastformer.client.mode;
 
 import io.github.fastformer.client.input.state.ClientInputStateMachine.State;
+import io.github.fastformer.client.mode.input.ScrollDecision;
+import io.github.fastformer.client.mode.input.ScrollInput;
+import io.github.fastformer.client.mode.input.ScrollView;
 import io.github.fastformer.core.registry.Registry;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -12,6 +15,7 @@ import java.util.Objects;
 public final class ClientModeRegistry {
    private final Registry<String, Definition> modes = Registry.create("client modes");
    private final EnumMap<State, ModeInputPolicy> policies = new EnumMap<>(State.class);
+   private final EnumMap<State, Definition> owners = new EnumMap<>(State.class);
    private List<Definition> ordered;
 
    public void register(ClientMode mode) {
@@ -24,8 +28,10 @@ public final class ClientModeRegistry {
       for (State state : phases.keySet()) {
          if (policies.containsKey(state)) throw new IllegalArgumentException("Client phase already owned: " + state);
       }
-      modes.register(id, new Definition(id, mode, mode.priority(), phases, mode.interactive()));
+      var definition = new Definition(id, mode, mode.priority(), phases, mode.interactive());
+      modes.register(id, definition);
       policies.putAll(phases);
+      phases.keySet().forEach(state -> owners.put(state, definition));
    }
 
    public ClientModeRegistry freeze() {
@@ -59,6 +65,17 @@ public final class ClientModeRegistry {
    public ModeInputPolicy policy(State state) {
       ordered();
       return Objects.requireNonNull(policies.get(Objects.requireNonNull(state, "state")), "phase policy");
+   }
+
+   public ScrollDecision onScroll(State state, ScrollInput input, ScrollView view) {
+      ordered();
+      Definition owner = owners.get(Objects.requireNonNull(state, "state"));
+      ScrollDecision result = Objects.requireNonNull(owner.mode().onScroll(
+         Objects.requireNonNull(input, "input"), Objects.requireNonNull(view, "view")), "scroll decision");
+      if (result.command() == ScrollDecision.Command.NONE && owner != owners.get(State.IDLE)) {
+         return Objects.requireNonNull(owners.get(State.IDLE).mode().onScroll(input, view), "idle scroll decision");
+      }
+      return result;
    }
 
    private List<Definition> ordered() {
