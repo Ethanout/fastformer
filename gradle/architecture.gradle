@@ -28,6 +28,7 @@ abstract class VerifySourceLayout extends DefaultTask {
                     packageName.startsWith('io.github.fastformer.server.worldwrite') ||
                     packageName.startsWith('io.github.fastformer.server.intent') ||
                     packageName.startsWith('io.github.fastformer.server.command') ||
+                    packageName.startsWith('io.github.fastformer.client.session.lifecycle') ||
                     packageName.startsWith('io.github.fastformer.server.network.upload') ||
                     packageName.startsWith('io.github.fastformer.protocol.') ||
                     packageName.startsWith('io.github.fastformer.common.history') ||
@@ -134,6 +135,10 @@ abstract class VerifySourceLayout extends DefaultTask {
             }
             if (main && (dependencies =~ /\bFastPlaceCommandRegistry\b|io\.github\.fastformer\.fastplace\.command\./).find()) {
                 violations.add("Retired monolithic command registration: ${path}")
+            }
+            if (main && packageName.startsWith('io.github.fastformer.client.render') &&
+                    (dependencies =~ /(?:ClientPlayerNetworkEvent\.LoggingOut|LevelEvent\.Unload|\bPreviewSessionLifecycle\b|\.onDisconnected\s*\()/).find()) {
+                violations.add("Rendering owns client world-boundary events or cross-system cleanup: ${path}")
             }
             if (main && source.name == 'ServerInputDispatcher.java' &&
                     (text =~ /\bselectGeometryMode\s*\(/).find()) {

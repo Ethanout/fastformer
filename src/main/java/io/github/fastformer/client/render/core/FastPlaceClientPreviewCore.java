@@ -129,7 +129,6 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut;
 import net.neoforged.neoforge.client.event.RenderGuiEvent.Post;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage;
@@ -192,44 +191,6 @@ public final class FastPlaceClientPreviewCore {
    private static GeometryPreviewPlan cachedGeometryRenderSource;
    private static GeometryRenderLayers cachedGeometryRenderLayers = GeometryRenderLayers.empty();
    private static boolean smoothReticleFrame;
-   private static final PreviewSessionLifecycle WORLD_SESSION_LIFECYCLE = new PreviewSessionLifecycle(
-      new PreviewSessionLifecycle.StateOwner() {
-         @Override
-         public void endInputSession() {
-            FastPlaceClientInput.endWorldSession();
-         }
-
-         @Override
-         public void clearSourceMask() {
-            ClientOperationController.sourceMask().clear();
-         }
-
-         @Override
-         public void resetPreviewSession() {
-            PREVIEW_STATE.resetConnection();
-         }
-
-         @Override
-         public void disconnectOperation() {
-            ClientOperationController.onDisconnected();
-         }
-
-         @Override
-         public void clearInteractionCache() {
-            WorkspaceInteractionResolver.clearCache();
-         }
-
-         @Override
-         public void clearFeedback() {
-            FEEDBACK.clear();
-         }
-
-         @Override
-         public void clearWorldRenderState() {
-            FastPlaceClientPreviewCore.clearWorldRenderState();
-         }
-      }
-   );
 
    private FastPlaceClientPreviewCore() {
    }
@@ -330,9 +291,7 @@ public final class FastPlaceClientPreviewCore {
       // Hover acceleration and transient HUD feedback belong to the focused
       // world view. Do not carry either across a menu, pause screen, or world
       // boundary where the crosshair is no longer selecting a block.
-      WORLD_SESSION_LIFECYCLE.clearFeedbackWithoutFocusedWorld(
-         minecraft.player != null && minecraft.level != null && minecraft.screen == null
-      );
+      if (minecraft.player == null || minecraft.level == null || minecraft.screen != null) FEEDBACK.clear();
       if (minecraft.player != null && minecraft.level != null && minecraft.screen == null && minecraft.isWindowActive()) {
          BUILDING_CACHE.applyBuildingPreviewResults();
       }
@@ -2287,25 +2246,12 @@ public final class FastPlaceClientPreviewCore {
       );
    }
 
-   @SubscribeEvent
-   public static void onLoggingOut(LoggingOut event) {
-      endWorldSession();
+   /** Resets preview ownership at a world boundary; lifecycle ordering belongs to WorldSessionEvents. */
+   public static void resetConnectionState() {
+      PREVIEW_STATE.resetConnection();
    }
 
-   @SubscribeEvent
-   public static void onClientLevelUnload(net.neoforged.neoforge.event.level.LevelEvent.Unload event) {
-      if (event.getLevel().isClientSide()) {
-         endWorldSession();
-      }
-   }
-
-   private static void endWorldSession() {
-      // A replayed preview session must be confirmed before it becomes visible again.
-      // A connection that replays nothing active cancels the pending restore instead.
-      WORLD_SESSION_LIFECYCLE.endWorldSession();
-   }
-
-   private static void clearWorldRenderState() {
+   public static void clearWorldRenderState() {
       geometryTransformBaseline = null;
       OPERATION_FACE_INTERPOLATOR.reset();
       worldPreviewOpacity = 1.0F;

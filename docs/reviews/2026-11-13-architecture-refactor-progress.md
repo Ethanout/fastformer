@@ -393,3 +393,10 @@
 - `common.math.BlockQuads` 统一四边形对角坐标和判定，QuadFaceRasterizer、PlanarFaceRasterizer 和 TranslatedScanFaceRasterizer 直接复用；删除 BresenhamFaceSweep 中无调用者的重复方法。
 - 保留整数 long 求和避免溢出、浮点顶点先按 BlockPos.containing 落格、按周边排列顶点以及退化仍可能满足恒等式的原有语义。落格入口不再创建流和中间列表，其他几何／预算校验归生成器。
 - 新增整数极值、退化、顺序、负坐标落格和随机公式对照测试。`.temp/architecture-block-quads-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过，正常停服。体素等其余数学原语及客户端／Mode 等主线仍未完成。
+
+## 世界离开事件迁出渲染（2026-11-14）
+
+- `client.session.lifecycle.WorldSessionEvents` 统一接收客户端登出和世界卸载；删除渲染包的 `PreviewSessionLifecycle` 以及 Core 中的生命周期装配和事件订阅。渲染保留自身连接快照／资源重置，不再反向发起输入和选区断线清理。
+- `WorldSessionLifecycle` 复用 `Scope.detach`，保持输入 → 源遮罩 → 预览 → 选区断线 → 交互缓存 → 反馈 → 渲染资源的顺序。一项清理失败仍继续其余参与者，最后汇总；重复离开事件不丢失资源。聚焦状态仅清反馈的逻辑仍归预览 tick。
+- 测试迁至实际生命周期包，验证顺序、多处故障后的完整清理和重复边界。架构检查禁止渲染重新订阅世界离开事件或调用选区断线清理；首次检查捕获 CRLF 导致的未命中残留，修正后通过。
+- `.temp/architecture-world-session-events-final-verified.log`：完整 check 与独立新目录全量 312 项必需 GameTest 通过，正常停服。完整 ClientScope、编辑器实例化、Mode、PreviewFrame、PointerResolver 和长按实机验收仍未完成。实际试玩存档未清除。

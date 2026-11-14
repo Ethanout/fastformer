@@ -34,7 +34,7 @@ import net.minecraft.world.phys.HitResult.Type;
 import net.minecraft.world.phys.Vec3;
 
 /** Resolves operation pointer targets against the persistent client workspace. */
-final class WorkspaceInteractionResolver {
+public final class WorkspaceInteractionResolver {
    private static final double REACH = LongRangeBlockRaycast.MAX_REACH;
    private static final IdentityHashMap<ClientSelectionPart, Map<BlockPos, ClientBlockSnapshot>> RESOLVED_CACHE =
       new IdentityHashMap<>();
@@ -65,7 +65,7 @@ final class WorkspaceInteractionResolver {
          .orElse(null);
    }
 
-   static void clearCache() {
+   public static void clearCache() {
       RESOLVED_CACHE.clear();
       resolvedCacheRevision = Long.MIN_VALUE;
    }
