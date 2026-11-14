@@ -78,6 +78,10 @@ abstract class VerifySourceLayout extends DefaultTask {
             if (main && (text =~ /\b(?:lastOperationFailureKey|submittedPartIds|submittedDraft)\b/).find()) {
                 violations.add("Submission scope and action failures must use explicit values: ${path}")
             }
+            if (main && packageName == 'io.github.fastformer.client.session.submission' &&
+                    (dependencies =~ /io\.github\.fastformer\.client\.(?:session\.ClientSessionSystem|input\.|render\.|operation\.controller\.)/).find()) {
+                violations.add("Submission persistence must use its frozen scope and injected ports: ${path}")
+            }
             if (main && (text =~ /\b(?:[\w]+GameTests|[\w]*TestAccess|RecoveryProcessTests)\b/).find()) {
                 violations.add("Production source depends on test harness: ${path}")
             }

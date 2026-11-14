@@ -51,25 +51,25 @@ class AsyncSubmissionPersistenceTest {
          var part = new ClientSelectionPart(1, ClientSelectionPart.Source.CLIPBOARD, null, blocks, WorkspaceTransform.IDENTITY, false);
          assertTrue(session.workspace().addParts(List.of(part)));
          plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));
-         assertTrue(manager.prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, accepted, plan, () -> true, submission -> {
+         assertTrue(manager.submissions().prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, accepted, plan, () -> true, submission -> {
             assertNotNull(submission);
             published.set(true);
          }));
       }
       UUID rejected = UUID.randomUUID();
-      assertFalse(manager.prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, rejected, plan, () -> true,
+      assertFalse(manager.submissions().prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, rejected, plan, () -> true,
          submission -> fail("Rejected submission completed")));
-      assertTrue(manager.receiptStore(key).find(rejected).isEmpty());
+      assertTrue(manager.submissions().store(manager.forScope(key)).find(rejected).isEmpty());
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
       while (!published.get() && System.nanoTime() < deadline) { manager.drainStorageResults(); Thread.yield(); }
       assertTrue(published.get());
-      assertEquals(OperationSubmissionOutcome.IN_FLIGHT, manager.receiptStore(key).find(accepted).orElseThrow().outcome());
+      assertEquals(OperationSubmissionOutcome.IN_FLIGHT, manager.submissions().store(manager.forScope(key)).find(accepted).orElseThrow().outcome());
       while (System.nanoTime() < deadline) {
          manager.drainStorageResults();
-         if (keys.stream().noneMatch(savedKey -> manager.receiptStore(savedKey).dirty())) break;
+         if (keys.stream().noneMatch(savedKey -> manager.submissions().store(manager.forScope(savedKey)).dirty())) break;
          Thread.yield();
       }
-      assertTrue(keys.stream().noneMatch(savedKey -> manager.receiptStore(savedKey).dirty()));
+      assertTrue(keys.stream().noneMatch(savedKey -> manager.submissions().store(manager.forScope(savedKey)).dirty()));
    }
 
    private void exercise(boolean cancelled) throws Exception {
@@ -86,7 +86,7 @@ class AsyncSubmissionPersistenceTest {
       assertTrue(session.workspace().addParts(List.of(part)));
       var plan = new OperationWorkspacePlan(List.of(new OperationWorkspacePlan.Part(1, part.source(), blocks, part.transform(), false)));
       var published = new AtomicBoolean();
-      assertTrue(manager.prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, transfer, plan, () -> !cancelled, submission -> {
+      assertTrue(manager.submissions().prepareSubmission(null, OperationSubmissionOrigin.LOCAL_ONLY, transfer, plan, () -> !cancelled, submission -> {
          assertNotNull(submission);
          assertTrue(Files.exists(draft));
          assertTrue(Files.exists(receipt));
@@ -96,15 +96,15 @@ class AsyncSubmissionPersistenceTest {
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
       while (System.nanoTime() < deadline) {
          manager.drainStorageResults();
-         var state = manager.receiptStore(key).find(transfer).orElseThrow().outcome();
-         if ((!cancelled && published.get()) || (cancelled && state == OperationSubmissionOutcome.FAILED_RETRYABLE && !manager.receiptStore(key).dirty())) break;
+         var state = manager.submissions().store(manager.forScope(key)).find(transfer).orElseThrow().outcome();
+         if ((!cancelled && published.get()) || (cancelled && state == OperationSubmissionOutcome.FAILED_RETRYABLE && !manager.submissions().store(manager.forScope(key)).dirty())) break;
          Thread.yield();
       }
       assertEquals(!cancelled, published.get());
       assertTrue(OperationClipboardStore.loadStrict(draft).isPresent());
       if (cancelled) {
-         assertEquals(OperationSubmissionOutcome.FAILED_RETRYABLE, manager.receiptStore(key).find(transfer).orElseThrow().outcome());
-         assertFalse(manager.receiptStore(key).dirty());
+         assertEquals(OperationSubmissionOutcome.FAILED_RETRYABLE, manager.submissions().store(manager.forScope(key)).find(transfer).orElseThrow().outcome());
+         assertFalse(manager.submissions().store(manager.forScope(key)).dirty());
       }
    }
 }

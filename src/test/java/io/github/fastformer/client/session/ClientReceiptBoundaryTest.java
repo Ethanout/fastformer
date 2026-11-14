@@ -62,7 +62,7 @@ class ClientReceiptBoundaryTest {
       Path receiptFile = this.directory.resolve("receipts.nbt.gz");
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
-      assertTrue(manager.receiptStore(key).readOnly());
+      assertTrue(manager.submissions().store(manager.forScope(key)).readOnly());
       assertEquals(ReceiptReadState.RETRYABLE_FAILURE, manager.forScope(key).receipts().readState());
 
       session.drafts().useFile(draftFile);
@@ -151,7 +151,7 @@ class ClientReceiptBoundaryTest {
       Path receiptFile = this.directory.resolve("receipts.nbt.gz");
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
-      assertTrue(manager.receiptStore(key).readOnly());
+      assertTrue(manager.submissions().store(manager.forScope(key)).readOnly());
       assertEquals(ReceiptReadState.RETRYABLE_FAILURE, manager.currentScope().receipts().readState());
 
       // Leaving and entering the environment again is the retry boundary. The state clears,
@@ -164,7 +164,7 @@ class ClientReceiptBoundaryTest {
       OperationSubmissionReceiptStore receipts = new OperationSubmissionReceiptStore();
       receipts.record(receipt(UUID.randomUUID(), OperationSubmissionOutcome.APPLIED));
       receipts.save(receiptFile);
-      assertFalse(manager.receiptStore(key).readOnly());
+      assertFalse(manager.submissions().store(manager.forScope(key)).readOnly());
    }
 
    @Test
@@ -181,7 +181,7 @@ class ClientReceiptBoundaryTest {
       OperationClipboardStore.save(receiptFile, future);
       manager.forScope(key).receipts().useFile(receiptFile);
 
-      assertTrue(manager.receiptStore(key).readOnly());
+      assertTrue(manager.submissions().store(manager.forScope(key)).readOnly());
       assertEquals(ReceiptReadState.VERSION_INCOMPATIBLE, manager.currentScope().receipts().readState());
 
       // A newer format does not clear at an environment boundary, because only a newer
@@ -189,9 +189,9 @@ class ClientReceiptBoundaryTest {
       manager.activateScope(playerId, "boundary-other", "minecraft:overworld");
       manager.activateScope(playerId, "boundary-f", "minecraft:overworld");
       assertEquals(ReceiptReadState.VERSION_INCOMPATIBLE, manager.currentScope().receipts().readState());
-      assertTrue(manager.retryCurrentReceiptLoad());
+      assertTrue(manager.submissions().retryLoad());
       assertEquals(ReceiptReadState.NOT_LOADED, manager.currentScope().receipts().readState());
-      assertTrue(manager.receiptStore(key).readOnly());
+      assertTrue(manager.submissions().store(manager.forScope(key)).readOnly());
    }
 
    @Test
@@ -201,7 +201,7 @@ class ClientReceiptBoundaryTest {
       manager.activateScope(session.id().playerId(), "boundary-g", "minecraft:overworld");
 
       // Nothing failed for this scope, so there is no retry to make.
-      assertFalse(manager.retryCurrentReceiptLoad());
+      assertFalse(manager.submissions().retryLoad());
    }
 
    // ---- settlement without a usable record ----
@@ -218,7 +218,7 @@ class ClientReceiptBoundaryTest {
       Files.writeString(receiptFile, "not compressed nbt");
       manager.forScope(key).receipts().useFile(receiptFile);
 
-      OperationDraftSettlement.Applied applied = manager.settleAppliedSubmission(transferId);
+      OperationDraftSettlement.Applied applied = manager.submissions().settleAppliedSubmission(transferId);
 
       // The record is not durable, because the file cannot be read. The client must not
       // treat "no evidence" as proof that the submission was settled.
@@ -235,7 +235,7 @@ class ClientReceiptBoundaryTest {
       ClientScopeId key = session.id();
       manager.forScope(key).receipts().useFile(this.directory.resolve("receipts.nbt.gz"));
 
-      OperationDraftSettlement.Applied applied = manager.settleAppliedSubmission(transferId);
+      OperationDraftSettlement.Applied applied = manager.submissions().settleAppliedSubmission(transferId);
 
       // A readable file with no entry owes nothing, and nothing changed, so the durable
       // record is complete. This is the case that must stay confirmed.
@@ -256,7 +256,7 @@ class ClientReceiptBoundaryTest {
       receipts.save(receiptFile);
       manager.forScope(key).receipts().useFile(receiptFile);
 
-      OperationDraftSettlement.Applied applied = manager.settleAppliedSubmission(transferId);
+      OperationDraftSettlement.Applied applied = manager.submissions().settleAppliedSubmission(transferId);
 
       assertTrue(applied.recordSaved());
       OperationSubmissionReceipt stored =
@@ -278,14 +278,14 @@ class ClientReceiptBoundaryTest {
       manager.forScope(key).receipts().useFile(receiptFile);
 
       UUID transferId = UUID.randomUUID();
-      OperationSubmissionReceiptStore receipts = manager.receiptStore(key);
+      OperationSubmissionReceiptStore receipts = manager.submissions().store(manager.forScope(key));
       receipts.record(receipt(transferId, OperationSubmissionOutcome.APPLIED));
       assertTrue(receipts.dirty());
 
       // The record is in memory and the disk is empty. Removing it here changes nothing,
       // but this call must still write, because the store is the only owner of the pending
       // write and no other call is coming.
-      assertTrue(manager.forgetSubmissionReceipt(transferId));
+      assertTrue(manager.submissions().forgetSubmissionReceipt(transferId));
       assertFalse(receipts.dirty());
       assertFalse(Files.exists(receiptFile));
    }
@@ -300,13 +300,13 @@ class ClientReceiptBoundaryTest {
       manager.forScope(key).receipts().useFile(receiptFile);
 
       UUID known = UUID.randomUUID();
-      OperationSubmissionReceiptStore receipts = manager.receiptStore(key);
+      OperationSubmissionReceiptStore receipts = manager.submissions().store(manager.forScope(key));
       receipts.record(receipt(known, OperationSubmissionOutcome.APPLIED));
       assertTrue(receipts.dirty());
 
       // This call changes nothing for the unknown id, and it must still flush the pending
       // write of the known record.
-      assertFalse(manager.updateSubmissionReceipt(
+      assertFalse(manager.submissions().updateSubmissionReceipt(
          UUID.randomUUID(), OperationSubmissionOutcome.FAILED_RETRYABLE, 10L
       ));
       assertFalse(receipts.dirty());
@@ -327,7 +327,7 @@ class ClientReceiptBoundaryTest {
 
       UUID transferId = UUID.randomUUID();
       UUID keeper = UUID.randomUUID();
-      OperationSubmissionReceiptStore receipts = manager.receiptStore(key);
+      OperationSubmissionReceiptStore receipts = manager.submissions().store(manager.forScope(key));
       assertFalse(receipts.readOnly());
       Files.writeString(blocker, "x");
       receipts.record(receipt(transferId, OperationSubmissionOutcome.APPLIED));
@@ -337,14 +337,14 @@ class ClientReceiptBoundaryTest {
       receipts.record(receipt(keeper, OperationSubmissionOutcome.APPLIED));
 
       // The write fails, and the store reports that it still differs from the disk.
-      assertFalse(manager.forgetSubmissionReceipt(transferId));
+      assertFalse(manager.submissions().forgetSubmissionReceipt(transferId));
       assertTrue(receipts.dirty());
       assertTrue(receipts.find(keeper).isPresent(), "the removal dropped another receipt");
 
       // The blocker leaves. The next mutator call writes the pending change, so no write is
       // stranded by the early return of the call that produced it.
       Files.delete(blocker);
-      assertFalse(manager.updateSubmissionReceipt(
+      assertFalse(manager.submissions().updateSubmissionReceipt(
          UUID.randomUUID(), OperationSubmissionOutcome.UNKNOWN, 20L
       ));
       assertFalse(receipts.dirty());
@@ -372,8 +372,8 @@ class ClientReceiptBoundaryTest {
       // The receipt file is repaired. The explicit retry boundary clears the failed read, so
       // the next use reads the file again and answers the question the draft waited for.
       Files.delete(receiptFile);
-      assertTrue(manager.retryCurrentReceiptLoad());
-      assertFalse(manager.receiptStore(key).readOnly());
+      assertTrue(manager.submissions().retryLoad());
+      assertFalse(manager.submissions().store(manager.forScope(key)).readOnly());
 
       assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
       assertTrue(session.suspendedOperationDraft(), "the repaired receipt did not release the draft");
@@ -422,7 +422,7 @@ class ClientReceiptBoundaryTest {
       receipts.record(receipt(transferId, OperationSubmissionOutcome.APPLIED));
       Files.delete(receiptFile);
       receipts.save(receiptFile);
-      assertTrue(manager.retryCurrentReceiptLoad());
+      assertTrue(manager.submissions().retryLoad());
 
       assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
       assertFalse(session.suspendedOperationDraft(), "an applied submission returned to the editor");
@@ -455,7 +455,7 @@ class ClientReceiptBoundaryTest {
       assertFalse(Files.exists(draftFile), "the explicit discard left the draft file");
 
       Files.delete(receiptFile);
-      assertTrue(manager.retryCurrentReceiptLoad());
+      assertTrue(manager.submissions().retryLoad());
 
       assertEquals(ClientDraftLoadState.READY, manager.attemptDraftLoad(session, null));
       assertFalse(session.suspendedOperationDraft(), "a discarded draft returned to the editor");

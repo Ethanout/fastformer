@@ -68,7 +68,7 @@ public final class OperationContext {
    private final SelectionDeletions deletions;
    private final OperationSubmissions submissions;
    private final OperationPreviewState preview = new OperationPreviewState();
-   private final OperationReceipts receipts = new OperationReceipts(ClientSessionSystem::instance,
+   private final OperationReceipts receipts = new OperationReceipts(() -> ClientSessionSystem.instance().submissions(),
       () -> {
          var minecraft = Minecraft.getInstance();
          return !ownsCurrentInteraction() || minecraft == null || minecraft.getConnection() == null || minecraft.level == null
@@ -80,7 +80,7 @@ public final class OperationContext {
    private final ClientSelectionSession selection;
 
    public OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard) {
-      this(selection, clipboard, ClientSessionSystem::instance, ClientSubmissionEnvironment::new);
+      this(selection, clipboard, () -> ClientSessionSystem.instance().submissions(), ClientSubmissionEnvironment::new);
    }
 
    OperationContext(ClientSelectionSession selection, OperationClipboardRepository clipboard,

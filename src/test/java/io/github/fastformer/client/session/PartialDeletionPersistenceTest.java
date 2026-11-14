@@ -39,13 +39,13 @@ class PartialDeletionPersistenceTest {
       OperationClipboardStore.save(file, ClientOperationDraftCodec.encode(original));
       manager.currentScope().stageSuspendedOperationDraft(original);
 
-      assertTrue(manager.clearDraftCopies(UUID.randomUUID()).confirmed());
+      assertTrue(manager.submissions().clearDraftCopies(UUID.randomUUID()).confirmed());
       assertEquals(original, ClientOperationDraftCodec.decode(OperationClipboardStore.loadStrict(file).orElseThrow(), null));
-      assertTrue(manager.clearDraftCopies(transfer).confirmed());
+      assertTrue(manager.submissions().clearDraftCopies(transfer).confirmed());
       var expected = original.remainder().asDraft();
       assertEquals(expected, manager.currentScope().suspendedOperationDraftData());
       assertEquals(expected, ClientOperationDraftCodec.decode(OperationClipboardStore.loadStrict(file).orElseThrow(), null));
-      assertTrue(manager.clearDraftCopies(transfer).confirmed());
+      assertTrue(manager.submissions().clearDraftCopies(transfer).confirmed());
       assertTrue(manager.currentScope().restoreSuspendedOperationDraft(null));
       assertEquals(expected.selection(), manager.currentScope().selectionSession().draftState());
    }
