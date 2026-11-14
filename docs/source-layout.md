@@ -95,6 +95,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 
 起形数值、角度、距离与阶段模式使用 `QuickShapeIntents`；选区提交、复制及模式选择使用 `SelectionIntents`。命令提交保留直接应用语义，网络提交仍先校验请求顺序、继续交互门禁及已确认状态，不把两种入口强行合并为同一业务行为。处理器负责参数边界与失败反馈，命令只解析并构造意图。
 
+选区点选、增删点、闭合底面、拖点、扩展及延伸同样构造 `SelectionIntents`；坐标在意图构造时冻结。网络输入先核对所属预览、revision、请求序列和完整手势，再派发业务动作；拖动结束仍在原 finally 中更新完成 revision。业务处理器统一执行活动选区与编辑门禁，延伸步数仍限制为每包 128；不把协议身份校验移入领域动作。
+
 `CommandSystem` 装配 `/ff` 和 `/fastformer`；删除旧注册类及旧包路径，不保留转发。编辑语法由起形、几何、旋转和选区模块分别声明。`CommandParameter` 同时声明 Brigadier 参数和类型明确的读取方式，`IntentCommands` 生成有序参数链；`CommandChoices` 冻结模式词汇及既有用法提示，保留不同入口先校验准入或先校验词汇的顺序。Reach 属性查询和管理员清理仍保留专用源上下文处理，整个命令迁移尚未完成。
 
 设置命令构造共享 `SettingRequest` 或 `PlayerSettingsIntents`，状态修改、查询、界面数据装配和预览同步归 `server.settings`。共享设置绑定按来源保留现有同步行为；命令历史限额查询／修改要求编辑可用，网络设置不因此新增门禁；网络不支持的查询仍返回未处理。强制放置命令的源上下文反馈留在适配层。`CommandAdmission` 统一拒绝反馈，`SessionSystem.stopUnavailable` 持有不可用时的取消组合；输入分发器不再提供清理转发。

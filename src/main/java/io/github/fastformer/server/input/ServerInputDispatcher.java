@@ -183,22 +183,11 @@ public final class ServerInputDispatcher {
    }
 
    public static void middleClick(ServerPlayer player, BlockPos point) {
-      if (!interactionBlocked(player) && canOperate(player) && OperationSystem.of(player).active(player)) {
-         OperationSystem.of(player).session(player).ifPresent(session -> {
-            if (session.selectionMode() == OperationSelectionMode.CUBOID) {
-               OperationSystem.of(player).expandTo(player, point);
-            } else {
-               OperationSystem.of(player).addExtraPoint(player, point);
-            }
-         });
-      }
+      PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SelectionIntents.Expand(point));
    }
 
    public static void extend(ServerPlayer player, int axis, boolean positive, int steps, boolean finish) {
-      if (interactionBlocked(player) || !canOperate(player) || !OperationSystem.of(player).active(player)) {
-         return;
-      }
-      OperationSystem.of(player).extend(player, axis, positive, clampDragSteps(steps), finish);
+      PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, new SelectionIntents.Extend(axis, positive, steps, finish));
    }
 
    public static void operationSelectPoint(ServerPlayer player, OperationSelectPointPayload payload) {
@@ -206,7 +195,7 @@ public final class ServerInputDispatcher {
          || !payload.callbackScope().equals(PreviewSync.callbackScope(player))
          || interactionBlocked(player) || !canOperate(player) || !OperationSystem.of(player).active(player)
          || !acceptsOperationCommand(player, payload.requestId())) return;
-      OperationSystem.of(player).selectPoint(player, payload.index());
+      PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, payload.requestId(), new SelectionIntents.SelectPoint(payload.index()));
    }
 
    public static void operationPointDrag(ServerPlayer player, OperationPointDragPayload payload) {
@@ -216,7 +205,8 @@ public final class ServerInputDispatcher {
       OperationPointGesture gesture = acceptsOperationPointDrag(player, payload);
       if (gesture == null) return;
       try {
-         OperationSystem.of(player).dragPoint(player, payload.pointIndex(), payload.target(), payload.constraint(), payload.finish());
+         PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, payload.gestureId(),
+            new SelectionIntents.DragPoint(payload.pointIndex(), payload.target(), payload.constraint(), payload.finish()));
       } finally {
          if (payload.finish()) {
             ServerInputState.of(player).pointGesture = gesture.finished(PreviewSync.operationRevision(player));
@@ -242,7 +232,8 @@ public final class ServerInputDispatcher {
          || !active.scope().equals(payload.callbackScope()) || active.axis() != payload.axis() || active.positive() != payload.positive()) {
          return;
       }
-      extend(player, payload.axis(), payload.positive(), payload.steps(), payload.finish());
+      PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, payload.requestId(),
+         new SelectionIntents.Extend(payload.axis(), payload.positive(), payload.steps(), payload.finish()));
       if (payload.finish()) ServerInputState.of(player).extendGesture = null;
    }
 
@@ -276,10 +267,10 @@ public final class ServerInputDispatcher {
          || !payload.callbackScope().equals(PreviewSync.callbackScope(player))) return;
       if (payload.action() == OperationPointClickPayload.Action.CLOSE) {
          ServerInputState.of(player).pointGesture = completed.markConsumed();
-         OperationSystem.of(player).closePrismBase(player);
+         PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, payload.gestureId(), new SelectionIntents.CloseBase());
       } else {
          ServerInputState.of(player).pointGesture = completed.markConsumed();
-         OperationSystem.of(player).removePoint(player, payload.pointIndex());
+         PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, payload.gestureId(), new SelectionIntents.RemovePoint(payload.pointIndex()));
       }
    }
 
@@ -306,7 +297,8 @@ public final class ServerInputDispatcher {
          raycast.distance()
       );
       if (insertion != null) {
-         OperationSystem.of(player).insertPoint(player, insertion.insertionIndex(), insertion.point());
+         PlayerIntentSystem.dispatch(player, IntentSource.NETWORK, payload.requestId(),
+            new SelectionIntents.InsertPoint(insertion.insertionIndex(), insertion.point()));
       }
    }
 

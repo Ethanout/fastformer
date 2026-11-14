@@ -17,6 +17,9 @@ public final class SelectionIntentHandlers {
    private static final Gate<IntentContext<ServerPlayer>> INPUT_APPLY = AVAILABLE.and(context ->
       context.source() == IntentSource.COMMAND ? GateResult.allow()
          : ServerOperationGates.CONTINUE_INTERACTION.test(context.actor()));
+   private static final Gate<IntentContext<ServerPlayer>> EDIT = AVAILABLE
+      .and(context -> ServerOperationGates.CONTINUE_INTERACTION.test(context.actor()))
+      .and(Gate.require("selection", context -> OperationSystem.of(context.actor()).active(context.actor())));
 
    private SelectionIntentHandlers() {}
 
@@ -36,5 +39,38 @@ public final class SelectionIntentHandlers {
          IntentResult.handled(OperationSystem.of(context.actor()).setSelectionMode(context.actor(), intent.mode())));
       bus.register(SelectionIntents.ConflictMode.class, AVAILABLE, (context, intent) ->
          IntentResult.handled(OperationSystem.of(context.actor()).setConflictMode(context.actor(), intent.mode())));
+      bus.register(SelectionIntents.SelectPoint.class, EDIT, (context, intent) -> {
+         OperationSystem.of(context.actor()).selectPoint(context.actor(), intent.index());
+         return IntentResult.success();
+      });
+      bus.register(SelectionIntents.RemovePoint.class, EDIT, (context, intent) -> {
+         OperationSystem.of(context.actor()).removePoint(context.actor(), intent.index());
+         return IntentResult.success();
+      });
+      bus.register(SelectionIntents.CloseBase.class, EDIT, (context, intent) ->
+         IntentResult.handled(OperationSystem.of(context.actor()).closePrismBase(context.actor())));
+      bus.register(SelectionIntents.Expand.class, EDIT, (context, intent) -> {
+         var player = context.actor();
+         var selection = OperationSystem.of(player);
+         var session = selection.session(player).orElseThrow();
+         if (session.selectionMode() == io.github.fastformer.fastplace.selection.OperationSelectionMode.CUBOID) {
+            selection.expandTo(player, intent.point());
+         } else selection.addExtraPoint(player, intent.point());
+         return IntentResult.success();
+      });
+      bus.register(SelectionIntents.InsertPoint.class, EDIT, (context, intent) -> {
+         OperationSystem.of(context.actor()).insertPoint(context.actor(), intent.index(), intent.point());
+         return IntentResult.success();
+      });
+      bus.register(SelectionIntents.DragPoint.class, EDIT, (context, intent) -> {
+         OperationSystem.of(context.actor()).dragPoint(context.actor(), intent.index(), intent.target(), intent.constraint(), intent.finish());
+         return IntentResult.success();
+      });
+      bus.register(SelectionIntents.Extend.class, EDIT, (context, intent) -> {
+         if (intent.axis() < 0 || intent.axis() > 8) return IntentResult.pass();
+         OperationSystem.of(context.actor()).extend(context.actor(), intent.axis(), intent.positive(),
+            Math.clamp(intent.steps(), -128, 128), intent.finish());
+         return IntentResult.success();
+      });
    }
 }
