@@ -2197,42 +2197,7 @@ public final class FastPlaceClientPreviewCore {
       ).render(poseStack, buffers, camera, points);
    }
 
-   static void renderFlowingDashedBox(
-      PoseStack poseStack,
-      VertexConsumer consumer,
-      Vec3 center,
-      Vec3 halfExtents,
-      double offset,
-      float alpha
-   ) {
-      renderFlowingDashedBox(poseStack, consumer, center, halfExtents, null, offset, alpha);
-   }
-
-   static void renderFlowingDashedBox(
-      PoseStack poseStack,
-      VertexConsumer consumer,
-      Vec3 center,
-      Vec3 halfExtents,
-      Vec3 camera,
-      double offset,
-      float alpha
-   ) {
-      io.github.fastformer.client.render.geometry.DashedBoxRenderer.render(
-         poseStack, consumer, center, halfExtents, camera, GHOST_OUTLINE_CAMERA_BIAS,
-         offset, alpha, SELECTION_DASH_LENGTH, 1.0F);
-   }
-
-   static void renderOperationOutlineLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha) {
-      renderLine(poseStack, consumer, from, to, inkRed(), inkGreen(), inkBlue(), alpha);
-   }
-
    private static long renderedThemeRevision = -1;
-
-   static void renderConfirmedBox(PoseStack pose, VertexConsumer lines, Vec3 center, Vec3 halfExtents,
-      boolean dynamic, float alpha) {
-      io.github.fastformer.client.render.geometry.DashedBoxRenderer.renderConfirmed(pose, lines, center, halfExtents,
-         alpha, dynamic);
-   }
 
    private static void renderAlternatingDashedLine(
       PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha, double offset
@@ -2332,46 +2297,6 @@ public final class FastPlaceClientPreviewCore {
       buffers.endBatch(GHOST_OUTLINE_LINES);
    }
 
-   static void renderOperationVolume(
-      PoseStack poseStack, VertexConsumer lines, OperationSelectionVolume selection, Vec3 offset, float alpha
-   ) {
-      if (selection.prism() != null) {
-         for (GuideLine edge : selection.prism().move(offset).edges()) {
-            renderOperationOutlineLine(poseStack, lines, edge.from(), edge.to(), alpha);
-         }
-      } else {
-         renderOperationBoxOutline(
-            poseStack,
-            lines,
-            selection.bounds().move(offset).inflate(SELECTION_FACE_INFLATE),
-            alpha
-         );
-      }
-   }
-
-   private static void renderOperationBoxOutline(PoseStack poseStack, VertexConsumer lines, AABB box, float alpha) {
-      Vec3 p000 = new Vec3(box.minX, box.minY, box.minZ);
-      Vec3 p001 = new Vec3(box.minX, box.minY, box.maxZ);
-      Vec3 p010 = new Vec3(box.minX, box.maxY, box.minZ);
-      Vec3 p011 = new Vec3(box.minX, box.maxY, box.maxZ);
-      Vec3 p100 = new Vec3(box.maxX, box.minY, box.minZ);
-      Vec3 p101 = new Vec3(box.maxX, box.minY, box.maxZ);
-      Vec3 p110 = new Vec3(box.maxX, box.maxY, box.minZ);
-      Vec3 p111 = new Vec3(box.maxX, box.maxY, box.maxZ);
-      renderOperationOutlineLine(poseStack, lines, p000, p001, alpha);
-      renderOperationOutlineLine(poseStack, lines, p000, p010, alpha);
-      renderOperationOutlineLine(poseStack, lines, p000, p100, alpha);
-      renderOperationOutlineLine(poseStack, lines, p001, p011, alpha);
-      renderOperationOutlineLine(poseStack, lines, p001, p101, alpha);
-      renderOperationOutlineLine(poseStack, lines, p010, p011, alpha);
-      renderOperationOutlineLine(poseStack, lines, p010, p110, alpha);
-      renderOperationOutlineLine(poseStack, lines, p100, p101, alpha);
-      renderOperationOutlineLine(poseStack, lines, p100, p110, alpha);
-      renderOperationOutlineLine(poseStack, lines, p011, p111, alpha);
-      renderOperationOutlineLine(poseStack, lines, p101, p111, alpha);
-      renderOperationOutlineLine(poseStack, lines, p110, p111, alpha);
-   }
-
    private static void renderPendingBlocks(
       PoseStack poseStack,
       BufferSource buffers,
@@ -2466,7 +2391,7 @@ public final class FastPlaceClientPreviewCore {
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       for (GhostEdge edge : edges) {
-         renderLine(
+         io.github.fastformer.client.render.geometry.PencilStroke.draw(
             poseStack,
             consumer,
             GhostOutlineDepthBias.towardCamera(edge.from().vec3(), camera, GHOST_OUTLINE_CAMERA_BIAS),
@@ -2474,25 +2399,7 @@ public final class FastPlaceClientPreviewCore {
             red,
             green,
             blue,
-            alpha
-         );
-      }
-      poseStack.popPose();
-   }
-
-   private static void renderGhostDashedOutline(
-      PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GhostEdge> edges, float alpha
-   ) {
-      poseStack.pushPose();
-      poseStack.translate(-camera.x, -camera.y, -camera.z);
-      for (GhostEdge edge : edges) {
-         renderAlternatingDashedLine(
-            poseStack,
-            consumer,
-            GhostOutlineDepthBias.towardCamera(edge.from().vec3(), camera, GHOST_OUTLINE_CAMERA_BIAS),
-            GhostOutlineDepthBias.towardCamera(edge.to().vec3(), camera, GHOST_OUTLINE_CAMERA_BIAS),
-            alpha,
-            pendingGridDashOffset()
+            alpha, false
          );
       }
       poseStack.popPose();
@@ -2520,42 +2427,10 @@ public final class FastPlaceClientPreviewCore {
       double y1 = face.y1() + normal.y;
       double z1 = face.z1() + normal.z;
       switch (face.direction()) {
-         case DOWN, UP -> addGhostQuad(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y0, z1), new Vec3(x0, y0, z1), red, green, blue, alpha);
-         case NORTH, SOUTH -> addGhostQuad(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y1, z0), new Vec3(x0, y1, z0), red, green, blue, alpha);
-         case WEST, EAST -> addGhostQuad(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x0, y0, z1), new Vec3(x0, y1, z1), new Vec3(x0, y1, z0), red, green, blue, alpha);
+         case DOWN, UP -> io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y0, z1), new Vec3(x0, y0, z1), red, green, blue, alpha);
+         case NORTH, SOUTH -> io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y1, z0), new Vec3(x0, y1, z0), red, green, blue, alpha);
+         case WEST, EAST -> io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x0, y0, z1), new Vec3(x0, y1, z1), new Vec3(x0, y1, z0), red, green, blue, alpha);
       }
-   }
-
-   public static void addGhostQuad(
-      PoseStack poseStack,
-      VertexConsumer consumer,
-      Vec3 a,
-      Vec3 b,
-      Vec3 c,
-      Vec3 d,
-      float red,
-      float green,
-      float blue,
-      float alpha
-   ) {
-      addGhostQuadUnscaled(poseStack, consumer, a, b, c, d, red, green, blue, alpha);
-   }
-
-   /** Writes cacheable vertices without baking the current preview opacity into them. */
-   public static void addGhostQuadUnscaled(
-      PoseStack poseStack,
-      VertexConsumer consumer,
-      Vec3 a,
-      Vec3 b,
-      Vec3 c,
-      Vec3 d,
-      float red,
-      float green,
-      float blue,
-      float alpha
-   ) {
-      io.github.fastformer.client.render.geometry.PreviewQuads.write(
-         poseStack, consumer, a, b, c, d, red, green, blue, alpha);
    }
 
    static void renderGuidePlaneGrid(PoseStack poseStack, VertexConsumer lineConsumer, Vec3 camera, List<GuidePlane> planes) {
@@ -2575,14 +2450,6 @@ public final class FastPlaceClientPreviewCore {
    /** Boundary edges for a layer too large to shell; a single center-to-center line is dropped. */
    private static List<GuideLine> boundaryFallback(List<GuideLine> edges, boolean lightweight) {
       return lightweight && edges.size() > 1 ? edges : List.of();
-   }
-
-   public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to) {
-      GuideRenderer.renderLine(poseStack, consumer, from, to, 1.0F);
-   }
-
-   public static void renderLine(PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float red, float green, float blue, float alpha) {
-      GuideRenderer.renderLine(poseStack, consumer, from, to, red, green, blue, alpha, 1.0F);
    }
 
    private static QuickShapeMode selectedMode(BuildingPreviewSnapshot snapshot, QuickShapeStage stage) {

@@ -1,6 +1,7 @@
 package io.github.fastformer.client.render.shell;
 
-import io.github.fastformer.client.render.core.FastPlaceClientPreviewCore;
+import io.github.fastformer.client.render.geometry.PencilStroke;
+import io.github.fastformer.client.render.geometry.PreviewQuads;
 import io.github.fastformer.client.render.ShapeShellMesh;
 import io.github.fastformer.fastplace.geometry.GuideLine;
 import java.util.List;
@@ -28,7 +29,7 @@ public final class ShapeShellRenderer {
          Vec3 normal = Vec3.atLowerCornerOf(face.direction().getNormal()).scale(FACE_OFFSET);
          List<Vec3> vertices = face.vertices();
          ShapeShellMesh.Color color = face.color();
-         FastPlaceClientPreviewCore.addGhostQuad(
+         PreviewQuads.write(
             poseStack,
             consumer,
             vertices.get(0).add(normal),
@@ -55,7 +56,7 @@ public final class ShapeShellRenderer {
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       for (ShapeShellMesh.StyledEdge edge : edges) {
          ShapeShellMesh.Color color = edge.color();
-         FastPlaceClientPreviewCore.renderLine(
+         PencilStroke.draw(
             poseStack,
             consumer,
             edge.from(),
@@ -63,7 +64,7 @@ public final class ShapeShellRenderer {
             color.red(),
             color.green(),
             color.blue(),
-            alpha
+            alpha, false
          );
       }
       poseStack.popPose();
@@ -106,8 +107,8 @@ public final class ShapeShellRenderer {
       poseStack.pushPose();
       poseStack.translate(-camera.x, -camera.y, -camera.z);
       for (GuideLine edge : confirmed) {
-         FastPlaceClientPreviewCore.renderLine(
-            poseStack, consumer, edge.from(), edge.to(), ink.red(), ink.green(), ink.blue(), alpha
+         PencilStroke.draw(
+            poseStack, consumer, edge.from(), edge.to(), ink.red(), ink.green(), ink.blue(), alpha, false
          );
       }
       // Candidate contours use lower alpha while confirmed contours remain still.

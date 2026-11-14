@@ -51,6 +51,9 @@ final class BuildingPointPreviewRenderer {
          else ShapeShellRenderer.renderDynamicEdges(pose, buffers.getBuffer(lines), camera, mesh.edges(), style.alpha() * opacity);
          buffers.endBatch(lines);
       }
-      FastPlaceClientPreviewCore.renderControlPoints(pose, buffers, camera, fallback);
+      new io.github.fastformer.client.controlpoint.ControlPointRenderer(
+         opacity, io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation()
+            .dashOffset(io.github.fastformer.client.render.PreviewStyle.DASH_SPEED, io.github.fastformer.client.render.PreviewStyle.DASH_PERIOD),
+         io.github.fastformer.client.render.PreviewStyle.DASH_LENGTH).render(pose, buffers, camera, fallback);
    }
 }

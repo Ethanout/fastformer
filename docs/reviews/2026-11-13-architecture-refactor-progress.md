@@ -584,3 +584,11 @@
 - 工作区和草稿继续使用自身显式透明度；缓存网格不烘焙临时全局透明度。增加源码约束，禁止两处渲染总入口恢复共享可变值。底层绘制转发仍需后续移出 Core，不能据此视为渲染管线全部完成。
 - `.temp/architecture-explicit-opacity-verified.log`：完整 `check` 与独立新目录 312 项必需 GameTest 通过；实际试玩存档和正式构建仓库配置未修改。
 - 完整 PreviewFrame／PreviewMode、模式按键／指针和服务端模式、操作树和其余手册项继续保留。
+
+## 独立绘制组件与反向依赖清理（2026-11-14）
+
+- 显式透明度阶段已提交并推送：`c7584ed`。
+- 提取 SelectionVolumeRenderer，保留棱柱／长方体的权威世界边界、膨胀量和主题颜色。选区直接调用独立体／线绘制；盒线框直接调用已有 DashedBoxRenderer，不再通过 Core 转发。
+- ShapeShellRenderer、BuildingShellFaceBuffer 直接使用 PencilStroke／PreviewQuads；控制点回退直接创建显式参数的 ControlPointRenderer。删除 Core 的写面／画线公开适配，以及无调用的虚线盒和旧轮廓分支；源码约束禁止 shell／cache 依赖渲染总入口。
+- 首轮 `.temp/architecture-render-primitives-verified.log`：check 通过，但 separatePressesAndRepeatedPositionsRetainDistinctUndoBoundaries 超时，停在等待第二次按压撤销；未改生产历史逻辑或测试断言。未改代码的新目录复验 `.temp/architecture-render-primitives-recheck.log`：完整 check 与 312 项必需 GameTest 全部通过。单次超时尚未稳定复现，不将其记为已修复。
+- 实际试玩存档和正式构建仓库配置未修改。完整 PreviewFrame／PreviewMode、模式按键／指针和服务端模式、操作树及其余手册项目继续推进。

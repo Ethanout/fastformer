@@ -94,6 +94,11 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /pointer\s*\(\s*\)\s*\.\s*(?:resolve|gizmo|captureFrame)\s*\(/).find()) {
                 violations.add("Rendering must consume the captured selection pointer frame: ${path}")
             }
+            if (main && (packageName.startsWith('io.github.fastformer.client.render.shell') ||
+                    packageName.startsWith('io.github.fastformer.client.render.cache')) &&
+                    (dependencies =~ /io\.github\.fastformer\.client\.render\.core\.FastPlaceClientPreviewCore/).find()) {
+                violations.add("Shell and buffer primitives cannot depend on the render assembly: ${path}")
+            }
             if (main && packageName.startsWith('io.github.fastformer.client.interaction.pointer') &&
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:render|input|session|operation)\./).find()) {
                 violations.add("Pointer sampling must use its bound environment, not callers or render state: ${path}")

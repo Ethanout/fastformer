@@ -69,9 +69,9 @@ final class OperationPreviewRenderer {
       pose.translate(-camera.x, -camera.y, -camera.z);
       // The draft volume is a candidate: dashed outline, no face. Clicked points stay solid.
       if (selection != null) {
-         renderOperationVolume(pose, buffers.getBuffer(GHOST_OUTLINE_LINES), selection, Vec3.ZERO, 0.8F * opacity);
+         io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.render(pose, buffers.getBuffer(GHOST_OUTLINE_LINES), selection, Vec3.ZERO, 0.8F * opacity);
       } else {
-         for (int i = 1; i < points.size(); i++) renderOperationOutlineLine(pose, buffers.getBuffer(GHOST_OUTLINE_LINES),
+         for (int i = 1; i < points.size(); i++) io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.line(pose, buffers.getBuffer(GHOST_OUTLINE_LINES),
             Vec3.atCenterOf(points.get(i - 1)), Vec3.atCenterOf(points.get(i)), 0.8F * opacity);
       }
       buffers.endBatch(GHOST_OUTLINE_LINES);
@@ -284,23 +284,23 @@ final class OperationPreviewRenderer {
          if (part.smart()) {
             // The smart selection envelope is decorative and never rendered as a cuboid.
          } else if (selected && transformGizmoVisible) {
-            renderConfirmedBox(
+            io.github.fastformer.client.render.geometry.DashedBoxRenderer.renderConfirmed(
                poseStack, buffers.getBuffer(moving ? DYNAMIC_XRAY_LINES : PENDING_XRAY_LINES), outlineBounds.getCenter(), halfExtents,
-               moving, selectionOpacity
+               selectionOpacity, moving
             );
-            renderConfirmedBox(
+            io.github.fastformer.client.render.geometry.DashedBoxRenderer.renderConfirmed(
                poseStack, buffers.getBuffer(moving ? DYNAMIC_LINES : GHOST_OUTLINE_LINES), outlineBounds.getCenter(), halfExtents,
-               moving, selectionOpacity
+               selectionOpacity, moving
             );
          } else if (shouldRenderPartOutline(interactionPart, selected)) {
             float alpha = (hovered ? 1.0F : 0.52F) * selectionOpacity;
-            renderConfirmedBox(
+            io.github.fastformer.client.render.geometry.DashedBoxRenderer.renderConfirmed(
                poseStack, buffers.getBuffer(selected ? PENDING_XRAY_LINES : UNSELECTED_XRAY_LINES),
-               outlineBounds.getCenter(), halfExtents, false, alpha
+               outlineBounds.getCenter(), halfExtents, alpha, false
             );
-            renderConfirmedBox(
+            io.github.fastformer.client.render.geometry.DashedBoxRenderer.renderConfirmed(
                poseStack, buffers.getBuffer(selected ? GHOST_OUTLINE_LINES : UNSELECTED_LINES),
-               outlineBounds.getCenter(), halfExtents, false, alpha
+               outlineBounds.getCenter(), halfExtents, alpha, false
             );
          }
          poseStack.popPose();
@@ -385,7 +385,7 @@ final class OperationPreviewRenderer {
             Vec3 center = groupBounds.getCenter();
             poseStack.pushPose();
             poseStack.translate(-camera.x, -camera.y, -camera.z);
-            renderConfirmedBox(
+            io.github.fastformer.client.render.geometry.DashedBoxRenderer.renderConfirmed(
                poseStack,
                buffers.getBuffer(ClientSessionSystem.instance().operations().selectionGestures().active() ? DYNAMIC_LINES : GHOST_OUTLINE_LINES),
                center,
@@ -394,8 +394,8 @@ final class OperationPreviewRenderer {
                   groupBounds.getYsize() * 0.5 + 3.0 * PreviewStyle.OUTLINE_INFLATE,
                   groupBounds.getZsize() * 0.5 + 3.0 * PreviewStyle.OUTLINE_INFLATE
                ),
-               ClientSessionSystem.instance().operations().selectionGestures().active(),
-               0.96F * selectionOpacity
+               0.96F * selectionOpacity,
+               ClientSessionSystem.instance().operations().selectionGestures().active()
             );
             poseStack.popPose();
             GizmoViewScale scale = GizmoViewScale.fromDistance(camera.distanceTo(center));
@@ -546,7 +546,7 @@ final class OperationPreviewRenderer {
       float outlineAlpha
    ) {
       if (selection != null) {
-         renderOperationVolume(poseStack, lines, selection, Vec3.ZERO, outlineAlpha * alphaScale);
+         io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.render(poseStack, lines, selection, Vec3.ZERO, outlineAlpha * alphaScale);
          // The volume's outline is the authoritative world-space boundary.
          // Do not overlay point-derived edges while a transformed selection is
          // active; those edges use pre-transform anchors and can visibly split
@@ -557,13 +557,13 @@ final class OperationPreviewRenderer {
                ? snapshot.operationPrismBasePointCount()
                : points.size();
             for (int i = 1; i < baseCount; i++) {
-               renderOperationOutlineLine(
+               io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.line(
                   poseStack, lines, Vec3.atCenterOf(points.get(i - 1)), Vec3.atCenterOf(points.get(i)),
                   outlineAlpha * alphaScale
                );
             }
             if (snapshot.operationPrismBasePointCount() >= 3) {
-               renderOperationOutlineLine(
+               io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.line(
                   poseStack, lines, Vec3.atCenterOf(points.get(baseCount - 1)), Vec3.atCenterOf(points.getFirst()),
                   outlineAlpha * alphaScale
                );
@@ -571,20 +571,20 @@ final class OperationPreviewRenderer {
          } else {
             Vec3 anchor = Vec3.atCenterOf(points.getFirst());
             for (int i = 1; i < points.size(); i++) {
-               renderOperationOutlineLine(poseStack, lines, anchor, Vec3.atCenterOf(points.get(i)), outlineAlpha * alphaScale);
+               io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.line(poseStack, lines, anchor, Vec3.atCenterOf(points.get(i)), outlineAlpha * alphaScale);
             }
          }
       }
       if (snapshot.operationSelectionMode() == OperationSelectionMode.CONVEX_HULL) {
          for (OperationGeometry.HullFace face : OperationGeometry.convexHullFaces(points)) {
-            renderOperationOutlineLine(poseStack, lines, face.a(), face.b(), outlineAlpha * alphaScale);
-            renderOperationOutlineLine(poseStack, lines, face.b(), face.c(), outlineAlpha * alphaScale);
-            renderOperationOutlineLine(poseStack, lines, face.c(), face.a(), outlineAlpha * alphaScale);
+            io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.line(poseStack, lines, face.a(), face.b(), outlineAlpha * alphaScale);
+            io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.line(poseStack, lines, face.b(), face.c(), outlineAlpha * alphaScale);
+            io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.line(poseStack, lines, face.c(), face.a(), outlineAlpha * alphaScale);
          }
       }
       if (hit != null) {
          double length = Math.max(2.0, eye.distanceTo(hit.point()) * 0.08);
-         renderOperationOutlineLine(
+         io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.line(
             poseStack,
             lines,
             hit.point(),
@@ -602,7 +602,7 @@ final class OperationPreviewRenderer {
             if (displacement.equals(BlockPos.ZERO)) {
                continue;
             }
-            renderOperationVolume(
+            io.github.fastformer.client.render.geometry.SelectionVolumeRenderer.render(
                poseStack, lines, selection,
                Vec3.atLowerCornerOf(displacement),
                outlineAlpha * 0.78F * alphaScale
@@ -628,8 +628,8 @@ final class OperationPreviewRenderer {
             Vec3 a = inflateSelectionVertex(base.getFirst(), center, camera);
             Vec3 b = inflateSelectionVertex(base.get(index), center, camera);
             Vec3 c = inflateSelectionVertex(base.get(index + 1), center, camera);
-            addGhostQuad(poseStack, consumer, a, b, c, c, red, green, blue, alpha);
-            addGhostQuad(
+            io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, a, b, c, c, red, green, blue, alpha);
+            io.github.fastformer.client.render.geometry.PreviewQuads.write(
                poseStack, consumer,
                inflateSelectionVertex(base.getFirst().add(extrusion), center, camera),
                inflateSelectionVertex(base.get(index + 1).add(extrusion), center, camera),
@@ -644,7 +644,7 @@ final class OperationPreviewRenderer {
             Vec3 b = inflateSelectionVertex(base.get(next), center, camera);
             Vec3 c = inflateSelectionVertex(base.get(next).add(extrusion), center, camera);
             Vec3 d = inflateSelectionVertex(base.get(index).add(extrusion), center, camera);
-            addGhostQuad(poseStack, consumer, a, b, c, d, red, green, blue, alpha);
+            io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, a, b, c, d, red, green, blue, alpha);
          }
          return;
       }
@@ -659,12 +659,12 @@ final class OperationPreviewRenderer {
       Vec3 p101 = inflateSelectionVertex(new Vec3(box.maxX, box.minY, box.maxZ), center, camera);
       Vec3 p111 = inflateSelectionVertex(new Vec3(box.maxX, box.maxY, box.maxZ), center, camera);
       Vec3 p011 = inflateSelectionVertex(new Vec3(box.minX, box.maxY, box.maxZ), center, camera);
-      addGhostQuad(poseStack, consumer, p000, p100, p110, p010, red, green, blue, alpha);
-      addGhostQuad(poseStack, consumer, p001, p011, p111, p101, red, green, blue, alpha);
-      addGhostQuad(poseStack, consumer, p000, p001, p101, p100, red, green, blue, alpha);
-      addGhostQuad(poseStack, consumer, p010, p110, p111, p011, red, green, blue, alpha);
-      addGhostQuad(poseStack, consumer, p000, p010, p011, p001, red, green, blue, alpha);
-      addGhostQuad(poseStack, consumer, p100, p101, p111, p110, red, green, blue, alpha);
+      io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, p000, p100, p110, p010, red, green, blue, alpha);
+      io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, p001, p011, p111, p101, red, green, blue, alpha);
+      io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, p000, p001, p101, p100, red, green, blue, alpha);
+      io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, p010, p110, p111, p011, red, green, blue, alpha);
+      io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, p000, p010, p011, p001, red, green, blue, alpha);
+      io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, p100, p101, p111, p110, red, green, blue, alpha);
    }
 
    /**
@@ -708,7 +708,7 @@ final class OperationPreviewRenderer {
                Vec3 a = base.getFirst().add(offset).add(bias);
                Vec3 b = base.get(top ? index + 1 : index).add(offset).add(bias);
                Vec3 c = base.get(top ? index : index + 1).add(offset).add(bias);
-               addGhostQuad(poseStack, consumer, a, b, c, c, red, green, blue, alpha);
+               io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, a, b, c, c, red, green, blue, alpha);
             }
          } else if (hit.axis() >= 3) {
             int index = hit.axis() - 3;
@@ -716,7 +716,7 @@ final class OperationPreviewRenderer {
                Vec3 bias = hit.normal().scale(SELECTION_FACE_INFLATE * 0.35);
                Vec3 a = base.get(index).add(bias);
                Vec3 b = base.get((index + 1) % base.size()).add(bias);
-               addGhostQuad(poseStack, consumer, a, b, b.add(extrusion), a.add(extrusion), red, green, blue, alpha);
+               io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, a, b, b.add(extrusion), a.add(extrusion), red, green, blue, alpha);
             }
          }
          return;
@@ -757,7 +757,7 @@ final class OperationPreviewRenderer {
       b = b.add(bias);
       c = c.add(bias);
       d = d.add(bias);
-      addGhostQuad(poseStack, consumer, a, b, c, d, red, green, blue, alpha);
+      io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, a, b, c, d, red, green, blue, alpha);
    }
 
    private static void renderSelectionFaceNormal(
