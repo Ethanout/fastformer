@@ -231,7 +231,7 @@ final class SmartSelectionRenderer {
       final SmartSelectionTopology topology;
       final net.minecraft.world.level.BlockGetter preview;
       final BuildingShellCache shell = BuildingShellCache.forImmutableSnapshots(true,
-         PreviewRenderResources.PREVIEW_MESH_EXECUTOR, failure -> org.slf4j.LoggerFactory.getLogger(SmartSelectionRenderer.class).warn("Smart selection mesh failed", failure));
+         io.github.fastformer.client.lifecycle.ClientBackgroundTasks.serial("preview-mesh", 16), failure -> org.slf4j.LoggerFactory.getLogger(SmartSelectionRenderer.class).warn("Smart selection mesh failed", failure));
       final BuildingShellEdgeBuffer edges = new BuildingShellEdgeBuffer();
       final io.github.fastformer.client.render.cache.BuildingShellFaceBuffer faces = new io.github.fastformer.client.render.cache.BuildingShellFaceBuffer();
       final BuildingShellEdgeBuffer airEdges = new BuildingShellEdgeBuffer();

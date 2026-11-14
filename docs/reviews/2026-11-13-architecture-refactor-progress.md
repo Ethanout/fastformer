@@ -638,3 +638,12 @@
 - 补充两个缓存实例的 revision／清理隔离测试及大规模边界降级测试；原迟到任务、同键替换、队列取消与 alpha 测试迁至实际包。源码守护禁止起形预览反向依赖输入／渲染总入口和会话装配。
 - `.temp/architecture-quickshape-preview-compile.log` 编译通过；`.temp/architecture-quickshape-preview-verified.log` 完整 check 与新目录 312 项必需 GameTest 全部通过。实际试玩存档未清除。
 - 这是第一个真实 PreviewMode 实现；完整跨模式 PreviewFrame、几何／选区／空闲预览、HUD、模式生命周期和手册其他项目仍未完成。
+
+## 几何预览模型与绘制能力（2026-11-14）
+
+- 起形预览阶段已提交并推送：`ae72c1a`。
+- GeometryPreviewMode 接入真实的 buildModel/drawWorld。独立 GeometryPreviewModels 拥有计划与图层缓存，显式接收快照、revision、修饰键、眼睛位置、视线、候选和悬停点；保留计划失败控制点降级、控制点占格排除及锥体体阶段底面预览。Gizmo 缩放和悬停仍按原规则在该帧呈现。
+- GhostBlockPreviewRenderer 拥有已确认／待确认网格、异步生成、GPU 上传与释放，删除总入口约 300 行重复绘制原语和共享缓存。世界绘制帧增加模型视图／投影矩阵，传入统一动画与透明度；智能选区通过客户端生命周期能力取得原共享执行器。
+- 新增缓存完整键、同键复用、明确清理、不同所有者隔离、标记占格排除，以及失败后 revision 恢复测试。源码守护禁止几何预览依赖输入／会话／渲染总入口或查询全局客户端。
+- 首次编译发现深度偏移导入和智能选区执行器依赖遗漏，已修复；新增测试首次使用不存在的 Builder.pending，已改为既有图层构造。`.temp/architecture-geometry-preview-verified.log` 完整 check 和独立新目录 312 项必需 GameTest 全部通过。
+- HUD、几何指针事实采集、其他预览模式、完整模式生命周期和手册其余任务仍待迁移。实际试玩数据未清除。

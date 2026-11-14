@@ -22,6 +22,7 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `client.mode.input.pointer` | 不可变鼠标事实、左右键动作与共享捕获优先级；模式只决策，不查询实时客户端 |
 | `client.preview` / `frame` | 预览模型／绘制契约、显式世界绘制帧和统一动画相位；完整跨模式 PreviewFrame 仍在迁移 |
 | `client.preview.quickshape` | 起形模型构建、生成任务与降级、方块层与控制点绘制，以及自有外壳／网格缓存和取消 |
+| `client.preview.geometry` | 几何计划与方块层缓存、生成失败降级、控制点／导引线／手柄绘制，以及自有幽灵网格与 GPU 缓存 |
 | `client.session` | ClientSessionSystem：连接与作用域、草稿／回执协调和提交编排 |
 | `client.session.scope` | 服务器、维度、玩家的不可变身份，以及所属输入、编辑上下文、选区、工作区和暂存草稿 |
 | `client.session.receipt` | 作用域回执仓库：缓存、严格读取、文件保护、明确重试和驱逐条件 |
@@ -105,6 +106,8 @@ Java 包统一位于 `io.github.fastformer` 下。按职责放置代码，测试
 | `protocol.upload` | 两种当前上传载荷共用的分块字段契约；不持有接收状态 |
 
 `FastPlaceClientPreviewCore` 捕获起形输入和世界绘制帧，交给 `QuickShapePreviewMode.buildModel/drawWorld`。该能力拥有生成任务、降级结果、方块层与外壳资源；世界离开及主题变化明确清理它，不再通过共享渲染资源间接取消。生成执行器、预览状态、修饰键读取与错误记录在装配时传入。外壳及控制点接收透明度和动画相位。初始预览、其他模式资源仍待迁移，不将首个 PreviewMode 实现视为整个渲染系统完成。
+
+`GeometryPreviewMode` 接收冻结的几何快照、版本、修饰键、视线和候选点；模型缓存不查询客户端或会话装配。模型同时包含计划与方块层，Gizmo 高亮仅更新该帧呈现。计划失败退回控制点，锥体体阶段仍保留底面边界降级。幽灵网格、后台任务和 GPU 缓存归该能力，世界／主题清理不再依赖总入口的共享字段。WorldPreviewFrame 携带同帧动画、透明度、调色板版本与复制后的模型视图／投影矩阵。
 
 `WorldSessionEvents` 统一接收客户端登出／世界卸载，`WorldSessionLifecycle` 复用 `Scope.detach` 按既有顺序清理输入、源遮罩、预览连接、编辑器、交互缓存、反馈和渲染资源。一次运行时清理失败仍通知后续能力，结束后汇总异常；重复边界仍可再次清理。渲染核心只提供自身的重置能力，不订阅世界离开事件、不调用编辑器断线清理。
 

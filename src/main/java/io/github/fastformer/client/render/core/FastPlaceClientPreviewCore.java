@@ -14,17 +14,8 @@ import static io.github.fastformer.client.render.type.PreviewRenderTypes.*;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexBuffer;
-import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
-import io.github.fastformer.client.controlpoint.ControlPointPresentation;
-import io.github.fastformer.client.gizmo.GizmoRenderer;
 import io.github.fastformer.client.gizmo.GizmoViewScale;
 import io.github.fastformer.client.gizmo.OperationGizmoPresentation;
 import io.github.fastformer.client.input.FastPlaceClientInput;
@@ -33,12 +24,7 @@ import io.github.fastformer.client.input.PointerDragSnapshotView;
 import io.github.fastformer.client.interaction.intent.InteractionContext;
 import io.github.fastformer.client.interaction.intent.OperationInteractionIntent;
 import io.github.fastformer.client.placement.QuickReplaceMode;
-import io.github.fastformer.client.placement.effect.PlacementEffectPreview;
-import io.github.fastformer.client.render.FastPlaceClientShaders;
-import io.github.fastformer.client.render.GhostOutlineDepthBias;
 import io.github.fastformer.client.render.OperationFaceHitInterpolator;
-import io.github.fastformer.client.render.PendingPreviewGrid;
-import io.github.fastformer.client.render.PreviewAsyncPolicy;
 import io.github.fastformer.client.render.SmoothReticlePostEffect;
 import io.github.fastformer.client.render.WorkspacePointerPrompt;
 import io.github.fastformer.client.render.WorkspaceSubmissionHud;
@@ -47,16 +33,15 @@ import io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem;
 import io.github.fastformer.client.preview.frame.WorldPreviewFrame;
 import io.github.fastformer.client.preview.quickshape.QuickShapePreviewInput;
 import io.github.fastformer.client.preview.quickshape.QuickShapePreviewMode;
-import io.github.fastformer.client.render.geometry.PreviewGeometrySupport;
-import io.github.fastformer.client.render.guide.GuideRenderer;
+import io.github.fastformer.client.preview.geometry.GeometryPreviewMode;
+import io.github.fastformer.client.preview.geometry.GeometryPreviewInput;
+import io.github.fastformer.client.preview.geometry.GeometryPreviewModel;
 import io.github.fastformer.client.render.hud.GeometryTextBlockRenderer;
 import io.github.fastformer.client.render.hud.GizmoHudTextFormatter;
 import io.github.fastformer.client.render.hud.PreviewFeedbackHud;
 import io.github.fastformer.client.render.interaction.OperationPointerKind;
 import io.github.fastformer.client.render.interaction.OperationPointerTarget;
-import io.github.fastformer.client.render.mesh.GhostMeshBuilder;
 import io.github.fastformer.client.render.model.*;
-import io.github.fastformer.client.render.shell.ShapeShellRenderer;
 import io.github.fastformer.client.session.preview.ClientPreviewState;
 import io.github.fastformer.fastplace.geometry.AxisGizmo;
 import io.github.fastformer.fastplace.geometry.GeometryAction;
@@ -65,15 +50,11 @@ import io.github.fastformer.fastplace.geometry.GeometryMode;
 import io.github.fastformer.fastplace.geometry.GeometryNumbers;
 import io.github.fastformer.fastplace.geometry.GeometryPreviewPlan;
 import io.github.fastformer.fastplace.geometry.GeometryRayVisibility;
-import io.github.fastformer.client.render.type.HaloLineRenderType;
-import io.github.fastformer.fastplace.geometry.GuideLine;
-import io.github.fastformer.fastplace.geometry.GuidePlane;
 import io.github.fastformer.fastplace.geometry.OperationGeometry;
 import io.github.fastformer.fastplace.geometry.SelectionPrism;
 import io.github.fastformer.fastplace.geometry.TransformFrame;
 import io.github.fastformer.fastplace.geometry.cone.ConePrismStage;
 import io.github.fastformer.fastplace.geometry.controlpoint.ControlPoint;
-import io.github.fastformer.fastplace.geometry.generation.ConePrismGenerator;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismGeometry;
 import io.github.fastformer.fastplace.geometry.generation.ConePrismParameters;
 import io.github.fastformer.fastplace.geometry.generation.FastPlaceGeometry;
@@ -84,7 +65,6 @@ import io.github.fastformer.fastplace.geometry.text.GizmoTextComponent;
 import io.github.fastformer.fastplace.geometry.text.GizmoTextContext;
 import io.github.fastformer.fastplace.placement.context.PlaceableItems;
 import io.github.fastformer.fastplace.placement.context.PlacementContextSnapshot;
-import io.github.fastformer.fastplace.placement.effect.ResolvedPlacementEffect;
 import io.github.fastformer.fastplace.quickshape.FaceMode;
 import io.github.fastformer.fastplace.quickshape.LineMode;
 import io.github.fastformer.fastplace.quickshape.PointMode;
@@ -105,7 +85,6 @@ import io.github.fastformer.protocol.s2c.geometry.GeometryPreviewPayload;
 import io.github.fastformer.protocol.s2c.operation.OperationPreviewPayload;
 import io.github.fastformer.common.preview.quickshape.BuildingPreviewSnapshot;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -117,7 +96,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -135,7 +113,6 @@ import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
-import org.joml.Matrix4f;
 import org.slf4j.Logger;
 
 @EventBusSubscriber(
@@ -145,7 +122,6 @@ import org.slf4j.Logger;
 public final class FastPlaceClientPreviewCore {
    private static final Logger LOGGER = LogUtils.getLogger();
    private static final double PREVIEW_REACH = LongRangeBlockRaycast.MAX_REACH;
-   private static final int CONFIRMED_FACE_BLOCK_LIMIT = 16000;
    static final float GHOST_FACE_ALPHA_MIN = 0.10F;
    static final float GHOST_FACE_ALPHA_MAX = PreviewStyle.FACE_ALPHA;
    private static final long FACE_NORMAL_INTERPOLATION_NANOS = 100_000_000L;
@@ -153,13 +129,12 @@ public final class FastPlaceClientPreviewCore {
    static final float SELECTION_HIGHLIGHT_ALPHA = PreviewStyle.FACE_HOVER_ALPHA;
    static final float GHOST_OUTLINE_ALPHA_MIN = 0.70F;
    static final float GHOST_OUTLINE_ALPHA_MAX = PreviewStyle.OUTLINE_ALPHA;
-   private static final float PENDING_GRID_ALPHA = 0.78F;
 
    /** Drops cached meshes that baked the previous theme's colors. */
    public static void onThemeChanged() {
       QUICK_SHAPE_PREVIEW.clear();
       PreviewRenderResources.clearShells();
-      PreviewRenderResources.clearMeshes();
+      GEOMETRY_PREVIEW.clear();
    }
 
    /** Theme ink; every ink pass is preceded by a {@link GeometryPalette#halo()} pass. */
@@ -170,9 +145,7 @@ public final class FastPlaceClientPreviewCore {
    private static final double SELECTION_DASH_LENGTH = PreviewStyle.DASH_LENGTH;
    private static final double SELECTION_DASH_PERIOD = PreviewStyle.DASH_PERIOD;
    private static final long GHOST_BREATH_PERIOD_NANOS = 2_400_000_000L;
-   private static final double GHOST_FACE_OFFSET = 0.002;
    static final double SELECTION_FACE_INFLATE = OperationSelectionVolume.RAYCAST_INFLATE;
-   private static final double GHOST_OUTLINE_CAMERA_BIAS = 0.012;
    private static final ResourceLocation CROSSHAIR_SPRITE = ResourceLocation.withDefaultNamespace("hud/crosshair");
    static final double EPSILON = 1.0E-7;
    private static ClientPreviewState previews() {
@@ -189,10 +162,8 @@ public final class FastPlaceClientPreviewCore {
       previews(), () -> PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
       FastPlaceClientPreviewCore::logPreviewFailure, ClientBackgroundTasks.serial("preview-generation", 16)
    );
-   private static GeometryPlanKey cachedGeometryPlanKey;
-   private static GeometryPreviewPlan cachedGeometryPlan;
-   private static GeometryPreviewPlan cachedGeometryRenderSource;
-   private static GeometryRenderLayers cachedGeometryRenderLayers = GeometryRenderLayers.empty();
+   private static final GeometryPreviewMode GEOMETRY_PREVIEW = new GeometryPreviewMode(
+      FastPlaceClientPreviewCore::logPreviewFailure, ClientBackgroundTasks.serial("preview-mesh", 16));
    private static boolean smoothReticleFrame;
 
    private FastPlaceClientPreviewCore() {
@@ -1714,66 +1685,25 @@ public final class FastPlaceClientPreviewCore {
             var prototype = PlaceableItems.placementState(player.getMainHandItem(), player, context).orElse(null);
             var model = QUICK_SHAPE_PREVIEW.buildModel(new QuickShapePreviewInput(snapshot, player, player.getEyePosition(),
                player.getViewVector(1.0F), candidate, hovered, prototype, context));
-            QUICK_SHAPE_PREVIEW.drawWorld(new WorldPreviewFrame(event.getPoseStack(), minecraft.renderBuffers().bufferSource(),
-               event.getCamera().getPosition(), 1.0F, ClientPreviewFrameSystem.animation(), revision), model);
+            QUICK_SHAPE_PREVIEW.drawWorld(worldPreviewFrame(event, minecraft), model);
          }
       }
    }
 
    private static void renderGeometryWall(RenderLevelStageEvent event, Minecraft minecraft) {
-      Vec3 view = minecraft.player == null ? new Vec3(0.0, 0.0, 1.0) : minecraft.player.getViewVector(1.0F);
-      GeometryPreviewPlan plan = geometryPreviewPlan(view);
-      BufferSource buffers = minecraft.renderBuffers().bufferSource();
-      PoseStack poseStack = event.getPoseStack();
-      Vec3 camera = event.getCamera().getPosition();
-      GeometryRenderLayers layers = geometryRenderLayers();
-      renderConfirmedBlocks(poseStack, buffers, camera, layers.confirmed());
-      renderPendingBlocks(
-         poseStack,
-         buffers,
-         camera,
-         event.getModelViewMatrix(),
-         event.getProjectionMatrix(),
-         layers.pending()
-      );
-      renderGeometryControlPoints(poseStack, buffers, camera, plan);
-      renderGuidePlaneGrid(poseStack, buffers.getBuffer(PENDING_LINES), camera, plan.guidePlanes());
-      renderGuideLines(poseStack, buffers.getBuffer(PENDING_LINES), camera, plan.guideLines());
-      buffers.endBatch(PENDING_LINES);
-      if (plan.gizmo() != null) {
-         new GizmoRenderer(1.0F).renderGeometryGizmo(poseStack, buffers, camera, plan.gizmo());
-      }
+      Vec3 view = minecraft.player == null ? new Vec3(0, 0, 1) : minecraft.player.getViewVector(1.0F);
+      GEOMETRY_PREVIEW.drawWorld(worldPreviewFrame(event, minecraft), geometryPreviewModel(view));
+   }
+
+   private static WorldPreviewFrame worldPreviewFrame(RenderLevelStageEvent event, Minecraft minecraft) {
+      return new WorldPreviewFrame(event.getPoseStack(), minecraft.renderBuffers().bufferSource(), event.getCamera().getPosition(),
+         1.0F, ClientPreviewFrameSystem.animation(), io.github.fastformer.client.render.theme.VisualThemes.revision(),
+         event.getModelViewMatrix(), event.getProjectionMatrix());
    }
 
    private static GeometryWorkflowView geometryWorkflowView(Vec3 view) {
-      return new GeometryWorkflowView(
-         previews().geometry().mode(),
-         previews().geometry().points().size(),
-         previews().geometry().pointLocations(),
-         previews().geometry().pointRoles(),
-         previews().geometry().closed(),
-         PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
-         previews().geometry().polyhedronShapeVariant(),
-         previews().geometry().coneShapeVariant(),
-         previews().geometry().compoundShapeVariant(),
-         previews().geometry().polyhedronSizeMode(),
-         previews().geometry().extrusion(),
-         previews().geometry().conePlaneMode(),
-         previews().geometry().coneRadius(),
-         previews().geometry().coneScaleX(),
-         previews().geometry().coneScaleZ(),
-         previews().geometry().coneTopScaleOffset(),
-         previews().geometry().coneTopOffset(),
-         previews().geometry().coneRotationRadians(),
-         previews().geometry().coneGizmoLocal(),
-         previews().geometry().rotation(),
-         previews().geometry().polyhedronLocalScale(),
-         previews().geometry().polyhedronWorldScale(),
-         previews().geometry().polyhedronGizmoLocal(),
-         previews().geometry().fillMode(),
-         view,
-         previews().geometry().selectedPointIndex()
-      );
+      return GeometryPreviewMode.workflow(previews().geometry(),
+         PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), view);
    }
 
    private static BlockPos buildingCandidatePoint(BuildingPreviewSnapshot snapshot, LocalPlayer player) {
@@ -1838,83 +1768,19 @@ public final class FastPlaceClientPreviewCore {
    }
 
    private static GeometryPreviewPlan geometryPreviewPlan(Vec3 view) {
+      return geometryPreviewModel(view).plan();
+   }
+
+   private static GeometryPreviewModel geometryPreviewModel(Vec3 view) {
       Minecraft minecraft = Minecraft.getInstance();
       LocalPlayer player = minecraft.player;
-      GeometryWorkflowView workflowView = geometryWorkflowView(view);
-      GeometryHit candidate = GeometryWorkflows.allows(workflowView, GeometryAction.CANDIDATE_INPUT)
-         ? geometryCandidateHit(minecraft, player)
-         : null;
+      GeometryWorkflowView workflow = geometryWorkflowView(view);
+      GeometryHit candidate = GeometryWorkflows.allows(workflow, GeometryAction.CANDIDATE_INPUT)
+         ? geometryCandidateHit(minecraft, player) : null;
       Vec3 eye = player == null ? Vec3.ZERO : player.getEyePosition();
-      BlockPos hoveredPoint = geometryPointUnderCrosshair();
-      GeometryPlanKey key = new GeometryPlanKey(
-         previews().geometryVersion(),
-         PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()),
-         eye,
-         view,
-         candidate,
-         hoveredPoint
-      );
-      if (!key.equals(cachedGeometryPlanKey)) {
-         cachedGeometryPlanKey = key;
-         try {
-            cachedGeometryPlan = GeometryWorkflows.previewPlan(
-               workflowView, previews().geometry().points(), hoveredPoint, candidate, eye
-            );
-         } catch (RuntimeException exception) {
-            logPreviewFailure("Unable to generate FastFormer geometry preview plan; using control points", exception);
-            cachedGeometryPlan = GeometryPreviewPlan.controlPoints(previews().geometry().points(), hoveredPoint);
-         }
-      }
-      GeometryPreviewPlan plan = cachedGeometryPlan;
-      AxisGizmo gizmo = hoveredGeometryGizmo(plan.gizmo(), view);
-      return gizmo == plan.gizmo() ? plan : plan.withGizmo(gizmo);
-   }
-
-   private static GeometryRenderLayers geometryRenderLayers() {
-      GeometryPreviewPlan source = cachedGeometryPlan;
-      if (source == null) {
-         return GeometryRenderLayers.empty();
-      }
-      if (cachedGeometryRenderSource != source) {
-         Set<BlockPos> controlPoints = source.controlPoints()
-            .stream()
-            .map(ControlPoint::pos)
-            .collect(java.util.stream.Collectors.toUnmodifiableSet());
-         Set<BlockPos> pendingBlocks = source.pendingBlocks();
-         if (pendingBlocks.isEmpty()
-            && previews().geometry().mode() == GeometryMode.CONE_PRISM
-            && previews().geometry().conePlaneMode().stageFor(previews().geometry().points().size()) == ConePrismStage.BODY
-            && !PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession())) {
-            pendingBlocks = coneBasePreviewFallback();
-         }
-         cachedGeometryRenderSource = source;
-         cachedGeometryRenderLayers = new GeometryRenderLayers(
-            PreviewGeometrySupport.withoutBlocks(source.ghostBlocks(), controlPoints),
-            PreviewGeometrySupport.withoutBlocks(pendingBlocks, controlPoints)
-         );
-      }
-      return cachedGeometryRenderLayers;
-   }
-
-   private static Set<BlockPos> coneBasePreviewFallback() {
-      int facePointCount = Math.min(previews().geometry().pointLocations().size(), previews().geometry().conePlaneMode().facePointCount());
-      if (facePointCount < previews().geometry().conePlaneMode().facePointCount()) {
-         return Set.of();
-      }
-      List<Vec3> facePoints = List.copyOf(previews().geometry().pointLocations().subList(0, facePointCount));
-      ConePrismParameters parameters = new ConePrismParameters(
-         facePoints,
-         Optional.empty(),
-         previews().geometry().coneShapeVariant(),
-         previews().geometry().conePlaneMode(),
-         previews().geometry().coneRadius(),
-         previews().geometry().coneScaleX(),
-         previews().geometry().coneScaleZ(),
-         previews().geometry().coneTopScaleOffset(),
-         previews().geometry().coneTopOffset(),
-         previews().geometry().coneRotationRadians()
-      );
-      return ConePrismGenerator.baseOutline(parameters, 16_384);
+      var model = GEOMETRY_PREVIEW.buildModel(new GeometryPreviewInput(previews().geometry(), previews().geometryVersion(),
+         PointerDragSnapshotView.modifierHeld(FastPlaceClientInput.currentSession()), eye, view, candidate, geometryPointUnderCrosshair()));
+      return model.withGizmo(hoveredGeometryGizmo(model.plan().gizmo(), view));
    }
 
    private static BlockPos geometryCandidatePoint(Minecraft minecraft, LocalPlayer player) {
@@ -1976,36 +1842,14 @@ public final class FastPlaceClientPreviewCore {
          : limit;
    }
 
-   private static void renderGeometryControlPoints(PoseStack poseStack, BufferSource buffers, Vec3 camera, GeometryPreviewPlan plan) {
-      renderControlPoints(poseStack, buffers, camera, plan.controlPoints());
-   }
-
-   static void renderControlPoints(PoseStack poseStack, BufferSource buffers, Vec3 camera, List<ControlPoint> points) {
-      new io.github.fastformer.client.controlpoint.ControlPointRenderer(
-         1.0F, pendingGridDashOffset(), SELECTION_DASH_LENGTH
-      ).render(poseStack, buffers, camera, points);
-   }
-
    private static long renderedThemeRevision = -1;
-
-   private static void renderAlternatingDashedLine(
-      PoseStack poseStack, VertexConsumer consumer, Vec3 from, Vec3 to, float alpha, double offset
-   ) {
-      GuideRenderer.renderAlternatingDashedLine(
-         poseStack, consumer, from, to, alpha, offset, SELECTION_DASH_LENGTH, 1.0F
-      );
-   }
 
    public static void clearWorldRenderState() {
       geometryTransformBaseline = null;
       OPERATION_FACE_INTERPOLATOR.reset();
       QUICK_SHAPE_PREVIEW.clear();
       PreviewRenderResources.clearShells();
-      cachedGeometryPlanKey = null;
-      cachedGeometryPlan = null;
-      cachedGeometryRenderSource = null;
-      cachedGeometryRenderLayers = GeometryRenderLayers.empty();
-      PreviewRenderResources.clearMeshes();
+      GEOMETRY_PREVIEW.clear();
       SmoothReticlePostEffect.reset();
       smoothReticleFrame = false;
    }
@@ -2045,100 +1889,6 @@ public final class FastPlaceClientPreviewCore {
          : placement ? pointer.placement(player) : pointer.outline(player);
    }
 
-   private static void renderConfirmedBlocks(PoseStack poseStack, BufferSource buffers, Vec3 camera, Set<BlockPos> blocks) {
-      if (blocks.isEmpty()) {
-         return;
-      }
-      boolean renderFaces = blocks.size() <= CONFIRMED_FACE_BLOCK_LIMIT;
-      GhostMesh mesh = renderFaces ? CONFIRMED_GHOST_CACHE.mesh(blocks) : CONFIRMED_OUTLINE_CACHE.mesh(blocks);
-      float faceAlpha = PreviewStyle.FACE_ALPHA;
-      float outlineAlpha = PreviewStyle.OUTLINE_ALPHA;
-      if (renderFaces) {
-         renderGhostFaces(poseStack, buffers.getBuffer(GHOST_FACES), camera, mesh.faces(), inkRed(), inkGreen(), inkBlue(), faceAlpha);
-         buffers.endBatch(GHOST_FACES);
-      }
-      renderGhostOutline(poseStack, buffers.getBuffer(GHOST_OUTLINE_LINES), camera, mesh.edges(), GeometryPalette.confirmedOutline().red(), GeometryPalette.confirmedOutline().green(), GeometryPalette.confirmedOutline().blue(), outlineAlpha);
-      buffers.endBatch(GHOST_OUTLINE_LINES);
-   }
-
-   private static void renderPendingBlocks(
-      PoseStack poseStack,
-      BufferSource buffers,
-      Vec3 camera,
-      Matrix4f eventModelView,
-      Matrix4f projectionMatrix,
-      Set<BlockPos> blocks
-   ) {
-      if (blocks.isEmpty()) {
-         PENDING_GHOST_CACHE.clearPreview();
-         PENDING_GHOST_BUFFER_CACHE.clear();
-         return;
-      }
-      PendingGhostMesh mesh = PENDING_GHOST_CACHE.mesh(blocks);
-      if (GeometryPalette.humanist()) {
-         renderPendingFallback(poseStack, buffers, camera, mesh);
-         return;
-      }
-      VertexBuffer buffer = PENDING_GHOST_BUFFER_CACHE.buffer(mesh);
-      if (buffer == null) return;
-      if (FastPlaceClientShaders.pendingDashedLines() == null) {
-         renderPendingFallback(poseStack, buffers, camera, mesh);
-         return;
-      }
-      Matrix4f modelView = new Matrix4f(eventModelView).translate((float)-camera.x, (float)-camera.y, (float)-camera.z);
-      float candidateAlpha = io.github.fastformer.client.render.theme.VisualThemes.value("candidate_alpha", 0.8F);
-      renderPendingBuffer(buffer, PENDING_DASHED_XRAY_LINES, modelView, projectionMatrix, candidateAlpha);
-      renderPendingBuffer(buffer, PENDING_DASHED_LINES, modelView, projectionMatrix, candidateAlpha);
-   }
-
-   private static void renderPendingFallback(
-      PoseStack poseStack, BufferSource buffers, Vec3 camera, PendingGhostMesh mesh
-   ) {
-      double offset = pendingGridDashOffset();
-      poseStack.pushPose();
-      poseStack.translate(-camera.x, -camera.y, -camera.z);
-      VertexConsumer xray = buffers.getBuffer(DYNAMIC_XRAY_LINES);
-      for (PendingPreviewGrid.Segment edge : mesh.gridEdges()) {
-         Vec3 from = new Vec3(edge.from().x(), edge.from().y(), edge.from().z());
-         Vec3 to = new Vec3(edge.to().x(), edge.to().y(), edge.to().z());
-         renderAlternatingDashedLine(poseStack, xray, from, to, PENDING_GRID_ALPHA, offset);
-      }
-      buffers.endBatch(DYNAMIC_XRAY_LINES);
-      VertexConsumer visible = buffers.getBuffer(DYNAMIC_LINES);
-      for (PendingPreviewGrid.Segment edge : mesh.gridEdges()) {
-         Vec3 from = new Vec3(edge.from().x(), edge.from().y(), edge.from().z());
-         Vec3 to = new Vec3(edge.to().x(), edge.to().y(), edge.to().z());
-         renderAlternatingDashedLine(poseStack, visible, from, to, PENDING_GRID_ALPHA, offset);
-      }
-      poseStack.popPose();
-      buffers.endBatch(DYNAMIC_LINES);
-   }
-
-   private static void renderPendingBuffer(
-      VertexBuffer buffer,
-      RenderType renderType,
-      Matrix4f modelView,
-      Matrix4f projectionMatrix,
-      float alpha
-   ) {
-      ShaderInstance shader = FastPlaceClientShaders.pendingDashedLines();
-      if (shader == null) {
-         return;
-      }
-      renderType.setupRenderState();
-      try {
-         FastPlaceClientShaders.setPendingDashOffset((float)pendingGridDashOffset());
-         RenderSystem.setShaderColor(inkRed(), inkGreen(), inkBlue(), alpha);
-         buffer.bind();
-         HaloLineRenderType.drawUnder(renderType, buffer, modelView, projectionMatrix);
-         buffer.drawWithShader(modelView, projectionMatrix, shader);
-         VertexBuffer.unbind();
-      } finally {
-         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-         renderType.clearRenderState();
-      }
-   }
-
    static double pendingGridDashOffset() {
       return io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation()
          .dashOffset(PENDING_DASH_SPEED, SELECTION_DASH_PERIOD);
@@ -2147,62 +1897,6 @@ public final class FastPlaceClientPreviewCore {
    static float ghostBreathPulse() {
       return io.github.fastformer.client.preview.frame.ClientPreviewFrameSystem.animation()
          .breathPulse(GHOST_BREATH_PERIOD_NANOS);
-   }
-
-   private static void renderGhostOutline(
-      PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GhostEdge> edges, float red, float green, float blue, float alpha
-   ) {
-      poseStack.pushPose();
-      poseStack.translate(-camera.x, -camera.y, -camera.z);
-      for (GhostEdge edge : edges) {
-         io.github.fastformer.client.render.geometry.PencilStroke.draw(
-            poseStack,
-            consumer,
-            GhostOutlineDepthBias.towardCamera(edge.from().vec3(), camera, GHOST_OUTLINE_CAMERA_BIAS),
-            GhostOutlineDepthBias.towardCamera(edge.to().vec3(), camera, GHOST_OUTLINE_CAMERA_BIAS),
-            red,
-            green,
-            blue,
-            alpha, false
-         );
-      }
-      poseStack.popPose();
-   }
-
-   private static void renderGhostFaces(
-      PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GhostQuad> faces, float red, float green, float blue, float alpha
-   ) {
-      poseStack.pushPose();
-      poseStack.translate(-camera.x, -camera.y, -camera.z);
-      for (GhostQuad face : faces) {
-         renderGhostFace(poseStack, consumer, face, red, green, blue, alpha);
-      }
-      poseStack.popPose();
-   }
-
-   private static void renderGhostFace(
-      PoseStack poseStack, VertexConsumer consumer, GhostQuad face, float red, float green, float blue, float alpha
-   ) {
-      Vec3 normal = Vec3.atLowerCornerOf(face.direction().getNormal()).scale(GHOST_FACE_OFFSET);
-      double x0 = face.x0() + normal.x;
-      double y0 = face.y0() + normal.y;
-      double z0 = face.z0() + normal.z;
-      double x1 = face.x1() + normal.x;
-      double y1 = face.y1() + normal.y;
-      double z1 = face.z1() + normal.z;
-      switch (face.direction()) {
-         case DOWN, UP -> io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y0, z1), new Vec3(x0, y0, z1), red, green, blue, alpha);
-         case NORTH, SOUTH -> io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x1, y0, z0), new Vec3(x1, y1, z0), new Vec3(x0, y1, z0), red, green, blue, alpha);
-         case WEST, EAST -> io.github.fastformer.client.render.geometry.PreviewQuads.write(poseStack, consumer, new Vec3(x0, y0, z0), new Vec3(x0, y0, z1), new Vec3(x0, y1, z1), new Vec3(x0, y1, z0), red, green, blue, alpha);
-      }
-   }
-
-   static void renderGuidePlaneGrid(PoseStack poseStack, VertexConsumer lineConsumer, Vec3 camera, List<GuidePlane> planes) {
-      GuideRenderer.renderGeometryPlanes(poseStack, lineConsumer, camera, planes, 1.0F);
-   }
-
-   static void renderGuideLines(PoseStack poseStack, VertexConsumer consumer, Vec3 camera, List<GuideLine> lines) {
-      GuideRenderer.renderGeometryLines(poseStack, consumer, camera, lines, 1.0F);
    }
 
    private static QuickShapeMode selectedMode(BuildingPreviewSnapshot snapshot, QuickShapeStage stage) {
@@ -2268,53 +1962,6 @@ public final class FastPlaceClientPreviewCore {
 
    private static QuickShapeStage effectiveStage(BuildingPreviewSnapshot snapshot) {
       return QuickShapeStage.resolve(snapshot.points().size(), snapshot.faceMode(), snapshot.polygonClosed());
-   }
-
-   static VertexBuffer uploadPendingGrid(List<PendingPreviewGrid.Segment> edges) {
-      long estimatedBytes = (long)edges.size() * 2L * DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL.getVertexSize();
-      int initialCapacity = (int)Math.clamp(estimatedBytes, 256L, 16L * 1024L * 1024L);
-      try (ByteBufferBuilder bytes = new ByteBufferBuilder(initialCapacity)) {
-         BufferBuilder builder = new BufferBuilder(
-            bytes,
-            VertexFormat.Mode.LINES,
-            DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL
-         );
-         for (PendingPreviewGrid.Segment edge : edges) {
-            PendingPreviewGrid.Point from = edge.from();
-            PendingPreviewGrid.Point to = edge.to();
-            float dx = to.x() - from.x();
-            float dy = to.y() - from.y();
-            float dz = to.z() - from.z();
-            float length = Math.abs(dx) + Math.abs(dy) + Math.abs(dz);
-            if (length <= 0.0F) {
-               continue;
-            }
-            float inverseLength = 1.0F / length;
-            float nx = dx * inverseLength;
-            float ny = dy * inverseLength;
-            float nz = dz * inverseLength;
-            builder.addVertex(from.x(), from.y(), from.z())
-               .setUv(0.0F, 0.0F)
-               .setColor(1.0F, 1.0F, 1.0F, 1.0F)
-               .setNormal(nx, ny, nz);
-            builder.addVertex(to.x(), to.y(), to.z())
-               .setUv(length, 0.0F)
-               .setColor(1.0F, 1.0F, 1.0F, 1.0F)
-               .setNormal(nx, ny, nz);
-         }
-         MeshData data = builder.buildOrThrow();
-         VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
-         try {
-            buffer.bind();
-            buffer.upload(data);
-            VertexBuffer.unbind();
-            return buffer;
-         } catch (RuntimeException | Error exception) {
-            VertexBuffer.unbind();
-            buffer.close();
-            throw exception;
-         }
-      }
    }
 
    private static String keyName(KeyMapping mapping) {

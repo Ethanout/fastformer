@@ -97,6 +97,10 @@ abstract class VerifySourceLayout extends DefaultTask {
                     (dependencies =~ /io\.github\.fastformer\.client\.(?:render\.core\.|input\.|session\.ClientSessionSystem|preview\.frame\.ClientPreviewFrameSystem)/).find()) {
                 violations.add("Quick-shape previews must own caches and consume captured inputs: ${path}")
             }
+            if (main && packageName.startsWith('io.github.fastformer.client.preview.geometry') &&
+                    (dependencies =~ /io\.github\.fastformer\.client\.(?:render\.core\.|input\.|session\.|preview\.frame\.ClientPreviewFrameSystem)|Minecraft\.getInstance\s*\(/).find()) {
+                violations.add("Geometry previews must own resources and consume captured frame facts: ${path}")
+            }
             if (main && (text =~ /\bBoilClock\b/).find()) {
                 violations.add("Drawing animation must use the shared frame phase: ${path}")
             }
